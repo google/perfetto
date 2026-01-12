@@ -56,7 +56,6 @@ import {SwitchComponent, IfComponent} from './computed_column_components';
 import {AddColumnsSuggestionModal} from './add_columns_suggestion_modal';
 import {AddColumnsConfigurationModal} from './add_columns_configuration_modal';
 import {renderTypeSelector} from './modify_columns_utils';
-import {DraggableItem} from '../widgets';
 import {Icon} from '../../../../widgets/icon';
 
 // Re-export types for backwards compatibility
@@ -535,6 +534,7 @@ export class AddColumnsNode implements QueryNode {
         ? 'Configure Joined Columns'
         : 'Add Columns from Another Source',
       key: modalKey,
+      vAlign: 'TOP',
       className: 'pf-join-modal-wide',
       content: () => {
         return m('div', this.renderGuidedMode());
@@ -643,6 +643,7 @@ export class AddColumnsNode implements QueryNode {
     showModal({
       title: typeConfig.title,
       key: typeConfig.key,
+      vAlign: 'TOP',
       className:
         type === 'switch' || type === 'if'
           ? 'pf-computed-column-modal-wide'
@@ -754,6 +755,7 @@ export class AddColumnsNode implements QueryNode {
     showModal({
       title: 'Add Column from Args',
       key: modalKey,
+      vAlign: 'TOP',
       content: () => {
         const nameError = getColumnNameError();
         const hasMultipleArgSetIdCols = argSetIdCols.length > 1;
@@ -937,8 +939,10 @@ export class AddColumnsNode implements QueryNode {
   private renderAddedColumnsList(): m.Child {
     const hasConnectedNode = this.rightNode !== undefined;
     const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
+    const hasSelectedColumns =
+      this.state.selectedColumns && this.state.selectedColumns.length > 0;
 
-    if (!hasConnectedNode && !hasComputedColumns) {
+    if (!hasSelectedColumns && !hasComputedColumns) {
       return m(EmptyState, {
         title: 'No columns added yet. Use the buttons above to add columns.',
       });
@@ -946,16 +950,9 @@ export class AddColumnsNode implements QueryNode {
 
     const items: m.Child[] = [];
 
-    // Show individual joined columns
-    if (hasConnectedNode && this.state.selectedColumns) {
-      items.push(
-        m(
-          '.pf-add-columns-joined-list',
-          this.state.selectedColumns.map((colName, index) =>
-            this.renderJoinedColumn(colName, index),
-          ),
-        ),
-      );
+    // Show joined columns as a single row
+    if (hasConnectedNode && hasSelectedColumns) {
+      items.push(this.renderJoinedColumnsRow());
     }
 
     // Show computed columns
@@ -989,80 +986,51 @@ export class AddColumnsNode implements QueryNode {
     return m('.pf-added-columns-list', items);
   }
 
-  private renderJoinedColumn(colName: string, index: number): m.Child {
-    const alias = this.state.columnAliases?.get(colName);
-    const storedType = this.state.columnTypes?.get(colName);
-    const sourceCol = this.rightCols.find((col) => col.name === colName);
-
-    // Create ColumnInfo object for the type selector
-    const colInfo: ColumnInfo = {
-      name: colName,
-      column: sourceCol?.column ?? {name: colName},
-      type: storedType ?? sourceCol?.type ?? 'UNKNOWN',
-      checked: true,
-      alias,
-    };
-
-    const handleReorder = (from: number, to: number) => {
-      if (!this.state.selectedColumns) return;
-      const newSelectedColumns = [...this.state.selectedColumns];
-      const [removed] = newSelectedColumns.splice(from, 1);
-      newSelectedColumns.splice(to, 0, removed);
-      this.state.selectedColumns = newSelectedColumns;
-      this.state.onchange?.();
-    };
-
-    const handleTypeChange = (_index: number, newType: string) => {
-      if (!this.state.columnTypes) {
-        this.state.columnTypes = new Map();
-      }
-      this.state.columnTypes.set(colName, newType);
-      this.state.onchange?.();
-    };
-
-    const handleRemove = () => {
-      this.state.selectedColumns = this.state.selectedColumns?.filter(
-        (c) => c !== colName,
-      );
-      this.state.columnAliases?.delete(colName);
-      this.state.columnTypes?.delete(colName);
-      this.state.onchange?.();
-    };
+  private renderJoinedColumnsRow(): m.Child {
+    const count = this.state.selectedColumns?.length ?? 0;
+    const columnNames = (this.state.selectedColumns ?? [])
+      .map((colName) => {
+        const alias = this.state.columnAliases?.get(colName);
+        return alias || colName;
+      })
+      .join(', ');
 
     return m(
-      DraggableItem,
+      '.pf-exp-list-item',
       {
-        index,
-        onReorder: handleReorder,
+        tabindex: 0,
+        role: 'listitem',
       },
-      m('.pf-column-name', colName),
-      m(TextInput, {
-        oninput: (e: Event) => {
-          const inputValue = (e.target as HTMLInputElement).value;
-          if (!this.state.columnAliases) {
-            this.state.columnAliases = new Map();
-          }
-          if (inputValue.trim() === '') {
-            this.state.columnAliases.delete(colName);
-          } else {
-            this.state.columnAliases.set(colName, inputValue);
-          }
-          this.state.onchange?.();
-        },
-        placeholder: 'alias',
-        value: alias ?? '',
-      }),
-      renderTypeSelector(
-        colInfo,
-        index,
-        this.state.sqlModules,
-        handleTypeChange,
+      m(Icon, {icon: 'table_chart'}),
+      m(
+        '.pf-exp-list-item-info',
+        m(
+          '.pf-exp-list-item-name',
+          `${count} column${count === 1 ? '' : 's'} from source`,
+        ),
+        m('.pf-exp-list-item-description', columnNames),
       ),
-      m(Icon, {
-        icon: 'close',
-        className: 'pf-clickable',
-        onclick: handleRemove,
-      }),
+      m(
+        '.pf-exp-list-item-actions',
+        m(Button, {
+          label: 'Edit',
+          icon: 'edit',
+          variant: ButtonVariant.Outlined,
+          compact: true,
+          onclick: () => this.showJoinModal(),
+        }),
+        m(Button, {
+          icon: 'close',
+          compact: true,
+          onclick: () => {
+            this.state.selectedColumns = [];
+            this.state.columnAliases?.clear();
+            this.state.columnTypes?.clear();
+            this.state.onchange?.();
+          },
+          title: 'Remove all joined columns',
+        }),
+      ),
     );
   }
 

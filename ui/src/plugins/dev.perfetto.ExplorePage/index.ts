@@ -75,6 +75,7 @@ export default class implements PerfettoPlugin {
   private state: ExplorePageState = {
     rootNodes: [],
     nodeLayouts: new Map(),
+    labels: [],
   };
 
   // Track whether we've successfully loaded state from local storage
@@ -109,6 +110,12 @@ export default class implements PerfettoPlugin {
       // Load saved state from localStorage (preserves work across page refreshes)
       this.state = savedState;
       this.hasAttemptedStateLoad = true;
+      // Only mark as auto-initialized if the saved state has nodes
+      // This allows base JSON to load after a reload when state is empty,
+      // but prevents it from loading after manual "Clear all nodes" in the same session
+      if (savedState.rootNodes.length > 0) {
+        this.hasAutoInitialized = true;
+      }
     } else if (
       trace.plugins.getPlugin(SqlModulesPlugin).getSqlModules() !== undefined
     ) {
@@ -140,8 +147,8 @@ export default class implements PerfettoPlugin {
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
-      sortOrder: 21,
-      text: 'Explore',
+      sortOrder: 20,
+      text: 'Data Explorer',
       href: '#!/explore',
       icon: 'data_exploration',
     });

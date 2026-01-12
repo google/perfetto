@@ -99,7 +99,8 @@ export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: LayoutMap;
-  readonly labels?: ReadonlyArray<TextLabelData>;
+  readonly labels: ReadonlyArray<TextLabelData>;
+  readonly loadGeneration?: number;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: Position) => void;
@@ -116,7 +117,6 @@ export interface GraphAttrs {
   ) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
-  readonly onRecenterReady?: (recenter: () => void) => void;
 }
 
 // ========================================
@@ -457,22 +457,6 @@ function hasPrimaryInputPort(node: QueryNode): boolean {
   return singleNodeOperation(node.type);
 }
 
-// Find which visual port a parent node is connected to
-function getInputPort(child: QueryNode, parent: QueryNode): number {
-  if (child.primaryInput === parent) {
-    return 0;
-  }
-  if (child.secondaryInputs) {
-    const offset = hasPrimaryInputPort(child) ? 1 : 0;
-    for (const [index, node] of child.secondaryInputs.connections) {
-      if (node === parent) {
-        return index + offset;
-      }
-    }
-  }
-  return 0;
-}
-
 // Convert visual port to secondary input index (undefined means primary input)
 function toSecondaryIndex(
   node: QueryNode,
@@ -508,12 +492,34 @@ function buildConnections(
         continue;
       }
 
-      connections.push({
-        fromNode: qnode.nodeId,
-        fromPort: 0,
-        toNode: child.nodeId,
-        toPort: getInputPort(child, qnode),
-      });
+      // Check if this parent is connected to multiple ports on the child
+      // (e.g., Union node with same parent connected to Input 0 and Input 1)
+      const connectedPorts: number[] = [];
+
+      // Check primary input
+      if (child.primaryInput === qnode) {
+        connectedPorts.push(0);
+      }
+
+      // Check secondary inputs
+      if (child.secondaryInputs) {
+        const offset = hasPrimaryInputPort(child) ? 1 : 0;
+        for (const [index, node] of child.secondaryInputs.connections) {
+          if (node === qnode) {
+            connectedPorts.push(index + offset);
+          }
+        }
+      }
+
+      // Create a separate connection for each port
+      for (const toPort of connectedPorts) {
+        connections.push({
+          fromNode: qnode.nodeId,
+          fromPort: 0,
+          toNode: child.nodeId,
+          toPort: toPort,
+        });
+      }
     }
   }
 
@@ -569,8 +575,11 @@ function handleConnectionRemove(
     }
   }
 
+  // Convert visual port to secondary index for removal
+  const secondaryIndex = toSecondaryIndex(toNode, conn.toPort);
+
   // Use the helper function to cleanly remove the connection
-  removeConnection(fromNode, toNode);
+  removeConnection(fromNode, toNode, secondaryIndex);
 
   // Call the parent callback for any additional cleanup (e.g., state management)
   onConnectionRemove(fromNode, toNode, isSecondaryInput);
@@ -606,17 +615,16 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private labels: Label[] = [];
   private labelTexts: Map<string, string> = new Map();
   private editingLabels: Set<string> = new Set();
+  private previousLoadGeneration?: number;
 
   oninit(vnode: m.Vnode<GraphAttrs>) {
-    // Load initial labels from attrs if provided
-    if (vnode.attrs.labels) {
-      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
-    }
+    // Load initial labels from attrs
+    this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
   }
 
   onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
     // Only update labels if the reference changed (indicating external state update)
-    if (vnode.attrs.labels !== old.attrs.labels && vnode.attrs.labels) {
+    if (vnode.attrs.labels !== old.attrs.labels) {
       this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
     }
     return true;
@@ -775,6 +783,25 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
 
+    // Detect if loadGeneration has changed (indicates a load operation occurred)
+    const loadGenerationChanged =
+      attrs.loadGeneration !== undefined &&
+      attrs.loadGeneration !== this.previousLoadGeneration;
+
+    if (loadGenerationChanged) {
+      // Always sync previousLoadGeneration to prevent repeated detection
+      // This is critical - if we only update when nodes.length > 0, then when
+      // nodeGraphApi is initially null (causing empty nodes), we'd miss the update.
+      // Later panning would then trigger a late recenter causing infinite redraws.
+      this.previousLoadGeneration = attrs.loadGeneration;
+
+      if (nodes.length > 0) {
+        // Content was loaded - defer recenter to onReady callback
+        // We can't recenter immediately because NodeGraph hasn't rendered the new nodes yet
+        this.recenterRequired = true;
+      }
+    }
+
     // Perform auto-layout if nodeLayouts is empty and API is available
     if (
       !this.hasPerformedInitialLayout &&
@@ -822,13 +849,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
               this.nodeGraphApi.recenter();
               this.recenterRequired = false;
             }
-
-            // Expose recenter function to parent component
-            attrs.onRecenterReady?.(() => {
-              if (this.nodeGraphApi) {
-                this.nodeGraphApi.recenter();
-              }
-            });
           },
           multiselect: false,
           onNodeSelect: (nodeId: string) => {

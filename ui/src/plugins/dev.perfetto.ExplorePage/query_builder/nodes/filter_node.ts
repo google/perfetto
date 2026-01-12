@@ -41,6 +41,7 @@ import {Button, ButtonVariant} from '../../../../widgets/button';
 import {NodeDetailsMessage} from '../node_styling_widgets';
 import {Icons} from '../../../../base/semantic_icons';
 import {loadNodeDoc} from '../node_doc_loader';
+import {SqlValue} from '../../../../trace_processor/query_result';
 
 // Maximum length for truncated SQL display
 const SQL_TRUNCATE_LENGTH = 50;
@@ -316,9 +317,15 @@ export class FilterNode implements QueryNode {
                 enabled: filter.enabled,
               };
               // Add value if required
-              if (isValueRequired(newOp)) {
-                (updated as {value: string}).value =
-                  'value' in filter ? String(filter.value) : '';
+              if (isValueRequired(newOp) && 'value' in filter) {
+                // Extract single value (handle both single values and arrays)
+                const existingValue = filter.value;
+                const singleValue = Array.isArray(existingValue)
+                  ? existingValue[0]
+                  : existingValue;
+                if (singleValue !== undefined) {
+                  (updated as {value: SqlValue}).value = singleValue;
+                }
               }
               onUpdate(updated);
             }
@@ -374,6 +381,7 @@ export class FilterNode implements QueryNode {
     showModal({
       title: 'SQL Filter Expression',
       key: 'sql-expression-modal',
+      vAlign: 'TOP',
       content: () =>
         m(
           '.pf-filter-sql-editor',
@@ -543,6 +551,21 @@ export class FilterNode implements QueryNode {
    * @returns A FilterNodeState ready for construction
    */
   static deserializeState(state: FilterNodeState): FilterNodeState {
-    return {...state};
+    // Convert filter values from strings back to numbers when appropriate.
+    // This is needed because JSON serialization converts BigInt to string,
+    // and we want numeric values to be stored as numbers for proper filtering.
+    const filters = state.filters?.map((f): Partial<UIFilter> => {
+      if ('value' in f && typeof f.value === 'string') {
+        // Only convert single string values, not arrays (for 'in' / 'not in')
+        if (!Array.isArray(f.value)) {
+          const parsed = parseFilterValue(f.value);
+          if (parsed !== undefined && parsed !== f.value) {
+            return {...f, value: parsed} as Partial<UIFilter>;
+          }
+        }
+      }
+      return f;
+    });
+    return {...state, filters};
   }
 }

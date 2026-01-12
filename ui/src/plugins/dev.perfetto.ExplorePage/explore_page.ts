@@ -47,12 +47,12 @@ import {
   addConnection,
   removeConnection,
   notifyNextNodes,
+  captureAllChildConnections,
 } from './query_builder/graph_utils';
 import {
   showStateOverwriteWarning,
   showExportWarning,
 } from './query_builder/widgets';
-import {showExamplesModal} from './examples_modal';
 
 registerCoreNodes();
 
@@ -60,7 +60,7 @@ export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, {x: number; y: number}>;
-  labels?: Array<{
+  labels: Array<{
     id: string;
     x: number;
     y: number;
@@ -69,6 +69,7 @@ export interface ExplorePageState {
   }>;
   isExplorerCollapsed?: boolean;
   sidebarWidth?: number;
+  loadGeneration?: number; // Incremented each time content is loaded
 }
 
 interface ExplorePageAttrs {
@@ -89,7 +90,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
-  private recenterGraph?: () => void;
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -395,12 +395,14 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         });
       });
 
+      // Atomically update state with new nodes and incremented loadGeneration
       attrs.onStateUpdate((currentState) => ({
         ...currentState,
         rootNodes: newNodes, // Replace all nodes
         nodeLayouts: newNodeLayouts,
         selectedNode: newNodes[0], // Select the first node (slices)
         labels: [], // Clear labels
+        loadGeneration: (currentState.loadGeneration ?? 0) + 1,
       }));
     }
   }
@@ -427,7 +429,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       }
       const json = await response.text();
       const newState = deserializeState(json, attrs.trace, sqlModules);
-      attrs.onStateUpdate(newState);
+      // Atomically update state with incremented loadGeneration
+      attrs.onStateUpdate((currentState) => ({
+        ...newState,
+        loadGeneration: (currentState.loadGeneration ?? 0) + 1,
+      }));
     } catch (error) {
       console.error('Failed to load base page state:', error);
       // Silently fail - leave the page empty if JSON can't be loaded
@@ -645,43 +651,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   /**
-   * Finds which port a node is connected to in a child's secondary inputs.
-   * Returns undefined if not connected to any secondary input (i.e., connected to primary input).
-   *
-   * Example: If node B is connected to child C's secondary input at port 1, returns 1.
-   */
-  private findSecondaryInputPort(
-    child: QueryNode,
-    node: QueryNode,
-  ): number | undefined {
-    if (!child.secondaryInputs) return undefined;
-
-    for (const [port, inputNode] of child.secondaryInputs.connections) {
-      if (inputNode === node) {
-        return port;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Captures how the deleted node connected to each of its children.
-   * This information is needed to reconnect the parent with the same port semantics.
-   *
-   * Example:
-   *   A → B → C (primary)     =>  portIndex = undefined
-   *   A → B → D (secondary 1) =>  portIndex = 1
-   */
-  private captureChildConnections(
-    deletedNode: QueryNode,
-  ): Array<{child: QueryNode; portIndex: number | undefined}> {
-    return deletedNode.nextNodes.map((child) => ({
-      child,
-      portIndex: this.findSecondaryInputPort(child, deletedNode),
-    }));
-  }
-
-  /**
    * Gets the primary input parent of a node.
    * Returns undefined for:
    * - Source nodes (no inputs)
@@ -727,7 +696,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     // STEP 2: Capture graph structure BEFORE modification
     // We need to capture this info before removeConnection() clears the references
     const primaryParent = this.getPrimaryParent(node);
-    const childConnections = this.captureChildConnections(node);
+    const childConnections = captureAllChildConnections(node);
     const allInputs = getAllInputNodes(node); // Capture ALL parents (primary + secondary)
 
     // STEP 3: Remove the node from the graph
@@ -864,6 +833,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     const newRootNodes = Array.from(newRootNodesSet);
 
+    // STEP 5c: Remove the deleted node's layout from the map
+    // Now that we've transferred the layout to children/orphans, clean it up
+    updatedNodeLayouts.delete(node.nodeId);
+
     // STEP 6: Update selection if deleted node was selected
     const newSelectedNode =
       state.selectedNode === node ? undefined : state.selectedNode;
@@ -955,10 +928,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     await this.cleanupExistingNodes(state.rootNodes);
 
     const newState = deserializeState(json, trace, sqlModules);
-    onStateUpdate(newState);
-    // Request recenter after state update
-    // The actual recentering will happen in the next render cycle via onReady
-    this.recenterGraph?.();
+    // Atomically update state with incremented loadGeneration
+    // This ensures the Graph component sees the generation change in a single render
+    onStateUpdate((currentState) => ({
+      ...newState,
+      loadGeneration: (currentState.loadGeneration ?? 0) + 1,
+    }));
   }
 
   async handleImport(attrs: ExplorePageAttrs) {
@@ -970,9 +945,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       if (files && files.length > 0) {
         const file = files[0];
 
-        // Show warning modal after file is selected
-        const confirmed = await showStateOverwriteWarning();
-        if (!confirmed) return;
+        // Show warning modal after file is selected (only if canvas has nodes or labels)
+        if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
+          const confirmed = await showStateOverwriteWarning();
+          if (!confirmed) return;
+        }
 
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -1048,25 +1025,41 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
-  private async handleLoadExample(attrs: ExplorePageAttrs) {
-    const selectedExample = await showExamplesModal();
-    if (!selectedExample) return;
-
-    // Show warning modal after example is selected
-    const confirmed = await showStateOverwriteWarning();
-    if (!confirmed) return;
+  /**
+   * Centralized method to load JSON from a URL path.
+   * Handles confirmation, fetching, and error handling.
+   */
+  private async loadJsonFromPath(
+    attrs: ExplorePageAttrs,
+    jsonPath: string,
+    errorTitle: string = 'Failed to Load',
+  ): Promise<void> {
+    // Show warning modal before loading (only if canvas has nodes or labels)
+    if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
+      const confirmed = await showStateOverwriteWarning();
+      if (!confirmed) return;
+    }
 
     try {
-      const response = await fetch(assetSrc(selectedExample.jsonPath));
+      const response = await fetch(assetSrc(jsonPath));
       if (!response.ok) {
         throw new Error(
-          `Failed to load example: ${response.status} ${response.statusText}`,
+          `Failed to load: ${response.status} ${response.statusText}`,
         );
       }
       const json = await response.text();
       await this.loadStateFromJson(attrs, json);
     } catch (error) {
-      console.error('Failed to load example:', error);
+      console.error(`Failed to load from ${jsonPath}:`, error);
+      showModal({
+        title: errorTitle,
+        content: () =>
+          m(
+            'div',
+            `An error occurred while loading: ${error instanceof Error ? error.message : String(error)}`,
+          ),
+        buttons: [],
+      });
     }
   }
 
@@ -1182,6 +1175,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
         labels: state.labels,
+        loadGeneration: state.loadGeneration,
         isExplorerCollapsed: state.isExplorerCollapsed,
         sidebarWidth: state.sidebarWidth,
         onRootNodeCreated: (node) => {
@@ -1250,13 +1244,14 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onImport: () => this.handleImport(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
-        onLoadExample: () => this.handleLoadExample(wrappedAttrs),
         onLoadEmptyTemplate: async () => {
-          // Show warning modal before clearing
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
+          // Show warning modal before clearing (only if canvas has nodes or labels)
+          if (state.rootNodes.length > 0 || state.labels.length > 0) {
+            const confirmed = await showStateOverwriteWarning();
+            if (!confirmed) return;
+          }
 
-          // Clear all nodes for empty graph
+          // Clear all nodes for empty graph and increment loadGeneration
           wrappedAttrs.onStateUpdate((currentState) => {
             return {
               ...currentState,
@@ -1264,49 +1259,18 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               selectedNode: undefined,
               nodeLayouts: new Map(),
               labels: [],
+              loadGeneration: (currentState.loadGeneration ?? 0) + 1,
             };
           });
         },
-        onLoadLearningTemplate: async () => {
-          // Show warning modal before loading
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
-
-          try {
-            const response = await fetch(
-              assetSrc('assets/explore_page/examples/learning.json'),
-            );
-            if (response.ok) {
-              const json = await response.text();
-              await this.loadStateFromJson(wrappedAttrs, json);
-            } else {
-              showModal({
-                title: 'Failed to Load Template',
-                content: () =>
-                  m(
-                    'div',
-                    `Failed to load the learning template. Server returned status: ${response.status}`,
-                  ),
-                buttons: [],
-              });
-            }
-          } catch (error) {
-            console.error('Failed to load learning example:', error);
-            showModal({
-              title: 'Failed to Load Template',
-              content: () =>
-                m(
-                  'div',
-                  `An error occurred while loading the learning template: ${error instanceof Error ? error.message : String(error)}`,
-                ),
-              buttons: [],
-            });
-          }
-        },
+        onLoadExampleByPath: (jsonPath: string) =>
+          this.loadJsonFromPath(wrappedAttrs, jsonPath, 'Failed to Load'),
         onLoadExploreTemplate: async () => {
-          // Show warning modal before loading
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
+          // Show warning modal before loading (only if canvas has nodes or labels)
+          if (state.rootNodes.length > 0 || state.labels.length > 0) {
+            const confirmed = await showStateOverwriteWarning();
+            if (!confirmed) return;
+          }
 
           await this.createExploreGraph(wrappedAttrs);
         },
@@ -1324,9 +1288,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onRedo: () => this.handleRedo(attrs),
         canUndo: this.historyManager?.canUndo() ?? false,
         canRedo: this.historyManager?.canRedo() ?? false,
-        onRecenterReady: (recenter) => {
-          this.recenterGraph = recenter;
-        },
       }),
     );
   }

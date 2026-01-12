@@ -15,9 +15,8 @@
 import m from 'mithril';
 import {Card} from '../../../widgets/card';
 import {Icon} from '../../../widgets/icon';
-import {Keycap} from '../../../widgets/hotkey_glyphs';
 import {QueryNode} from '../query_node';
-import {nodeRegistry} from './node_registry';
+import {EXAMPLE_GRAPHS} from '../example_graphs';
 
 // Helper function for keyboard-accessible card interactions
 function createKeyboardHandler(callback: () => void) {
@@ -62,9 +61,8 @@ function renderTemplateCard(attrs: TemplateCardAttrs): m.Children {
 export interface NavigationSidePanelAttrs {
   readonly selectedNode?: QueryNode;
   readonly onAddSourceNode: (id: string) => void;
-  readonly onLoadLearningTemplate?: () => void;
+  readonly onLoadExampleByPath?: (jsonPath: string) => void;
   readonly onLoadExploreTemplate?: () => void;
-  readonly onLoadExample?: () => void;
   readonly onLoadEmptyTemplate?: () => void;
 }
 
@@ -76,78 +74,88 @@ export class NavigationSidePanel
 
     // Show template buttons when nothing is selected
     if (!attrs.selectedNode) {
+      // Top two cards: Clear graph and Preloaded tables
       results.push(
-        m('h4.pf-starting-section-title', 'Load a graph'),
         m(
-          '.pf-template-grid',
+          '.pf-top-cards',
           renderTemplateCard({
-            icon: 'school',
-            title: 'Learning',
-            description: 'Educational example',
-            ariaLabel: 'Start with learning template',
-            onClick: () => attrs.onLoadLearningTemplate?.(),
-          }),
-          renderTemplateCard({
-            icon: 'explore',
-            title: 'Preload useful tables',
-            description: 'Tailored for your trace data',
-            ariaLabel: 'Preload useful tables',
-            onClick: () => attrs.onLoadExploreTemplate?.(),
-          }),
-          renderTemplateCard({
-            icon: 'auto_stories',
-            title: 'Graphs',
-            description: 'Load a predefined graph',
-            ariaLabel: 'Load predefined graph',
-            onClick: () => attrs.onLoadExample?.(),
-          }),
-          renderTemplateCard({
-            icon: 'delete_sweep',
-            title: 'Clear Graph',
+            icon: 'draft',
+            title: 'New graph',
             description: 'Start with empty canvas',
-            ariaLabel: 'Clear graph',
+            ariaLabel: 'New graph',
             onClick: () => attrs.onLoadEmptyTemplate?.(),
           }),
+          renderTemplateCard({
+            icon: 'auto_fix_high',
+            title: 'Smart graph',
+            description: 'Tailored for your trace data',
+            ariaLabel: 'Smart graph',
+            onClick: () => attrs.onLoadExploreTemplate?.(),
+          }),
         ),
-        m('h4.pf-starting-section-title', 'Add source node'),
       );
+
+      // Tutorials section
+      results.push(
+        m('h4.pf-starting-section-title', 'Tutorials'),
+        m(
+          '.pf-tutorial-cards',
+          renderTemplateCard({
+            icon: 'school',
+            title: 'Graph 101',
+            description:
+              'Interactive tutorial covering node docking, filtering, adding nodes, and multi-child workflows',
+            ariaLabel: 'Start Graph 101 tutorial',
+            onClick: () =>
+              attrs.onLoadExampleByPath?.(
+                'assets/explore_page/examples/learning.json',
+              ),
+          }),
+          renderTemplateCard({
+            icon: 'join_inner',
+            title: 'Joins',
+            description:
+              'Learn how to combine data from multiple sources using joins',
+            ariaLabel: 'Start Joins tutorial',
+            onClick: () =>
+              attrs.onLoadExampleByPath?.(
+                'assets/explore_page/examples/joins_learning.json',
+              ),
+          }),
+          renderTemplateCard({
+            icon: 'schedule',
+            title: 'Time',
+            description:
+              'Learn how to filter and analyze data using time-based queries',
+            ariaLabel: 'Start Time tutorial',
+            onClick: () =>
+              attrs.onLoadExampleByPath?.(
+                'assets/explore_page/examples/time_learning.json',
+              ),
+          }),
+        ),
+      );
+
+      // Solutions section - filter out the Learning example since it's now Graph 101
+      const solutionExamples = EXAMPLE_GRAPHS.filter(
+        (example) => example.name !== 'Learning',
+      );
+
+      if (solutionExamples.length > 0) {
+        results.push(m('h4.pf-starting-section-title', 'Solutions'));
+        const solutionCards = solutionExamples.map((example) =>
+          renderTemplateCard({
+            icon: 'auto_stories',
+            title: example.name,
+            description: example.description,
+            ariaLabel: `Load ${example.name} example`,
+            onClick: () => attrs.onLoadExampleByPath?.(example.jsonPath),
+          }),
+        );
+        results.push(m('.pf-solution-cards', ...solutionCards));
+      }
     }
 
-    const sourceNodes = nodeRegistry
-      .list()
-      .filter(([_id, node]) => node.showOnLandingPage === true)
-      .map(([id, node]) => {
-        const name = node.name ?? 'Unnamed Source';
-        const description = node.description ?? '';
-        const icon = node.icon ?? '';
-        const hotkey =
-          node.hotkey && typeof node.hotkey === 'string'
-            ? node.hotkey.toUpperCase()
-            : undefined;
-
-        return m(
-          Card,
-          {
-            'interactive': true,
-            'onclick': () => attrs.onAddSourceNode(id),
-            'tabindex': 0,
-            'role': 'button',
-            'aria-label': `Add ${name} source`,
-            'className': 'pf-source-card',
-            'onkeydown': createKeyboardHandler(() => attrs.onAddSourceNode(id)),
-          },
-          m('.pf-source-card-clickable', m(Icon, {icon}), m('h3', name)),
-          m('p', description),
-          hotkey ? m('.pf-source-card-hotkey', m(Keycap, hotkey)) : null,
-        );
-      });
-
-    // Wrap source cards in horizontal container
-    const sourceCardsContainer = m(
-      '.pf-source-cards-horizontal',
-      ...sourceNodes,
-    );
-
-    return [...results, sourceCardsContainer];
+    return [...results];
   }
 }

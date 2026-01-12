@@ -13,8 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {findRef, toHTMLElement} from '../../base/dom_utils';
-import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
@@ -31,8 +29,9 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
+import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
-import {ResizeHandle} from '../../widgets/resize_handle';
+import {SplitPanel} from '../../widgets/split_panel';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
@@ -45,25 +44,27 @@ import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
 export interface QueryPageAttrs {
+  // The trace to run queries against.
   readonly trace: Trace;
+
+  // Current text displayed in the query editor.
   readonly editorText: string;
-  readonly executedQuery?: string;
+
+  // The results of the last executed query, if any.
   readonly queryResult?: QueryResponse;
 
+  // Whether a query is currently being executed.
+  readonly isLoading: boolean;
+
+  // Called when the content of the editor is updated.
   onEditorContentUpdate?(content: string): void;
 
+  // Called when the user requests to execute a query.
   onExecute?(query: string): void;
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private dataSource?: DataSource;
-  private editorHeight: number = 0;
-  private editorElement?: HTMLElement;
-
-  oncreate({dom}: m.VnodeDOM<QueryPageAttrs>) {
-    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
-    this.editorElement.style.height = '200px';
-  }
 
   onbeforeupdate(
     vnode: m.Vnode<QueryPageAttrs>,
@@ -80,17 +81,26 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
-    return m(
-      '.pf-query-page',
+    const {
+      isLoading,
+      editorText,
+      trace,
+      onEditorContentUpdate,
+      queryResult,
+      onExecute,
+    } = attrs;
+
+    const editorPanel = m('.pf-query-page__editor-panel', [
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
           m(Button, {
             label: 'Run Query',
             icon: 'play_arrow',
-            intent: Intent.Primary,
+            loading: isLoading,
+            intent: isLoading ? Intent.None : Intent.Primary,
             variant: ButtonVariant.Filled,
             onclick: () => {
-              attrs.onExecute?.(attrs.editorText);
+              attrs.onExecute?.(editorText);
             },
           }),
           m(
@@ -103,7 +113,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
           ),
           m(StackAuto), // The spacer pushes the following buttons to the right.
-          attrs.trace.isInternalUser &&
+          trace.isInternalUser &&
             m(Button, {
               icon: 'wand_stars',
               title:
@@ -114,7 +124,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               },
             }),
           m(CopyToClipboardButton, {
-            textToCopy: attrs.editorText,
+            textToCopy: editorText,
             title: 'Copy query to clipboard',
             label: 'Copy Query',
           }),
@@ -157,7 +167,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             ],
           ),
         ),
-      attrs.editorText.includes('"') &&
+      editorText.includes('"') &&
         m(
           Box,
           m(
@@ -169,33 +179,57 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           ),
         ),
       m(Editor, {
-        ref: 'editor',
         language: 'perfetto-sql',
-        text: attrs.editorText,
-        onUpdate: attrs.onEditorContentUpdate,
-        onExecute: attrs.onExecute,
+        text: editorText,
+        onUpdate: onEditorContentUpdate,
+        onExecute: onExecute,
       }),
-      m(ResizeHandle, {
-        onResize: (deltaPx: number) => {
-          this.editorHeight += deltaPx;
-          this.editorElement!.style.height = `${this.editorHeight}px`;
-        },
-        onResizeStart: () => {
-          this.editorHeight = this.editorElement!.clientHeight;
-        },
-      }),
-      this.dataSource &&
-        attrs.queryResult &&
-        this.renderQueryResult(attrs.trace, attrs.queryResult, this.dataSource),
-      m(QueryHistoryComponent, {
-        className: 'pf-query-page__history',
-        trace: attrs.trace,
-        runQuery: (query: string) => {
-          attrs.onExecute?.(query);
-        },
-        setQuery: (query: string) => {
-          attrs.onEditorContentUpdate?.(query);
-        },
+    ]);
+
+    const resultsPanel = m(
+      '.pf-query-page__results-panel',
+      this.dataSource && queryResult
+        ? this.renderQueryResult(trace, queryResult, this.dataSource)
+        : isLoading
+          ? m(EmptyState, {
+              title: 'Running query...',
+              icon: 'hourglass_empty',
+              fillHeight: true,
+            })
+          : m(EmptyState, {
+              title: 'Run a query to see results',
+              fillHeight: true,
+            }),
+    );
+
+    const historyPanel = m(QueryHistoryComponent, {
+      className: 'pf-query-page__history',
+      trace: trace,
+      runQuery: (query: string) => {
+        onExecute?.(query);
+      },
+      setQuery: (query: string) => {
+        onEditorContentUpdate?.(query);
+      },
+    });
+
+    const leftPanel = m(SplitPanel, {
+      direction: 'vertical',
+      initialSplit: {percent: 50},
+      minSize: 100,
+      firstPanel: editorPanel,
+      secondPanel: resultsPanel,
+    });
+
+    return m(
+      '.pf-query-page',
+      m(SplitPanel, {
+        direction: 'horizontal',
+        initialSplit: {pixels: 300},
+        controlledPanel: 'second',
+        minSize: 100,
+        firstPanel: leftPanel,
+        secondPanel: historyPanel,
       }),
     );
   }
@@ -260,7 +294,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           return m(DataGrid, {
             schema,
             rootSchema: 'data',
-            initialColumns: queryResult.columns.map((col) => ({field: col})),
+            initialColumns: queryResult.columns.map((col) => ({
+              id: col,
+              field: col,
+            })),
             className: 'pf-query-page__results',
             data: dataSource,
             showExportButton: true,

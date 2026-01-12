@@ -73,6 +73,7 @@ describe('HistoryManager', () => {
     const emptyState: ExplorePageState = {
       rootNodes: [],
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     historyManager.pushState(emptyState);
@@ -92,6 +93,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -105,6 +107,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -127,6 +130,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -134,6 +138,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map([[tableNode.nodeId, {x: 100, y: 100}]]),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -157,6 +162,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -165,6 +171,7 @@ describe('HistoryManager', () => {
       rootNodes: [tableNode],
       selectedNode: tableNode,
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -176,6 +183,7 @@ describe('HistoryManager', () => {
       rootNodes: [tableNode],
       selectedNode: aggNode,
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state3);
 
@@ -187,6 +195,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -199,6 +208,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -216,6 +226,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -228,6 +239,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -239,6 +251,7 @@ describe('HistoryManager', () => {
     const state3: ExplorePageState = {
       rootNodes: [],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state3);
 
@@ -263,6 +276,7 @@ describe('HistoryManager', () => {
       const state: ExplorePageState = {
         rootNodes: nodes,
         nodeLayouts: new Map(),
+        labels: [],
       };
       historyManager.pushState(state);
     }
@@ -298,6 +312,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -306,6 +321,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -344,6 +360,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -352,6 +369,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -360,6 +378,7 @@ describe('HistoryManager', () => {
     const state3: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state3);
 
@@ -397,6 +416,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -410,6 +430,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -430,7 +451,8 @@ describe('HistoryManager', () => {
     expect(redoneFilterNode.state.filters?.length ?? 0).toBe(1);
     const redoneFilter = redoneFilterNode.state.filters?.[0];
     if (redoneFilter && 'value' in redoneFilter) {
-      expect(redoneFilter.value).toBe('123');
+      // Numeric strings are converted to numbers during deserialization
+      expect(redoneFilter.value).toBe(123);
     }
   });
 
@@ -450,6 +472,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -463,6 +486,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -476,6 +500,7 @@ describe('HistoryManager', () => {
     const state3: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state3);
 
@@ -489,7 +514,8 @@ describe('HistoryManager', () => {
     expect(filterNode1.state.filters?.length ?? 0).toBe(1);
     const undoneFilter1 = filterNode1.state.filters?.[0];
     if (undoneFilter1 && 'value' in undoneFilter1) {
-      expect(undoneFilter1.value).toBe('123');
+      // Numeric strings are converted to numbers during deserialization
+      expect(undoneFilter1.value).toBe(123);
     }
 
     // Undo again: should have 0 filters
@@ -524,6 +550,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -535,6 +562,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -583,6 +611,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -590,6 +619,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode1],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -623,6 +653,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -631,6 +662,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -662,6 +694,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -673,6 +706,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state2);
 
@@ -686,6 +720,7 @@ describe('HistoryManager', () => {
     const state3: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state3);
 
@@ -704,6 +739,7 @@ describe('HistoryManager', () => {
     const state4: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state4);
 
@@ -756,6 +792,7 @@ describe('HistoryManager', () => {
     const state1: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
     };
     historyManager.pushState(state1);
 
@@ -776,6 +813,7 @@ describe('HistoryManager', () => {
     const state2: ExplorePageState = {
       rootNodes: [tableNode],
       nodeLayouts: new Map(),
+      labels: [],
       selectedNode: filterNode,
     };
     historyManager.pushState(state2);

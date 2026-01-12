@@ -92,7 +92,7 @@ message WindowOrientationListenerProto {
 message KeyguardServiceDelegateProto {
   optional bool showing = 1;
   optional bool occluded = 2;
-  optional bool secure = 3;
+  optional bool secure = 3 [deprecated = true];
   enum ScreenState {
     SCREEN_STATE_OFF = 0;
     SCREEN_STATE_TURNING_ON = 1;
@@ -107,6 +107,8 @@ message KeyguardServiceDelegateProto {
     INTERACTIVE_STATE_GOING_TO_SLEEP = 3;
   }
   optional InteractiveState interactive_state = 5;
+  optional bool sim_secure = 6;
+  optional bool trusted = 7;
 }
 
 message KeyguardControllerProto {

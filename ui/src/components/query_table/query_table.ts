@@ -88,9 +88,6 @@ interface QueryResultsTableAttrs {
   // tracks, navigating to slices, etc.
   readonly trace: Trace;
 
-  // The executed query to display above the table and made available to copy.
-  readonly query?: string;
-
   // If true, a loading indicator is shown.
   readonly isLoading?: boolean;
 
@@ -136,15 +133,15 @@ export class QueryResultsTable
   }
 
   view({attrs}: m.CVnode<QueryResultsTableAttrs>) {
-    const {resp, query, fillHeight, trace, isLoading, emptyState} = attrs;
+    const {resp, fillHeight, trace, isLoading, emptyState} = attrs;
 
     return m(
       DetailsShell,
       {
         className: 'pf-query-table',
         title: this.renderTitle(isLoading, resp),
-        description: query,
-        buttons: this.renderButtons(trace, query, resp),
+        description: resp?.query,
+        buttons: this.renderButtons(trace, resp?.query, resp),
         fillHeight,
       },
       this.renderBody(trace, resp, isLoading, emptyState),
@@ -296,7 +293,7 @@ export class QueryResultsTable
     return m(DataGrid, {
       schema,
       rootSchema: 'data',
-      initialColumns: resp.columns.map((col) => ({field: col})),
+      initialColumns: resp.columns.map((col) => ({id: col, field: col})),
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
       fillHeight: true,
