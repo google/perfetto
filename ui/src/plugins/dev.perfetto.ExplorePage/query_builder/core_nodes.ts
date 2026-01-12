@@ -50,6 +50,10 @@ import {
   LimitAndOffsetNode,
   LimitAndOffsetNodeState,
 } from './nodes/limit_and_offset_node';
+import {
+  CounterToIntervalsNode,
+  CounterToIntervalsNodeState,
+} from './nodes/counter_to_intervals_node';
 import {Icons} from '../../../base/semantic_icons';
 
 export function registerCoreNodes() {
@@ -194,6 +198,16 @@ export function registerCoreNodes() {
     factory: (state) => {
       return new FilterDuringNode(state as FilterDuringNodeState);
     },
+  });
+
+  nodeRegistry.register('counter_to_intervals', {
+    name: 'Counter to Intervals',
+    description:
+      'Convert counter data (with ts but no dur) to interval data (with ts and dur).',
+    icon: 'show_chart',
+    type: 'modification',
+    factory: (state) =>
+      new CounterToIntervalsNode(state as CounterToIntervalsNodeState),
   });
 
   nodeRegistry.register('interval_intersect', {
