@@ -281,7 +281,7 @@ PerfettoCmd::UnlinkAndReturnPersistentTracesToUpload() {
 // static
 bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
   // We must do as little work as possible before setting
-  // "perfetto.persistent.uploader.status". The "traced" service will not start
+  // "perfetto.on_reboot.uploader". The "traced" service will not start
   // until this property is set to "1".
   //
   // A fallback mechanism exists in perfetto.rc to prevent indefinite wait:
@@ -289,11 +289,10 @@ bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
   // automatically be set to "1" once "sys.boot_completed=1".
   std::vector<base::ScopedFile> fds = UnlinkAndReturnPersistentTracesToUpload();
 
-  if (__system_property_set("perfetto.persistent.uploader.status", "1") != 0) {
+  if (__system_property_set("perfetto.on_reboot.uploader", "1") != 0) {
     // This should never happen, but if it does we are in trouble. In this case
     // just crash, we don't care about traces to be reported.
-    PERFETTO_FATAL(
-        "Failed to set property 'perfetto.persistent.uploader.status'");
+    PERFETTO_FATAL("Failed to set property 'perfetto.on_reboot.uploader'");
   }
 
   // Now we wait until boot completes to make sure Android reporter service is

@@ -52,6 +52,11 @@ service traced_probes /system/bin/traced_probes
     capabilities DAC_READ_SEARCH SYS_NICE
     shared_kallsyms
 
+# This service performs the following operations in sequence:
+# 1. open and unlink all the files in the "/data/misc/perfetto-traces/persistent" directory
+# 2. set the "perfetto.on_reboot.uploader" property to "1" to trigger the traced start
+# 3. wait for "sys.boot_completed=1"
+# 4. pass all traces opened in step 1 to the Android framework for uploading
 service post_reboot_persistent_traces_uploader /system/bin/perfetto --upload-after-reboot
     oneshot
     disabled
@@ -102,15 +107,16 @@ on property:persist.traced.enable=1
 
     stop traced_relay
 
+    # Perfetto boot process continues after this service set "perfetto.on_reboot.uploader" property to "1".
     start post_reboot_persistent_traces_uploader
 
-# This is a fallback.
+# If for some reason post_reboot_persistent_traces_uploader failed to set the state to "done"
+# we forcibly set it to "done" when the boot is completed, to start the traced
 on property:sys.boot_completed=1
-    setprop perfetto.persistent.uploader.status 1
+    setprop perfetto.on_reboot.uploader 1
 
-# TODO(ktimofeev): add a comment about possible states of 'perfetto.persistent.uploader.status'
-# and the two steps initialization 
-on property:persist.traced.enable=1 && property:perfetto.persistent.uploader.status=1
+# Perfetto boot process continues here.
+on property:persist.traced.enable=1 && property:perfetto.on_reboot.uploader=1
     start traced
     start traced_probes
 
