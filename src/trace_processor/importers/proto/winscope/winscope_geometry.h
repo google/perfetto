@@ -22,6 +22,9 @@
 
 namespace perfetto::trace_processor::winscope::geometry {
 
+// Equality function for double values.
+bool IsEqual(double a, double b);
+
 // Represents a corner of a 2D rect from a Winscope trace.
 struct Point {
   double x;

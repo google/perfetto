@@ -49,7 +49,6 @@ import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
 import {parseUrlCommands} from './command_manager';
-import {isStartupCommandAllowed} from './startup_command_allowlist';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
@@ -144,11 +143,10 @@ async function createEngine(
   if (app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
     useRpc = (await HttpRpcEngine.checkConnection()).connected;
   }
+
   const descriptorBlobs: Uint8Array[] = [];
-  if (app.extraParsingDescriptors.length > 0) {
-    for (const b64Str of app.extraParsingDescriptors) {
-      descriptorBlobs.push(base64Decode(b64Str));
-    }
+  for (const b64Str of await app.protoDescriptors()) {
+    descriptorBlobs.push(base64Decode(b64Str));
   }
   let engine;
   if (useRpc) {
@@ -225,7 +223,8 @@ async function loadTraceIntoEngine(
     assertTrue(engine instanceof HttpRpcEngine);
     await engine.restoreInitialTables();
   }
-  for (const p of app.extraSqlPackages) {
+
+  for (const p of await app.sqlPackages()) {
     await engine.registerSqlPackages(p);
   }
 
@@ -326,7 +325,7 @@ async function loadTraceIntoEngine(
 
     // Set allowlist checking during startup if enforcement enabled
     if (enforceAllowlist) {
-      app.commands.setAllowlistCheck(isStartupCommandAllowed);
+      app.commands.setExecutingStartupCommands(true);
     }
 
     try {
@@ -345,7 +344,7 @@ async function loadTraceIntoEngine(
       }
     } finally {
       // Always restore default (allow all) behavior when done
-      app.commands.setAllowlistCheck(() => true);
+      app.commands.setExecutingStartupCommands(false);
     }
   }
 

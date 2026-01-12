@@ -55,12 +55,17 @@ class FilterUtil {
   // filter_string_fields: an optional set of fields that should be treated as
   //     string fields which need to be filtered.
   //     Syntax: same as passthrough
+  // filter_string_semantic_types: an optional map from field name to semantic
+  //     type value. Fields in this map must also be in filter_string_fields.
+  //     Syntax: key is "perfetto.protos.MessageName:field_name",
+  //             value is the semantic type (uint32_t from SemanticType enum).
   bool LoadMessageDefinition(
       const std::string& proto_file,
       const std::string& root_message,
       const std::string& proto_dir_path,
       const std::set<std::string>& passthrough_fields = {},
-      const std::set<std::string>& filter_string_fields = {});
+      const std::set<std::string>& filter_string_fields = {},
+      const std::map<std::string, uint32_t>& filter_string_semantic_types = {});
 
   // Deduplicates leaf messages having the same sets of field ids.
   // It changes the internal state and affects the behavior of next calls to
@@ -71,7 +76,11 @@ class FilterUtil {
   // LoadMessageDefinition() using FilterBytecodeGenerator.
   // Returns the bytecode and optional v54 overlay (see FilterBytecodeGenerator
   // for details).
-  FilterBytecodeGenerator::SerializeResult GenerateFilterBytecode();
+  // |min_version| specifies the minimum bytecode parser version to target.
+  // Defaults to the latest version.
+  FilterBytecodeGenerator::SerializeResult GenerateFilterBytecode(
+      FilterBytecodeGenerator::BytecodeVersion min_version =
+          FilterBytecodeGenerator::BytecodeVersion::kLatest);
 
   // Prints the list of messages and fields onto stdout in a diff-friendly text
   // format. Example:
@@ -97,6 +106,10 @@ class FilterUtil {
       std::string name;
       std::string type;  // "uint32", "string", "message"
       bool filter_string;
+      // Semantic type for string fields that need filtering.
+      // 0 = unspecified/unset. Only meaningful when filter_string == true.
+      // Maps to TraceConfig.TraceFilter.SemanticType enum values.
+      uint32_t semantic_type = 0;
       // Only when type == "message". Note that when using Dedupe() this can
       // be aliased against a different submessage which happens to have the
       // same set of field ids.
@@ -124,11 +137,13 @@ class FilterUtil {
   std::list<Message> descriptors_;
   std::set<std::string> passthrough_fields_;
   std::set<std::string> filter_string_fields_;
+  std::map<std::string, uint32_t> filter_string_semantic_types_;
 
   // Used only for debugging aid, to print out an error message when the user
   // specifies a field to pass through but it doesn't exist.
   std::set<std::string> passthrough_fields_seen_;
   std::set<std::string> filter_string_fields_seen_;
+  std::set<std::string> filter_string_semantic_types_seen_;
 
   FILE* print_stream_ = stdout;
 };

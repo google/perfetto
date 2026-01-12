@@ -97,13 +97,6 @@ export interface ColumnDef {
 
   // Optional value formatter for this column, used when exporting data.
   readonly cellFormatter?: CellFormatter;
-
-  // Additional fields this column depends on for rendering.
-  // These fields will be included in queries and made available in the row
-  // parameter passed to cellRenderer, even if they're not visible columns.
-  // Use this for lineage tracking or other metadata fields.
-  // Example: id column depending on __groupid and __partition for clickable links
-  readonly dependsOn?: readonly string[];
 }
 
 /**
@@ -138,9 +131,6 @@ export interface ParameterizedColumnDef {
   readonly cellRenderer?: CellRenderer;
   readonly cellFormatter?: CellFormatter;
   readonly distinctValues?: boolean;
-
-  // Additional fields this column depends on for rendering.
-  readonly dependsOn?: readonly string[];
 }
 
 /**
@@ -213,7 +203,6 @@ export interface ColumnInfo {
   readonly columnType?: ColumnType;
   readonly cellRenderer?: CellRenderer;
   readonly cellFormatter?: CellFormatter;
-  readonly dependsOn?: readonly string[];
 }
 
 /**
@@ -285,7 +274,6 @@ export function getColumnInfo(
         columnType: entry.filterType,
         cellRenderer: entry.cellRenderer,
         cellFormatter: entry.cellFormatter,
-        dependsOn: entry.dependsOn,
       };
     } else if (isColumnDef(entry)) {
       // Leaf column - should be the last part of the path
@@ -297,7 +285,6 @@ export function getColumnInfo(
           columnType: entry.columnType,
           cellRenderer: entry.cellRenderer,
           cellFormatter: entry.cellFormatter,
-          dependsOn: entry.dependsOn,
         };
       }
       // Trying to navigate deeper into a leaf column - invalid

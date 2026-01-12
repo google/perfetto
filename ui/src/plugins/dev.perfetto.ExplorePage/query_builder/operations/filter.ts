@@ -619,12 +619,22 @@ export function formatFilterDetails(
           alignItems: 'center',
           gap: '4px',
         },
+        onpointerdown: (e: PointerEvent) => {
+          // Stop propagation to prevent node selection in the graph
+          e.preventDefault();
+          e.stopPropagation();
+        },
       },
       m(Chip, {
         label,
         rounded: true,
         removable: !!effectiveOnRemove,
         intent: isEnabled ? Intent.Primary : Intent.None,
+        onpointerdown: (e: PointerEvent) => {
+          // Stop propagation to prevent node selection in the graph
+          e.preventDefault();
+          e.stopPropagation();
+        },
         onclick: onFilterToggle
           ? (e: MouseEvent) => {
               e.preventDefault();

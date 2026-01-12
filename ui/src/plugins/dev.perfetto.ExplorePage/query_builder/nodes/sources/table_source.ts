@@ -68,6 +68,7 @@ export function modalForTableSelection(
     const updateModal = () => {
       showModal({
         key: 'table-selection-modal',
+        vAlign: 'TOP',
         title:
           selectedTables.size > 0
             ? `Choose tables - ${selectedTables.size} selected`
@@ -248,10 +249,7 @@ export class TableSourceNode implements QueryNode {
         m(
           '.pf-table-source-selected',
           m('h2', 'Selected Table'),
-          m(
-            '.pf-details-box',
-            m(TableDescription, {table: this.state.sqlTable}),
-          ),
+          m(TableDescription, {table: this.state.sqlTable}),
         ),
       );
     }

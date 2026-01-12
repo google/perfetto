@@ -41,7 +41,7 @@
   }
 
   &__title {
-    font-size: 18px;
+    font-size: var(--pf-font-size-xl);
     font-weight: 500;
     padding-bottom: 12px;
     padding-top: 24px;
@@ -93,14 +93,14 @@
 
   &__id {
     font-family: var(--pf-font-monospace);
-    font-size: 0.7em;
+    font-size: var(--pf-font-size-s);
     color: var(--pf-color-text-muted);
     word-break: break-all; // Allow breaking long flag IDs
     margin-top: 2px;
   }
 
   &__description {
-    font-size: smaller;
+    font-size: var(--pf-font-size-s);
     white-space: pre-line;
     margin-top: 10px;
   }

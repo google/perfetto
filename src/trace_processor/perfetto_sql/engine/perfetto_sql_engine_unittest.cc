@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -33,8 +32,7 @@ namespace {
 class PerfettoSqlEngineTest : public ::testing::Test {
  protected:
   StringPool pool_;
-  DataframeSharedStorage dataframe_shared_storage_;
-  PerfettoSqlEngine engine_{&pool_, &dataframe_shared_storage_, true};
+  PerfettoSqlEngine engine_{&pool_, true};
 };
 
 sql_modules::RegisteredPackage CreateTestPackage(
@@ -355,6 +353,40 @@ TEST_F(PerfettoSqlEngineTest, DelegatingFunction_Error_ReplaceRequired) {
       SqlSource::FromExecuteQuery("CREATE OR REPLACE PERFETTO FUNCTION "
                                   "test_func() RETURNS INT AS SELECT 44"));
   ASSERT_TRUE(res3.ok()) << res3.status().c_message();
+}
+
+TEST(SqlModulesTest, IsPackagePrefixOf) {
+  // Exact match
+  EXPECT_TRUE(sql_modules::IsPackagePrefixOf("foo", "foo"));
+  EXPECT_TRUE(sql_modules::IsPackagePrefixOf("foo.bar", "foo.bar"));
+
+  // Proper prefix (followed by dot)
+  EXPECT_TRUE(sql_modules::IsPackagePrefixOf("foo", "foo.bar"));
+  EXPECT_TRUE(sql_modules::IsPackagePrefixOf("foo.bar", "foo.bar.baz"));
+
+  // Not a prefix (no dot separator)
+  EXPECT_FALSE(sql_modules::IsPackagePrefixOf("foo", "foobar"));
+  EXPECT_FALSE(sql_modules::IsPackagePrefixOf("foo.bar", "foo.barbaz"));
+
+  // Prefix longer than string
+  EXPECT_FALSE(sql_modules::IsPackagePrefixOf("foo.bar", "foo"));
+  EXPECT_FALSE(sql_modules::IsPackagePrefixOf("foo.bar.baz", "foo.bar"));
+}
+
+TEST_F(PerfettoSqlEngineTest, FindPackageForModule_MultiLevel) {
+  // Register a multi-level package
+  engine_.RegisterPackage(
+      "foo.bar",
+      CreateTestPackage(
+          {{"foo.bar.baz", "CREATE PERFETTO TABLE t AS SELECT 1 AS x"}}));
+
+  // FindPackageForModule should find it
+  EXPECT_NE(engine_.FindPackageForModule("foo.bar.baz"), nullptr);
+  EXPECT_NE(engine_.FindPackageForModule("foo.bar.baz.qux"), nullptr);
+
+  // But not for unrelated modules
+  EXPECT_EQ(engine_.FindPackageForModule("foo.other"), nullptr);
+  EXPECT_EQ(engine_.FindPackageForModule("other.bar"), nullptr);
 }
 
 }  // namespace
