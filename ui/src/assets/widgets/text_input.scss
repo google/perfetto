@@ -22,7 +22,7 @@
   font-size: inherit;
   border-bottom: solid 1px var(--pf-color-border); // Thin underline
   background: none;
-  padding: 2px 0px;
+  padding: 2px 4px;
   transition:
     border $anim-timing,
     box-shadow $anim-timing,
@@ -42,13 +42,13 @@
     outline: none;
     border: none;
     background: none;
-    margin-inline: 2px;
     min-width: 0; // input elements have a default min-width, set to 0 to allow flexbox to work properly
   }
 
   &__left-icon {
     align-self: center;
     line-height: inherit;
+    margin-inline: 2px;
   }
 
   // Round only the top corners to avoid rounding the edges of the underline
