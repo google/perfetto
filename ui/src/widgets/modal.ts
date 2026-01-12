@@ -166,7 +166,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
           m(
             '.modal-title',
             attrs.icon && m(Icon, {icon: attrs.icon}),
-            m('h2', {id: 'mm-title'}, attrs.title),
+            m('h1', {id: 'mm-title'}, attrs.title),
           ),
           m(
             'button[aria-label=Close Modal]',

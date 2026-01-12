@@ -971,11 +971,13 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
     return base::OkStatus();
   }
 
-  std::string package_name = sql_modules::GetPackageName(key);
-
-  auto* package = FindPackage(package_name);
+  // Find the package that owns this module by looking for a package whose
+  // name is a prefix of the key. Multi-level package names are supported
+  // (e.g., package "android.camera" owns module "android.camera.jank").
+  auto* package = FindPackageForModule(key);
   if (!package) {
-    if (package_name == "common") {
+    std::string first_component = sql_modules::GetPackageName(key);
+    if (first_component == "common") {
       return base::ErrStatus(
           "INCLUDE: Package `common` has been removed and most of the "
           "functionality has been moved to other packages. Check "
@@ -1397,6 +1399,18 @@ void PerfettoSqlEngine::OnRollback() {
   for (auto* ctx : virtual_module_state_managers_) {
     ctx->OnRollback();
   }
+}
+
+sql_modules::RegisteredPackage* PerfettoSqlEngine::FindPackageForModule(
+    const std::string& key) {
+  // Find the package whose name is a prefix of the key. Due to prefix clash
+  // checking during registration, at most one package can match any given key.
+  for (auto pkg = packages_.GetIterator(); pkg; ++pkg) {
+    if (sql_modules::IsPackagePrefixOf(pkg.key(), key)) {
+      return &pkg.value();
+    }
+  }
+  return nullptr;
 }
 
 }  // namespace perfetto::trace_processor

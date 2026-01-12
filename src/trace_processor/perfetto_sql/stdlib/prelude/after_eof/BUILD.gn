@@ -24,7 +24,6 @@ perfetto_sql_source_set("after_eof") {
     "indexes.sql",
     "memory.sql",
     "slices.sql",
-    "tables_views.sql",
     "tracks.sql",
     "views.sql",
   ]
