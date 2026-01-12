@@ -54,6 +54,7 @@ using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::Property;
 using ::testing::SizeIs;
 
@@ -1492,6 +1493,47 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
   ASSERT_TRUE(ParseNotEmptyTraceFromFile(fpath, trace)) << fpath;
   ExpectTraceContainsTestMessages(trace, kMsgCount);
   ExpectTraceContainsTestMessagesWithSize(trace, kMsgSize);
+}
+
+TEST_F(PerfettoCmdlineTest, NoClobber) {
+  const std::string original_file_content = "Existing file";
+  const std::string output_file_path = RandomTraceFileName();
+  const std::string expected_error_message =
+      "Error: Output file '" + output_file_path +
+      "' already exists, refusing to overwrite due to '--no-clobber'.";
+  ScopedFileRemove remove_on_test_exit(output_file_path);
+  {
+    auto fd =
+        base::OpenFile(output_file_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    base::WriteAll(*fd, original_file_content.data(),
+                   original_file_content.size());
+  }
+
+  auto perfetto_proc_no_clobber = Exec(
+      "perfetto", {"--time", "1ms", "--no-clobber", "--out", output_file_path});
+
+  auto perfetto_proc =
+      Exec("perfetto", {"--time", "1ms", "--out", output_file_path});
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  // Assert that "perfetto --no-clobber" doesn't overwrite the output file.
+  ASSERT_EQ(1, perfetto_proc_no_clobber.Run(&stderr_)) << stderr_;
+  EXPECT_THAT(stderr_, HasSubstr(expected_error_message));
+  {
+    std::string file_content;
+    base::ReadFile(output_file_path, &file_content);
+    EXPECT_EQ(file_content, original_file_content);
+  }
+
+  // Assert regular invocation successfully overwrites a file.
+  ASSERT_EQ(0, perfetto_proc.Run(&stderr_)) << stderr_;
+  {
+    std::string file_content;
+    base::ReadFile(output_file_path, &file_content);
+    EXPECT_THAT(file_content, Not(IsEmpty()));
+    EXPECT_NE(file_content, original_file_content);
+  }
 }
 
 }  // namespace perfetto
