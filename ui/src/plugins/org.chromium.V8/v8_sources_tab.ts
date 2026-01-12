@@ -29,10 +29,11 @@ interface V8JsScript {
 const V8_JS_SCRIPT_SCHEMA_NAME = 'v8JsScript';
 const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
   [V8_JS_SCRIPT_SCHEMA_NAME]: {
-    table: 'v8_js_script',
+    table: 'v8_js_script_view',
     columns: {
       v8_js_script_id: {},
       name: {},
+      domain: {},
       script_type: {},
       source: {},
       v8_isolate_id: {},
@@ -81,7 +82,18 @@ export class V8SourcesTab implements Tab {
   }
 
   private async initialize() {
-    await this.trace.engine.query(`INCLUDE PERFETTO MODULE v8.jit;`);
+    await this.trace.engine.query(`
+      INCLUDE PERFETTO MODULE v8.jit;
+      CREATE VIEW IF NOT EXISTS v8_js_script_view AS
+      SELECT *,
+        CASE
+          WHEN name GLOB 'chrome://*' THEN 'chrome'
+          WHEN name GLOB 'v8/*' THEN 'v8'
+          WHEN name GLOB 'extensions::*' THEN 'extensions'
+          ELSE STR_SPLIT(name, '/', 2)
+        END AS domain
+      FROM v8_js_script;
+    `);
     this.isReady = true;
     m.redraw();
   }
@@ -212,6 +224,9 @@ export class V8SourcesTab implements Tab {
               url: String(row.name),
             });
           },
+        },
+        domain: {
+          title: 'Domain',
         },
         source: {
           title: 'Source',
