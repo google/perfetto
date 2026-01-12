@@ -279,7 +279,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           return m(DataGrid, {
             schema,
             rootSchema: 'data',
-            initialColumns: queryResult.columns.map((col) => ({field: col})),
+            initialColumns: queryResult.columns.map((col) => ({
+              id: col,
+              field: col,
+            })),
             className: 'pf-query-page__results',
             data: dataSource,
             showExportButton: true,

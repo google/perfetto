@@ -75,8 +75,6 @@ class TraceProcessorImpl : public TraceProcessor,
 
   base::Status RegisterSqlPackage(SqlPackage) override;
 
-  base::Status RegisterSqlModule(SqlModule module) override;
-
   // =================================================================
   // |  Trace-based metrics (v2) related functionality starts here   |
   // =================================================================

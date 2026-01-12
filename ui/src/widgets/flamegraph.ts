@@ -362,7 +362,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private canvasWidth = 0;
   private labelCharWidth = 0;
-  private canvasRect?: Rect2D;
+  private viewportRect?: Rect2D;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -409,8 +409,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           className: 'pf-virtual-canvas',
           overflowX: 'hidden',
           overflowY: 'auto',
-          onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
-            this.drawCanvas(ctx, virtualCanvasSize, canvasRect);
+          onscroll: () => {
+            // Trigger mithril redraw to update popup visibility
+          },
+          onCanvasRedraw: ({
+            ctx,
+            virtualCanvasSize,
+            canvasRect,
+            viewportRect,
+          }) => {
+            this.drawCanvas(ctx, virtualCanvasSize, canvasRect, viewportRect);
           },
         },
         m(
@@ -563,9 +571,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private drawCanvas(
     ctx: CanvasRenderingContext2D,
     size: Size2D,
-    rect: Rect2D,
+    canvasRect: Rect2D,
+    viewportRect: Rect2D,
   ) {
-    this.canvasRect = rect;
+    this.viewportRect = viewportRect;
     this.canvasWidth = size.width;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
@@ -592,8 +601,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       return;
     }
 
-    const yStart = rect.top;
-    const yEnd = rect.bottom;
+    const yStart = canvasRect.top;
+    const yEnd = canvasRect.bottom;
 
     const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
       this.attrs.data;
@@ -682,11 +691,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   }
 
   private isPopupAnchorVisible(): boolean {
-    if (!this.tooltipPos || !this.canvasRect) {
+    if (!this.tooltipPos || !this.viewportRect) {
       return false;
     }
     const {y} = this.tooltipPos;
-    return y >= this.canvasRect.top && y <= this.canvasRect.bottom;
+    return y >= this.viewportRect.top && y <= this.viewportRect.bottom;
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
@@ -1371,7 +1380,8 @@ function parseFilter(
 const PERCEIVED_BRIGHTNESS_LIMIT = 180;
 const WHITE_COLOR = new HSLColor([0, 0, 100]);
 const BLACK_COLOR = new HSLColor([0, 0, 0]);
-const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 62]);
+// Lightness 85 ensures even darken(10) stays above brightness threshold for black text
+const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 85]);
 
 function makeColorScheme(base: Color, variant: Color) {
   // Use the same text color for both base and variant to prevent text color
