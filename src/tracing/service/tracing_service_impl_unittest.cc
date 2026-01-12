@@ -70,6 +70,7 @@
 
 #include "protos/perfetto/common/semantic_type.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
+#include "protos/perfetto/trace/perfetto/trace_provenance.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -2394,10 +2395,11 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   // TraceUuid
   // Config
   // SystemInfo
+  // TraceProvenance
   // Tracing started (TracingServiceEvent)
   // All data source started (TracingServiceEvent)
   // Tracing disabled (TracingServiceEvent)
-  static const int kNumPreamblePackets = 9;
+  static const int kNumPreamblePackets = 10;
   static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
@@ -7877,6 +7879,67 @@ TEST_F(TracingServiceImplTest, NamedBufferMixedWithUnnamed) {
   producer->WaitForDataSourceStop("ds_1");
   producer->WaitForDataSourceStop("ds_2");
   consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, TraceProvenance) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  // Set up tracing session
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  consumer->EnableTracing(trace_config);
+
+  // Set up producer
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer_1");
+  producer->RegisterDataSource("data_source");
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  // Set up writers
+  std::unique_ptr<TraceWriter> writer_1 =
+      producer->CreateTraceWriter("data_source");
+  std::unique_ptr<TraceWriter> writer_2 =
+      producer->CreateTraceWriter("data_source");
+  task_runner.RunUntilIdle();  // Wait for the writers to be registered.
+
+  // Write some data
+  writer_1->NewTracePacket()->set_for_testing()->set_str("test_string_1");
+  writer_1->Flush();
+  writer_2->NewTracePacket()->set_for_testing()->set_str("test_string_2");
+  writer_2->Flush();
+
+  // Check trace provenance packet
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  auto packet = std::find_if(packets.cbegin(), packets.cend(),
+                             [](const protos::gen::TracePacket& p) {
+                               return p.has_trace_provenance();
+                             });
+  EXPECT_NE(packet, packets.cend());
+  EXPECT_THAT(
+      packet->trace_provenance(),
+      Property(
+          &protos::gen::TraceProvenance::buffers,
+          ElementsAre(Property(
+              &protos::gen::TraceProvenance::Buffer::sequences,
+              ElementsAre(
+                  AllOf(
+                      Property(&protos::gen::TraceProvenance::Sequence::id,
+                               Not(Eq(0u))),
+                      Property(
+                          &protos::gen::TraceProvenance::Sequence::producer_id,
+                          Not(Eq(0)))),
+                  AllOf(
+                      Property(&protos::gen::TraceProvenance::Sequence::id,
+                               Not(Eq(0u))),
+                      Property(
+                          &protos::gen::TraceProvenance::Sequence::producer_id,
+                          Not(Eq(0)))))))));
 }
 
 }  // namespace
