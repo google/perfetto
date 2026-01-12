@@ -418,7 +418,11 @@ export class JoinNode implements QueryNode {
               sql: this.state.sqlExpression,
               onUpdate: (text: string) => {
                 this.state.sqlExpression = text;
-                this.state.onchange?.();
+                m.redraw();
+              },
+              onExecute: (text: string) => {
+                this.state.sqlExpression = text.trim();
+                m.redraw();
               },
             }),
     });

@@ -165,6 +165,7 @@ been used and adopted widely in the wider industry by many other companies.
 The following is a non-exhaustive list of public mentions of Perfetto in blog
 posts, articles and videos:
 
+- [Diagnosing performance issues in .NET applications with dotnet-trace and Perfetto](https://dfamonteiro.com/posts/using-dotnet-trace-with-perfetto/)
 - [Google IO 2023 - What's new in Dart and Flutter](https://youtu.be/yRlwOdCK7Ho?t=798)
 - [Google IO 2023 - Debugging Jetpack Compose](https://youtu.be/Kp-aiSU8qCU?t=1092)
 - [Performance: Perfetto Traceviewer - MAD Skills](https://www.youtube.com/watch?v=phhLFicMacY)

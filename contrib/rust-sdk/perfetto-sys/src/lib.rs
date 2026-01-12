@@ -32,7 +32,11 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
 
+#[cfg(feature = "bindgen")]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+#[cfg(not(feature = "bindgen"))]
+include!("bindings.rs");
 
 #[cfg(test)]
 mod tests {

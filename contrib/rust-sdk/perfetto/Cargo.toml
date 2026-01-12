@@ -1,7 +1,7 @@
 [package]
 edition = "2024"
 name = "perfetto-sdk"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["David Reveman <dreveman@gmail.com>"]
 description = "Bindings for the Perfetto tracing framework"
 readme = "README.md"
@@ -32,3 +32,7 @@ path = "examples/track_event.rs"
 [[example]]
 name = "data_source"
 path = "examples/data_source.rs"
+
+[[example]]
+name = "tracing_session"
+path = "examples/tracing_session.rs"
