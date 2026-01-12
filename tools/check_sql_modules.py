@@ -48,6 +48,39 @@ PKG_CHROME = "chrome"
 PKG_ANDROID = "android"
 PKG_PRELUDE = "prelude"
 
+# Frozen set of allowed top-level public packages.
+#
+# This list is intentionally frozen to avoid namespace clashes with server
+# extensions which will increasingly add their own top-level packages.
+#
+# Historically, core trace processor functionality (e.g. intervals, graphs,
+# counters, slices) should have been placed under a 'std' top-level package,
+# but migration would be too disruptive. Instead, we freeze the current set
+# and require future core packages to be placed under 'std'.
+#
+# Platform-specific packages (e.g. 'android') may still be added as exceptions
+# since they are "closer to the platform" than core to Perfetto. Contact
+# lalitm@ for such exceptions.
+ALLOWED_TOPLEVEL_PUBLIC_PACKAGES = frozenset({
+    "android",
+    "appleos",
+    "chrome",
+    "counters",
+    "export",
+    "graphs",
+    "intervals",
+    "linux",
+    "pixel",
+    "pkvm",
+    "prelude",
+    "sched",
+    "slices",
+    "stacks",
+    "time",
+    "traced",
+    "v8",
+})
+
 
 @dataclass
 class ModuleInfo:
@@ -585,6 +618,52 @@ def check_nested_tag_parents(quiet: bool = False) -> int:
   return len(missing_parent_tags_by_module)
 
 
+def check_new_packages(modules: List[Tuple], quiet: bool = False) -> int:
+  """Check that no new top-level public packages have been added.
+
+  This check ensures that all top-level packages with public artifacts are
+  in the allowed list. New packages should be placed under the 'std' folder.
+
+  Args:
+    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
+    quiet: If True, suppress detailed output
+
+  Returns:
+    Number of disallowed new packages found.
+  """
+  # Find all packages with public artifacts
+  packages_with_public = set()
+
+  for _, _, module_name, parsed in modules:
+    if has_public_artifacts(parsed):
+      # Extract top-level package name
+      package = module_name.split('.')[0]
+      packages_with_public.add(package)
+
+  # Find packages not in the allowed list
+  disallowed_packages = packages_with_public - ALLOWED_TOPLEVEL_PUBLIC_PACKAGES
+
+  if not quiet:
+    if disallowed_packages:
+      print(f"\nFound {len(disallowed_packages)} disallowed new top-level "
+            f"public package(s):\n")
+      for pkg in sorted(disallowed_packages):
+        print(f"  - {pkg}")
+      print(
+          f"\nTop-level public packages are frozen to avoid namespace clashes "
+          f"with server extensions.")
+      print(
+          f"\nCore trace processor packages (like intervals, graphs, counters) "
+          f"should be placed under 'std' (e.g. std.{list(disallowed_packages)[0]})."
+      )
+      print(f"\nPlatform-specific packages (like 'android') may be excepted. "
+            f"Contact lalitm@ for exceptions.")
+    else:
+      print(f"\nNo disallowed new top-level public packages found!")
+
+  return len(disallowed_packages)
+
+
 def main() -> int:
   parser = argparse.ArgumentParser(
       description="Check stdlib modules for banned patterns and documentation")
@@ -618,6 +697,11 @@ def main() -> int:
       action='store_true',
       default=False,
       help='Check that all tags in MODULE_TAGS correspond to actual modules')
+  parser.add_argument(
+      '--check-new-packages',
+      action='store_true',
+      default=False,
+      help='Check that no new top-level public packages have been added')
 
   args = parser.parse_args()
 
@@ -721,7 +805,12 @@ def main() -> int:
   if args.check_orphaned_tags:
     orphaned_tag_errors = check_orphaned_tags(modules, quiet=not args.verbose)
 
-  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + invalid_tag_errors + nested_tag_errors
+  # Check for new top-level public packages if requested
+  new_package_errors = 0
+  if args.check_new_packages:
+    new_package_errors = check_new_packages(modules, quiet=not args.verbose)
+
+  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + invalid_tag_errors + nested_tag_errors + new_package_errors
   return 0 if not total_errors else 1
 
 

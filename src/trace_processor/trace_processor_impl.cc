@@ -706,14 +706,6 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
   return base::OkStatus();
 }
 
-base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule module) {
-  SqlPackage package;
-  package.name = std::move(module.name);
-  package.modules = std::move(module.files);
-  package.allow_override = module.allow_module_override;
-  return RegisterSqlPackage(package);
-}
-
 // =================================================================
 // |  Trace-based metrics (v2) related functionality starts here   |
 // =================================================================

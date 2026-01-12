@@ -40,12 +40,12 @@
     right: 10px;
     display: flex;
     align-items: center;
-    font-size: 20px;
+    font-size: var(--pf-font-size-xxl);
   }
 
   &__error-popup {
     width: 100px;
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     font-family: var(--pf-font-compact);
   }
 }
@@ -78,7 +78,7 @@
     grid-area: input;
     border: 0;
     padding: 0 10px;
-    font-size: 18px;
+    font-size: var(--pf-font-size-xl);
     font-family: inherit;
     color: inherit;
     background-color: transparent;
@@ -150,7 +150,7 @@
   &__stepthrough {
     grid-area: stepthrough;
     display: flex;
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     font-weight: 300;
     color: var(--pf-color-text-muted);
 

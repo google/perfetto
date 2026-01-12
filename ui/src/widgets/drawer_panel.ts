@@ -200,7 +200,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
 
     // Get active tab key (controlled or uncontrolled)
     const activeKey = isTabsMode
-      ? (activeTabKey ?? this.internalActiveTab ?? tabs[0].key)
+      ? activeTabKey ?? this.internalActiveTab ?? tabs[0].key
       : undefined;
 
     // Render tabs UI and drawer content based on mode

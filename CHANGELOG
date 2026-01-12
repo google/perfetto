@@ -9,6 +9,10 @@ Unreleased:
     * Added support for Firefox Profiler's preprocessed JSON format (used by
       Firefox Profiler's processed output with `stringArray` and separate column
       arrays).
+    * Removed deprecated `RegisterSqlModule()` C++ API (use `RegisterSqlPackage()`
+      instead) and `--add-sql-module`/`--override-sql-module` shell flags (use
+      `--add-sql-package`/`--override-sql-package` instead). These were
+      deprecated in v48.0.
     * Breaking change: Removed `stack_id` and `parent_stack_id`
       columns from the slice table. The `ancestor_slice_by_stack` and
       `descendant_slice_by_stack` table functions have been moved to the
