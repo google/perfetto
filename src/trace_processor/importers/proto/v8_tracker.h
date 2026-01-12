@@ -89,9 +89,8 @@ class V8Tracker {
                   IsolateId isolate_id,
                   const protos::pbzero::V8ICEvent::Decoder& ic_event);
 
-  tables::V8JsCodeTable::Id GetOrInsertJsCode(
-      IsolateId isolate_id,
-      uint64_t js_code_iid);
+  tables::V8JsCodeTable::Id GetOrInsertJsCode(IsolateId isolate_id,
+                                              uint64_t js_code_iid);
 
  private:
   struct JsFunctionHash {
