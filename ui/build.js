@@ -76,7 +76,7 @@ const pjoin = path.join;
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
 const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
-const LOCK_FILE = pjoin(ROOT_DIR, 'ui/watch.lock');
+const WATCH_LOCK_FILE = pjoin(ROOT_DIR, 'ui/watch.lock');
 
 const cfg = {
   minifyJs: '',
@@ -185,7 +185,7 @@ async function main() {
   cfg.testFilter = args.test_filter || '';
   cfg.watch = !!args.watch;
   if (cfg.watch) {
-    checkWatchLock();
+    prepareWatchLock();
   }
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
@@ -926,9 +926,9 @@ function mklink(src, dst) {
   fs.symlinkSync(src, dst);
 }
 
-function checkWatchLock() {
-  if (fs.existsSync(LOCK_FILE)) {
-    const oldPid = fs.readFileSync(LOCK_FILE).toString().trim();
+function prepareWatchLock() {
+  if (fs.existsSync(WATCH_LOCK_FILE)) {
+    const oldPid = fs.readFileSync(WATCH_LOCK_FILE, 'utf8').trim();
     let running = true;
     try {
       // Check if oldPid exists.
@@ -937,26 +937,25 @@ function checkWatchLock() {
       running = false;
     }
     if (running) {
-      console.error(`
-A build.js with --watch instance is already running (PID=${oldPid}).
-Please kill it before starting a new one.
-You can use: kill ${oldPid}`);
+      console.error(`Error: a build.js with --watch instance is already running (PID=${oldPid}).`);
       process.exit(1);
     } else {
       console.log(`Removing stale lock file for PID ${oldPid}`);
-      fs.unlinkSync(LOCK_FILE);
+      fs.unlinkSync(WATCH_LOCK_FILE);
     }
   }
-  fs.writeFileSync(LOCK_FILE, process.pid.toString());
+  fs.writeFileSync(WATCH_LOCK_FILE, process.pid.toString());
   process.on('exit', () => releaseWatchLock());
 }
 
 function releaseWatchLock() {
   try {
-    if (fs.existsSync(LOCK_FILE)) {
-      const pid = fs.readFileSync(LOCK_FILE).toString().trim();
+    if (fs.existsSync(WATCH_LOCK_FILE)) {
+      const pid = fs.readFileSync(WATCH_LOCK_FILE, 'utf8').trim();
       if (pid === process.pid.toString()) {
-        fs.unlinkSync(LOCK_FILE);
+        fs.unlinkSync(WATCH_LOCK_FILE);
+      } else {
+        console.warn(`Ignoring stale lock file PID ${pid}`)
       }
     }
   } catch (e) {
