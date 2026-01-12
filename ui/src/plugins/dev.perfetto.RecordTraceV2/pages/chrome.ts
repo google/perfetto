@@ -26,6 +26,7 @@ import {
   MultiSelectDiff,
   MultiSelectOption,
 } from '../../../widgets/multiselect';
+import {Chip} from '../../../widgets/chip';
 import {Result} from '../../../base/result';
 
 type ChromeCatFunction = () => Promise<Result<string[]>>;
@@ -145,7 +146,10 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private fetchedRuntimeCategories = false;
 
-  constructor(private chromeCategoryGetter: ChromeCatFunction, private groupToggles : Record<string, Toggle>) {
+  constructor(
+    private chromeCategoryGetter: ChromeCatFunction,
+    private groupToggles: Record<string, Toggle>,
+  ) {
     // Initialize first with the static list of builtin categories (in case
     // something goes wrong with the extension).
     this.initializeCategories(BUILTIN_CATEGORIES);
@@ -208,8 +212,8 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   render() {
-    const categoriesOptions : MultiSelectOption[] =[];
-    const slowCategoriesOptions : MultiSelectOption[] = [];
+    const categoriesOptions: MultiSelectOption[] = [];
+    const slowCategoriesOptions: MultiSelectOption[] = [];
     let includedCategoriesCount = 0;
     let includedSlowCategoriesCount = 0;
     for (const option of this.options) {
@@ -222,8 +226,9 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       }
     }
 
+    const activeCategories = Array.from(this.getIncludedCategories()).sort();
     return m(
-      'div.chrome-categories',
+      'div',
       {
         // This shouldn't be necessary in most cases. It's only needed:
         // 1. The first time the user installs the extension.
@@ -232,28 +237,43 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
       m(
-        Section,
-        {title: `Additional Categories (${includedCategoriesCount})`},
-        m(MultiSelect, {
-          options: categoriesOptions,
-          repeatCheckedItemsAtTop: false,
-          fixedSize: false,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
-          },
-        }),
+        'div.chrome-categories',
+        m(
+          Section,
+          {title: `Additional Categories (${includedCategoriesCount})`},
+          m(MultiSelect, {
+            options: categoriesOptions,
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
+            },
+          }),
+        ),
+        m(
+          Section,
+          {title: `High Overhead Categories (${includedSlowCategoriesCount})`},
+          m(MultiSelect, {
+            options: slowCategoriesOptions,
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
+            },
+          }),
+        ),
       ),
       m(
         Section,
-        {title: `High Overhead Categories (${includedSlowCategoriesCount})`},
-        m(MultiSelect, {
-          options: slowCategoriesOptions,
-          repeatCheckedItemsAtTop: false,
-          fixedSize: false,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
-          },
-        }),
+        {title: `All Active Categories (${activeCategories.length})`},
+        m(
+          'details',
+          m('summary', 'Show all included categories'),
+          m(
+            'div',
+            activeCategories.map((cat) => m(Chip, {label: cat})),
+          ),
+        ),
       ),
     );
   }
