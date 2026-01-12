@@ -225,10 +225,17 @@ class PerfettoSqlEngine {
     packages_.Insert(name, std::move(package));
   }
 
+  // Removes a SQL package.
+  void ErasePackage(const std::string& name) { packages_.Erase(name); }
+
   // Fetches registered SQL package.
   sql_modules::RegisteredPackage* FindPackage(const std::string& name) {
     return packages_.Find(name);
   }
+
+  // Finds a package that owns the given module key (i.e., whose name is a
+  // prefix of the key).
+  sql_modules::RegisteredPackage* FindPackageForModule(const std::string& key);
 
   // Returns the number of objects (tables, views, functions etc) registered
   // with SQLite.
