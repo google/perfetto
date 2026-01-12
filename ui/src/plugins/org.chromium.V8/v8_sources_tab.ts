@@ -1,8 +1,6 @@
 import m from 'mithril';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {
-  SchemaRegistry,
-} from '../../components/widgets/datagrid/datagrid_schema';
+import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import {Filter} from '../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
@@ -26,9 +24,9 @@ const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
     columns: {
       v8_js_script_id: {},
       name: {},
-      script_type: { },
+      script_type: {},
       source: {},
-      v8_isolate_id: { },
+      v8_isolate_id: {},
       script_size: {
         expression: (alias) => `LENGTH(${alias}.source)`,
       },
@@ -53,8 +51,8 @@ function formatByteValue(value: SqlValue): string {
 
 export class V8SourcesTab implements Tab {
   private currentTab = 'source';
-  private selectedScriptSource: string|undefined = undefined;
-  private selectedScriptDetails: Object|undefined = undefined;
+  private selectedScriptSource: string | undefined = undefined;
+  private selectedScriptDetails: Object | undefined = undefined;
   private trace: Trace;
   private dataSource: SQLDataSource;
   private filters: readonly Filter[] = [];
@@ -82,15 +80,16 @@ export class V8SourcesTab implements Tab {
 
   private async showSourceForScript(id: number) {
     const queryResult = await this.trace.engine.query(
-        `INCLUDE PERFETTO MODULE v8.jit;
-         select *, LENGTH(source) AS script_size FROM v8_js_script WHERE v8_js_script_id = ${id}`);
+      `INCLUDE PERFETTO MODULE v8.jit;
+         select *, LENGTH(source) AS script_size FROM v8_js_script WHERE v8_js_script_id = ${id}`,
+    );
     const it = queryResult.iter({
-       v8_js_script_id: NUM,
-        name: STR,
-        script_type: STR,
-        source: STR,
-        v8_isolate_id: NUM,
-        script_size: NUM,
+      v8_js_script_id: NUM,
+      name: STR,
+      script_type: STR,
+      source: STR,
+      v8_isolate_id: NUM,
+      script_size: NUM,
     });
     if (it.valid()) {
       this.selectedScriptSource = it.source as string;
@@ -101,17 +100,18 @@ export class V8SourcesTab implements Tab {
 
   filterScript(searchTerm: string) {
     if (searchTerm) {
-      this.filters = [{
-        field: 'name',
-        op: 'glob',
-        value: `*${searchTerm}*`,
-      }];
+      this.filters = [
+        {
+          field: 'name',
+          op: 'glob',
+          value: `*${searchTerm}*`,
+        },
+      ];
     } else {
       this.filters = [];
     }
     m.redraw();
   }
-
 
   private renderTabContent() {
     if (this.currentTab === 'source') {
@@ -126,13 +126,15 @@ export class V8SourcesTab implements Tab {
     if (this.selectedScriptDetails) {
       for (const [key, value] of Object.entries(this.selectedScriptDetails)) {
         if (key === 'source') continue;
-        scriptProperties.push(m(TreeNode, {
-          left: key,
-          right: String(value),
-        }));
+        scriptProperties.push(
+          m(TreeNode, {
+            left: key,
+            right: String(value),
+          }),
+        );
       }
     }
-   return m(Tree, scriptProperties);
+    return m(Tree, scriptProperties);
   }
 
   render() {
@@ -140,32 +142,31 @@ export class V8SourcesTab implements Tab {
       v8JsScript: {
         v8_js_script_id: {
           title: 'ID',
-          cellRenderer: (value : unknown, row: Row) => {
+          cellRenderer: (value: unknown, row: Row) => {
             return m(
-                  Anchor,
-                  {
-                    onclick: (e: Event) => {
-                      e.preventDefault();
-                      this.showSourceForScript(row.v8_js_script_id as number);
-                    },
-                  },
-                String(value));
+              Anchor,
+              {
+                onclick: (e: Event) => {
+                  e.preventDefault();
+                  this.showSourceForScript(row.v8_js_script_id as number);
+                },
+              },
+              String(value),
+            );
           },
         },
         name: {
           title: 'Name',
-          cellRenderer: (value : unknown, row: Row) => {
-            if (typeof value !== "string") {
+          cellRenderer: (value: unknown, row: Row) => {
+            if (typeof value !== 'string') {
               return undefined;
             }
-            if (!value.startsWith("http")) {
+            if (!value.startsWith('http')) {
               return String(value);
             }
-            return m(
-              CopyableLink,
-              {
-                url: String(row.name),
-              });
+            return m(CopyableLink, {
+              url: String(row.name),
+            });
           },
         },
         source: {
@@ -185,57 +186,55 @@ export class V8SourcesTab implements Tab {
     };
 
     if (!this.isReady) {
-      return m(
-          '.pf-v8-loading-container',
-          m(Spinner));
+      return m('.pf-v8-loading-container', m(Spinner));
     }
 
-    return m(
-        SplitPanel,
-        {
-          className: 'pf-v8-source-view',
-          direction: 'horizontal',
-          initialSplit: {pixels: 400},
-          controlledPanel: 'first',
-          firstPanel: m(
-              '.pf-script-list-pane',
-                        m(TextInput, {
-                          oninput: (e: Event) => {
-                            const searchTerm = (e.target as HTMLInputElement).value;
-                            this.filterScript(searchTerm);
-                          },
-                          placeholder: 'Search scripts',
-                          leftIcon: 'search',
-                        }),              m(DataGrid, {
-                data: this.dataSource,
-                schema: v8JsScriptUiSchema,
-                rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
-                filters: this.filters,
-                onFiltersChanged: (filters: readonly Filter[]) => {
-                  this.filters = filters;
-                  m.redraw();
-                },
-                initialColumns: [
-                  {field: 'v8_js_script_id', id: 'v8_js_script_id'},
-                  {field: 'script_size', id: 'script_size'},
-                  {field: 'name', id: 'name'},
-                ],
-              })),
-          secondPanel: m(
-              '.pf-v8-source-script-details',
-              m(TabStrip, {
-                tabs: [
-                  {key: 'source', title: 'Source'},
-                  {key: 'details', title: 'Details'},
-                ],
-                currentTabKey: this.currentTab,
-                onTabChange: (key) => {
-                  this.currentTab = key;
-                  m.redraw();
-                },
-              }),
-              m('.pf-tab-page', this.renderTabContent()),
-              ),
-        });
+    return m(SplitPanel, {
+      className: 'pf-v8-source-view',
+      direction: 'horizontal',
+      initialSplit: {pixels: 400},
+      controlledPanel: 'first',
+      firstPanel: m(
+        '.pf-script-list-pane',
+        m(TextInput, {
+          oninput: (e: Event) => {
+            const searchTerm = (e.target as HTMLInputElement).value;
+            this.filterScript(searchTerm);
+          },
+          placeholder: 'Search scripts',
+          leftIcon: 'search',
+        }),
+        m(DataGrid, {
+          data: this.dataSource,
+          schema: v8JsScriptUiSchema,
+          rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
+          filters: this.filters,
+          onFiltersChanged: (filters: readonly Filter[]) => {
+            this.filters = filters;
+            m.redraw();
+          },
+          initialColumns: [
+            {field: 'v8_js_script_id', id: 'v8_js_script_id'},
+            {field: 'script_size', id: 'script_size'},
+            {field: 'name', id: 'name'},
+          ],
+        }),
+      ),
+      secondPanel: m(
+        '.pf-v8-source-script-details',
+        m(TabStrip, {
+          tabs: [
+            {key: 'source', title: 'Source'},
+            {key: 'details', title: 'Details'},
+          ],
+          currentTabKey: this.currentTab,
+          onTabChange: (key) => {
+            this.currentTab = key;
+            m.redraw();
+          },
+        }),
+        m('.pf-tab-page', this.renderTabContent()),
+      ),
+    });
   }
 }

@@ -17,7 +17,7 @@ import {Transaction} from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {keymap} from '@codemirror/view';
 import {basicSetup, EditorView} from 'codemirror';
-import { javascript } from "@codemirror/lang-javascript";
+import {javascript} from '@codemirror/lang-javascript';
 import m from 'mithril';
 import {removeFalsyValues} from '../base/array_utils';
 import {assertUnreachable} from '../base/logging';
