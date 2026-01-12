@@ -23,6 +23,7 @@ permissions:
 jobs:
   merge-canary-to-stable:
     runs-on: ubuntu-latest
+    environment: stable
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
