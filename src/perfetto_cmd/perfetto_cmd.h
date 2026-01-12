@@ -179,8 +179,6 @@ class PerfettoCmd : public Consumer {
                                     bool unspecified_filed_value);
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);
-  void LogTriggerEvents(PerfettoTriggerAtom atom,
-                        const std::vector<std::string>& trigger_names);
 
   base::MaybeLockFreeTaskRunner task_runner_;
 

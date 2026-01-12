@@ -1814,14 +1814,6 @@ void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom,
                                      trigger_name);
 }
 
-void PerfettoCmd::LogTriggerEvents(
-    PerfettoTriggerAtom atom,
-    const std::vector<std::string>& trigger_names) {
-  if (!statsd_logging_)
-    return;
-  android_stats::MaybeLogTriggerEvents(atom, trigger_names);
-}
-
 int PERFETTO_EXPORT_ENTRYPOINT PerfettoCmdMain(int argc, char** argv) {
   perfetto::PerfettoCmd cmd;
   auto opt_res = cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);

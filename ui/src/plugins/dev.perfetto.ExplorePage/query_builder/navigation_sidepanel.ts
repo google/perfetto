@@ -112,7 +112,7 @@ export class NavigationSidePanel
               ),
           }),
           renderTemplateCard({
-            icon: 'school',
+            icon: 'join_inner',
             title: 'Joins',
             description:
               'Learn how to combine data from multiple sources using joins',
@@ -120,6 +120,17 @@ export class NavigationSidePanel
             onClick: () =>
               attrs.onLoadExampleByPath?.(
                 'assets/explore_page/examples/joins_learning.json',
+              ),
+          }),
+          renderTemplateCard({
+            icon: 'schedule',
+            title: 'Time',
+            description:
+              'Learn how to filter and analyze data using time-based queries',
+            ariaLabel: 'Start Time tutorial',
+            onClick: () =>
+              attrs.onLoadExampleByPath?.(
+                'assets/explore_page/examples/time_learning.json',
               ),
           }),
         ),

@@ -75,6 +75,7 @@ export default class implements PerfettoPlugin {
   private state: ExplorePageState = {
     rootNodes: [],
     nodeLayouts: new Map(),
+    labels: [],
   };
 
   // Track whether we've successfully loaded state from local storage
@@ -146,8 +147,8 @@ export default class implements PerfettoPlugin {
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
-      sortOrder: 21,
-      text: 'Explore',
+      sortOrder: 20,
+      text: 'Data Explorer',
       href: '#!/explore',
       icon: 'data_exploration',
     });

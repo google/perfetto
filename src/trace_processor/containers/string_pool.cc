@@ -22,6 +22,7 @@
 #include <memory>
 #include <utility>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 
@@ -38,15 +39,32 @@ StringPool::StringPool() {
 StringPool::Id StringPool::InsertString(base::StringView str) {
   // If the string is over `kMinLargeStringSizeBytes` in size, don't bother
   // adding it to a block, just put it in the large strings vector.
-  if (str.size() >= kMinLargeStringSizeBytes) {
+  if (PERFETTO_UNLIKELY(str.size() >= kMinLargeStringSizeBytes)) {
     return InsertLargeString(str);
   }
 
   // If the current block does not have enough space, go to the next block.
   uint8_t* max_pos = block_end_ptrs_[block_index_] + str.size() + kMetadataSize;
-  if (max_pos > blocks_[block_index_].get() + kBlockSizeBytes) {
-    blocks_[++block_index_] = std::make_unique<uint8_t[]>(kBlockSizeBytes);
-    block_end_ptrs_[block_index_] = blocks_[block_index_].get();
+  if (PERFETTO_UNLIKELY(max_pos >
+                        blocks_[block_index_].get() + kBlockSizeBytes)) {
+    uint32_t new_index = ++block_index_;
+    if (PERFETTO_UNLIKELY(new_index >= kMaxBlockCount)) {
+      PERFETTO_FATAL(
+          "StringPool exceeded maximum number of blocks. This means the bytes "
+          "consumed by of unique strings interned in the pool exceeded %u MB. "
+          "If your workload legitimately requires more unique strings, "
+          "please file a bug. For workarounds, consider turning off parsing "
+          "of raw ftrace events as this can generate a very large number of "
+          "unique strings. How you do this varies depending on how you are "
+          "using trace processor: 1) for the CLI, use the "
+          "--no-ftrace-raw flag; 2) for the Python API, set the "
+          "ingest_ftrace_in_raw flag to false in TraceProcessorConfig (this "
+          "is also the default) 3) for the C++ API, set the "
+          "ingest_ftrace_in_raw flag to false in TraceProcessorConfig.",
+          (kMaxBlockCount * kBlockSizeBytes) / (1024 * 1024));
+    }
+    blocks_[new_index] = std::make_unique<uint8_t[]>(kBlockSizeBytes);
+    block_end_ptrs_[new_index] = blocks_[new_index].get();
   }
 
   // Actually perform the insertion.
