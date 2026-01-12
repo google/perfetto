@@ -58,8 +58,11 @@ function formatByteValue(value: SqlValue): string {
   return `${converted.toFixed(2)} ${UNITS[unitIndex]}`;
 }
 
+const TAB_SOURCE = 'source';
+const TAB_DETAILS = 'details';
+
 export class V8SourcesTab implements Tab {
-  private currentTab = 'source';
+  private currentTab = TAB_SOURCE;
   private selectedScriptSource: string | undefined = undefined;
   private selectedScriptDetails: V8JsScript | undefined = undefined;
   private trace: Trace;
@@ -90,7 +93,9 @@ export class V8SourcesTab implements Tab {
   private async showSourceForScript(id: number) {
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
-         select *, LENGTH(source) AS script_size FROM v8_js_script WHERE v8_js_script_id = ${id}`,
+       SELECT *, LENGTH(source) AS script_size
+       FROM v8_js_script
+       WHERE v8_js_script_id = ${id}`,
     );
     const it = queryResult.iter({
       v8_js_script_id: NUM,
@@ -129,15 +134,15 @@ export class V8SourcesTab implements Tab {
     m.redraw();
   }
 
-  private renderTabContent() {
-    if (this.currentTab === 'source') {
-      return m(Editor, {
-        text: this.selectedScriptSource,
-        language: 'javascript',
-        readonly: true,
-      });
-    }
+  private renderSourceTab() {
+    return m(Editor, {
+      text: this.selectedScriptSource,
+      language: 'javascript',
+      readonly: true,
+    });
+  }
 
+  private renderDetailsTab() {
     if (!this.selectedScriptDetails) {
       return m('div', 'No script selected');
     }
@@ -167,6 +172,13 @@ export class V8SourcesTab implements Tab {
         right: formatByteValue(BigInt(this.selectedScriptDetails.script_size)),
       }),
     );
+  }
+
+  private renderTabContent() {
+    if (this.currentTab === TAB_SOURCE) {
+      return this.renderSourceTab();
+    }
+    return this.renderDetailsTab();
   }
 
   render() {
@@ -256,8 +268,8 @@ export class V8SourcesTab implements Tab {
         '.pf-v8-source-script-details',
         m(TabStrip, {
           tabs: [
-            {key: 'source', title: 'Source'},
-            {key: 'details', title: 'Details'},
+            {key: TAB_SOURCE, title: 'Source'},
+            {key: TAB_DETAILS, title: 'Details'},
           ],
           currentTabKey: this.currentTab,
           onTabChange: (key) => {
