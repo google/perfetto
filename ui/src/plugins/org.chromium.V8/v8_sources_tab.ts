@@ -1,4 +1,7 @@
 import m from 'mithril';
+import * as prettier from 'prettier/standalone';
+import * as babelPlugin from 'prettier/plugins/babel';
+import * as estreePlugin from 'prettier/plugins/estree';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import {Filter} from '../../components/widgets/datagrid/model';
@@ -6,6 +9,8 @@ import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {Trace} from '../../public/trace';
 import {Editor} from '../../widgets/editor';
+import {Button, ButtonVariant} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {TabStrip} from '../../widgets/tabs';
@@ -89,6 +94,8 @@ export class V8SourcesTab implements Tab {
   private functionsDataSource: SQLDataSource;
   private functionsFilters: readonly Filter[] = [];
   private isReady = false;
+  private formattedScriptSource: string | undefined = undefined;
+  private isPrettyPrinted = false;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -127,6 +134,8 @@ export class V8SourcesTab implements Tab {
   }
 
   private async showSourceForScript(id: number) {
+    this.formattedScriptSource = undefined;
+    this.isPrettyPrinted = false;
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
        SELECT *, LENGTH(source) AS script_size
@@ -177,12 +186,67 @@ export class V8SourcesTab implements Tab {
     m.redraw();
   }
 
+  private async togglePrettyPrint() {
+    if (this.isPrettyPrinted) {
+      this.isPrettyPrinted = false;
+    } else {
+      if (!this.formattedScriptSource && this.selectedScriptSource) {
+        try {
+          this.formattedScriptSource = await prettier.format(
+            this.selectedScriptSource,
+            {
+              parser: 'babel',
+              plugins: [babelPlugin, estreePlugin],
+            },
+          );
+        } catch (e) {
+          console.error('Pretty print failed', e);
+          // TODO(b/352226279): Show error to user.
+          return;
+        }
+      }
+      this.isPrettyPrinted = true;
+    }
+    m.redraw();
+  }
+
   private renderSourceTab() {
-    return m(Editor, {
-      text: this.selectedScriptSource,
-      language: 'javascript',
-      readonly: true,
-    });
+    const source = this.isPrettyPrinted
+      ? this.formattedScriptSource
+      : this.selectedScriptSource;
+    return m(
+      '.pf-v8-source-container',
+      {
+        style: {
+          position: 'relative',
+          height: '100%',
+        },
+      },
+      m(Editor, {
+        text: source,
+        language: 'javascript',
+        readonly: true,
+        fillHeight: true,
+      }),
+      m(
+        '.pf-v8-floating-toolbar',
+        {
+          style: {
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 10,
+          },
+        },
+        m(Button, {
+          label: '{}',
+          title: this.isPrettyPrinted ? 'Show Original' : 'Pretty Print',
+          variant: this.isPrettyPrinted ? ButtonVariant.Filled : ButtonVariant.Minimal,
+          active: this.isPrettyPrinted,
+          onclick: () => this.togglePrettyPrint(),
+        }),
+      ),
+    );
   }
 
   private renderDetailsTab() {
