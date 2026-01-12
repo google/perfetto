@@ -42,9 +42,8 @@ export function renderSplitPanel(): m.Children {
           m(SplitPanel, {
             key: `${opts.vertical}-${opts.pixels}-${opts.controlledPanel}`,
             direction: opts.vertical ? 'vertical' : 'horizontal',
-            split: opts.pixels
-              ? {pixels: splitValue, panel: opts.controlledPanel}
-              : {percent: splitValue, panel: opts.controlledPanel},
+            split: opts.pixels ? {pixels: splitValue} : {percent: splitValue},
+            controlledPanel: opts.controlledPanel,
             minSize: 50,
             onResize: (size) => {
               splitValue = size;

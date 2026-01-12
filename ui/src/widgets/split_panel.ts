@@ -15,63 +15,66 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 
-/** Split configuration - either percentage or fixed pixel mode */
-export type SplitConfig =
-  | {
-      readonly percent: number;
-      /** Which panel the percentage refers to (default: 'first') */
-      readonly panel?: 'first' | 'second';
-    }
-  | {
-      readonly pixels: number;
-      /** Which panel has the fixed pixel size */
-      readonly panel: 'first' | 'second';
-    };
+type SplitSizePixels = {
+  readonly pixels: number;
+};
+
+type SplitSizePercent = {
+  readonly percent: number;
+};
+
+// Split configuration - either percentage or fixed size in pixels.
+type SplitSize = SplitSizePixels | SplitSizePercent;
 
 export interface SplitPanelAttrs {
+  // Layout direction. Default is 'horizontal'.
   readonly direction?: 'horizontal' | 'vertical';
-  /**
-   * Controlled split configuration. When provided, the component will use this
-   * value directly and the parent must update it via onResize to see changes.
-   */
-  readonly split?: SplitConfig;
-  /**
-   * Initial split configuration for uncontrolled mode. Only read once in oninit.
-   * Ignored if `split` is provided.
-   */
-  readonly initialSplit?: SplitConfig;
-  /** Minimum size in pixels for each panel */
+
+  // Controls which panel has the controlled size. Default is 'first'.
+  readonly controlledPanel?: 'first' | 'second';
+
+  // Initial split configuration for uncontrolled mode. Only read once in
+  // oninit. Ignored if `split` is provided.
+  readonly initialSplit?: SplitSize;
+
+  // Controlled split configuration. When provided, the component will use this
+  // value directly and the parent must update it via onResize to see changes.
+  readonly split?: SplitSize;
+
+  // Minimum size in pixels for each panel
   readonly minSize?: number;
+
+  // Additional CSS class for the root element.
   readonly className?: string;
+
+  // Content for the first panel
   readonly firstPanel: m.Children;
+
+  // Content for the second panel
   readonly secondPanel: m.Children;
+
+  // Callback invoked when the user resizes a panel in both controlled and
+  // uncontrolled modes.
   readonly onResize?: (size: number) => void;
 }
 
-// Type guard for pixel mode
-function isPixelConfig(
-  split: SplitConfig,
-): split is {pixels: number; panel: 'first' | 'second'} {
-  return 'pixels' in split;
-}
-
 // Factory function to create SplitPanel instances with their own state
-export function SplitPanel(): m.Component<SplitPanelAttrs> {
+export function SplitPanel(
+  vnode: m.Vnode<SplitPanelAttrs>,
+): m.Component<SplitPanelAttrs> {
   // Internal state for uncontrolled mode
   let internalPercent = 50;
   let internalFixedPx = 150;
   let isResizing = false;
 
-  return {
-    oninit(vnode) {
-      const initial = vnode.attrs.initialSplit ?? {percent: 50};
-      if (isPixelConfig(initial)) {
-        internalFixedPx = initial.pixels;
-      } else if ('percent' in initial) {
-        internalPercent = initial.percent;
-      }
-    },
+  const initial = vnode.attrs.initialSplit ?? {percent: 50};
+  if ('pixels' in initial) {
+    internalFixedPx = initial.pixels;
+  } else if ('percent' in initial) {
+    internalPercent = initial.percent;
+  }
 
+  return {
     view(vnode) {
       const {
         direction = 'horizontal',
@@ -80,13 +83,14 @@ export function SplitPanel(): m.Component<SplitPanelAttrs> {
         initialSplit,
         firstPanel,
         secondPanel,
+        controlledPanel: panel,
       } = vnode.attrs;
 
       // Determine if we're in controlled or uncontrolled mode
       const isControlled = split !== undefined;
       const effectiveSplit = split ?? initialSplit ?? {percent: 50};
-      const isPixelMode = isPixelConfig(effectiveSplit);
-      const controlledPanel = effectiveSplit.panel ?? 'first';
+      const isPixelMode = 'pixels' in effectiveSplit;
+      const controlledPanel = panel ?? 'first';
 
       const containerClasses = classNames(
         'pf-split-panel',
