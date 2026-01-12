@@ -45,10 +45,10 @@ export function chromeRecordSection(
 
 function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
   const groupToggles = Object.fromEntries(
-    Object.keys(GROUPS).map((groupName) => [
+    Object.entries(GROUPS).map(([groupName, categories]) => [
       groupName,
       new Toggle({
-        title: groupName,
+        title: `${groupName} (${categories.length})`,
       }),
     ]),
   );
@@ -60,24 +60,14 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         'Not recommended unless you intend to share the trace' +
         ' with third-parties.',
     }),
-    categories: new ChromeCategoriesWidget(chromeCategoryGetter),
+    categories: new ChromeCategoriesWidget(chromeCategoryGetter, groupToggles),
   };
-  function getIncludedCategories(): Set<string> {
-    const cats = new Set<string>();
-    settings.categories.getEnabledCategories().forEach((c) => cats.add(c));
-    for (const [group, groupCats] of Object.entries(GROUPS)) {
-      if ((groupToggles[group] as Toggle).enabled) {
-        groupCats.forEach((c) => cats.add(c));
-      }
-    }
-    return cats;
-  }
   return {
     id: 'chrome_tracing',
     title: 'Chrome browser tracing',
     settings,
     genConfig: function (tc: TraceConfigBuilder) {
-      const cats = getIncludedCategories();
+      const cats = settings.categories.getIncludedCategories();
       const memoryInfra = cats.has('disabled-by-default-memory-infra');
       const jsonStruct = {
         record_mode:
@@ -155,10 +145,21 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private fetchedRuntimeCategories = false;
 
-  constructor(private chromeCategoryGetter: ChromeCatFunction) {
+  constructor(private chromeCategoryGetter: ChromeCatFunction, private groupToggles : Record<string, Toggle>) {
     // Initialize first with the static list of builtin categories (in case
     // something goes wrong with the extension).
     this.initializeCategories(BUILTIN_CATEGORIES);
+  }
+
+  public getIncludedCategories(): Set<string> {
+    const cats = new Set<string>();
+    this.getEnabledCategories().forEach((c) => cats.add(c));
+    for (const [group, groupCats] of Object.entries(GROUPS)) {
+      if ((this.groupToggles[group] as Toggle).enabled) {
+        groupCats.forEach((c) => cats.add(c));
+      }
+    }
+    return cats;
   }
 
   private async fetchRuntimeCategoriesIfNeeded() {
@@ -207,6 +208,20 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   render() {
+    const categoriesOptions : MultiSelectOption[] =[];
+    const slowCategoriesOptions : MultiSelectOption[] = [];
+    let includedCategoriesCount = 0;
+    let includedSlowCategoriesCount = 0;
+    for (const option of this.options) {
+      if (option.id.startsWith(DISABLED_PREFIX)) {
+        slowCategoriesOptions.push(option);
+        if (option.checked) includedSlowCategoriesCount++;
+      } else {
+        categoriesOptions.push(option);
+        if (option.checked) includedCategoriesCount++;
+      }
+    }
+
     return m(
       'div.chrome-categories',
       {
@@ -218,11 +233,9 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       },
       m(
         Section,
-        {title: 'Additional Categories'},
+        {title: `Additional Categories (${includedCategoriesCount})`},
         m(MultiSelect, {
-          options: this.options.filter(
-            (o) => !o.id.startsWith(DISABLED_PREFIX),
-          ),
+          options: categoriesOptions,
           repeatCheckedItemsAtTop: false,
           fixedSize: false,
           onChange: (diffs: MultiSelectDiff[]) => {
@@ -232,9 +245,9 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       ),
       m(
         Section,
-        {title: 'High Overhead Categories'},
+        {title: `High Overhead Categories (${includedSlowCategoriesCount})`},
         m(MultiSelect, {
-          options: this.options.filter((o) => o.id.startsWith(DISABLED_PREFIX)),
+          options: slowCategoriesOptions,
           repeatCheckedItemsAtTop: false,
           fixedSize: false,
           onChange: (diffs: MultiSelectDiff[]) => {
