@@ -46,14 +46,15 @@ export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs>
         }
       })();
 
+      // Only show default title if no tooltip is provided
+      const defaultTitle = isEmptyVnodes(attrs.tooltip)
+        ? 'Copy to clipboard'
+        : undefined;
+
       return m(Button, {
         variant: attrs.variant,
         tooltip: attrs.tooltip,
-        title:
-          // If we have a tooltip - don't show a default title
-          attrs.title ?? isEmptyVnodes(attrs.tooltip)
-            ? 'Copy to clipboard'
-            : undefined,
+        title: attrs.title ?? defaultTitle,
         icon: helper.state === 'done' ? Icons.Check : Icons.Copy,
         loading: helper.state === 'working',
         label,
