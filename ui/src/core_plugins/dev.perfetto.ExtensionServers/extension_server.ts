@@ -95,6 +95,7 @@ async function loadMacros(
   }
   // Validate that all macro IDs start with the namespace
   for (const macro of wrapper.value.macros) {
+    // TODO(lalitm): remove this once Google3 is properly migrated.
     const isLegacy = macro.id.startsWith('dev.perfetto.UserMacro.');
     if (!macro.id.startsWith(manifest.namespace + '.') && !isLegacy) {
       return errResult(
