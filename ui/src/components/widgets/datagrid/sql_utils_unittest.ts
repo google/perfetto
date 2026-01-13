@@ -231,9 +231,7 @@ describe('sqlPathsNotIn', () => {
           ['bar', null],
         ],
       ),
-    ).toBe(
-      "(a, b) NOT IN (('foo', 1)) AND NOT (a = 'bar' AND b IS NULL)",
-    );
+    ).toBe("(a, b) NOT IN (('foo', 1)) AND NOT (a = 'bar' AND b IS NULL)");
   });
 });
 

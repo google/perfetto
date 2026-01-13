@@ -88,9 +88,9 @@ export class InMemoryDataSource implements DataSource {
         // Project columns to use IDs as keys (for consistency with SQL data source)
         result = this.projectColumns(result, columns);
       }
-      
+
       // Apply sorting - find sorted column from columns or pivot
-      const sortedColumn = this.findSortedColumn(columns);  
+      const sortedColumn = this.findSortedColumn(columns);
       if (sortedColumn) {
         result = this.applySorting(
           result,

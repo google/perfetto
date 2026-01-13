@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import { Box } from '../../../widgets/box';
-import { Button, ButtonVariant } from '../../../widgets/button';
-import { Chip } from '../../../widgets/chip';
-import { Stack, StackAuto } from '../../../widgets/stack';
-import { isEmptyVnodes } from '../../../base/mithril_utils';
+import {Box} from '../../../widgets/box';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Chip} from '../../../widgets/chip';
+import {Stack, StackAuto} from '../../../widgets/stack';
+import {isEmptyVnodes} from '../../../base/mithril_utils';
 
 export class GridFilterBar implements m.ClassComponent {
   view({children}: m.Vnode) {
