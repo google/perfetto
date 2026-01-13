@@ -810,17 +810,9 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       return 1;
     }
 
-    std::string persistent_trace_out_path =
-        std::string(kAndroidPersistentStateDir) + "/" +
-        trace_config_->unique_session_name() + ".pftrace";
-
-    // Delegate trace file creation to `traced` by passing the filename.
-    // `traced` verifies trace configuration and the internal state (e.g.,
-    // checking if a session with the same name exists) and creates the file
-    // only upon successful startup.
-    // This prevents us from having empty persistent files if the
-    // session fails to start.
-    trace_config_->set_output_path(persistent_trace_out_path);
+    trace_out_path_ = std::string(kAndroidPersistentStateDir) + "/" +
+                      trace_config_->unique_session_name() + ".pftrace";
+    no_clobber = true;
   }
 
   // |activate_triggers| in the trace config is shorthand for trigger_perfetto.
@@ -1288,15 +1280,10 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   } else if (report_to_android_framework_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     if (trace_config_->persist_trace_after_reboot()) {
-      base::ScopedFile trace_fd =
-          base::OpenFile(trace_config_->output_path(), O_RDONLY);
-      uint64_t file_size = base::GetFileSize(*trace_fd).value_or(0);
-      remove(trace_config_->output_path().c_str());
-      ReportTraceToAndroidFrameworkOrCrash(*trace_fd, file_size);
-    } else {
-      ReportTraceToAndroidFrameworkOrCrash(fileno(*trace_out_stream_),
-                                           GetBytesWritten());
+      remove(trace_out_path_.c_str());
     }
+    ReportTraceToAndroidFrameworkOrCrash(fileno(*trace_out_stream_),
+                                         GetBytesWritten());
 #endif
   } else {
     uint64_t bytes_written = GetBytesWritten();
@@ -1328,6 +1315,7 @@ bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
     fd = base::OpenFile(trace_out_path_, flags, 0600);
     // Show a specific error message for the EEXIST errno
     if (!fd && errno == EEXIST) {
+      // TODO(ktimofeev): show different error message for persistent traces.
       PERFETTO_ELOG(
           "Error: Output file '%s' already exists, refusing to overwrite due "
           "to '--no-clobber'.",
