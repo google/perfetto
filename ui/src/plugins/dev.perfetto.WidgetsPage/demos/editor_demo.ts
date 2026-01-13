@@ -18,8 +18,14 @@ import {Editor} from '../../../widgets/editor';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 
+interface EditorDemoState {
+  text: string;
+}
+
 class EditorDemo implements m.ClassComponent {
-  private text: string = 'SELECT * FROM slice;';
+  private state: EditorDemoState = {
+    text: 'SELECT * FROM slice;',
+  };
 
   view() {
     return [
@@ -38,10 +44,10 @@ class EditorDemo implements m.ClassComponent {
             language: language == 'perfetto-sql' ? 'perfetto-sql' : undefined,
             fillHeight,
             readonly,
-            text: this.text,
+            text: this.state.text,
             onUpdate: (text) => {
               parseAndPrintTree(text);
-              this.text = text;
+              this.state.text = text;
             },
           }),
         initialOpts: {

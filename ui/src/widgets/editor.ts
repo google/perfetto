@@ -43,6 +43,9 @@ export interface EditorAttrs extends HTMLAttrs {
   // Whether the editor should fill the height of its container.
   readonly fillHeight?: boolean;
 
+  // Whether the editor content is readonly.
+  readonly readonly?: boolean;
+
   // Callback for the Ctrl/Cmd + Enter key binding.
   onExecute?: (text: string) => void;
 
@@ -51,10 +54,6 @@ export interface EditorAttrs extends HTMLAttrs {
 
   // Callback for every change to the editor's content.
   onUpdate?: (text: string) => void;
-
-  // Disables the editor and disables the replace functionality in the search
-  // box.
-  readonly readonly?: boolean;
 }
 
 export class Editor implements m.ClassComponent<EditorAttrs> {
