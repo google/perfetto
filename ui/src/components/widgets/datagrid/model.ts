@@ -143,7 +143,10 @@ export interface PivotWithCollapsedGroups extends PivotBase {
   readonly collapsedGroups?: PathSet;
 }
 
-export type Pivot = PivotWithExpandedGroups | PivotWithCollapsedGroups | PivotBase;
+export type Pivot =
+  | PivotWithExpandedGroups
+  | PivotWithCollapsedGroups
+  | PivotBase;
 
 export interface Model {
   readonly columns: readonly Column[];

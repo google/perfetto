@@ -497,7 +497,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 disabled: this.pivot.flattenGroups,
               }),
               m(Button, {
-                icon: 'view_list',
+                icon: this.pivot.flattenGroups ? 'account_tree' : 'view_list',
                 tooltip: this.pivot.flattenGroups
                   ? 'Show grouped (hierarchical view)'
                   : 'Show flat (leaf rows only)',
@@ -1110,7 +1110,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private expandAll(attrs: DataGridAttrs): void {
     if (!this.pivot) return;
     // Remove expandedGroups and set collapsedGroups to empty (all expanded)
-    const {expandedGroups: _, collapsedGroups: __, ...rest} = this.pivot as Pivot & {
+    const {
+      expandedGroups: _,
+      collapsedGroups: __,
+      ...rest
+    } = this.pivot as Pivot & {
       expandedGroups?: PathSet;
       collapsedGroups?: PathSet;
     };
@@ -1125,7 +1129,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private collapseAll(attrs: DataGridAttrs): void {
     if (!this.pivot) return;
     // Remove collapsedGroups and set expandedGroups to empty (all collapsed)
-    const {expandedGroups: _, collapsedGroups: __, ...rest} = this.pivot as Pivot & {
+    const {
+      expandedGroups: _,
+      collapsedGroups: __,
+      ...rest
+    } = this.pivot as Pivot & {
       expandedGroups?: PathSet;
       collapsedGroups?: PathSet;
     };

@@ -934,7 +934,12 @@ SELECT * FROM __union__`;
     if (options.includeOrderBy) {
       const orderByClauses = pivot.flattenGroups
         ? this.buildFlatOrderBy(pivot, groupByAliases, sortedAggregate)
-        : this.buildRollupOrderBy(pivot, groupByFields, groupByAliases, sortedAggregate);
+        : this.buildRollupOrderBy(
+            pivot,
+            groupByFields,
+            groupByAliases,
+            sortedAggregate,
+          );
       if (orderByClauses.length > 0) {
         query += `\nORDER BY ${orderByClauses.join(', ')}`;
       }
