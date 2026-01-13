@@ -102,7 +102,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
-            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id,
+            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             utid,
             process.name as process_name,
             pid,
@@ -147,7 +147,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
       columns: [
         {
           title: 'ID',
-          columnId: 'id',
+          columnId: 'id_with_lineage',
           formatHint: 'ID',
           cellRenderer: (value: unknown) => {
             // Value is a JSON object {id, groupid, partition}
