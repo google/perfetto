@@ -16,6 +16,7 @@ import {Tab} from '../../public/tab';
 import {Anchor} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
+import {EmptyState} from '../../widgets/empty_state';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -187,7 +188,7 @@ export class V8SourcesTab implements Tab {
 
   private renderDetailsTab() {
     if (!this.selectedScriptDetails) {
-      return m('div', 'No script selected');
+      return undefined;
     }
 
     return m(
@@ -219,7 +220,7 @@ export class V8SourcesTab implements Tab {
 
   private renderFunctionsTab() {
     if (!this.selectedScriptDetails) {
-      return m('div', 'No script selected');
+      return undefined;
     }
 
     const v8JsFunctionUiSchema: SchemaRegistry = {
@@ -253,6 +254,9 @@ export class V8SourcesTab implements Tab {
   }
 
   private renderTabContent() {
+    if (!this.selectedScriptDetails) {
+      return undefined;
+    }
     if (this.currentTab === TAB_SOURCE) {
       return this.renderSourceTab();
     }
@@ -350,19 +354,31 @@ export class V8SourcesTab implements Tab {
       ),
       secondPanel: m(
         '.pf-v8-source-script-details',
-        m(TabStrip, {
-          tabs: [
-            {key: TAB_SOURCE, title: 'Source'},
-            {key: TAB_FUNCTIONS, title: 'Functions'},
-            {key: TAB_DETAILS, title: 'Details'},
-          ],
-          currentTabKey: this.currentTab,
-          onTabChange: (key) => {
-            this.currentTab = key;
-            m.redraw();
-          },
-        }),
-        m('.pf-tab-page', this.renderTabContent()),
+        !this.selectedScriptSource
+          ? m(
+              EmptyState,
+              {
+                fillHeight: true,
+                icon: "no_sim",
+                title: 'No script selected',
+              },
+              'Select a script from the list to view details.',
+            )
+          : [
+              m(TabStrip, {
+                tabs: [
+                  {key: TAB_SOURCE, title: 'Source'},
+                  {key: TAB_FUNCTIONS, title: 'Functions'},
+                  {key: TAB_DETAILS, title: 'Details'},
+                ],
+                currentTabKey: this.currentTab,
+                onTabChange: (key) => {
+                  this.currentTab = key;
+                  m.redraw();
+                },
+              }),
+              m('.pf-tab-page', this.renderTabContent()),
+            ],
       ),
     });
   }
