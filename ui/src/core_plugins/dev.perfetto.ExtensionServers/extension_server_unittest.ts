@@ -161,12 +161,12 @@ describe('extension_server', () => {
         }
         if (url.includes('/sql_modules')) {
           return mockJsonResponse({
-            sqlModules: [{name: 'test.module', sql: 'SELECT 1'}],
+            sql_modules: [{name: 'test.module', sql: 'SELECT 1'}],
           });
         }
         if (url.includes('/proto_descriptors')) {
           return mockJsonResponse({
-            descriptors: ['base64descriptor'],
+            proto_descriptors: ['base64descriptor'],
           });
         }
         return mockErrorResponse(404);
@@ -366,7 +366,7 @@ describe('extension_server', () => {
         }
         if (url.includes('/sql_modules')) {
           return mockJsonResponse({
-            sqlModules: [
+            sql_modules: [
               {name: 'myext.helpers', sql: 'CREATE TABLE t(x INT)'},
               {name: 'myext.utils', sql: 'SELECT 1'},
             ],
@@ -440,7 +440,7 @@ describe('extension_server', () => {
         if (url.includes('/sql_modules')) {
           // SQL module name doesn't start with namespace
           return mockJsonResponse({
-            sqlModules: [{name: 'wrong.module', sql: 'SELECT 1'}],
+            sql_modules: [{name: 'wrong.module', sql: 'SELECT 1'}],
           });
         }
         return mockErrorResponse(404);

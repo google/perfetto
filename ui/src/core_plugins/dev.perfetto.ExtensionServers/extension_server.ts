@@ -128,7 +128,7 @@ async function loadSqlPackage(
   if (!wrapper.ok) {
     return errResult(wrapper.error);
   }
-  for (const sqlModule of wrapper.value.sqlModules) {
+  for (const sqlModule of wrapper.value.sql_modules) {
     if (!sqlModule.name.startsWith(manifest.namespace + '.')) {
       return errResult(
         `SQL module name '${sqlModule.name}' must start with namespace '${manifest.namespace}.'`,
@@ -138,7 +138,7 @@ async function loadSqlPackage(
   return okResult([
     {
       name: manifest.namespace,
-      modules: wrapper.value.sqlModules,
+      modules: wrapper.value.sql_modules,
     },
   ]);
 }
@@ -167,7 +167,7 @@ async function loadProtoDescriptors(
   if (!wrapper.ok) {
     return errResult(wrapper.error);
   }
-  return okResult(wrapper.value.descriptors);
+  return okResult(wrapper.value.proto_descriptors);
 }
 
 // =============================================================================
