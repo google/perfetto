@@ -517,6 +517,21 @@ export function deserializeState(
         );
       }
     }
+    if (serializedNode.type === NodeType.kSqlSource) {
+      const sqlSourceNode = node as SqlSourceNode;
+      const serializedState = serializedNode.state as SqlSourceSerializedState;
+      const deserializedConnections = SqlSourceNode.deserializeConnections(
+        nodes,
+        serializedState,
+      );
+      sqlSourceNode.secondaryInputs.connections.clear();
+      for (let i = 0; i < deserializedConnections.inputNodes.length; i++) {
+        sqlSourceNode.secondaryInputs.connections.set(
+          i,
+          deserializedConnections.inputNodes[i],
+        );
+      }
+    }
   }
 
   // Third pass: resolve columns

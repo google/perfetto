@@ -217,6 +217,61 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNode.state.sql).toBe('SELECT * FROM slice');
   });
 
+  test('serializes and deserializes sql source node with input connections', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('thread'),
+      trace,
+      sqlModules,
+    });
+
+    const sqlNode = new SqlSourceNode({
+      sql: 'SELECT * FROM $input_0 JOIN $input_1',
+      trace,
+    });
+
+    // Connect inputs
+    tableNode1.nextNodes.push(sqlNode);
+    tableNode2.nextNodes.push(sqlNode);
+    sqlNode.secondaryInputs.connections.set(0, tableNode1);
+    sqlNode.secondaryInputs.connections.set(1, tableNode2);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(2);
+
+    // Find the sql node in the deserialized graph
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedSqlNode = deserializedTableNode1
+      .nextNodes[0] as SqlSourceNode;
+
+    expect(deserializedSqlNode.state.sql).toBe(
+      'SELECT * FROM $input_0 JOIN $input_1',
+    );
+    expect(deserializedSqlNode.secondaryInputs.connections.size).toBe(2);
+    // The order of rootNodes is preserved during deserialization because
+    // rootNodeIds are serialized in order and restored in the same order.
+    // tableNode1 (slice) was connected to port 0, tableNode2 (thread) to port 1.
+    expect(deserializedSqlNode.secondaryInputs.connections.get(0)?.nodeId).toBe(
+      deserializedState.rootNodes[0].nodeId,
+    );
+    expect(deserializedSqlNode.secondaryInputs.connections.get(1)?.nodeId).toBe(
+      deserializedState.rootNodes[1].nodeId,
+    );
+  });
+
   test('serializes and deserializes interval intersect node', () => {
     const tableNode1 = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),
