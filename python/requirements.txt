@@ -1,3 +1,4 @@
+pandas>=2.3.3
 protobuf>=6.33.4
 sqlglot==26.9.0
 yapf==0.40.2
