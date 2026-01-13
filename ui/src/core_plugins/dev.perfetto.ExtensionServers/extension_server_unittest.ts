@@ -156,7 +156,7 @@ describe('extension_server', () => {
         }
         if (url.includes('/macros')) {
           return mockJsonResponse({
-            macros: [{id: 'test.macro1', name: 'Test Macro', commands: []}],
+            macros: [{id: 'test.macro1', name: 'Test Macro', run: []}],
           });
         }
         if (url.includes('/sql_modules')) {
@@ -201,7 +201,7 @@ describe('extension_server', () => {
         modules: ['default'],
       };
       // Macro IDs must start with namespace
-      const macros = [{id: 'myext.macro1', name: 'My Macro', commands: []}];
+      const macros = [{id: 'myext.macro1', name: 'My Macro', run: []}];
 
       mockFetch.mockImplementation((url: string) => {
         if (url.endsWith('/manifest')) {
@@ -326,16 +326,12 @@ describe('extension_server', () => {
         }
         if (url.includes('/default/macros')) {
           return mockJsonResponse({
-            macros: [
-              {id: 'test.default1', name: 'Default Macro', commands: []},
-            ],
+            macros: [{id: 'test.default1', name: 'Default Macro', run: []}],
           });
         }
         if (url.includes('/android/macros')) {
           return mockJsonResponse({
-            macros: [
-              {id: 'test.android1', name: 'Android Macro', commands: []},
-            ],
+            macros: [{id: 'test.android1', name: 'Android Macro', run: []}],
           });
         }
         return mockErrorResponse(404);
@@ -409,7 +405,7 @@ describe('extension_server', () => {
         if (url.includes('/macros')) {
           // Macro ID doesn't start with namespace
           return mockJsonResponse({
-            macros: [{id: 'wrong.macro1', name: 'Bad Macro', commands: []}],
+            macros: [{id: 'wrong.macro1', name: 'Bad Macro', run: []}],
           });
         }
         return mockErrorResponse(404);
