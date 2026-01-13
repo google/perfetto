@@ -281,7 +281,7 @@ export const ANDROID_PRESETS: Preset[] = [
             allApps: true,
           },
         },
-        advanced: {settings: {groups: FTRACE_GRAPHICS}},
+        advanced_ftrace: {settings: {groups: FTRACE_GRAPHICS}},
       },
     },
   },
