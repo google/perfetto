@@ -1,5 +1,8 @@
 Unreleased:
   Tracing service and probes:
+    * Breaking change: Removed `TraceConfig.no_flush_before_write_into_file` and
+      replaced it with `TraceConfig.write_flush_mode` enum to provide more
+      granular control over flushing behavior when streaming traces into a file.
     * Breaking change for traced_relay users: data sources no longer match
       remote machine producers by default. To restore the previous behaviour,
       set TraceConfig.trace_all_machines to true.

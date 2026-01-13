@@ -188,7 +188,7 @@ export const ANDROID_PRESETS: Preset[] = [
           settings: {
             categories: ATRACE_DEFAULT,
             apps: '',
-            allApps: false,
+            allApps: true,
           },
         },
         logcat: {
@@ -217,7 +217,7 @@ export const ANDROID_PRESETS: Preset[] = [
           settings: {
             categories: ATRACE_BATTERY,
             apps: '',
-            allApps: false,
+            allApps: true,
           },
         },
         power_rails: {settings: {pollMs: 1000}},
@@ -243,7 +243,7 @@ export const ANDROID_PRESETS: Preset[] = [
           settings: {
             categories: ATRACE_THERMAL,
             apps: '',
-            allApps: false,
+            allApps: true,
           },
         },
         power_rails: {settings: {pollMs: 1000}},
