@@ -49,7 +49,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
     Object.entries(GROUPS).map(([groupName, categories]) => [
       groupName,
       new Toggle({
-        title: `${groupName} (${categories.length})`,
+        title: `${groupName} (${categories.length} categories)`,
       }),
     ]),
   );
