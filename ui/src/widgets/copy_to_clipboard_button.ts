@@ -20,6 +20,7 @@ import {copyToClipboard} from '../base/clipboard';
 import {isEmptyVnodes} from '../base/mithril_utils';
 
 export interface CopyToClipboardButtonAttrs {
+  readonly className?: string;
   readonly textToCopy: string | (() => string | Promise<string>);
   readonly tooltip?: m.Children;
   readonly title?: string;
@@ -52,6 +53,7 @@ export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs>
         : undefined;
 
       return m(Button, {
+        className: attrs.className,
         variant: attrs.variant,
         tooltip: attrs.tooltip,
         title: attrs.title ?? defaultTitle,

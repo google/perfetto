@@ -319,6 +319,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             className: 'pf-query-page__results',
             data: dataSource,
             showExportButton: true,
+            emptyStateMessage: 'Query returned no rows',
             toolbarItemsLeft: m(
               'span.pf-query-page__results-summary',
               `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,

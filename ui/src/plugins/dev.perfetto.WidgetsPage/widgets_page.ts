@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {App} from '../../public/app';
+import {renderAccordion} from './demos/accordion_demo';
 import {anchor} from './demos/anchor_demo';
 import {renderButtonDemo} from './demos/button_demo';
 import {renderButtonGroupDemo} from './demos/button_group_demo';
@@ -67,6 +68,7 @@ interface WidgetSection {
 }
 
 const WIDGET_SECTIONS: WidgetSection[] = [
+  {id: 'accordion', label: 'Accordion', view: renderAccordion},
   {id: 'anchor', label: 'Anchor', view: anchor},
   {id: 'button', label: 'Button', view: renderButtonDemo},
   {id: 'button-group', label: 'ButtonGroup', view: renderButtonGroupDemo},

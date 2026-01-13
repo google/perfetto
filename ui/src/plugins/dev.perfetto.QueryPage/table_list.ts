@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
+import {Accordion, AccordionItem} from '../../widgets/accordion';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Icon} from '../../widgets/icon';
 import {TextInput} from '../../widgets/text_input';
@@ -22,6 +23,7 @@ import {
   PerfettoSqlType,
   perfettoSqlTypeToString,
 } from '../../trace_processor/perfetto_sql_type';
+import {EmptyState} from '../../widgets/empty_state';
 
 interface FilteredTable {
   table: SqlTable;
@@ -87,6 +89,15 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       }));
     }
 
+    const items: AccordionItem[] = filteredTables.map(({table, segments}) => ({
+      id: table.name,
+      header: m(
+        'code.pf-simple-table-list__item-name',
+        renderHighlightedName(segments),
+      ),
+      content: this.renderTableContent(table),
+    }));
+
     return m(
       '.pf-simple-table-list',
       m(TextInput, {
@@ -98,79 +109,94 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           this.searchQuery = value;
         },
       }),
-      m(
-        '.pf-simple-table-list__items',
-        filteredTables.map((ft) => this.renderTableItem(ft)),
-      ),
+      items.length > 0
+        ? m(
+            '.pf-simple-table-list__items',
+            m(Accordion, {
+              items,
+              expanded: this.expandedTable,
+              onToggle: (id) => {
+                this.expandedTable = id;
+              },
+            }),
+          )
+        : m(EmptyState, {
+            title: 'No matching tables found',
+          }),
     );
   }
 
-  private renderTableItem({table, segments}: FilteredTable): m.Children {
-    const isExpanded = this.expandedTable === table.name;
+  private renderTableContent(table: SqlTable): m.Children {
+    return [
+      // Description
+      table.description &&
+        m('.pf-simple-table-list__description', table.description),
 
-    return m(
-      '.pf-simple-table-list__item',
-      {className: isExpanded ? 'pf-expanded' : ''},
-      // Header row with expand toggle and table name
       m(
-        '.pf-simple-table-list__item-header',
-        m(
-          '.pf-simple-table-list__item-toggle',
-          {
-            onclick: () => {
-              // Accordion: toggle off if already expanded, otherwise expand this one
-              this.expandedTable = isExpanded ? undefined : table.name;
-            },
-          },
-          m(Icon, {icon: isExpanded ? 'expand_more' : 'chevron_right'}),
-        ),
-        m('.pf-simple-table-list__item-name', renderHighlightedName(segments)),
+        '.pf-simple-table-list__detail-row',
+        m('span.pf-simple-table-list__detail-label', 'Table name'),
+        m('code.pf-simple-table-list__detail-value', table.name),
         m(CopyToClipboardButton, {
+          className: 'pf-show-on-hover',
           textToCopy: table.name,
-          compact: true,
           tooltip: 'Copy table name to clipboard',
         }),
       ),
-      // Expandable details
-      isExpanded &&
+      // Module
+      table.includeKey &&
         m(
-          '.pf-simple-table-list__item-details',
-          // Module
-          table.includeKey &&
-            m(
-              '.pf-simple-table-list__detail-row',
-              m('span.pf-simple-table-list__detail-label', 'Module'),
-              m('code.pf-simple-table-list__detail-value', table.includeKey),
-              m(CopyToClipboardButton, {
-                textToCopy: `INCLUDE PERFETTO MODULE ${table.includeKey};`,
-                compact: true,
-                tooltip: 'Copy include string to clipboard',
-              }),
-            ),
-          // Columns
-          table.columns.length > 0 &&
-            m(
-              '.pf-simple-table-list__columns',
-              m('span.pf-simple-table-list__detail-label', 'Columns'),
+          '.pf-simple-table-list__detail-row',
+          m('span.pf-simple-table-list__detail-label', 'Include'),
+          m(
+            'code.pf-simple-table-list__detail-value',
+            `INCLUDE PERFETTO MODULE ${table.includeKey};`,
+          ),
+          m(CopyToClipboardButton, {
+            className: 'pf-show-on-hover',
+            textToCopy: `INCLUDE PERFETTO MODULE ${table.includeKey};`,
+            tooltip: 'Copy include string to clipboard',
+          }),
+        ),
+
+      // Columns
+      table.columns.length > 0 &&
+        m(
+          '.pf-simple-table-list__columns',
+          m('span.pf-simple-table-list__detail-label', 'Columns'),
+          m(
+            '.pf-simple-table-list__column-list',
+            table.columns.map((col) =>
               m(
-                '.pf-simple-table-list__column-list',
-                table.columns.map((col) =>
+                '.pf-simple-table-list__column',
+                m(Icon, {
+                  icon: getTypeIcon(col.type),
+                  className: 'pf-simple-table-list__column-icon',
+                }),
+                m(
+                  '.pf-simple-table-list__column-info',
                   m(
-                    '.pf-simple-table-list__column',
-                    m(Icon, {
-                      icon: getTypeIcon(col.type),
-                      className: 'pf-simple-table-list__column-icon',
-                    }),
+                    '.pf-simple-table-list__column-header',
                     m('code.pf-simple-table-list__column-name', col.name),
+                    m(
+                      '.pf-simple-table-list__column-copy',
+                      m(CopyToClipboardButton, {
+                        textToCopy: col.name,
+                        compact: true,
+                        tooltip: 'Copy column name to clipboard',
+                      }),
+                    ),
                     m(
                       'span.pf-simple-table-list__column-type',
                       perfettoSqlTypeToString(col.type),
                     ),
                   ),
+                  col.description &&
+                    m('.pf-simple-table-list__column-desc', col.description),
                 ),
               ),
             ),
+          ),
         ),
-    );
+    ];
   }
 }

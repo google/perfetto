@@ -266,6 +266,11 @@ export interface DataGridAttrs {
    * Allows parent components to programmatically export data.
    */
   readonly onReady?: (api: DataGridApi) => void;
+
+  /**
+   * Custom message to display in the empty state when there are no rows to show
+   */
+  readonly emptyStateMessage?: string;
 }
 
 export interface DataGridApi {
@@ -372,6 +377,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       toolbarItemsLeft,
       toolbarItemsRight,
       showExportButton,
+      emptyStateMessage,
     } = attrs;
 
     // Update internal state if any are in controlled mode.
@@ -544,7 +550,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               title:
                 this.filters.length > 0
                   ? 'No results match your filters'
-                  : 'No data available',
+                  : emptyStateMessage ?? 'No data available',
               fillHeight: true,
             },
             this.filters.length > 0 &&
