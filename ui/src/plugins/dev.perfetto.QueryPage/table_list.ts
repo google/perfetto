@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
-import {Button} from '../../widgets/button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Icon} from '../../widgets/icon';
 import {TextInput} from '../../widgets/text_input';
@@ -67,7 +66,7 @@ export interface TableListAttrs {
 
 export class TableList implements m.ClassComponent<TableListAttrs> {
   private searchQuery = '';
-  private expandedTables = new Set<string>();
+  private expandedTable: string | undefined = undefined;
 
   view({attrs}: m.CVnode<TableListAttrs>): m.Children {
     const tables = attrs.sqlModules.listTables();
@@ -88,37 +87,17 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       }));
     }
 
-    const allExpanded =
-      filteredTables.length > 0 &&
-      filteredTables.every((t) => this.expandedTables.has(t.table.name));
-
     return m(
       '.pf-simple-table-list',
-      m(
-        '.pf-simple-table-list__toolbar',
-        m(Button, {
-          icon: allExpanded ? 'unfold_less' : 'unfold_more',
-          title: allExpanded ? 'Collapse all' : 'Expand all',
-          onclick: () => {
-            if (allExpanded) {
-              this.expandedTables.clear();
-            } else {
-              for (const {table} of filteredTables) {
-                this.expandedTables.add(table.name);
-              }
-            }
-          },
-        }),
-        m(TextInput, {
-          className: 'pf-simple-table-list__search',
-          placeholder: 'Search tables...',
-          value: this.searchQuery,
-          leftIcon: 'search',
-          onInput: (value) => {
-            this.searchQuery = value;
-          },
-        }),
-      ),
+      m(TextInput, {
+        className: 'pf-simple-table-list__search',
+        placeholder: 'Search tables...',
+        value: this.searchQuery,
+        leftIcon: 'search',
+        onInput: (value) => {
+          this.searchQuery = value;
+        },
+      }),
       m(
         '.pf-simple-table-list__items',
         filteredTables.map((ft) => this.renderTableItem(ft)),
@@ -127,7 +106,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
   }
 
   private renderTableItem({table, segments}: FilteredTable): m.Children {
-    const isExpanded = this.expandedTables.has(table.name);
+    const isExpanded = this.expandedTable === table.name;
 
     return m(
       '.pf-simple-table-list__item',
@@ -139,11 +118,8 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           '.pf-simple-table-list__item-toggle',
           {
             onclick: () => {
-              if (isExpanded) {
-                this.expandedTables.delete(table.name);
-              } else {
-                this.expandedTables.add(table.name);
-              }
+              // Accordion: toggle off if already expanded, otherwise expand this one
+              this.expandedTable = isExpanded ? undefined : table.name;
             },
           },
           m(Icon, {icon: isExpanded ? 'expand_more' : 'chevron_right'}),

@@ -84,20 +84,14 @@
   flex-direction: column;
   height: 100%;
 
-  &__toolbar {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 8px;
-  }
-
   &__search {
-    flex: 1;
+    margin: 8px;
   }
 
   &__items {
     flex: 1;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   &__item {
@@ -130,6 +124,10 @@
     font-family: var(--pf-font-monospace);
     font-size: 12px;
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__highlight {
@@ -157,6 +155,10 @@
 
   &__detail-value {
     font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__columns {
@@ -189,6 +191,10 @@
   &__column-name {
     font-size: 12px;
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__column-type {
