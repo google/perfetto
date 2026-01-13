@@ -21,6 +21,7 @@ import {Tab} from '../../public/tab';
 import {Anchor} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
+import { computePositionMapping } from './pretty_print_utils';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -96,6 +97,7 @@ export class V8SourcesTab implements Tab {
   private isReady = false;
   private formattedScriptSource: string | undefined = undefined;
   private isPrettyPrinted = false;
+  private originalToFormattedMap: Int32Array | undefined = undefined;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -136,6 +138,7 @@ export class V8SourcesTab implements Tab {
   private async showSourceForScript(id: number) {
     this.formattedScriptSource = undefined;
     this.isPrettyPrinted = false;
+    this.originalToFormattedMap = undefined;
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
        SELECT *, LENGTH(source) AS script_size
@@ -199,15 +202,31 @@ export class V8SourcesTab implements Tab {
               plugins: [babelPlugin, estreePlugin],
             },
           );
+          this.originalToFormattedMap = computePositionMapping(
+            this.selectedScriptSource,
+            this.formattedScriptSource,
+          );
+          console.log(this.originalToFormattedMap);
         } catch (e) {
           console.error('Pretty print failed', e);
-          // TODO(b/352226279): Show error to user.
           return;
         }
       }
       this.isPrettyPrinted = true;
     }
     m.redraw();
+  }
+
+  mapOriginalToFormatted(originalPos: number): number {
+    if (!this.originalToFormattedMap) return originalPos;
+    // If the exact position is not mapped (e.g. whitespace), find the next mapped position.
+    for (let i = originalPos; i < this.originalToFormattedMap.length; i++) {
+      if (this.originalToFormattedMap[i] !== -1) {
+        return this.originalToFormattedMap[i];
+      }
+    }
+    // If not found (e.g. trailing whitespace), return the end of formatted string or last mapped.
+    return this.formattedScriptSource?.length ?? 0;
   }
 
   private renderSourceTab() {
