@@ -81,10 +81,12 @@ export class InMemoryDataSource implements DataSource {
       this.aggregateTotalsCache.clear();
 
       // In pivot mode, separate filters into pre-pivot and post-pivot
-      // Post-pivot filters apply to aggregate columns
+      // Post-pivot filters apply to aggregate columns (by field name)
       const aggregates = pivot?.aggregates ?? [];
       const aggregateFields = new Set(
-        aggregates.map((a) => ('field' in a ? a.field : '__count__')),
+        aggregates
+          .filter((a) => 'field' in a)
+          .map((a) => (a as {field: string}).field),
       );
       const prePivotFilters =
         pivot && !pivot.drillDown
@@ -110,9 +112,15 @@ export class InMemoryDataSource implements DataSource {
       } else if (pivot?.drillDown) {
         // Drilldown mode: filter to show only rows matching the drillDown values
         result = this.applyDrillDown(result, pivot);
+        // Project columns to use IDs as keys (for consistency with SQL data source)
+        if (columns) {
+          result = this.projectColumns(result, columns);
+        }
       } else if (columns) {
         // Non-pivot mode: compute column-level aggregations
         this.computeColumnAggregates(result, columns);
+        // Project columns to use IDs as keys (for consistency with SQL data source)
+        result = this.projectColumns(result, columns);
       }
 
       // Apply sorting - find sorted column from columns or pivot
@@ -120,7 +128,7 @@ export class InMemoryDataSource implements DataSource {
       if (sortedColumn) {
         result = this.applySorting(
           result,
-          sortedColumn.field,
+          sortedColumn.key,
           sortedColumn.direction,
         );
       }
@@ -207,7 +215,7 @@ export class InMemoryDataSource implements DataSource {
   }
 
   /**
-   * Compare columns for equality (including sort state).
+   * Compare columns for equality (including id, sort state, and aggregate).
    */
   private areColumnsEqual(
     a: readonly Column[] | undefined,
@@ -220,6 +228,7 @@ export class InMemoryDataSource implements DataSource {
     return a.every((colA, i) => {
       const colB = b[i];
       return (
+        colA.id === colB.id &&
         colA.field === colB.field &&
         colA.sort === colB.sort &&
         colA.aggregate === colB.aggregate
@@ -229,23 +238,25 @@ export class InMemoryDataSource implements DataSource {
 
   /**
    * Find the column that has sorting applied.
+   * Returns the key to use for sorting (column ID) and the direction.
    */
   private findSortedColumn(
     columns: readonly Column[] | undefined,
     pivot?: Pivot,
-  ): {field: string; direction: 'ASC' | 'DESC'} | undefined {
+  ): {key: string; direction: 'ASC' | 'DESC'} | undefined {
     // Check pivot groupBy columns for sort
     if (pivot) {
       for (const col of pivot.groupBy) {
-        if (typeof col !== 'string' && col.sort) {
-          return {field: col.field, direction: col.sort};
+        if (col.sort) {
+          // In pivot mode, rows are keyed by column ID
+          return {key: col.id, direction: col.sort};
         }
       }
       // Check pivot aggregates for sort
       for (const agg of pivot.aggregates ?? []) {
         if (agg.sort) {
-          const field = 'field' in agg ? agg.field : '__count__';
-          return {field, direction: agg.sort};
+          // In pivot mode, aggregate rows are keyed by aggregate ID
+          return {key: agg.id, direction: agg.sort};
         }
       }
     }
@@ -254,12 +265,31 @@ export class InMemoryDataSource implements DataSource {
     if (columns) {
       for (const col of columns) {
         if (col.sort) {
-          return {field: col.field, direction: col.sort};
+          // In non-pivot mode after projection, rows are keyed by column ID
+          return {key: col.id, direction: col.sort};
         }
       }
     }
 
     return undefined;
+  }
+
+  /**
+   * Project rows to use column IDs as keys instead of field names.
+   * This ensures consistency with SQLDataSource which uses column IDs as SQL aliases.
+   */
+  private projectColumns(
+    data: ReadonlyArray<Row>,
+    columns: ReadonlyArray<Column>,
+  ): ReadonlyArray<Row> {
+    return data.map((row) => {
+      const projectedRow: Row = {};
+      for (const col of columns) {
+        // Map field value to column ID key
+        projectedRow[col.id] = row[col.field];
+      }
+      return projectedRow;
+    });
   }
 
   // Helper function to compare arrays of filter definitions for equality.
@@ -407,17 +437,13 @@ export class InMemoryDataSource implements DataSource {
 
     for (const group of groups.values()) {
       const newRow: Row = {};
-      for (const field of groupByFields) {
-        newRow[field] = group[0][field];
+      // Use column ID as the key in the result row (matches SQL behavior)
+      for (const col of pivot.groupBy) {
+        newRow[col.id] = group[0][col.field];
       }
       for (const agg of aggregates) {
-        // Determine the alias (field name in the result row)
-        const alias =
-          agg.function === 'COUNT'
-            ? '__count__'
-            : 'field' in agg
-              ? agg.field
-              : '__unknown__';
+        // Use aggregate ID as the alias (key in the result row)
+        const alias = agg.id;
 
         if (agg.function === 'COUNT') {
           newRow[alias] = group.length;
@@ -505,12 +531,8 @@ export class InMemoryDataSource implements DataSource {
   ): void {
     const aggregates = pivot.aggregates ?? [];
     for (const agg of aggregates) {
-      const alias =
-        agg.function === 'COUNT'
-          ? '__count__'
-          : 'field' in agg
-            ? agg.field
-            : '__unknown__';
+      // Use aggregate ID as the alias (matches how applyPivoting stores values)
+      const alias = agg.id;
       const values = pivotedData
         .map((row) => row[alias])
         .filter((v) => v !== null);
@@ -570,25 +592,26 @@ export class InMemoryDataSource implements DataSource {
     for (const col of columns) {
       if (!col.aggregate) continue;
 
+      // Read values using field (source data key), store using ID (result key)
       const values = data
         .map((row) => row[col.field])
         .filter((v) => v !== null);
 
       if (values.length === 0) {
-        this.aggregateTotalsCache.set(col.field, null);
+        this.aggregateTotalsCache.set(col.id, null);
         continue;
       }
 
       switch (col.aggregate) {
         case 'SUM':
           this.aggregateTotalsCache.set(
-            col.field,
+            col.id,
             values.reduce((acc: number, val) => acc + (Number(val) || 0), 0),
           );
           break;
         case 'AVG':
           this.aggregateTotalsCache.set(
-            col.field,
+            col.id,
             (values.reduce(
               (acc: number, val) => acc + (Number(val) || 0),
               0,
@@ -597,18 +620,18 @@ export class InMemoryDataSource implements DataSource {
           break;
         case 'MIN':
           this.aggregateTotalsCache.set(
-            col.field,
+            col.id,
             values.reduce((acc, val) => (val < acc ? val : acc), values[0]),
           );
           break;
         case 'MAX':
           this.aggregateTotalsCache.set(
-            col.field,
+            col.id,
             values.reduce((acc, val) => (val > acc ? val : acc), values[0]),
           );
           break;
         case 'ANY':
-          this.aggregateTotalsCache.set(col.field, values[0]);
+          this.aggregateTotalsCache.set(col.id, values[0]);
           break;
       }
     }

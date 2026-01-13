@@ -17,6 +17,8 @@ import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Registry} from '../base/registry';
 import {Command, CommandManager} from '../public/command';
 import {raf} from './raf_scheduler';
+import {OmniboxManagerImpl} from './omnibox_manager';
+import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
 
 /**
  * Zod schema for a single command invocation.
@@ -40,6 +42,23 @@ export type CommandInvocation = z.infer<typeof commandInvocationSchema>;
  * Used by settings that store lists of commands to execute.
  */
 export const commandInvocationArraySchema = z.array(commandInvocationSchema);
+
+/**
+ * Zod schema for a macro configuration.
+ */
+export const macroSchema = z.object({
+  // Id of the macro.
+  id: z.string(),
+
+  // Name of the macro.
+  name: z.string(),
+
+  // List of command invocations that make up the macro.
+  commands: z.array(commandInvocationSchema).readonly(),
+});
+
+/** Type representing a macro configuration. */
+export type Macro = z.infer<typeof macroSchema>;
 
 /**
  * Parses URL commands parameter from route args.
@@ -67,7 +86,10 @@ export interface CommandWithMatchInfo extends Command {
 
 export class CommandManagerImpl implements CommandManager {
   private readonly registry = new Registry<Command>((cmd) => cmd.id);
-  private allowlistCheckFn: (id: string) => boolean = () => true;
+  private readonly macros = new Set<string>();
+  private isExecutingStartupCommands = false;
+
+  constructor(private omnibox: OmniboxManagerImpl) {}
 
   getCommand(commandId: string): Command {
     return this.registry.get(commandId);
@@ -85,12 +107,8 @@ export class CommandManagerImpl implements CommandManager {
     return this.registry.register(cmd);
   }
 
-  setAllowlistCheck(checkFn: (id: string) => boolean): void {
-    this.allowlistCheckFn = checkFn;
-  }
-
   runCommand(id: string, ...args: unknown[]): unknown {
-    if (!this.allowlistCheckFn(id)) {
+    if (this.isExecutingStartupCommands && !this.isStartupCommandAllowed(id)) {
       console.warn(`Command ${id} is not allowed in current execution context`);
       return;
     }
@@ -98,6 +116,23 @@ export class CommandManagerImpl implements CommandManager {
     const res = cmd.callback(...args);
     Promise.resolve(res).finally(() => raf.scheduleFullRedraw());
     return res;
+  }
+
+  registerMacro({id, name, commands}: Macro) {
+    this.macros.add(id);
+    this.registerCommand({
+      id,
+      name,
+      callback: async () => {
+        // Macros could run multiple commands, some of which might prompt the
+        // user in an optional way. But macros should be self-contained
+        // so we disable prompts during their execution.
+        using _ = this.omnibox.disablePrompts();
+        for (const command of commands) {
+          await this.runCommand(command.id, ...command.args);
+        }
+      },
+    });
   }
 
   // Returns a list of commands that match the search term, along with a list
@@ -108,5 +143,23 @@ export class CommandManagerImpl implements CommandManager {
     return finder.find(searchTerm).map((result) => {
       return {segments: result.segments, ...result.item};
     });
+  }
+
+  setExecutingStartupCommands(isExecuting: boolean) {
+    this.isExecutingStartupCommands = isExecuting;
+  }
+
+  private isStartupCommandAllowed(commandId: string): boolean {
+    // First check for exact match (fastest)
+    if (STARTUP_COMMAND_ALLOWLIST_SET.has(commandId)) {
+      return true;
+    }
+
+    // Special case: allow all user-defined macros
+    if (this.macros.has(commandId)) {
+      return true;
+    }
+
+    return false;
   }
 }

@@ -192,14 +192,7 @@ export function registerCoreNodes() {
     type: 'multisource',
     category: 'Time',
     factory: (state) => {
-      const fullState: FilterDuringNodeState = {
-        ...state,
-        filterNegativeDurPrimary:
-          (state as FilterDuringNodeState).filterNegativeDurPrimary ?? true,
-        filterNegativeDurSecondary:
-          (state as FilterDuringNodeState).filterNegativeDurSecondary ?? true,
-      };
-      return new FilterDuringNode(fullState);
+      return new FilterDuringNode(state as FilterDuringNodeState);
     },
   });
 
