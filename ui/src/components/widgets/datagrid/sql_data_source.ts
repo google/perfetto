@@ -1082,23 +1082,11 @@ SELECT * FROM __union__`;
             }
 
             // Build WHERE clause: exclude rows whose ancestor is collapsed
+            // Use sqlPathsNotIn to properly handle NULL values
             const notInClauses: string[] = [];
             for (const [len, paths] of pathsByLength) {
               const cols = groupByAliases.slice(0, len);
-              if (cols.length === 1) {
-                // Single column: use simple NOT IN syntax
-                const values = paths
-                  .map((path) => sqlValue(path[0]))
-                  .join(', ');
-                notInClauses.push(`${cols[0]} NOT IN (${values})`);
-              } else {
-                // Multiple columns: use tuple NOT IN syntax
-                const colTuple = cols.join(', ');
-                const valueTuples = paths
-                  .map((path) => `(${path.map(sqlValue).join(', ')})`)
-                  .join(', ');
-                notInClauses.push(`(${colTuple}) NOT IN (${valueTuples})`);
-              }
+              notInClauses.push(sqlPathsNotIn(cols, paths));
             }
             query += `\nWHERE ${notInClauses.join(' AND ')}`;
           }
@@ -1134,12 +1122,9 @@ SELECT * FROM __union__`;
         }
 
         if (validParentPaths.length > 0) {
-          // Build tuple comparison: (col0, col1, ...) IN ((v0, v1, ...), ...)
-          const colTuple = groupByAliases.slice(0, level).join(', ');
-          const valueTuples = validParentPaths
-            .map((path) => `(${path.map(sqlValue).join(', ')})`)
-            .join(', ');
-          query += `\nWHERE (${colTuple}) IN (${valueTuples})`;
+          // Build tuple comparison using sqlPathsIn to handle NULLs properly
+          const cols = groupByAliases.slice(0, level);
+          query += `\nWHERE ${sqlPathsIn(cols, validParentPaths)}`;
         } else {
           // No valid expanded paths at this level, so nothing to show
           query += `\nWHERE FALSE`;
@@ -1404,7 +1389,9 @@ ${joinClauses}`;
 }
 
 function sqlValue(value: SqlValue): string {
-  if (typeof value === 'string') {
+  if (value === null) {
+    return 'NULL';
+  } else if (typeof value === 'string') {
     return `'${value.replace(/'/g, "''")}'`;
   } else if (typeof value === 'number' || typeof value === 'bigint') {
     return value.toString();
@@ -1412,6 +1399,122 @@ function sqlValue(value: SqlValue): string {
     return value ? '1' : '0';
   } else {
     return `'${String(value)}'`;
+  }
+}
+
+/**
+ * Checks if a path contains any NULL values.
+ */
+function pathHasNull(path: readonly SqlValue[]): boolean {
+  return path.some((v) => v === null);
+}
+
+/**
+ * Generates a SQL condition that matches a single path, handling NULLs properly.
+ * E.g., ['foo', null, 'bar'] with columns [a, b, c] becomes:
+ * (a = 'foo' AND b IS NULL AND c = 'bar')
+ */
+function sqlPathMatch(columns: readonly string[], path: readonly SqlValue[]): string {
+  const conditions = path.map((v, i) =>
+    v === null ? `${columns[i]} IS NULL` : `${columns[i]} = ${sqlValue(v)}`,
+  );
+  return `(${conditions.join(' AND ')})`;
+}
+
+/**
+ * Generates a SQL condition that excludes a single path, handling NULLs properly.
+ * E.g., ['foo', null] with columns [a, b] becomes:
+ * NOT (a = 'foo' AND b IS NULL)
+ */
+function sqlPathNotMatch(columns: readonly string[], path: readonly SqlValue[]): string {
+  return `NOT ${sqlPathMatch(columns, path)}`;
+}
+
+/**
+ * Builds an IN clause for paths, separating those with NULLs (which need OR conditions)
+ * from those without (which can use efficient IN syntax).
+ * Returns a SQL condition string.
+ */
+function sqlPathsIn(
+  columns: readonly string[],
+  paths: readonly (readonly SqlValue[])[],
+): string {
+  const pathsWithNulls = paths.filter(pathHasNull);
+  const pathsWithoutNulls = paths.filter((p) => !pathHasNull(p));
+
+  const conditions: string[] = [];
+
+  // Paths without NULLs can use efficient IN syntax
+  if (pathsWithoutNulls.length > 0) {
+    if (columns.length === 1) {
+      // Single column: simple IN
+      const values = pathsWithoutNulls.map((p) => sqlValue(p[0])).join(', ');
+      conditions.push(`${columns[0]} IN (${values})`);
+    } else {
+      // Multiple columns: tuple IN
+      const colTuple = columns.join(', ');
+      const valueTuples = pathsWithoutNulls
+        .map((path) => `(${path.map(sqlValue).join(', ')})`)
+        .join(', ');
+      conditions.push(`(${colTuple}) IN (${valueTuples})`);
+    }
+  }
+
+  // Paths with NULLs need individual OR conditions
+  for (const path of pathsWithNulls) {
+    conditions.push(sqlPathMatch(columns, path));
+  }
+
+  if (conditions.length === 0) {
+    return 'FALSE';
+  } else if (conditions.length === 1) {
+    return conditions[0];
+  } else {
+    return `(${conditions.join(' OR ')})`;
+  }
+}
+
+/**
+ * Builds a NOT IN clause for paths, separating those with NULLs (which need AND NOT conditions)
+ * from those without (which can use efficient NOT IN syntax).
+ * Returns a SQL condition string.
+ */
+function sqlPathsNotIn(
+  columns: readonly string[],
+  paths: readonly (readonly SqlValue[])[],
+): string {
+  const pathsWithNulls = paths.filter(pathHasNull);
+  const pathsWithoutNulls = paths.filter((p) => !pathHasNull(p));
+
+  const conditions: string[] = [];
+
+  // Paths without NULLs can use efficient NOT IN syntax
+  if (pathsWithoutNulls.length > 0) {
+    if (columns.length === 1) {
+      // Single column: simple NOT IN
+      const values = pathsWithoutNulls.map((p) => sqlValue(p[0])).join(', ');
+      conditions.push(`${columns[0]} NOT IN (${values})`);
+    } else {
+      // Multiple columns: tuple NOT IN
+      const colTuple = columns.join(', ');
+      const valueTuples = pathsWithoutNulls
+        .map((path) => `(${path.map(sqlValue).join(', ')})`)
+        .join(', ');
+      conditions.push(`(${colTuple}) NOT IN (${valueTuples})`);
+    }
+  }
+
+  // Paths with NULLs need individual AND NOT conditions
+  for (const path of pathsWithNulls) {
+    conditions.push(sqlPathNotMatch(columns, path));
+  }
+
+  if (conditions.length === 0) {
+    return 'TRUE';
+  } else if (conditions.length === 1) {
+    return conditions[0];
+  } else {
+    return conditions.join(' AND ');
   }
 }
 

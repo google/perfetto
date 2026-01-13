@@ -400,6 +400,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       parameterKeyColumns: this.parameterKeyColumns,
     });
 
+    console.debug('Datagrid pivot model:', this.pivot);
+
     // Expose the API
     attrs.onReady?.({
       exportData: async (format) => {
@@ -865,7 +867,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups);
 
     let newPivot: Pivot;
-    if (newGroupBy.length > 1 && !hasExpansionState) {
+    if (newGroupBy.length > 1 && !Boolean(hasExpansionState)) {
       // Becoming multi-level with no expansion state - default to all collapsed
       newPivot = {
         ...this.pivot,
