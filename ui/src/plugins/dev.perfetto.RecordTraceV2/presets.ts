@@ -73,7 +73,7 @@ const ATRACE_THERMAL = [
   'workq',
 ];
 
-const ATRACE_RENDERING = [
+const ATRACE_GRAPHICS = [
   'aidl',
   'am',
   'binder_driver',
@@ -90,6 +90,8 @@ const ATRACE_RENDERING = [
   'wm',
   'workq',
 ];
+
+const FTRACE_GRAPHICS = ['power'];
 
 const LOGCAT_DEFAULT = [
   protos.AndroidLogId.LID_DEFAULT,
@@ -274,11 +276,12 @@ export const ANDROID_PRESETS: Preset[] = [
         android_frame_timeline: {settings: {}},
         atrace: {
           settings: {
-            categories: ATRACE_RENDERING,
+            categories: ATRACE_GRAPHICS,
             apps: '',
             allApps: true,
           },
         },
+        advanced: {settings: {groups: FTRACE_GRAPHICS}},
       },
     },
   },
