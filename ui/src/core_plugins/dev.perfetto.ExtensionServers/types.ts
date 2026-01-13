@@ -70,7 +70,7 @@ const sqlModuleSchema = z.object({
   sql: z.string(),
 });
 export const sqlModulesSchema = z.object({
-  sqlModules: z.array(sqlModuleSchema),
+  sql_modules: z.array(sqlModuleSchema),
 });
 
 // Proto Descriptors format from {base_url}/modules/{module}/proto_descriptors
@@ -82,7 +82,7 @@ export const sqlModulesSchema = z.object({
 // for proprietary or custom proto types.
 const protoDescriptorSchema = z.string();
 export const protoDescriptorsSchema = z.object({
-  descriptors: z.array(protoDescriptorSchema),
+  proto_descriptors: z.array(protoDescriptorSchema),
 });
 
 // =============================================================================
