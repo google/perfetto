@@ -289,7 +289,6 @@ describe('JSON serialization/deserialization', () => {
     const intervalIntersectNode = new IntervalIntersectNode({
       inputNodes: [tableNode1, tableNode2, tableNode3],
       partitionColumns: ['name'],
-      filterNegativeDur: [true, false, true],
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
     tableNode2.nextNodes.push(intervalIntersectNode);
@@ -341,80 +340,6 @@ describe('JSON serialization/deserialization', () => {
     ).toBe(1);
     expect(deserializedIntervalIntersectNode.state.partitionColumns?.[0]).toBe(
       'name',
-    );
-
-    // Verify filterNegativeDur array
-    expect(
-      deserializedIntervalIntersectNode.state.filterNegativeDur,
-    ).toBeDefined();
-    expect(
-      deserializedIntervalIntersectNode.state.filterNegativeDur?.length,
-    ).toBe(3);
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[0]).toBe(
-      true,
-    );
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[1]).toBe(
-      false,
-    );
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[2]).toBe(
-      true,
-    );
-  });
-
-  test('interval intersect node initializes filter to true by default', () => {
-    const tableNode1 = new TableSourceNode({
-      sqlTable: sqlModules.getTable('slice'),
-      trace,
-      sqlModules,
-    });
-
-    const tableNode2 = new TableSourceNode({
-      sqlTable: sqlModules.getTable('slice'),
-      trace,
-      sqlModules,
-    });
-
-    // Create interval intersect node WITHOUT specifying filterNegativeDur
-    const intervalIntersectNode = new IntervalIntersectNode({
-      inputNodes: [tableNode1, tableNode2],
-    });
-    tableNode1.nextNodes.push(intervalIntersectNode);
-    tableNode2.nextNodes.push(intervalIntersectNode);
-
-    // Verify that filterNegativeDur is initialized to true for all inputs
-    // This is the key fix - the array should be initialized with explicit true values
-    // so the UI checkbox state matches the actual filter behavior
-    expect(intervalIntersectNode.state.filterNegativeDur).toBeDefined();
-    expect(intervalIntersectNode.state.filterNegativeDur?.length).toBe(2);
-    expect(intervalIntersectNode.state.filterNegativeDur?.[0]).toBe(true);
-    expect(intervalIntersectNode.state.filterNegativeDur?.[1]).toBe(true);
-
-    // Serialize and deserialize to ensure the filter persists
-    const initialState: ExplorePageState = {
-      rootNodes: [tableNode1, tableNode2],
-      nodeLayouts: new Map(),
-      labels: [],
-    };
-
-    const json = serializeState(initialState);
-    const deserializedState = deserializeState(json, trace, sqlModules);
-
-    const deserializedTableNode1 = deserializedState.rootNodes[0];
-    const deserializedIntervalIntersectNode = deserializedTableNode1
-      .nextNodes[0] as IntervalIntersectNode;
-
-    // Verify filterNegativeDur is still true after deserialization
-    expect(
-      deserializedIntervalIntersectNode.state.filterNegativeDur,
-    ).toBeDefined();
-    expect(
-      deserializedIntervalIntersectNode.state.filterNegativeDur?.length,
-    ).toBe(2);
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[0]).toBe(
-      true,
-    );
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[1]).toBe(
-      true,
     );
   });
 
@@ -2035,8 +1960,8 @@ describe('JSON serialization/deserialization', () => {
     const timeRangeNode = new TimeRangeSourceNode({trace});
 
     const filterDuringNode = new FilterDuringNode({
-      filterNegativeDurPrimary: true,
-      filterNegativeDurSecondary: false,
+      partitionColumns: ['utid'],
+      clipToIntervals: false,
     });
 
     // Connect slicesNode as primaryInput (from above)
@@ -2078,13 +2003,11 @@ describe('JSON serialization/deserialization', () => {
       1,
     );
 
-    // Verify filter settings preserved
-    expect(deserializedFilterDuringNode.state.filterNegativeDurPrimary).toBe(
-      true,
-    );
-    expect(deserializedFilterDuringNode.state.filterNegativeDurSecondary).toBe(
-      false,
-    );
+    // Verify state preserved
+    expect(deserializedFilterDuringNode.state.partitionColumns).toEqual([
+      'utid',
+    ]);
+    expect(deserializedFilterDuringNode.state.clipToIntervals).toBe(false);
   });
 
   // ========================================

@@ -126,15 +126,12 @@ describe('Connection Management', () => {
       node2.nextNodes.push(intervalNode);
 
       expect(intervalNode.secondaryInputs.connections.size).toBe(2);
-      expect(intervalNode.state.filterNegativeDur?.length).toBe(2);
 
       addConnection(node3, intervalNode);
 
       expect(intervalNode.secondaryInputs.connections.size).toBe(3);
       expect(intervalNode.secondaryInputs.connections.get(2)).toBe(node3);
       expect(node3.nextNodes).toContain(intervalNode);
-      expect(intervalNode.state.filterNegativeDur?.length).toBe(3);
-      expect(intervalNode.state.filterNegativeDur?.[2]).toBe(true);
 
       const cols = intervalNode.finalCols;
       expect(cols.find((c) => c.name === 'id_2')).toBeDefined();
@@ -160,7 +157,6 @@ describe('Connection Management', () => {
 
       const intervalNode = new IntervalIntersectNode({
         inputNodes: [node1, node2, node3],
-        filterNegativeDur: [true, false, true],
       });
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
@@ -173,7 +169,6 @@ describe('Connection Management', () => {
       expect(intervalNode.secondaryInputs.connections.size).toBe(2);
       expect(intervalNode.secondaryInputs.connections.get(1)).toBeUndefined();
       expect(node2.nextNodes).not.toContain(intervalNode);
-      expect(intervalNode.state.filterNegativeDur?.length).toBe(2);
     });
 
     it('should remove all inputs and leave node with no connections', () => {
@@ -313,40 +308,6 @@ describe('Connection Management', () => {
       expect(intervalNode.secondaryInputs.connections.get(2)).toBe(node3);
       expect(intervalNode.secondaryInputs.connections.get(1)).toBe(node4);
       expect(intervalNode.validate()).toBe(true);
-    });
-
-    it('should update filterNegativeDur when adding connections with default true', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-        filterNegativeDur: [false, false],
-      });
-      node1.nextNodes.push(intervalNode);
-      node2.nextNodes.push(intervalNode);
-
-      expect(intervalNode.state.filterNegativeDur).toEqual([false, false]);
-
-      addConnection(node3, intervalNode);
-      expect(intervalNode.state.filterNegativeDur).toEqual([
-        false,
-        false,
-        true,
-      ]);
     });
 
     it('should properly handle connection removal followed by downstream node update', () => {

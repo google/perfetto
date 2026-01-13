@@ -43,13 +43,11 @@ import {loadNodeDoc} from '../node_doc_loader';
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
   comment?: string;
-  filterNegativeDur?: boolean[]; // Per-input filter to exclude negative durations
   partitionColumns?: string[]; // Columns to partition by during interval intersection
 }
 
 export interface IntervalIntersectNodeState extends QueryNodeState {
   inputNodes: QueryNode[];
-  filterNegativeDur?: boolean[]; // Per-input filter to exclude negative durations
   partitionColumns?: string[]; // Columns to partition by during interval intersection
 }
 
@@ -221,19 +219,9 @@ export class IntervalIntersectNode implements QueryNode {
   constructor(state: IntervalIntersectNodeState) {
     this.nodeId = nextNodeId();
 
-    // Initialize filterNegativeDur array with true for each inputNode if not provided
-    const filterNegativeDur = state.filterNegativeDur ?? [];
-    // Fill missing indices with true (default to filtering enabled)
-    for (let i = 0; i < state.inputNodes.length; i++) {
-      if (filterNegativeDur[i] === undefined) {
-        filterNegativeDur[i] = true;
-      }
-    }
-
     this.state = {
       ...state,
       autoExecute: state.autoExecute ?? false,
-      filterNegativeDur,
     };
     this.secondaryInputs = {
       connections: new Map(),
@@ -437,27 +425,6 @@ export class IntervalIntersectNode implements QueryNode {
   }
 
   onPrevNodesUpdated(): void {
-    // Initialize filterNegativeDur if it doesn't exist
-    if (!this.state.filterNegativeDur) {
-      this.state.filterNegativeDur = [];
-    }
-
-    // Compact filterNegativeDur array to match inputNodes length
-    // When nodes are removed, inputNodes is compacted, so we need to match that
-    if (this.state.filterNegativeDur.length > this.inputNodesList.length) {
-      this.state.filterNegativeDur = this.state.filterNegativeDur.slice(
-        0,
-        this.inputNodesList.length,
-      );
-    }
-
-    // Initialize missing indices with true (default to filtering enabled)
-    for (let i = 0; i < this.inputNodesList.length; i++) {
-      if (this.state.filterNegativeDur[i] === undefined) {
-        this.state.filterNegativeDur[i] = true;
-      }
-    }
-
     // Validate and clean up partition columns
     this.cleanupPartitionColumns();
 
@@ -536,11 +503,6 @@ export class IntervalIntersectNode implements QueryNode {
     const error = this.state.issues?.queryError;
     const duplicateWarnings = this.checkDuplicateColumns();
 
-    // Initialize filterNegativeDur array if needed
-    if (!this.state.filterNegativeDur) {
-      this.state.filterNegativeDur = [];
-    }
-
     // Map inputNodes to UI elements with their indices
     const connectedInputs: Array<{node: QueryNode; index: number}> =
       this.inputNodesList.map((node, index) => ({node, index}));
@@ -592,27 +554,12 @@ export class IntervalIntersectNode implements QueryNode {
     // Add input nodes section
     sections.push({
       content: connectedInputs.map(({node, index}) => {
-        const filterEnabled = this.state.filterNegativeDur?.[index] ?? true;
-
         return m(ListItem, {
           key: node.nodeId,
           icon: 'input',
           name: `Input ${index}`,
-          description: filterEnabled
-            ? 'Filtering unfinished intervals'
-            : 'Including all intervals',
+          description: '',
           actions: [
-            {
-              icon: filterEnabled ? 'check_box' : 'check_box_outline_blank',
-              title: 'Filter out intervals with negative duration',
-              onclick: () => {
-                if (!this.state.filterNegativeDur) {
-                  this.state.filterNegativeDur = [];
-                }
-                this.state.filterNegativeDur[index] = !filterEnabled;
-                this.state.onchange?.();
-              },
-            },
             {
               icon: 'view_column',
               title: 'Pick columns',
@@ -636,9 +583,6 @@ export class IntervalIntersectNode implements QueryNode {
   clone(): QueryNode {
     const stateCopy: IntervalIntersectNodeState = {
       inputNodes: [...this.state.inputNodes],
-      filterNegativeDur: this.state.filterNegativeDur
-        ? [...this.state.filterNegativeDur]
-        : undefined,
       partitionColumns: this.state.partitionColumns
         ? [...this.state.partitionColumns]
         : undefined,
@@ -654,7 +598,6 @@ export class IntervalIntersectNode implements QueryNode {
       this.inputNodesList[0],
       this.inputNodesList.slice(1),
       this.state.partitionColumns,
-      this.state.filterNegativeDur,
       this.nodeId,
     );
 
@@ -677,7 +620,6 @@ export class IntervalIntersectNode implements QueryNode {
       intervalNodes: this.inputNodesList
         .filter((n): n is QueryNode => n !== undefined)
         .map((n) => n.nodeId),
-      filterNegativeDur: this.state.filterNegativeDur,
       partitionColumns: this.state.partitionColumns,
     };
   }
@@ -687,7 +629,6 @@ export class IntervalIntersectNode implements QueryNode {
   ): IntervalIntersectNodeState {
     return {
       inputNodes: [],
-      filterNegativeDur: state.filterNegativeDur,
       partitionColumns: state.partitionColumns,
     };
   }
