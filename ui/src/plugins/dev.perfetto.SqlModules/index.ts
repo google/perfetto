@@ -42,10 +42,9 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     docs.then(async (resolvedDocs) => {
       const impl = new SqlModulesImpl(trace, resolvedDocs);
-      impl.waitForInit().then(() => {
-        this.sqlModules = impl;
-        m.redraw();
-      });
+      // Don't initialize immediately - let consumers trigger it when needed
+      this.sqlModules = impl;
+      m.redraw();
     });
 
     trace.commands.registerCommand({
@@ -105,6 +104,13 @@ export default class implements PerfettoPlugin {
 
   getSqlModules(): SqlModules | undefined {
     return this.sqlModules;
+  }
+
+  ensureInitialized(): Promise<void> {
+    if (this.sqlModules) {
+      return this.sqlModules.ensureInitialized();
+    }
+    return Promise.resolve();
   }
 }
 

@@ -73,6 +73,7 @@ export class VirtualCanvas implements Disposable {
 
   // Describes the offset of the canvas w.r.t. the "target" container
   private _canvasRect: Rect2D;
+  private _viewportRect: Rect2D;
   private _viewportLimits: Rect2D;
   private _layoutShiftListener?: LayoutShiftListener;
   private _canvasResizeListener?: CanvasResizeListener;
@@ -113,9 +114,7 @@ export class VirtualCanvas implements Disposable {
       return intersection.reframe(targetElementRect);
     }
 
-    const getCanvasRect = () => {
-      const viewport = getViewportRect();
-
+    const getCanvasRect = (viewport: Rect2D) => {
       if (this._viewportLimits.contains(viewport)) {
         return this._canvasRect;
       } else {
@@ -138,7 +137,9 @@ export class VirtualCanvas implements Disposable {
     const updateCanvas = () => {
       let repaintRequired = false;
 
-      const canvasRect = getCanvasRect();
+      const viewport = getViewportRect();
+      this._viewportRect = viewport;
+      const canvasRect = getCanvasRect(viewport);
       const canvasRectPrev = this._canvasRect;
       this._canvasRect = canvasRect;
 
@@ -202,13 +203,15 @@ export class VirtualCanvas implements Disposable {
 
     this._canvasElement = canvas;
     this._targetElement = targetElement;
-    this._canvasRect = new Rect2D({
+    const emptyRect = new Rect2D({
       left: 0,
       top: 0,
       bottom: 0,
       right: 0,
     });
-    this._viewportLimits = this._canvasRect;
+    this._canvasRect = emptyRect;
+    this._viewportRect = emptyRect;
+    this._viewportLimits = emptyRect;
   }
 
   /**
@@ -262,6 +265,14 @@ export class VirtualCanvas implements Disposable {
    */
   get canvasRect(): Rect2D {
     return this._canvasRect;
+  }
+
+  /**
+   * Returns the cached rect of the visible viewport with respect to the target
+   * element. Unlike canvasRect, this does not include overdraw area.
+   */
+  get viewportRect(): Rect2D {
+    return this._viewportRect;
   }
 
   /**
