@@ -25,9 +25,12 @@ import {QueryPage} from './query_page';
 import {queryHistoryStorage} from '../../components/widgets/query_history';
 import {EmptyState} from '../../widgets/empty_state';
 import {Anchor} from '../../widgets/anchor';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 export default class QueryPagePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.QueryPage';
+  static readonly dependencies = [SqlModulesPlugin];
+
   static addQueryPageMiniFlag: Flag;
 
   async onTraceLoad(trace: Trace): Promise<void> {
