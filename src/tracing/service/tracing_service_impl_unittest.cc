@@ -2176,6 +2176,117 @@ TEST_F(TracingServiceImplTest, CompressionWriteIntoFile) {
                   Property(&protos::gen::TestEvent::str, Eq("payload-2")))));
 }
 
+TEST_F(TracingServiceImplTest, FlushStrategies) {
+  constexpr uint32_t kDefaultWriteIntoFilePeriodMs = 5000;
+
+  auto run_strategy_test = [&](const std::string& producer_name,
+                               TraceConfig cfg, auto test_body) {
+    InitializeSvcWithOpts({});
+    ON_CALL(*mock_clock_, GetWallTimeNs).WillByDefault([&] {
+      return mock_clock_displacement_;
+    });
+
+    std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    std::unique_ptr<MockProducer> producer = CreateMockProducer();
+    producer->Connect(svc.get(), producer_name);
+    producer->RegisterDataSource("data_source");
+
+    base::TempFile tmp_file = base::TempFile::Create();
+    consumer->EnableTracing(cfg, base::ScopedFile(dup(tmp_file.fd())));
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("data_source");
+    producer->WaitForDataSourceStart("data_source");
+
+    test_body(producer.get());
+
+    consumer->DisableTracing();
+    producer->WaitForDataSourceStop("data_source");
+    consumer->WaitForTracingDisabled();
+  };
+
+  // 1) Strategy: kOnWrite (via WRITE_FLUSH_ENABLED).
+  // Verify that flush happens on every write period.
+  {
+    constexpr uint32_t kShortWritePeriodMs = 100;
+    TraceConfig cfg;
+    cfg.add_buffers()->set_size_kb(128);
+    cfg.add_data_sources()->mutable_config()->set_name("data_source");
+    cfg.set_write_into_file(true);
+    cfg.set_file_write_period_ms(kShortWritePeriodMs);
+    cfg.set_write_flush_mode(TraceConfig::WRITE_FLUSH_ENABLED);
+
+    run_strategy_test(
+        "mock_producer_on_write", cfg, [&](MockProducer* producer) {
+          int flushes_seen = 0;
+          auto checkpoint = task_runner.CreateCheckpoint("flushes_on_write");
+          EXPECT_CALL(*producer, Flush(_, _, _, _))
+              .WillRepeatedly([&](FlushRequestID flush_req_id,
+                                  const DataSourceInstanceID*, size_t,
+                                  FlushFlags flags) {
+                EXPECT_EQ(flags.reason(), FlushFlags::Reason::kPeriodic);
+                producer->endpoint()->NotifyFlushComplete(flush_req_id);
+                if (++flushes_seen == 3)
+                  checkpoint();
+              });
+
+          AdvanceTimeAndRunUntilIdle(kShortWritePeriodMs);
+          EXPECT_EQ(flushes_seen, 1);
+          AdvanceTimeAndRunUntilIdle(kShortWritePeriodMs);
+          EXPECT_EQ(flushes_seen, 2);
+          AdvanceTimeAndRunUntilIdle(kShortWritePeriodMs);
+          task_runner.RunUntilCheckpoint("flushes_on_write");
+          EXPECT_EQ(flushes_seen, 3);
+        });
+  }
+
+  // 2) Strategy: kPeriodic (via WRITE_FLUSH_AUTO and period <= 5s).
+  // Verify that flushes do NOT happen on write, but only periodically (every
+  // 5s).
+  {
+    constexpr uint32_t kWritePeriodMs = 1000;
+    TraceConfig cfg;
+    cfg.add_buffers()->set_size_kb(128);
+    cfg.add_data_sources()->mutable_config()->set_name("data_source");
+    cfg.set_write_into_file(true);
+    cfg.set_write_flush_mode(TraceConfig::WRITE_FLUSH_AUTO);
+    cfg.set_file_write_period_ms(kWritePeriodMs);
+
+    run_strategy_test(
+        "mock_producer_periodic", cfg, [&](MockProducer* producer) {
+          int flushes_seen = 0;
+          auto checkpoint = task_runner.CreateCheckpoint("flushes_periodic");
+          EXPECT_CALL(*producer, Flush(_, _, _, _))
+              .WillRepeatedly([&](FlushRequestID flush_req_id,
+                                  const DataSourceInstanceID*, size_t,
+                                  FlushFlags flags) {
+                EXPECT_EQ(flags.reason(), FlushFlags::Reason::kPeriodic);
+                producer->endpoint()->NotifyFlushComplete(flush_req_id);
+                if (++flushes_seen == 2)
+                  checkpoint();
+              });
+
+          // Advance by write periods until we are just before the default 5s
+          // threshold.
+          for (uint32_t ms = kWritePeriodMs; ms < kDefaultWriteIntoFilePeriodMs;
+               ms += kWritePeriodMs) {
+            AdvanceTimeAndRunUntilIdle(kWritePeriodMs);
+            EXPECT_EQ(flushes_seen, 0);
+          }
+
+          // Reaching the kDefaultWriteIntoFilePeriodMs threshold should trigger
+          // the periodic flush.
+          AdvanceTimeAndRunUntilIdle(kWritePeriodMs);
+          EXPECT_EQ(flushes_seen, 1);
+
+          // Advance another kDefaultWriteIntoFilePeriodMs
+          AdvanceTimeAndRunUntilIdle(kDefaultWriteIntoFilePeriodMs);
+          task_runner.RunUntilCheckpoint("flushes_periodic");
+          EXPECT_EQ(flushes_seen, 2);
+        });
+  }
+}
+
 TEST_F(TracingServiceImplTest, CloneSessionWithCompression) {
   TracingService::InitOpts init_opts;
   init_opts.compressor_fn = ZlibCompressFn;
@@ -2436,7 +2547,7 @@ TEST_F(TracingServiceImplTest, NoFlushBeforeWriteIntoFile) {
   trace_config.add_data_sources()->mutable_config()->set_name("data_source");
   trace_config.set_write_into_file(true);
   trace_config.set_file_write_period_ms(10000);  // 10s
-  trace_config.set_no_flush_before_write_into_file(true);
+  trace_config.set_write_flush_mode(TraceConfig::WRITE_FLUSH_DISABLED);
 
   auto write_into_file_session_file = base::TempFile::Create();
   consumer->EnableTracing(
@@ -3513,6 +3624,7 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("data_source");
   trace_config.set_write_into_file(true);
+  trace_config.set_write_flush_mode(TraceConfig::WRITE_FLUSH_ENABLED);
   trace_config.set_file_write_period_ms(100);
   trace_config.mutable_builtin_data_sources()->set_snapshot_interval_ms(100);
   base::TempFile tmp_file = base::TempFile::Create();

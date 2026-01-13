@@ -14,7 +14,7 @@
 
 import {defer} from '../base/deferred';
 import {AppImpl} from '../core/app_impl';
-import {CommandInvocation} from '../core/command_manager';
+import {CommandInvocation, Macro} from '../core/command_manager';
 import {raf} from '../core/raf_scheduler';
 import {SqlPackage} from '../public/extra_sql_packages';
 
@@ -95,10 +95,18 @@ export function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
   setTimeout(() => scriptLoaded.resolve(globals), SCRIPT_LOAD_TIMEOUT_MS);
 
   // Register the macros, descriptors and SQL packages promises.
+  // Convert from the legacy external script format (Record<string, run>)
+  // to the new Macro format (array of {id, name, run}).
   app.addMacros(
-    scriptLoaded.then(
-      ({extraMacros}) => new Map(extraMacros.flatMap((r) => Object.entries(r))),
-    ),
+    scriptLoaded.then(({extraMacros}): ReadonlyArray<Macro> => {
+      return extraMacros.flatMap((record) =>
+        Object.entries(record).map(([name, run]) => ({
+          id: `dev.perfetto.UserMacro.${name}`,
+          name,
+          run,
+        })),
+      );
+    }),
   );
   app.addProtoDescriptors(
     scriptLoaded.then(({extraParsingDescriptors}) => extraParsingDescriptors),
