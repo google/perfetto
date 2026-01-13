@@ -343,7 +343,7 @@ export class V8SourcesTab implements Tab {
           },
           initialColumns: [
             {field: 'v8_js_script_id', id: 'v8_js_script_id'},
-            {field: 'script_size', id: 'script_size'},
+            {field: 'script_size', id: 'script_size', sort: 'DESC'},
             {field: 'name', id: 'name'},
           ],
         }),
