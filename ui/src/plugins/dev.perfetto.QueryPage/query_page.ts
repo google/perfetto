@@ -43,7 +43,7 @@ import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {SimpleTableList} from './simple_table_list';
+import {TableList} from './table_list';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -243,7 +243,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       '.pf-query-page',
       m(SplitPanel, {
         direction: 'horizontal',
-        initialSplit: {pixels: 300},
+        initialSplit: {pixels: 500},
         controlledPanel: 'second',
         minSize: 100,
         firstPanel: leftPanel,
@@ -368,11 +368,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       );
     }
 
-    return m(SimpleTableList, {
+    return m(TableList, {
       sqlModules,
-      onTableClick: (tableName) => {
-        attrs.onExecute?.(`SELECT * FROM ${tableName} LIMIT 100`);
-      },
     });
   }
 
