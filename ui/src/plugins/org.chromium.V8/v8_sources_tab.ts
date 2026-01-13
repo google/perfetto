@@ -359,7 +359,7 @@ export class V8SourcesTab implements Tab {
               EmptyState,
               {
                 fillHeight: true,
-                icon: "no_sim",
+                icon: 'no_sim',
                 title: 'No script selected',
               },
               'Select a script from the list to view details.',
