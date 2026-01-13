@@ -1282,8 +1282,7 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     if (trace_config_->persist_trace_after_reboot()) {
       remove(trace_out_path_.c_str());
     }
-    ReportTraceToAndroidFrameworkOrCrash(fileno(*trace_out_stream_),
-                                         GetBytesWritten());
+    ReportTraceToAndroidFrameworkOrCrash();
 #endif
   } else {
     uint64_t bytes_written = GetBytesWritten();

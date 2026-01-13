@@ -153,11 +153,13 @@ base::Status PerfettoCmd::ReportTraceToAndroidFramework(
   return base::OkStatus();
 }
 
-void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash(int trace_fd,
-                                                       uint64_t trace_size) {
+void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
+  PERFETTO_CHECK(trace_out_stream_);
+  uint64_t bytes_written = GetBytesWritten();
+  int trace_fd = fileno(*trace_out_stream_);
   base::Uuid uuid(uuid_);
   base::Status status = ReportTraceToAndroidFramework(
-      trace_fd, trace_size, uuid, trace_config_->unique_session_name(),
+      trace_fd, bytes_written, uuid, trace_config_->unique_session_name(),
       trace_config_->android_report_config(), statsd_logging_);
   if (!status.ok()) {
     PERFETTO_FATAL("ReportTraceToAndroidFramework: %s", status.c_message());
