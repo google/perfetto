@@ -311,6 +311,7 @@ export abstract class EngineBase implements Engine, Disposable {
         } else {
           res.resolve();
         }
+        this.pendingRegisterSqlPackage = undefined;
         break;
       case TPM.TPM_SUMMARIZE_TRACE:
         const summaryRes = assertExists(
@@ -609,7 +610,7 @@ export abstract class EngineBase implements Engine, Disposable {
 
   registerSqlPackages(pkg: {
     name: string;
-    modules: {name: string; sql: string}[];
+    modules: ReadonlyArray<{name: string; sql: string}>;
   }): Promise<void> {
     if (this.pendingRegisterSqlPackage) {
       return Promise.reject(new Error('Already registering SQL package'));
@@ -622,7 +623,7 @@ export abstract class EngineBase implements Engine, Disposable {
     const args = (rpc.registerSqlPackageArgs =
       new protos.RegisterSqlPackageArgs());
     args.packageName = pkg.name;
-    args.modules = pkg.modules;
+    args.modules = [...pkg.modules];
     args.allowOverride = true;
     this.pendingRegisterSqlPackage = result;
     this.rpcSendRequest(rpc);
