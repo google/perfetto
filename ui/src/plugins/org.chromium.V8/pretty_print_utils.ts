@@ -1,7 +1,20 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import * as prettier from 'prettier/standalone';
 import * as babelPlugin from 'prettier/plugins/babel';
 import * as estreePlugin from 'prettier/plugins/estree';
-
 
 export function computePositionMapping(
   original: string,
@@ -35,16 +48,11 @@ function charsMatch(c1: string, c2: string): boolean {
   return false;
 }
 
-
 export async function prettyPrint(original: string) {
-  const formatted = await prettier.format(original,
-      {
-        parser: 'babel',
-        plugins: [babelPlugin, estreePlugin],
-      },
-    );
-  const sourceMap = computePositionMapping(
-    original, formatted
-    );
-  return { formatted, sourceMap };
+  const formatted = await prettier.format(original, {
+    parser: 'babel',
+    plugins: [babelPlugin, estreePlugin],
+  });
+  const sourceMap = computePositionMapping(original, formatted);
+  return {formatted, sourceMap};
 }

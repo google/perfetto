@@ -1,3 +1,17 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import m from 'mithril';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
@@ -18,8 +32,8 @@ import {Tab} from '../../public/tab';
 import {Anchor} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
-import { prettyPrint } from './pretty_print_utils';
-import { threadStateIdColumn } from 'src/components/widgets/sql/table/columns';
+import {prettyPrint} from './pretty_print_utils';
+import {EmptyState} from '../../widgets/empty_state';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -85,7 +99,7 @@ const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
-  private selectedScriptSource: string = "";
+  private selectedScriptSource: string = '';
   private selectedScriptDetails: V8JsScript | undefined = undefined;
   private trace: Trace;
   private dataSource: SQLDataSource;
@@ -93,7 +107,7 @@ export class V8SourcesTab implements Tab {
   private functionsDataSource: SQLDataSource;
   private functionsFilters: readonly Filter[] = [];
   private isReady = false;
-  private formattedScriptSource: string = "";
+  private formattedScriptSource: string = '';
   private showPrettyPrinted = false;
   private formattedScriptSourceMap: Int32Array | undefined = undefined;
 
@@ -135,7 +149,7 @@ export class V8SourcesTab implements Tab {
 
   private async showSourceForScript(id: number) {
     this.showPrettyPrinted = false;
-    this.formattedScriptSource = "";
+    this.formattedScriptSource = '';
     this.formattedScriptSourceMap = undefined;
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
@@ -188,10 +202,12 @@ export class V8SourcesTab implements Tab {
   }
 
   private async togglePrettyPrint() {
-    this.showPrettyPrinted = !this.showPrettyPrinted ;
+    this.showPrettyPrinted = !this.showPrettyPrinted;
     if (this.showPrettyPrinted && !this.formattedScriptSource) {
       try {
-        const {formatted, sourceMap} = await prettyPrint(this.selectedScriptSource);
+        const {formatted, sourceMap} = await prettyPrint(
+          this.selectedScriptSource,
+        );
         this.formattedScriptSource = formatted;
         this.formattedScriptSourceMap = sourceMap;
       } catch (e) {
@@ -202,7 +218,7 @@ export class V8SourcesTab implements Tab {
     m.redraw();
   }
 
-  public get scriptSource() : string {
+  public get scriptSource(): string {
     return this.showPrettyPrinted
       ? this.formattedScriptSource
       : this.selectedScriptSource;
@@ -219,7 +235,6 @@ export class V8SourcesTab implements Tab {
     // If not found (e.g. trailing whitespace), return the end of formatted string or last mapped.
     return this.formattedScriptSource?.length ?? 0;
   }
-
 
   private renderSourceTab() {
     return m(
@@ -260,7 +275,7 @@ export class V8SourcesTab implements Tab {
 
   private renderDetailsTab() {
     if (!this.selectedScriptDetails) {
-      return m('div', 'No script selected');
+      return undefined;
     }
 
     return m(
@@ -292,7 +307,7 @@ export class V8SourcesTab implements Tab {
 
   private renderFunctionsTab() {
     if (!this.selectedScriptDetails) {
-      return m('div', 'No script selected');
+      return undefined;
     }
 
     const v8JsFunctionUiSchema: SchemaRegistry = {
@@ -326,6 +341,9 @@ export class V8SourcesTab implements Tab {
   }
 
   private renderTabContent() {
+    if (!this.selectedScriptDetails) {
+      return undefined;
+    }
     if (this.currentTab === TAB_SOURCE) {
       return this.renderSourceTab();
     }
@@ -416,26 +434,38 @@ export class V8SourcesTab implements Tab {
           },
           initialColumns: [
             {field: 'v8_js_script_id', id: 'v8_js_script_id'},
-            {field: 'script_size', id: 'script_size'},
+            {field: 'script_size', id: 'script_size', sort: 'DESC'},
             {field: 'name', id: 'name'},
           ],
         }),
       ),
       secondPanel: m(
         '.pf-v8-source-script-details',
-        m(TabStrip, {
-          tabs: [
-            {key: TAB_SOURCE, title: 'Source'},
-            {key: TAB_FUNCTIONS, title: 'Functions'},
-            {key: TAB_DETAILS, title: 'Details'},
-          ],
-          currentTabKey: this.currentTab,
-          onTabChange: (key) => {
-            this.currentTab = key;
-            m.redraw();
-          },
-        }),
-        m('.pf-tab-page', this.renderTabContent()),
+        !this.selectedScriptSource
+          ? m(
+              EmptyState,
+              {
+                fillHeight: true,
+                icon: 'no_sim',
+                title: 'No script selected',
+              },
+              'Select a script from the list to view details.',
+            )
+          : [
+              m(TabStrip, {
+                tabs: [
+                  {key: TAB_SOURCE, title: 'Source'},
+                  {key: TAB_FUNCTIONS, title: 'Functions'},
+                  {key: TAB_DETAILS, title: 'Details'},
+                ],
+                currentTabKey: this.currentTab,
+                onTabChange: (key) => {
+                  this.currentTab = key;
+                  m.redraw();
+                },
+              }),
+              m('.pf-tab-page', this.renderTabContent()),
+            ],
       ),
     });
   }
