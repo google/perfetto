@@ -1137,6 +1137,13 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (priority_boost)
     tracing_session->priority_boost = std::move(priority_boost);
 
+  if (cfg.flush_period_ms() > 0) {
+    tracing_session->flush_strategy = TracingSession::FlushStrategy::kPeriodic;
+    tracing_session->periodic_flush_ms = cfg.flush_period_ms();
+  } else {
+    tracing_session->flush_strategy = TracingSession::FlushStrategy::kDisabled;
+  }
+
   if (cfg.write_into_file()) {
     if (!fd ^ !cfg.output_path().empty()) {
       MaybeLogUploadEvent(
@@ -1164,6 +1171,36 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       write_period_ms = kDefaultWriteIntoFilePeriodMs;
     if (write_period_ms < kMinWriteIntoFilePeriodMs)
       write_period_ms = kMinWriteIntoFilePeriodMs;
+
+    auto flush_mode = cfg.write_flush_mode();
+    if (flush_mode == TraceConfig::WRITE_FLUSH_AUTO ||
+        flush_mode == TraceConfig::WRITE_FLUSH_UNSPECIFIED) {
+      if (write_period_ms <=
+          static_cast<uint32_t>(kDefaultWriteIntoFilePeriodMs)) {
+        tracing_session->flush_strategy =
+            TracingSession::FlushStrategy::kPeriodic;
+        tracing_session->periodic_flush_ms =
+            static_cast<uint32_t>(kDefaultWriteIntoFilePeriodMs);
+      } else {
+        tracing_session->flush_strategy =
+            TracingSession::FlushStrategy::kOnWrite;
+      }
+
+      if (cfg.flush_period_ms() > 0) {
+        PERFETTO_LOG(
+            "Warning: flush_period_ms is ignored because write_flush_mode is "
+            "in AUTO mode. Set write_flush_mode to WRITE_FLUSH_DISABLED to "
+            "use flush_period_ms.");
+      }
+    } else if (flush_mode == TraceConfig::WRITE_FLUSH_ENABLED) {
+      tracing_session->flush_strategy = TracingSession::FlushStrategy::kOnWrite;
+      if (cfg.flush_period_ms() > 0) {
+        PERFETTO_LOG(
+            "Warning: flush_period_ms is ignored because write_flush_mode is "
+            "in WRITE_FLUSH_ENABLED mode. Set write_flush_mode to "
+            "WRITE_FLUSH_DISABLED to use flush_period_ms.");
+      }
+    }
     tracing_session->write_period_ms = write_period_ms;
     tracing_session->max_file_size_bytes = cfg.max_file_size_bytes();
     tracing_session->bytes_written_into_file = 0;
@@ -1532,7 +1569,8 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   // Start the periodic drain tasks if we should to save the trace into a file.
   if (tracing_session->config.write_into_file()) {
     bool async_flush_buffers_before_read =
-        !tracing_session->config.no_flush_before_write_into_file();
+        tracing_session->flush_strategy ==
+        TracingSession::FlushStrategy::kOnWrite;
     weak_runner_.PostDelayedTask(
         [this, tsid, async_flush_buffers_before_read] {
           ReadBuffersIntoFile(tsid, async_flush_buffers_before_read);
@@ -1541,8 +1579,10 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   }
 
   // Start the periodic flush tasks if the config specified a flush period.
-  if (tracing_session->config.flush_period_ms())
+  if (tracing_session->flush_strategy ==
+      TracingSession::FlushStrategy::kPeriodic) {
     PeriodicFlushTask(tsid, /*post_next_only=*/true);
+  }
 
   // Start the periodic incremental state clear tasks if the config specified a
   // period.
@@ -2419,7 +2459,9 @@ void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
   if (!tracing_session || tracing_session->state != TracingSession::STARTED)
     return;
 
-  uint32_t flush_period_ms = tracing_session->config.flush_period_ms();
+  PERFETTO_CHECK(tracing_session->flush_strategy ==
+                 TracingSession::FlushStrategy::kPeriodic);
+  uint32_t flush_period_ms = tracing_session->periodic_flush_ms;
   weak_runner_.PostDelayedTask(
       [this, tsid] { PeriodicFlushTask(tsid, /*post_next_only=*/false); },
       flush_period_ms - static_cast<uint32_t>(clock_->GetWallTimeMs().count() %
