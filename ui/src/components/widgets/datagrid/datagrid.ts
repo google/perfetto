@@ -503,7 +503,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 tooltip: this.pivot.flattenGroups
                   ? 'Show grouped (hierarchical view)'
                   : 'Show flat (leaf rows only)',
-                active: this.pivot.flattenGroups,
                 onclick: () =>
                   this.pivot?.flattenGroups
                     ? this.disableFlatMode(attrs)
