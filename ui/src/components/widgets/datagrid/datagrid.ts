@@ -480,7 +480,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       m(DataGridToolbar, {
         leftItems: [
           toolbarItemsLeft,
-          // Show expand/collapse buttons for multi-level pivot (not in drill-down)
+          // Show expand/collapse/flat buttons for multi-level pivot (not in drill-down)
           this.pivot &&
             this.pivot.groupBy.length > 1 &&
             !this.pivot.drillDown && [
@@ -488,11 +488,24 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 icon: 'unfold_more',
                 tooltip: 'Expand all groups',
                 onclick: () => this.expandAll(attrs),
+                disabled: this.pivot.flattenGroups,
               }),
               m(Button, {
                 icon: 'unfold_less',
                 tooltip: 'Collapse all groups',
                 onclick: () => this.collapseAll(attrs),
+                disabled: this.pivot.flattenGroups,
+              }),
+              m(Button, {
+                icon: 'view_list',
+                tooltip: this.pivot.flattenGroups
+                  ? 'Show grouped (hierarchical view)'
+                  : 'Show flat (leaf rows only)',
+                active: this.pivot.flattenGroups,
+                onclick: () =>
+                  this.pivot?.flattenGroups
+                    ? this.disableFlatMode(attrs)
+                    : this.enableFlatMode(attrs),
               }),
             ],
         ],
@@ -1121,6 +1134,26 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     attrs.onPivotChanged?.(newPivot);
   }
 
+  /**
+   * Enables flat mode - shows only leaf-level rows without hierarchical grouping.
+   */
+  private enableFlatMode(attrs: DataGridAttrs): void {
+    if (!this.pivot) return;
+    const newPivot: Pivot = {...this.pivot, flattenGroups: true};
+    this.pivot = newPivot;
+    attrs.onPivotChanged?.(newPivot);
+  }
+
+  /**
+   * Disables flat mode - shows hierarchical grouping with rollup rows.
+   */
+  private disableFlatMode(attrs: DataGridAttrs): void {
+    if (!this.pivot) return;
+    const newPivot: Pivot = {...this.pivot, flattenGroups: false};
+    this.pivot = newPivot;
+    attrs.onPivotChanged?.(newPivot);
+  }
+
   // ===========================================================================
   // Grid builders
   // ===========================================================================
@@ -1572,7 +1605,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     const aggregates = pivot.aggregates ?? [];
     const numGroupBy = pivot.groupBy.length;
-    const isMultiLevel = numGroupBy > 1;
+    // In flat mode, don't use multi-level UI (no chevrons, no indent)
+    const isMultiLevel = numGroupBy > 1 && !pivot.flattenGroups;
 
     return rowIndices
       .map((index) => {

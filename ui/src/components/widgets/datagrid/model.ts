@@ -120,6 +120,10 @@ interface PivotBase {
   // This allows drilling down into a specific pivot group to see the
   // underlying data. The keys are the groupBy column names.
   readonly drillDown?: Row;
+
+  // When true, shows leaf-level rows only (no rollup/summary rows).
+  // This displays the data in a flat table format without hierarchical grouping.
+  readonly flattenGroups?: boolean;
 }
 
 // Group expansion state for multi-level pivots.

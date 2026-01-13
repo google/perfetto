@@ -878,7 +878,10 @@ ${joinClauses}`;
     const unionQueries: string[] = [];
     const numLevels = groupByFields.length;
 
-    for (let level = 0; level < numLevels; level++) {
+    // When flattenGroups is true, only generate the leaf level (no rollup rows)
+    const startLevel = pivot.flattenGroups ? numLevels - 1 : 0;
+
+    for (let level = startLevel; level < numLevels; level++) {
       const levelQuery = this.buildRollupLevelQuery(
         level,
         groupByFields,
@@ -902,10 +905,10 @@ ${cteQuery}
 ${unionQueries.join('\nUNION ALL\n')}
 )`;
 
-    // When sorting by aggregate, add window functions to propagate parent
-    // aggregate values down to children. This allows sorting parent groups
-    // by their aggregate while keeping children under their parent.
-    if (sortedAggregate && options.includeOrderBy) {
+    // In flat mode, use simple query without window functions for sorting.
+    // In hierarchical mode, add window functions to propagate parent aggregate
+    // values down to children for proper hierarchical sorting.
+    if (sortedAggregate && options.includeOrderBy && !pivot.flattenGroups) {
       const aggAlias = toAlias(sortedAggregate.id);
       const sortKeyExprs: string[] = [];
 
@@ -929,18 +932,41 @@ SELECT * FROM __union__`;
 
     // Add ORDER BY if requested
     if (options.includeOrderBy) {
-      const orderByClauses = this.buildRollupOrderBy(
-        pivot,
-        groupByFields,
-        groupByAliases,
-        sortedAggregate,
-      );
+      const orderByClauses = pivot.flattenGroups
+        ? this.buildFlatOrderBy(pivot, groupByAliases, sortedAggregate)
+        : this.buildRollupOrderBy(pivot, groupByFields, groupByAliases, sortedAggregate);
       if (orderByClauses.length > 0) {
         query += `\nORDER BY ${orderByClauses.join(', ')}`;
       }
     }
 
     return query;
+  }
+
+  /**
+   * Builds simple ORDER BY clauses for flat mode (no hierarchical sorting).
+   * Just orders by the sorted column directly.
+   */
+  private buildFlatOrderBy(
+    pivot: Pivot,
+    groupByAliases: string[],
+    sortedAggregate?: AggregateColumn,
+  ): string[] {
+    const sortedColumn = this.findSortedColumn(undefined, pivot);
+    const direction = sortedColumn?.direction ?? 'ASC';
+
+    if (sortedAggregate) {
+      // Sort by the aggregate directly
+      const aggAlias = toAlias(sortedAggregate.id);
+      return [`${aggAlias} ${direction}`];
+    } else if (sortedColumn) {
+      // Sort by the sorted groupBy column
+      const alias = toAlias(sortedColumn.id);
+      return [`${alias} ${direction}`];
+    } else {
+      // Default: sort by groupBy columns in order
+      return groupByAliases.map((alias) => `${alias} ASC`);
+    }
   }
 
   /**
@@ -1018,7 +1044,8 @@ SELECT * FROM __union__`;
 
     // Add WHERE clause for group expansion filter (levels > 0)
     // For a row at level N, ALL ancestor paths must be expanded (not collapsed).
-    if (level > 0) {
+    // Skip expansion filtering in flat mode - show all leaf rows.
+    if (level > 0 && !pivot.flattenGroups) {
       if ('collapsedGroups' in pivot && pivot.collapsedGroups) {
         // Blacklist mode: Show all rows EXCEPT those whose parent is collapsed
         // A row at level N is hidden if any of its ancestor paths are in collapsedGroups
