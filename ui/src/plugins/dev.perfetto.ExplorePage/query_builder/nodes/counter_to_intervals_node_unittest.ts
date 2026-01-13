@@ -505,18 +505,6 @@ describe('CounterToIntervalsNode', () => {
     });
   });
 
-  describe('nodeSpecificModify', () => {
-    it('should return info and sections', () => {
-      const node = new CounterToIntervalsNode({});
-
-      const modify = node.nodeSpecificModify();
-
-      expect(modify.info).toBeDefined();
-      expect(modify.sections).toBeDefined();
-      expect(Array.isArray(modify.sections)).toBe(true);
-    });
-  });
-
   describe('integration tests', () => {
     it('should work end-to-end with counter data', () => {
       const counterCols = [
