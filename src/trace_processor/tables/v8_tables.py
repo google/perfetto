@@ -374,6 +374,9 @@ V8_IC_EVENT = Table(
         C('modifier', CppString(), cpp_access=CppAccess.READ),
         C('slow_stub_reason', CppString(), cpp_access=CppAccess.READ),
         C('v8_js_code_id', CppTableId(V8_JS_CODE), cpp_access=CppAccess.READ),
+        C('pc', CppInt64(), cpp_access=CppAccess.READ),
+        C('line', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
+        C('col', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
         C('byte_offset', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -382,9 +385,7 @@ V8_IC_EVENT = Table(
         columns={
             'v8_isolate_id':
                 ColumnDoc(
-                    doc="""
-                  V8 Isolate this code was created in.
-                    """,
+                    doc='V8 Isolate this code was created in.',
                     joinable='__intrinsic_v8_isolate.id'),
             'utid':
                 'Thread ID',
@@ -399,15 +400,30 @@ V8_IC_EVENT = Table(
             'key':
                 'Property key',
             'old_state':
-                'Previous state',
+                """Previous state.
+                - `X`: NO_FEEDBACK,
+                - `0`: UNINITIALIZED,
+                - `1`: MONOMORPHIC,
+                - `^`: RECOMPUTE_HANDLER,
+                - `P`: POLYMORPHIC,
+                - `N`: MEGAMORPHIC,
+                - `D`: MEGADOM,
+                - `G`: GENERIC,
+                """,
             'new_state':
-                'New state',
+                'New state, see old_state for details',
             'modifier':
                 'Modifier',
             'slow_stub_reason':
                 'Reason for slow stub',
             'v8_js_code_id':
-                'V8 JS code',
+                'V8 JS code corresponding to the event pc.',
+            'pc':
+                'Program Counter where the event was triggered.',
+            'line':
+                'Line in script where the event was triggered. Starts at 1',
+            'col':
+                'Column in script where the event was triggered. Starts at 1',
             'byte_offset':
                 'Byte offset in the code',
         },
