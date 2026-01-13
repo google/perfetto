@@ -18,5 +18,6 @@ perfetto_sql_source_set("before_eof") {
   sources = [
     "tables.sql",
     "trace_bounds.sql",
+    "views.sql",
   ]
 }
