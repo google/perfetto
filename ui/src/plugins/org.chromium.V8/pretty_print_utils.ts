@@ -1,3 +1,8 @@
+import * as prettier from 'prettier/standalone';
+import * as babelPlugin from 'prettier/plugins/babel';
+import * as estreePlugin from 'prettier/plugins/estree';
+
+
 export function computePositionMapping(
   original: string,
   formatted: string,
@@ -28,4 +33,18 @@ function charsMatch(c1: string, c2: string): boolean {
   if (c1 === c2) return true;
   if ((c1 === '"' || c1 === "'") && (c2 === '"' || c2 === "'")) return true;
   return false;
+}
+
+
+export async function prettyPrint(original: string) {
+  const formatted = await prettier.format(original,
+      {
+        parser: 'babel',
+        plugins: [babelPlugin, estreePlugin],
+      },
+    );
+  const sourceMap = computePositionMapping(
+    original, formatted
+    );
+  return { formatted, sourceMap };
 }

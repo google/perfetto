@@ -1,7 +1,4 @@
 import m from 'mithril';
-import * as prettier from 'prettier/standalone';
-import * as babelPlugin from 'prettier/plugins/babel';
-import * as estreePlugin from 'prettier/plugins/estree';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import {Filter} from '../../components/widgets/datagrid/model';
@@ -21,7 +18,8 @@ import {Tab} from '../../public/tab';
 import {Anchor} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
-import { computePositionMapping } from './pretty_print_utils';
+import { prettyPrint } from './pretty_print_utils';
+import { threadStateIdColumn } from 'src/components/widgets/sql/table/columns';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -87,7 +85,7 @@ const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
-  private selectedScriptSource: string | undefined = undefined;
+  private selectedScriptSource: string = "";
   private selectedScriptDetails: V8JsScript | undefined = undefined;
   private trace: Trace;
   private dataSource: SQLDataSource;
@@ -95,9 +93,9 @@ export class V8SourcesTab implements Tab {
   private functionsDataSource: SQLDataSource;
   private functionsFilters: readonly Filter[] = [];
   private isReady = false;
-  private formattedScriptSource: string | undefined = undefined;
-  private isPrettyPrinted = false;
-  private originalToFormattedMap: Int32Array | undefined = undefined;
+  private formattedScriptSource: string = "";
+  private showPrettyPrinted = false;
+  private formattedScriptSourceMap: Int32Array | undefined = undefined;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -136,9 +134,9 @@ export class V8SourcesTab implements Tab {
   }
 
   private async showSourceForScript(id: number) {
-    this.formattedScriptSource = undefined;
-    this.isPrettyPrinted = false;
-    this.originalToFormattedMap = undefined;
+    this.showPrettyPrinted = false;
+    this.formattedScriptSource = "";
+    this.formattedScriptSourceMap = undefined;
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
        SELECT *, LENGTH(source) AS script_size
@@ -190,49 +188,40 @@ export class V8SourcesTab implements Tab {
   }
 
   private async togglePrettyPrint() {
-    if (this.isPrettyPrinted) {
-      this.isPrettyPrinted = false;
-    } else {
-      if (!this.formattedScriptSource && this.selectedScriptSource) {
-        try {
-          this.formattedScriptSource = await prettier.format(
-            this.selectedScriptSource,
-            {
-              parser: 'babel',
-              plugins: [babelPlugin, estreePlugin],
-            },
-          );
-          this.originalToFormattedMap = computePositionMapping(
-            this.selectedScriptSource,
-            this.formattedScriptSource,
-          );
-          console.log(this.originalToFormattedMap);
-        } catch (e) {
-          console.error('Pretty print failed', e);
-          return;
-        }
+    this.showPrettyPrinted = !this.showPrettyPrinted ;
+    if (this.showPrettyPrinted && !this.formattedScriptSource) {
+      try {
+        const {formatted, sourceMap} = await prettyPrint(this.selectedScriptSource);
+        this.formattedScriptSource = formatted;
+        this.formattedScriptSourceMap = sourceMap;
+      } catch (e) {
+        console.error('Pretty print failed', e);
+        return;
       }
-      this.isPrettyPrinted = true;
     }
     m.redraw();
   }
 
-  mapOriginalToFormatted(originalPos: number): number {
-    if (!this.originalToFormattedMap) return originalPos;
+  public get scriptSource() : string {
+    return this.showPrettyPrinted
+      ? this.formattedScriptSource
+      : this.selectedScriptSource;
+  }
+
+  mapSourcePosition(originalPos: number): number {
+    if (!this.formattedScriptSourceMap) return originalPos;
     // If the exact position is not mapped (e.g. whitespace), find the next mapped position.
-    for (let i = originalPos; i < this.originalToFormattedMap.length; i++) {
-      if (this.originalToFormattedMap[i] !== -1) {
-        return this.originalToFormattedMap[i];
+    for (let i = originalPos; i < this.formattedScriptSourceMap.length; i++) {
+      if (this.formattedScriptSourceMap[i] !== -1) {
+        return this.formattedScriptSourceMap[i];
       }
     }
     // If not found (e.g. trailing whitespace), return the end of formatted string or last mapped.
     return this.formattedScriptSource?.length ?? 0;
   }
 
+
   private renderSourceTab() {
-    const source = this.isPrettyPrinted
-      ? this.formattedScriptSource
-      : this.selectedScriptSource;
     return m(
       '.pf-v8-source-container',
       {
@@ -242,7 +231,7 @@ export class V8SourcesTab implements Tab {
         },
       },
       m(Editor, {
-        text: source,
+        text: this.scriptSource,
         language: 'javascript',
         readonly: true,
         fillHeight: true,
@@ -259,10 +248,10 @@ export class V8SourcesTab implements Tab {
         },
         m(Button, {
           icon: 'data_object',
-          title: this.isPrettyPrinted ? 'Show Original' : 'Pretty Print',
+          title: this.showPrettyPrinted ? 'Show Original' : 'Pretty Print',
           variant: ButtonVariant.Filled,
-          intent: this.isPrettyPrinted ? Intent.Primary : undefined,
-          active: this.isPrettyPrinted,
+          intent: this.showPrettyPrinted ? Intent.Primary : undefined,
+          active: this.showPrettyPrinted,
           onclick: () => this.togglePrettyPrint(),
         }),
       ),
