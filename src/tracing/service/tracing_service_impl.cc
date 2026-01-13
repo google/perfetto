@@ -1188,16 +1188,17 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
       if (cfg.flush_period_ms() > 0) {
         PERFETTO_LOG(
-            "Warning: flush_period_ms is not recommended and will be ignored. "
-            "Set write_flush_mode to WRITE_FLUSH_DISABLED to use "
-            "flush_period_ms.");
+            "Warning: flush_period_ms is ignored because write_flush_mode is "
+            "in AUTO mode. Set write_flush_mode to WRITE_FLUSH_DISABLED to "
+            "use flush_period_ms.");
       }
     } else if (flush_mode == TraceConfig::WRITE_FLUSH_ENABLED) {
       tracing_session->flush_strategy = TracingSession::FlushStrategy::kOnWrite;
       if (cfg.flush_period_ms() > 0) {
         PERFETTO_LOG(
-            "Warning: flush_period_ms is ignored when using "
-            "WRITE_FLUSH_ENABLED.");
+            "Warning: flush_period_ms is ignored because write_flush_mode is "
+            "in WRITE_FLUSH_ENABLED mode. Set write_flush_mode to "
+            "WRITE_FLUSH_DISABLED to use flush_period_ms.");
       }
     }
     tracing_session->write_period_ms = write_period_ms;
@@ -2458,11 +2459,8 @@ void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
   if (!tracing_session || tracing_session->state != TracingSession::STARTED)
     return;
 
-  if (tracing_session->flush_strategy !=
-      TracingSession::FlushStrategy::kPeriodic) {
-    PERFETTO_ELOG("PeriodicFlushTask called with non-periodic flush strategy");
-    return;
-  }
+  PERFETTO_CHECK(tracing_session->flush_strategy ==
+                 TracingSession::FlushStrategy::kPeriodic);
   uint32_t flush_period_ms = tracing_session->periodic_flush_ms;
   weak_runner_.PostDelayedTask(
       [this, tsid] { PeriodicFlushTask(tsid, /*post_next_only=*/false); },
