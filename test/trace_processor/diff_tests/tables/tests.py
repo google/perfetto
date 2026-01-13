@@ -280,6 +280,7 @@ class Tables(TestSuite):
               machine: "x86_64"
               release: "22.6.0"
             }
+            memory_size_mb: 120734
           }
           trusted_uid: 158158
           trusted_packet_sequence_id: 1
@@ -289,11 +290,12 @@ class Tables(TestSuite):
               FROM metadata
               WHERE name IN (
                   "system_name", "system_version", "system_machine",
-                  "system_release", "timezone_off_mins")
+                  "system_release", "timezone_off_mins", "memory_size_mb")
               ORDER BY name
         """,
         out=Csv(r"""
                 "name","val"
+                "memory_size_mb",120734
                 "system_machine","x86_64"
                 "system_name","Darwin"
                 "system_release","22.6.0"
@@ -507,6 +509,7 @@ class Tables(TestSuite):
               release: "22.6.0"
             }
             num_cpus: 4
+            memory_size_mb: 120734
           }
           trusted_uid: 158158
           trusted_packet_sequence_id: 1
@@ -527,6 +530,7 @@ class Tables(TestSuite):
             page_size: 4096
             num_cpus: 8
             timezone_off_mins: 0
+            memory_size_mb: 11452
           }
           machine_id: 2420838448
           trusted_uid: 158158
@@ -537,9 +541,9 @@ class Tables(TestSuite):
         SELECT * FROM machine
         """,
         out=Csv("""
-        "id","raw_id","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version"
-        0,0,"Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]"
-        1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33
+        "id","raw_id","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version","memory_size_mb"
+        0,0,"Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]",120734
+        1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33,11452
         """))
 
   # user list table

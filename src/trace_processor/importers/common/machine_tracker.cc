@@ -61,6 +61,10 @@ void MachineTracker::SetAndroidSdkVersion(int64_t sdk_version) {
   getRow()->set_android_sdk_version(sdk_version);
 }
 
+void MachineTracker::SetMemorySizeMb(uint32_t memory_size_mb) {
+  getRow()->set_memory_size_mb(memory_size_mb);
+}
+
 PERFETTO_ALWAYS_INLINE
 std::optional<MachineTable::RowReference> MachineTracker::getRow() {
   auto& machines = *context_->storage->mutable_machine_table();

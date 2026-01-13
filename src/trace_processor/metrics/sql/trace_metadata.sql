@@ -62,6 +62,10 @@ SELECT TraceMetadata(
     SELECT int_value FROM metadata
     WHERE name = 'android_sdk_version'
   ),
+  'memory_size_mb', (
+    SELECT int_value FROM metadata
+    WHERE name = 'memory_size_mb'
+  ),
   'android_profile_boot_classpath', (
     SELECT int_value FROM metadata
     WHERE name = 'android_profile_boot_classpath'
