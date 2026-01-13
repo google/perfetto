@@ -111,7 +111,9 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       ),
       m(
         '.pf-tabs__content',
-        tabs.map((tab) => m(Gate, {open: tab.key === activeKey}, tab.content)),
+        tabs.map((tab) =>
+          m(Gate, {key: tab.key, open: tab.key === activeKey}, tab.content),
+        ),
       ),
     );
   }

@@ -22,6 +22,20 @@
     height: 100%;
   }
 
+  &__editor-tabs {
+    height: 100%;
+
+    // The content inside tabs (the split panel) needs full height
+    .pf-tabs__content {
+      height: calc(100% - 32px); // Account for tab bar height
+    }
+
+    // Each tab's split panel needs full height
+    .pf-split-panel {
+      height: 100%;
+    }
+  }
+
   &__editor-panel {
     display: flex;
     flex-direction: column;

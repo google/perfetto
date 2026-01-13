@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
 import {Accordion, AccordionItem} from '../../widgets/accordion';
+import {Button} from '../../widgets/button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Icon} from '../../widgets/icon';
 import {TextInput} from '../../widgets/text_input';
@@ -64,6 +65,8 @@ function getTypeIcon(type?: PerfettoSqlType): string {
 
 export interface TableListAttrs {
   readonly sqlModules: SqlModules;
+  // Called when user wants to query a table in a new tab
+  onQueryTable?(tableName: string, query: string): void;
 }
 
 export class TableList implements m.ClassComponent<TableListAttrs> {
@@ -95,7 +98,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         'code.pf-simple-table-list__item-name',
         renderHighlightedName(segments),
       ),
-      content: this.renderTableContent(table),
+      content: this.renderTableContent(table, attrs.onQueryTable),
     }));
 
     return m(
@@ -126,7 +129,32 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     );
   }
 
-  private renderTableContent(table: SqlTable): m.Children {
+  private generateQuery(table: SqlTable): string {
+    const lines: string[] = [];
+
+    // Add INCLUDE statement if needed
+    if (table.includeKey) {
+      lines.push(`INCLUDE PERFETTO MODULE ${table.includeKey};`);
+      lines.push('');
+    }
+
+    // Build SELECT with all columns
+    const columns =
+      table.columns.length > 0
+        ? table.columns.map((c) => c.name).join(',\n  ')
+        : '*';
+
+    lines.push('SELECT');
+    lines.push(`  ${columns}`);
+    lines.push(`FROM ${table.name}`);
+
+    return lines.join('\n');
+  }
+
+  private renderTableContent(
+    table: SqlTable,
+    onQueryTable?: (tableName: string, query: string) => void,
+  ): m.Children {
     return [
       // Description
       table.description &&
@@ -141,6 +169,14 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           textToCopy: table.name,
           tooltip: 'Copy table name to clipboard',
         }),
+        onQueryTable &&
+          m(Button, {
+            className: 'pf-show-on-hover',
+            icon: 'play_arrow',
+            compact: true,
+            tooltip: `SELECT * FROM ${table.name} in a new tab`,
+            onclick: () => onQueryTable(table.name, this.generateQuery(table)),
+          }),
       ),
       // Module
       table.includeKey &&

@@ -62,6 +62,11 @@
       box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
       border-color: var(--pf-color-border);
       z-index: 1;
+
+      // Don't change background on hover for active tab
+      &:hover {
+        background-color: var(--pf-color-background);
+      }
     }
   }
 
