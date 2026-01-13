@@ -223,10 +223,10 @@ export default class CoreCommands implements PerfettoPlugin {
     const legacyMacros = CoreCommands.legacyMacrosSetting.get();
     if (newMacros.length === 0 && Object.keys(legacyMacros).length > 0) {
       const migratedMacros: MacrosConfig = Object.entries(legacyMacros).map(
-        ([name, commands]) => ({
+        ([name, run]) => ({
           id: `dev.perfetto.UserMacro.${name}`,
           name,
-          commands,
+          run,
         }),
       );
       CoreCommands.macrosSetting.set(migratedMacros);
