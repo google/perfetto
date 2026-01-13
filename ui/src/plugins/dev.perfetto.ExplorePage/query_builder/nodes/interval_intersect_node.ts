@@ -94,8 +94,10 @@ export class IntervalIntersectNode implements QueryNode {
     // Partition columns preserve their type from the first input node
     if (this.state.partitionColumns) {
       const firstNode = inputNodes[0];
+      const firstNodeCols =
+        firstNode !== undefined ? this.getEffectiveCols(firstNode) : [];
       for (const colName of this.state.partitionColumns) {
-        const sourceCol = firstNode?.finalCols.find((c) => c.name === colName);
+        const sourceCol = firstNodeCols.find((c) => c.name === colName);
 
         // Validate that partition column types match across all input nodes
         // Skip validation if type is unknown/NA
@@ -110,7 +112,8 @@ export class IntervalIntersectNode implements QueryNode {
               continue;
             }
 
-            const otherCol = node.finalCols.find((c) => c.name === colName);
+            const nodeCols = this.getEffectiveCols(node);
+            const otherCol = nodeCols.find((c) => c.name === colName);
             const otherType = otherCol?.type;
 
             // Only warn if both types are known and different
@@ -148,7 +151,8 @@ export class IntervalIntersectNode implements QueryNode {
     for (const node of inputNodes) {
       if (node === undefined) continue;
 
-      for (const col of node.finalCols) {
+      const nodeCols = this.getEffectiveCols(node);
+      for (const col of nodeCols) {
         if (
           col.name !== 'id' &&
           col.name !== 'ts' &&
@@ -164,7 +168,8 @@ export class IntervalIntersectNode implements QueryNode {
     for (const node of inputNodes) {
       if (node === undefined) continue;
 
-      for (const col of node.finalCols) {
+      const nodeCols = this.getEffectiveCols(node);
+      for (const col of nodeCols) {
         if (
           col.name !== 'id' &&
           col.name !== 'ts' &&
@@ -184,7 +189,7 @@ export class IntervalIntersectNode implements QueryNode {
       if (node === undefined) continue;
 
       // Find the actual column info for id to get its type
-      const nodeCols = node.finalCols;
+      const nodeCols = this.getEffectiveCols(node);
       const idCol = nodeCols.find((c) => c.name === 'id');
 
       // Create id_N column with explicit type handling
@@ -276,6 +281,7 @@ export class IntervalIntersectNode implements QueryNode {
     };
 
     for (const inputNode of inputNodes) {
+      // Require standard interval columns (id, ts, dur)
       if (!checkColumns(inputNode, ['id', 'ts', 'dur'])) return false;
     }
 
@@ -554,22 +560,45 @@ export class IntervalIntersectNode implements QueryNode {
     // Add input nodes section
     sections.push({
       content: connectedInputs.map(({node, index}) => {
+        const isCounter = this.isCounterNode(node);
+
+        // Build description based on state
+        const description = isCounter
+          ? 'Missing dur column - click below to convert to intervals'
+          : '';
+
+        // Build actions array
+        const actions = [];
+
+        // Add convert to intervals action if this is counter data
+        if (isCounter) {
+          actions.push({
+            label: 'Convert to Intervals',
+            onclick: () => {
+              if (this.state.actions?.onInsertCounterToIntervalsNode) {
+                this.state.actions.onInsertCounterToIntervalsNode(index);
+              }
+            },
+          });
+        }
+
+        // Add pick columns action
+        actions.push({
+          icon: 'view_column',
+          title: 'Pick columns',
+          onclick: () => {
+            if (this.state.actions?.onInsertModifyColumnsNode) {
+              this.state.actions.onInsertModifyColumnsNode(index);
+            }
+          },
+        });
+
         return m(ListItem, {
           key: node.nodeId,
           icon: 'input',
           name: `Input ${index}`,
-          description: '',
-          actions: [
-            {
-              icon: 'view_column',
-              title: 'Pick columns',
-              onclick: () => {
-                if (this.state.actions?.onInsertModifyColumnsNode) {
-                  this.state.actions.onInsertModifyColumnsNode(index);
-                }
-              },
-            },
-          ],
+          description,
+          actions,
         });
       }),
     });
@@ -578,6 +607,23 @@ export class IntervalIntersectNode implements QueryNode {
       info: 'Finds overlapping time intervals between inputs. Optionally partition the intersection by common columns (e.g., utid). When partitioned, intervals are matched only within the same partition values. Common columns are those that exist in all input tables, excluding id, ts, dur, and string/bytes types.',
       sections,
     };
+  }
+
+  // Check if a node is counter data (has id, ts, track_id, value but NOT dur)
+  private isCounterNode(node: QueryNode): boolean {
+    const cols = new Set(node.finalCols.map((c) => c.name));
+    return (
+      !cols.has('dur') &&
+      cols.has('id') &&
+      cols.has('ts') &&
+      cols.has('track_id') &&
+      cols.has('value')
+    );
+  }
+
+  // Get the finalCols for a node
+  private getEffectiveCols(node: QueryNode): ColumnInfo[] {
+    return node.finalCols;
   }
 
   clone(): QueryNode {

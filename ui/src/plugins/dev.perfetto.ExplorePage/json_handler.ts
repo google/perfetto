@@ -68,6 +68,10 @@ import {
   FilterDuringNode,
   FilterDuringNodeState,
 } from './query_builder/nodes/filter_during_node';
+import {
+  CounterToIntervalsNode,
+  CounterToIntervalsNodeState,
+} from './query_builder/nodes/counter_to_intervals_node';
 
 type SerializedNodeState =
   | TableSourceSerializedState
@@ -84,7 +88,8 @@ type SerializedNodeState =
   | JoinSerializedState
   | CreateSlicesSerializedState
   | UnionSerializedState
-  | FilterDuringNodeState;
+  | FilterDuringNodeState
+  | CounterToIntervalsNodeState;
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {
@@ -332,6 +337,12 @@ function createNodeInstance(
     case NodeType.kFilterDuring:
       return new FilterDuringNode(
         FilterDuringNode.deserializeState(state as FilterDuringNodeState),
+      );
+    case NodeType.kCounterToIntervals:
+      return new CounterToIntervalsNode(
+        CounterToIntervalsNode.deserializeState(
+          state as CounterToIntervalsNodeState,
+        ),
       );
     default:
       throw new Error(`Unknown node type: ${serializedNode.type}`);

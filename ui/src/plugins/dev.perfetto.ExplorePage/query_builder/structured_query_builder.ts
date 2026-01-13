@@ -16,20 +16,26 @@ import protos from '../../../protos';
 import {nextNodeId, QueryNode} from '../query_node';
 
 /**
- * Type representing a QueryNode.
- * Builder methods accept nodes directly and extract their queries internally.
+ * Type representing a query source.
+ * Builder methods accept nodes or structured queries and extract/use them internally.
  */
-export type QuerySource = QueryNode | undefined;
+export type QuerySource =
+  | QueryNode
+  | protos.PerfettoSqlStructuredQuery
+  | undefined;
 
 /**
  * Helper function to extract a structured query from a QuerySource.
- * @param source The query source (node)
+ * @param source The query source (node or structured query)
  * @returns The structured query, or undefined if extraction fails
  */
 function extractQuery(
   source: QuerySource,
 ): protos.PerfettoSqlStructuredQuery | undefined {
   if (source === undefined) return undefined;
+  if (source instanceof protos.PerfettoSqlStructuredQuery) {
+    return source;
+  }
   return source.getStructuredQuery();
 }
 
@@ -200,6 +206,28 @@ export class StructuredQueryBuilder {
       sq.offset = offset;
     }
 
+    return sq;
+  }
+
+  /**
+   * Wraps a query with ExperimentalCounterIntervals to convert counter data to intervals.
+   *
+   * @param inputQuery The query containing counter data (id, ts, track_id, value)
+   * @param nodeId Optional node id. If not provided, generates a new one.
+   * @returns A new structured query with counter intervals conversion
+   */
+  static withCounterIntervals(
+    inputQuery: QuerySource,
+    nodeId?: string,
+  ): protos.PerfettoSqlStructuredQuery | undefined {
+    const query = extractQuery(inputQuery);
+    if (!query) return undefined;
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = nodeId ?? nextNodeId();
+    sq.experimentalCounterIntervals =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalCounterIntervals();
+    sq.experimentalCounterIntervals.inputQuery = query;
     return sq;
   }
 
