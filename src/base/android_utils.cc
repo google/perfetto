@@ -36,6 +36,11 @@
 #include <unistd.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/sysinfo.h>
+#endif
+
 namespace perfetto {
 namespace base {
 
@@ -87,6 +92,7 @@ Utsname GetUtsname() {
 
 SystemInfo GetSystemInfo() {
   SystemInfo info;
+  constexpr uint32_t kMiB = 1024 * 1024;
 
   info.timezone_off_mins = GetTimezoneOffsetMins();
 
@@ -96,6 +102,24 @@ SystemInfo GetSystemInfo() {
   info.utsname_info = GetUtsname();
   info.page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
   info.num_cpus = static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // sysinfo() is the preferred way to get total RAM on Linux/Android.
+  // https://man7.org/linux/man-pages/man2/sysinfo.2.html
+  struct sysinfo sys_info;
+  if (sysinfo(&sys_info) == 0) {
+    info.memory_size_mb = static_cast<uint32_t>(
+        static_cast<uint64_t>(sys_info.totalram) * sys_info.mem_unit / kMiB);
+  }
+#else
+  // sysconf() is used for other POSIX systems (e.g., Mac).
+  long pages = sysconf(_SC_PHYS_PAGES);
+  if (pages > 0 && info.page_size.has_value()) {
+    info.memory_size_mb = static_cast<uint32_t>(static_cast<uint64_t>(pages) *
+                                                (*info.page_size) / kMiB);
+  }
+#endif
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   info.android_build_fingerprint = GetAndroidProp("ro.build.fingerprint");

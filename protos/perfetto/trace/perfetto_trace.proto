@@ -5181,7 +5181,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 16
+// Next id: 17
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -5238,6 +5238,14 @@ message SystemInfo {
   // Ticks per second - sysconf(_SC_CLK_TCK).
   // Not serialised as of perfetto v44.
   optional int64 hz = 3;
+
+  // The size of the memory in MB.
+  //
+  // On Linux/Android: (sysinfo.totalram * sysinfo.mem_unit) / (1024 * 1024).
+  // On Mac: (sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE)) / (1024 * 1024).
+  //
+  // Introduced in perfetto v54 / Android 26Q1+.
+  optional uint32 memory_size_mb = 16;
 }
 
 // End of protos/perfetto/common/system_info.proto
