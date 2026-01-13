@@ -110,6 +110,7 @@
 #include "src/tracing/service/random.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/trace_buffer_v1.h"
+#include "src/tracing/service/trace_buffer_v1_with_v2_shadow.h"
 #include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
@@ -1251,11 +1252,16 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
             ? TraceBuffer::kDiscard
             : TraceBuffer::kOverwrite;
     std::unique_ptr<TraceBuffer> new_buffer;
-    if (buffer_cfg.experimental_mode() ==
-        TraceConfig::BufferConfig::TRACE_BUFFER_V2) {
-      new_buffer = TraceBufferV2::Create(buf_size, policy);
-    } else {
-      new_buffer = TraceBufferV1::Create(buf_size, policy);
+    switch (buffer_cfg.experimental_mode()) {
+      case TraceConfig::BufferConfig::TRACE_BUFFER_V2:
+        new_buffer = TraceBufferV2::Create(buf_size, policy);
+        break;
+      case TraceConfig::BufferConfig::TRACE_BUFFER_V2_SHADOW_MODE:
+        new_buffer = TraceBufferV1WithV2Shadow::Create(buf_size, policy);
+        break;
+      case TraceConfig::BufferConfig::MODE_UNSPECIFIED:
+        new_buffer = TraceBufferV1::Create(buf_size, policy);
+        break;
     }
     auto it_and_inserted = buffers_.emplace(global_id, std::move(new_buffer));
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
@@ -3699,6 +3705,10 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
   // Sum up all the trace buffers.
   for (const auto& id_to_buffer : buffers_) {
     total_buffer_bytes += id_to_buffer.second->size();
+    if (id_to_buffer.second->buf_type() == TraceBuffer::kV1WithV2Shadow) {
+      // kV1WithV2Shadow encapsulates both v1 and v2. Allow 2x budget.
+      total_buffer_bytes += id_to_buffer.second->size();
+    }
   }
 
   // Sum up all the cloned traced buffers.
@@ -4408,11 +4418,18 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     // Some leftover data was left in the buffer. Recreate it to empty it.
     const auto buf_policy = buf->overwrite_policy();
     const auto buf_size = buf->size();
+    const auto buf_type = buf->buf_type();
     std::unique_ptr<TraceBuffer> old_buf = std::move(buf);
-    if (old_buf->is_trace_buffer_v2()) {
-      buf = TraceBufferV2::Create(buf_size, buf_policy);
-    } else {
-      buf = TraceBufferV1::Create(buf_size, buf_policy);
+    switch (buf_type) {
+      case TraceBuffer::kV1:
+        buf = TraceBufferV1::Create(buf_size, buf_policy);
+        break;
+      case TraceBuffer::kV2:
+        buf = TraceBufferV2::Create(buf_size, buf_policy);
+        break;
+      case TraceBuffer::kV1WithV2Shadow:
+        buf = TraceBufferV1WithV2Shadow::Create(buf_size, buf_policy);
+        break;
     }
     if (!buf) {
       // This is extremely rare but could happen on 32-bit. If the new buffer
@@ -4584,12 +4601,18 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
     if (src.config.buffers()[buf_idx].transfer_on_clone()) {
       const auto buf_policy = src_buf->overwrite_policy();
       const auto buf_size = src_buf->size();
-      const bool is_tbv2 = src_buf->is_trace_buffer_v2();
+      const auto buf_type = src_buf->buf_type();
       new_buf = std::move(src_buf);
-      if (is_tbv2) {
-        src_buf = TraceBufferV2::Create(buf_size, buf_policy);
-      } else {
-        src_buf = TraceBufferV1::Create(buf_size, buf_policy);
+      switch (buf_type) {
+        case TraceBuffer::kV1:
+          src_buf = TraceBufferV1::Create(buf_size, buf_policy);
+          break;
+        case TraceBuffer::kV2:
+          src_buf = TraceBufferV2::Create(buf_size, buf_policy);
+          break;
+        case TraceBuffer::kV1WithV2Shadow:
+          src_buf = TraceBufferV1WithV2Shadow::Create(buf_size, buf_policy);
+          break;
       }
       if (!src_buf) {
         // If the allocation fails put the buffer back and let the code below
