@@ -530,20 +530,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             onRemove: () => this.removeFilter(index, attrs),
           }),
         ),
-        drillDown: this.pivot?.drillDown,
-        drillDownFields: this.pivot?.groupBy
-          .filter(({field}) => {
-            // Only show fields that have actual values (not rolled-up NULLs)
-            const value = this.pivot?.drillDown?.[field];
-            return value !== null && value !== undefined;
-          })
-          .map(({field}) => {
+        drillDownFields:
+          this.pivot?.drillDown &&
+          this.pivot.drillDown.map(({field, value}) => {
             const colInfo = getColumnInfo(schema, rootSchema, field);
             const titleParts = colInfo?.titleParts ?? field.split('.');
-            const rawValue = this.pivot?.drillDown?.[field];
             return {
               title: buildColumnTitle(titleParts),
-              value: formatChipValue(rawValue, colInfo?.cellFormatter),
+              value: formatChipValue(value, colInfo?.cellFormatter),
             };
           }),
         onExitDrillDown: () => this.exitDrillDown(attrs),
@@ -769,17 +763,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     attrs.onPivotChanged?.(newPivot);
   }
 
-  private drillDown(row: Row, attrs: DataGridAttrs): void {
+  private drillDown(
+    drillDown: readonly {field: string; value: SqlValue}[],
+    attrs: DataGridAttrs,
+  ): void {
     if (!this.pivot) return;
 
-    // Build drill-down filter from groupBy column values
-    // Read using column ID (SQL alias), store by field (for filtering)
-    const drillDownRow: Row = {};
-    for (const groupByCol of this.pivot.groupBy) {
-      drillDownRow[groupByCol.field] = row[groupByCol.id];
-    }
-
-    const newPivot: Pivot = {...this.pivot, drillDown: drillDownRow};
+    const newPivot: Pivot = {...this.pivot, drillDown};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -1704,7 +1694,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     m(MenuItem, {
                       label: 'Drill down',
                       icon: 'zoom_in',
-                      onclick: () => this.drillDown(row, attrs),
+                      onclick: () => {
+                        // Build a row with only the groupBy columns up to rowLevel
+                        const drillDownRow: {field: string; value: SqlValue}[] =
+                          [];
+                        for (let j = 0; j <= rowLevel; j++) {
+                          const col = pivot.groupBy[j];
+                          drillDownRow.push({
+                            field: col.field,
+                            value: row[col.id],
+                          });
+                        }
+                        this.drillDown(drillDownRow, attrs);
+                      },
                     }),
                     m(MenuDivider),
                   ],
@@ -1733,7 +1735,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               title: 'Drill down into this group',
               fillWidth: true,
               onclick: () => {
-                this.drillDown(row, attrs);
+                // Build a row with only the groupBy columns up to rowLevel
+                const drillDownRow: {field: string; value: SqlValue}[] = [];
+                for (let j = 0; j <= rowLevel; j++) {
+                  const col = pivot.groupBy[j];
+                  drillDownRow.push({field: col.field, value: row[col.id]});
+                }
+                this.drillDown(drillDownRow, attrs);
               },
             }),
           );
@@ -1950,7 +1958,7 @@ function getAligment(value: SqlValue): 'left' | 'right' | 'center' {
 /**
  * Builds a column title from title parts, interspersing chevron separators.
  */
-function buildColumnTitle(titleParts: m.Children[]): m.Children[] {
+function buildColumnTitle(titleParts: m.ChildArray): m.Children[] {
   return intersperse(
     titleParts,
     m(Icon, {

@@ -565,19 +565,14 @@ ${joinClauses}`;
 
     // Add drill-down conditions
     if (pivot?.drillDown) {
-      // Only add conditions for groupBy columns that have actual values.
-      // Rollup rows have NULL for rolled-up columns, which we should skip
-      // (not filter by IS NULL, as that would return no results).
-      const drillDownConditions = pivot.groupBy
-        .filter((col) => {
-          const value = pivot.drillDown![col.field];
-          // Skip columns that are NULL (rolled-up columns)
-          return value !== null && value !== undefined;
-        })
-        .map((col) => {
-          const field = col.field;
-          const value = pivot.drillDown![field];
+      // Build conditions for each groupBy column, using IS NULL for null values
+      const drillDownConditions = pivot.drillDown
+        .map(({field, value}) => {
           const sqlExpr = resolver.resolveColumnPath(field) ?? field;
+          // Use IS NULL for null values, otherwise use equality
+          if (value === null) {
+            return `${sqlExpr} IS NULL`;
+          }
           return `${sqlExpr} = ${sqlValue(value)}`;
         })
         .join(' AND ');

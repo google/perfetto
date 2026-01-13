@@ -13,12 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Row} from '../../../trace_processor/query_result';
-import {Box} from '../../../widgets/box';
-import {Button, ButtonVariant} from '../../../widgets/button';
-import {Chip} from '../../../widgets/chip';
-import {Stack, StackAuto} from '../../../widgets/stack';
-import {isEmptyVnodes} from '../../../base/mithril_utils';
+import { Box } from '../../../widgets/box';
+import { Button, ButtonVariant } from '../../../widgets/button';
+import { Chip } from '../../../widgets/chip';
+import { Stack, StackAuto } from '../../../widgets/stack';
+import { isEmptyVnodes } from '../../../base/mithril_utils';
 
 export class GridFilterBar implements m.ClassComponent {
   view({children}: m.Vnode) {
@@ -54,7 +53,6 @@ export interface DataGridToolbarAttrs {
   readonly filterChips?: m.Children;
 
   // Drill-down state - when set, shows "Back to pivot" and drill-down values
-  readonly drillDown?: Row;
   readonly drillDownFields?: readonly DrillDownField[];
   readonly onExitDrillDown?: () => void;
 }
@@ -65,14 +63,12 @@ export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
       leftItems,
       rightItems,
       filterChips,
-      drillDown,
       drillDownFields,
       onExitDrillDown,
     } = attrs;
 
     // Build drill-down indicator
     const drillDownIndicator =
-      drillDown &&
       drillDownFields &&
       onExitDrillDown &&
       m(

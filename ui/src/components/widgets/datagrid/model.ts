@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Row, SqlValue} from '../../../trace_processor/query_result';
+import {SqlValue} from '../../../trace_processor/query_result';
 
 /**
  * A Set-like collection for storing paths of SqlValue arrays.
@@ -119,7 +119,7 @@ interface PivotBase {
   // When set, shows raw rows filtered by these groupBy column values.
   // This allows drilling down into a specific pivot group to see the
   // underlying data. The keys are the groupBy column names.
-  readonly drillDown?: Row;
+  readonly drillDown?: readonly {field: string ; value: SqlValue}[];
 
   // When true, shows leaf-level rows only (no rollup/summary rows).
   // This displays the data in a flat table format without hierarchical grouping.
