@@ -95,7 +95,8 @@ async function loadMacros(
   }
   // Validate that all macro IDs start with the namespace
   for (const macro of wrapper.value.macros) {
-    if (!macro.id.startsWith(manifest.namespace + '.')) {
+    const isLegacy = macro.id.startsWith('dev.perfetto.UserMacro.');
+    if (!macro.id.startsWith(manifest.namespace + '.') && !isLegacy) {
       return errResult(
         `Macro ID '${macro.id}' must start with namespace '${manifest.namespace}.'`,
       );
