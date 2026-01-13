@@ -105,7 +105,7 @@ SystemInfo GetSystemInfo() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  // sysinfo() is the preferred way to get total RAM on Linux/Android.
+  // Use the Linux-specific sysinfo() system call on Linux and Android.
   // https://man7.org/linux/man-pages/man2/sysinfo.2.html
   struct sysinfo sys_info;
   if (sysinfo(&sys_info) == 0) {
@@ -113,7 +113,7 @@ SystemInfo GetSystemInfo() {
         static_cast<uint64_t>(sys_info.totalram) * sys_info.mem_unit / kMiB);
   }
 #else
-  // sysconf() is used for other POSIX systems (e.g., Mac).
+  // POSIX Fallback (macOS, BSD, etc.): Use sysconf() to get physical pages.
   long pages = sysconf(_SC_PHYS_PAGES);
   if (pages > 0 && info.page_size.has_value()) {
     info.memory_size_mb = static_cast<uint32_t>(static_cast<uint64_t>(pages) *
