@@ -354,36 +354,3 @@ SELECT
 FROM __intrinsic_trace_import_logs AS l
 JOIN _stat_key_to_severity_and_name AS s
   ON l.stat_key = s.key;
-
--- Samples from the traced_perf profiler.
-CREATE PERFETTO VIEW perf_sample (
-  -- Unique identifier for this perf sample.
-  id ID,
-  -- Timestamp of the sample.
-  ts TIMESTAMP,
-  -- Sampled thread.
-  utid JOINID(thread.id),
-  -- Core the sampled thread was running on.
-  cpu LONG,
-  -- Execution state (userspace/kernelspace) of the sampled thread.
-  cpu_mode STRING,
-  -- If set, unwound callstack of the sampled thread.
-  callsite_id JOINID(stack_profile_callsite.id),
-  -- If set, indicates that the unwinding for this sample encountered an error.
-  -- Such samples still reference the best-effort result via the callsite_id,
-  -- with a synthetic error frame at the point where unwinding stopped.
-  unwind_error STRING,
-  -- Distinguishes samples from different profiling streams
-  -- (i.e. multiple data sources).
-  perf_session_id JOINID(perf_session.id)
-) AS
-SELECT
-  id,
-  ts,
-  utid,
-  cpu,
-  cpu_mode,
-  callsite_id,
-  unwind_error,
-  perf_session_id
-FROM __intrinsic_perf_sample;
