@@ -58,7 +58,7 @@ Macros must be a JSON array of macro objects:
   {
     "id": string,        // Unique identifier for the macro
     "name": string,      // Display name shown in command palette
-    "commands": [        // Commands to execute in sequence
+    "run": [             // Commands to run when this macro is executed
       {
         "id": string,      // Command identifier
         "args": unknown[]  // Array of arguments (types depend on the command)
@@ -228,7 +228,7 @@ creates a new workspace to isolate memory-related tracks from the main view:
   {
     "id": "user.example.MemoryAnalysis",
     "name": "Memory Analysis",
-    "commands": [
+    "run": [
       {
         "id": "dev.perfetto.CreateWorkspace",
         "args": ["Memory Analysis"]
@@ -266,7 +266,7 @@ This macro helps identify performance bottlenecks:
   {
     "id": "user.example.FindLatency",
     "name": "Find Latency",
-    "commands": [
+    "run": [
       {
         "id": "dev.perfetto.PinTracksByRegex",
         "args": [".*CPU.*"]

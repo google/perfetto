@@ -95,15 +95,15 @@ export function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
   setTimeout(() => scriptLoaded.resolve(globals), SCRIPT_LOAD_TIMEOUT_MS);
 
   // Register the macros, descriptors and SQL packages promises.
-  // Convert from the legacy external script format (Record<string, commands>)
-  // to the new Macro format (array of {id, name, commands}).
+  // Convert from the legacy external script format (Record<string, run>)
+  // to the new Macro format (array of {id, name, run}).
   app.addMacros(
     scriptLoaded.then(({extraMacros}): ReadonlyArray<Macro> => {
       return extraMacros.flatMap((record) =>
-        Object.entries(record).map(([name, commands]) => ({
+        Object.entries(record).map(([name, run]) => ({
           id: `dev.perfetto.UserMacro.${name}`,
           name,
-          commands,
+          run,
         })),
       );
     }),
