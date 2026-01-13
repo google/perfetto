@@ -108,8 +108,9 @@ export interface GroupByColumn extends ColumnBase {
   readonly field: string;
 }
 
-export interface Pivot {
-  // List of fields to group by - supports both new GroupByColumn[]
+// Base pivot configuration without expansion state
+interface PivotBase {
+  // List of fields to group by
   readonly groupBy: readonly GroupByColumn[];
 
   // List of aggregate column definitions.
@@ -119,15 +120,26 @@ export interface Pivot {
   // This allows drilling down into a specific pivot group to see the
   // underlying data. The keys are the groupBy column names.
   readonly drillDown?: Row;
+}
 
-  // When there are multiple groupBy columns, this controls which parent groups
-  // are expanded to show their children. Each path is an array of groupBy values
-  // from level 0 to the expanded level.
-  // For example, with groupBy: [{field: 'process'}, {field: 'thread'}]:
-  // - ['processA'] means processA is expanded (showing its threads)
-  // - ['processA', 'threadX'] means threadX under processA is expanded
+// Group expansion state for multi-level pivots.
+// Each path is an array of groupBy values from level 0 to the expanded level.
+// For example, with groupBy: [{field: 'process'}, {field: 'thread'}]:
+// - ['processA'] means processA is expanded/collapsed (affecting its threads)
+
+// Whitelist mode: Only groups in expandedGroups are expanded.
+// Empty PathSet = all groups collapsed (default when entering multi-level)
+export interface PivotWithExpandedGroups extends PivotBase {
   readonly expandedGroups?: PathSet;
 }
+
+// Blacklist mode: All groups expanded EXCEPT those in collapsedGroups.
+// Empty PathSet = all groups expanded (used by "Expand All")
+export interface PivotWithCollapsedGroups extends PivotBase {
+  readonly collapsedGroups?: PathSet;
+}
+
+export type Pivot = PivotWithExpandedGroups | PivotWithCollapsedGroups | PivotBase;
 
 export interface Model {
   readonly columns: readonly Column[];

@@ -24,7 +24,7 @@ import {
   DataSourceRows,
   Pagination,
 } from './data_source';
-import {Column, Filter, PathSet, Pivot} from './model';
+import {Column, Filter, PathSet, Pivot, AggregateColumn} from './model';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
@@ -878,16 +878,13 @@ ${joinClauses}`;
     const unionQueries: string[] = [];
     const numLevels = groupByFields.length;
 
-    // Default to collapsed (empty PathSet) if expandedGroups is undefined
-    const expandedGroups = pivot.expandedGroups ?? new PathSet();
-
     for (let level = 0; level < numLevels; level++) {
       const levelQuery = this.buildRollupLevelQuery(
         level,
         groupByFields,
         groupByAliases,
         aggregates,
-        expandedGroups,
+        pivot,
         dependencyColumns,
       );
       unionQueries.push(levelQuery);
@@ -959,8 +956,8 @@ SELECT * FROM __union__`;
     level: number,
     groupByFields: string[],
     groupByAliases: string[],
-    aggregates: readonly import('./model').AggregateColumn[],
-    expandedGroups: PathSet,
+    aggregates: readonly AggregateColumn[],
+    pivot: Pivot,
     dependencyColumns?: ReadonlyArray<Column>,
   ): string {
     const selectClauses: string[] = [];
@@ -1019,39 +1016,102 @@ SELECT * FROM __union__`;
 
     let query = `SELECT ${selectClauses.join(', ')}\nFROM __data__`;
 
-    // Add WHERE clause for expanded groups filter (levels > 0)
-    // For a row at level N, ALL ancestor paths must be expanded.
-    // A path ['A', 'X'] is only valid if ['A'] is also expanded.
+    // Add WHERE clause for group expansion filter (levels > 0)
+    // For a row at level N, ALL ancestor paths must be expanded (not collapsed).
     if (level > 0) {
-      // Collect paths of length `level` whose all ancestor prefixes are also expanded
-      const validParentPaths: SqlValue[][] = [];
-      for (const path of expandedGroups) {
-        if (path.length === level) {
-          // Check that all ancestor prefixes are also expanded
-          let allAncestorsExpanded = true;
-          for (let prefixLen = 1; prefixLen < level; prefixLen++) {
-            const prefix = path.slice(0, prefixLen);
-            if (!expandedGroups.has(prefix)) {
-              allAncestorsExpanded = false;
-              break;
+      if ('collapsedGroups' in pivot && pivot.collapsedGroups) {
+        // Blacklist mode: Show all rows EXCEPT those whose parent is collapsed
+        // A row at level N is hidden if any of its ancestor paths are in collapsedGroups
+        const collapsedGroups = pivot.collapsedGroups;
+        if (collapsedGroups.size > 0) {
+          // Collect collapsed paths that would hide rows at this level.
+          // A collapsed path of length L hides all rows at levels > L.
+          // For level N, we need to exclude rows whose ancestor at any level < N
+          // is collapsed. A path of length L is an ancestor of level N if L < N.
+          const collapsedParentPaths: SqlValue[][] = [];
+          for (const path of collapsedGroups) {
+            if (path.length <= level) {
+              // This collapsed path affects rows at this level
+              // (path.length == level means direct parent is collapsed)
+              collapsedParentPaths.push([...path]);
             }
           }
-          if (allAncestorsExpanded) {
-            validParentPaths.push([...path]);
+
+          if (collapsedParentPaths.length > 0) {
+            // Build NOT IN clause for each prefix length
+            // Group collapsed paths by their length
+            const pathsByLength = new Map<number, SqlValue[][]>();
+            for (const path of collapsedParentPaths) {
+              const len = path.length;
+              if (!pathsByLength.has(len)) {
+                pathsByLength.set(len, []);
+              }
+              pathsByLength.get(len)!.push(path);
+            }
+
+            // Build WHERE clause: exclude rows whose ancestor is collapsed
+            const notInClauses: string[] = [];
+            for (const [len, paths] of pathsByLength) {
+              const cols = groupByAliases.slice(0, len);
+              if (cols.length === 1) {
+                // Single column: use simple NOT IN syntax
+                const values = paths
+                  .map((path) => sqlValue(path[0]))
+                  .join(', ');
+                notInClauses.push(`${cols[0]} NOT IN (${values})`);
+              } else {
+                // Multiple columns: use tuple NOT IN syntax
+                const colTuple = cols.join(', ');
+                const valueTuples = paths
+                  .map((path) => `(${path.map(sqlValue).join(', ')})`)
+                  .join(', ');
+                notInClauses.push(`(${colTuple}) NOT IN (${valueTuples})`);
+              }
+            }
+            query += `\nWHERE ${notInClauses.join(' AND ')}`;
+          }
+          // If no collapsed paths affect this level, no WHERE clause needed (show all)
+        }
+        // If collapsedGroups is empty, no WHERE clause needed (show all)
+      } else {
+        // Whitelist mode (or no expansion state): Only show rows whose parent
+        // path is in expandedGroups. If expandedGroups is undefined/empty,
+        // default to all collapsed.
+        const expandedGroups =
+          'expandedGroups' in pivot && pivot.expandedGroups
+            ? pivot.expandedGroups
+            : new PathSet();
+
+        // Collect paths of length `level` whose all ancestor prefixes are also expanded
+        const validParentPaths: SqlValue[][] = [];
+        for (const path of expandedGroups) {
+          if (path.length === level) {
+            // Check that all ancestor prefixes are also expanded
+            let allAncestorsExpanded = true;
+            for (let prefixLen = 1; prefixLen < level; prefixLen++) {
+              const prefix = path.slice(0, prefixLen);
+              if (!expandedGroups.has(prefix)) {
+                allAncestorsExpanded = false;
+                break;
+              }
+            }
+            if (allAncestorsExpanded) {
+              validParentPaths.push([...path]);
+            }
           }
         }
-      }
 
-      if (validParentPaths.length > 0) {
-        // Build tuple comparison: (col0, col1, ...) IN ((v0, v1, ...), ...)
-        const colTuple = groupByAliases.slice(0, level).join(', ');
-        const valueTuples = validParentPaths
-          .map((path) => `(${path.map(sqlValue).join(', ')})`)
-          .join(', ');
-        query += `\nWHERE (${colTuple}) IN (${valueTuples})`;
-      } else {
-        // No valid expanded paths at this level, so nothing to show
-        query += `\nWHERE FALSE`;
+        if (validParentPaths.length > 0) {
+          // Build tuple comparison: (col0, col1, ...) IN ((v0, v1, ...), ...)
+          const colTuple = groupByAliases.slice(0, level).join(', ');
+          const valueTuples = validParentPaths
+            .map((path) => `(${path.map(sqlValue).join(', ')})`)
+            .join(', ');
+          query += `\nWHERE (${colTuple}) IN (${valueTuples})`;
+        } else {
+          // No valid expanded paths at this level, so nothing to show
+          query += `\nWHERE FALSE`;
+        }
       }
     }
 
@@ -1083,7 +1143,7 @@ SELECT * FROM __union__`;
     pivot: Pivot,
     groupByFields: string[],
     groupByAliases: string[],
-    sortedAggregate?: import('./model').AggregateColumn,
+    sortedAggregate?: AggregateColumn,
   ): string[] {
     const orderByClauses: string[] = [];
     const sortedColumn = this.findSortedColumn(undefined, pivot);
