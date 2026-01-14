@@ -25,16 +25,7 @@ CREATE PERFETTO TABLE android_pvr_gpu_power_state (
 ) AS
 SELECT
   s.ts,
-  -- Fix unfinished slices (dur=-1) by clamping to trace end
-  CASE
-    WHEN s.dur = -1
-    THEN (
-      SELECT
-        end_ts
-      FROM trace_bounds
-    ) - s.ts
-    ELSE s.dur
-  END AS dur,
+  iif(s.dur = -1, trace_end() - s.ts, s.dur) AS dur,
   -- Map slice names to integer states
   CASE s.name WHEN 'OFF' THEN 0 WHEN 'PG' THEN 1 WHEN 'ON' THEN 2 ELSE -1 END AS power_state
 FROM slice AS s
