@@ -23,53 +23,53 @@ export type ZodSchemaInfo =
   | {kind: 'string'}
   | {kind: 'number'; min?: number; max?: number}
   | {kind: 'enum'; options: readonly string[]}
-  | {
-      kind: 'nativeEnum';
-      entries: ReadonlyArray<{key: string; value: string | number}>;
-    }
   | {kind: 'unknown'};
+
+// JSON Schema type definition for the subset we care about
+interface JSONSchema {
+  type?: string;
+  enum?: readonly (string | number)[];
+  minimum?: number;
+  maximum?: number;
+}
 
 /**
  * Introspects a zod schema and returns information about its type and
- * configuration. This centralizes the logic for determining schema types
- * which is used in multiple places for rendering UI controls.
+ * configuration. Uses toJSONSchema() for reliable introspection rather than
+ * accessing internal zod properties.
  *
  * @param schema The zod schema to introspect
  * @returns A discriminated union describing the schema type and its config
  */
 export function getZodSchemaInfo(schema: z.ZodTypeAny): ZodSchemaInfo {
-  if (schema instanceof z.ZodBoolean) {
-    return {kind: 'boolean'};
+  const jsonSchema = schema.toJSONSchema() as JSONSchema;
+
+  // Check for enum first - enums have the 'enum' property
+  if (jsonSchema.enum !== undefined) {
+    // Only support string enums for now (most common case)
+    if (jsonSchema.enum.every((v) => typeof v === 'string')) {
+      return {kind: 'enum', options: jsonSchema.enum as readonly string[]};
+    }
+    // Mixed or numeric enums fall through to unknown
+    return {kind: 'unknown'};
   }
 
-  if (schema instanceof z.ZodString) {
-    return {kind: 'string'};
-  }
+  switch (jsonSchema.type) {
+    case 'boolean':
+      return {kind: 'boolean'};
 
-  if (schema instanceof z.ZodNumber) {
-    const minCheck = schema._def.checks.find(
-      (c: z.ZodNumberCheck) => c.kind === 'min',
-    ) as {kind: 'min'; value: number} | undefined;
-    const maxCheck = schema._def.checks.find(
-      (c: z.ZodNumberCheck) => c.kind === 'max',
-    ) as {kind: 'max'; value: number} | undefined;
-    return {
-      kind: 'number',
-      min: minCheck?.value,
-      max: maxCheck?.value,
-    };
-  }
+    case 'string':
+      return {kind: 'string'};
 
-  if (schema instanceof z.ZodEnum) {
-    return {kind: 'enum', options: schema.options};
-  }
+    case 'number':
+    case 'integer':
+      return {
+        kind: 'number',
+        min: jsonSchema.minimum,
+        max: jsonSchema.maximum,
+      };
 
-  if (schema instanceof z.ZodNativeEnum) {
-    const entries = Object.entries(schema._def.values)
-      .filter(([key]) => typeof key === 'string' && isNaN(Number(key)))
-      .map(([key, value]) => ({key, value: value as string | number}));
-    return {kind: 'nativeEnum', entries};
+    default:
+      return {kind: 'unknown'};
   }
-
-  return {kind: 'unknown'};
 }

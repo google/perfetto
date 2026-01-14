@@ -139,6 +139,7 @@ type MacrosConfig = z.infer<typeof macrosConfigSchema>;
 
 // Legacy macro schema (dictionary format) - deprecated, kept for migration
 export const legacyMacrosConfigSchema = z.record(
+  z.string(), // key: macro name
   z.array(commandInvocationSchema).readonly(),
 );
 type LegacyMacrosConfig = z.infer<typeof legacyMacrosConfigSchema>;

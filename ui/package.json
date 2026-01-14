@@ -50,7 +50,7 @@
     "uuid": "^10.0.0",
     "vega": "^5.32.0",
     "vega-lite": "^5.19.0",
-    "zod": "^3.23.8"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.1.0",

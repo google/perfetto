@@ -34,7 +34,7 @@ dependencies:
     version: 1.12.0(@modelcontextprotocol/sdk@1.25.2)
   '@modelcontextprotocol/sdk':
     specifier: ^1.25.2
-    version: 1.25.2(hono@4.11.4)(zod@3.23.8)
+    version: 1.25.2(hono@4.11.4)(zod@4.3.5)
   '@popperjs/core':
     specifier: ^2.11.8
     version: 2.11.8
@@ -135,8 +135,8 @@ dependencies:
     specifier: ^5.19.0
     version: 5.19.0(vega@5.32.0)
   zod:
-    specifier: ^3.23.8
-    version: 3.23.8
+    specifier: ^4.3.5
+    version: 4.3.5
 
 devDependencies:
   '@eslint/eslintrc':
@@ -1118,7 +1118,7 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
     dependencies:
-      '@modelcontextprotocol/sdk': 1.25.2(hono@4.11.4)(zod@3.23.8)
+      '@modelcontextprotocol/sdk': 1.25.2(hono@4.11.4)(zod@4.3.5)
       google-auth-library: 9.15.1
       ws: 8.18.3
     transitivePeerDependencies:
@@ -1493,7 +1493,7 @@ packages:
     resolution: {integrity: sha512-APtxt3S+a64EcXpG7E3a0bLx+CPqEcgN45FY/GEmbBBgX51AGIPkkYFy0JQDuOR0MFCozjo50q5Im74jflrkiQ==}
     dev: true
 
-  /@modelcontextprotocol/sdk@1.25.2(hono@4.11.4)(zod@3.23.8):
+  /@modelcontextprotocol/sdk@1.25.2(hono@4.11.4)(zod@4.3.5):
     resolution: {integrity: sha512-LZFeo4F9M5qOhC/Uc1aQSrBHxMrvxett+9KLHt7OhcExtoiRN9DKgbZffMP/nxjutWDQpfMDfP3nkHI4X9ijww==}
     engines: {node: '>=18'}
     peerDependencies:
@@ -1517,8 +1517,8 @@ packages:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 3.23.8
-      zod-to-json-schema: 3.25.1(zod@3.23.8)
+      zod: 4.3.5
+      zod-to-json-schema: 3.25.1(zod@4.3.5)
     transitivePeerDependencies:
       - hono
       - supports-color
@@ -7279,13 +7279,18 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
-  /zod-to-json-schema@3.25.1(zod@3.23.8):
+  /zod-to-json-schema@3.25.1(zod@4.3.5):
     resolution: {integrity: sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==}
     peerDependencies:
       zod: ^3.25 || ^4
     dependencies:
-      zod: 3.23.8
+      zod: 4.3.5
     dev: false
 
   /zod@3.23.8:
     resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
+    dev: true
+
+  /zod@4.3.5:
+    resolution: {integrity: sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g==}
+    dev: false

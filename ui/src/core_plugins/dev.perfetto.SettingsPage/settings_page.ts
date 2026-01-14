@@ -277,32 +277,6 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
           }),
         );
 
-      case 'nativeEnum':
-        return m(
-          Select,
-          {
-            value: String(currentValue),
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              // Convert to number if the original enum value was numeric
-              const value = isNaN(Number(target.value))
-                ? target.value
-                : Number(target.value);
-              setting.set(value);
-            },
-          },
-          schemaInfo.entries.map(({key, value}) => {
-            return m(
-              'option',
-              {
-                value: value,
-                selected: currentValue === value,
-              },
-              key,
-            );
-          }),
-        );
-
       case 'number':
         return m(TextInput, {
           type: 'number',
