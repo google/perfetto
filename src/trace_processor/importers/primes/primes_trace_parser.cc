@@ -1,29 +1,44 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#include "src/trace_processor/importers/primes/primes_trace_parser.h"
+
 #include <cstdint>
 
-#include "protos/third_party/primes/primes_tracing.pbzero.h"
-#include "src/trace_processor/importers/primes/primes_trace_parser.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-
-#include "perfetto/base/compiler.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/types/variadic.h"
+
+#include "protos/third_party/primes/primes_tracing.pbzero.h"
 
 namespace primespb = perfetto::third_party::primes::pbzero;
 namespace tracks = perfetto::trace_processor::tracks;
 
 namespace perfetto::trace_processor::primes {
 
-static constexpr auto kBlueprint = tracks::SliceBlueprint(
-    "primes_track",
-    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+static constexpr auto kExecutorDimension = tracks::LongDimensionBlueprint("executor_id");
+// Use TrackCompressor::SliceBlueprint for CONCURRENT executors to avoid overlapping slices.
+static constexpr auto kExecutorCompressorBlueprint = TrackCompressor::SliceBlueprint(
+    "primes_executor_slice",
+    tracks::DimensionBlueprints(kExecutorDimension),
     tracks::DynamicNameBlueprint());
 
 PrimesTraceParser::PrimesTraceParser(TraceProcessorContext* ctx)
@@ -32,11 +47,8 @@ PrimesTraceParser::PrimesTraceParser(TraceProcessorContext* ctx)
 PrimesTraceParser::~PrimesTraceParser() = default;
 
 void PrimesTraceParser::Parse(int64_t ts, TraceBlobView trace_edge) {
-  auto proto_decoder =
-      protozero::ProtoDecoder(trace_edge.data(), trace_edge.length());
-  auto field_bytes = proto_decoder.ReadField().as_bytes();
-  auto edge_decoder =
-      primespb::TraceEdge_Decoder(field_bytes.data, field_bytes.size);
+  primespb::TraceEdge::Decoder edge_decoder(trace_edge.data(),
+                                            trace_edge.length());
 
   if (edge_decoder.has_slice_begin()) {
     HandleSliceBegin(ts, edge_decoder);
@@ -45,125 +57,176 @@ void PrimesTraceParser::Parse(int64_t ts, TraceBlobView trace_edge) {
   } else if (edge_decoder.has_mark()) {
     HandleMark(ts, edge_decoder);
   } else {
-    PERFETTO_ELOG("Unknown trace edge type for Primes Trace Edge{id=%" PRIu64
-                  "}",
-                  edge_decoder.id());
+    context_->import_logs_tracker->RecordParserError(
+        stats::primes_unknown_edge_type, ts,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(context_->storage->InternString("edge_id"),
+                          Variadic::Integer(static_cast<int64_t>(edge_decoder.id())));
+        });
   }
 }
 
 void PrimesTraceParser::HandleSliceBegin(
     int64_t ts,
     primespb::TraceEdge_Decoder& edge_decoder) {
-  auto sb_decoder =
-      primespb::TraceEdge_SliceBegin_Decoder(edge_decoder.slice_begin());
-  auto details_decoder = primespb::TraceEdge_TraceEntityDetails_Decoder(
-      sb_decoder.entity_details().data, sb_decoder.entity_details().size);
+  primespb::TraceEdge::SliceBegin::Decoder sb_decoder(edge_decoder.slice_begin());
+  primespb::TraceEdge::TraceEntityDetails::Decoder details_decoder(sb_decoder.entity_details());
 
-  // Primes executors are mapped to Perfetto tracks (with each track having its
-  // own thread).
   TrackId track_id;
+  StringId executor_name;
+  int64_t executor_id;
+  int64_t edge_id = static_cast<int64_t>(edge_decoder.id());
+  int64_t parent_id = static_cast<int64_t>(details_decoder.parent_id());
 
-  // If this edge has its own executor ID that means it's the root slice for the
-  // executor. Create a new thread and track for it. Otherwise, inherit the
-  // executor ID from the parent slice.
+  // A SliceBegin edge may have its own executor_id, indicating that it is the root slice for the
+  // executor (the first slice that runs on a particular executor).
+  // Otherwise, retrieve `executor_id` by finding this edge's parent.
   if (sb_decoder.has_executor_id()) {
-    UniqueTid utid = context_->process_tracker->GetOrCreateThread(
-        (int64_t)sb_decoder.executor_id());
-    StringId executor_name =
-        context_->storage->InternString(sb_decoder.executor_name());
-    track_id = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(utid), executor_name);
-    parsing_state_.edge_id_to_track_id_map[edge_decoder.id()] = track_id;
-  } else {
-    // The parent ought to have already been processed. If not, log an error and
-    // return.
-    auto it = parsing_state_.edge_id_to_track_id_map.find(
-        details_decoder.parent_id());
-    if (it == parsing_state_.edge_id_to_track_id_map.end()) {
-      PERFETTO_ELOG("Could not find parent track id for edge %" PRIu64,
-                    edge_decoder.id());
+    executor_id = static_cast<int64_t>(sb_decoder.executor_id());
+    executor_name = context_->storage->InternString(sb_decoder.executor_name());
+  } else if (details_decoder.has_parent_id()) {
+    auto* it = edge_to_executor_map_.Find(parent_id);
+    if (!it) {
+      context_->import_logs_tracker->RecordParserError(
+          stats::primes_executor_not_found, ts,
+          [&](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(context_->storage->InternString("edge_id"),
+                            Variadic::Integer(edge_id));
+            inserter.AddArg(context_->storage->InternString("parent_id"),
+                            Variadic::Integer(parent_id));
+          });
       return;
     }
-    track_id = it->second;
-    parsing_state_.edge_id_to_track_id_map[edge_decoder.id()] = track_id;
-  }
-
-  // Now that the track is known, create a new slice on that track.
-  auto slice_name = context_->storage->InternString(details_decoder.name());
-  parsing_state_.edge_id_to_slice_name_map[edge_decoder.id()] = slice_name;
-
-  std::optional<SliceId> slice_id =
-      context_->slice_tracker->Begin(ts, track_id, kNullStringId, slice_name);
-  if (!slice_id) {
-    PERFETTO_ELOG("Failed to begin slice for edge_id=%" PRIu64,
-                  edge_decoder.id());
+    executor_id = *it;
+    executor_name = kNullStringId;
+  } else {
+    context_->import_logs_tracker->RecordParserError(
+        stats::primes_missing_parent_id, ts,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(context_->storage->InternString("edge_id"),
+                          Variadic::Integer(edge_id));
+        });
     return;
   }
-  parsing_state_.edge_id_to_slice_id_map[edge_decoder.id()] = slice_id.value();
+  // Keep track of which edges are on which executors so that future edges can use their parent_id
+  // to look up their executor.
+  edge_to_executor_map_[edge_id] = executor_id;
 
-  HandleFlows(*slice_id, details_decoder);
+  track_id = context_->track_compressor->InternBegin(
+      kExecutorCompressorBlueprint,
+      tracks::Dimensions(executor_id),
+      edge_id,
+      executor_name
+    );
+
+  // Now that an appropriate track for this slice has been found, begin a slice on that track.
+  StringId slice_name = context_->storage->InternString(details_decoder.name());
+
+  std::optional<SliceId> slice_id =
+      context_->slice_tracker->Begin(
+        ts,
+        track_id,
+        kNullStringId,
+        slice_name);
+
+  if (!slice_id) {
+    return;
+  }
+
+  // Register this slice as a potential flow source.
+  context_->flow_tracker->Begin(track_id, static_cast<FlowId>(edge_decoder.id()));
+  HandleFlows(track_id, details_decoder);
 }
 
 void PrimesTraceParser::HandleSliceEnd(
     int64_t ts,
     primespb::TraceEdge_Decoder& edge_decoder) {
+  int64_t edge_id = static_cast<int64_t>(edge_decoder.id());
   // A SliceEnd edge has the same ID as the corresponding SliceBegin edge.
-  // The parent ought to have already been processed. If not, log an error and
-  // return.
-  TrackId track_id;
-  {
-    auto it = parsing_state_.edge_id_to_track_id_map.find(edge_decoder.id());
-    if (it == parsing_state_.edge_id_to_track_id_map.end()) {
-      PERFETTO_ELOG("Could not find track id for end slice %" PRIu64,
-                    edge_decoder.id());
-      return;
-    }
-    track_id = it->second;
+  int64_t* executor_id = edge_to_executor_map_.Find(edge_id);
+  if (!executor_id) {
+    context_->import_logs_tracker->RecordParserError(
+        stats::primes_end_without_matching_begin, ts,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(context_->storage->InternString("edge_id"),
+                          Variadic::Integer(edge_id));
+        });
+    return;
   }
-  StringId slice_name;
-  {
-    auto it = parsing_state_.edge_id_to_slice_name_map.find(edge_decoder.id());
-    if (it == parsing_state_.edge_id_to_slice_name_map.end()) {
-      PERFETTO_ELOG("Could not find slice name for end slice %" PRIu64,
-                    edge_decoder.id());
-      return;
-    }
-    slice_name = it->second;
-  }
-  context_->slice_tracker->End(ts, track_id, kNullStringId, slice_name);
+  // If this slice was managed by the track compressor, we need to notify it
+  // that the slice has ended so it can reuse the track.
+  TrackId track_id = context_->track_compressor->InternEnd(
+    kExecutorCompressorBlueprint,
+    tracks::Dimensions(*executor_id),
+    edge_id,
+    kNullStringId
+  );
+  context_->slice_tracker->End(
+    ts,
+    track_id,
+    kNullStringId,
+    kNullStringId);
 }
+
+
 
 void PrimesTraceParser::HandleMark(int64_t ts,
                                    primespb::TraceEdge_Decoder& edge_decoder) {
+  int64_t edge_id = static_cast<int64_t>(edge_decoder.id());
   auto mark_decoder = primespb::TraceEdge_Mark_Decoder(edge_decoder.mark());
   if (!mark_decoder.has_entity_details()) {
-    PERFETTO_ELOG("Invalid Mark{id=%" PRIu64 "} found (no entity_details)",
-                  edge_decoder.id());
+    context_->import_logs_tracker->RecordParserError(
+        stats::primes_missing_entity_details, ts,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(context_->storage->InternString("edge_id"),
+                          Variadic::Integer(edge_id));
+        });
     return;
   }
   auto details_decoder = primespb::TraceEdge_TraceEntityDetails_Decoder(
       mark_decoder.entity_details());
   if (!details_decoder.has_parent_id()) {
-    PERFETTO_ELOG("Invalid Mark{id=%" PRIu64 "} found (no parent_id)",
-                  edge_decoder.id());
+    context_->import_logs_tracker->RecordParserError(
+        stats::primes_missing_parent_id, ts,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(context_->storage->InternString("edge_id"),
+                          Variadic::Integer(edge_id));
+        });
     return;
   }
 
-  auto parent_id = details_decoder.parent_id();
-  TrackId track_id = parsing_state_.edge_id_to_track_id_map[parent_id];
-  auto slice_name = context_->storage->InternString(details_decoder.name());
+  // A mark does not ever open an executor, so it must have a parent.
+  int64_t parent_id = static_cast<int64_t>(details_decoder.parent_id());
+  auto* executor_id = edge_to_executor_map_.Find(parent_id);
+  if (!executor_id) {
+    context_->import_logs_tracker->RecordParserError(
+        stats::primes_executor_not_found, ts,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(context_->storage->InternString("debug_edge_id"),
+                          Variadic::Integer(edge_id));
+        });
+    return;
+  }
 
-  // A mark is a slice with zero duration.
+  // Determine an appropriate track for this mark using TrackCompressor.
+  TrackId track_id = context_->track_compressor->InternBegin(
+      kExecutorCompressorBlueprint,
+      tracks::Dimensions(*executor_id),
+      edge_id,
+      kNullStringId
+    );
+
+  // A mark is a slice with zero duration. Begin a slice with 0 duration on the track found above.
+  auto slice_name = context_->storage->InternString(details_decoder.name());
   std::optional<SliceId> slice_id = context_->slice_tracker->Scoped(
       ts, track_id, kNullStringId, slice_name, 0);
   if (!slice_id) {
-    PERFETTO_ELOG("Failed to add mark slice for edge_id=%" PRIu64,
-                  edge_decoder.id());
     return;
   }
-  parsing_state_.edge_id_to_slice_id_map[edge_decoder.id()] = slice_id.value();
-
-  HandleFlows(*slice_id, details_decoder);
+  
+  // Register this mark as a potential flow source.
+  context_->flow_tracker->Begin(track_id, static_cast<FlowId>(edge_decoder.id()));
+  HandleFlows(track_id, details_decoder);
 }
 
 // Handles both "follows_from" relationships (which are direct, causal links
@@ -175,20 +238,16 @@ void PrimesTraceParser::HandleMark(int64_t ts,
 // slice. For flow_ids: Manages the flow chain state (Begin/Step) to link the
 // current slice to the previous slice in the same flow chain.
 void PrimesTraceParser::HandleFlows(
-    SliceId slice_id,
+    TrackId track_id,
     const primespb::TraceEdge_TraceEntityDetails_Decoder& details_decoder) {
   // Convert follows-from relationships into flows.
   if (details_decoder.has_follows_from_ids()) {
     for (auto it = details_decoder.follows_from_ids(); it; ++it) {
       uint64_t follows_from_id = it->as_uint64();
-      auto leader_it =
-          parsing_state_.edge_id_to_slice_id_map.find(follows_from_id);
-      if (leader_it != parsing_state_.edge_id_to_slice_id_map.end()) {
-        SliceId leader_slice_id = leader_it->second;
-        // The "leader" slice is the outgoing flow, and the current
-        // slice is the incoming one.
-        context_->flow_tracker->InsertFlow(leader_slice_id, slice_id);
-      }
+      // Connect the flow from the leader to the current slice (which is enclosing/open on track_id).
+      context_->flow_tracker->End(track_id, static_cast<FlowId>(follows_from_id),
+                                  /*bind_enclosing_slice=*/true,
+                                  /*close_flow=*/false);
     }
   }
 
@@ -196,9 +255,9 @@ void PrimesTraceParser::HandleFlows(
     for (auto it = details_decoder.flow_ids(); it; ++it) {
       uint64_t flow_id = it->as_uint64();
       if (context_->flow_tracker->IsActive(flow_id)) {
-        context_->flow_tracker->Step(slice_id, flow_id);
+        context_->flow_tracker->Step(track_id, flow_id);
       } else {
-        context_->flow_tracker->Begin(slice_id, flow_id);
+        context_->flow_tracker->Begin(track_id, flow_id);
       }
     }
   }
