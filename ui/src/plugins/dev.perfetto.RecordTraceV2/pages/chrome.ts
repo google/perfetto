@@ -174,10 +174,16 @@ export class ChromeCategoriesWidget implements ProbeSetting {
 
   private initializeCategories(descriptor: protos.TrackEventDescriptor) {
     this.options = descriptor.availableCategories
-      .filter((cat) => cat != null)
+      .filter(
+        (
+          cat,
+        ): cat is protos.ITrackEventCategory & {
+          name: string;
+        } => cat.name != null,
+      )
       .map((cat) => ({
-        id: cat.name!,
-        name: cat.name!.replace(DISAB_PREFIX, ''),
+        id: cat.name,
+        name: cat.name.replace(DISAB_PREFIX, ''),
         checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
       }))
       .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
