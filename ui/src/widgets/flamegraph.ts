@@ -96,6 +96,7 @@ export type FlamegraphPropertyDefinition = {
   displayName: string;
   value: string;
   isVisible: boolean;
+  isAggregatable: boolean;
 };
 
 export interface FlamegraphNode {
@@ -1123,10 +1124,49 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       return stack.map((n) => n.name).join('\n');
     }
 
+    // Collect all unique property keys, separated by aggregatable status
+    const unaggKeys: string[] = [];
+    const aggKeys: string[] = [];
+    for (const entry of stack) {
+      for (const [key, prop] of entry.properties) {
+        if (prop.isAggregatable) {
+          if (!aggKeys.includes(key)) {
+            aggKeys.push(key);
+          }
+        } else {
+          if (!unaggKeys.includes(key)) {
+            unaggKeys.push(key);
+          }
+        }
+      }
+    }
+
+    // Helper to get display name for a property key
+    const getDisplayName = (key: string): string => {
+      for (const entry of stack) {
+        const prop = entry.properties.get(key);
+        if (prop !== undefined) {
+          return prop.displayName;
+        }
+      }
+      return key;
+    };
+
+    // Build header: Name | Non-agg props | Cumulative | Self | Agg props
+    const headers = ['Name'];
+    for (const key of unaggKeys) {
+      headers.push(getDisplayName(key));
+    }
+    headers.push('Cumulative', 'Self');
+    for (const key of aggKeys) {
+      headers.push(getDisplayName(key));
+    }
+
     // Format as markdown table
     const lines: string[] = [];
-    lines.push('| Name | Cumulative | Self |');
-    lines.push('|------|------------|------|');
+    lines.push('| ' + headers.join(' | ') + ' |');
+    lines.push('|' + headers.map(() => '------').join('|') + '|');
+
     for (const entry of stack) {
       const cumulative = displaySize(entry.cumulativeValue, unit);
       const cumulativePercent = displayPercentage(
@@ -1138,9 +1178,19 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         entry.selfValue,
         unfilteredCumulativeValue,
       );
-      lines.push(
-        `| ${entry.name} | ${cumulative} (${cumulativePercent}) | ${self} (${selfPercent}) |`,
+
+      const cols = [entry.name];
+      for (const key of unaggKeys) {
+        cols.push(entry.properties.get(key)?.value ?? '');
+      }
+      cols.push(
+        `${cumulative} (${cumulativePercent})`,
+        `${self} (${selfPercent})`,
       );
+      for (const key of aggKeys) {
+        cols.push(entry.properties.get(key)?.value ?? '');
+      }
+      lines.push('| ' + cols.join(' | ') + ' |');
     }
     return lines.join('\n');
   }
