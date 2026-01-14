@@ -166,6 +166,9 @@ export type FlamegraphState = z.infer<typeof FLAMEGRAPH_STATE_SCHEMA>;
 interface FlamegraphMetric {
   readonly name: string;
   readonly unit: string;
+  // Label for the name column in copy stack table and tooltip.
+  // Examples: "Symbol", "Slice", "Class". Defaults to "Name".
+  readonly nameColumnLabel?: string;
 }
 
 export interface FlamegraphAttrs {
@@ -857,7 +860,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       nodeActions,
       rootActions,
     } = assertExists(this.attrs.data);
-    const {unit} = assertExists(this.selectedMetric);
+    const {unit, nameColumnLabel} = assertExists(this.selectedMetric);
     if (source.kind === 'ROOT') {
       const val = displaySize(allRootsCumulativeValue, unit);
       const percent = displayPercentage(
@@ -909,12 +912,17 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
       selfPercentText += `, parent: ${parentSelfPercent}`;
     }
+    const nameLabel = nameColumnLabel ?? 'Name';
     return m(
       'div',
       // Show marker at the top of the tooltip
       marker &&
         m('.tooltip-text-line', m('.tooltip-marker-text', `■ ${marker}`)),
-      m('.tooltip-bold-text', name),
+      m(
+        '.tooltip-text-line',
+        m('.tooltip-bold-text', `${nameLabel}:`),
+        m('.tooltip-text', name),
+      ),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', 'Cumulative:'),
@@ -1106,7 +1114,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private buildStackString(node: FlamegraphNode, withDetails: boolean): string {
     const {nodes, unfilteredCumulativeValue} = assertExists(this.attrs.data);
-    const {unit} = assertExists(this.selectedMetric);
+    const metric = assertExists(this.selectedMetric);
     const view = this.attrs.state.view;
 
     // Walk via parentId for all modes. Reverse for TOP_DOWN and PIVOT below.
@@ -1157,11 +1165,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     };
 
     // Build header: Name | Non-agg props | Cumulative | Self | Agg props
-    const headers = ['Name'];
+    const nameLabel = metric.nameColumnLabel ?? 'Name';
+    const unitDisplay = getUnitDisplayName(metric.unit, metric.nameColumnLabel);
+    const headers = [nameLabel];
     for (const key of unaggKeys) {
       headers.push(getDisplayName(key));
     }
-    headers.push('Cumulative', 'Self');
+    headers.push(`Cumulative (${unitDisplay})`, `Self (${unitDisplay})`);
     for (const key of aggKeys) {
       headers.push(getDisplayName(key));
     }
@@ -1172,12 +1182,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     lines.push('|' + headers.map(() => '------').join('|') + '|');
 
     for (const entry of stack) {
-      const cumulative = displaySize(entry.cumulativeValue, unit);
+      const cumulative = displaySize(entry.cumulativeValue, metric.unit);
       const cumulativePercent = displayPercentage(
         entry.cumulativeValue,
         unfilteredCumulativeValue,
       );
-      const self = displaySize(entry.selfValue, unit);
+      const self = displaySize(entry.selfValue, metric.unit);
       const selfPercent = displayPercentage(
         entry.selfValue,
         unfilteredCumulativeValue,
@@ -1396,6 +1406,19 @@ function displayPercentage(size: number, totalSize: number): string {
     return `[NULL]%`;
   }
   return `${((size / totalSize) * 100.0).toFixed(2)}%`;
+}
+
+// Returns a display name for the unit to use in table headers.
+// For count-based metrics (empty/undefined unit), uses nameColumnLabel if set,
+// otherwise 'count'. For other units, returns the unit as-is.
+function getUnitDisplayName(
+  unit: string | undefined,
+  nameColumnLabel: string | undefined,
+): string {
+  if (unit === undefined || unit === '' || unit === 'count') {
+    return nameColumnLabel ?? 'count';
+  }
+  return unit;
 }
 
 function toTags(state: FlamegraphState): ReadonlyArray<string> {
