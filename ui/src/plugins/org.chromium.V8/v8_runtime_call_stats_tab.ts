@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import { Icons } from '../../base/semantic_icons';
-import { duration } from '../../base/time';
-import { formatDuration } from '../../components/time_utils';
-import { DataGrid } from '../../components/widgets/datagrid/datagrid';
+import {Icons} from '../../base/semantic_icons';
+import {duration} from '../../base/time';
+import {formatDuration} from '../../components/time_utils';
+import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {
   CellRenderResult,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
-import { SQLDataSource } from '../../components/widgets/datagrid/sql_data_source';
-import { SQLSchemaRegistry } from '../../components/widgets/datagrid/sql_schema';
+import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
+import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {
   AreaSelection,
   areaSelectionsEqual,
@@ -30,16 +30,13 @@ import {
   TrackEventSelection,
   TrackSelection,
 } from '../../public/selection';
-import { Tab } from '../../public/tab';
-import { Trace } from '../../public/trace';
-import { SLICE_TRACK_KIND } from '../../public/track_kinds';
-import { Row, SqlValue } from '../../trace_processor/query_result';
-import {
-  MultiSelectDiff,
-  PopupMultiSelect,
-} from '../../widgets/multiselect';
-import { PopupPosition } from '../../widgets/popup';
-import { Spinner } from '../../widgets/spinner';
+import {Tab} from '../../public/tab';
+import {Trace} from '../../public/trace';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {Row, SqlValue} from '../../trace_processor/query_result';
+import {MultiSelectDiff, PopupMultiSelect} from '../../widgets/multiselect';
+import {PopupPosition} from '../../widgets/popup';
+import {Spinner} from '../../widgets/spinner';
 
 const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
   v8_rcs: {
@@ -222,7 +219,7 @@ export class V8RuntimeCallStatsTab implements Tab {
     );
   }
 
-   private renderGroupFilter() {
+  private renderGroupFilter() {
     const groups = Object.keys(GROUP_COLORS);
     return m(PopupMultiSelect, {
       icon: Icons.Filter,
@@ -248,7 +245,6 @@ export class V8RuntimeCallStatsTab implements Tab {
       },
     });
   }
-
 
   private hasSelectionChanged(selection: Selection): boolean {
     if (this.previousSelection === undefined) return true;
@@ -359,7 +355,6 @@ export class V8RuntimeCallStatsTab implements Tab {
         .join(',');
       groupWhereClause = `v8_rcs_group IN (${selectedGroups})`;
     }
-
 
     await this.trace.engine.query(`
       CREATE OR REPLACE PERFETTO VIEW v8_rcs_view AS
