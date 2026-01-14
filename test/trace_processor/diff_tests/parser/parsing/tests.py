@@ -483,6 +483,54 @@ class Parsing(TestSuite):
         """,
         out=Path('android_sched_and_ps_stats.out'))
 
+  def test_shadow_buf_stats(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            trusted_uid: 158158
+            trusted_packet_sequence_id: 1
+            trace_stats {
+              buffer_stats {
+                buffer_size: 131072
+                bytes_written: 55459840
+                bytes_overwritten: 55328768
+                bytes_read: 131072
+                padding_bytes_cleared: 0
+                chunks_written: 13540
+                chunks_overwritten: 13508
+                chunks_read: 32
+                write_wrap_count: 423
+                patches_succeeded: 1861
+                patches_failed: 12349
+                readaheads_succeeded: 11
+                shadow_buffer_stats {
+                  packets_seen: 57
+                  packets_in_both: 55
+                  packets_only_v1: 0
+                  packets_only_v2: 0
+                  patches_attempted: 13499
+                  v1_patches_succeeded: 1150
+                  v2_patches_succeeded: 1150
+                }
+              }
+            }
+          }
+        """),
+        query="""
+        SELECT name, source, value
+        FROM stats WHERE name GLOB 'traced_buf_v2s*';
+        """,
+        out=Csv("""
+        "name","source","value"
+        "traced_buf_v2s_packets_seen","trace",57
+        "traced_buf_v2s_packets_in_both","trace",55
+        "traced_buf_v2s_packets_only_v1","trace",0
+        "traced_buf_v2s_packets_only_v2","trace",0
+        "traced_buf_v2s_patches_attempted","trace",13499
+        "traced_buf_v2s_v1_patches_succeeded","trace",1150
+        "traced_buf_v2s_v2_patches_succeeded","trace",1150
+        """))
+
   # Syscalls
   def test_sys_syscall(self):
     return DiffTestBlueprint(
@@ -985,16 +1033,16 @@ class Parsing(TestSuite):
         trace=DataPath('user_package_metadata.pftrace'),
         query="""
         INCLUDE PERFETTO MODULE android.process_metadata;
-        
+
         SELECT
-          package_name, 
-          process_name, 
-          uid, 
-          user_id, 
-          user_type 
-        FROM 
+          package_name,
+          process_name,
+          uid,
+          user_id,
+          user_type
+        FROM
           android_process_metadata
-        WHERE package_name IS NOT NULL 
+        WHERE package_name IS NOT NULL
         LIMIT 10;
         """,
         out=Csv("""
