@@ -106,6 +106,12 @@ export type AggregateColumn = AggregateField | AggregateFieldCount;
 
 export interface GroupByColumn extends ColumnBase {
   readonly field: string;
+  // If set, treat this column as a tree column with hierarchical path values.
+  // The column value is expected to contain slash-separated paths like
+  // "blink_gc/main/allocated_objects".
+  readonly tree?: {
+    readonly delimiter?: string; // Default: '/'
+  };
 }
 
 // Base pivot configuration without expansion state

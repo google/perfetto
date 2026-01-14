@@ -1638,6 +1638,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const numGroupBy = pivot.groupBy.length;
     // In flat mode, don't use multi-level UI (no chevrons, no indent)
     const isMultiLevel = numGroupBy > 1 && pivot.collapsibleGroups;
+    // Tree mode: single groupBy column with tree config
+    const isTreeMode = numGroupBy === 1 && pivot.groupBy[0].tree !== undefined;
 
     return rowIndices
       .map((index) => {
@@ -1682,7 +1684,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           let indent: number | undefined;
           let className: string | undefined;
 
-          if (isMultiLevel) {
+          if (isTreeMode) {
+            // Tree mode: use __level__ and __tree_has_children__ from row
+            const treeLevel = Number(row['__level__'] ?? 0);
+            const hasChildren = Boolean(row['__tree_has_children__']);
+            const pathValue = String(value);
+
+            // Set indent based on tree level
+            indent = treeLevel;
+
+            if (hasChildren) {
+              // Check if this path is expanded
+              const isExpanded = this.isGroupExpanded([pathValue]);
+              chevron = isExpanded ? 'expanded' : 'collapsed';
+              onChevronClick = () => this.toggleExpansion([pathValue], attrs);
+            } else {
+              // Leaf node - show placeholder for alignment
+              chevron = 'leaf';
+            }
+          } else if (isMultiLevel) {
             // This is a summary row if rowLevel equals this column's index
             // (meaning next column onwards are rollups)
             const isSummaryRow = rowLevel === i;

@@ -621,6 +621,17 @@ ${joinClauses}`;
     options: {includeOrderBy: boolean},
     dependencyColumns?: ReadonlyArray<Column>,
   ): string {
+    // For tree mode (single groupBy with tree config), use tree pivot query
+    if (pivot.groupBy.length === 1 && pivot.groupBy[0].tree) {
+      return this.buildTreePivotQuery(
+        resolver,
+        filters,
+        pivot,
+        options,
+        dependencyColumns,
+      );
+    }
+
     // For multiple groupBy columns, use rollup query generation
     if (pivot.groupBy.length > 1) {
       return this.buildRollupPivotQuery(
@@ -759,6 +770,205 @@ ${joinClauses}`;
         query += `\nORDER BY ${alias} ${direction.toUpperCase()}`;
       }
     }
+
+    return query;
+  }
+
+  /**
+   * Builds a tree pivot query for hierarchical path data.
+   *
+   * Tree mode treats the groupBy column value as a slash-separated path
+   * (e.g., "blink_gc/main/allocated_objects") and displays rows hierarchically
+   * with expand/collapse support.
+   *
+   * The query:
+   * 1. Wraps source data in a CTE with tree metadata (__level__, __tree_parent__)
+   * 2. Filters to show roots (no parent) OR children of expanded paths
+   * 3. Adds __tree_has_children__ via EXISTS subquery for chevron display
+   * 4. Computes aggregates at each visible tree node
+   */
+  private buildTreePivotQuery(
+    resolver: SQLSchemaResolver,
+    filters: ReadonlyArray<Filter>,
+    pivot: Pivot,
+    options: {includeOrderBy: boolean},
+    dependencyColumns?: ReadonlyArray<Column>,
+  ): string {
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+
+    const groupByCol = pivot.groupBy[0];
+    const treeConfig = groupByCol.tree!;
+    const delimiter = treeConfig.delimiter ?? '/';
+    const pathField = groupByCol.field;
+    const pathAlias = toAlias(groupByCol.id);
+
+    // Resolve the path column expression
+    const pathExpr = resolver.resolveColumnPath(pathField);
+    if (!pathExpr) {
+      // Fallback to simple pivot if path column not found
+      return this.buildSimplePivotQuery(
+        resolver,
+        filters,
+        pivot,
+        options,
+        dependencyColumns,
+      );
+    }
+
+    // Collect aggregate source fields
+    const aggregates = pivot.aggregates ?? [];
+    const aggregateSourceFields: Array<{field: string; alias: string}> = [];
+    for (const agg of aggregates) {
+      if ('field' in agg && agg.field) {
+        const alias = toAlias(agg.field);
+        const sqlExpr = resolver.resolveColumnPath(agg.field);
+        if (sqlExpr) {
+          aggregateSourceFields.push({field: agg.field, alias});
+        }
+      }
+    }
+
+    // Build the source CTE with all needed columns
+    const cteSelectClauses: string[] = [];
+    const addedFields = new Set<string>();
+
+    // Add path column
+    cteSelectClauses.push(`${pathExpr} AS __tree_path__`);
+    addedFields.add(pathField);
+
+    // Add aggregate source columns
+    for (const {field, alias} of aggregateSourceFields) {
+      if (!addedFields.has(field)) {
+        const sqlExpr = resolver.resolveColumnPath(field);
+        if (sqlExpr) {
+          cteSelectClauses.push(`${sqlExpr} AS ${alias}`);
+          addedFields.add(field);
+        }
+      }
+    }
+
+    // Add dependency columns
+    if (dependencyColumns) {
+      for (const col of dependencyColumns) {
+        if (!addedFields.has(col.field)) {
+          const sqlExpr = resolver.resolveColumnPath(col.field);
+          if (sqlExpr) {
+            const alias = toAlias(col.field);
+            cteSelectClauses.push(`${sqlExpr} AS ${alias}`);
+            addedFields.add(col.field);
+          }
+        }
+      }
+    }
+
+    const joinClauses = resolver.buildJoinClauses();
+
+    // Build WHERE clause for filters
+    let filterClause = '';
+    if (filters.length > 0) {
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+      filterClause = `\nWHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    // Build aggregate expressions for the final SELECT
+    const aggregateExprs = aggregates.map((agg) => {
+      const outputAlias = toAlias(agg.id);
+      if (agg.function === 'COUNT') {
+        return `COUNT(*) AS ${outputAlias}`;
+      }
+      if ('field' in agg && agg.field) {
+        const sourceAlias = toAlias(agg.field);
+        if (agg.function === 'ANY') {
+          return `MIN(${sourceAlias}) AS ${outputAlias}`;
+        }
+        return `${agg.function}(${sourceAlias}) AS ${outputAlias}`;
+      }
+      return `NULL AS ${outputAlias}`;
+    });
+
+    // Build dependency expressions (using MIN as ANY proxy)
+    const dependencyExprs: string[] = [];
+    if (dependencyColumns) {
+      const existingFields = new Set([
+        pathField,
+        ...aggregates
+          .filter((a) => 'field' in a)
+          .map((a) => (a as {field: string}).field),
+      ]);
+
+      for (const col of dependencyColumns) {
+        if (!existingFields.has(col.field)) {
+          const alias = toAlias(col.field);
+          dependencyExprs.push(`MIN(${alias}) AS ${alias}`);
+        }
+      }
+    }
+
+    // Get expanded paths from pivot state, grouped by level for efficient filtering
+    const expandedPathsByLevel = new Map<number, string[]>();
+    if ('expandedGroups' in pivot && pivot.expandedGroups) {
+      for (const path of pivot.expandedGroups) {
+        // Each path is a single-element array containing the string path
+        if (path.length === 1 && typeof path[0] === 'string') {
+          const pathStr = path[0];
+          // Calculate the level of this expanded path (count delimiters)
+          const level =
+            pathStr.length - pathStr.replaceAll(delimiter, '').length;
+          if (!expandedPathsByLevel.has(level)) {
+            expandedPathsByLevel.set(level, []);
+          }
+          expandedPathsByLevel.get(level)!.push(pathStr);
+        }
+      }
+    }
+
+    // Build the expansion filter using GLOB prefix matching
+    // A row is visible if:
+    // 1. It's a root (level = 0), OR
+    // 2. Its parent path is expanded (path GLOB 'parent/*' AND level = parent_level + 1)
+    const expansionConditions: string[] = ['"__level__" = 0'];
+    for (const [parentLevel, paths] of expandedPathsByLevel) {
+      const childLevel = parentLevel + 1;
+      const globConditions = paths
+        .map((p) => `__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
+        .join(' OR ');
+      expansionConditions.push(
+        `("__level__" = ${childLevel} AND (${globConditions}))`,
+      );
+    }
+    const expansionFilter = expansionConditions.join('\n   OR ');
+
+    // Build the complete query with CTEs
+    // Uses GLOB prefix matching instead of __tree_parent__ to:
+    // 1. Filter visible rows (roots + direct children of expanded paths)
+    // 2. Check for children (any path that starts with current path + delimiter)
+    const query = `WITH __source__ AS (
+  SELECT ${cteSelectClauses.join(', ')}
+  FROM ${baseTable} AS ${baseAlias}
+  ${joinClauses}${filterClause}
+),
+__tree__ AS (
+  SELECT *,
+    -- Level = count of delimiters in path
+    length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
+  FROM __source__
+)
+SELECT
+  __tree_path__ AS ${pathAlias},
+  "__level__",
+  ${aggregateExprs.join(',\n  ')}${dependencyExprs.length > 0 ? ',\n  ' + dependencyExprs.join(',\n  ') : ''},
+  EXISTS(
+    SELECT 1 FROM __tree__ c
+    WHERE c.__tree_path__ GLOB t.__tree_path__ || '${delimiter}*'
+      AND c."__level__" = t."__level__" + 1
+  ) AS __tree_has_children__
+FROM __tree__ t
+WHERE ${expansionFilter}
+GROUP BY __tree_path__${options.includeOrderBy ? '\nORDER BY __tree_path__' : ''}`;
 
     return query;
   }
