@@ -16,7 +16,7 @@ import {Protocol} from 'devtools-protocol';
 import {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
 import {Client} from 'noice-json-rpc';
 
-import {base64Encode} from '../base/string_utils';
+import {base64Encode, base64Decode} from '../base/string_utils';
 import {
   ConsumerPortResponse,
   GetTraceStatsResponse,
@@ -25,6 +25,7 @@ import {
 import {RpcConsumerPort} from './record_controller_interfaces';
 import {
   browserSupportsPerfettoConfig,
+  browserSupportsTrackEventDescriptor,
   extractTraceConfig,
   hasSystemDataSourceConfig,
 } from './trace_config_utils';
@@ -86,6 +87,9 @@ export class ChromeTracingController extends RpcConsumerPort {
         break;
       case 'GetCategories':
         this.getCategories();
+        break;
+      case 'GetTrackEventDescriptor':
+        this.getTrackEventDescriptor();
         break;
       default:
         this.sendErrorMessage('Action not recognized');
@@ -245,6 +249,49 @@ export class ChromeTracingController extends RpcConsumerPort {
         return;
       }
       fetchCategories();
+      this.devtoolsSocket.detach();
+    });
+  }
+
+  getTrackEventDescriptor() {
+    const fetchTrackEventDescriptor = async () => {
+      let serializedDescriptor: Uint8Array;
+      if (browserSupportsTrackEventDescriptor()) {
+        serializedDescriptor = base64Decode(
+          (await this.api.Tracing.getTrackEventDescriptor()).descriptor,
+        );
+      } else {
+        const categories = (await this.api.Tracing.getCategories()).categories;
+        const descriptor = protos.TrackEventDescriptor.create({
+          availableCategories: categories.map((value) => {
+            return protos.TrackEventCategory.create({
+              name: value,
+            });
+          }),
+        });
+        serializedDescriptor =
+          protos.TrackEventDescriptor.encode(descriptor).finish();
+      }
+      this.uiPort.postMessage({
+        type: 'GetTrackEventDescriptorResponse',
+        serializedDescriptor,
+      });
+    };
+    // If a target is already attached, we simply fetch the categories.
+    if (this.devtoolsSocket.isAttached()) {
+      fetchTrackEventDescriptor();
+      return;
+    }
+    // Otherwise, we attach temporarily.
+    this.devtoolsSocket.attachToBrowser(async (error?: string) => {
+      if (error) {
+        this.sendErrorMessage(
+          `Could not attach to DevTools browser target ` +
+            `(req. Chrome >= M81): ${error}`,
+        );
+        return;
+      }
+      fetchTrackEventDescriptor();
       this.devtoolsSocket.detach();
     });
   }

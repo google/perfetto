@@ -87,8 +87,8 @@ dependencies:
     specifier: ^7.9.0
     version: 7.9.0
   devtools-protocol:
-    specifier: 0.0.1319565
-    version: 0.0.1319565
+    specifier: 0.0.1561482
+    version: 0.0.1561482
   esbuild:
     specifier: ^0.21.5
     version: 0.21.5
@@ -3303,8 +3303,8 @@ packages:
     resolution: {integrity: sha512-DPnhUXvmvKT2dFA/j7B+riVLUt9Q6RKJlcppojL5CoRywJJKLDYnRlw0gTFKfgDPHP5E04UoB71SxoJlVZy8FA==}
     dev: true
 
-  /devtools-protocol@0.0.1319565:
-    resolution: {integrity: sha512-Xc1Xrng6tSt5t0IIFCMeYUIqKEbvJVnKakfUCCq9WIk5m+9SbrPIXFtGcwwos8DucDyViEzwjy6PgIZWGUldyQ==}
+  /devtools-protocol@0.0.1561482:
+    resolution: {integrity: sha512-nSXIMgdQxupOkVN94VPoE01UWJVXPOJ/IkEDQOlDbx3tmGzlKgVd3b54AT1cy8XIb4TQPcYac1nxYntEhiFKAQ==}
     dev: false
 
   /diff-sequences@29.6.3:
