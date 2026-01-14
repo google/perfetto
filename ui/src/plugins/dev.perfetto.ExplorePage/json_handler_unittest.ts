@@ -1322,7 +1322,7 @@ describe('JSON serialization/deserialization', () => {
       "nodes": [
         {
           "nodeId": "0",
-          "type": ${NodeType.kMerge},
+          "type": "${NodeType.kMerge}",
           "state": {
             "leftQueryAlias": "left",
             "rightQueryAlias": "right",
@@ -1337,7 +1337,7 @@ describe('JSON serialization/deserialization', () => {
         },
         {
           "nodeId": "1",
-          "type": ${NodeType.kTable},
+          "type": "${NodeType.kTable}",
           "state": {
             "tableName": "slice",
             "columnNames": ["id", "ts", "dur", "name"]
@@ -1346,7 +1346,7 @@ describe('JSON serialization/deserialization', () => {
         },
         {
           "nodeId": "2",
-          "type": ${NodeType.kTable},
+          "type": "${NodeType.kTable}",
           "state": {
             "tableName": "slice",
             "columnNames": ["id", "ts", "dur", "name"]
