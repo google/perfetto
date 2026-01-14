@@ -230,6 +230,7 @@ async function main() {
     for (const proc of subprocesses) {
       if (proc) proc.kill('SIGKILL');
     }
+    releaseWatchLock();
     process.kill(0, 'SIGKILL');  // Kill the whole process group.
     process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
   });
@@ -950,16 +951,13 @@ function prepareWatchLock() {
 }
 
 function releaseWatchLock() {
-  try {
-    if (fs.existsSync(cfg.outWatchLockFile)) {
-      const pid = fs.readFileSync(cfg.outWatchLockFile, 'utf8').trim();
-      if (pid === process.pid.toString()) {
-        fs.unlinkSync(cfg.outWatchLockFile);
-      } else {
-        console.warn(`Ignoring stale lock file PID ${pid}`)
-      }
+  if (fs.existsSync(cfg.outWatchLockFile)) {
+    const pid = fs.readFileSync(cfg.outWatchLockFile, 'utf8').trim();
+    if (pid === process.pid.toString()) {
+      fs.unlinkSync(cfg.outWatchLockFile);
+    } else {
+      console.warn(`Ignoring stale lock file PID ${pid}`)
     }
-  } catch (e) {
   }
 }
 
