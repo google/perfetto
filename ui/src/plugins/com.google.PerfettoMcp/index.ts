@@ -15,9 +15,9 @@
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
+import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
+import {Client} from '@modelcontextprotocol/sdk/client/index';
+import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory';
 import {
   CallableTool,
   FunctionCallingConfigMode,

@@ -81,7 +81,7 @@ export function renderTrackSettingMenu<T>(
       {
         label: `${descriptor.name} (currently: ${String(value)})`,
       },
-      options.map((option: string) => {
+      options.map((option) => {
         return m(MenuItem, {
           label: option,
           active: value === option,
@@ -92,7 +92,7 @@ export function renderTrackSettingMenu<T>(
   }
 
   // Native enum settings also get a select dropdown
-  else if (descriptor.schema instanceof z.ZodNativeEnum) {
+  else if (descriptor.schema instanceof z.Native) {
     // Extract the enum values - for native enums we need to get both keys and values
     const enumValues = Object.entries(descriptor.schema._def.values);
     const value = valueIfAllEqual(values);
