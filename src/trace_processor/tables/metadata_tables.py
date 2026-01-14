@@ -78,8 +78,8 @@ MACHINE_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
         C(
-            'memory_size_mb',
-            CppOptional(CppUint32()),
+            'memory_size_bytes',
+            CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
     ],
@@ -127,9 +127,9 @@ MACHINE_TABLE = Table(
                 '''
                   The Android SDK version used in the machine.
                 ''',
-            'memory_size_mb':
+            'memory_size_bytes':
                 '''
-                  Total memory in MB available to the machine.
+                  Total memory in bytes available to the machine.
                 ''',
         }))
 

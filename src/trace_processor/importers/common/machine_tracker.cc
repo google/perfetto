@@ -61,8 +61,8 @@ void MachineTracker::SetAndroidSdkVersion(int64_t sdk_version) {
   getRow()->set_android_sdk_version(sdk_version);
 }
 
-void MachineTracker::SetMemorySizeMb(uint32_t memory_size_mb) {
-  getRow()->set_memory_size_mb(memory_size_mb);
+void MachineTracker::SetMemorySizeBytes(int64_t memory_size_bytes) {
+  getRow()->set_memory_size_bytes(memory_size_bytes);
 }
 
 PERFETTO_ALWAYS_INLINE
