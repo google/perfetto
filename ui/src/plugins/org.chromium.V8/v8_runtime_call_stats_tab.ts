@@ -224,7 +224,7 @@ export class V8RuntimeCallStatsTab implements Tab {
     return m(PopupMultiSelect, {
       icon: Icons.Filter,
       label: 'Filter Groups',
-      position: PopupPosition.Bottom,
+      position: PopupPosition.Top,
       showNumSelected: true,
       options: groups.map((group) => ({
         id: group,
