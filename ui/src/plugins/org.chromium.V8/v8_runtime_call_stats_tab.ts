@@ -235,17 +235,14 @@ export class V8RuntimeCallStatsTab implements Tab {
         checked: this.selectedGroups.has(group),
       })),
       onChange: (diffs: MultiSelectDiff[]) => {
-        let changed = false;
         for (const {id, checked} of diffs) {
           if (checked) {
             this.selectedGroups.add(id);
-            changed = true;
           } else {
             this.selectedGroups.delete(id);
-            changed = true;
           }
         }
-        if (changed && this.previousSelection) {
+        if (diffs.length && this.previousSelection) {
           this.loadData(this.previousSelection);
         }
       },
