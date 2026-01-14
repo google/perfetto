@@ -1166,12 +1166,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
     // Build header: Name | Non-agg props | Cumulative | Self | Agg props
     const nameLabel = metric.nameColumnLabel ?? 'Name';
-    const unitDisplay = getUnitDisplayName(metric.unit, metric.nameColumnLabel);
+    const unitDisplay = getUnitDisplayName(metric.unit);
     const headers = [nameLabel];
     for (const key of unaggKeys) {
       headers.push(getDisplayName(key));
     }
-    headers.push(`Cumulative (${unitDisplay})`, `Self (${unitDisplay})`);
+    headers.push(
+      `Cumulative ${metric.name} (${unitDisplay})`,
+      `Self ${metric.name} (${unitDisplay})`,
+    );
     for (const key of aggKeys) {
       headers.push(getDisplayName(key));
     }
@@ -1408,15 +1411,9 @@ function displayPercentage(size: number, totalSize: number): string {
   return `${((size / totalSize) * 100.0).toFixed(2)}%`;
 }
 
-// Returns a display name for the unit to use in table headers.
-// For count-based metrics (empty/undefined unit), uses nameColumnLabel if set,
-// otherwise 'count'. For other units, returns the unit as-is.
-function getUnitDisplayName(
-  unit: string | undefined,
-  nameColumnLabel: string | undefined,
-): string {
+function getUnitDisplayName(unit: string | undefined): string {
   if (unit === undefined || unit === '' || unit === 'count') {
-    return nameColumnLabel ?? 'count';
+    return 'count';
   }
   return unit;
 }
