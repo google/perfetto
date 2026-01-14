@@ -36,7 +36,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
     const editorTabs: QueryEditorTab[] = [];
 
     function createNewTabName(index: number): string {
-      return `New query ${index}`;
+      return `Query ${index}`;
     }
 
     function createNewTab(
