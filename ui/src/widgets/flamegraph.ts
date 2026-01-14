@@ -1036,8 +1036,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           label: 'Copy Stack',
           icon: Icons.Copy,
           onclick: () => {
-            const stackText = this.buildStackString(node);
-            copyToClipboard(stackText);
+            copyToClipboard(this.buildStackString(node, false));
+          },
+        }),
+      node !== undefined &&
+        m(MenuItem, {
+          label: 'Copy Stack With Details',
+          icon: Icons.Copy,
+          onclick: () => {
+            copyToClipboard(this.buildStackString(node, true));
           },
         }),
       actions.map((action) => this.renderMenuItem(action, properties)),
@@ -1096,20 +1103,46 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     });
   }
 
-  private buildStackString(node: FlamegraphNode): string {
-    const nodes = assertExists(this.attrs.data).nodes;
-    const stack: string[] = [];
+  private buildStackString(node: FlamegraphNode, withDetails: boolean): string {
+    const {nodes, unfilteredCumulativeValue} = assertExists(this.attrs.data);
+    const {unit} = assertExists(this.selectedMetric);
 
-    // Start from the selected node and walk up to root
+    // Walk from selected node up to root, collecting nodes
+    const stack: FlamegraphNode[] = [];
     let currentId = node.id;
     while (currentId !== -1) {
       const current = assertExists(nodes.find((n) => n.id === currentId));
-      stack.push(current.name);
+      stack.push(current);
       currentId = current.parentId;
     }
 
     // Reverse to get root-to-selected order
-    return stack.reverse().join('\n');
+    stack.reverse();
+
+    if (!withDetails) {
+      return stack.map((n) => n.name).join('\n');
+    }
+
+    // Format as markdown table
+    const lines: string[] = [];
+    lines.push('| Name | Cumulative | Self |');
+    lines.push('|------|------------|------|');
+    for (const entry of stack) {
+      const cumulative = displaySize(entry.cumulativeValue, unit);
+      const cumulativePercent = displayPercentage(
+        entry.cumulativeValue,
+        unfilteredCumulativeValue,
+      );
+      const self = displaySize(entry.selfValue, unit);
+      const selfPercent = displayPercentage(
+        entry.selfValue,
+        unfilteredCumulativeValue,
+      );
+      lines.push(
+        `| ${entry.name} | ${cumulative} (${cumulativePercent}) | ${self} (${selfPercent}) |`,
+      );
+    }
+    return lines.join('\n');
   }
 
   private createReducedProperties(
