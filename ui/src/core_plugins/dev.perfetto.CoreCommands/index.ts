@@ -129,7 +129,7 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
     }
     return Time.fromRaw(tsRaw);
   }
-  // No args passed, probably run from the command palette.
+  // No args passed, probably run from the command palette. 
   return promptForTimestamp('Enter a timestamp');
 }
 
@@ -138,7 +138,7 @@ const macrosConfigSchema = z.array(macroSchema);
 type MacrosConfig = z.infer<typeof macrosConfigSchema>;
 
 // Legacy macro schema (dictionary format) - deprecated, kept for migration
-const legacyMacrosConfigSchema = z.record(
+export const legacyMacrosConfigSchema = z.record(
   z.array(commandInvocationSchema).readonly(),
 );
 type LegacyMacrosConfig = z.infer<typeof legacyMacrosConfigSchema>;

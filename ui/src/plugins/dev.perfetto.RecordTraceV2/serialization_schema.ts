@@ -50,15 +50,15 @@ export type ProbesSchema = z.infer<typeof PROBES_SCHEMA>;
 // Target device selector, the "saved sessions", etc)
 export const RECORD_SESSION_SCHEMA = z
   .object({
-    mode: z
-      .enum(['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'])
-      .default('STOP_WHEN_FULL'),
-    bufSizeKb: z.number().default(64 * 1024),
-    durationMs: z.number().default(10_000),
-    maxFileSizeMb: z.number().default(500),
-    fileWritePeriodMs: z.number().default(2500),
-    compression: z.boolean().default(false),
-    probes: PROBES_SCHEMA,
+  mode: z
+    .enum(['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'])
+    .default('STOP_WHEN_FULL'),
+  bufSizeKb: z.number().default(64 * 1024),
+  durationMs: z.number().default(10_000),
+  maxFileSizeMb: z.number().default(500),
+  fileWritePeriodMs: z.number().default(2500),
+  compression: z.boolean().default(false),
+  probes: PROBES_SCHEMA,
   })
   .default({});
 export type RecordSessionSchema = z.infer<typeof RECORD_SESSION_SCHEMA>;
