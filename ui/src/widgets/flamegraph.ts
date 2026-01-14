@@ -18,6 +18,7 @@ import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
 import {Chip} from './chip';
 import {Intent} from './common';
+import {copyToClipboard} from '../base/clipboard';
 import {CopyToClipboardButton} from './copy_to_clipboard_button';
 import {EmptyState} from './empty_state';
 import {Form, FormLabel} from './form';
@@ -97,20 +98,22 @@ export type FlamegraphPropertyDefinition = {
   isVisible: boolean;
 };
 
+export interface FlamegraphNode {
+  readonly id: number;
+  readonly parentId: number;
+  readonly depth: number;
+  readonly name: string;
+  readonly selfValue: number;
+  readonly cumulativeValue: number;
+  readonly parentCumulativeValue?: number;
+  readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
+  readonly marker?: string;
+  readonly xStart: number;
+  readonly xEnd: number;
+}
+
 export interface FlamegraphQueryData {
-  readonly nodes: ReadonlyArray<{
-    readonly id: number;
-    readonly parentId: number;
-    readonly depth: number;
-    readonly name: string;
-    readonly selfValue: number;
-    readonly cumulativeValue: number;
-    readonly parentCumulativeValue?: number;
-    readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
-    readonly marker?: string;
-    readonly xStart: number;
-    readonly xEnd: number;
-  }>;
+  readonly nodes: ReadonlyArray<FlamegraphNode>;
   readonly unfilteredCumulativeValue: number;
   readonly allRootsCumulativeValue: number;
   readonly minDepth: number;
@@ -999,7 +1002,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             });
           },
         }),
-        this.renderActionsMenu(nodeActions, properties),
+        this.renderActionsMenu(nodeActions, properties, nodes[queryIdx]),
       ),
     );
   }
@@ -1013,8 +1016,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private renderActionsMenu(
     actions: ReadonlyArray<FlamegraphOptionalAction>,
     properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+    node?: FlamegraphNode,
   ) {
-    if (actions.length === 0) {
+    if (actions.length === 0 && node === undefined) {
       return null;
     }
 
@@ -1027,6 +1031,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         }),
         position: PopupPosition.Bottom,
       },
+      node !== undefined &&
+        m(MenuItem, {
+          label: 'Copy Stack',
+          icon: Icons.Copy,
+          onclick: () => {
+            const stackText = this.buildStackString(node);
+            copyToClipboard(stackText);
+          },
+        }),
       actions.map((action) => this.renderMenuItem(action, properties)),
     );
   }
@@ -1081,6 +1094,22 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       label: action.name,
       disabled: true,
     });
+  }
+
+  private buildStackString(node: FlamegraphNode): string {
+    const nodes = assertExists(this.attrs.data).nodes;
+    const stack: string[] = [];
+
+    // Start from the selected node and walk up to root
+    let currentId = node.id;
+    while (currentId !== -1) {
+      const current = assertExists(nodes.find((n) => n.id === currentId));
+      stack.push(current.name);
+      currentId = current.parentId;
+    }
+
+    // Reverse to get root-to-selected order
+    return stack.reverse().join('\n');
   }
 
   private createReducedProperties(
