@@ -506,7 +506,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     icon: 'view_list',
                   },
                   {
-                    label: 'Grouped',
+                    label: 'Tree',
                     icon: 'account_tree',
                   },
                 ],
