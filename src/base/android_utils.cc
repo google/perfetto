@@ -92,13 +92,14 @@ Utsname GetUtsname() {
 
 SystemInfo GetSystemInfo() {
   SystemInfo info;
-  constexpr uint32_t kMiB = 1024 * 1024;
 
   info.timezone_off_mins = GetTimezoneOffsetMins();
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  constexpr uint32_t kMiB = 1024 * 1024;
+
   info.utsname_info = GetUtsname();
   info.page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
   info.num_cpus = static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF));
