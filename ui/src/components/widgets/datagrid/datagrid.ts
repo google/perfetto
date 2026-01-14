@@ -490,23 +490,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 icon: 'unfold_more',
                 tooltip: 'Expand all groups',
                 onclick: () => this.expandAll(attrs),
-                disabled: this.pivot.flattenGroups,
+                disabled: !this.pivot.collapsibleGroups,
               }),
               m(Button, {
                 icon: 'unfold_less',
                 tooltip: 'Collapse all groups',
                 onclick: () => this.collapseAll(attrs),
-                disabled: this.pivot.flattenGroups,
+                disabled: !this.pivot.collapsibleGroups,
               }),
               m(Button, {
-                icon: this.pivot.flattenGroups ? 'account_tree' : 'view_list',
-                tooltip: this.pivot.flattenGroups
-                  ? 'Show grouped (hierarchical view)'
-                  : 'Show flat (leaf rows only)',
+                icon: this.pivot.collapsibleGroups
+                  ? 'view_list'
+                  : 'account_tree',
+                tooltip: this.pivot.collapsibleGroups
+                  ? 'Show flat (leaf rows only)'
+                  : 'Show grouped (hierarchical view)',
                 onclick: () =>
-                  this.pivot?.flattenGroups
-                    ? this.disableFlatMode(attrs)
-                    : this.enableFlatMode(attrs),
+                  this.pivot?.collapsibleGroups
+                    ? this.enableFlatMode(attrs)
+                    : this.disableFlatMode(attrs),
               }),
             ],
         ],
@@ -1138,7 +1140,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    */
   private enableFlatMode(attrs: DataGridAttrs): void {
     if (!this.pivot) return;
-    const newPivot: Pivot = {...this.pivot, flattenGroups: true};
+    const newPivot: Pivot = {...this.pivot, collapsibleGroups: false};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -1148,7 +1150,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    */
   private disableFlatMode(attrs: DataGridAttrs): void {
     if (!this.pivot) return;
-    const newPivot: Pivot = {...this.pivot, flattenGroups: false};
+    const newPivot: Pivot = {...this.pivot, collapsibleGroups: true};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -1605,7 +1607,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const aggregates = pivot.aggregates ?? [];
     const numGroupBy = pivot.groupBy.length;
     // In flat mode, don't use multi-level UI (no chevrons, no indent)
-    const isMultiLevel = numGroupBy > 1 && !pivot.flattenGroups;
+    const isMultiLevel = numGroupBy > 1 && pivot.collapsibleGroups;
 
     return rowIndices
       .map((index) => {

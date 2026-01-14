@@ -880,7 +880,7 @@ ${joinClauses}`;
     const numLevels = groupByFields.length;
 
     // When flattenGroups is true, only generate the leaf level (no rollup rows)
-    const startLevel = pivot.flattenGroups ? numLevels - 1 : 0;
+    const startLevel = pivot.collapsibleGroups ? 0 : numLevels - 1;
 
     for (let level = startLevel; level < numLevels; level++) {
       const levelQuery = this.buildRollupLevelQuery(
@@ -909,7 +909,7 @@ ${unionQueries.join('\nUNION ALL\n')}
     // In flat mode, use simple query without window functions for sorting.
     // In hierarchical mode, add window functions to propagate parent aggregate
     // values down to children for proper hierarchical sorting.
-    if (sortedAggregate && options.includeOrderBy && !pivot.flattenGroups) {
+    if (sortedAggregate && options.includeOrderBy && pivot.collapsibleGroups) {
       const aggAlias = toAlias(sortedAggregate.id);
       const sortKeyExprs: string[] = [];
 
@@ -933,14 +933,14 @@ SELECT * FROM __union__`;
 
     // Add ORDER BY if requested
     if (options.includeOrderBy) {
-      const orderByClauses = pivot.flattenGroups
-        ? this.buildFlatOrderBy(pivot, groupByAliases, sortedAggregate)
-        : this.buildRollupOrderBy(
+      const orderByClauses = pivot.collapsibleGroups
+        ? this.buildRollupOrderBy(
             pivot,
             groupByFields,
             groupByAliases,
             sortedAggregate,
-          );
+          )
+        : this.buildFlatOrderBy(pivot, groupByAliases, sortedAggregate);
       if (orderByClauses.length > 0) {
         query += `\nORDER BY ${orderByClauses.join(', ')}`;
       }
@@ -1051,7 +1051,7 @@ SELECT * FROM __union__`;
     // Add WHERE clause for group expansion filter (levels > 0)
     // For a row at level N, ALL ancestor paths must be expanded (not collapsed).
     // Skip expansion filtering in flat mode - show all leaf rows.
-    if (level > 0 && !pivot.flattenGroups) {
+    if (level > 0 && pivot.collapsibleGroups) {
       if ('collapsedGroups' in pivot && pivot.collapsedGroups) {
         // Blacklist mode: Show all rows EXCEPT those whose parent is collapsed
         // A row at level N is hidden if any of its ancestor paths are in collapsedGroups
