@@ -18,6 +18,7 @@ import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
 import {Chip} from './chip';
 import {Intent} from './common';
+import {copyToClipboard} from '../base/clipboard';
 import {CopyToClipboardButton} from './copy_to_clipboard_button';
 import {EmptyState} from './empty_state';
 import {Form, FormLabel} from './form';
@@ -95,22 +96,25 @@ export type FlamegraphPropertyDefinition = {
   displayName: string;
   value: string;
   isVisible: boolean;
+  isAggregatable: boolean;
 };
 
+export interface FlamegraphNode {
+  readonly id: number;
+  readonly parentId: number;
+  readonly depth: number;
+  readonly name: string;
+  readonly selfValue: number;
+  readonly cumulativeValue: number;
+  readonly parentCumulativeValue?: number;
+  readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
+  readonly marker?: string;
+  readonly xStart: number;
+  readonly xEnd: number;
+}
+
 export interface FlamegraphQueryData {
-  readonly nodes: ReadonlyArray<{
-    readonly id: number;
-    readonly parentId: number;
-    readonly depth: number;
-    readonly name: string;
-    readonly selfValue: number;
-    readonly cumulativeValue: number;
-    readonly parentCumulativeValue?: number;
-    readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
-    readonly marker?: string;
-    readonly xStart: number;
-    readonly xEnd: number;
-  }>;
+  readonly nodes: ReadonlyArray<FlamegraphNode>;
   readonly unfilteredCumulativeValue: number;
   readonly allRootsCumulativeValue: number;
   readonly minDepth: number;
@@ -362,7 +366,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private canvasWidth = 0;
   private labelCharWidth = 0;
-  private canvasRect?: Rect2D;
+  private viewportRect?: Rect2D;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -409,8 +413,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           className: 'pf-virtual-canvas',
           overflowX: 'hidden',
           overflowY: 'auto',
-          onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
-            this.drawCanvas(ctx, virtualCanvasSize, canvasRect);
+          onscroll: () => {
+            // Trigger mithril redraw to update popup visibility
+          },
+          onCanvasRedraw: ({
+            ctx,
+            virtualCanvasSize,
+            canvasRect,
+            viewportRect,
+          }) => {
+            this.drawCanvas(ctx, virtualCanvasSize, canvasRect, viewportRect);
           },
         },
         m(
@@ -563,9 +575,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private drawCanvas(
     ctx: CanvasRenderingContext2D,
     size: Size2D,
-    rect: Rect2D,
+    canvasRect: Rect2D,
+    viewportRect: Rect2D,
   ) {
-    this.canvasRect = rect;
+    this.viewportRect = viewportRect;
     this.canvasWidth = size.width;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
@@ -592,8 +605,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       return;
     }
 
-    const yStart = rect.top;
-    const yEnd = rect.bottom;
+    const yStart = canvasRect.top;
+    const yEnd = canvasRect.bottom;
 
     const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
       this.attrs.data;
@@ -682,11 +695,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   }
 
   private isPopupAnchorVisible(): boolean {
-    if (!this.tooltipPos || !this.canvasRect) {
+    if (!this.tooltipPos || !this.viewportRect) {
       return false;
     }
     const {y} = this.tooltipPos;
-    return y >= this.canvasRect.top && y <= this.canvasRect.bottom;
+    return y >= this.viewportRect.top && y <= this.viewportRect.bottom;
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
@@ -990,7 +1003,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             });
           },
         }),
-        this.renderActionsMenu(nodeActions, properties),
+        this.renderActionsMenu(nodeActions, properties, nodes[queryIdx]),
       ),
     );
   }
@@ -1004,8 +1017,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private renderActionsMenu(
     actions: ReadonlyArray<FlamegraphOptionalAction>,
     properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+    node?: FlamegraphNode,
   ) {
-    if (actions.length === 0) {
+    if (actions.length === 0 && node === undefined) {
       return null;
     }
 
@@ -1018,6 +1032,22 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         }),
         position: PopupPosition.Bottom,
       },
+      node !== undefined &&
+        m(MenuItem, {
+          label: 'Copy Stack',
+          icon: Icons.Copy,
+          onclick: () => {
+            copyToClipboard(this.buildStackString(node, false));
+          },
+        }),
+      node !== undefined &&
+        m(MenuItem, {
+          label: 'Copy Stack With Details',
+          icon: Icons.Copy,
+          onclick: () => {
+            copyToClipboard(this.buildStackString(node, true));
+          },
+        }),
       actions.map((action) => this.renderMenuItem(action, properties)),
     );
   }
@@ -1072,6 +1102,101 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       label: action.name,
       disabled: true,
     });
+  }
+
+  private buildStackString(node: FlamegraphNode, withDetails: boolean): string {
+    const {nodes, unfilteredCumulativeValue} = assertExists(this.attrs.data);
+    const {unit} = assertExists(this.selectedMetric);
+    const view = this.attrs.state.view;
+
+    // Walk via parentId for all modes. Reverse for TOP_DOWN and PIVOT below.
+    const stack: FlamegraphNode[] = [];
+    let currentId = node.id;
+    while (currentId !== -1) {
+      const current = assertExists(nodes.find((n) => n.id === currentId));
+      stack.push(current);
+      currentId = current.parentId;
+    }
+
+    const shouldReverse =
+      view.kind === 'TOP_DOWN' || (view.kind === 'PIVOT' && node.depth > 0);
+    if (shouldReverse) {
+      stack.reverse();
+    }
+
+    if (!withDetails) {
+      return stack.map((n) => n.name).join('\n');
+    }
+
+    // Collect all unique property keys, separated by aggregatable status
+    const unaggKeys: string[] = [];
+    const aggKeys: string[] = [];
+    for (const entry of stack) {
+      for (const [key, prop] of entry.properties) {
+        if (prop.isAggregatable) {
+          if (!aggKeys.includes(key)) {
+            aggKeys.push(key);
+          }
+        } else {
+          if (!unaggKeys.includes(key)) {
+            unaggKeys.push(key);
+          }
+        }
+      }
+    }
+
+    // Helper to get display name for a property key
+    const getDisplayName = (key: string): string => {
+      for (const entry of stack) {
+        const prop = entry.properties.get(key);
+        if (prop !== undefined) {
+          return prop.displayName;
+        }
+      }
+      return key;
+    };
+
+    // Build header: Name | Non-agg props | Cumulative | Self | Agg props
+    const headers = ['Name'];
+    for (const key of unaggKeys) {
+      headers.push(getDisplayName(key));
+    }
+    headers.push('Cumulative', 'Self');
+    for (const key of aggKeys) {
+      headers.push(getDisplayName(key));
+    }
+
+    // Format as markdown table
+    const lines: string[] = [];
+    lines.push('| ' + headers.join(' | ') + ' |');
+    lines.push('|' + headers.map(() => '------').join('|') + '|');
+
+    for (const entry of stack) {
+      const cumulative = displaySize(entry.cumulativeValue, unit);
+      const cumulativePercent = displayPercentage(
+        entry.cumulativeValue,
+        unfilteredCumulativeValue,
+      );
+      const self = displaySize(entry.selfValue, unit);
+      const selfPercent = displayPercentage(
+        entry.selfValue,
+        unfilteredCumulativeValue,
+      );
+
+      const cols = [entry.name];
+      for (const key of unaggKeys) {
+        cols.push(entry.properties.get(key)?.value ?? '');
+      }
+      cols.push(
+        `${cumulative} (${cumulativePercent})`,
+        `${self} (${selfPercent})`,
+      );
+      for (const key of aggKeys) {
+        cols.push(entry.properties.get(key)?.value ?? '');
+      }
+      lines.push('| ' + cols.join(' | ') + ' |');
+    }
+    return lines.join('\n');
   }
 
   private createReducedProperties(
@@ -1371,7 +1496,8 @@ function parseFilter(
 const PERCEIVED_BRIGHTNESS_LIMIT = 180;
 const WHITE_COLOR = new HSLColor([0, 0, 100]);
 const BLACK_COLOR = new HSLColor([0, 0, 0]);
-const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 62]);
+// Lightness 85 ensures even darken(10) stays above brightness threshold for black text
+const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 85]);
 
 function makeColorScheme(base: Color, variant: Color) {
   // Use the same text color for both base and variant to prevent text color

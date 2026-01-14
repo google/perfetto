@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button, ButtonVariant} from '../../../widgets/button';
+import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {Card} from '../../../widgets/card';
 import {TextInput} from '../../../widgets/text_input';
 import {Icon} from '../../../widgets/icon';
@@ -205,7 +205,7 @@ export class Section implements m.ClassComponent<SectionAttrs> {
 // Action button definition for ListItem
 export interface ListItemAction {
   label?: string;
-  icon: string;
+  icon?: string;
   title?: string;
   onclick: () => void;
 }
@@ -262,16 +262,24 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
     // Render action buttons
     if (attrs.actions) {
       for (const action of attrs.actions) {
-        buttons.push(
-          m(Button, {
-            label: action.label,
-            icon: action.icon,
-            title: action.title,
-            variant: ButtonVariant.Outlined,
-            compact: true,
-            onclick: action.onclick,
-          }),
-        );
+        // Build button attributes based on what's available
+        const buttonAttrs: ButtonAttrs = action.label
+          ? {
+              label: action.label,
+              icon: action.icon,
+              title: action.title,
+              variant: ButtonVariant.Outlined,
+              compact: true,
+              onclick: action.onclick,
+            }
+          : {
+              icon: action.icon ?? 'help',
+              title: action.title,
+              variant: ButtonVariant.Outlined,
+              compact: true,
+              onclick: action.onclick,
+            };
+        buttons.push(m(Button, buttonAttrs));
       }
     }
 

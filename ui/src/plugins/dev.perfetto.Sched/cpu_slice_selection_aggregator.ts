@@ -31,7 +31,7 @@ import {
   UnionDatasetWithLineage,
 } from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, Row, UNKNOWN} from '../../trace_processor/query_result';
+import {LONG, NUM, UNKNOWN} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 
 const CPU_SLICE_SPEC = {
@@ -39,6 +39,7 @@ const CPU_SLICE_SPEC = {
   dur: LONG,
   ts: LONG,
   utid: NUM,
+  ucpu: NUM,
 };
 
 export class CpuSliceSelectionAggregator implements Aggregator {
@@ -101,7 +102,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
-            sched.id,
+            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             utid,
             process.name as process_name,
             pid,
@@ -110,8 +111,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             sched.dur,
             sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
             sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
-            __groupid,
-            __partition
+            ucpu
           from ${iiTable.name} as sched
           join thread using (utid)
           left join process using (upid)
@@ -131,39 +131,41 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   getColumnDefinitions(): AggregatePivotModel {
     return {
       groupBy: [
-        {field: 'pid'},
-        {field: 'process_name'},
-        {field: 'tid'},
-        {field: 'thread_name'},
+        {id: 'process_name', field: 'process_name'},
+        {id: 'thread_name', field: 'thread_name'},
       ],
       aggregates: [
-        {function: 'COUNT'},
-        {field: 'dur', function: 'SUM', sort: 'DESC'},
-        {field: 'fraction_of_total', function: 'SUM'},
-        {field: 'dur', function: 'AVG'},
+        {id: 'count', function: 'COUNT'},
+        {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+        {
+          id: 'fraction_of_total_sum',
+          field: 'fraction_of_total',
+          function: 'SUM',
+        },
+        {id: 'dur_avg', field: 'dur', function: 'AVG'},
       ],
       columns: [
         {
           title: 'ID',
-          columnId: 'id',
+          columnId: 'id_with_lineage',
           formatHint: 'ID',
-          dependsOn: ['__groupid', '__partition'],
-          cellRenderer: (value: unknown, row: Row) => {
-            if (typeof value !== 'bigint') {
+          cellRenderer: (value: unknown) => {
+            // Value is a JSON object {id, groupid, partition}
+            if (typeof value !== 'string') {
               return String(value);
             }
 
-            const groupId = row['__groupid'];
-            const partition = row['__partition'];
-
-            if (typeof groupId !== 'bigint') {
-              return String(value);
-            }
+            const parsed = JSON.parse(value) as {
+              id: number;
+              groupid: number;
+              partition: unknown;
+            };
+            const {id, groupid, partition} = parsed;
 
             // Resolve track from lineage
-            const track = this.resolveTrack(Number(groupId), partition);
+            const track = this.resolveTrack(groupid, partition);
             if (!track) {
-              return String(value);
+              return String(id);
             }
 
             return m(
@@ -172,16 +174,12 @@ export class CpuSliceSelectionAggregator implements Aggregator {
                 title: 'Go to sched slice',
                 icon: Icons.UpdateSelection,
                 onclick: () => {
-                  this.trace.selection.selectTrackEvent(
-                    track.uri,
-                    Number(value),
-                    {
-                      scrollToSelection: true,
-                    },
-                  );
+                  this.trace.selection.selectTrackEvent(track.uri, id, {
+                    scrollToSelection: true,
+                  });
                 },
               },
-              String(value),
+              String(id),
             );
           },
         },
@@ -206,29 +204,24 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           formatHint: 'STRING',
         },
         {
-          title: 'Wall Duration',
+          title: 'CPU Time',
           formatHint: 'DURATION_NS',
           columnId: 'dur',
         },
         {
-          title: 'Wall Duration as % of Total',
+          title: 'CPU Time %',
           columnId: 'fraction_of_total',
           formatHint: 'PERCENT',
         },
         {
-          title: 'Wall Duration % of Selection',
+          title: 'CPU Time / Wall Time',
           columnId: 'fraction_of_selection',
           formatHint: 'PERCENT',
         },
         {
-          title: 'Partition',
-          columnId: '__partition',
-          formatHint: 'ID',
-        },
-        {
-          title: 'GroupID',
-          columnId: '__groupid',
-          formatHint: 'ID',
+          title: 'CPU',
+          columnId: 'ucpu',
+          formatHint: 'NUMERIC',
         },
       ],
     };

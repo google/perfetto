@@ -17,8 +17,45 @@
   font-family: var(--pf-font-compact);
   position: relative;
 
+  // The outer split panel needs to fill the container
+  > .pf-split-panel {
+    height: 100%;
+  }
+
+  &__editor-tabs {
+    height: 100%;
+
+    // The content inside tabs (the split panel) needs full height
+    .pf-tabs__content {
+      height: calc(100% - 32px); // Account for tab bar height
+    }
+
+    // Each tab's split panel needs full height
+    .pf-split-panel {
+      height: 100%;
+    }
+  }
+
+  &__editor-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+
+    .pf-editor {
+      flex: 1;
+      contain: strict; // See b/388579546
+      min-height: 3rem;
+    }
+  }
+
+  &__results-panel {
+    height: 100%;
+    overflow: auto;
+  }
+
   &__results {
-    max-height: 500px;
+    height: 100%;
   }
 
   &__results-summary {
@@ -29,9 +66,13 @@
     border-bottom: 1px solid var(--pf-color-border);
   }
 
-  .pf-editor {
-    contain: strict; // See b/388579546
-    min-height: 3rem;
+  &__sidebar {
+    height: 100%;
+  }
+
+  &__history {
+    height: 100%;
+    overflow: auto;
   }
 
   &__hotkeys {
@@ -49,5 +90,146 @@
     font-size: var(--pf-font-size-s);
     font-weight: 300;
     white-space: pre;
+  }
+}
+
+.pf-simple-table-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &__search {
+    margin: 8px;
+  }
+
+  &__items {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  &__item-name {
+    font-family: var(--pf-font-monospace);
+    font-size: 12px;
+  }
+
+  &__highlight {
+    background-color: var(--pf-color-accent);
+    color: var(--pf-color-text-on-accent);
+    border-radius: 2px;
+  }
+
+  &__description {
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  &__detail-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    .pf-show-on-hover {
+      visibility: hidden;
+    }
+
+    &:hover .pf-show-on-hover {
+      visibility: visible;
+    }
+  }
+
+  &__detail-label {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    text-transform: uppercase;
+    min-width: 50px;
+  }
+
+  &__detail-value {
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__columns {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__column-list {
+    display: flex;
+    flex-direction: column;
+    margin-top: 4px;
+    border: 1px solid var(--pf-color-border-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  &__column {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--pf-color-border-secondary);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  &__column-icon {
+    font-size: 14px;
+    color: var(--pf-color-text-muted);
+    width: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  &__column-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__column-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__column-name {
+    font-size: 12px;
+  }
+
+  &__column-copy {
+    visibility: hidden;
+  }
+
+  &__column:hover &__column-copy {
+    visibility: visible;
+  }
+
+  &__column-type {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    margin-left: auto;
+  }
+
+  &__column-desc {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
   }
 }

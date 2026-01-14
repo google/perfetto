@@ -16,20 +16,26 @@ import protos from '../../../protos';
 import {nextNodeId, QueryNode} from '../query_node';
 
 /**
- * Type representing a QueryNode.
- * Builder methods accept nodes directly and extract their queries internally.
+ * Type representing a query source.
+ * Builder methods accept nodes or structured queries and extract/use them internally.
  */
-export type QuerySource = QueryNode | undefined;
+export type QuerySource =
+  | QueryNode
+  | protos.PerfettoSqlStructuredQuery
+  | undefined;
 
 /**
  * Helper function to extract a structured query from a QuerySource.
- * @param source The query source (node)
+ * @param source The query source (node or structured query)
  * @returns The structured query, or undefined if extraction fails
  */
 function extractQuery(
   source: QuerySource,
 ): protos.PerfettoSqlStructuredQuery | undefined {
   if (source === undefined) return undefined;
+  if (source instanceof protos.PerfettoSqlStructuredQuery) {
+    return source;
+  }
   return source.getStructuredQuery();
 }
 
@@ -204,12 +210,34 @@ export class StructuredQueryBuilder {
   }
 
   /**
+   * Wraps a query with ExperimentalCounterIntervals to convert counter data to intervals.
+   *
+   * @param inputQuery The query containing counter data (id, ts, track_id, value)
+   * @param nodeId Optional node id. If not provided, generates a new one.
+   * @returns A new structured query with counter intervals conversion
+   */
+  static withCounterIntervals(
+    inputQuery: QuerySource,
+    nodeId?: string,
+  ): protos.PerfettoSqlStructuredQuery | undefined {
+    const query = extractQuery(inputQuery);
+    if (!query) return undefined;
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = nodeId ?? nextNodeId();
+    sq.experimentalCounterIntervals =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalCounterIntervals();
+    sq.experimentalCounterIntervals.inputQuery = query;
+    return sq;
+  }
+
+  /**
    * Creates a structured query with interval intersect operation.
+   * Automatically filters out unfinished slices (dur < 0) from all inputs.
    *
    * @param baseQuery The base query for the intersection
    * @param intervalQueries Array of interval queries to intersect with the base
    * @param partitionColumns Optional partition columns for the intersection
-   * @param filterNegativeDur Optional array of booleans indicating which queries should filter dur >= 0
    * @param nodeId The node id to assign
    * @returns A new structured query with interval intersect, or undefined if extraction fails
    */
@@ -217,24 +245,19 @@ export class StructuredQueryBuilder {
     baseQuery: QuerySource,
     intervalQueries: QuerySource[],
     partitionColumns?: string[],
-    filterNegativeDur?: boolean[],
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    // Extract and optionally filter base query
+    // Extract and filter base query (always filter unfinished slices)
     let base = extractQuery(baseQuery);
     if (!base) return undefined;
-    if (filterNegativeDur && filterNegativeDur[0]) {
-      base = this.applyDurFilter(base);
-    }
+    base = this.applyDurFilter(base);
 
-    // Extract and optionally filter interval queries
+    // Extract and filter interval queries (always filter unfinished slices)
     const intervals: protos.PerfettoSqlStructuredQuery[] = [];
     for (let i = 0; i < intervalQueries.length; i++) {
       let query = extractQuery(intervalQueries[i]);
       if (!query) return undefined;
-      if (filterNegativeDur && filterNegativeDur[i + 1]) {
-        query = this.applyDurFilter(query);
-      }
+      query = this.applyDurFilter(query);
       intervals.push(query);
     }
 
@@ -735,6 +758,7 @@ export class StructuredQueryBuilder {
 
   /**
    * Creates a structured query with filter-to-intervals operation.
+   * Automatically filters out unfinished slices (dur < 0) from both inputs.
    * Filters the base query to only include rows that overlap with intervals
    * from the intervals query. The output preserves the base query's schema.
    *
@@ -747,7 +771,6 @@ export class StructuredQueryBuilder {
    * @param intervalsQuery The query containing the time intervals to filter to
    * @param partitionColumns Optional partition columns for the filtering
    * @param clipToIntervals Whether to clip ts/dur to interval boundaries (default: true)
-   * @param filterNegativeDur Optional array [base, intervals] indicating which queries should filter dur >= 0
    * @param nodeId The node id to assign
    * @returns A new structured query with filter-to-intervals, or undefined if extraction fails
    */
@@ -756,23 +779,18 @@ export class StructuredQueryBuilder {
     intervalsQuery: QuerySource,
     partitionColumns?: string[],
     clipToIntervals?: boolean,
-    filterNegativeDur?: boolean[],
     nodeId?: string,
     selectColumns?: string[],
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    // Extract and optionally filter base query
+    // Extract and filter base query (always filter unfinished slices)
     let base = extractQuery(baseQuery);
     if (!base) return undefined;
-    if (filterNegativeDur && filterNegativeDur[0]) {
-      base = this.applyDurFilter(base);
-    }
+    base = this.applyDurFilter(base);
 
-    // Extract and optionally filter intervals query
+    // Extract and filter intervals query (always filter unfinished slices)
     let intervals = extractQuery(intervalsQuery);
     if (!intervals) return undefined;
-    if (filterNegativeDur && filterNegativeDur[1]) {
-      intervals = this.applyDurFilter(intervals);
-    }
+    intervals = this.applyDurFilter(intervals);
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = nodeId ?? nextNodeId();
