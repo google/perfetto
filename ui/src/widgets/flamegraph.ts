@@ -1109,44 +1109,19 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const {unit} = assertExists(this.selectedMetric);
     const view = this.attrs.state.view;
 
-    // Build the stack based on view mode. All modes walk via parentId:
-    // - TOP_DOWN: reverse to get root→selected
-    // - BOTTOM_UP: no reverse to get selected→root
-    // - PIVOT below (depth > 0): reverse to get pivot→selected
-    // - PIVOT above (depth < 0): no reverse to get selected→pivot
+    // Walk via parentId for all modes. Reverse for TOP_DOWN and PIVOT below.
     const stack: FlamegraphNode[] = [];
+    let currentId = node.id;
+    while (currentId !== -1) {
+      const current = assertExists(nodes.find((n) => n.id === currentId));
+      stack.push(current);
+      currentId = current.parentId;
+    }
 
-    if (view.kind === 'TOP_DOWN') {
-      // Walk up to root via parentId, reverse to get root→selected
-      let currentId = node.id;
-      while (currentId !== -1) {
-        const current = assertExists(nodes.find((n) => n.id === currentId));
-        stack.push(current);
-        currentId = current.parentId;
-      }
+    const shouldReverse =
+      view.kind === 'TOP_DOWN' || (view.kind === 'PIVOT' && node.depth > 0);
+    if (shouldReverse) {
       stack.reverse();
-    } else if (view.kind === 'BOTTOM_UP') {
-      // Walk via parentId without reversing to get selected→root
-      let currentId = node.id;
-      while (currentId !== -1) {
-        const current = assertExists(nodes.find((n) => n.id === currentId));
-        stack.push(current);
-        currentId = current.parentId;
-      }
-    } else {
-      // PIVOT mode: walk toward the pivot point
-      // Both above and below pivot use parentId - above doesn't reverse, below does
-      let currentId = node.id;
-      while (currentId !== -1) {
-        const current = assertExists(nodes.find((n) => n.id === currentId));
-        stack.push(current);
-        currentId = current.parentId;
-      }
-      if (node.depth > 0) {
-        // Below pivot: reverse to get pivot→selected
-        stack.reverse();
-      }
-      // Above pivot (depth < 0): no reverse, get selected→pivot
     }
 
     if (!withDetails) {
