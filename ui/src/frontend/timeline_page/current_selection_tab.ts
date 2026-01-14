@@ -119,7 +119,7 @@ export class CurrentSelectionTab
     // not available.
     const [activeTab, activeTabContent] =
       renderedTabs.find(
-        ([tab]) => tab.id === trace.selection.currentAreaSelectionTabId,
+        ([tab]) => tab.id === trace.selection.currentSelectionSubTab,
       ) ?? renderedTabs[0];
 
     // Determine if any tab content is loading
@@ -139,7 +139,7 @@ export class CurrentSelectionTab
                 key: tab.id,
                 active: activeTab === tab,
                 onclick: () =>
-                  trace.selection.setCurrentAreaSelectionTabId(tab.id),
+                  trace.selection.setCurrentSelectionSubTab(tab.id),
               });
             }),
           ),
