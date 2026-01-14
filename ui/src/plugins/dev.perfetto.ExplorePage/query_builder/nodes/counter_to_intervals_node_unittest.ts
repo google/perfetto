@@ -136,7 +136,7 @@ describe('CounterToIntervalsNode', () => {
       const nextValueCol = finalCols.find((c) => c.name === 'next_value');
       const deltaValueCol = finalCols.find((c) => c.name === 'delta_value');
 
-      expect(durCol?.type).toBe('INT');
+      expect(durCol?.type).toBe('DURATION');
       expect(nextValueCol?.type).toBe('DOUBLE');
       expect(deltaValueCol?.type).toBe('DOUBLE');
     });

@@ -398,6 +398,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           return m(DataGrid, {
             schema,
             rootSchema: 'data',
+            enablePivotControls: false, // In-memory datasource does not support pivoting
             initialColumns: queryResult.columns.map((col) => ({
               id: col,
               field: col,

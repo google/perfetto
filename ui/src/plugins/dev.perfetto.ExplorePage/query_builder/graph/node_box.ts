@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {classNames} from '../../../../base/classnames';
 import {PopupMenu, MenuDivider, MenuTitle} from '../../../../widgets/menu';
-import {QueryNode, NodeType} from '../../query_node';
+import {QueryNode} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
 import {buildMenuItems} from './menu_utils';
 import {NodeDetailsAttrs} from '../node_explorer_types';
@@ -87,7 +87,7 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
       m(
         '.pf-exp-node-box__content',
         {
-          class: classNames(NodeType[node.type]),
+          class: classNames(node.type),
         },
         m('.pf-exp-node-box__details', renderDetailsView(node)),
       ),

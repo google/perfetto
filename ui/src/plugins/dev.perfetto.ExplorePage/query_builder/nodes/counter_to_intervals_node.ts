@@ -67,9 +67,9 @@ export class CounterToIntervalsNode implements QueryNode {
     // dur: the duration until the next counter value
     cols.push({
       name: 'dur',
-      type: 'INT',
+      type: 'DURATION',
       checked: true,
-      column: {name: 'dur', type: PerfettoSqlTypes.INT},
+      column: {name: 'dur', type: PerfettoSqlTypes.DURATION},
     });
 
     // next_value: the value of the next counter

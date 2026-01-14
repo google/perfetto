@@ -2,7 +2,7 @@
   "nodes": [
     {
       "nodeId": "1",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "3"
@@ -10,7 +10,7 @@
     },
     {
       "nodeId": "2",
-      "type": 0,
+      "type": "table",
       "state": {
         "sqlTable": "thread"
       },
@@ -20,7 +20,7 @@
     },
     {
       "nodeId": "12",
-      "type": 0,
+      "type": "table",
       "state": {
         "sqlTable": "thread_state"
       },
@@ -30,7 +30,7 @@
     },
     {
       "nodeId": "35",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "36"
@@ -38,7 +38,7 @@
     },
     {
       "nodeId": "14",
-      "type": 4,
+      "type": "aggregation",
       "state": {
         "primaryInputId": "13",
         "groupByColumns": [
@@ -116,7 +116,7 @@
     },
     {
       "nodeId": "36",
-      "type": 14,
+      "type": "join",
       "state": {
         "leftNodeId": "35",
         "rightNodeId": "749",
@@ -245,7 +245,7 @@
     },
     {
       "nodeId": "3",
-      "type": 6,
+      "type": "add_columns",
       "state": {
         "primaryInputId": "1",
         "secondaryInputNodeId": "2",
@@ -272,7 +272,7 @@
     },
     {
       "nodeId": "13",
-      "type": 10,
+      "type": "filter",
       "state": {
         "primaryInputId": "12",
         "filters": [
@@ -289,7 +289,7 @@
     },
     {
       "nodeId": "196",
-      "type": 9,
+      "type": "sort",
       "state": {
         "primaryInputId": "14",
         "sortCriteria": [
@@ -305,7 +305,7 @@
     },
     {
       "nodeId": "749",
-      "type": 8,
+      "type": "limit_and_offset",
       "state": {
         "primaryInputId": "196",
         "limit": 10,

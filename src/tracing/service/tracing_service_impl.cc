@@ -2751,8 +2751,11 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
 
   // In a multi-machine tracing session, emit clock synchronization messages for
   // remote machines.
-  if (!relay_clients_.empty())
+  if (!tracing_session->config.builtin_data_sources()
+           .disable_clock_snapshotting() &&
+      !relay_clients_.empty()) {
     MaybeEmitRemoteClockSync(tracing_session, &packets);
+  }
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
 

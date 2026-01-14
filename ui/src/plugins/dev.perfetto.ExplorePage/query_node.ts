@@ -28,26 +28,26 @@ export function nextNodeId(): string {
 
 export enum NodeType {
   // Sources
-  kTable,
-  kSimpleSlices,
-  kSqlSource,
-  kTimeRangeSource,
+  kTable = 'table',
+  kSimpleSlices = 'simple_slices',
+  kSqlSource = 'sql_source',
+  kTimeRangeSource = 'time_range_source',
 
   // Single node operations
-  kAggregation,
-  kModifyColumns,
-  kAddColumns,
-  kFilterDuring,
-  kLimitAndOffset,
-  kSort,
-  kFilter,
-  kCounterToIntervals,
+  kAggregation = 'aggregation',
+  kModifyColumns = 'modify_columns',
+  kAddColumns = 'add_columns',
+  kFilterDuring = 'filter_during',
+  kLimitAndOffset = 'limit_and_offset',
+  kSort = 'sort',
+  kFilter = 'filter',
+  kCounterToIntervals = 'counter_to_intervals',
 
   // Multi node operations
-  kIntervalIntersect,
-  kUnion,
-  kJoin,
-  kCreateSlices,
+  kIntervalIntersect = 'interval_intersect',
+  kUnion = 'union',
+  kJoin = 'join',
+  kCreateSlices = 'create_slices',
 
   // Deprecated (kept for backward compatibility)
   kMerge = kJoin,

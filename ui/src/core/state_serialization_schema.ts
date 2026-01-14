@@ -41,6 +41,7 @@ const SELECTION_SCHEMA = z.discriminatedUnion('kind', [
     start: zTime,
     end: zTime,
     trackUris: z.array(z.string()).readonly(),
+    currentSelectionSubTab: z.string().optional(),
   }),
 ]);
 

@@ -57,9 +57,9 @@ export interface Aggregation {
   prepareData(engine: Engine): Promise<AggregationData>;
 }
 
-export interface AggregatePivotModel extends Pivot {
+export type AggregatePivotModel = Pivot & {
   readonly columns: ReadonlyArray<ColumnDef>;
-}
+};
 
 export interface Aggregator {
   readonly id: string;
