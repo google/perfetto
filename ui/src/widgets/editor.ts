@@ -17,12 +17,15 @@ import {Transaction} from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {keymap} from '@codemirror/view';
 import {basicSetup, EditorView} from 'codemirror';
+import {javascript} from '@codemirror/lang-javascript';
 import m from 'mithril';
 import {removeFalsyValues} from '../base/array_utils';
 import {assertUnreachable} from '../base/logging';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
 import {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
+
+type EditorLanguage = 'perfetto-sql' | 'javascript';
 
 export interface EditorAttrs extends HTMLAttrs {
   // Content of the editor. If defined, the editor operates in controlled mode,
@@ -35,7 +38,7 @@ export interface EditorAttrs extends HTMLAttrs {
   readonly text?: string;
 
   // Which language use for syntax highlighting et al. Defaults to none.
-  readonly language?: 'perfetto-sql';
+  readonly language?: EditorLanguage;
 
   // Whether the editor should be focused on creation.
   readonly autofocus?: boolean;
@@ -122,6 +125,8 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
           return undefined;
         case 'perfetto-sql':
           return perfettoSql();
+        case 'javascript':
+          return javascript();
         default:
           assertUnreachable(attrs.language);
       }
