@@ -59,7 +59,7 @@ function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
     case 'mid':
       return 'Common';
     case 'low':
-      return 'Discouraged';
+      return 'Deprecated';
   }
 }
 
@@ -534,20 +534,23 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           onQueryChange: attrs.onSearchQueryChange,
           autofocus: attrs.autofocus,
         }),
-        m(Switch, {
-          label: 'Hide modules with no data',
-          checked: this.hideDisabledModules,
-          onchange: () => {
-            this.hideDisabledModules = !this.hideDisabledModules;
-          },
-        }),
-        m(Switch, {
-          label: 'Only show timestamped tables',
-          checked: this.onlyShowTimestampedTables,
-          onchange: () => {
-            this.onlyShowTimestampedTables = !this.onlyShowTimestampedTables;
-          },
-        }),
+        m(
+          '.pf-search-and-filter-switches',
+          m(Switch, {
+            label: 'Hide modules with no data',
+            checked: this.hideDisabledModules,
+            onchange: () => {
+              this.hideDisabledModules = !this.hideDisabledModules;
+            },
+          }),
+          m(Switch, {
+            label: 'Only show timestamped tables',
+            checked: this.onlyShowTimestampedTables,
+            onchange: () => {
+              this.onlyShowTimestampedTables = !this.onlyShowTimestampedTables;
+            },
+          }),
+        ),
       ),
       m(
         '.pf-table-cards-container',

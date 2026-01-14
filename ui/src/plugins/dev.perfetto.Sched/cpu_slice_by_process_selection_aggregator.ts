@@ -100,7 +100,7 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
-            json_object('id', cpu_slice.id, 'groupid', __groupid, 'partition', __partition) as id,
+            json_object('id', cpu_slice.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             process.name as process_name,
             process.pid,
             dur,
@@ -124,10 +124,7 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [
-        {id: 'pid', field: 'pid'},
-        {id: 'process_name', field: 'process_name'},
-      ],
+      groupBy: [{id: 'process_name', field: 'process_name'}],
       aggregates: [
         {id: 'count', function: 'COUNT'},
         {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
@@ -141,7 +138,7 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
       columns: [
         {
           title: 'ID',
-          columnId: 'id',
+          columnId: 'id_with_lineage',
           formatHint: 'ID',
           cellRenderer: (value: unknown) => {
             // Value is a JSON object {id, groupid, partition}
