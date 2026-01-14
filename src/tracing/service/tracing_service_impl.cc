@@ -4063,8 +4063,8 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
 
   if (sys_info.page_size.has_value())
     info->set_page_size(*sys_info.page_size);
-  if (sys_info.memory_size_mb.has_value())
-    info->set_memory_size_mb(*sys_info.memory_size_mb);
+  if (sys_info.memory_size_bytes.has_value())
+    info->set_memory_size_bytes(*sys_info.memory_size_bytes);
   if (sys_info.num_cpus.has_value())
     info->set_num_cpus(*sys_info.num_cpus);
 
