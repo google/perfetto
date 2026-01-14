@@ -27,7 +27,9 @@ import {
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
 import {FilterNode} from './query_builder/nodes/filter_node';
+import {AddColumnsNode} from './query_builder/nodes/add_columns_node';
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
+import {Column} from '../../components/widgets/datagrid/model';
 import {Trace} from '../../public/trace';
 
 import {exportStateAsJson, deserializeState} from './json_handler';
@@ -390,7 +392,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const newNodes: QueryNode[] = [];
 
     // Create slices source node
-    const slicesNode = new SlicesSourceNode({});
+    const slicesNode = new SlicesSourceNode({sqlModules, trace: attrs.trace});
     newNodes.push(slicesNode);
 
     // Get high-frequency tables with data
@@ -896,6 +898,223 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
       selectedNodes: new Set([newFilterNode.nodeId]),
+    }));
+  }
+
+  /**
+   * Parses a column field to extract joinid information.
+   * Returns undefined if the field is not a joinid column reference.
+   */
+  private parseJoinidColumnField(
+    field: string,
+    sourceNode: QueryNode,
+  ):
+    | {
+        joinidColumnName: string;
+        targetColumnName: string;
+        targetTable: string;
+        targetJoinColumn: string;
+      }
+    | undefined {
+    // Parse the field to extract joinid column name and target column
+    // Expected format: "joinidColumnName.targetColumnName"
+    const dotIndex = field.indexOf('.');
+    if (dotIndex === -1) {
+      return undefined;
+    }
+
+    const joinidColumnName = field.substring(0, dotIndex);
+    const targetColumnName = field.substring(dotIndex + 1);
+
+    // Find the joinid column in the source node's finalCols
+    const joinidColumnInfo = sourceNode.finalCols.find(
+      (col) => col.name === joinidColumnName,
+    );
+
+    if (
+      joinidColumnInfo === undefined ||
+      joinidColumnInfo.column.type?.kind !== 'joinid'
+    ) {
+      return undefined;
+    }
+
+    return {
+      joinidColumnName,
+      targetColumnName,
+      targetTable: joinidColumnInfo.column.type.source.table,
+      targetJoinColumn: joinidColumnInfo.column.type.source.column,
+    };
+  }
+
+  /**
+   * Finds an AddColumnsNode that matches the given join configuration.
+   * Checks both the source node itself and its immediate child.
+   */
+  private findMatchingAddColumnsNode(
+    sourceNode: QueryNode,
+    joinidColumnName: string,
+    targetJoinColumn: string,
+  ): AddColumnsNode | undefined {
+    // Check if the source node is already an AddColumnsNode with the same join
+    if (sourceNode.type === NodeType.kAddColumns) {
+      const addColumnsNode = sourceNode as AddColumnsNode;
+      if (
+        addColumnsNode.state.leftColumn === joinidColumnName &&
+        addColumnsNode.state.rightColumn === targetJoinColumn
+      ) {
+        return addColumnsNode;
+      }
+    }
+
+    // Check if the source node has exactly one child that's an AddColumnsNode with same join
+    if (
+      sourceNode.nextNodes.length === 1 &&
+      sourceNode.nextNodes[0].type === NodeType.kAddColumns
+    ) {
+      const existingAddColumnsNode = sourceNode.nextNodes[0] as AddColumnsNode;
+      if (
+        existingAddColumnsNode.state.leftColumn === joinidColumnName &&
+        existingAddColumnsNode.state.rightColumn === targetJoinColumn
+      ) {
+        return existingAddColumnsNode;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Handles adding a column from a joinid table by creating an AddColumnsNode.
+   * The column field is expected to be in the format "joinidColumn.targetColumnName"
+   * where joinidColumn is a column with joinid type in the source node.
+   */
+  handleColumnAdd(
+    attrs: ExplorePageAttrs,
+    sourceNode: QueryNode,
+    column: Column,
+  ) {
+    const parsed = this.parseJoinidColumnField(column.field, sourceNode);
+    if (parsed === undefined) {
+      // Not a joinid column reference - nothing to do
+      return;
+    }
+
+    const {joinidColumnName, targetColumnName, targetTable, targetJoinColumn} =
+      parsed;
+
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (sqlModules === undefined) {
+      console.warn('Cannot add column: SQL modules not loaded yet');
+      return;
+    }
+
+    // Check if this column name already exists in the source node's schema
+    const existingColumnNames = new Set(
+      sourceNode.finalCols.map((col) => col.name),
+    );
+    if (existingColumnNames.has(targetColumnName)) {
+      console.warn(
+        `Cannot add column: "${targetColumnName}" already exists in the schema`,
+      );
+      return;
+    }
+
+    // Try to find an existing AddColumnsNode with the same join configuration
+    const existingNode = this.findMatchingAddColumnsNode(
+      sourceNode,
+      joinidColumnName,
+      targetJoinColumn,
+    );
+
+    if (existingNode !== undefined) {
+      // Check if the column is already added
+      if (existingNode.state.selectedColumns?.includes(targetColumnName)) {
+        console.warn(
+          `Cannot add column: "${targetColumnName}" is already added`,
+        );
+        return;
+      }
+
+      // Add the column to the existing AddColumnsNode
+      existingNode.state.selectedColumns = [
+        ...(existingNode.state.selectedColumns ?? []),
+        targetColumnName,
+      ];
+      existingNode.state.onchange?.();
+      if (existingNode !== sourceNode) {
+        attrs.onStateUpdate((currentState) => ({
+          ...currentState,
+          selectedNodes: new Set([existingNode.nodeId]),
+        }));
+      }
+      return;
+    }
+
+    // Create a new AddColumnsNode with the join configuration
+    // Note: selectedColumns is set after connecting the table node because
+    // onPrevNodesUpdated() resets selectedColumns when rightNode is not connected
+    const newAddColumnsNode = new AddColumnsNode({
+      leftColumn: joinidColumnName,
+      rightColumn: targetJoinColumn,
+      isGuidedConnection: true,
+      sqlModules,
+      trace: attrs.trace,
+    });
+
+    // Set actions now that the node is created
+    newAddColumnsNode.state.actions = this.createNodeActions(
+      attrs,
+      newAddColumnsNode,
+    );
+
+    // Mark as initialized
+    this.initializedNodes.add(newAddColumnsNode.nodeId);
+
+    // Insert between source node and its children
+    insertNodeBetween(
+      sourceNode,
+      newAddColumnsNode,
+      addConnection,
+      removeConnection,
+    );
+
+    // Now create and connect the table source node
+    const descriptor = nodeRegistry.get('table');
+    if (descriptor === undefined) {
+      console.warn("Cannot add table: 'table' node type not found in registry");
+      return;
+    }
+
+    const sqlTable = sqlModules
+      .listTables()
+      .find((t) => t.name === targetTable);
+    if (sqlTable === undefined) {
+      console.warn(`Table ${targetTable} not found in SQL modules`);
+      return;
+    }
+
+    // Create the table node with the specific table
+    const tableNode = descriptor.factory(
+      {
+        sqlTable,
+        sqlModules,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
+
+    // Connect table node to AddColumnsNode's secondary input (port 0)
+    addConnection(tableNode, newAddColumnsNode, 0);
+
+    // Now that rightNode is connected, set the selected column
+    // (must be done after connection because onPrevNodesUpdated resets it otherwise)
+    newAddColumnsNode.state.selectedColumns = [targetColumnName];
+
+    // Update state with both new nodes
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, tableNode],
+      selectedNodes: new Set([newAddColumnsNode.nodeId]),
     }));
   }
 
@@ -1745,6 +1964,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onFilterAdd: (node, filter, filterOperator) => {
           this.handleFilterAdd(wrappedAttrs, node, filter, filterOperator);
+        },
+        onColumnAdd: (node, column) => {
+          this.handleColumnAdd(wrappedAttrs, node, column);
         },
         onNodeStateChange: () => {
           // Trigger a state update when node properties change (e.g., selecting group by columns)

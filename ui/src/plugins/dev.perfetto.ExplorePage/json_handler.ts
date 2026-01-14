@@ -281,7 +281,7 @@ function createNodeInstance(
         ),
       );
     case NodeType.kSimpleSlices:
-      return new SlicesSourceNode({});
+      return new SlicesSourceNode({trace, sqlModules});
     case NodeType.kSqlSource:
       return new SqlSourceNode({
         ...(state as SqlSourceSerializedState),
