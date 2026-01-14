@@ -235,7 +235,7 @@ TEST_F(PerfettoReporterTest, TestEndToEndReportPersistentAlreadyStarted) {
   ASSERT_EQ(1, perfetto_proc_2.Run(&stderr_str)) << stderr_str;
   ASSERT_THAT(stderr_str,
               AllOf(HasSubstr("Error:"),
-                    HasSubstr("refusing to overwrite persistent trace")));
+                    HasSubstr("refusing to overwrite a persistent trace")));
 
   // We can normally stop first session.
   perfetto_proc.SendSigterm();
