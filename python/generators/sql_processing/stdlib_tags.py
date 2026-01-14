@@ -437,11 +437,12 @@ TABLE_IMPORTANCE = {
     'chrome_graphics_pipeline_display_frame_steps':
         'mid',  # Graphics pipeline post-surface aggregation
 
-    # LOW IMPORTANCE - Raw/specialized tables, less frequently needed
-    'slices':
-        'low',  # Raw slice table, prefer thread_or_process_slice for most use cases
-    'sched_slice':
-        'low',  # Raw scheduling slice table, prefer thread_state for most use cases
+    # LOW IMPORTANCE - Deprecated table names, kept for backward compatibility
+    'slices': 'low',  # Raw slice table, prefer thread_or_process_slice
+    'sched_slice': 'low',  # Raw scheduling slice table, prefer thread_state
+    'counters': 'low',  # Raw counter table, prefer counter table
+    'raw': 'low',
+    'gpu_track': 'low',
 }
 
 
