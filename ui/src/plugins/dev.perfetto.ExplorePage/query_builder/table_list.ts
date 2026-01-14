@@ -59,7 +59,7 @@ function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
     case 'mid':
       return 'Common';
     case 'low':
-      return 'Discouraged';
+      return 'Deprecated';
   }
 }
 
