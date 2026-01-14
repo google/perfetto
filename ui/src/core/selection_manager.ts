@@ -59,6 +59,7 @@ export class SelectionManagerImpl implements SelectionManager {
     SelectionDetailsPanel
   >();
   public readonly areaSelectionTabs: AreaSelectionTab[] = [];
+  private _currentAreaSelectionTabId?: string;
 
   constructor(
     private readonly engine: Engine,
@@ -521,5 +522,13 @@ export class SelectionManagerImpl implements SelectionManager {
 
   registerAreaSelectionTab(tab: AreaSelectionTab): void {
     this.areaSelectionTabs.push(tab);
+  }
+
+  get currentAreaSelectionTabId(): string | undefined {
+    return this._currentAreaSelectionTabId;
+  }
+
+  setCurrentAreaSelectionTabId(id: string | undefined): void {
+    this._currentAreaSelectionTabId = id;
   }
 }

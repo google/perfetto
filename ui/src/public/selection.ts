@@ -83,6 +83,16 @@ export interface SelectionManager {
   readonly areaSelectionTabs: ReadonlyArray<AreaSelectionTab>;
 
   /**
+   * The ID of the currently active area selection tab.
+   */
+  readonly currentAreaSelectionTabId: string | undefined;
+
+  /**
+   * Sets the currently active area selection tab ID.
+   */
+  setCurrentAreaSelectionTabId(id: string | undefined): void;
+
+  /**
    * Clears the current selection, selects nothing.
    */
   clearSelection(): void;

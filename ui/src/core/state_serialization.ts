@@ -93,6 +93,7 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
       trackUris: stateSel.trackUris,
       start: stateSel.start,
       end: stateSel.end,
+      areaSelectionTabId: trace.selection.currentAreaSelectionTabId,
     });
   }
 
@@ -204,7 +205,13 @@ export function deserializeAppStatePhase2(
   }
 
   // Restore the selection
-  trace.selection.deserialize(appState.selection[0]);
+  const sel = appState.selection[0];
+  trace.selection.deserialize(sel);
+
+  // Restore the area selection tab ID
+  if (sel?.kind === 'AREA' && sel.areaSelectionTabId) {
+    trace.selection.setCurrentAreaSelectionTabId(sel.areaSelectionTabId);
+  }
 }
 
 /**
