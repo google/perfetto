@@ -656,7 +656,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           isVisible: (_) => true,
         },
       ],
-      nameColumnLabel: 'Slice',
+      nameColumnLabel: 'Slice Name',
     });
     const store = assertExists(this.store);
     store.edit((draft) => {
