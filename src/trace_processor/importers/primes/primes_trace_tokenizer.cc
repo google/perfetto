@@ -74,13 +74,13 @@ base::Status PrimesTraceTokenizer::NotifyEndOfFile() {
     if (!edge_decoder.has_trace_start_offset()) {
       PERFETTO_ELOG("Edge missing trace_start_offset.");
       context_->import_logs_tracker->RecordTokenizationError(
-        stats::primes_malformed_timestamp,
-        ts_decoder.read_offset()
-      );
+          stats::primes_malformed_timestamp, ts_decoder.read_offset());
       continue;
     }
-    primespb::Duration::Decoder offset_decoder(edge_decoder.trace_start_offset());
-    int64_t edge_timestamp = start_time + to_nanos(offset_decoder.seconds(), offset_decoder.nanos());
+    primespb::Duration::Decoder offset_decoder(
+        edge_decoder.trace_start_offset());
+    int64_t edge_timestamp =
+        start_time + to_nanos(offset_decoder.seconds(), offset_decoder.nanos());
 
     // Create a TraceBlobView for the edge data.
     TraceBlobView edge_slice = slice->slice_off(
