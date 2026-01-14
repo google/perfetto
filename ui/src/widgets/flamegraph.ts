@@ -1109,16 +1109,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const {unit} = assertExists(this.selectedMetric);
     const view = this.attrs.state.view;
 
-    // Build the stack based on view mode:
-    // - TOP_DOWN: walk up via parentId, reverse to get root→selected
-    // - BOTTOM_UP: walk down via children to get selected→leaf
-    // - PIVOT: walk toward the pivot point (depth 0)
-    //   - depth > 0: walk up via parentId
-    //   - depth < 0: walk down via children
+    // Build the stack based on view mode. All modes walk via parentId:
+    // - TOP_DOWN: reverse to get root→selected
+    // - BOTTOM_UP: no reverse to get selected→root
+    // - PIVOT below (depth > 0): reverse to get pivot→selected
+    // - PIVOT above (depth < 0): no reverse to get selected→pivot
     const stack: FlamegraphNode[] = [];
 
     if (view.kind === 'TOP_DOWN') {
-      // Walk up to root via parentId
+      // Walk up to root via parentId, reverse to get root→selected
       let currentId = node.id;
       while (currentId !== -1) {
         const current = assertExists(nodes.find((n) => n.id === currentId));
@@ -1127,23 +1126,27 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }
       stack.reverse();
     } else if (view.kind === 'BOTTOM_UP') {
-      // Walk down to leaves via children
-      this.walkDownToLeaves(node, nodes, stack);
+      // Walk via parentId without reversing to get selected→root
+      let currentId = node.id;
+      while (currentId !== -1) {
+        const current = assertExists(nodes.find((n) => n.id === currentId));
+        stack.push(current);
+        currentId = current.parentId;
+      }
     } else {
       // PIVOT mode: walk toward the pivot point
-      if (node.depth > 0) {
-        // Below pivot: walk up via parentId
-        let currentId = node.id;
-        while (currentId !== -1) {
-          const current = assertExists(nodes.find((n) => n.id === currentId));
-          stack.push(current);
-          currentId = current.parentId;
-        }
-        stack.reverse();
-      } else {
-        // Above pivot (depth < 0): walk down via children toward pivot
-        this.walkDownToLeaves(node, nodes, stack);
+      // Both above and below pivot use parentId - above doesn't reverse, below does
+      let currentId = node.id;
+      while (currentId !== -1) {
+        const current = assertExists(nodes.find((n) => n.id === currentId));
+        stack.push(current);
+        currentId = current.parentId;
       }
+      if (node.depth > 0) {
+        // Below pivot: reverse to get pivot→selected
+        stack.reverse();
+      }
+      // Above pivot (depth < 0): no reverse, get selected→pivot
     }
 
     if (!withDetails) {
@@ -1219,26 +1222,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       lines.push('| ' + cols.join(' | ') + ' |');
     }
     return lines.join('\n');
-  }
-
-  // Walk down from a node toward leaves. In bottom-up and pivot-above modes,
-  // each node has exactly one child (the caller), so we follow that unique path.
-  private walkDownToLeaves(
-    startNode: FlamegraphNode,
-    nodes: ReadonlyArray<FlamegraphNode>,
-    stack: FlamegraphNode[],
-  ): void {
-    stack.push(startNode);
-    let currentId = startNode.id;
-
-    while (true) {
-      const child = nodes.find((n) => n.parentId === currentId);
-      if (child === undefined) {
-        break;
-      }
-      stack.push(child);
-      currentId = child.id;
-    }
   }
 
   private createReducedProperties(
