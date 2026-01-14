@@ -41,7 +41,7 @@ test('sched', async () => {
   // Now test sorting.
   const hdr = page
     .getByRole('columnheader')
-    .filter({has: page.getByText('Wall Duration', {exact: true})})
+    .filter({has: page.getByText('CPU Time', {exact: true})})
     .filter({has: page.getByText('AVG', {exact: true})});
   await hdr.hover();
 

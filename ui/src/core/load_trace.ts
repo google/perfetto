@@ -49,7 +49,6 @@ import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
 import {parseUrlCommands} from './command_manager';
-import {isStartupCommandAllowed} from './startup_command_allowlist';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
@@ -326,7 +325,7 @@ async function loadTraceIntoEngine(
 
     // Set allowlist checking during startup if enforcement enabled
     if (enforceAllowlist) {
-      app.commands.setAllowlistCheck(isStartupCommandAllowed);
+      app.commands.setExecutingStartupCommands(true);
     }
 
     try {
@@ -345,7 +344,7 @@ async function loadTraceIntoEngine(
       }
     } finally {
       // Always restore default (allow all) behavior when done
-      app.commands.setAllowlistCheck(() => true);
+      app.commands.setExecutingStartupCommands(false);
     }
   }
 

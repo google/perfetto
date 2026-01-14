@@ -43,23 +43,4 @@ export const STARTUP_COMMAND_ALLOWLIST: string[] = [
 ];
 
 // Create a set for faster lookups of exact matches
-const STARTUP_COMMAND_ALLOWLIST_SET = new Set(STARTUP_COMMAND_ALLOWLIST);
-
-/**
- * Validates whether a command ID is allowed as a startup command.
- * @param commandId The command ID to validate
- * @returns true if the command ID is in the allowlist, false otherwise
- */
-export function isStartupCommandAllowed(commandId: string): boolean {
-  // First check for exact match (fastest)
-  if (STARTUP_COMMAND_ALLOWLIST_SET.has(commandId)) {
-    return true;
-  }
-
-  // Special case: allow all user-defined macros
-  if (commandId.startsWith('dev.perfetto.UserMacro.')) {
-    return true;
-  }
-
-  return false;
-}
+export const STARTUP_COMMAND_ALLOWLIST_SET = new Set(STARTUP_COMMAND_ALLOWLIST);

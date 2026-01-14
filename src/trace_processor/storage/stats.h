@@ -219,6 +219,20 @@ namespace perfetto::trace_processor::stats {
       "https://perfetto.dev/docs/concepts/buffers"                             \
       "#incremental-state-in-trace-packets"),                                  \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace,    ""), \
+  F(traced_buf_v2s_packets_seen,          kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: total packets read."),                                    \
+  F(traced_buf_v2s_packets_in_both,       kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: packets found in both V1 and V2 buffers."),               \
+  F(traced_buf_v2s_packets_only_v1,       kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: packets found only in V1 buffer."),                       \
+  F(traced_buf_v2s_packets_only_v2,       kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: packets found only in V2 buffer."),                       \
+  F(traced_buf_v2s_patches_attempted,     kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: patch operations attempted."),                            \
+  F(traced_buf_v2s_v1_patches_succeeded,  kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: patches that succeeded on V1 buffer."),                   \
+  F(traced_buf_v2s_v2_patches_succeeded,  kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: patches that succeeded on V2 buffer."),                   \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
   F(traced_clone_trigger_timestamp_ns,    kSingle,  kInfo,     kTrace,         \

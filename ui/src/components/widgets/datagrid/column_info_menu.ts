@@ -17,6 +17,7 @@ import {MenuItem} from '../../../widgets/menu';
 import {ColumnInfo, isParameterizedColumnDef} from './datagrid_schema';
 
 interface ColumnInfoMenuAttrs {
+  readonly id: string;
   readonly field: string;
   readonly colInfo: ColumnInfo | undefined;
   readonly aggregateFunc?: string;
@@ -28,9 +29,16 @@ interface ColumnInfoMenuAttrs {
  */
 export class ColumnInfoMenu implements m.ClassComponent<ColumnInfoMenuAttrs> {
   view({attrs}: m.Vnode<ColumnInfoMenuAttrs>): m.Children {
-    const {field, colInfo, aggregateFunc} = attrs;
+    const {field, id, colInfo, aggregateFunc} = attrs;
 
     const infoItems: m.Children[] = [];
+
+    infoItems.push(
+      m(MenuItem, {
+        label: `ID: ${id}`,
+        disabled: true,
+      }),
+    );
 
     // Field path (always shown)
     infoItems.push(

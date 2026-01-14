@@ -75,7 +75,12 @@ export class IdleDetector {
       reqsPending === 0,
       !raf.hasPendingRedraws,
       !taskTracker.hasPendingTasks(),
-      !document.getAnimations().some((a) => a.playState === 'running'),
+      !document.getAnimations().some((a) => {
+        if (a.playState !== 'running') return false;
+        // Ignore infinite animations (e.g., cursor blinks) - they're decorative
+        const iterations = a.effect?.getTiming().iterations;
+        return iterations !== Infinity;
+      }),
       document.querySelector('.progress.progress-anim') == null,
       document.querySelector('.pf-omnibox--message-mode') == null,
     ];

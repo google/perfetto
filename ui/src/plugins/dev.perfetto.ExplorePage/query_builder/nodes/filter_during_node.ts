@@ -81,8 +81,6 @@ import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {notifyNextNodes} from '../graph_utils';
 
 export interface FilterDuringNodeState extends QueryNodeState {
-  filterNegativeDurPrimary?: boolean; // Filter negative durations in primary input
-  filterNegativeDurSecondary?: boolean; // Filter negative durations in secondary input
   partitionColumns?: string[]; // Columns to partition by during interval intersection
   clipToIntervals?: boolean; // When true (default), use intersected ts/dur; when false, use original ts/dur from primary
 }
@@ -106,10 +104,6 @@ export class FilterDuringNode implements QueryNode {
     };
     this.nextNodes = [];
     this.state.autoExecute = this.state.autoExecute ?? false;
-    this.state.filterNegativeDurPrimary =
-      this.state.filterNegativeDurPrimary ?? true;
-    this.state.filterNegativeDurSecondary =
-      this.state.filterNegativeDurSecondary ?? true;
   }
 
   // Get the node connected to the secondary input port (the intervals to filter during)
@@ -335,52 +329,23 @@ export class FilterDuringNode implements QueryNode {
       ),
     });
 
-    // Add filter toggle for primary input
-    const primaryFilterEnabled = this.state.filterNegativeDurPrimary ?? true;
+    // Add primary input section
     sections.push({
       content: m(ListItem, {
         icon: 'input',
         name: 'Primary Input',
-        description: primaryFilterEnabled
-          ? 'Filtering unfinished intervals'
-          : 'Including all intervals',
-        actions: [
-          {
-            icon: primaryFilterEnabled
-              ? 'check_box'
-              : 'check_box_outline_blank',
-            title: 'Filter out intervals with negative duration',
-            onclick: () => {
-              this.state.filterNegativeDurPrimary = !primaryFilterEnabled;
-              this.state.onchange?.();
-            },
-          },
-        ],
+        description: '',
+        actions: [],
       }),
     });
 
     // Add filter intervals input section
-    const secondaryFilterEnabled =
-      this.state.filterNegativeDurSecondary ?? true;
     sections.push({
       content: m(ListItem, {
         icon: 'input',
         name: 'Filter intervals',
-        description: secondaryFilterEnabled
-          ? 'Filtering unfinished intervals'
-          : 'Including all intervals',
-        actions: [
-          {
-            icon: secondaryFilterEnabled
-              ? 'check_box'
-              : 'check_box_outline_blank',
-            title: 'Filter out intervals with negative duration',
-            onclick: () => {
-              this.state.filterNegativeDurSecondary = !secondaryFilterEnabled;
-              this.state.onchange?.();
-            },
-          },
-        ],
+        description: '',
+        actions: [],
       }),
     });
 
@@ -466,8 +431,6 @@ export class FilterDuringNode implements QueryNode {
 
   clone(): QueryNode {
     const stateCopy: FilterDuringNodeState = {
-      filterNegativeDurPrimary: this.state.filterNegativeDurPrimary,
-      filterNegativeDurSecondary: this.state.filterNegativeDurSecondary,
       partitionColumns: this.state.partitionColumns
         ? [...this.state.partitionColumns]
         : undefined,
@@ -485,11 +448,6 @@ export class FilterDuringNode implements QueryNode {
 
     const secondaryInput = this.secondaryInputs.connections.get(0);
     if (secondaryInput === undefined) return undefined;
-
-    const filterNegativeDur = [
-      this.state.filterNegativeDurPrimary ?? true,
-      this.state.filterNegativeDurSecondary ?? true,
-    ];
 
     // Build selectColumns with proper ordering.
     // When clip_to_intervals is true, we need ts and dur first so the C++ side
@@ -521,7 +479,6 @@ export class FilterDuringNode implements QueryNode {
       secondaryInput,
       this.state.partitionColumns,
       this.state.clipToIntervals ?? true,
-      filterNegativeDur,
       this.nodeId,
       selectColumns,
     );
@@ -533,8 +490,6 @@ export class FilterDuringNode implements QueryNode {
       secondaryInputNodeIds: Array.from(
         this.secondaryInputs.connections.values(),
       ).map((node) => node.nodeId),
-      filterNegativeDurPrimary: this.state.filterNegativeDurPrimary,
-      filterNegativeDurSecondary: this.state.filterNegativeDurSecondary,
       partitionColumns: this.state.partitionColumns,
       clipToIntervals: this.state.clipToIntervals,
     };
@@ -544,8 +499,6 @@ export class FilterDuringNode implements QueryNode {
     serializedState: FilterDuringNodeState,
   ): FilterDuringNodeState {
     return {
-      filterNegativeDurPrimary: serializedState.filterNegativeDurPrimary,
-      filterNegativeDurSecondary: serializedState.filterNegativeDurSecondary,
       partitionColumns: serializedState.partitionColumns,
       clipToIntervals: serializedState.clipToIntervals,
     };

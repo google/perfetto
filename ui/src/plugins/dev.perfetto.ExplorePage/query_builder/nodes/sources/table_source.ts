@@ -69,10 +69,11 @@ export function modalForTableSelection(
       showModal({
         key: 'table-selection-modal',
         vAlign: 'TOP',
+        className: 'pf-table-selection-modal',
         title:
           selectedTables.size > 0
             ? `Choose tables - ${selectedTables.size} selected`
-            : 'Choose a table - Ctrl+click for multiple selection',
+            : 'Choose a table',
         content: () => {
           return m(
             '.pf-exp-node-explorer-help',

@@ -504,6 +504,45 @@ message PerfettoSqlStructuredQuery {
     optional string ends_ts_column = 4;
   }
 
+  // DON'T USE. EXPERIMENTAL.
+  // Converts counter-style data (with timestamps but no durations) into
+  // interval-style data by computing the duration to the next event using
+  // the counter_leading_intervals! macro.
+  //
+  // This is useful for working with counter data (e.g., CPU frequency,
+  // battery level) that needs to be used with interval-based operations
+  // like IntervalIntersect.
+  //
+  // Examples:
+  //  1) Convert CPU frequency counter data to intervals:
+  //    * input_query contains counter data with (id, ts, track_id, value)
+  //    * Output will have (id, ts, dur, track_id, value, next_value,
+  //    delta_value)
+  //  2) Prepare battery counter for interval intersection:
+  //    * input_query contains battery level samples over time
+  //    * Output can be used with IntervalIntersect to analyze battery during
+  //    events
+  //
+  // Schema Requirements:
+  //  1) input_query MUST have columns: id, ts, track_id, value
+  //  2) input_query MUST NOT have a dur column (this operation creates it)
+  //
+  // Output Schema:
+  //  The output contains all columns from input plus:
+  //  - dur: DURATION - time until the next event (computed)
+  //  - next_value: DOUBLE - value at the next timestamp
+  //  - delta_value: DOUBLE - change from the previous value
+  //
+  // The operation uses counter_leading_intervals! internally, which means:
+  //  - Intervals are forward-looking (value holds until next change)
+  //  - The final value holds until trace_end()
+  //  - Events are automatically sorted by timestamp
+  message ExperimentalCounterIntervals {
+    // The query containing counter data. Must have (id, ts, track_id, value)
+    // columns and must NOT have a dur column. Required.
+    optional PerfettoSqlStructuredQuery input_query = 1;
+  }
+
   // An opaque id field for the query. The convention is to use underscores
   // and lower case (foo_bar) but this is not enforced. Optional in the general
   // case but strongly recommended for good error messages. Required in cases
@@ -567,6 +606,11 @@ message PerfettoSqlStructuredQuery {
     // Source is a filter-to-intervals operation. See
     // ExperimentalFilterToIntervals documentation for more information.
     ExperimentalFilterToIntervals experimental_filter_to_intervals = 106;
+
+    // DON'T USE. EXPERIMENTAL.
+    // Source is a counter-to-intervals operation. See
+    // ExperimentalCounterIntervals documentation for more information.
+    ExperimentalCounterIntervals experimental_counter_intervals = 107;
   }
 
   // Evaluation order of operations:

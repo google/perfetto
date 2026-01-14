@@ -25,7 +25,7 @@ import {Button} from '../../widgets/button';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 import {EmptyState} from '../../widgets/empty_state';
 import {Callout} from '../../widgets/callout';
-import {TabStrip} from '../../widgets/tabs';
+import {TabStrip} from '../../widgets/tab_strip';
 import {Icon} from '../../widgets/icon';
 import {Flamegraph} from '../../widgets/flamegraph';
 import {PprofProfile, PprofPageState} from './types';

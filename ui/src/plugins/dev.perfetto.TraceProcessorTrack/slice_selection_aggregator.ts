@@ -35,7 +35,6 @@ import {
   LONG,
   NUM,
   NUM_NULL,
-  Row,
   STR_NULL,
   UNKNOWN,
 } from '../../trace_processor/query_result';
@@ -131,12 +130,10 @@ export class SliceSelectionAggregator implements Aggregator {
         await engine.query(`
           CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
           SELECT
-            id,
+            json_object('id', id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             name,
             dur,
-            self_dur,
-            __groupid,
-            __partition
+            self_dur
           FROM (${unionQueries.join(' UNION ALL ')})
         `);
 
@@ -282,35 +279,35 @@ export class SliceSelectionAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [{field: 'name'}],
+      groupBy: [{id: 'name', field: 'name'}],
       aggregates: [
-        {function: 'COUNT'},
-        {field: 'dur', function: 'SUM', sort: 'DESC'},
-        {field: 'self_dur', function: 'SUM'},
-        {field: 'dur', function: 'AVG'},
+        {id: 'count', function: 'COUNT'},
+        {id: 'total_time_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+        {id: 'self_time_sum', field: 'self_dur', function: 'SUM'},
+        {id: 'total_time_avg', field: 'dur', function: 'AVG'},
       ],
       columns: [
         {
           title: 'ID',
-          columnId: 'id',
+          columnId: 'id_with_lineage',
           formatHint: 'ID',
-          dependsOn: ['__groupid', '__partition'],
-          cellRenderer: (value: unknown, row: Row) => {
-            if (typeof value !== 'bigint') {
+          cellRenderer: (value: unknown) => {
+            // Value is a JSON object {id, groupid, partition}
+            if (typeof value !== 'string') {
               return String(value);
             }
 
-            const groupId = row['__groupid'];
-            const partition = row['__partition'];
-
-            if (typeof groupId !== 'bigint') {
-              return String(value);
-            }
+            const parsed = JSON.parse(value) as {
+              id: number;
+              groupid: number;
+              partition: unknown;
+            };
+            const {id, groupid, partition} = parsed;
 
             // Resolve track from lineage
-            const track = this.resolveTrack(Number(groupId), partition);
+            const track = this.resolveTrack(groupid, partition);
             if (!track) {
-              return String(value);
+              return String(id);
             }
 
             return m(
@@ -319,16 +316,12 @@ export class SliceSelectionAggregator implements Aggregator {
                 title: 'Go to slice',
                 icon: Icons.UpdateSelection,
                 onclick: () => {
-                  this.trace.selection.selectTrackEvent(
-                    track.uri,
-                    Number(value),
-                    {
-                      scrollToSelection: true,
-                    },
-                  );
+                  this.trace.selection.selectTrackEvent(track.uri, id, {
+                    scrollToSelection: true,
+                  });
                 },
               },
-              String(value),
+              String(id),
             );
           },
         },

@@ -14,7 +14,6 @@
 
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
-import {MetricVisualisation} from '../../public/plugin';
 import {PerfettoPlugin} from '../../public/plugin';
 import {RouteArgs} from '../../public/route_schema';
 
@@ -89,9 +88,5 @@ export default class SkeletonPlugin implements PerfettoPlugin {
     trace.onTraceReady.addListener(async () => {
       console.log('SkeletonPlugin::traceready');
     });
-  }
-
-  static metricVisualisations(): MetricVisualisation[] {
-    return [];
   }
 }

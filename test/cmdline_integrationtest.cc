@@ -54,6 +54,7 @@ using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::Property;
 using ::testing::SizeIs;
 
@@ -1492,6 +1493,52 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
   ASSERT_TRUE(ParseNotEmptyTraceFromFile(fpath, trace)) << fpath;
   ExpectTraceContainsTestMessages(trace, kMsgCount);
   ExpectTraceContainsTestMessagesWithSize(trace, kMsgSize);
+}
+
+TEST_F(PerfettoCmdlineTest, NoClobber) {
+  const std::string output_file_path = RandomTraceFileName();
+  const std::string expected_error_message =
+      "Error: Output file '" + output_file_path +
+      "' already exists, refusing to overwrite due to '--no-clobber'.";
+  ScopedFileRemove remove_on_test_exit(output_file_path);
+
+  // Use perfetto to create the initial file. The test process (shell) is denied
+  // 'create' permission in this directory by SELinux.
+  auto perfetto_proc_create =
+      ExecPerfetto({"--time", "1ms", "--out", output_file_path});
+
+  auto perfetto_proc_no_clobber = ExecPerfetto(
+      {"--time", "1ms", "--no-clobber", "--out", output_file_path});
+
+  auto perfetto_proc_overwrite =
+      ExecPerfetto({"--time", "1ms", "--out", output_file_path});
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  // Create the initial file using an authorized domain.
+  ASSERT_EQ(0, perfetto_proc_create.Run(&stderr_)) << stderr_;
+  ASSERT_TRUE(base::FileExists(output_file_path));
+
+  std::string original_file_content;
+  ASSERT_TRUE(base::ReadFile(output_file_path, &original_file_content));
+
+  // Assert that "perfetto --no-clobber" doesn't overwrite the output file.
+  ASSERT_EQ(1, perfetto_proc_no_clobber.Run(&stderr_)) << stderr_;
+  EXPECT_THAT(stderr_, HasSubstr(expected_error_message));
+  {
+    std::string file_content;
+    base::ReadFile(output_file_path, &file_content);
+    EXPECT_EQ(file_content, original_file_content);
+  }
+
+  // Assert regular invocation successfully overwrites a file.
+  ASSERT_EQ(0, perfetto_proc_overwrite.Run(&stderr_)) << stderr_;
+  {
+    std::string file_content;
+    base::ReadFile(output_file_path, &file_content);
+    EXPECT_THAT(file_content, Not(IsEmpty()));
+    EXPECT_NE(file_content, original_file_content);
+  }
 }
 
 }  // namespace perfetto

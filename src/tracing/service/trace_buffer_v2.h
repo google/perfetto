@@ -482,7 +482,7 @@ class TraceBufferV2 : public TraceBuffer {
   const WriterStats& writer_stats() const override { return writer_stats_; }
   bool has_data() const override { return used_size_ > 0; }
   void set_read_only() override { read_only_ = true; }
-  bool is_trace_buffer_v2() const override { return true; }
+  BufType buf_type() const override { return kV2; }
 
   void DumpForTesting();
 

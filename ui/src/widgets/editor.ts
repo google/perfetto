@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {indentWithTab} from '@codemirror/commands';
-import {Transaction} from '@codemirror/state';
+import {EditorState, Transaction} from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {keymap} from '@codemirror/view';
 import {basicSetup, EditorView} from 'codemirror';
@@ -42,6 +42,9 @@ export interface EditorAttrs extends HTMLAttrs {
 
   // Whether the editor should fill the height of its container.
   readonly fillHeight?: boolean;
+
+  // Whether the editor content is readonly.
+  readonly readonly?: boolean;
 
   // Callback for the Ctrl/Cmd + Enter key binding.
   onExecute?: (text: string) => void;
@@ -127,10 +130,23 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       }
     })();
 
+    const readonly = (() => {
+      if (attrs.readonly) {
+        return [
+          EditorState.readOnly.of(true),
+          EditorView.editable.of(false),
+          // Enable keyboard commands by allowing focus.
+          EditorView.contentAttributes.of({tabindex: '0'}),
+        ];
+      }
+      return [];
+    })();
+
     this.editorView = new EditorView({
       doc: attrs.text,
       extensions: removeFalsyValues([
         keymap.of(keymaps),
+        ...readonly,
         oneDark,
         basicSetup,
         lang,

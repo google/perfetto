@@ -41,6 +41,7 @@ export enum NodeType {
   kLimitAndOffset,
   kSort,
   kFilter,
+  kCounterToIntervals,
 
   // Multi node operations
   kIntervalIntersect,
@@ -61,6 +62,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
     case NodeType.kFilter:
+    case NodeType.kCounterToIntervals:
       return true;
     default:
       return false;
@@ -74,6 +76,8 @@ export interface NodeActions {
   onAddAndConnectTable?: (tableName: string, portIndex: number) => void;
   // Insert a ModifyColumns node on an input at a specific port
   onInsertModifyColumnsNode?: (portIndex: number) => void;
+  // Insert a CounterToIntervals node on an input at a specific port
+  onInsertCounterToIntervalsNode?: (portIndex: number) => void;
 }
 
 // Specification for secondary inputs with clear cardinality requirements

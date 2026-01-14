@@ -538,7 +538,11 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       f2fs_reason_int_arg_id_(context_->storage->InternString("reason_int")),
       f2fs_dev_arg_id_(context->storage->InternString("dev")),
       f2fs_checkpoint_unknown_reason_id_(
-          context->storage->InternString("Unknown")) {
+          context->storage->InternString("Unknown")),
+      gpu_power_state_unknown_id_(context->storage->InternString("Unknown")),
+      gpu_power_state_off_id_(context->storage->InternString("OFF")),
+      gpu_power_state_pg_id_(context->storage->InternString("PG")),
+      gpu_power_state_on_id_(context->storage->InternString("ON")) {
   static const char* kReasonStrings[] = {
       "Umount",  "Fastboot", "Sync",  "Recovery",
       "Discard", "Trimmed",  "Pause", "Resize",
@@ -1502,6 +1506,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kF2fsWriteCheckpointFieldNumber: {
         ParseF2fsWriteCheckpoint(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kGpuPowerStateFieldNumber: {
+        ParseGpuPowerState(ts, fld_bytes);
         break;
       }
       default:
@@ -4458,6 +4466,32 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
   } else if (phase == kF2fsCpPhaseFinish) {
     context_->slice_tracker->End(ts, track_id);
   }
+}
+
+void FtraceParser::ParseGpuPowerState(int64_t ts, protozero::ConstBytes blob) {
+  static constexpr auto kGpuPowerStateSliceBlueprint = tracks::SliceBlueprint(
+      "powervr_gpu_power_state", tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("powervr_gpu_power_state"));
+
+  protos::pbzero::GpuPowerStateFtraceEvent::Decoder event(blob);
+  TrackId track_id =
+      context_->track_tracker->InternTrack(kGpuPowerStateSliceBlueprint);
+
+  context_->slice_tracker->End(ts, track_id);
+
+  StringId slice_name_id = gpu_power_state_unknown_id_;
+  switch (event.new_state()) {
+    case 0:
+      slice_name_id = gpu_power_state_off_id_;
+      break;
+    case 1:
+      slice_name_id = gpu_power_state_pg_id_;
+      break;
+    case 2:
+      slice_name_id = gpu_power_state_on_id_;
+      break;
+  }
+  context_->slice_tracker->Begin(ts, track_id, kNullStringId, slice_name_id);
 }
 
 }  // namespace perfetto::trace_processor

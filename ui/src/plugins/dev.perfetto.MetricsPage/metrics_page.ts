@@ -14,12 +14,10 @@
 
 import m from 'mithril';
 import {errResult, Result, okResult} from '../../base/result';
-import {MetricVisualisation} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
-import {VegaView} from '../../components/widgets/vega_view';
 import {assertExists, assertUnreachable} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
@@ -86,7 +84,6 @@ async function getMetricV2(
 }
 
 class MetricsV1Controller {
-  private readonly trace: Trace;
   private readonly engine: Engine;
   private _metrics: string[];
   private _selected?: string;
@@ -95,7 +92,6 @@ class MetricsV1Controller {
   private _json: unknown;
 
   constructor(trace: Trace) {
-    this.trace = trace;
     this.engine = trace.engine.getProxy('MetricsPage');
     this._metrics = [];
     this._result = okResult('');
@@ -108,12 +104,6 @@ class MetricsV1Controller {
 
   get metrics(): string[] {
     return this._metrics;
-  }
-
-  get visualisations(): MetricVisualisation[] {
-    return this.trace.plugins
-      .metricVisualisations()
-      .filter((v) => v.metric === this.selected);
   }
 
   set selected(metric: string | undefined) {
@@ -304,25 +294,6 @@ query: {
   }
 }
 
-interface MetricVizViewAttrs {
-  visualisation: MetricVisualisation;
-  data: unknown;
-}
-
-class MetricVizView implements m.ClassComponent<MetricVizViewAttrs> {
-  view({attrs}: m.CVnode<MetricVizViewAttrs>) {
-    return m(
-      '',
-      m(VegaView, {
-        spec: attrs.visualisation.spec,
-        data: {
-          metric: attrs.data,
-        },
-      }),
-    );
-  }
-}
-
 export interface MetricsPageAttrs {
   readonly trace: Trace;
 }
@@ -340,7 +311,6 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
 
   view({attrs}: m.Vnode<MetricsPageAttrs>) {
     const v1Controller = assertExists(this.v1Controller);
-    const json = v1Controller.resultAsJson;
     return m(
       '.pf-metrics-page',
       m(
@@ -383,14 +353,6 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
           },
         }),
       ],
-      v1Controller.format === 'json' &&
-        v1Controller.visualisations.map((visualisation) => {
-          let data = json;
-          for (const p of visualisation.path) {
-            data = data[p] ?? [];
-          }
-          return m(MetricVizView, {visualisation, data});
-        }),
       renderResult(
         this.mode === 'V1' ? v1Controller.result : this.v2Result,
         v1Controller.format,

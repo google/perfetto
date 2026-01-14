@@ -37,7 +37,6 @@ import {
   LONG,
   NUM,
   NUM_NULL,
-  Row,
   STR,
   STR_NULL,
   UNKNOWN,
@@ -116,7 +115,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
           create or replace perfetto table ${this.id} as
           select
-            tstate.id as id,
+            json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             process.name as process_name,
             process.pid as pid,
             thread.name as thread_name,
@@ -126,9 +125,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             ucpu,
             dur,
             dur * 1.0 / sum(dur) OVER () as fraction_of_total,
-            android_cpu_cluster_mapping.cluster_type as cluster_type,
-            __groupid,
-            __partition
+            android_cpu_cluster_mapping.cluster_type as cluster_type
           from ${iiTable.name} tstate
           join thread using (utid)
           left join process using (upid)
@@ -170,39 +167,46 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [{field: 'utid'}, {field: 'state'}],
+      groupBy: [
+        {id: 'thread_name', field: 'thread_name'},
+        {id: 'state', field: 'state'},
+      ],
       aggregates: [
-        {function: 'COUNT'},
-        {field: 'process_name', function: 'ANY'},
-        {field: 'pid', function: 'ANY'},
-        {field: 'thread_name', function: 'ANY'},
-        {field: 'tid', function: 'ANY'},
-        {field: 'dur', function: 'SUM', sort: 'DESC'},
-        {field: 'fraction_of_total', function: 'SUM'},
-        {field: 'dur', function: 'AVG'},
+        {id: 'count', function: 'COUNT'},
+        {id: 'process_name', field: 'process_name', function: 'ANY'},
+        {id: 'pid', field: 'pid', function: 'ANY'},
+        {id: 'thread_name', field: 'thread_name', function: 'ANY'},
+        {id: 'tid', field: 'tid', function: 'ANY'},
+        {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+        {
+          id: 'fraction_of_total_sum',
+          field: 'fraction_of_total',
+          function: 'SUM',
+        },
+        {id: 'dur_avg', field: 'dur', function: 'AVG'},
       ],
       columns: [
         {
           title: 'ID',
-          columnId: 'id',
+          columnId: 'id_with_lineage',
           formatHint: 'ID',
-          dependsOn: ['__groupid', '__partition'],
-          cellRenderer: (value: unknown, row: Row) => {
-            if (typeof value !== 'bigint') {
+          cellRenderer: (value: unknown) => {
+            // Value is a JSON object {id, groupid, partition}
+            if (typeof value !== 'string') {
               return String(value);
             }
 
-            const groupId = row['__groupid'];
-            const partition = row['__partition'];
-
-            if (typeof groupId !== 'bigint') {
-              return String(value);
-            }
+            const parsed = JSON.parse(value) as {
+              id: number;
+              groupid: number;
+              partition: unknown;
+            };
+            const {id, groupid, partition} = parsed;
 
             // Resolve track from lineage
-            const track = this.resolveTrack(Number(groupId), partition);
+            const track = this.resolveTrack(groupid, partition);
             if (!track) {
-              return String(value);
+              return String(id);
             }
 
             return m(
@@ -211,16 +215,12 @@ export class ThreadStateSelectionAggregator implements Aggregator {
                 title: 'Go to thread state',
                 icon: Icons.UpdateSelection,
                 onclick: () => {
-                  this.trace.selection.selectTrackEvent(
-                    track.uri,
-                    Number(value),
-                    {
-                      scrollToSelection: true,
-                    },
-                  );
+                  this.trace.selection.selectTrackEvent(track.uri, id, {
+                    scrollToSelection: true,
+                  });
                 },
               },
-              String(value),
+              String(id),
             );
           },
         },

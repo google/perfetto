@@ -29,6 +29,7 @@ import {
   AggregationPanelAttrs,
 } from '../../components/aggregation_adapter';
 import {DataSource} from '../../components/widgets/datagrid/data_source';
+import {shortUuid} from '../../base/uuid';
 
 export class WattsonAggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
@@ -48,12 +49,14 @@ export class WattsonAggregationPanel
     dataSource: DataSource,
     model: ReadonlyArray<ColumnDef> | AggregatePivotModel,
   ) {
-    // TODO: Support pivot tables
+    // TODO(stevegolton): Just merge with base AggregationPanel to avoid
+    // duplication here.
     if ('groupBy' in model) {
       return undefined;
     }
 
     const initialColumns: readonly Column[] = model.map((c) => ({
+      id: shortUuid(),
       field: c.columnId,
       aggregate: c.sum ? 'SUM' : undefined,
       sort: c.sort,

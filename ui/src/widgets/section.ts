@@ -15,9 +15,9 @@
 import m from 'mithril';
 import {HTMLAttrs} from './common';
 
-export interface SectionAttrs extends HTMLAttrs {
-  // The name of the section, displayed in the title bar
-  title: string;
+export interface SectionAttrs extends Omit<HTMLAttrs, 'title'> {
+  // The content of the section header (string or custom content)
+  title: string | m.Children;
   // Optional description/subtitle for the section
   subtitle?: string;
 }
@@ -30,7 +30,7 @@ export class Section implements m.ClassComponent<SectionAttrs> {
       htmlAttrs,
       m(
         'header',
-        m('h1', title),
+        typeof title === 'string' ? m('h1', title) : title,
         subtitle && m('p.pf-section__subtitle', subtitle),
       ),
       m('article', children),

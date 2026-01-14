@@ -41,6 +41,11 @@ export interface SqlModules {
 
   // Returns the set of all disabled module names.
   getDisabledModules(): ReadonlySet<string>;
+
+  // Triggers the data availability checks if not already started.
+  // Safe to call multiple times - subsequent calls are no-ops.
+  // Returns a promise that resolves when initialization is complete.
+  ensureInitialized(): Promise<void>;
 }
 
 // Handles the access to a specific Perfetto SQL Package. Package consists of
