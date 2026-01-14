@@ -154,6 +154,24 @@ export type Pivot =
   | PivotWithCollapsedGroups
   | PivotBase;
 
+// Tree grouping configuration for displaying hierarchical data in flat mode.
+// Unlike pivot mode, tree grouping displays raw column values without aggregation.
+// It simply filters rows based on expansion state and adds tree UI (indent, chevrons).
+interface TreeGroupingBase {
+  // The column field containing hierarchical paths (e.g., "blink_gc/main/foo")
+  readonly field: string;
+  // Path delimiter (default: '/')
+  readonly delimiter?: string;
+}
+
+// Whitelist mode: Only paths in expandedPaths are expanded.
+// Empty PathSet = all collapsed (default)
+export interface TreeGroupingWithExpandedPaths extends TreeGroupingBase {
+  readonly expandedPaths?: PathSet;
+}
+
+export type TreeGrouping = TreeGroupingWithExpandedPaths | TreeGroupingBase;
+
 export interface Model {
   readonly columns: readonly Column[];
   readonly filters: readonly Filter[];
@@ -162,4 +180,10 @@ export interface Model {
   // Filters are treated as pre-aggregate filters.
   // TODO(stevegolton): Add post-aggregate (HAVING) filters.
   readonly pivot?: Pivot;
+
+  // Tree grouping mode for displaying hierarchical data without aggregation.
+  // Mutually exclusive with pivot mode.
+  // When set, one column displays as a tree with expand/collapse,
+  // and other columns show their raw values.
+  readonly tree?: TreeGrouping;
 }

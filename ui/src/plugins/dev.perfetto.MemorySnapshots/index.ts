@@ -20,7 +20,6 @@ import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema'
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {DetailsShell} from '../../widgets/details_shell';
-import {shortUuid} from '../../base/uuid';
 
 const UI_SCHEMA: SchemaRegistry = {
   memory_snapshot: {
@@ -66,27 +65,17 @@ class MemorySnapshotsTab implements m.ClassComponent<{trace: Trace}> {
         rootSchema: 'memory_snapshot',
         data: this.dataSource,
         fillHeight: true,
-        initialPivot: {
-          groupBy: [
-            {
-              id: shortUuid(),
-              field: 'path',
-              tree: {delimiter: '/'},
-            },
-          ],
-          aggregates: [
-            {
-              id: shortUuid(),
-              function: 'SUM',
-              field: 'size',
-            },
-            {
-              id: shortUuid(),
-              function: 'SUM',
-              field: 'effective_size',
-            },
-          ],
+        // Use tree mode for hierarchical display without aggregation
+        initialTree: {
+          field: 'path',
+          delimiter: '/',
         },
+        // Display columns: path (as tree), size, and effective_size
+        initialColumns: [
+          {id: 'path', field: 'path'},
+          {id: 'size', field: 'size'},
+          {id: 'effective_size', field: 'effective_size'},
+        ],
       }),
     );
   }

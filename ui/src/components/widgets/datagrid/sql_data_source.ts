@@ -23,7 +23,14 @@ import {
   DataSourceRows,
   Pagination,
 } from './data_source';
-import {Column, Filter, PathSet, Pivot, AggregateColumn} from './model';
+import {
+  Column,
+  Filter,
+  PathSet,
+  Pivot,
+  AggregateColumn,
+  TreeGrouping,
+} from './model';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
@@ -503,7 +510,7 @@ export class SQLDataSource implements DataSource {
     model: DataSourceModel,
     options: {includeOrderBy: boolean},
   ): string {
-    const {columns, filters = [], pivot} = model;
+    const {columns, filters = [], pivot, tree} = model;
 
     const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
 
@@ -513,6 +520,11 @@ export class SQLDataSource implements DataSource {
     // For pivot mode without drill-down, we build aggregates differently
     if (pivot && !pivot.drillDown) {
       return this.buildPivotQuery(resolver, filters, pivot, options, columns);
+    }
+
+    // Tree grouping mode: hierarchical display without aggregation
+    if (tree) {
+      return this.buildTreeQuery(resolver, filters, tree, options, columns);
     }
 
     // Normal mode or drill-down: select individual columns
@@ -969,6 +981,198 @@ SELECT
 FROM __tree__ t
 WHERE ${expansionFilter}
 GROUP BY __tree_path__${options.includeOrderBy ? '\nORDER BY __tree_path__' : ''}`;
+
+    return query;
+  }
+
+  /**
+   * Builds a tree query for flat mode with hierarchical display.
+   *
+   * Unlike buildTreePivotQuery (which uses aggregation), this displays raw
+   * column values with tree filtering based on expansion state.
+   * No GROUP BY, no aggregates - just filtering rows by what's expanded.
+   */
+  private buildTreeQuery(
+    resolver: SQLSchemaResolver,
+    filters: ReadonlyArray<Filter>,
+    tree: TreeGrouping,
+    options: {includeOrderBy: boolean},
+    columns?: ReadonlyArray<Column>,
+  ): string {
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+
+    const delimiter = tree.delimiter ?? '/';
+    const treeField = tree.field;
+
+    // Resolve the tree path column expression
+    const pathExpr = resolver.resolveColumnPath(treeField);
+    if (!pathExpr) {
+      // Fallback to normal query if tree field not found
+      return this.buildNormalQuery(resolver, filters, options, columns);
+    }
+
+    // Build column expressions
+    const selectExprs: string[] = [];
+    const addedFields = new Set<string>();
+
+    // Add tree path column
+    selectExprs.push(`${pathExpr} AS __tree_path__`);
+    addedFields.add(treeField);
+
+    // Add other columns
+    for (const col of columns ?? []) {
+      if (!addedFields.has(col.field)) {
+        const sqlExpr = resolver.resolveColumnPath(col.field);
+        if (sqlExpr) {
+          const alias = toAlias(col.id);
+          selectExprs.push(`${sqlExpr} AS ${alias}`);
+          addedFields.add(col.field);
+        }
+      }
+    }
+
+    // Resolve filter column paths
+    for (const filter of filters) {
+      resolver.resolveColumnPath(filter.field);
+    }
+
+    const joinClauses = resolver.buildJoinClauses();
+
+    // Build WHERE clause for filters
+    let filterClause = '';
+    if (filters.length > 0) {
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+      filterClause = `\nWHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    // Get expanded paths from tree state, grouped by level
+    const expandedPathsByLevel = new Map<number, string[]>();
+    if ('expandedPaths' in tree && tree.expandedPaths) {
+      for (const path of tree.expandedPaths) {
+        // Each path is a single-element array containing the string path
+        if (path.length === 1 && typeof path[0] === 'string') {
+          const pathStr = path[0];
+          const level =
+            pathStr.length - pathStr.replaceAll(delimiter, '').length;
+          if (!expandedPathsByLevel.has(level)) {
+            expandedPathsByLevel.set(level, []);
+          }
+          expandedPathsByLevel.get(level)!.push(pathStr);
+        }
+      }
+    }
+
+    // Build the expansion filter using GLOB prefix matching
+    const expansionConditions: string[] = ['"__level__" = 0'];
+    for (const [parentLevel, paths] of expandedPathsByLevel) {
+      const childLevel = parentLevel + 1;
+      const globConditions = paths
+        .map((p) => `__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
+        .join(' OR ');
+      expansionConditions.push(
+        `("__level__" = ${childLevel} AND (${globConditions}))`,
+      );
+    }
+    const expansionFilter = expansionConditions.join('\n   OR ');
+
+    // Find the tree field column for output alias
+    const treeColumn = columns?.find((c) => c.field === treeField);
+    const pathAlias = treeColumn ? toAlias(treeColumn.id) : toAlias(treeField);
+
+    // Build column expressions for final SELECT
+    // Use MIN() as aggregation since we GROUP BY path to eliminate duplicates
+    const otherColumnExprs = columns
+      ?.filter((c) => c.field !== treeField)
+      .map((c) => `MIN(${toAlias(c.id)}) AS ${toAlias(c.id)}`)
+      .join(',\n  ');
+
+    // Build the complete query
+    const query = `WITH __source__ AS (
+  SELECT ${selectExprs.join(', ')}
+  FROM ${baseTable} AS ${baseAlias}
+  ${joinClauses}${filterClause}
+),
+__tree__ AS (
+  SELECT *,
+    length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
+  FROM __source__
+)
+SELECT
+  __tree_path__ AS ${pathAlias},
+  MIN("__level__") AS "__level__",
+  ${otherColumnExprs || 'NULL AS __placeholder__'},
+  EXISTS(
+    SELECT 1 FROM __tree__ c
+    WHERE c.__tree_path__ GLOB t.__tree_path__ || '${delimiter}*'
+      AND c."__level__" = t."__level__" + 1
+  ) AS __tree_has_children__
+FROM __tree__ t
+WHERE ${expansionFilter}
+GROUP BY __tree_path__${options.includeOrderBy ? '\nORDER BY __tree_path__' : ''}`;
+
+    return query;
+  }
+
+  /**
+   * Builds a normal (non-pivot, non-tree) query. Extracted for reuse.
+   */
+  private buildNormalQuery(
+    resolver: SQLSchemaResolver,
+    filters: ReadonlyArray<Filter>,
+    options: {includeOrderBy: boolean},
+    columns?: ReadonlyArray<Column>,
+  ): string {
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+
+    const selectExprs: string[] = [];
+    for (const col of columns ?? []) {
+      const sqlExpr = resolver.resolveColumnPath(col.field);
+      if (sqlExpr) {
+        const alias = toAlias(col.id);
+        selectExprs.push(`${sqlExpr} AS ${alias}`);
+      }
+    }
+
+    for (const filter of filters) {
+      resolver.resolveColumnPath(filter.field);
+    }
+
+    if (selectExprs.length === 0) {
+      selectExprs.push(`${baseAlias}.*`);
+    }
+
+    const joinClauses = resolver.buildJoinClauses();
+
+    let query = `
+SELECT ${selectExprs.join(',\n       ')}
+FROM ${baseTable} AS ${baseAlias}
+${joinClauses}`;
+
+    if (filters.length > 0) {
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        if (!sqlExpr) {
+          return filterToSql(filter, filter.field);
+        }
+        return filterToSql(filter, sqlExpr);
+      });
+      query += `\nWHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    if (options.includeOrderBy) {
+      const sortedColumn = columns?.find((c) => c.sort);
+      if (sortedColumn) {
+        const sqlExpr = resolver.resolveColumnPath(sortedColumn.field);
+        if (sqlExpr) {
+          query += `\nORDER BY ${sqlExpr} ${sortedColumn.sort!.toUpperCase()}`;
+        }
+      }
+    }
 
     return query;
   }

@@ -68,6 +68,7 @@ import {
   PathSet,
   Pivot,
   SortDirection,
+  TreeGrouping,
 } from './model';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 
@@ -243,6 +244,29 @@ export interface DataGridAttrs {
   readonly onPivotChanged?: (pivot: Pivot | undefined) => void;
 
   /**
+   * Tree grouping configuration for hierarchical display without aggregation.
+   * Mutually exclusive with pivot mode.
+   *
+   * In controlled mode: Provide this prop along with onTreeChanged callback.
+   * In uncontrolled mode: Omit this prop to let the grid manage tree state
+   * internally.
+   */
+  readonly tree?: TreeGrouping;
+
+  /**
+   * Initial tree grouping configuration to apply on first load.
+   * This is ignored in controlled mode (i.e. when `tree` is provided).
+   */
+  readonly initialTree?: TreeGrouping;
+
+  /**
+   * Callback triggered when the tree grouping configuration changes.
+   * Required for controlled mode - when provided with tree,
+   * the parent component becomes responsible for updating the tree prop.
+   */
+  readonly onTreeChanged?: (tree: TreeGrouping | undefined) => void;
+
+  /**
    * Extra items to place on the toolbar.
    */
   readonly toolbarItemsLeft?: m.Children;
@@ -327,6 +351,8 @@ interface FlatGridBuildContext {
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
+  // Tree grouping mode - if set, one column displays as a tree
+  readonly tree?: TreeGrouping;
 }
 
 /**
@@ -348,6 +374,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private columns: readonly Column[] = [];
   private filters: readonly Filter[] = [];
   private pivot?: Pivot;
+  private tree?: TreeGrouping;
 
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
@@ -379,6 +406,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialPivot) {
       this.pivot = attrs.initialPivot;
     }
+
+    if (attrs.initialTree) {
+      this.tree = attrs.initialTree;
+    }
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -389,6 +420,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       columns,
       filters,
       pivot,
+      tree,
       schema,
       rootSchema,
       structuredQueryCompatMode = false,
@@ -403,6 +435,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (columns) this.columns = columns;
     if (filters) this.filters = filters;
     if (pivot) this.pivot = pivot;
+    if (tree) this.tree = tree;
 
     // Notify the data source of the current model state.
     const datasource = getOrCreateDataSource(data);
@@ -414,6 +447,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         limit: this.paginationLimit,
       },
       pivot: this.pivot,
+      tree: this.tree,
       distinctValuesColumns: this.distinctValuesColumns,
       parameterKeyColumns: this.parameterKeyColumns,
     });
@@ -481,6 +515,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         columnInfoCache,
         structuredQueryCompatMode,
         enablePivotControls,
+        tree: this.tree,
       };
 
       gridColumns = this.buildFlatColumns(flatContext);
@@ -1338,7 +1373,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds grid rows for flat (non-pivot) mode.
    */
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
-    const {attrs, result, columnInfoCache} = ctx;
+    const {attrs, result, columnInfoCache, tree} = ctx;
 
     if (result === undefined) return [];
 
@@ -1350,6 +1385,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       {length: this.paginationLimit},
       (_, i) => i + start,
     );
+
+    // Tree mode config
+    const treeField = tree?.field;
+    const treeDelimiter = tree?.delimiter ?? '/';
 
     return rowIndices
       .map((index) => {
@@ -1366,6 +1405,38 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           const rendered = cellRenderer(value, row);
           const isRich = isCellRenderResult(rendered);
 
+          // Check if this is the tree column
+          const isTreeColumn = treeField !== undefined && field === treeField;
+
+          // Tree column specific rendering
+          let chevron: 'expanded' | 'collapsed' | 'leaf' | undefined;
+          let onChevronClick: (() => void) | undefined;
+          let indent: number | undefined;
+          let treeDisplayContent: string | undefined;
+
+          if (isTreeColumn) {
+            const treeLevel = Number(row['__level__'] ?? 0);
+            const hasChildren = Boolean(row['__tree_has_children__']);
+            const pathValue = String(value);
+
+            // Extract last segment for display
+            const lastDelimiterIndex = pathValue.lastIndexOf(treeDelimiter);
+            treeDisplayContent =
+              lastDelimiterIndex >= 0
+                ? pathValue.substring(lastDelimiterIndex + 1)
+                : pathValue;
+
+            indent = treeLevel;
+
+            if (hasChildren) {
+              const isExpanded = this.isTreePathExpanded(pathValue);
+              chevron = isExpanded ? 'expanded' : 'collapsed';
+              onChevronClick = () => this.toggleTreeExpansion(pathValue, attrs);
+            } else {
+              chevron = 'leaf';
+            }
+          }
+
           return m(
             GridCell,
             {
@@ -1373,6 +1444,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               nullish: isRich
                 ? rendered.nullish ?? value === null
                 : value === null,
+              chevron,
+              onChevronClick,
+              indent,
               menuItems: [
                 m(CellFilterMenu, {
                   value,
@@ -1381,11 +1455,52 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 }),
               ],
             },
-            isRich ? rendered.content : rendered,
+            // In tree mode, show just the last path segment
+            treeDisplayContent ?? (isRich ? rendered.content : rendered),
           );
         });
       })
       .filter(exists);
+  }
+
+  /**
+   * Checks if a tree path is expanded.
+   */
+  private isTreePathExpanded(path: string): boolean {
+    if (!this.tree) return false;
+    if (!('expandedPaths' in this.tree) || !this.tree.expandedPaths) {
+      return false;
+    }
+    return this.tree.expandedPaths.has([path]);
+  }
+
+  /**
+   * Toggles expansion of a tree path.
+   */
+  private toggleTreeExpansion(path: string, attrs: DataGridAttrs): void {
+    if (!this.tree) return;
+
+    const currentExpanded =
+      'expandedPaths' in this.tree && this.tree.expandedPaths
+        ? this.tree.expandedPaths
+        : new PathSet();
+
+    const newExpanded = new PathSet(currentExpanded);
+    const pathArray = [path] as const;
+
+    if (newExpanded.has(pathArray)) {
+      newExpanded.delete(pathArray);
+    } else {
+      newExpanded.add(pathArray);
+    }
+
+    const newTree: TreeGrouping = {
+      ...this.tree,
+      expandedPaths: newExpanded,
+    };
+
+    this.tree = newTree;
+    attrs.onTreeChanged?.(newTree);
   }
 
   /**
@@ -1684,11 +1799,22 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           let indent: number | undefined;
           let className: string | undefined;
 
+          // For tree mode, we display just the last segment of the path
+          let treeDisplayContent: string | undefined;
+
           if (isTreeMode) {
             // Tree mode: use __level__ and __tree_has_children__ from row
             const treeLevel = Number(row['__level__'] ?? 0);
             const hasChildren = Boolean(row['__tree_has_children__']);
             const pathValue = String(value);
+            const treeDelimiter = pivot.groupBy[0].tree?.delimiter ?? '/';
+
+            // Extract the last segment of the path for display
+            const lastDelimiterIndex = pathValue.lastIndexOf(treeDelimiter);
+            treeDisplayContent =
+              lastDelimiterIndex >= 0
+                ? pathValue.substring(lastDelimiterIndex + 1)
+                : pathValue;
 
             // Set indent based on tree level
             indent = treeLevel;
@@ -1769,7 +1895,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                   }),
                 ],
               },
-              isRich ? rendered.content : rendered,
+              // In tree mode, show just the last path segment
+              treeDisplayContent ?? (isRich ? rendered.content : rendered),
             ),
           );
         }

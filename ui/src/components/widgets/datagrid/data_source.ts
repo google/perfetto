@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Column, Filter, Pivot} from './model';
+import {Column, Filter, Pivot, TreeGrouping} from './model';
 
 export interface Pagination {
   readonly offset: number;
@@ -60,6 +60,10 @@ export interface DataSourceModel {
 
   // Pivot configuration for grouped/aggregated views
   readonly pivot?: Pivot;
+
+  // Tree grouping configuration for hierarchical display without aggregation.
+  // Mutually exclusive with pivot.
+  readonly tree?: TreeGrouping;
 
   // Columns for which to fetch distinct values (for filter dropdowns)
   readonly distinctValuesColumns?: ReadonlySet<string>;
