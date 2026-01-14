@@ -5242,7 +5242,8 @@ message SystemInfo {
   // The size of the memory in MB.
   //
   // On Linux/Android: (sysinfo.totalram * sysinfo.mem_unit) / (1024 * 1024).
-  // On Mac: (sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE)) / (1024 * 1024).
+  // Other POSIX (e.g. Mac): (sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE)) /
+  // (1024 * 1024).
   //
   // Introduced in perfetto v54 / Android 26Q1+.
   optional uint32 memory_size_mb = 16;

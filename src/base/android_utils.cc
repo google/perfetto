@@ -110,14 +110,14 @@ SystemInfo GetSystemInfo() {
   struct sysinfo sys_info;
   if (sysinfo(&sys_info) == 0) {
     info.memory_size_mb = static_cast<uint32_t>(
-        static_cast<uint64_t>(sys_info.totalram) * sys_info.mem_unit / kMiB);
+        (static_cast<uint64_t>(sys_info.totalram) * sys_info.mem_unit) / kMiB);
   }
 #else
   // POSIX Fallback (macOS, BSD, etc.): Use sysconf() to get physical pages.
   long pages = sysconf(_SC_PHYS_PAGES);
   if (pages > 0 && info.page_size.has_value()) {
-    info.memory_size_mb = static_cast<uint32_t>(static_cast<uint64_t>(pages) *
-                                                (*info.page_size) / kMiB);
+    info.memory_size_mb = static_cast<uint32_t>(
+        (static_cast<uint64_t>(pages) * (*info.page_size)) / kMiB);
   }
 #endif
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
