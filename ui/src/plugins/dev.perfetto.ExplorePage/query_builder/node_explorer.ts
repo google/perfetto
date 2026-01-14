@@ -22,7 +22,7 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
-import {TabStrip} from '../../../widgets/tabs';
+import {TabStrip} from '../../../widgets/tab_strip';
 import {NodeModifyAttrs} from './node_explorer_types';
 import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {DataExplorerEmptyState, InfoBox} from './widgets';

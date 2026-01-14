@@ -350,6 +350,7 @@ class FtraceParser {
   void ParseF2fsWriteCheckpoint(int64_t ts,
                                 uint32_t pid,
                                 protozero::ConstBytes blob);
+  void ParseGpuPowerState(int64_t ts, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   GenericFtraceTracker* generic_tracker_;
@@ -451,6 +452,10 @@ class FtraceParser {
   const StringId f2fs_reason_int_arg_id_;
   const StringId f2fs_dev_arg_id_;
   const StringId f2fs_checkpoint_unknown_reason_id_;
+  const StringId gpu_power_state_unknown_id_;
+  const StringId gpu_power_state_off_id_;
+  const StringId gpu_power_state_pg_id_;
+  const StringId gpu_power_state_on_id_;
   std::array<StringId, 8> f2fs_checkpoint_reason_ids_;
 
   std::vector<StringId> syscall_arg_name_ids_;

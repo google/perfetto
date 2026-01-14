@@ -126,23 +126,28 @@ export function formatAsMarkdown(
 
 /**
  * Apply cell formatters to all rows, converting SqlValues to strings.
+ * @param aliasToField Optional mapping from column aliases to field paths,
+ *   used when column IDs differ from field paths for schema lookup.
  */
 export function formatRows(
   rows: readonly Row[],
   schema: SchemaRegistry | undefined,
   rootSchema: string | undefined,
   columns: ReadonlyArray<string>,
+  aliasToField?: Record<string, string>,
 ): Array<Record<string, string>> {
   return rows.map((row) => {
     const formattedRow: Record<string, string> = {};
-    for (const colPath of columns) {
-      const value = row[colPath];
+    for (const colAlias of columns) {
+      const value = row[colAlias];
+      // Use field path for schema lookup if provided, otherwise use alias
+      const fieldPath = aliasToField?.[colAlias] ?? colAlias;
       const formatter =
         schema && rootSchema
-          ? getColumnInfo(schema, rootSchema, colPath)?.cellFormatter ??
+          ? getColumnInfo(schema, rootSchema, fieldPath)?.cellFormatter ??
             defaultValueFormatter
           : defaultValueFormatter;
-      formattedRow[colPath] = formatter(value, row);
+      formattedRow[colAlias] = formatter(value, row);
     }
     return formattedRow;
   });

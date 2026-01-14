@@ -68,6 +68,10 @@ import {
   FilterDuringNode,
   FilterDuringNodeState,
 } from './query_builder/nodes/filter_during_node';
+import {
+  CounterToIntervalsNode,
+  CounterToIntervalsNodeState,
+} from './query_builder/nodes/counter_to_intervals_node';
 
 type SerializedNodeState =
   | TableSourceSerializedState
@@ -84,7 +88,8 @@ type SerializedNodeState =
   | JoinSerializedState
   | CreateSlicesSerializedState
   | UnionSerializedState
-  | FilterDuringNodeState;
+  | FilterDuringNodeState
+  | CounterToIntervalsNodeState;
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {
@@ -333,6 +338,12 @@ function createNodeInstance(
       return new FilterDuringNode(
         FilterDuringNode.deserializeState(state as FilterDuringNodeState),
       );
+    case NodeType.kCounterToIntervals:
+      return new CounterToIntervalsNode(
+        CounterToIntervalsNode.deserializeState(
+          state as CounterToIntervalsNodeState,
+        ),
+      );
     default:
       throw new Error(`Unknown node type: ${serializedNode.type}`);
   }
@@ -514,6 +525,21 @@ export function deserializeState(
         filterDuringNode.secondaryInputs.connections.set(
           i,
           deserializedConnections.secondaryInputNodes[i],
+        );
+      }
+    }
+    if (serializedNode.type === NodeType.kSqlSource) {
+      const sqlSourceNode = node as SqlSourceNode;
+      const serializedState = serializedNode.state as SqlSourceSerializedState;
+      const deserializedConnections = SqlSourceNode.deserializeConnections(
+        nodes,
+        serializedState,
+      );
+      sqlSourceNode.secondaryInputs.connections.clear();
+      for (let i = 0; i < deserializedConnections.inputNodes.length; i++) {
+        sqlSourceNode.secondaryInputs.connections.set(
+          i,
+          deserializedConnections.inputNodes[i],
         );
       }
     }

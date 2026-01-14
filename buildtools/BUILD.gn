@@ -140,6 +140,7 @@ config("abseil_config") {
       "-Wno-deprecated-builtins",
       "-Wno-deprecated-pragma",
       "-Wno-gcc-compat",
+      "-Wno-nullability-extension",
       "-Wno-unknown-warning-option",
     ]
   }

@@ -17,9 +17,12 @@ import {Icons} from '../base/semantic_icons';
 import {ActionButtonHelper} from './action_button_helper';
 import {Button, ButtonVariant} from './button';
 import {copyToClipboard} from '../base/clipboard';
+import {isEmptyVnodes} from '../base/mithril_utils';
 
 export interface CopyToClipboardButtonAttrs {
+  readonly className?: string;
   readonly textToCopy: string | (() => string | Promise<string>);
+  readonly tooltip?: m.Children;
   readonly title?: string;
   readonly label?: string;
   readonly variant?: ButtonVariant;
@@ -44,9 +47,16 @@ export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs>
         }
       })();
 
+      // Only show default title if no tooltip is provided
+      const defaultTitle = isEmptyVnodes(attrs.tooltip)
+        ? 'Copy to clipboard'
+        : undefined;
+
       return m(Button, {
+        className: attrs.className,
         variant: attrs.variant,
-        title: attrs.title ?? 'Copy to clipboard',
+        tooltip: attrs.tooltip,
+        title: attrs.title ?? defaultTitle,
         icon: helper.state === 'done' ? Icons.Check : Icons.Copy,
         loading: helper.state === 'working',
         label,

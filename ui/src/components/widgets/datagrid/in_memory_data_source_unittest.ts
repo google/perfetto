@@ -192,7 +192,7 @@ describe('InMemoryDataSource', () => {
 
   describe('sorting', () => {
     test('sort by string ascending', () => {
-      const columns: Column[] = [{field: 'name', sort: 'ASC'}];
+      const columns: Column[] = [{id: 'name', field: 'name', sort: 'ASC'}];
       dataSource.notify({columns, filters: []});
       const result = dataSource.rows;
       expect(result.rows.map((r) => r.name)).toEqual([
@@ -207,7 +207,7 @@ describe('InMemoryDataSource', () => {
     });
 
     test('sort by string descending', () => {
-      const columns: Column[] = [{field: 'name', sort: 'DESC'}];
+      const columns: Column[] = [{id: 'name', field: 'name', sort: 'DESC'}];
       dataSource.notify({columns, filters: []});
       const result = dataSource.rows;
       expect(result.rows.map((r) => r.name)).toEqual([
@@ -222,7 +222,10 @@ describe('InMemoryDataSource', () => {
     });
 
     test('sort by number ascending (includes nulls)', () => {
-      const columns: Column[] = [{field: 'value', sort: 'ASC'}];
+      const columns: Column[] = [
+        {id: 'id', field: 'id'},
+        {id: 'value', field: 'value', sort: 'ASC'},
+      ];
       dataSource.notify({columns, filters: []});
       const result = dataSource.rows;
       // Nulls first, then 100, 100, 150, 200, 250n, 300n
@@ -230,7 +233,10 @@ describe('InMemoryDataSource', () => {
     });
 
     test('sort by number descending (includes nulls and bigint)', () => {
-      const columns: Column[] = [{field: 'value', sort: 'DESC'}];
+      const columns: Column[] = [
+        {id: 'id', field: 'id'},
+        {id: 'value', field: 'value', sort: 'DESC'},
+      ];
       dataSource.notify({columns, filters: []});
       const result = dataSource.rows;
       // 300n, 250n, 200, 150, 100, 100, Nulls last
@@ -238,14 +244,17 @@ describe('InMemoryDataSource', () => {
     });
 
     test('sort by boolean ascending', () => {
-      const columns: Column[] = [{field: 'active', sort: 'ASC'}]; // 0 then 1
+      const columns: Column[] = [{id: 'active', field: 'active', sort: 'ASC'}]; // 0 then 1
       dataSource.notify({columns, filters: []});
       const result = dataSource.rows;
       expect(result.rows.map((r) => r.active)).toEqual([0, 0, 0, 1, 1, 1, 1]);
     });
 
     test('sort by Uint8Array ascending (by length)', () => {
-      const columns: Column[] = [{field: 'blob', sort: 'ASC'}];
+      const columns: Column[] = [
+        {id: 'id', field: 'id'},
+        {id: 'blob', field: 'blob', sort: 'ASC'},
+      ];
       dataSource.notify({columns, filters: []});
       const result = dataSource.rows;
       // null (Charlie, id:3), len 1 (David id:4, Mallory id:6), len 2 (Alice id:1, Trent id:7), len 3 (Bob id:2), len 4 (Eve id:5)
@@ -254,7 +263,10 @@ describe('InMemoryDataSource', () => {
     });
 
     test('sort by Uint8Array descending (by length)', () => {
-      const columns: Column[] = [{field: 'blob', sort: 'DESC'}];
+      const columns: Column[] = [
+        {id: 'id', field: 'id'},
+        {id: 'blob', field: 'blob', sort: 'DESC'},
+      ];
       dataSource.notify({columns, filters: []});
       const result = dataSource.rows;
       // len 4, len 3, len 2, len 2, len 1, len 0, null
@@ -264,7 +276,7 @@ describe('InMemoryDataSource', () => {
     test('unsorted', () => {
       // Apply some sort first
       dataSource.notify({
-        columns: [{field: 'name', sort: 'ASC'}],
+        columns: [{id: 'name', field: 'name', sort: 'ASC'}],
       });
       // Then unsort
       dataSource.notify({});
@@ -277,7 +289,11 @@ describe('InMemoryDataSource', () => {
   describe('combined filtering and sorting', () => {
     test('filter then sort', () => {
       const filters: Filter[] = [{field: 'active', op: '=', value: 1}];
-      const columns: Column[] = [{field: 'value', sort: 'DESC'}];
+      const columns: Column[] = [
+        {id: 'id', field: 'id'},
+        {id: 'active', field: 'active'},
+        {id: 'value', field: 'value', sort: 'DESC'},
+      ];
       dataSource.notify({columns, filters});
       const result = dataSource.rows;
       // Active: Alice (100), Charlie (150), Eve (100), Trent (250n)
@@ -290,7 +306,7 @@ describe('InMemoryDataSource', () => {
   describe('caching behavior', () => {
     test('data is not reprocessed if columns and filters are identical', () => {
       const filters: Filter[] = [{field: 'tag', op: '=', value: 'A'}];
-      const columns: Column[] = [{field: 'name', sort: 'ASC'}];
+      const columns: Column[] = [{id: 'name', field: 'name', sort: 'ASC'}];
 
       dataSource.notify({columns, filters});
       const result1 = dataSource.rows.rows; // Access internal array
@@ -305,8 +321,14 @@ describe('InMemoryDataSource', () => {
 
     test('data is reprocessed if sorting changes', () => {
       const filters: Filter[] = [{field: 'tag', op: '=', value: 'A'}];
-      const columns1: Column[] = [{field: 'name', sort: 'ASC'}];
-      const columns2: Column[] = [{field: 'name', sort: 'DESC'}];
+      const columns1: Column[] = [
+        {id: 'id', field: 'id'},
+        {id: 'name', field: 'name', sort: 'ASC'},
+      ];
+      const columns2: Column[] = [
+        {id: 'id', field: 'id'},
+        {id: 'name', field: 'name', sort: 'DESC'},
+      ];
 
       dataSource.notify({columns: columns1, filters});
       const result1 = dataSource.rows.rows;
@@ -321,7 +343,10 @@ describe('InMemoryDataSource', () => {
     test('data is reprocessed if filters change', () => {
       const filters1: Filter[] = [{field: 'tag', op: '=', value: 'A'}];
       const filters2: Filter[] = [{field: 'tag', op: '=', value: 'B'}];
-      const columns: Column[] = [{field: 'name', sort: 'ASC'}];
+      const columns: Column[] = [
+        {id: 'id', field: 'id'},
+        {id: 'name', field: 'name', sort: 'ASC'},
+      ];
 
       dataSource.notify({columns, filters: filters1});
       const result1 = dataSource.rows.rows;
@@ -363,7 +388,7 @@ describe('InMemoryDataSource', () => {
     expect(result.rows).toEqual([]);
 
     emptyDataSource.notify({
-      columns: [{field: 'id', sort: 'DESC'}],
+      columns: [{id: 'id', field: 'id', sort: 'DESC'}],
       filters: [{field: 'name', op: '=', value: 'test'}],
     });
     const resultAfterUpdate = emptyDataSource.rows;

@@ -18,3 +18,5 @@
 **Example:** Filter slices to only show those that occurred during a specific time selection. Or find all thread slices that overlap with specific process execution windows.
 
 **Time overlap logic:** A row overlaps if its interval `[ts, ts+dur)` has any intersection with an interval from the filter intervals input.
+
+**NOTE:** This node does not support unfinished slices ("did not terminate"). They will be filtered out from both the primary input and filter intervals.

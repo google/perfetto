@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TabStrip} from '../../../widgets/tabs';
+import {TabStrip} from '../../../widgets/tab_strip';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
 let currentTab: string = 'foo';

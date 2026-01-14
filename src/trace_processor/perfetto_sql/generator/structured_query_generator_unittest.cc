@@ -5807,4 +5807,122 @@ TEST(StructuredQueryGeneratorTest,
   EXPECT_THAT(res, testing::Not(testing::HasSubstr("original_ts")));
 }
 
+TEST(StructuredQueryGeneratorTest, ExperimentalCounterIntervalsBasic) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_counter_intervals: {
+      input_query: {
+        table: {
+          table_name: "counter"
+          column_names: "id"
+          column_names: "ts"
+          column_names: "track_id"
+          column_names: "value"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  EXPECT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_1 AS (SELECT * FROM counter),
+    sq_0 AS (
+      SELECT * FROM (SELECT * FROM counter_leading_intervals!(sq_1))
+    )
+    SELECT * FROM sq_0
+  )"));
+  // Verify the module was referenced
+  EXPECT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("counters.intervals"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalCounterIntervalsNested) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_counter_intervals: {
+      input_query: {
+        table: {
+          table_name: "counter"
+          column_names: "id"
+          column_names: "ts"
+          column_names: "track_id"
+          column_names: "value"
+        }
+        filters: {
+          column_name: "track_id"
+          op: EQUAL
+          int64_rhs: 42
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  EXPECT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_1 AS (
+      SELECT *
+      FROM counter
+      WHERE track_id = 42
+    ),
+    sq_0 AS (
+      SELECT * FROM (SELECT * FROM counter_leading_intervals!(sq_1))
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalCounterIntervalsWithIntervalIntersect) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        experimental_counter_intervals: {
+          input_query: {
+            table: {
+              table_name: "counter"
+              column_names: "id"
+              column_names: "ts"
+              column_names: "track_id"
+              column_names: "value"
+            }
+          }
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slices"
+          column_names: "id"
+          column_names: "ts"
+          column_names: "dur"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Verify that counter_leading_intervals is used
+  EXPECT_THAT(res, testing::HasSubstr("counter_leading_intervals!"));
+  // Verify that _interval_intersect is used
+  EXPECT_THAT(res, testing::HasSubstr("_interval_intersect!"));
+  // Verify the modules were referenced
+  EXPECT_THAT(
+      gen.ComputeReferencedModules(),
+      UnorderedElementsAre("counters.intervals", "intervals.intersect"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalCounterIntervalsMissingInput) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_counter_intervals: {
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  EXPECT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify an input_query"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

@@ -26,10 +26,6 @@
           "1067",
           "1068"
         ],
-        "filterNegativeDur": [
-          true,
-          true
-        ],
         "partitionColumns": [
           "utid"
         ]
@@ -113,8 +109,6 @@
         "secondaryInputNodeIds": [
           "506"
         ],
-        "filterNegativeDurPrimary": true,
-        "filterNegativeDurSecondary": true,
         "partitionColumns": []
       },
       "nextNodes": [

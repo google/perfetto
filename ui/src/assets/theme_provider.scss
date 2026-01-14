@@ -27,6 +27,7 @@
   &--light {
     --pf-color-background: white;
     --pf-color-background-secondary: #edf0f1;
+    --pf-color-background-tertiary: #e3e9eb;
     --pf-color-interactive-base: rgb(4, 33, 56);
     --pf-color-text: #333;
     --pf-color-text-muted: #75797c;
@@ -66,6 +67,7 @@
   &--dark {
     --pf-color-background: #232426;
     --pf-color-background-secondary: #383a3e;
+    --pf-color-background-tertiary: #4a4c52;
     --pf-color-interactive-base: white;
     --pf-color-text: #dce0e2;
     --pf-color-text-muted: #a0a2a5;

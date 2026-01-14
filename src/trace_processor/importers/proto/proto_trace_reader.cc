@@ -896,6 +896,26 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     storage->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
+    if (buf.has_shadow_buffer_stats()) {
+      protos::pbzero::TraceStats::BufferStats::ShadowBufferStats::Decoder sbs(
+          buf.shadow_buffer_stats());
+      storage->SetIndexedStats(stats::traced_buf_v2s_packets_seen, buf_num,
+                               static_cast<int64_t>(sbs.packets_seen()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_packets_in_both, buf_num,
+                               static_cast<int64_t>(sbs.packets_in_both()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_packets_only_v1, buf_num,
+                               static_cast<int64_t>(sbs.packets_only_v1()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_packets_only_v2, buf_num,
+                               static_cast<int64_t>(sbs.packets_only_v2()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_patches_attempted, buf_num,
+                               static_cast<int64_t>(sbs.patches_attempted()));
+      storage->SetIndexedStats(
+          stats::traced_buf_v2s_v1_patches_succeeded, buf_num,
+          static_cast<int64_t>(sbs.v1_patches_succeeded()));
+      storage->SetIndexedStats(
+          stats::traced_buf_v2s_v2_patches_succeeded, buf_num,
+          static_cast<int64_t>(sbs.v2_patches_succeeded()));
+    }
   }
 
   struct BufStats {

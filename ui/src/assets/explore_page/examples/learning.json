@@ -38,10 +38,6 @@
           "571",
           "572"
         ],
-        "filterNegativeDur": [
-          true,
-          true
-        ],
         "partitionColumns": [
           "utid"
         ]

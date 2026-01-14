@@ -70,9 +70,7 @@
         "primaryInputId": "5",
         "secondaryInputNodeIds": [
           "4"
-        ],
-        "filterNegativeDurPrimary": true,
-        "filterNegativeDurSecondary": true
+        ]
       },
       "nextNodes": [
         "3"

@@ -26,8 +26,6 @@
         "secondaryInputNodeIds": [
           "10"
         ],
-        "filterNegativeDurPrimary": true,
-        "filterNegativeDurSecondary": true,
         "partitionColumns": []
       },
       "nextNodes": [

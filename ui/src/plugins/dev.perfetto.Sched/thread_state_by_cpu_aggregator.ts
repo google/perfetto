@@ -116,16 +116,24 @@ export class ThreadStateByCpuAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: [{field: 'utid'}, {field: 'state'}, {field: 'ucpu'}],
+      groupBy: [
+        {id: 'utid', field: 'utid'},
+        {id: 'state', field: 'state'},
+        {id: 'ucpu', field: 'ucpu'},
+      ],
       aggregates: [
-        {function: 'COUNT'},
-        {field: 'process_name', function: 'ANY'},
-        {field: 'pid', function: 'ANY'},
-        {field: 'thread_name', function: 'ANY'},
-        {field: 'tid', function: 'ANY'},
-        {field: 'dur', function: 'SUM', sort: 'DESC'},
-        {field: 'fraction_of_total', function: 'SUM'},
-        {field: 'dur', function: 'AVG'},
+        {id: 'count', function: 'COUNT'},
+        {id: 'process_name', field: 'process_name', function: 'ANY'},
+        {id: 'pid', field: 'pid', function: 'ANY'},
+        {id: 'thread_name', field: 'thread_name', function: 'ANY'},
+        {id: 'tid', field: 'tid', function: 'ANY'},
+        {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+        {
+          id: 'fraction_of_total_sum',
+          field: 'fraction_of_total',
+          function: 'SUM',
+        },
+        {id: 'dur_avg', field: 'dur', function: 'AVG'},
       ],
       columns: [
         {
