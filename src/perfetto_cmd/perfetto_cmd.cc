@@ -1314,11 +1314,12 @@ bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
     fd = base::OpenFile(trace_out_path_, flags, 0600);
     // Show a specific error message for the EEXIST errno
     if (!fd && errno == EEXIST) {
-      // TODO(ktimofeev): show different error message for persistent traces.
+      std::string reason = trace_config_->persist_trace_after_reboot()
+                               ? "a persistent trace"
+                               : "due to '--no-clobber'";
       PERFETTO_ELOG(
-          "Error: Output file '%s' already exists, refusing to overwrite due "
-          "to '--no-clobber'.",
-          trace_out_path_.c_str());
+          "Error: Output file '%s' already exists, refusing to overwrite %s.",
+          trace_out_path_.c_str(), reason.c_str());
       return false;
     }
   }
