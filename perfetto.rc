@@ -52,6 +52,17 @@ service traced_probes /system/bin/traced_probes
     capabilities DAC_READ_SEARCH SYS_NICE
     shared_kallsyms
 
+# This service performs the following operations in sequence:
+# 1. open and unlink all the files in the "/data/misc/perfetto-traces/persistent" directory
+# 2. set the "perfetto.on_reboot.uploader" property to "1" to trigger the traced start
+# 3. wait for "sys.boot_completed=1"
+# 4. pass all traces opened in step 1 to the Android framework for uploading
+service post_reboot_persistent_traces_uploader /system/bin/perfetto --upload-after-reboot
+    oneshot
+    disabled
+    user nobody
+    group nobody
+
 on property:persist.device_config.global_settings.sys_traced=1
     setprop persist.traced.enable 1
 
@@ -91,7 +102,25 @@ on property:persist.traced.enable=1
     # too many other domains can write into that. See b/170404111.
     mkdir /data/misc/perfetto-configs 0775 root shell
 
+    # Traces in this directory are written by perfetto when
+    # "persist_trace_after_reboot" configuration option is used.
+    # Such traces are uploaded by post_reboot_persistent_traces_uploader service
+    # on system reboot.
+    mkdir /data/misc/perfetto-traces/persistent 0777 root shell
+
     stop traced_relay
+
+    # Perfetto boot process continues after this service set the "perfetto.on_reboot.uploader"
+    # property to "1".
+    start post_reboot_persistent_traces_uploader
+
+# If for some reason post_reboot_persistent_traces_uploader failed to set the property to "1"
+# we forcibly set it when the boot is completed, to start the traced
+on property:sys.boot_completed=1
+    setprop perfetto.on_reboot.uploader 1
+
+# Perfetto boot process continues here.
+on property:persist.traced.enable=1 && property:perfetto.on_reboot.uploader=1
     start traced
     start traced_probes
 
@@ -120,7 +149,7 @@ on post-fs-data
 # trigger fires.
 # sys.trace.traced_started is set by traced after listen()ing on the consumer
 # socket. Without this, perfetto could try to connect to traced before traced
-# is ready to listen. 
+# is ready to listen.
 on perfetto_maybe_trace_on_boot && property:persist.debug.perfetto.boottrace=1 && property:persist.traced.enable=1 && property:sys.trace.traced_started=1
     setprop persist.debug.perfetto.boottrace ""
     rm /data/misc/perfetto-traces/boottrace.perfetto-trace

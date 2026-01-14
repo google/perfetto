@@ -334,6 +334,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   bool,
                   trace_all_machines,
                   43);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  bool,
+                  persist_trace_after_reboot,
+                  45);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_SessionSemaphore);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_SessionSemaphore,

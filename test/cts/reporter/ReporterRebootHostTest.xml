@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2023 The Android Open Source Project
+<!-- Copyright (C) 2025 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -13,12 +13,13 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<configuration description="Config for CTS Perfetto Reporter test cases">
+<configuration description="Config for CTS Perfetto Reporter Reboot test cases">
     <option name="config-descriptor:metadata" key="component" value="metrics" />
     <option name="config-descriptor:metadata" key="parameter" value="not_instant_app" />
     <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
     <option name="config-descriptor:metadata" key="parameter" value="secondary_user" />
     <option name="test-suite-tag" value="cts" />
+    <!-- Setup copied from AndroidTest.xml, TODO(ktimofeev): extract common setup to xml. -->
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="CtsPerfettoReporterApp.apk" />
@@ -38,16 +39,8 @@
         <option name="run-command" value="rm /data/misc/perfetto-traces/persistent/*"/>
         <option name="teardown-command" value="rm /data/misc/perfetto-traces/persistent/*"/>
     </target_preparer>
-    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
-        <option name="cleanup" value="true" />
-        <option name="push" value="CtsPerfettoReporterTestCases->/data/local/tmp/CtsPerfettoReporterTestCases" />
-        <option name="append-bitness" value="true" />
-    </target_preparer>
-    <test class="com.android.tradefed.testtype.GTest" >
-        <option name="native-test-device-path" value="/data/local/tmp" />
-        <option name="module-name" value="CtsPerfettoReporterTestCases" />
-        <option name="runtime-hint" value="0m40s" />
-        <!-- test-timeout unit is ms -->
-        <option name="native-test-timeout" value="40000" />
+    <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >
+        <option name="jar" value="CtsPerfettoReporterRebootTestCases.jar" />
+        <option name="runtime-hint" value="1m" />
     </test>
 </configuration>

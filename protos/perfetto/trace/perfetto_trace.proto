@@ -4280,7 +4280,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 45.
+// Next id: 46.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -5168,6 +5168,20 @@ message TraceConfig {
   //
   // Introduced in: perfetto v54.
   optional bool trace_all_machines = 43;
+
+  // Android-only. Not for general use. If set, the trace is saved into a
+  // /data/misc/perfetto-traces/persistent directory, to be uploaded by Android
+  // after a system reboot. This field is read by perfetto_cmd
+  // rather than the tracing service and is only used when perfetto_cmd
+  // started with the --upload flag.
+  //
+  // The additional configuration is required to use this option:
+  // |write_into_file| must be set to true
+  // |output_path| must NOT be set
+  // |unique_session_name| must be set (used to generate the output file name)
+  //
+  // TODO(ktimofeev): Add "introduced in"
+  optional bool persist_trace_after_reboot = 45;
 }
 
 // End of protos/perfetto/config/trace_config.proto

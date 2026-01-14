@@ -119,6 +119,9 @@ void ArgsAppend(std::string* str, const std::string& arg) {
 }
 }  // namespace
 
+const char* kAndroidPersistentStateDir =
+    "/data/misc/perfetto-traces/persistent";
+
 PerfettoCmd::PerfettoCmd() {
   // Only the main thread instance on the main thread will receive ctrl-c.
   PerfettoCmd* set_if_null = nullptr;
@@ -186,19 +189,21 @@ Light configuration flags: (only when NOT using -c/--config)
   ATRACE_CAT               : Record ATRACE_CAT (e.g. wm) (Android only)
 
 Statsd-specific and other Android-only flags:
-  --alert-id           : ID of the alert that triggered this trace.
-  --config-id          : ID of the triggering config.
-  --config-uid         : UID of app which registered the config.
-  --subscription-id    : ID of the subscription that triggered this trace.
-  --upload             : Upload trace.
-  --dropbox        TAG : DEPRECATED: Use --upload instead
-                         TAG should always be set to 'perfetto'.
-  --save-for-bugreport : If a trace with bugreport_score > 0 is running, it
-                         saves it into a file. Outputs the path when done.
-  --no-guardrails      : Ignore guardrails triggered when using --upload
-                         (testing only).
-  --reset-guardrails   : Resets the state of the guardails and exits
-                         (testing only).
+  --alert-id            : ID of the alert that triggered this trace.
+  --config-id           : ID of the triggering config.
+  --config-uid          : UID of app which registered the config.
+  --subscription-id     : ID of the subscription that triggered this trace.
+  --upload              : Upload trace.
+  --upload-after-reboot : Used by Android to upload the traces saved to a 
+                          special directory after the system reboot.
+  --dropbox        TAG  : DEPRECATED: Use --upload instead
+                          TAG should always be set to 'perfetto'.
+  --save-for-bugreport  : If a trace with bugreport_score > 0 is running, it
+                          saves it into a file. Outputs the path when done.
+  --no-guardrails       : Ignore guardrails triggered when using --upload
+                          (testing only).
+  --reset-guardrails    : Resets the state of the guardails and exits
+                          (testing only).
 
 Detach mode. DISCOURAGED, read https://perfetto.dev/docs/concepts/detached-mode
   --detach=key          : Detach from the tracing session with the given key.
@@ -229,6 +234,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_PBTXT_CONFIG,
     OPT_DROPBOX,
     OPT_UPLOAD,
+    OPT_UPLOAD_AFTER_REBOOT,
     OPT_IGNORE_GUARDRAILS,
     OPT_DETACH,
     OPT_ATTACH,
@@ -254,6 +260,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"no-guardrails", no_argument, nullptr, OPT_IGNORE_GUARDRAILS},
       {"txt", no_argument, nullptr, OPT_PBTXT_CONFIG},
       {"upload", no_argument, nullptr, OPT_UPLOAD},
+      {"upload-after-reboot", no_argument, nullptr, OPT_UPLOAD_AFTER_REBOOT},
       {"dropbox", required_argument, nullptr, OPT_DROPBOX},
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
       {"config-id", required_argument, nullptr, OPT_CONFIG_ID},
@@ -409,6 +416,18 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
 #else
       PERFETTO_ELOG("--upload is only supported on Android");
+      return 1;
+#endif
+    }
+    if (option == OPT_UPLOAD_AFTER_REBOOT) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+      // The --upload-after-reboot flag is only used by the 'perfetto.rc' init
+      // script during system boot. This is a oneshot standalone operation, that
+      // doesn't consume any other flags.
+      bool all_reports_succeed = ReportAllPersistentTracesToAndroidFramework();
+      return all_reports_succeed ? 0 : 1;
+#else
+      PERFETTO_ELOG("--upload-after-reboot is only supported on Android");
       return 1;
 #endif
     }
@@ -738,17 +757,8 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
   // Respect the wishes of the config with respect to statsd logging or fall
   // back on the presence of the --upload flag if not set.
-  switch (trace_config_->statsd_logging()) {
-    case TraceConfig::STATSD_LOGGING_ENABLED:
-      statsd_logging_ = true;
-      break;
-    case TraceConfig::STATSD_LOGGING_DISABLED:
-      statsd_logging_ = false;
-      break;
-    case TraceConfig::STATSD_LOGGING_UNSPECIFIED:
-      statsd_logging_ = upload_flag_;
-      break;
-  }
+  statsd_logging_ = ShouldLogStatsdEvents(
+      *trace_config_, /*unspecified_filed_value=*/upload_flag_);
   trace_config_->set_statsd_logging(statsd_logging_
                                         ? TraceConfig::STATSD_LOGGING_ENABLED
                                         : TraceConfig::STATSD_LOGGING_DISABLED);
@@ -778,6 +788,31 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
           trace_config_->output_path().c_str());
       return 1;
     }
+  }
+
+  if (upload_flag_ && trace_config_->persist_trace_after_reboot()) {
+    if (!trace_config_->write_into_file()) {
+      PERFETTO_ELOG(
+          "TraceConfig's 'write_into_file' must be true when using "
+          "'persist_trace_after_reboot'.");
+      return 1;
+    }
+    if (trace_config_->unique_session_name().empty()) {
+      PERFETTO_ELOG(
+          "TraceConfig's 'unique_session_name' must be set when using "
+          "'persist_trace_after_reboot'.");
+      return 1;
+    }
+    if (!trace_config_->output_path().empty()) {
+      PERFETTO_ELOG(
+          "TraceConfig's 'output_path' must not be set when using "
+          "'persist_trace_after_reboot'.");
+      return 1;
+    }
+
+    trace_out_path_ = std::string(kAndroidPersistentStateDir) + "/" +
+                      trace_config_->unique_session_name() + ".pftrace";
+    no_clobber = true;
   }
 
   // |activate_triggers| in the trace config is shorthand for trigger_perfetto.
@@ -1244,6 +1279,9 @@ void PerfettoCmd::FinalizeTraceAndExit() {
 #endif
   } else if (report_to_android_framework_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    if (trace_config_->persist_trace_after_reboot()) {
+      remove(trace_out_path_.c_str());
+    }
     ReportTraceToAndroidFrameworkOrCrash();
 #endif
   } else {
@@ -1276,10 +1314,12 @@ bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
     fd = base::OpenFile(trace_out_path_, flags, 0600);
     // Show a specific error message for the EEXIST errno
     if (!fd && errno == EEXIST) {
+      std::string reason = trace_config_->persist_trace_after_reboot()
+                               ? "a persistent trace"
+                               : "due to '--no-clobber'";
       PERFETTO_ELOG(
-          "Error: Output file '%s' already exists, refusing to overwrite due "
-          "to '--no-clobber'.",
-          trace_out_path_.c_str());
+          "Error: Output file '%s' already exists, refusing to overwrite %s.",
+          trace_out_path_.c_str(), reason.c_str());
       return false;
     }
   }
@@ -1749,6 +1789,20 @@ void PerfettoCmd::CloneAllBugreportTraces(
       }
     });
   }
+}
+
+// static
+bool PerfettoCmd::ShouldLogStatsdEvents(const TraceConfig& cfg,
+                                        bool unspecified_filed_value) {
+  switch (cfg.statsd_logging()) {
+    case TraceConfig::STATSD_LOGGING_ENABLED:
+      return true;
+    case TraceConfig::STATSD_LOGGING_DISABLED:
+      return false;
+    case TraceConfig::STATSD_LOGGING_UNSPECIFIED:
+      break;
+  }
+  return unspecified_filed_value;
 }
 
 void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {

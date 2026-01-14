@@ -49,6 +49,10 @@ namespace protos::gen {
 class TraceConfig_AndroidReportConfig;
 }  // namespace protos::gen
 
+// Directory for persistent files, used on Android. This is automatically
+// created by the system by setting setprop persist.traced.enable=1.
+extern const char* kAndroidPersistentStateDir;
+
 class PerfettoCmd : public Consumer {
  public:
   PerfettoCmd();
@@ -153,8 +157,6 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
-  static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
-      base::ScopedMmap mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   static base::Status ReportTraceToAndroidFramework(
@@ -165,7 +167,16 @@ class PerfettoCmd : public Consumer {
       const protos::gen::TraceConfig_AndroidReportConfig& report_config,
       bool statsd_logging);
   void ReportTraceToAndroidFrameworkOrCrash();
+  // Return true if all persistent traces were successfully reported (or no
+  // traces found).
+  static bool ReportAllPersistentTracesToAndroidFramework();
+  static std::vector<base::ScopedFile>
+  UnlinkAndReturnPersistentTracesToUpload();
+  static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
+      base::ScopedMmap mmapped_trace);
 #endif
+  static bool ShouldLogStatsdEvents(const TraceConfig& cfg,
+                                    bool unspecified_filed_value);
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);
 
