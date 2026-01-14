@@ -69,6 +69,7 @@ import {
   Pivot,
   SortDirection,
 } from './model';
+import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 
 export interface AggregationCellAttrs extends m.Attributes {
   readonly symbol?: string;
@@ -498,17 +499,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 onclick: () => this.collapseAll(attrs),
                 disabled: !this.pivot.collapsibleGroups,
               }),
-              m(Button, {
-                icon: this.pivot.collapsibleGroups
-                  ? 'view_list'
-                  : 'account_tree',
-                tooltip: this.pivot.collapsibleGroups
-                  ? 'Show flat (leaf rows only)'
-                  : 'Show grouped (hierarchical view)',
-                onclick: () =>
-                  this.pivot?.collapsibleGroups
-                    ? this.enableFlatMode(attrs)
-                    : this.disableFlatMode(attrs),
+              m(SegmentedButtons, {
+                options: [
+                  {
+                    label: 'Flat',
+                    icon: 'view_list',
+                  },
+                  {
+                    label: 'Grouped',
+                    icon: 'account_tree',
+                  },
+                ],
+                selectedOption: this.pivot.collapsibleGroups ? 1 : 0,
+                onOptionSelected: (num: number) => {
+                  if (num === 1) {
+                    this.disableFlatMode(attrs);
+                  } else {
+                    this.enableFlatMode(attrs);
+                  }
+                },
               }),
             ],
         ],
