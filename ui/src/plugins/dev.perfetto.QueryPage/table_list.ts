@@ -147,6 +147,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     lines.push('SELECT');
     lines.push(`  ${columns}`);
     lines.push(`FROM ${table.name}`);
+    lines.push('LIMIT 1000');
 
     return lines.join('\n');
   }
