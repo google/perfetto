@@ -213,7 +213,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
         ...htmlAttrs,
         className: classNames(
           className,
-          align === 'right' && !chevron && 'pf-grid-cell--align-right',
+          chevron ? 'pf-grid-cell--align-left' : `pf-grid-cell--align-${align}`,
           padding && 'pf-grid-cell--padded',
           nullish && 'pf-grid-cell--nullish',
           wrap && 'pf-grid-cell--wrap',

@@ -653,6 +653,7 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
   include_paths_str = '\n'.join([f'#include "{i}"' for i in include_paths
                                 ]).replace("\\", "/")
   tables_str = '\n\n'.join([TableSerializer(t).serialize() for t in tables])
+  fwd_header_str = fwd_header_path.replace("\\", "/")
 
   return f'''\
 #ifndef {ifdef_guard}
@@ -673,7 +674,7 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/typed_cursor.h"
-#include "{fwd_header_path}"
+#include "{fwd_header_str}"
 
 {include_paths_str}
 

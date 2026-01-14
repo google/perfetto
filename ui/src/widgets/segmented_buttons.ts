@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from './button';
+import {Button, ButtonAttrs} from './button';
 import {HTMLAttrs} from './common';
 
 interface IconOption {
@@ -23,7 +23,7 @@ interface IconOption {
 
 interface LabelOption {
   // Label buttons require a label.
-  readonly label: string;
+  readonly label?: string;
   // Label buttons can have an optional icon.
   readonly icon?: string;
 }
@@ -54,9 +54,9 @@ export class SegmentedButtons
     return m(
       '.pf-segmented-buttons',
       htmlAttrs,
-      options.map((o, i) =>
+      options.map((option, i) =>
         m(Button, {
-          ...o,
+          ...(option as ButtonAttrs),
           disabled: disabled,
           active: i === selectedOption,
           onclick: () => onOptionSelected(i),

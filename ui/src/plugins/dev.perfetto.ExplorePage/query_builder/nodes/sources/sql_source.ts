@@ -18,12 +18,16 @@ import {
   QueryNodeState,
   NodeType,
   nextNodeId,
+  SecondaryInputSpec,
 } from '../../../query_node';
 import {notifyNextNodes} from '../../graph_utils';
 import {columnInfoFromName, newColumnInfoList} from '../../column_info';
 import protos from '../../../../../protos';
 import {Editor} from '../../../../../widgets/editor';
-import {StructuredQueryBuilder} from '../../structured_query_builder';
+import {
+  StructuredQueryBuilder,
+  SqlDependency,
+} from '../../structured_query_builder';
 import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
@@ -38,6 +42,7 @@ import {NodeTitle} from '../../node_styling_widgets';
 export interface SqlSourceSerializedState {
   sql?: string;
   comment?: string;
+  inputNodeIds?: string[];
 }
 
 export interface SqlSourceState extends QueryNodeState {
@@ -107,6 +112,7 @@ export class SqlSourceNode implements QueryNode {
   readonly state: SqlSourceState;
   finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
+  secondaryInputs: SecondaryInputSpec;
 
   constructor(attrs: SqlSourceState) {
     this.nodeId = nextNodeId();
@@ -117,6 +123,13 @@ export class SqlSourceNode implements QueryNode {
     };
     this.finalCols = [];
     this.nextNodes = [];
+    // Support unbounded number of input nodes that can be referenced as $input_0, $input_1, etc.
+    this.secondaryInputs = {
+      connections: new Map(),
+      min: 0,
+      max: 'unbounded',
+      portNames: (portIndex: number) => `input_${portIndex}`,
+    };
   }
 
   get type() {
@@ -137,6 +150,15 @@ export class SqlSourceNode implements QueryNode {
     // this node as having an operation change (which would cause hash to change
     // and trigger re-execution). Column discovery is metadata, not a query change.
     notifyNextNodes(this);
+  }
+
+  /**
+   * Returns the list of connected input nodes sorted by port index.
+   */
+  get inputNodesList(): QueryNode[] {
+    return [...this.secondaryInputs.connections.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, node]) => node);
   }
 
   clone(): QueryNode {
@@ -173,17 +195,44 @@ export class SqlSourceNode implements QueryNode {
   }
 
   serializeState(): SqlSourceSerializedState {
+    // Serialize input node IDs in port order
+    const inputNodeIds = [...this.secondaryInputs.connections.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, node]) => node.nodeId);
+
     return {
       sql: this.state.sql,
+      inputNodeIds: inputNodeIds.length > 0 ? inputNodeIds : undefined,
     };
   }
 
+  static deserializeConnections(
+    nodes: Map<string, QueryNode>,
+    state: SqlSourceSerializedState,
+  ): {inputNodes: QueryNode[]} {
+    // Resolve input nodes from their IDs
+    const inputNodes = (state.inputNodeIds ?? [])
+      .map((id) => nodes.get(id))
+      .filter((node): node is QueryNode => node !== undefined);
+    return {inputNodes};
+  }
+
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
-    // Source nodes don't have dependencies
-    const dependencies: Array<{
-      alias: string;
-      query: protos.PerfettoSqlStructuredQuery | undefined;
-    }> = [];
+    // Build dependencies from connected input nodes
+    // Each input can be referenced in SQL as $input_0, $input_1, etc.
+    const dependencies: SqlDependency[] = [];
+
+    for (const [portIndex, inputNode] of this.secondaryInputs.connections) {
+      const inputQuery = inputNode.getStructuredQuery();
+      if (inputQuery === undefined) {
+        // If any input is invalid, the query cannot be built
+        return undefined;
+      }
+      dependencies.push({
+        alias: `input_${portIndex}`,
+        query: inputQuery,
+      });
+    }
 
     // Use columns from the last successful execution. These are populated
     // by onQueryExecuted() and are cleared when SQL changes (to prevent

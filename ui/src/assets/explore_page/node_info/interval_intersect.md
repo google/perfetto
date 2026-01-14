@@ -17,3 +17,5 @@
 **Example:** Find the overlaps between GPU and CPU activity. Or compute when two different types of events occur simultaneously.
 
 **Intersection logic:** Two intervals overlap if `[ts1, ts1+dur1)` intersects with `[ts2, ts2+dur2)`. The output is the intersection `[max(ts1, ts2), min(ts1+dur1, ts2+dur2))`.
+
+**NOTE:** This node does not support unfinished slices ("did not terminate"). They will be filtered out from the intersection.
