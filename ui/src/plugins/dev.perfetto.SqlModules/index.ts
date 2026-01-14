@@ -28,7 +28,7 @@ import {
 
 const docs = defer<SqlModulesDocsSchema>();
 
-export default class implements PerfettoPlugin {
+export default class SqlModulesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
 
   private sqlModules: SqlModules | undefined;
