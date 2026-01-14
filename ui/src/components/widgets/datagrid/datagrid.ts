@@ -42,7 +42,7 @@ import {
 import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
-import {DataSource} from './data_source';
+import {DataSource, ROLLUP_LEVEL_COLUMN} from './data_source';
 import {
   SchemaRegistry,
   getColumnInfo,
@@ -65,9 +65,11 @@ import {
   AggregateFunction,
   Column,
   Filter,
+  PathSet,
   Pivot,
   SortDirection,
 } from './model';
+import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 
 export interface AggregationCellAttrs extends m.Attributes {
   readonly symbol?: string;
@@ -399,6 +401,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       parameterKeyColumns: this.parameterKeyColumns,
     });
 
+    console.debug('Datagrid pivot model:', this.pivot);
+
     // Expose the API
     attrs.onReady?.({
       exportData: async (format) => {
@@ -477,7 +481,46 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ),
       },
       m(DataGridToolbar, {
-        leftItems: toolbarItemsLeft,
+        leftItems: [
+          toolbarItemsLeft,
+          // Show expand/collapse/flat buttons for multi-level pivot (not in drill-down)
+          this.pivot &&
+            this.pivot.groupBy.length > 1 &&
+            !this.pivot.drillDown && [
+              m(Button, {
+                icon: 'unfold_more',
+                tooltip: 'Expand all groups',
+                onclick: () => this.expandAll(attrs),
+                disabled: !this.pivot.collapsibleGroups,
+              }),
+              m(Button, {
+                icon: 'unfold_less',
+                tooltip: 'Collapse all groups',
+                onclick: () => this.collapseAll(attrs),
+                disabled: !this.pivot.collapsibleGroups,
+              }),
+              m(SegmentedButtons, {
+                options: [
+                  {
+                    label: 'Flat',
+                    icon: 'view_list',
+                  },
+                  {
+                    label: 'Tree',
+                    icon: 'account_tree',
+                  },
+                ],
+                selectedOption: this.pivot.collapsibleGroups ? 1 : 0,
+                onOptionSelected: (num: number) => {
+                  if (num === 1) {
+                    this.disableFlatMode(attrs);
+                  } else {
+                    this.enableFlatMode(attrs);
+                  }
+                },
+              }),
+            ],
+        ],
         rightItems: [
           toolbarItemsRight,
           showExportButton &&
@@ -498,16 +541,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             onRemove: () => this.removeFilter(index, attrs),
           }),
         ),
-        drillDown: this.pivot?.drillDown,
-        drillDownFields: this.pivot?.groupBy.map(({field}) => {
-          const colInfo = getColumnInfo(schema, rootSchema, field);
-          const titleParts = colInfo?.titleParts ?? field.split('.');
-          const rawValue = this.pivot?.drillDown?.[field];
-          return {
-            title: buildColumnTitle(titleParts),
-            value: formatChipValue(rawValue, colInfo?.cellFormatter),
-          };
-        }),
+        drillDownFields:
+          this.pivot?.drillDown &&
+          this.pivot.drillDown.map(({field, value}) => {
+            const colInfo = getColumnInfo(schema, rootSchema, field);
+            const titleParts = colInfo?.titleParts ?? field.split('.');
+            return {
+              title: buildColumnTitle(titleParts),
+              value: formatChipValue(value, colInfo?.cellFormatter),
+            };
+          }),
         onExitDrillDown: () => this.exitDrillDown(attrs),
       }),
       m(LinearProgress, {
@@ -731,17 +774,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     attrs.onPivotChanged?.(newPivot);
   }
 
-  private drillDown(row: Row, attrs: DataGridAttrs): void {
+  private drillDown(
+    drillDown: readonly {field: string; value: SqlValue}[],
+    attrs: DataGridAttrs,
+  ): void {
     if (!this.pivot) return;
 
-    // Build drill-down filter from groupBy column values
-    // Read using column ID (SQL alias), store by field (for filtering)
-    const drillDownRow: Row = {};
-    for (const groupByCol of this.pivot.groupBy) {
-      drillDownRow[groupByCol.field] = row[groupByCol.id];
-    }
-
-    const newPivot: Pivot = {...this.pivot, drillDown: drillDownRow};
+    const newPivot: Pivot = {...this.pivot, drillDown};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -821,7 +860,27 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       afterIndex !== undefined ? afterIndex + 1 : newGroupBy.length;
     newGroupBy.splice(insertIndex, 0, {id: shortUuid(), field});
 
-    const newPivot: Pivot = {...this.pivot, groupBy: newGroupBy};
+    // Initialize to collapsed (empty expandedGroups) when becoming multi-level
+    // and no expansion state is set yet.
+    const hasExpansionState =
+      ('expandedGroups' in this.pivot && this.pivot.expandedGroups) ||
+      ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups);
+
+    let newPivot: Pivot;
+    if (newGroupBy.length > 1 && !Boolean(hasExpansionState)) {
+      // Becoming multi-level with no expansion state - default to all collapsed
+      newPivot = {
+        ...this.pivot,
+        groupBy: newGroupBy,
+        expandedGroups: new PathSet(),
+      };
+    } else {
+      // Keep existing expansion state
+      newPivot = {
+        ...this.pivot,
+        groupBy: newGroupBy,
+      };
+    }
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -987,6 +1046,120 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     aggregates.splice(insertIndex, 0, removed);
 
     const newPivot: Pivot = {...this.pivot, aggregates};
+    this.pivot = newPivot;
+    attrs.onPivotChanged?.(newPivot);
+  }
+
+  /**
+   * Checks if a group path is currently expanded.
+   */
+  private isGroupExpanded(path: readonly SqlValue[]): boolean {
+    if (!this.pivot) return false;
+    if ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups) {
+      // Blacklist mode: expanded unless in collapsedGroups
+      return !this.pivot.collapsedGroups.has(path);
+    }
+    if ('expandedGroups' in this.pivot && this.pivot.expandedGroups) {
+      // Whitelist mode: expanded only if in expandedGroups
+      return this.pivot.expandedGroups.has(path);
+    }
+    // No expansion state = all collapsed (default)
+    return false;
+  }
+
+  /**
+   * Toggles the expansion state of a group identified by its path.
+   * Used for collapsible rollup rows in multi-level pivot tables.
+   * @param path Array of groupBy values from level 0 to the group being toggled
+   */
+  private toggleExpansion(
+    path: readonly SqlValue[],
+    attrs: DataGridAttrs,
+  ): void {
+    if (!this.pivot) return;
+
+    let newPivot: Pivot;
+
+    if ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups) {
+      // Blacklist mode: toggle in collapsedGroups
+      const newCollapsed = new PathSet(this.pivot.collapsedGroups);
+      if (newCollapsed.has(path)) {
+        newCollapsed.delete(path);
+      } else {
+        newCollapsed.add(path);
+      }
+      newPivot = {...this.pivot, collapsedGroups: newCollapsed};
+    } else {
+      // Whitelist mode: toggle in expandedGroups
+      const expandedGroups =
+        'expandedGroups' in this.pivot ? this.pivot.expandedGroups : undefined;
+      const newExpanded = new PathSet(expandedGroups);
+      if (newExpanded.has(path)) {
+        newExpanded.delete(path);
+      } else {
+        newExpanded.add(path);
+      }
+      newPivot = {...this.pivot, expandedGroups: newExpanded};
+    }
+
+    this.pivot = newPivot;
+    attrs.onPivotChanged?.(newPivot);
+  }
+
+  /**
+   * Expands all groups by switching to blacklist mode with empty set.
+   */
+  private expandAll(attrs: DataGridAttrs): void {
+    if (!this.pivot) return;
+    // Remove expandedGroups and set collapsedGroups to empty (all expanded)
+    const {
+      expandedGroups: _,
+      collapsedGroups: __,
+      ...rest
+    } = this.pivot as Pivot & {
+      expandedGroups?: PathSet;
+      collapsedGroups?: PathSet;
+    };
+    const newPivot: Pivot = {...rest, collapsedGroups: new PathSet()};
+    this.pivot = newPivot;
+    attrs.onPivotChanged?.(newPivot);
+  }
+
+  /**
+   * Collapses all groups by switching to whitelist mode with empty set.
+   */
+  private collapseAll(attrs: DataGridAttrs): void {
+    if (!this.pivot) return;
+    // Remove collapsedGroups and set expandedGroups to empty (all collapsed)
+    const {
+      expandedGroups: _,
+      collapsedGroups: __,
+      ...rest
+    } = this.pivot as Pivot & {
+      expandedGroups?: PathSet;
+      collapsedGroups?: PathSet;
+    };
+    const newPivot: Pivot = {...rest, expandedGroups: new PathSet()};
+    this.pivot = newPivot;
+    attrs.onPivotChanged?.(newPivot);
+  }
+
+  /**
+   * Enables flat mode - shows only leaf-level rows without hierarchical grouping.
+   */
+  private enableFlatMode(attrs: DataGridAttrs): void {
+    if (!this.pivot) return;
+    const newPivot: Pivot = {...this.pivot, collapsibleGroups: false};
+    this.pivot = newPivot;
+    attrs.onPivotChanged?.(newPivot);
+  }
+
+  /**
+   * Disables flat mode - shows hierarchical grouping with rollup rows.
+   */
+  private disableFlatMode(attrs: DataGridAttrs): void {
+    if (!this.pivot) return;
+    const newPivot: Pivot = {...this.pivot, collapsibleGroups: true};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -1424,6 +1597,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   /**
    * Builds grid rows for pivot mode.
    * Each row contains values for groupBy columns and aggregate columns.
+   * For multi-level pivots with rollups, adds expand/collapse chevrons.
    */
   private buildPivotRows(ctx: PivotGridBuildContext): m.Children[][] {
     const {attrs, schema, rootSchema, result, pivot, enablePivotControls} = ctx;
@@ -1440,6 +1614,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     );
 
     const aggregates = pivot.aggregates ?? [];
+    const numGroupBy = pivot.groupBy.length;
+    // In flat mode, don't use multi-level UI (no chevrons, no indent)
+    const isMultiLevel = numGroupBy > 1 && pivot.collapsibleGroups;
 
     return rowIndices
       .map((index) => {
@@ -1448,11 +1625,28 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
         const cells: m.Children[] = [];
 
+        // For multi-level pivots, get the rollup level from __level__ column
+        // Level indicates how many groupBy columns have real values (0 to N-1)
+        const rowLevel = isMultiLevel
+          ? Number(row[ROLLUP_LEVEL_COLUMN] ?? numGroupBy - 1)
+          : numGroupBy - 1;
+
         // Render groupBy columns
-        for (let i = 0; i < pivot.groupBy.length; i++) {
+        for (let i = 0; i < numGroupBy; i++) {
           const groupByCol = pivot.groupBy[i];
           const {id, field} = groupByCol;
           const value = row[id];
+
+          // Column is a rollup if its index is greater than the row's level
+          const isRollupColumn = i > rowLevel;
+
+          // For rollup columns, show empty content
+          if (isRollupColumn) {
+            cells.push(
+              m(GridCell, {className: 'pf-data-grid__groupby-column'}),
+            );
+            continue;
+          }
 
           // Get cell renderer from schema
           const colInfo = getColumnInfo(schema, rootSchema, field);
@@ -1460,6 +1654,36 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             colInfo?.cellRenderer ?? ((v: SqlValue) => renderCell(v, field));
           const rendered = cellRenderer(value, row);
           const isRich = isCellRenderResult(rendered);
+
+          // Determine chevron state for groupBy columns on summary rows
+          let chevron: 'expanded' | 'collapsed' | 'leaf' | undefined;
+          let onChevronClick: (() => void) | undefined;
+          let indent: number | undefined;
+          let className: string | undefined;
+
+          if (isMultiLevel) {
+            // This is a summary row if rowLevel equals this column's index
+            // (meaning next column onwards are rollups)
+            const isSummaryRow = rowLevel === i;
+
+            if (isSummaryRow && i < numGroupBy - 1) {
+              // Build the path from level 0 to this level (inclusive)
+              const path = pivot.groupBy
+                .slice(0, i + 1)
+                .map((col) => row[col.id]);
+              // This is a summary row at this level - show expand/collapse chevron
+              const isExpanded = this.isGroupExpanded(path);
+              chevron = isExpanded ? 'expanded' : 'collapsed';
+              onChevronClick = () => this.toggleExpansion(path, attrs);
+            } else if (i < rowLevel) {
+              // This column has a value but is not the summary level - it's a leaf cell
+              // in a higher-level column, show with indent
+              chevron = 'leaf';
+              className = 'pf-data-grid__groupby-muted';
+            }
+            // If i === numGroupBy - 1 and rowLevel === numGroupBy - 1, it's a leaf row
+            // with no chevron needed
+          }
 
           cells.push(
             m(
@@ -1469,13 +1693,31 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 nullish: isRich
                   ? rendered.nullish ?? value === null
                   : value === null,
-                className: 'pf-data-grid__groupby-column',
+                className: classNames(
+                  'pf-data-grid__groupby-column',
+                  className,
+                ),
+                chevron,
+                onChevronClick,
+                indent,
                 menuItems: [
                   enablePivotControls && [
                     m(MenuItem, {
                       label: 'Drill down',
                       icon: 'zoom_in',
-                      onclick: () => this.drillDown(row, attrs),
+                      onclick: () => {
+                        // Build a row with only the groupBy columns up to rowLevel
+                        const drillDownRow: {field: string; value: SqlValue}[] =
+                          [];
+                        for (let j = 0; j <= rowLevel; j++) {
+                          const col = pivot.groupBy[j];
+                          drillDownRow.push({
+                            field: col.field,
+                            value: row[col.id],
+                          });
+                        }
+                        this.drillDown(drillDownRow, attrs);
+                      },
                     }),
                     m(MenuDivider),
                   ],
@@ -1504,7 +1746,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               title: 'Drill down into this group',
               fillWidth: true,
               onclick: () => {
-                this.drillDown(row, attrs);
+                // Build a row with only the groupBy columns up to rowLevel
+                const drillDownRow: {field: string; value: SqlValue}[] = [];
+                for (let j = 0; j <= rowLevel; j++) {
+                  const col = pivot.groupBy[j];
+                  drillDownRow.push({field: col.field, value: row[col.id]});
+                }
+                this.drillDown(drillDownRow, attrs);
               },
             }),
           );
@@ -1721,7 +1969,7 @@ function getAligment(value: SqlValue): 'left' | 'right' | 'center' {
 /**
  * Builds a column title from title parts, interspersing chevron separators.
  */
-function buildColumnTitle(titleParts: m.Children[]): m.Children[] {
+function buildColumnTitle(titleParts: m.ChildArray): m.Children[] {
   return intersperse(
     titleParts,
     m(Icon, {
