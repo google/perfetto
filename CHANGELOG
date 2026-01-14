@@ -24,6 +24,9 @@ Unreleased:
       `--add-sql-module`/`--override-sql-module` shell flags (use
       `--add-sql-package`/`--override-sql-package` instead). These were
       deprecated in v48.0.
+    * Added support for specifying custom package names in `--add-sql-package`
+      and `--override-sql-package` flags using `PATH[@PACKAGE]` syntax. The
+      Python API now provides a `SqlPackage` class for typed configuration.
     * Breaking change: Removed `stack_id` and `parent_stack_id`
       columns from the slice table. The `ancestor_slice_by_stack` and
       `descendant_slice_by_stack` table functions have been moved to the
