@@ -129,7 +129,7 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
     }
     return Time.fromRaw(tsRaw);
   }
-  // No args passed, probably run from the command palette. 
+  // No args passed, probably run from the command palette.
   return promptForTimestamp('Enter a timestamp');
 }
 
