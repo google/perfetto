@@ -307,6 +307,7 @@ packet {
         }
         corner_radius: 1
         hwc_composition_type: 2
+        border_settings { stroke_width: 0.45 color: -65536 }
       }
       layers {
         id: 2
@@ -324,6 +325,7 @@ packet {
           frame { left: 0 top: 0 right: 2 bottom: 2 }
           visible: false
         }
+        border_settings { stroke_width: 1.2 }
       }
       layers {
         id: 3
@@ -341,6 +343,7 @@ packet {
           frame { left: -999, top: -999, right: 999, bottom: 999 }
           visible: true
         }
+        border_settings { stroke_width: 0 color: 1234 }
       }
       layers {
         id: 4
