@@ -105,12 +105,14 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
     std::string name;
     int best_idx_num = 0;
+    uint32_t id_col_idx = 0;
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
     const dataframe::Dataframe* dataframe;
     DfCursor df_cursor;
     const char* last_idx_str = nullptr;
+    uint32_t id_col_idx = 0;
   };
 
   static int Create(sqlite3*,

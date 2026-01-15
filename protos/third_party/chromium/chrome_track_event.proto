@@ -877,8 +877,8 @@ message EventLatency {
   // ChromeGraphicsPipeline.display_trace_id.
   optional int64 display_trace_id = 8;
 
-  // Deprecated in favor of `scroll_jank_v4.is_janky`. Not filled
-  // anymore in newer versions of Chrome.
+  // Deprecated in favor of `ChromeTrackEvent.scroll_jank_v4.is_janky`. Not
+  // filled anymore in newer versions of Chrome.
   optional bool is_janky_scrolled_frame_v3 = 9 [deprecated = true];
 
   // Result of the Scroll Jank V4 Metric for a scroll update. This is set only
@@ -891,6 +891,8 @@ message EventLatency {
   // To simplify the documentation below, we use "this frame" to refer to the
   // frame in which the scroll update was presented.
   message ScrollJankV4Result {
+    // Next ID: 13
+
     // This field is a new version of `EventLatency.is_janky_scrolled_frame`
     // based on the Event.ScrollJank.DelayedFramesPercentage4.FixedWindow
     // metric. This field aims to address the old field's shortcomings and
@@ -919,7 +921,7 @@ message EventLatency {
       // Chrome missed one or more VSyncs in the middle of a fling.
       MISSED_VSYNC_DURING_FLING = 4;
     }
-    // LINT.ThenChange(//cc/metrics/event_metrics.h:JankReason,//tools/metrics/histograms/metadata/event/histograms.xml:ScrollJankReasonV4)
+    // LINT.ThenChange(//cc/metrics/scroll_jank_v4_result.h:JankReason,//tools/metrics/histograms/metadata/event/histograms.xml:ScrollJankReasonV4)
 
     // Number of VSyncs that that Chrome missed before presenting the scroll
     // update for each reason. Essentially a map<JankReason, int32>.
@@ -929,10 +931,14 @@ message EventLatency {
     }
     repeated MissedVsyncsForJankReason missed_vsyncs_per_jank_reason = 2;
 
+    // Deprecated in favor of `updates.real.abs_total_raw_delta_pixels`.
+    //
     // The absolute total raw (unpredicted) delta of all scroll updates included
     // in this frame (in pixels).
     optional float abs_total_raw_delta_pixels = 3;
 
+    // Deprecated in favor of `updates.real.max_abs_inertial_raw_delta_pixels`.
+    //
     // The maximum absolute raw (unpredicted) delta out of all inertial (fling)
     // scroll updates included in this frame (in pixels). Zero if there were no
     // inertial scroll updates in this frame.
@@ -969,6 +975,8 @@ message EventLatency {
     // The delivery cut-off of this frame. Empty if this frame is non-damaging.
     optional int64 current_delivery_cutoff_us = 8;
 
+    // Deprecated in favor of `damage_type`.
+    //
     // Whether this frame is damaging. This frame is non-damaging if the
     // following conditions are BOTH true:
     //
@@ -981,8 +989,129 @@ message EventLatency {
     //        b. this frame
     //      are non-damaging.
     optional bool is_damaging_frame = 9;
+
+    // Information about the scroll updates that were included in this frame.
+    message ScrollUpdates {
+      // Real scroll updates which originated from hardware/OS.
+      message Real {
+        // Trace IDs of the first real scroll update included in this frame. Can
+        // be joined with EventLatency.event_latency_id.
+        optional int64 first_event_latency_id = 1;
+
+        // The absolute total raw (unpredicted) delta of all real scroll updates
+        // included in this frame (in pixels).
+        optional float abs_total_raw_delta_pixels = 2;
+
+        // The maximum absolute raw (unpredicted) delta out of all inertial
+        // (fling) scroll updates included in this frame (in pixels). Empty if
+        // there were no inertial scroll updates in this frame.
+        optional float max_abs_inertial_raw_delta_pixels = 3;
+      }
+      optional Real real = 1;
+
+      // Synthetic scroll updates which were predicted by Chrome
+      message Synthetic {
+        // Trace IDs of the first synthetic scroll update included in this
+        // frame. Can be joined with EventLatency.event_latency_id.
+        optional int64 first_event_latency_id = 1;
+      }
+      optional Synthetic synthetic = 2;
+
+      // Type of the first scroll update in this frame based on:
+      //
+      //   * For real scroll updates, we consider their actual input generation
+      //     timestamp.
+      //   * For synthetic scroll updates, we extrapolate their input generation
+      //     timestamp based on the input generation → begin frame duration of
+      //     the most recent real scroll update UNLESS ANY of the following
+      //     holds (in which case we DON'T extrapolate input generation
+      //     timestamps for synthetic scroll updates in this frame):
+      //       * This frame is janky.
+      //       * All frames since the beginning of the scroll up to and
+      //         including the previous frame have contained only synthetic
+      //         scroll updates.
+      //       * The most recent janky frame contained only synthetic scroll
+      //         updates and all frames since then up to and including the
+      //         previous frame have contained only synthetic scroll updates.
+      //
+      // If, based on the above rules, the scroll update with the earliest input
+      // generation timestamp is a real scroll update, then this frame's type is
+      // `REAL`. If the scroll update with the earliest input generation
+      // timestamp is a synthetic scroll update, then this frame's type is
+      // `SYNTHETIC_WITH_EXTRAPOLATED_INPUT_GENERATION_TIMESTAMP`.
+      //
+      // If this frame contained only synthetic scroll updates but it wasn't
+      // possible to extrapolate their input generation timestamp (for any of
+      // the reasons listed above), then this frame's type is
+      // `SYNTHETIC_WITHOUT_EXTRAPOLATED_INPUT_GENERATION_TIMESTAMP`.
+      //
+      // See `cc::ScrollJankV4FrameStage::ScrollUpdates` and
+      // `cc::ScrollJankV4Result::first_input_generation`.
+      enum FirstScrollUpdateType {
+        UNKNOWN = 0;
+        REAL = 1;
+        SYNTHETIC_WITH_EXTRAPOLATED_INPUT_GENERATION_TIMESTAMP = 2;
+        SYNTHETIC_WITHOUT_EXTRAPOLATED_INPUT_GENERATION_TIMESTAMP = 3;
+      }
+      optional FirstScrollUpdateType first_scroll_update_type = 3;
+    }
+    optional ScrollUpdates updates = 10;
+
+    // Type of scroll damage in this frame. A frame F is non-damaging if the
+    // following conditions are BOTH true:
+    //
+    //   1. All scroll updates in F are non-damaging. A scroll update
+    //      is non-damaging if it didn't cause a frame update (i.e.
+    //      `EventMetrics::caused_frame_update()` is false) and/or didn't change
+    //      the scroll offset (i.e. `ScrollEventMetrics::did_scroll()` is
+    //      false).
+    //
+    //   2. All frames between (both ends exclusive):
+    //        a. the last frame presented by Chrome before F and
+    //        b. F
+    //      are non-damaging.
+    //
+    // A non-damaging frame has its presentation timestamp extrapolated based on
+    // the begin frame → presentation duration of the most recent damaging frame
+    // UNLESS ANY of the following holds:
+    //
+    //   * This frame is janky and non-damaging.
+    //   * All frames since the beginning of the scroll up to and including this
+    //     frame have been non-damaging.
+    //   * The most recent janky frame was non-damaging and all frames since
+    //     then up to and including the this frame have been non-damaging.
+    //
+    // See `cc::ScrollJankV4Frame::ScrollDamage` and
+    // `cc::ScrollJankV4Result::presentation`.
+    //
+    // Note: The `updates.first_scroll_update_type` and `damage_type` fields are
+    // orthogonal. The former depends on whether the frame is synthetic (only
+    // contains synthetic scroll updates). The latter depends on whether the
+    // frame is damaging. For example:
+    //
+    //   * If a frame is synthetic and damaging, it will[1] have an extrapolated
+    //     input generation timestamp.
+    //   * If a frame is real and non-damaging, it will[1] have an extrapolated
+    //     presentation timestamp.
+    //   * If a frame is both synthetic and damaging, it will[1] have both
+    //     timestamps extrapolated.
+    //
+    // [1] As long as there's Chrome past performance to extrapolate based on.
+    enum DamageType {
+      UNKNOWN = 0;
+      DAMAGING = 1;
+      NON_DAMAGING_WITH_EXTRAPOLATED_PRESENTATION_TIMESTAMP = 2;
+      NON_DAMAGING_WITHOUT_EXTRAPOLATED_PRESENTATION_TIMESTAMP = 3;
+    }
+    optional DamageType damage_type = 11;
+
+    // The VSync interval that this frame was produced for according to the
+    // BeginFrameArgs.
+    optional int64 vsync_interval_us = 12;
   }
-  optional ScrollJankV4Result scroll_jank_v4 = 10;
+
+  // Deprecated in favor of top-level `ChromeTrackEvent.scroll_jank_v4`.
+  optional ScrollJankV4Result scroll_jank_v4 = 10 [deprecated = true];
 }
 
 message ProcessSingleton {
@@ -1228,122 +1357,6 @@ message UkmPageLoadTimingUpdate {
   optional double latest_largest_contentful_paint_ms = 4;
 
   optional double first_contentful_paint_ms = 5;
-}
-
-// A serialisation of v8StackFrame class.
-message V8StackFrame {
-  // Code location (path to the script and line/column number)
-  message ScriptLocation {
-    optional string source_url = 1;
-    optional int64 line_number = 2;
-    optional int64 column_number = 3;
-  }
-
-  // The name of the function that was called
-  optional string function_name = 1;
-
-  // If the function was defined in a script, contains the location within the
-  // script.
-  optional ScriptLocation script_location = 2;
-}
-
-// Serializes the blink::ExecutionContext object.
-message BlinkExecutionContext {
-  // Definition of different context types.
-  enum ContextType {
-    UNKNOWN_CONTEXT = 0;
-    WINDOW = 1;
-    WORKLET = 2;
-    DEDICATED_WORKER = 3;
-    SHARED_WORKER = 4;
-    SERVICE_WORKER = 5;
-  }
-
-  // Definition of world type.
-  enum WorldType {
-    WORLD_UNKNOWN = 0;
-    WORLD_MAIN = 1;
-    WORLD_ISOLATED = 2;
-    WORLD_INSPECTOR_ISOLATED = 3;
-    WORLD_REG_EXP = 4;
-    WORLD_FOR_V8_CONTEXT_SNAPSHOT_NON_MAIN = 5;
-    WORLD_WORKER = 6;
-    WORLD_SHADOW_REALM = 7;
-  }
-
-  optional ContextType type = 1;
-  // Contains url of frame or worker.
-  optional string url = 2;
-  // The origin of the execution context.
-  optional string origin = 3;
-  // The world type of the execution context.
-  optional WorldType world_type = 4;
-}
-
-// Serializes the blink::SourceLocation object.
-message BlinkSourceLocation {
-  optional string function_name = 1;
-  optional int32 script_id = 2;
-  optional string url = 3;
-  optional int32 line_number = 4;
-  optional int32 column_number = 5;
-  optional string stack_trace = 6;
-  repeated V8StackFrame stack_frames = 7;
-}
-
-// Contains the meta information for high entropy events (like api calls)
-// that are to be traced for debugging in the context of identifiability study.
-message BlinkHighEntropyAPI {
-  // Serialization of a parameter passed to a javascript function.
-  // Contains the stringified type of the object and some string representation
-  // of its value.
-  message JSFunctionArgument {
-    // Definition of different types of function parameters.
-    enum ArgumentType {
-      UNKNOWN_TYPE = 0;
-      NULL_TYPE = 1;
-      UNDEFINED = 2;
-      BIGINT = 3;
-      BOOLEAN = 4;
-      FUNCTION = 5;
-      NUMBER = 6;
-      STRING = 7;
-      SYMBOL = 8;
-      OBJECT = 9;
-    }
-    optional ArgumentType type = 1;
-    optional string value = 2;
-  }
-
-  // Describes a Javascript API call.
-  message CalledJsApi {
-    // Contains class and function name of api called
-    // similar to "Navigator.languages.get".
-    optional string identifier = 1;
-    repeated JSFunctionArgument func_arguments = 2;
-
-    // Deprecated in favour of outer source_location. Not filled anymore in
-    // newer versions of chrome.
-    optional BlinkSourceLocation source_location = 3 [deprecated = true];
-  }
-  optional BlinkExecutionContext execution_context = 1;
-  optional CalledJsApi called_api = 2;
-  optional BlinkSourceLocation source_location = 3;
-
-  // Describes lookup of a font.
-  message FontLookup {
-    enum FontLookupType {
-      FONT_LOOKUP_UNKNOWN_TYPE = 0;
-      FONT_LOOKUP_UNIQUE_OR_FAMILY_NAME = 1;
-      FONT_LOOKUP_UNIQUE_NAME_ONLY = 2;
-    }
-    optional FontLookupType type = 1;
-    optional string name = 2;
-    optional uint64 weight = 3;
-    optional uint64 width = 4;
-    optional uint64 slope = 5;
-  }
-  optional FontLookup font_lookup = 4;
 }
 
 // Contains information about a tab switch measurement.
@@ -2765,8 +2778,10 @@ message ResponseInfo {
 };
 
 message ChromeTrackEvent {
+  reserved 1045;
+
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1078
+  // Next ID: 1079
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -2863,8 +2878,6 @@ message ChromeTrackEvent {
 
     optional UkmPageLoadTimingUpdate ukm_page_load_timing_update = 1044;
 
-    optional BlinkHighEntropyAPI high_entropy_api = 1045;
-
     optional TabSwitchMeasurement tab_switch_measurement = 1046;
 
     optional ScrollDeltas scroll_deltas = 1047;
@@ -2933,5 +2946,7 @@ message ChromeTrackEvent {
     optional InputTransferHandler input_transfer_handler = 1076;
 
     optional ResponseInfo response_info = 1077;
+
+    optional EventLatency.ScrollJankV4Result scroll_jank_v4 = 1078;
   }
 }

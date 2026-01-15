@@ -96,26 +96,31 @@ export class WattsonPackageSelectionAggregator implements Aggregator {
       {
         title: 'Android app UID',
         columnId: 'uid',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Active power (estimated mW)',
         columnId: 'active_mw',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Active energy (estimated mWs)',
         columnId: 'active_mws',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Idle transitions overhead (estimated mWs)',
         columnId: 'idle_cost_mws',
         sum: false,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Total energy (estimated mWs)',
         columnId: 'total_mws',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: '% of total energy',

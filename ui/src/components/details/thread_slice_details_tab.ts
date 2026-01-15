@@ -35,14 +35,14 @@ import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {SliceRef} from '../widgets/slice';
 import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
-import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
-import {assertExists, assertIsInstance} from '../../base/logging';
+import {assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
+import {SLICE_TABLE} from '../widgets/sql/table_definitions';
 
 interface ContextMenuItem {
   name: string;
@@ -92,7 +92,7 @@ const ITEMS: ContextMenuItem[] = [
     shouldDisplay: (slice: SliceDetails) => slice.parentId !== undefined,
     run: (slice: SliceDetails, trace: Trace) =>
       extensions.addLegacySqlTableTab(trace, {
-        table: assertExists(getSqlTableDescription(trace, 'slice')),
+        table: SLICE_TABLE,
         filters: [
           {
             op: (cols) =>
@@ -108,7 +108,7 @@ const ITEMS: ContextMenuItem[] = [
     shouldDisplay: () => true,
     run: (slice: SliceDetails, trace: Trace) =>
       extensions.addLegacySqlTableTab(trace, {
-        table: assertExists(getSqlTableDescription(trace, 'slice')),
+        table: SLICE_TABLE,
         filters: [
           {
             op: (cols) =>

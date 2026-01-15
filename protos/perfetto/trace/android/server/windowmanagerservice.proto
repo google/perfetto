@@ -20,6 +20,7 @@ import "protos/perfetto/trace/android/app/statusbarmanager.proto";
 import "protos/perfetto/trace/android/content/activityinfo.proto";
 import "protos/perfetto/trace/android/content/configuration.proto";
 import "protos/perfetto/trace/android/graphics/rect.proto";
+import "protos/perfetto/trace/android/graphics/insets.proto";
 import "protos/perfetto/trace/android/server/windowcontainerthumbnail.proto";
 import "protos/perfetto/trace/android/server/surfaceanimator.proto";
 import "protos/perfetto/trace/android/view/displaycutout.proto";
@@ -32,6 +33,7 @@ import "protos/perfetto/trace/android/typedef.proto";
 import "protos/perfetto/trace/android/view/surfacecontrol.proto";
 import "protos/perfetto/trace/android/view/insetssource.proto";
 import "protos/perfetto/trace/android/view/insetssourcecontrol.proto";
+import "protos/perfetto/trace/android/view/insetsstate.proto";
 
 import "protos/perfetto/trace/android/view/enums.proto";
 
@@ -216,13 +218,15 @@ message DisplayContentProto {
   optional WindowStateProto input_method_control_target = 29
       [deprecated = true];
   optional WindowStateProto current_focus = 30 [deprecated = true];
-  optional ImeInsetsSourceProviderProto ime_insets_source_provider = 31;
+  optional ImeInsetsSourceProviderProto ime_insets_source_provider = 31
+      [deprecated = true];
   optional bool can_show_ime = 32 [deprecated = true];
 
   optional DisplayRotationProto display_rotation = 33;
   optional int32 ime_policy = 34;
 
-  repeated InsetsSourceProviderProto insets_source_providers = 35;
+  repeated InsetsSourceProviderProto insets_source_providers = 35
+      [deprecated = true];
   optional bool is_sleeping = 36;
   repeated string sleep_tokens = 37;
   repeated RectProto keep_clear_areas = 38;
@@ -233,6 +237,30 @@ message DisplayContentProto {
   optional IdentifierProto current_focus_identifier = 43;
   optional RemoteInsetsControlTargetProto remote_insets_control_target = 44;
   optional int32 engagement_mode = 45;
+  optional InsetsStateControllerProto insets_state_controller = 46;
+  optional DisplayPolicyProto display_policy = 47;
+  optional InsetsPolicyProto insets_policy = 48;
+}
+
+/* represents InsetsPolicy object */
+message InsetsPolicyProto {
+  optional int32 status_state = 1;
+  optional int32 nav_state = 2;
+  optional int32 showing_transient_types = 3;
+  optional int32 hiding_transient_types = 4;
+  optional int32 forcibly_showing_types = 5;
+  optional int32 forcibly_hiding_types = 6;
+  optional InsetsControlTargetProto fake_status_control_target = 7;
+  optional InsetsControlTargetProto fake_nav_control_target = 8;
+  optional InsetsControlTargetProto hiding_transient_status_control_target = 9;
+  optional InsetsControlTargetProto hiding_transient_nav_control_target = 10;
+}
+
+/* represents InsetsControlTarget object */
+message InsetsControlTargetProto {
+  optional IdentifierProto identifier = 1;
+  optional int32 requested_visible_types = 2;
+  optional int32 animating_types = 3;
 }
 
 // represents DisplayArea object
@@ -264,6 +292,9 @@ message DisplayFramesProto {
   optional RectProto stable_bounds = 1 [deprecated = true];
   optional RectProto dock = 2 [deprecated = true];
   optional RectProto current = 3 [deprecated = true];
+  optional int32 width = 4;
+  optional int32 height = 5;
+  optional int32 rotation = 6;
 }
 
 message DisplayRotationProto {
@@ -277,6 +308,53 @@ message DisplayRotationProto {
       [(.perfetto.protos.typedef) =
            "android.content.pm.ActivityInfo.ScreenOrientation"];
   optional bool is_fixed_to_user_rotation = 6;
+}
+
+/* represents DisplayPolicy */
+message DisplayPolicyProto {
+  optional DecorInsetsProto decor_insets = 1;
+  optional DecorInsetsProto cached_decor_insets = 2;
+  optional int32 last_disable_flags = 3;
+  optional int32 last_appearance = 4;
+  optional int32 last_behavior = 5;
+  optional IdentifierProto left_gesture_host_identifier = 6;
+  optional IdentifierProto top_gesture_host_identifier = 7;
+  optional IdentifierProto right_gesture_host_identifier = 8;
+  optional IdentifierProto bottom_gesture_host_identifier = 9;
+  optional IdentifierProto nav_bar_background_window_candidate_identifier = 10;
+  repeated AppearanceRegionProto last_status_bar_appearance_regions = 11;
+  repeated IdentifierProto status_bar_background_windows_identifier = 12;
+  optional int32 showing_transient_insets_types = 13;
+  repeated SystemBarVisibilityOverrideProto system_bar_visibility_override = 14;
+  optional bool ime_insets_consumed = 15;
+  optional bool force_show_navigation_bar_enabled = 16;
+}
+
+/* represents DecorInsets */
+message DecorInsetsProto {
+  repeated DecorInsetsInfoProto decor_insets_info = 1;
+}
+
+/* represents DecorInsets.Info */
+message DecorInsetsInfoProto {
+  optional int32 rotation = 1;
+  optional RectProto override_config_insets = 2;
+  optional RectProto override_non_decor_insets = 3;
+  optional RectProto override_config_frame = 4;
+  optional RectProto override_non_decor_frame = 5;
+}
+
+/* represents AppearanceRegion */
+message AppearanceRegionProto {
+  optional int32 appearance = 1;
+  optional RectProto bounds = 2;
+}
+
+/* represents SystemBarVisibilityOverride */
+message SystemBarVisibilityOverrideProto {
+  optional int32 caller = 1;
+  optional int32 show = 2;
+  optional int32 hide = 3;
 }
 
 // represents DockedTaskDividerController
@@ -581,9 +659,16 @@ message WindowFramesProto {
   optional RectProto compat_frame = 16;
 }
 
+/* represents InsetsStateController */
+message InsetsStateControllerProto {
+  optional InsetsStateProto insets_state = 1;
+  repeated InsetsSourceProviderProto insets_source_providers = 2;
+}
+
+/* represents InsetsSourceProvider */
 message InsetsSourceProviderProto {
   optional InsetsSourceProto source = 1;
-  optional RectProto frame = 2;
+  optional RectProto frame = 2 [deprecated = true];
   optional InsetsSourceControlProto fake_control = 3;
   optional InsetsSourceControlProto control = 4;
   optional WindowStateProto control_target = 5 [deprecated = true];
@@ -603,6 +688,7 @@ message InsetsSourceProviderProto {
   optional IdentifierProto pending_control_target_identifier = 18;
   optional IdentifierProto fake_control_target_identifier = 19;
   optional IdentifierProto source_window_state_identifier = 20;
+  optional InsetsProto insets_hint = 21;
 }
 
 message ImeInsetsSourceProviderProto {

@@ -1,0 +1,281 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "./common";
+
+// Join condition selector - two-card layout
+.pf-join-condition-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  container-type: inline-size;
+  width: 100%;
+
+  &.pf-join-condition--complete {
+    .pf-join-source-card {
+      border-color: var(--pf-color-primary);
+    }
+  }
+}
+
+.pf-join-condition-selector__cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+
+  // Stack vertically only on very narrow containers
+  @container (max-width: 500px) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+// Join source card
+.pf-join-source-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: border-color 0.2s ease-in-out;
+}
+
+.pf-join-source-card__header {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pf-color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 0 12px 0;
+  border-bottom: 1px solid var(--pf-color-border);
+  margin-bottom: 12px;
+}
+
+.pf-join-source-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+// Other columns list
+.pf-join-source-card__columns {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--pf-color-border);
+}
+
+.pf-join-source-card__columns-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pf-join-source-card__columns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.pf-join-source-card__column-item {
+  font-size: 13px;
+  color: var(--pf-color-text);
+  font-family: "Roboto Mono", monospace;
+  padding: 4px 8px;
+  background: var(--pf-color-background-secondary);
+  border-radius: 3px;
+}
+
+// Join condition preview (shown when both columns are selected)
+.pf-join-condition-preview {
+  padding: 12px 16px;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-primary);
+  border-radius: 4px;
+  border-left-width: 4px;
+}
+
+.pf-join-condition-preview__code {
+  font-family: "Roboto Mono", monospace;
+  font-size: 14px;
+  color: var(--pf-color-text);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+
+  .pf-join-column-ref {
+    color: var(--pf-color-primary);
+    font-weight: 600;
+  }
+
+  .pf-join-operator {
+    color: var(--pf-color-text-muted);
+    font-weight: 400;
+  }
+}
+
+// Compact join condition display (read-only, for node details)
+.pf-join-condition-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--pf-color-background-secondary);
+  border-radius: 4px;
+  font-family: "Roboto Mono", monospace;
+  font-size: 13px;
+
+  .pf-join-column-ref {
+    color: var(--pf-color-primary);
+    font-weight: 600;
+  }
+
+  .pf-join-operator {
+    color: var(--pf-color-text-muted);
+    font-weight: 400;
+  }
+}
+
+// Additional styles for join-specific UI elements
+
+// Join modal - wider to accommodate two-column layout
+.pf-join-modal-wide {
+  min-width: min(1000px, 90vw);
+  max-width: 1200px;
+}
+
+// Join modal layout (for AddColumnsNode guided mode)
+.pf-join-modal-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  min-height: 400px;
+
+  @media (max-width: 1000px) {
+    grid-template-columns: 1fr;
+
+    .pf-join-modal-info {
+      display: none; // Hide table info on narrow screens
+    }
+  }
+}
+
+.pf-join-modal-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pf-join-modal-info {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+// Styles for the join condition in node details
+.pf-exp-join-condition {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+
+.pf-exp-join-equals {
+  color: var(--pf-color-text-muted);
+  font-weight: 600;
+  font-family: "Roboto Mono", monospace;
+}
+
+// Filter during clip row
+.pf-filter-during-clip-row {
+  padding: 12px 16px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+}
+
+// Join column selector - for selecting columns with checkboxes and aliasing
+.pf-join-column-selector {
+  display: flex;
+  gap: 24px;
+  flex-direction: column;
+}
+
+.pf-join-column-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pf-join-column-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--pf-color-border);
+
+  h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+.pf-join-column-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.pf-join-column-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 4px;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border);
+
+  &:hover {
+    background: var(--pf-color-background-secondary);
+  }
+
+  .pf-checkbox {
+    flex: 1;
+  }
+
+  .pf-text-input {
+    width: 150px;
+    flex-shrink: 0;
+  }
+}
+
+// Spacing for form components in configuration modal
+.pf-join-modal-info {
+  .pf-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+}

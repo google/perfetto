@@ -53,6 +53,7 @@ const schema = {
   correlation_id: STR_NULL,
   arg_set_id: NUM_NULL,
   parent_id: NUM_NULL,
+  track_id: NUM,
 };
 
 export async function createTraceProcessorSliceTrack({
@@ -112,24 +113,23 @@ async function getDataset(
     // Single track case - use depth directly from slice table
     return new SourceDataset({
       schema,
-      src: `
-        select
-          slice.id,
-          ts,
-          dur,
-          depth,
-          name,
-          thread_dur,
-          track_id,
-          category,
-          extract_arg(arg_set_id, 'correlation_id') as correlation_id,
-          arg_set_id,
-          parent_id
-        from slice
-      `,
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        depth: 'depth',
+        name: 'name',
+        thread_dur: 'thread_dur',
+        track_id: 'track_id',
+        category: 'category',
+        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
+        arg_set_id: 'arg_set_id',
+        parent_id: 'parent_id',
+      },
+      src: 'slice',
       filter: {
         col: 'track_id',
-        in: trackIds,
+        eq: trackIds[0],
       },
     });
   } else {
@@ -155,26 +155,32 @@ async function getDataset(
     // Join slice with the depth table (caller-provided or self-created).
     return new SourceDataset({
       schema,
-      src: `
-        select
-          slice.id,
-          ts,
-          dur,
-          d.depth as depth,
-          name,
-          thread_dur,
-          track_id,
-          category,
-          extract_arg(arg_set_id, 'correlation_id') as correlation_id,
-          arg_set_id,
-          parent_id,
-          d.minTrackId
-        from slice
-        join ${tableName} d using (id)
-      `,
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        depth: {
+          join: 'depth',
+          expr: 'depth.depth',
+        },
+        name: 'name',
+        thread_dur: 'thread_dur',
+        track_id: 'track_id',
+        category: 'category',
+        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
+        arg_set_id: 'arg_set_id',
+        parent_id: 'parent_id',
+      },
+      src: 'slice',
+      joins: {
+        depth: {
+          from: `${tableName} USING (id)`,
+          unique: true,
+        },
+      },
       filter: {
-        col: 'minTrackId',
-        eq: Math.min(...trackIds),
+        col: 'track_id',
+        in: trackIds,
       },
     });
   }

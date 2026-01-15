@@ -39,6 +39,9 @@ export interface NodeModifySection {
 }
 
 export interface NodeModifyAttrs {
+  // Info content to display in an InfoBox at the top (can be string or rich content)
+  info: m.Children;
+
   // Sections to display in order
   sections?: NodeModifySection[];
 

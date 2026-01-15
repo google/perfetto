@@ -19,6 +19,7 @@ export const languages = [
     year: 2012,
     creator: 'Microsoft',
     typing: 'Static',
+    execution: 'Transpiled',
   },
   {
     id: 2,
@@ -26,6 +27,7 @@ export const languages = [
     year: 1995,
     creator: 'Brendan Eich',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 3,
@@ -33,6 +35,7 @@ export const languages = [
     year: 1991,
     creator: 'Guido van Rossum',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 4,
@@ -40,6 +43,7 @@ export const languages = [
     year: 1995,
     creator: 'James Gosling',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 5,
@@ -47,6 +51,7 @@ export const languages = [
     year: 1985,
     creator: 'Bjarne Stroustrup',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 6,
@@ -54,6 +59,7 @@ export const languages = [
     year: 2009,
     creator: 'Google',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 7,
@@ -61,6 +67,7 @@ export const languages = [
     year: 2010,
     creator: 'Graydon Hoare',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 8,
@@ -68,6 +75,7 @@ export const languages = [
     year: 1995,
     creator: 'Yukihiro Matsumoto',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 9,
@@ -75,6 +83,7 @@ export const languages = [
     year: 2014,
     creator: 'Apple',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 10,
@@ -82,6 +91,7 @@ export const languages = [
     year: 2011,
     creator: 'JetBrains',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 11,
@@ -89,6 +99,7 @@ export const languages = [
     year: 1995,
     creator: 'Rasmus Lerdorf',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 12,
@@ -96,6 +107,7 @@ export const languages = [
     year: 2000,
     creator: 'Microsoft',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 13,
@@ -103,6 +115,7 @@ export const languages = [
     year: 1987,
     creator: 'Larry Wall',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 14,
@@ -110,6 +123,7 @@ export const languages = [
     year: 2004,
     creator: 'Martin Odersky',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 15,
@@ -117,6 +131,7 @@ export const languages = [
     year: 1990,
     creator: 'Lennart Augustsson, et al.',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 16,
@@ -124,6 +139,7 @@ export const languages = [
     year: 1993,
     creator: 'Roberto Ierusalimschy, et al.',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 17,
@@ -131,6 +147,7 @@ export const languages = [
     year: 2011,
     creator: 'Google',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 18,
@@ -138,6 +155,7 @@ export const languages = [
     year: 2012,
     creator: 'José Valim',
     typing: 'Dynamic',
+    execution: 'Compiled',
   },
   {
     id: 19,
@@ -145,6 +163,7 @@ export const languages = [
     year: 2007,
     creator: 'Rich Hickey',
     typing: 'Dynamic',
+    execution: 'Compiled',
   },
   {
     id: 20,
@@ -152,6 +171,7 @@ export const languages = [
     year: 2005,
     creator: 'Microsoft',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 21,
@@ -159,6 +179,7 @@ export const languages = [
     year: 1958,
     creator: 'John McCarthy',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 22,
@@ -166,6 +187,7 @@ export const languages = [
     year: 1993,
     creator: 'Ross Ihaka and Robert Gentleman',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 23,
@@ -173,6 +195,7 @@ export const languages = [
     year: 1984,
     creator: 'Cleve Moler',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 24,
@@ -180,6 +203,7 @@ export const languages = [
     year: 1984,
     creator: 'Brad Cox and Tom Love',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 25,
@@ -187,6 +211,7 @@ export const languages = [
     year: 1991,
     creator: 'Microsoft',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 26,
@@ -194,6 +219,7 @@ export const languages = [
     year: 1957,
     creator: 'John Backus',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 27,
@@ -201,6 +227,7 @@ export const languages = [
     year: 1959,
     creator: 'CODASYL',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 28,
@@ -208,6 +235,7 @@ export const languages = [
     year: 1996,
     creator: 'INRIA',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 29,
@@ -215,6 +243,7 @@ export const languages = [
     year: 1986,
     creator: 'Joe Armstrong, et al.',
     typing: 'Dynamic',
+    execution: 'Compiled',
   },
   {
     id: 30,
@@ -222,6 +251,7 @@ export const languages = [
     year: 2003,
     creator: 'James Strachan',
     typing: 'Dynamic',
+    execution: 'Compiled',
   },
   {
     id: 31,
@@ -229,6 +259,7 @@ export const languages = [
     year: 2012,
     creator: 'Jeff Bezanson, et al.',
     typing: 'Dynamic',
+    execution: 'Compiled',
   },
   {
     id: 32,
@@ -236,6 +267,7 @@ export const languages = [
     year: 1972,
     creator: 'Dennis Ritchie',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 33,
@@ -243,6 +275,7 @@ export const languages = [
     year: 1949,
     creator: 'Kathleen Booth',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 34,
@@ -250,6 +283,7 @@ export const languages = [
     year: 1970,
     creator: 'Niklaus Wirth',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 35,
@@ -257,6 +291,7 @@ export const languages = [
     year: 1980,
     creator: 'Jean Ichbiah',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 36,
@@ -264,6 +299,7 @@ export const languages = [
     year: 1975,
     creator: 'Guy L. Steele and Gerald Jay Sussman',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 37,
@@ -271,6 +307,7 @@ export const languages = [
     year: 1972,
     creator: 'Alain Colmerauer',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 38,
@@ -278,6 +315,7 @@ export const languages = [
     year: 1972,
     creator: 'Alan Kay, et al.',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 39,
@@ -285,6 +323,7 @@ export const languages = [
     year: 1998,
     creator: 'Gary Grossman',
     typing: 'Dynamic',
+    execution: 'Compiled',
   },
   {
     id: 40,
@@ -292,6 +331,7 @@ export const languages = [
     year: 2001,
     creator: 'Walter Bright',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 41,
@@ -299,6 +339,7 @@ export const languages = [
     year: 2008,
     creator: 'Andreas Rumpf',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 42,
@@ -306,6 +347,7 @@ export const languages = [
     year: 2014,
     creator: 'Ary Borenszweig',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 43,
@@ -313,6 +355,7 @@ export const languages = [
     year: 2016,
     creator: 'Andrew Kelley',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 44,
@@ -320,6 +363,7 @@ export const languages = [
     year: 2019,
     creator: 'Alexander Medvednikov',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 45,
@@ -327,6 +371,7 @@ export const languages = [
     year: 1995,
     creator: 'PLT Inc.',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 46,
@@ -334,6 +379,7 @@ export const languages = [
     year: 1984,
     creator: 'Scott Fahlman, et al.',
     typing: 'Dynamic',
+    execution: 'Compiled',
   },
   {
     id: 47,
@@ -341,6 +387,7 @@ export const languages = [
     year: 1989,
     creator: 'Brian Fox',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 48,
@@ -348,6 +395,7 @@ export const languages = [
     year: 2006,
     creator: 'Jeffrey Snover',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 49,
@@ -355,6 +403,7 @@ export const languages = [
     year: 1988,
     creator: 'John Ousterhout',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 50,
@@ -362,6 +411,7 @@ export const languages = [
     year: 1977,
     creator: 'Alfred Aho, et al.',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 51,
@@ -369,6 +419,7 @@ export const languages = [
     year: 1984,
     creator: 'Phil Moorby',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 52,
@@ -376,6 +427,7 @@ export const languages = [
     year: 1980,
     creator: 'U.S. Department of Defense',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 53,
@@ -383,6 +435,7 @@ export const languages = [
     year: 2014,
     creator: 'Gavin Wood',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 54,
@@ -390,6 +443,7 @@ export const languages = [
     year: 2007,
     creator: 'Salesforce',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 55,
@@ -397,6 +451,7 @@ export const languages = [
     year: 2014,
     creator: 'Facebook',
     typing: 'Static',
+    execution: 'Transpiled',
   },
   {
     id: 56,
@@ -404,6 +459,7 @@ export const languages = [
     year: 2009,
     creator: 'Jeremy Ashkenas',
     typing: 'Dynamic',
+    execution: 'Transpiled',
   },
   {
     id: 57,
@@ -411,6 +467,7 @@ export const languages = [
     year: 2012,
     creator: 'Evan Czaplicki',
     typing: 'Static',
+    execution: 'Transpiled',
   },
   {
     id: 58,
@@ -418,6 +475,7 @@ export const languages = [
     year: 2013,
     creator: 'Phil Freeman',
     typing: 'Static',
+    execution: 'Transpiled',
   },
   {
     id: 59,
@@ -425,6 +483,7 @@ export const languages = [
     year: 2007,
     creator: 'Edwin Brady',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 60,
@@ -432,6 +491,7 @@ export const languages = [
     year: 2007,
     creator: 'Ulf Norell',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 61,
@@ -439,6 +499,7 @@ export const languages = [
     year: 1989,
     creator: 'INRIA',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 62,
@@ -446,6 +507,7 @@ export const languages = [
     year: 2013,
     creator: 'Leonardo de Moura',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 63,
@@ -453,6 +515,7 @@ export const languages = [
     year: 1966,
     creator: 'Kenneth E. Iverson',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 64,
@@ -460,6 +523,7 @@ export const languages = [
     year: 1990,
     creator: 'Kenneth E. Iverson and Roger Hui',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 65,
@@ -467,6 +531,7 @@ export const languages = [
     year: 1993,
     creator: 'Arthur Whitney',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 66,
@@ -474,6 +539,7 @@ export const languages = [
     year: 2003,
     creator: 'Arthur Whitney',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 67,
@@ -481,6 +547,7 @@ export const languages = [
     year: 2016,
     creator: 'Jordan Walke',
     typing: 'Static',
+    execution: 'Transpiled',
   },
   {
     id: 68,
@@ -488,6 +555,7 @@ export const languages = [
     year: 2015,
     creator: 'Larry Wall',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 69,
@@ -495,6 +563,7 @@ export const languages = [
     year: 2011,
     creator: 'Nenad Rakocevic',
     typing: 'Dynamic',
+    execution: 'Compiled',
   },
   {
     id: 70,
@@ -502,6 +571,7 @@ export const languages = [
     year: 1997,
     creator: 'Carl Sassenrath',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 71,
@@ -509,6 +579,7 @@ export const languages = [
     year: 1970,
     creator: 'Charles H. Moore',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 72,
@@ -516,6 +587,7 @@ export const languages = [
     year: 1984,
     creator: 'John Warnock and Chuck Geschke',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 73,
@@ -523,6 +595,7 @@ export const languages = [
     year: 1967,
     creator: 'Wally Feurzeig, et al.',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 74,
@@ -530,6 +603,7 @@ export const languages = [
     year: 1964,
     creator: 'John G. Kemeny and Thomas E. Kurtz',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 75,
@@ -537,6 +611,7 @@ export const languages = [
     year: 1958,
     creator: 'Committee',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 76,
@@ -544,6 +619,7 @@ export const languages = [
     year: 1964,
     creator: 'IBM',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 77,
@@ -551,6 +627,7 @@ export const languages = [
     year: 1962,
     creator: 'Ole-Johan Dahl and Kristen Nygaard',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 78,
@@ -558,6 +635,7 @@ export const languages = [
     year: 1966,
     creator: 'Martin Richards',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 79,
@@ -565,6 +643,7 @@ export const languages = [
     year: 1969,
     creator: 'Ken Thompson',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 80,
@@ -572,6 +651,7 @@ export const languages = [
     year: 1985,
     creator: 'David Turner',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 81,
@@ -579,6 +659,7 @@ export const languages = [
     year: 1973,
     creator: 'Robin Milner',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 82,
@@ -586,6 +667,7 @@ export const languages = [
     year: 1983,
     creator: 'Robin Milner, et al.',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 83,
@@ -593,6 +675,7 @@ export const languages = [
     year: 1986,
     creator: 'Bertrand Meyer',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 84,
@@ -600,6 +683,7 @@ export const languages = [
     year: 1978,
     creator: 'Niklaus Wirth',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 85,
@@ -607,6 +691,7 @@ export const languages = [
     year: 1986,
     creator: 'Niklaus Wirth',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 86,
@@ -614,6 +699,7 @@ export const languages = [
     year: 1977,
     creator: 'Ralph Griswold',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 87,
@@ -621,6 +707,7 @@ export const languages = [
     year: 1962,
     creator: 'Ralph Griswold, et al.',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 88,
@@ -628,6 +715,7 @@ export const languages = [
     year: 2003,
     creator: 'MIT Media Lab',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 89,
@@ -635,6 +723,7 @@ export const languages = [
     year: 2012,
     creator: 'Google',
     typing: 'Dynamic',
+    execution: 'Transpiled',
   },
   {
     id: 90,
@@ -642,6 +731,7 @@ export const languages = [
     year: 1986,
     creator: 'National Instruments',
     typing: 'Dynamic',
+    execution: 'Compiled',
   },
   {
     id: 91,
@@ -649,6 +739,7 @@ export const languages = [
     year: 2009,
     creator: 'Cray Inc.',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 92,
@@ -656,6 +747,7 @@ export const languages = [
     year: 2004,
     creator: 'IBM',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 93,
@@ -663,6 +755,7 @@ export const languages = [
     year: 2012,
     creator: 'Sylvan Clebsch',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 94,
@@ -670,6 +763,7 @@ export const languages = [
     year: 2017,
     creator: 'WSO2',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 95,
@@ -677,6 +771,7 @@ export const languages = [
     year: 2016,
     creator: 'Mahmoud Fayed',
     typing: 'Dynamic',
+    execution: 'Interpreted',
   },
   {
     id: 96,
@@ -684,6 +779,7 @@ export const languages = [
     year: 2017,
     creator: 'Oscar Spencer and Blaine Bublitz',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 97,
@@ -691,6 +787,7 @@ export const languages = [
     year: 2016,
     creator: 'Ginger Bill',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 98,
@@ -698,6 +795,7 @@ export const languages = [
     year: 2022,
     creator: 'Google',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 99,
@@ -705,6 +803,7 @@ export const languages = [
     year: 2023,
     creator: 'Modular',
     typing: 'Static',
+    execution: 'Compiled',
   },
   {
     id: 100,
@@ -712,5 +811,6 @@ export const languages = [
     year: 2016,
     creator: 'Louis Pilfold',
     typing: 'Static',
+    execution: 'Compiled',
   },
 ];
