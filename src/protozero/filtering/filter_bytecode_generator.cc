@@ -41,7 +41,7 @@ void FilterBytecodeGenerator::EndMessage() {
 // Allows a simple field (varint, fixed32/64, string or bytes).
 void FilterBytecodeGenerator::AddSimpleField(uint32_t field_id) {
   PERFETTO_CHECK(field_id > last_field_id_);
-  bytecode_.push_back(field_id << 3 | kFilterOpcode_SimpleField);
+  bytecode_.push_back(field_id << kOpcodeShift | kFilterOpcode_SimpleField);
   last_field_id_ = field_id;
   endmessage_called_ = false;
 }
@@ -52,7 +52,7 @@ void FilterBytecodeGenerator::AddFilterStringField(uint32_t field_id) {
   PERFETTO_CHECK(min_version_ >= BytecodeVersion::kV2);
 
   PERFETTO_CHECK(field_id > last_field_id_);
-  bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterString);
+  bytecode_.push_back(field_id << kOpcodeShift | kFilterOpcode_FilterString);
   last_field_id_ = field_id;
   endmessage_called_ = false;
 }
@@ -68,20 +68,23 @@ void FilterBytecodeGenerator::AddFilterStringFieldWithType(
 
   // If min_version is at least v54, we can just use the new opcode directly.
   if (min_version_ >= BytecodeVersion::kV54) {
-    bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterStringWithType);
+    bytecode_.push_back(field_id << kOpcodeShift |
+                        kFilterOpcode_FilterStringWithType);
     bytecode_.push_back(semantic_type);
   } else {
     // On v2 bytecode, if add_to_v2 is true, emit the field as a simple
     // filter string (without semantic type). On v54 it will be enhanced via
     // overlay.
     if (add_to_v2) {
-      bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterString);
+      bytecode_.push_back(field_id << kOpcodeShift |
+                          kFilterOpcode_FilterString);
     }
     // Otherwise the field will just be totally denied in v2.
 
     // On v54 it will be allowed with semantic type.
     v54_overlay_.push_back(num_messages_);
-    v54_overlay_.push_back(field_id << 3 | kFilterOpcode_FilterStringWithType);
+    v54_overlay_.push_back(field_id << kOpcodeShift |
+                           kFilterOpcode_FilterStringWithType);
     v54_overlay_.push_back(semantic_type);
   }
 
@@ -96,7 +99,8 @@ void FilterBytecodeGenerator::AddSimpleFieldRange(uint32_t range_start,
                                                   uint32_t range_len) {
   PERFETTO_CHECK(range_start > last_field_id_);
   PERFETTO_CHECK(range_len > 0);
-  bytecode_.push_back(range_start << 3 | kFilterOpcode_SimpleFieldRange);
+  bytecode_.push_back(range_start << kOpcodeShift |
+                      kFilterOpcode_SimpleFieldRange);
   bytecode_.push_back(range_len);
   last_field_id_ = range_start + range_len - 1;
   endmessage_called_ = false;
@@ -110,7 +114,7 @@ void FilterBytecodeGenerator::AddSimpleFieldRange(uint32_t range_start,
 void FilterBytecodeGenerator::AddNestedField(uint32_t field_id,
                                              uint32_t message_index) {
   PERFETTO_CHECK(field_id > last_field_id_);
-  bytecode_.push_back(field_id << 3 | kFilterOpcode_NestedField);
+  bytecode_.push_back(field_id << kOpcodeShift | kFilterOpcode_NestedField);
   bytecode_.push_back(message_index);
   last_field_id_ = field_id;
   max_msg_index_ = std::max(max_msg_index_, message_index);
