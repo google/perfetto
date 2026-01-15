@@ -72,17 +72,17 @@ class FilterBytecodeGenerator {
   // Allows a simple field (varint, fixed32/64, string or bytes).
   void AddSimpleField(uint32_t field_id);
 
-  // Allows a string field which needs to be filtered.
-  void AddFilterStringField(uint32_t field_id);
-
-  // Allows a string field which needs to be filtered with a specific semantic
-  // type. The semantic type tells the filter what kind of data the field
-  // contains, so it can apply type-specific rules.
-  // If |add_to_v2| is true, the field is added to v2 bytecode (without type)
-  // in addition to the v54 overlay (with type).
-  void AddFilterStringFieldWithType(uint32_t field_id,
-                                    uint32_t semantic_type,
-                                    bool add_to_v2);
+  // Allows a string field which needs to be filtered. Optionally specifies a
+  // semantic type (0 = none) that tells the filter what kind of data the field
+  // contains.
+  // If `allow_in_v1` is true, the field is added to v1 bytecode as a simple
+  // field (string filtering not available in v1).
+  // If `allow_in_v2` is true and semantic_type != 0, the field is added to v2
+  // bytecode (without type) in addition to the v54 overlay (with type).
+  void AddFilterStringField(uint32_t field_id,
+                            uint32_t semantic_type,
+                            bool allow_in_v1,
+                            bool allow_in_v2);
 
   // Allows a range of simple fields. |range_start| is the id of the first field
   // in range, |range_len| the number of fields in the range.
