@@ -18,7 +18,8 @@ on:
   workflow_dispatch:  # Manual trigger via GitHub UI button
 
 permissions:
-  contents: write  # Required to push to canary branch
+  contents: write  # Required to push branch
+  pull-requests: write  # Required to create PR
 
 jobs:
   merge-main-to-canary:
@@ -39,11 +40,25 @@ jobs:
       - name: Fetch origin/main
         run: git fetch origin main
 
-      - name: Merge main into canary (replace canary tree with main)
+      - name: Create merge branch
+        run: |
+          BRANCH_NAME="dev/github-actions/merge-main-to-canary-$(date +%Y%m%d-%H%M%S)"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          git checkout -b "$BRANCH_NAME"
+
+      - name: Merge main into branch (replace tree with main)
         run: |
           git merge -s ours origin/main --no-commit
           git read-tree -m -u origin/main
           git commit -m "Merge main into canary (automated)"
 
-      - name: Push to canary
-        run: git push origin canary
+      - name: Push branch and create PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push origin "$BRANCH_NAME"
+          gh pr create \
+            --base canary \
+            --head "$BRANCH_NAME" \
+            --title "Merge main into canary (automated)" \
+            --body "Automated PR to merge main into canary."
