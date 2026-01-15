@@ -16,29 +16,29 @@
 
 #include "src/protozero/filtering/filter_util.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <deque>
-#include <iterator>
 #include <map>
 #include <optional>
 #include <set>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/descriptor.h>
+#include <google/protobuf/descriptor.pb.h>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/protozero/proto_utils.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
+
+#include "protos/perfetto/common/semantic_type.pbzero.h"
+#include "protos/perfetto/proto_filtering/proto_filter_options.pb.h"
 
 namespace protozero {
 
@@ -83,25 +83,36 @@ class MultiFileErrorCollectorImpl
 #endif
 };
 
+// Reads proto_filter annotation from a field's options.
+struct ProtoFilterOptions {
+  uint32_t semantic_type = 0;
+  bool filter_string = false;
+  bool passthrough = false;
+  bool add_to_v2 = false;
+};
+
+ProtoFilterOptions ReadProtoFilterAnnotation(
+    const google::protobuf::FieldDescriptor* proto_field) {
+  ProtoFilterOptions opts;
+  const auto& options = proto_field->options();
+  if (options.HasExtension(perfetto::protos::proto_filter)) {
+    const auto& ext = options.GetExtension(perfetto::protos::proto_filter);
+    opts.semantic_type = static_cast<uint32_t>(ext.semantic_type());
+    opts.filter_string = ext.filter_string();
+    opts.passthrough = ext.passthrough();
+    opts.add_to_v2 = ext.add_to_v2();
+  }
+  return opts;
+}
+
 }  // namespace
 
 FilterUtil::FilterUtil() = default;
 FilterUtil::~FilterUtil() = default;
 
-bool FilterUtil::LoadMessageDefinition(
-    const std::string& proto_file,
-    const std::string& root_message,
-    const std::string& proto_dir_path,
-    const std::set<std::string>& passthrough_fields,
-    const std::set<std::string>& string_filter_fields,
-    const std::map<std::string, uint32_t>& filter_string_semantic_types) {
-  passthrough_fields_ = passthrough_fields;
-  passthrough_fields_seen_.clear();
-  filter_string_fields_ = string_filter_fields;
-  filter_string_fields_seen_.clear();
-  filter_string_semantic_types_ = filter_string_semantic_types;
-  filter_string_semantic_types_seen_.clear();
-
+bool FilterUtil::LoadMessageDefinition(const std::string& proto_file,
+                                       const std::string& root_message,
+                                       const std::string& proto_dir_path) {
   // The protobuf compiler doesn't like backslashes and prints an error like:
   // Error C:\it7mjanpw3\perfetto-a16500 -1:0: Backslashes, consecutive slashes,
   // ".", or ".." are not allowed in the virtual path.
@@ -153,55 +164,50 @@ bool FilterUtil::LoadMessageDefinition(
   // field so that we don't risk leaving it out of sync (and depending on it in
   // future without realizing) when performing the Dedupe() pass.
   DescriptorsByNameMap descriptors_by_full_name;
-  ParseProtoDescriptor(root_msg, &descriptors_by_full_name);
+  return ParseProtoDescriptor(root_msg, &descriptors_by_full_name) != nullptr;
+}
 
-  // If the user specified a set of fields to pass through, print an error and
-  // fail if any of the passed fields have not been seen while recursing in the
-  // schema. This is to avoid typos or naming changes to be silently ignored.
-  std::vector<std::string> unused;
-  std::set_difference(passthrough_fields_.begin(), passthrough_fields_.end(),
-                      passthrough_fields_seen_.begin(),
-                      passthrough_fields_seen_.end(),
-                      std::back_inserter(unused));
-  for (const std::string& message_and_field : unused) {
-    PERFETTO_ELOG("Field not found %s", message_and_field.c_str());
-  }
-  if (!unused.empty()) {
-    PERFETTO_ELOG("Passthrough syntax: perfetto.protos.MessageName:field_name");
-    return false;
-  }
-  std::set_difference(
-      filter_string_fields_.begin(), filter_string_fields_.end(),
-      filter_string_fields_seen_.begin(), filter_string_fields_seen_.end(),
-      std::back_inserter(unused));
-  for (const std::string& message_and_field : unused) {
-    PERFETTO_ELOG("Field not found %s", message_and_field.c_str());
-  }
-  if (!unused.empty()) {
-    PERFETTO_ELOG(
-        "Filter string syntax: perfetto.protos.MessageName:field_name");
+bool FilterUtil::LoadFromDescriptorSet(const uint8_t* descriptor_set_bytes,
+                                       size_t descriptor_set_size,
+                                       const std::string& root_message) {
+  google::protobuf::FileDescriptorSet fds;
+  if (!fds.ParseFromArray(descriptor_set_bytes,
+                          static_cast<int>(descriptor_set_size))) {
+    PERFETTO_ELOG("Failed to parse FileDescriptorSet");
     return false;
   }
 
-  // Validate that all semantic type fields were seen and are filter strings.
-  for (const auto& name_and_type : filter_string_semantic_types_) {
-    const std::string& field_name = name_and_type.first;
-    if (!filter_string_fields_.count(field_name)) {
-      PERFETTO_ELOG(
-          "Semantic type specified for field %s but it's not in "
-          "filter_string_fields",
-          field_name.c_str());
+  // Build a DescriptorPool from the FileDescriptorSet.
+  // We use the generated_pool() as underlay so that extensions are properly
+  // linked to compiled-in message types like FieldOptions.
+  google::protobuf::DescriptorPool pool(
+      google::protobuf::DescriptorPool::generated_pool());
+  for (const auto& file : fds.file()) {
+    // Skip files that are already in the generated pool (like descriptor.proto)
+    if (google::protobuf::DescriptorPool::generated_pool()->FindFileByName(
+            file.name())) {
+      continue;
+    }
+    if (!pool.BuildFile(file)) {
+      PERFETTO_ELOG("Failed to build file descriptor for %s",
+                    file.name().c_str());
       return false;
     }
-    if (!filter_string_fields_seen_.count(field_name)) {
-      PERFETTO_ELOG("Field with semantic type not found: %s",
-                    field_name.c_str());
-      return false;
-    }
-    filter_string_semantic_types_seen_.insert(field_name);
   }
 
-  return true;
+  const google::protobuf::Descriptor* root_msg =
+      pool.FindMessageTypeByName(root_message);
+  if (!root_msg) {
+    PERFETTO_ELOG("Could not find the root message \"%s\"",
+                  root_message.c_str());
+    return false;
+  }
+
+  // |descriptors_by_full_name| is passed by argument rather than being a member
+  // field so that we don't risk leaving it out of sync (and depending on it in
+  // future without realizing) when performing the Dedupe() pass.
+  DescriptorsByNameMap descriptors_by_full_name;
+  return ParseProtoDescriptor(root_msg, &descriptors_by_full_name) != nullptr;
 }
 
 // Generates a Message object for the given libprotobuf message descriptor.
@@ -226,29 +232,40 @@ FilterUtil::Message* FilterUtil::ParseProtoDescriptor(
     field.name = proto_field->name();
     field.type = proto_field->type_name();
 
-    std::string message_and_field = msg->full_name + ":" + field.name;
-    bool passthrough = false;
-    if (passthrough_fields_.count(message_and_field)) {
+    // Read proto_filter annotation from the field.
+    ProtoFilterOptions filter_opts = ReadProtoFilterAnnotation(proto_field);
+    bool passthrough = filter_opts.passthrough;
+
+    if (passthrough) {
       field.type = "bytes";
-      passthrough = true;
-      passthrough_fields_seen_.insert(message_and_field);
     }
-    if (filter_string_fields_.count(message_and_field)) {
-      PERFETTO_CHECK(field.type == "string");
-      field.filter_string = true;
-      msg->has_filter_string_fields = true;
-      filter_string_fields_seen_.insert(message_and_field);
-      // Check if this field has a semantic type.
-      auto it = filter_string_semantic_types_.find(message_and_field);
-      if (it != filter_string_semantic_types_.end()) {
-        field.semantic_type = it->second;
+
+    // A field should be filtered if either:
+    // - filter_string is explicitly set to true, or
+    // - semantic_type is set (non-zero)
+    if (filter_opts.filter_string || filter_opts.semantic_type != 0) {
+      if (proto_field->type() !=
+          google::protobuf::FieldDescriptor::TYPE_STRING) {
+        PERFETTO_ELOG(
+            "filter_string or semantic_type specified on non-string field %.*s",
+            static_cast<int>(proto_field->full_name().size()),
+            proto_field->full_name().data());
+        return nullptr;
       }
+      field.filter_string = true;
+      field.semantic_type = filter_opts.semantic_type;
+      field.add_to_v2 = filter_opts.add_to_v2;
+      msg->has_filter_string_fields = true;
     }
+
     if (proto_field->message_type() && !passthrough) {
       msg->has_nested_fields = true;
       // Recurse.
       field.nested_type = ParseProtoDescriptor(proto_field->message_type(),
                                                descriptors_by_full_name);
+      if (!field.nested_type) {
+        return nullptr;  // Propagate error from nested parsing.
+      }
     }
   }
   return msg;
@@ -378,6 +395,13 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
         stripped_nested += "  # PASSTHROUGH";
       if (field.filter_string)
         stripped_nested += "  # FILTER STRING";
+      if (field.semantic_type) {
+        stripped_nested +=
+            std::string("  # SEMANTIC TYPE ") +
+            perfetto::protos::pbzero::SemanticType_Name(
+                static_cast<perfetto::protos::pbzero::SemanticType>(
+                    field.semantic_type));
+      }
       fprintf(print_stream_, "%-60s %3u %-8s %-32s%s\n", stripped_name.c_str(),
               field_id, field.type.c_str(), field.name.c_str(),
               stripped_nested.c_str());
@@ -408,8 +432,8 @@ FilterBytecodeGenerator::SerializeResult FilterUtil::GenerateFilterBytecode(
       }
       if (field.filter_string) {
         if (field.semantic_type != 0) {
-          bytecode_gen.AddFilterStringFieldWithType(field_id,
-                                                    field.semantic_type);
+          bytecode_gen.AddFilterStringFieldWithType(
+              field_id, field.semantic_type, field.add_to_v2);
         } else {
           bytecode_gen.AddFilterStringField(field_id);
         }

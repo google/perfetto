@@ -51,6 +51,8 @@ source_set("service") {
     "trace_buffer.h",
     "trace_buffer_v1.cc",
     "trace_buffer_v1.h",
+    "trace_buffer_v1_with_v2_shadow.cc",
+    "trace_buffer_v1_with_v2_shadow.h",
     "trace_buffer_v2.cc",
     "trace_buffer_v2.h",
     "tracing_service_endpoints_impl.cc",

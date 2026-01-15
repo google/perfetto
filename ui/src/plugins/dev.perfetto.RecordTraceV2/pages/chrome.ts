@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import protos from '../../../protos';
 import {
   RecordSubpage,
   RecordProbe,
@@ -28,7 +29,7 @@ import {
 } from '../../../widgets/multiselect';
 import {Result} from '../../../base/result';
 
-type ChromeCatFunction = () => Promise<Result<string[]>>;
+type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
 
 export function chromeRecordSection(
   chromeCategoryGetter: ChromeCatFunction,
@@ -154,7 +155,11 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   constructor(private chromeCategoryGetter: ChromeCatFunction) {
     // Initialize first with the static list of builtin categories (in case
     // something goes wrong with the extension).
-    this.initializeCategories(BUILTIN_CATEGORIES);
+    this.initializeCategories(
+      protos.TrackEventDescriptor.create({
+        availableCategories: BUILTIN_CATEGORIES.map((cat) => ({name: cat})),
+      }),
+    );
   }
 
   private async fetchRuntimeCategoriesIfNeeded() {
@@ -167,12 +172,19 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     this.fetchedRuntimeCategories = true;
   }
 
-  private initializeCategories(cats: string[]) {
-    this.options = cats
+  private initializeCategories(descriptor: protos.TrackEventDescriptor) {
+    this.options = descriptor.availableCategories
+      .filter(
+        (
+          cat,
+        ): cat is protos.ITrackEventCategory & {
+          name: string;
+        } => cat.name != null,
+      )
       .map((cat) => ({
-        id: cat,
-        name: cat.replace(DISAB_PREFIX, ''),
-        checked: this.options.find((o) => o.id === cat)?.checked ?? false,
+        id: cat.name,
+        name: cat.name.replace(DISAB_PREFIX, ''),
+        checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
       }))
       .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
   }
@@ -246,7 +258,7 @@ function defaultAndDisabled(category: string) {
 
 const GROUPS = {
   'Task Scheduling': [
-    'toplevel',
+    'toplevJJJel',
     'toplevel.flow',
     'scheduler',
     'sequence_manager',

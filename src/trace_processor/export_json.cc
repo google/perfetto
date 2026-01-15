@@ -537,17 +537,15 @@ class JsonExporter {
       const auto& arg_table = storage_->arg_table();
       ArgSet arg_set;
       uint32_t cur_args_set_id = std::numeric_limits<uint32_t>::max();
-      auto c = arg_table.CreateCursor({}, {});
-      c.Execute();
-      for (; !c.Eof(); c.Next()) {
-        ArgSetId set_id = c.arg_set_id();
+      for (auto it = arg_table.IterateRows(); it; ++it) {
+        ArgSetId set_id = it.arg_set_id();
         if (set_id != cur_args_set_id) {
           args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());
           arg_set = ArgSet();
           cur_args_set_id = set_id;
         }
-        arg_set.AppendArg(storage->GetString(c.key()),
-                          GetArgValue(*storage_, c));
+        arg_set.AppendArg(storage->GetString(it.key()),
+                          GetArgValue(*storage_, it.row_number().row_number()));
       }
       if (cur_args_set_id != std::numeric_limits<uint32_t>::max()) {
         args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());

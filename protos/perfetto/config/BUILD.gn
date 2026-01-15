@@ -21,6 +21,7 @@ import("../../../gn/proto_library.gni")
 perfetto_proto_library("@TYPE@") {
   deps = [
     "../common:@TYPE@",
+    "../common:semantic_type_@TYPE@",
     "android:@TYPE@",
     "ftrace:@TYPE@",
     "gpu:@TYPE@",

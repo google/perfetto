@@ -148,6 +148,7 @@ template("proto_library") {
 
   # The XXX_gen action that generates the .pb.{cc,h} files.
   action(action_name) {
+    forward_variables_from(invoker, [ "testonly" ])
     if (generate_descriptor == "") {
       visibility = [ ":$source_set_name" ]
     }

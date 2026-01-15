@@ -37,16 +37,24 @@ import {createTableColumn} from '../../components/widgets/sql/table/columns';
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
   private disabledModules: Set<string> = new Set();
-  private initPromise: Promise<void>;
+  private initPromise: Promise<void> | undefined;
+  private readonly startInit: () => Promise<void>;
 
   constructor(trace: Trace, docs: SqlModulesDocsSchema) {
     this.packages = docs.map((json) => new StdlibPackageImpl(trace, json));
-    // Start computing disabled modules based on data availability
-    this.initPromise = this.computeDisabledModules(trace, docs);
+    // Capture initialization logic in a closure to avoid storing trace/docs
+    this.startInit = () => this.computeDisabledModules(trace, docs);
+  }
+
+  ensureInitialized(): Promise<void> {
+    if (this.initPromise === undefined) {
+      this.initPromise = this.startInit();
+    }
+    return this.initPromise;
   }
 
   async waitForInit(): Promise<void> {
-    await this.initPromise;
+    await this.ensureInitialized();
   }
 
   private async computeDisabledModules(
