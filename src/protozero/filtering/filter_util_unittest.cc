@@ -17,10 +17,8 @@
 #include "src/protozero/filtering/filter_util.h"
 
 #include <cstdint>
-#include <map>
 #include <optional>
 #include <regex>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -197,10 +195,9 @@ PrintChild2.Nested 1 int64 f1
 
 TEST(SchemaParserTest, Passthrough) {
   FilterUtil filter;
-  std::set<std::string> passthrough{"protozero.test.PassthroughPacket:cfg"};
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      TestDescriptor(), TestDescriptorSize(), "protozero.test.PassthroughRoot",
-      passthrough));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(TestDescriptor(),
+                                           TestDescriptorSize(),
+                                           "protozero.test.PassthroughRoot"));
 
   EXPECT_EQ(R"(PassthroughRoot 7 message packet PassthroughPacket
 PassthroughRoot 13 int32 i32
@@ -218,10 +215,9 @@ PassthroughPacket 5 bytes cfg
 
 TEST(SchemaParserTest, FilterString) {
   FilterUtil filter;
-  std::set<std::string> filter_string{"protozero.test.FilterStringConfig:f1"};
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      TestDescriptor(), TestDescriptorSize(), "protozero.test.FilterStringRoot",
-      {}, filter_string));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(TestDescriptor(),
+                                           TestDescriptorSize(),
+                                           "protozero.test.FilterStringRoot"));
 
   EXPECT_EQ(R"(FilterStringRoot 7 message packet FilterStringPacket
 FilterStringRoot 13 int32 i32
@@ -240,16 +236,9 @@ FilterStringConfig 1 string f1 # FILTER STRING
 
 TEST(SchemaParserTest, FilterStringWithSemanticType) {
   FilterUtil filter;
-  std::set<std::string> filter_string{
-      "protozero.test.SemanticTypePacket:name",
-      "protozero.test.SemanticTypePacket:category"};
-  std::map<std::string, uint32_t> semantic_types{
-      {"protozero.test.SemanticTypePacket:name", 1},  // SEMANTIC_TYPE_ATRACE
-      {"protozero.test.SemanticTypePacket:category", 2},  // SEMANTIC_TYPE_JOB
-  };
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      TestDescriptor(), TestDescriptorSize(), "protozero.test.SemanticTypeRoot",
-      {}, filter_string, semantic_types));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(TestDescriptor(),
+                                           TestDescriptorSize(),
+                                           "protozero.test.SemanticTypeRoot"));
 
   // Generate bytecode with v54 (should use AddFilterStringFieldWithType)
   auto result_v54 = filter.GenerateFilterBytecode(
@@ -266,24 +255,20 @@ TEST(SchemaParserTest, FilterStringWithSemanticType) {
   auto query_name = parser.Query(1, 3);
   EXPECT_TRUE(query_name.allowed);
   EXPECT_TRUE(query_name.filter_string_field());
-  EXPECT_EQ(query_name.semantic_type, 1u);
+  EXPECT_EQ(query_name.semantic_type, 1u);  // SEMANTIC_TYPE_ATRACE
 
   // Query field 4 (category)
   auto query_category = parser.Query(1, 4);
   EXPECT_TRUE(query_category.allowed);
   EXPECT_TRUE(query_category.filter_string_field());
-  EXPECT_EQ(query_category.semantic_type, 2u);
+  EXPECT_EQ(query_category.semantic_type, 2u);  // SEMANTIC_TYPE_JOB
 }
 
 TEST(SchemaParserTest, FilterStringWithSemanticTypeV2) {
   FilterUtil filter;
-  std::set<std::string> filter_string{
-      "protozero.test.SemanticTypeV2Packet:name"};
-  std::map<std::string, uint32_t> semantic_types{
-      {"protozero.test.SemanticTypeV2Packet:name", 1}};
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      TestDescriptor(), TestDescriptorSize(),
-      "protozero.test.SemanticTypeV2Root", {}, filter_string, semantic_types));
+  ASSERT_TRUE(
+      filter.LoadFromDescriptorSet(TestDescriptor(), TestDescriptorSize(),
+                                   "protozero.test.SemanticTypeV2Root"));
 
   // Generate bytecode targeting v2 parsers (should generate overlay)
   auto result_v2 = filter.GenerateFilterBytecode(
@@ -307,17 +292,15 @@ TEST(SchemaParserTest, FilterStringWithSemanticTypeV2) {
   auto query_overlay = parser_overlay.Query(1, 2);
   EXPECT_TRUE(query_overlay.allowed);
   EXPECT_TRUE(query_overlay.filter_string_field());
-  EXPECT_EQ(query_overlay.semantic_type, 1u);  // Semantic type from overlay
+  EXPECT_EQ(query_overlay.semantic_type, 1u);  // SEMANTIC_TYPE_ATRACE
 }
 
 TEST(SchemaParserTest, SemanticTypeValidation) {
   FilterUtil filter;
-  // Semantic type without filter_string should fail
-  std::map<std::string, uint32_t> semantic_types{
-      {"protozero.test.ValidationRoot:field", 1}};
+  // Semantic type on non-string field should fail (ValidationRoot has
+  // semantic_type annotation on an int32 field).
   EXPECT_FALSE(filter.LoadFromDescriptorSet(
-      TestDescriptor(), TestDescriptorSize(), "protozero.test.ValidationRoot",
-      {}, {}, semantic_types));
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.ValidationRoot"));
 }
 
 }  // namespace

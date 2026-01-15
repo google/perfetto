@@ -22,7 +22,6 @@
 #include <list>
 #include <map>
 #include <optional>
-#include <set>
 #include <string>
 
 #include "src/protozero/filtering/filter_bytecode_generator.h"
@@ -44,43 +43,28 @@ class FilterUtil {
   ~FilterUtil();
 
   // Loads a message schema from a .proto file, recursing into nested types.
+  // Filtering options are read from proto annotations
+  // [(perfetto.protos.proto_filter)] on each field, rather than from
+  // command-line arguments.
   // Args:
   // proto_file: path to the .proto file.
   // root_message: fully qualified message name (e.g., perfetto.protos.Trace).
   //     If empty, the first message in the file will be used.
   // proto_dir_path: the root for .proto includes. If empty uses CWD.
-  // passthrough: an optional set of fields that should be transparently passed
-  //     through without recursing further.
-  //     Syntax: "perfetto.protos.TracePacket:trace_config"
-  // filter_string_fields: an optional set of fields that should be treated as
-  //     string fields which need to be filtered.
-  //     Syntax: same as passthrough
-  // filter_string_semantic_types: an optional map from field name to semantic
-  //     type value. Fields in this map must also be in filter_string_fields.
-  //     Syntax: key is "perfetto.protos.MessageName:field_name",
-  //             value is the semantic type (uint32_t from SemanticType enum).
-  bool LoadMessageDefinition(
-      const std::string& proto_file,
-      const std::string& root_message,
-      const std::string& proto_dir_path,
-      const std::set<std::string>& passthrough_fields = {},
-      const std::set<std::string>& filter_string_fields = {},
-      const std::map<std::string, uint32_t>& filter_string_semantic_types = {});
+  bool LoadMessageDefinition(const std::string& proto_file,
+                             const std::string& root_message,
+                             const std::string& proto_dir_path);
 
-  // Loads a message schema from a serialized FileDescriptorSet.
+  // Loads a message schema from a pre-compiled binary FileDescriptorSet.
+  // This is simpler than LoadMessageDefinition as it doesn't need to resolve
+  // proto imports at runtime - all dependencies are baked into the descriptor.
   // Args:
-  // descriptor_set_bytes: pointer to the serialized FileDescriptorSet proto.
-  // descriptor_set_size: size of the serialized data.
+  // file_descriptor_set_proto: pointer to binary FileDescriptorSet data.
+  // size: size of the binary data.
   // root_message: fully qualified message name (e.g., perfetto.protos.Trace).
-  // passthrough, filter_string_fields, filter_string_semantic_types: same as
-  //     LoadMessageDefinition.
-  bool LoadFromDescriptorSet(
-      const uint8_t* descriptor_set_bytes,
-      size_t descriptor_set_size,
-      const std::string& root_message,
-      const std::set<std::string>& passthrough_fields = {},
-      const std::set<std::string>& filter_string_fields = {},
-      const std::map<std::string, uint32_t>& filter_string_semantic_types = {});
+  bool LoadFromDescriptorSet(const uint8_t* file_descriptor_set_proto,
+                             size_t size,
+                             const std::string& root_message);
 
   // Deduplicates leaf messages having the same sets of field ids.
   // It changes the internal state and affects the behavior of next calls to
@@ -120,10 +104,10 @@ class FilterUtil {
     struct Field {
       std::string name;
       std::string type;  // "uint32", "string", "message"
-      bool filter_string;
+      bool filter_string = false;
       // Semantic type for string fields that need filtering.
       // 0 = unspecified/unset. Only meaningful when filter_string == true.
-      // Maps to perfetto.protos.SemanticType enum values.
+      // Maps to SemanticType enum values from semantic_type.proto.
       uint32_t semantic_type = 0;
       // Only when type == "message". Note that when using Dedupe() this can
       // be aliased against a different submessage which happens to have the
@@ -137,7 +121,7 @@ class FilterUtil {
     std::string full_name;  // e.g., "perfetto.protos.Foo.Bar";
     std::map<uint32_t /*field_id*/, Field> fields;
 
-    // True if at least one field has a non-null |nestd_type|.
+    // True if at least one field has a non-null |nested_type|.
     bool has_nested_fields = false;
 
     // True if at least one field has |filter_string|==true.
@@ -146,23 +130,11 @@ class FilterUtil {
 
   using DescriptorsByNameMap = std::map<std::string, Message*>;
 
-  // Shared implementation: parses descriptor and validates field configs.
-  bool LoadFromDescriptor(const google::protobuf::Descriptor* root_msg);
-
   Message* ParseProtoDescriptor(const google::protobuf::Descriptor*,
                                 DescriptorsByNameMap*);
 
   // list<> because pointers need to be stable.
   std::list<Message> descriptors_;
-  std::set<std::string> passthrough_fields_;
-  std::set<std::string> filter_string_fields_;
-  std::map<std::string, uint32_t> filter_string_semantic_types_;
-
-  // Used only for debugging aid, to print out an error message when the user
-  // specifies a field to pass through but it doesn't exist.
-  std::set<std::string> passthrough_fields_seen_;
-  std::set<std::string> filter_string_fields_seen_;
-  std::set<std::string> filter_string_semantic_types_seen_;
 
   FILE* print_stream_ = stdout;
 };
