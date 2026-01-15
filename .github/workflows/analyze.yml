@@ -143,19 +143,35 @@ jobs:
     steps:
       - name: Ensure all non-skipped jobs have suceeded
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          failed=0
+          cancelled=0
+
+          # Possible values: success, failure, cancelled, skipped
+          # Treat unknown values as failures to be defensive.
           check() {
             job="$1"
             result="$2"
-            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+            if [ "$result" = "success" ] || [ "$result" = "skipped" ]; then
+              :
+            elif [ "$result" = "cancelled" ]; then
+              echo "::notice::$job was cancelled"
+              cancelled=1
+            else
               echo "::error::$job failed with result: $result"
-              exit 1
+              failed=1
             fi
           }
           warn() {
             job="$1"
             result="$2"
-            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+            if [ "$result" = "success" ] || [ "$result" = "skipped" ]; then
+              :
+            elif [ "$result" = "cancelled" ]; then
+              echo "::warning::$job was cancelled"
+            else
               echo "::warning::$job failed with result: $result"
             fi
           }
@@ -166,3 +182,14 @@ jobs:
           check fuzzer ${{ needs.fuzzer.result }}
           check repo-checks ${{ needs.repo-checks.result }}
           warn rust-sdk ${{ needs.rust-sdk.result }}
+
+          if [ "$failed" -eq 1 ]; then
+            exit 1
+          fi
+
+          if [ "$cancelled" -eq 1 ]; then
+            echo "Some jobs were cancelled. Marking this check as cancelled."
+            gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+            # Wait for the cancellation to take effect
+            while true; do sleep 60; done
+          fi

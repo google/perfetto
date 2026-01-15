@@ -171,7 +171,7 @@ export class ChromeExtensionTarget implements RecordingTarget {
       let descriptor = (
         msg as {type: string; serializedDescriptor: object | Uint8Array}
       ).serializedDescriptor;
-      if (descriptor !instanceof Uint8Array) {
+      if (!(descriptor instanceof Uint8Array)) {
         descriptor = new Uint8Array(Object.values(descriptor));
       }
       this.trackEventDescriptorPromise.resolve(

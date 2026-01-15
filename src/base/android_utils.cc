@@ -109,14 +109,14 @@ SystemInfo GetSystemInfo() {
   // https://man7.org/linux/man-pages/man2/sysinfo.2.html
   struct sysinfo sys_info;
   if (sysinfo(&sys_info) == 0) {
-    info.memory_size_bytes =
+    info.system_ram_bytes =
         static_cast<uint64_t>(sys_info.totalram) * sys_info.mem_unit;
   }
 #else
   // POSIX Fallback (macOS, BSD, etc.): Use sysconf() to get physical pages.
   long pages = sysconf(_SC_PHYS_PAGES);
   if (pages > 0 && info.page_size.has_value()) {
-    info.memory_size_bytes = static_cast<uint64_t>(pages) * (*info.page_size);
+    info.system_ram_bytes = static_cast<uint64_t>(pages) * (*info.page_size);
   }
 #endif
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
