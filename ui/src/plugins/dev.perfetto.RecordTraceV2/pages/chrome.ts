@@ -191,7 +191,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     for (const cat of descriptor.availableCategories) {
       const name = cat.name;
       if (!name) continue;
-      const option : MultiSelectOption = {
+      const option: MultiSelectOption = {
         id: name,
         name: name.replace(DISABLED_PREFIX, ''),
         checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
@@ -344,7 +344,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
-      m(Tabs, {tabs, className: ".chrome-categories-presets"}),
+      m(Tabs, {tabs, className: '.chrome-categories-presets'}),
       m('div', {style: {paddingTop: '10px'}}, this.privacy.render()),
       m(
         'div.chrome-categories',
