@@ -60,7 +60,7 @@ class AndroidGpu(TestSuite):
 
   def test_mali_gpu_power_state(self):
     return DiffTestBlueprint(
-        trace=DataPath('wattson_gpu_mali.pb'),
+        trace=DataPath('wattson_gpu.pb'),
         query="""
           INCLUDE PERFETTO MODULE android.gpu.mali_power_state;
           SELECT
@@ -81,29 +81,4 @@ class AndroidGpu(TestSuite):
           96955176967,7472453,0
           96962649420,1280070,2
           96963929490,2806356,0
-        """))
-
-  def test_powervr_gpu_power_state(self):
-    return DiffTestBlueprint(
-        trace=DataPath('wattson_gpu_powervr.pb'),
-        query="""
-          INCLUDE PERFETTO MODULE android.gpu.pvr_power_state;
-          SELECT
-            ts, dur, power_state
-          FROM android_pvr_gpu_power_state
-          ORDER BY ts ASC
-          LIMIT 10;
-        """,
-        out=Csv("""
-          "ts","dur","power_state"
-          278559381590541,4958542,1
-          278559386549083,3104453,2
-          278559389653536,5156953,1
-          278559394810489,3360130,2
-          278559398170619,6761172,1
-          278559404931791,3079505,2
-          278559408011296,4119714,1
-          278559412131010,3323802,2
-          278559415454812,4027630,1
-          278559419482442,3450156,2
         """))
