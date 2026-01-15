@@ -164,6 +164,7 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
+        ":src_protovm_protovm",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
@@ -907,6 +908,7 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
+        ":src_protovm_protovm",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
@@ -1811,6 +1813,34 @@ perfetto_filegroup(
     srcs = [
         "src/profiling/deobfuscator.cc",
         "src/profiling/deobfuscator.h",
+    ],
+)
+
+# GN target: //src/protovm:protovm
+perfetto_filegroup(
+    name = "src_protovm_protovm",
+    srcs = [
+        "src/protovm/allocator.cc",
+        "src/protovm/allocator.h",
+        "src/protovm/error_handling.cc",
+        "src/protovm/error_handling.h",
+        "src/protovm/executor.cc",
+        "src/protovm/executor.h",
+        "src/protovm/node.cc",
+        "src/protovm/node.h",
+        "src/protovm/owned_ptr.h",
+        "src/protovm/parser.cc",
+        "src/protovm/parser.h",
+        "src/protovm/ro_cursor.cc",
+        "src/protovm/ro_cursor.h",
+        "src/protovm/rw_proto.cc",
+        "src/protovm/rw_proto.h",
+        "src/protovm/rw_proto_cursor.cc",
+        "src/protovm/rw_proto_cursor.h",
+        "src/protovm/scalar.h",
+        "src/protovm/slab_allocator.h",
+        "src/protovm/vm.cc",
+        "src/protovm/vm.h",
     ],
 )
 
@@ -7942,6 +7972,7 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
+        ":src_protovm_protovm",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
