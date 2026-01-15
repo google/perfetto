@@ -131,7 +131,7 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
         m(TargetSelector, {
           recMgr,
           provider: recMgr.currentProvider,
-          key: new ObjToId().getKey(recMgr.currentProvider),
+          key: `${new ObjToId().getKey(recMgr.currentProvider)}-${recMgr.currentPlatform}`,
         }),
       ],
 
@@ -139,7 +139,7 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
         m(TargetDetails, {
           recMgr,
           target: recMgr.currentTarget,
-          key: new ObjToId().getKey(recMgr.currentTarget),
+          key: `${new ObjToId().getKey(recMgr.currentTarget)}-${recMgr.currentPlatform}`,
         }),
       ],
     ];
@@ -379,6 +379,9 @@ class TargetSelector implements m.ClassComponent<TargetSelectorAttrs> {
       .then(() => this.refreshTargets());
     this.recMgr.listTargets().then((targets) => {
       this.targets = targets;
+      if (!this.recMgr.currentTarget && targets.length > 0) {
+        this.recMgr.setTarget(targets[0]);
+      }
       m.redraw();
     });
   }
