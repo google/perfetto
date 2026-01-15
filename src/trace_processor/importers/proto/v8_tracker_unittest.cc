@@ -94,9 +94,10 @@ TEST_F(V8TrackerTest, AddICEvent) {
 
     std::vector<uint8_t> decoder_vec = code_msg.SerializeAsArray();
     protos::pbzero::V8JsCode::Decoder code_decoder(decoder_vec.data(),
-                                                  decoder_vec.size());
+                                                   decoder_vec.size());
 
-    v8_tracker_.AddJsCode(timestamp_early, utid, *isolate_id, func_id, code_decoder);
+    v8_tracker_.AddJsCode(timestamp_early, utid, *isolate_id, func_id,
+                          code_decoder);
   }
   {
     protozero::HeapBuffered<protos::pbzero::V8JsCode> code_msg;
@@ -107,7 +108,7 @@ TEST_F(V8TrackerTest, AddICEvent) {
 
     std::vector<uint8_t> decoder_vec = code_msg.SerializeAsArray();
     protos::pbzero::V8JsCode::Decoder code_decoder(decoder_vec.data(),
-                                                  decoder_vec.size());
+                                                   decoder_vec.size());
     v8_tracker_.AddJsCode(timestamp, utid, *isolate_id, func_id, code_decoder);
   }
 
