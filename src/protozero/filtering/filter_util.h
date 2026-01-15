@@ -108,7 +108,7 @@ class FilterUtil {
       bool filter_string;
       // Semantic type for string fields that need filtering.
       // 0 = unspecified/unset. Only meaningful when filter_string == true.
-      // Maps to TraceConfig.TraceFilter.SemanticType enum values.
+      // Maps to perfetto.protos.SemanticType enum values.
       uint32_t semantic_type = 0;
       // Only when type == "message". Note that when using Dedupe() this can
       // be aliased against a different submessage which happens to have the
