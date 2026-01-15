@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import protos from '../../../protos';
+import {base64Decode} from '../../../base/string_utils';
 import {defer, Deferred} from '../../../base/deferred';
 import {errResult, okResult, Result} from '../../../base/result';
 import {binaryEncode} from '../../../base/string_utils';
@@ -168,11 +169,10 @@ export class ChromeExtensionTarget implements RecordingTarget {
         }),
       );
     } else if (msg.type === 'GetTrackEventDescriptorResponse') {
-      const descriptor = (
-        msg as {type: string; serializedDescriptor: Uint8Array}
-      ).serializedDescriptor;
+      const descriptor = (msg as {type: string; encodedDescriptor: string})
+        .encodedDescriptor;
       this.trackEventDescriptorPromise.resolve(
-        protos.TrackEventDescriptor.decode(descriptor),
+        protos.TrackEventDescriptor.decode(base64Decode(descriptor)),
       );
     } else {
       this.session?.onExtensionMessage(`${msg.type}`, msg);
