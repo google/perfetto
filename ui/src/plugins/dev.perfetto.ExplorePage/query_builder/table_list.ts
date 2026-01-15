@@ -20,6 +20,9 @@ import {EmptyState} from '../../../widgets/empty_state';
 import {Chip} from '../../../widgets/chip';
 import {classNames} from '../../../base/classnames';
 import {Intent} from '../../../widgets/common';
+import {Switch} from '../../../widgets/switch';
+import {Icon} from '../../../widgets/icon';
+import {Tooltip} from '../../../widgets/tooltip';
 import markdownit from 'markdown-it';
 
 // Create a markdown renderer instance
@@ -28,10 +31,11 @@ const md = markdownit();
 // Attributes for the main TableList component.
 export interface TableListAttrs {
   sqlModules: SqlModules;
-  onTableClick: (tableName: string) => void;
+  onTableClick: (tableName: string, event: MouseEvent) => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
   autofocus?: boolean;
+  selectedTables?: Set<string>;
 }
 
 // A helper interface that combines a SQL table with its module name.
@@ -57,6 +61,11 @@ function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
     case 'low':
       return 'Low';
   }
+}
+
+// Helper function to check if a table has timestamp columns.
+function isTimestampedTable(table: SqlTable): boolean {
+  return table.columns.some((col) => col.type?.kind === 'timestamp');
 }
 
 // Renders a search input bar.
@@ -117,7 +126,9 @@ class TableCard
       tableWithModule: TableWithModule;
       segments: FuzzySegment[];
       matchType: MatchType;
-      onTableClick: (tableName: string) => void;
+      onTableClick: (tableName: string, event: MouseEvent) => void;
+      sqlModules: SqlModules;
+      selectedTables?: Set<string>;
     }>
 {
   view({
@@ -126,9 +137,18 @@ class TableCard
     tableWithModule: TableWithModule;
     segments: FuzzySegment[];
     matchType: MatchType;
-    onTableClick: (tableName: string) => void;
+    onTableClick: (tableName: string, event: MouseEvent) => void;
+    sqlModules: SqlModules;
+    selectedTables?: Set<string>;
   }>) {
-    const {tableWithModule, segments, matchType, onTableClick} = attrs;
+    const {
+      tableWithModule,
+      segments,
+      matchType,
+      onTableClick,
+      sqlModules,
+      selectedTables,
+    } = attrs;
     const {table, moduleName} = tableWithModule;
 
     const renderedName = segments.map((segment) =>
@@ -137,23 +157,49 @@ class TableCard
 
     const packageName = moduleName.split('.')[0];
     const matchTypeLabel = getMatchTypeLabel(matchType);
+    const isDisabled = sqlModules.isModuleDisabled(moduleName);
+    const isSelected = selectedTables?.has(table.name) ?? false;
+
+    const hasTimestamp = isTimestampedTable(table);
 
     return m(
       Card,
       {
-        onclick: () => onTableClick(table.name),
+        onclick: (e: MouseEvent) => onTableClick(table.name, e),
         interactive: true,
+        className: classNames(
+          isDisabled && 'pf-disabled-module',
+          isSelected && 'pf-selected-table',
+        ),
       },
       m(
         '.pf-table-card',
         m(
           '.pf-table-card-header',
           m('.table-name', renderedName),
+          hasTimestamp &&
+            m(
+              Tooltip,
+              {
+                trigger: m(Icon, {
+                  icon: 'schedule',
+                  className: classNames('pf-timestamp-icon'),
+                }),
+              },
+              'This table contains timestamp columns',
+            ),
           matchTypeLabel &&
             m(Chip, {
               label: matchTypeLabel,
               compact: true,
               className: classNames('pf-match-type-chip'),
+            }),
+          isDisabled &&
+            m(Chip, {
+              label: 'No data',
+              compact: true,
+              intent: Intent.None,
+              className: classNames('pf-no-data-chip'),
             }),
           table.importance &&
             m(Chip, {
@@ -177,6 +223,8 @@ class TableCard
 // It orchestrates the search bar, the list of tables, and handles filtering.
 export class TableList implements m.ClassComponent<TableListAttrs> {
   private selectedTags: Set<string> = new Set();
+  private hideDisabledModules: boolean = true;
+  private onlyShowTimestampedTables: boolean = false;
 
   view({attrs}: m.CVnode<TableListAttrs>) {
     const allModules = attrs.sqlModules.listModules();
@@ -200,6 +248,23 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           module.tags.includes(selectedTag),
         ),
       );
+    }
+
+    // Filter out disabled modules if hideDisabledModules is true
+    if (this.hideDisabledModules) {
+      filteredModules = filteredModules.filter(
+        (module) => !attrs.sqlModules.isModuleDisabled(module.includeKey),
+      );
+    }
+
+    // Filter to only timestamped tables if onlyShowTimestampedTables is true
+    if (this.onlyShowTimestampedTables) {
+      filteredModules = filteredModules
+        .map((module) => ({
+          ...module,
+          tables: module.tables.filter(isTimestampedTable),
+        }))
+        .filter((module) => module.tables.length > 0);
     }
 
     // Helper function to search tables by query (used for both display and tag filtering)
@@ -415,6 +480,8 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         segments,
         matchType,
         onTableClick: attrs.onTableClick,
+        sqlModules: attrs.sqlModules,
+        selectedTables: attrs.selectedTables,
       }),
     );
 
@@ -453,16 +520,36 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             ),
           )
         : null,
-      m(SearchBar, {
-        query: attrs.searchQuery,
-        onQueryChange: attrs.onSearchQueryChange,
-        autofocus: attrs.autofocus,
-      }),
       m(
-        CardStack,
-        tableCards.length > 0
-          ? m(CardStack, tableCards)
-          : m(EmptyState, {title: 'No tables found'}),
+        '.pf-search-and-filter',
+        m(SearchBar, {
+          query: attrs.searchQuery,
+          onQueryChange: attrs.onSearchQueryChange,
+          autofocus: attrs.autofocus,
+        }),
+        m(Switch, {
+          label: 'Hide modules with no data',
+          checked: this.hideDisabledModules,
+          onchange: () => {
+            this.hideDisabledModules = !this.hideDisabledModules;
+          },
+        }),
+        m(Switch, {
+          label: 'Only show timestamped tables',
+          checked: this.onlyShowTimestampedTables,
+          onchange: () => {
+            this.onlyShowTimestampedTables = !this.onlyShowTimestampedTables;
+          },
+        }),
+      ),
+      m(
+        '.pf-table-cards-container',
+        m(
+          CardStack,
+          tableCards.length > 0
+            ? m(CardStack, tableCards)
+            : m(EmptyState, {title: 'No tables found'}),
+        ),
       ),
     );
   }
