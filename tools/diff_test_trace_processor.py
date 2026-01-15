@@ -26,6 +26,29 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
+# Check that the python venv is active by trying to import protobuf.
+try:
+  import google.protobuf  # noqa: F401
+except ImportError:
+  sys.stderr.write('''
+Error: google.protobuf module not found.
+
+The Perfetto python virtual environment is not active. To set it up, run:
+
+  tools/install-build-deps
+
+Then activate it with:
+
+  source .venv/bin/activate  (Linux/macOS)
+  .venv\\Scripts\\activate   (Windows)
+
+Alternatively, run this script using the venv python directly:
+
+  .venv/bin/python3 tools/diff_test_trace_processor.py ...
+
+''')
+  sys.exit(1)
+
 from python.generators.diff_tests.utils import ctrl_c_handler
 from python.generators.diff_tests.runner import DiffTestsRunner
 from python.generators.diff_tests.models import Config

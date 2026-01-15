@@ -16,3 +16,4 @@ buildtools/googletest
 buildtools/protobuf
 buildtools/ndk
 buildtools/benchmark
+buildtools/grpc

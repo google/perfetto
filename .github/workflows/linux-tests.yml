@@ -129,6 +129,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$PERFETTO_ARTIFACTS_DIR/perf"
+          source .venv/bin/activate
           tools/diff_test_trace_processor.py \
             --perf-file=$PERFETTO_ARTIFACTS_DIR/perf/tp-perf-all.json \
             $HOST_OUT_PATH/trace_processor_shell
@@ -137,7 +138,7 @@ jobs:
         # These are a Python API tests, not C++ tests, so we run them only in a single config.
         if: ${{ matrix.config.name == 'clang-x86_64-debug' }}
         shell: bash
-        run: python/run_tests.py $HOST_OUT_PATH
+        run: .venv/bin/python3 python/run_tests.py $HOST_OUT_PATH
 
       - name: perfetto_benchmarks (functional-only)
         if: ${{ !(contains(matrix.config.name, 'msan') || contains(matrix.config.name, 'tsan')) }}
@@ -163,7 +164,6 @@ jobs:
             # Don't fail the step if there is nothing to upload.
             exit 0
           fi
-          
           gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID"
 
       - name: Update cache (if on main)

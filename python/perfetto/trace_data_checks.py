@@ -21,102 +21,107 @@ in stdlib_tags.py TABLE_IMPORTANCE dict.
 Auto-generated - do not edit manually.
 """
 
+
+def check_to_query(check: str) -> str:
+  return f"SELECT EXISTS({check} LIMIT 1) AS has_data"
+
+
 # Module name -> SQL query that checks if data exists
 # Query returns 1 if data present, 0 if not
 MODULE_DATA_CHECK_SQL = {
     # HIGH IMPORTANCE TABLES
     'android.binder':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'binder *\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name GLOB \'binder *\'',
     'android.cujs.cujs_base':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'J<*>\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name GLOB \'J<*>\'',
     'android.frames.timeline':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'Choreographer#doFrame*\' OR name GLOB \'DrawFrame*\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name GLOB \'Choreographer#doFrame*\' OR name GLOB \'DrawFrame*\'',
     'android.startup.startups':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name IN (\'bindApplication\', \'activityStart\', \'activityResume\') LIMIT 1) AS has_data',
-    'slices.with_context':
-        'SELECT EXISTS(SELECT 1 FROM slice JOIN thread_track ON slice.track_id = thread_track.id LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name IN (\'bindApplication\', \'activityStart\', \'activityResume\')',
 
     # MID IMPORTANCE TABLES
     'android.anrs':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'*ApplicationNotResponding*\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name GLOB \'*ApplicationNotResponding*\'',
     'android.battery':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'batt.*\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name GLOB \'batt.*\'',
     'android.battery.charging_states':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'BatteryStatus\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name = \'BatteryStatus\'',
     'android.battery_stats':
-        'SELECT EXISTS(SELECT 1 FROM counter_track WHERE name GLOB \'battery_stats.*\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM counter_track WHERE name GLOB \'battery_stats.*\'',
+    'android.power_rails':
+        'SELECT 1 FROM track WHERE type = \'power_rails\'',
     'android.process_metadata':
-        'SELECT EXISTS(SELECT 1 FROM process LIMIT 1) AS has_data',
+        'SELECT 1 FROM process',
     'android.screenshots':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'Screenshot\' AND category = \'android_screenshot\' LIMIT 1) AS has_data',
-    'android.suspend':
-        'SELECT EXISTS(SELECT 1 FROM track WHERE name IN (\'Suspend/Resume Minimal\', \'Suspend/Resume Latency\') LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name = \'Screenshot\' AND category = \'android_screenshot\'',
     'android.statsd':
-        'SELECT EXISTS(SELECT 1 FROM track WHERE name = \'Statsd Atoms\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM track WHERE name = \'Statsd Atoms\'',
     'android.wakeups':
-        'SELECT EXISTS(SELECT 1 FROM track WHERE name = \'wakeup_reason\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM track WHERE name = \'wakeup_reason\'',
 
     # HIGH IMPORTANCE TABLES - Chrome
     'chrome.event_latency':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'EventLatency\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name = \'EventLatency\'',
     'chrome.tasks':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE category GLOB \'*toplevel*\' AND (name = \'ThreadControllerImpl::RunTask\' OR name = \'ThreadPool_RunTask\') LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE category GLOB \'*toplevel*\' AND (name = \'ThreadControllerImpl::RunTask\' OR name = \'ThreadPool_RunTask\')',
 
     # MID IMPORTANCE TABLES - Chrome
     'chrome.graphics_pipeline':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name = \'Graphics.Pipeline\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name = \'Graphics.Pipeline\'',
     'chrome.metadata':
-        'SELECT EXISTS(SELECT 1 FROM metadata WHERE name = \'cr-hardware-class\' OR name GLOB \'cr-*\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM metadata WHERE name = \'cr-hardware-class\' OR name GLOB \'cr-*\'',
 
     # LOW IMPORTANCE TABLES
     'chrome.android_input':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'UnwantedInteractionBlocker::notifyMotion*\' LIMIT 1) AS has_data',
+        'SELECT 1 FROM slice WHERE name GLOB \'UnwantedInteractionBlocker::notifyMotion*\'',
+    'chrome.startups':
+        'SELECT 1 FROM thread_slice WHERE name = \'Startup.ActivityStart\'',
 
     # PIXEL TABLES
     'pixel.camera':
-        'SELECT EXISTS(SELECT 1 FROM slice WHERE name GLOB \'cam*_*:* (frame *)\' LIMIT 1) AS has_data',
-
+        'SELECT 1 FROM slice WHERE name GLOB \'cam*_*:* (frame *)\'',
     # INTRINSIC-BASED TABLES - Android
     'android.cpu.cpu_per_uid':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_cpu_per_uid_track LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_android_cpu_per_uid_track',
     'android.input':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_key_events LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_android_key_events',
+    'android.kernel_wakelocks':
+        'SELECT 1 FROM track WHERE name = \'android_kernel_wakelock\'',
     'android.network_packets':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_network_packets LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_android_network_packets',
     'android.user_list':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_android_user_list LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_android_user_list',
     'android.winscope.inputmethod':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_inputmethod_clients LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_inputmethod_clients',
     'android.winscope.rect':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_winscope_rect LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_winscope_rect',
     'android.winscope.surfaceflinger':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_surfaceflinger_transaction LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_surfaceflinger_transaction',
     'android.winscope.transitions':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_window_manager_shell_transition_participants LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_window_manager_shell_transition_participants',
     'android.winscope.viewcapture':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_viewcapture LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_viewcapture',
     'android.winscope.windowmanager':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_windowmanager LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_windowmanager',
 
     # INTRINSIC-BASED TABLES - Linux
     'linux.perf.spe':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_spe_record LIMIT 1) AS has_data',
-
+        'SELECT 1 FROM __intrinsic_spe_record',
     # INTRINSIC-BASED TABLES - V8/JIT
     'stack_trace.jit':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_jit_code LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_jit_code',
     'v8.jit':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_v8_isolate LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_v8_isolate',
 
     # INTRINSIC-BASED TABLES - Visualization
     'viz.track_event_callstacks':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_track_event_callstacks LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_track_event_callstacks',
 
     # INTRINSIC-BASED TABLES - Prelude (single intrinsic only)
     'prelude.after_eof.counters':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_track LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_track',
     'prelude.after_eof.events':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_ftrace_event LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_ftrace_event',
     'prelude.after_eof.tracks':
-        'SELECT EXISTS(SELECT 1 FROM __intrinsic_track LIMIT 1) AS has_data',
+        'SELECT 1 FROM __intrinsic_track',
 }

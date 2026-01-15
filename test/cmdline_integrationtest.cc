@@ -54,6 +54,7 @@ using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::Property;
 using ::testing::SizeIs;
 
@@ -92,7 +93,8 @@ TraceConfig CreateTraceConfigForBugreportTest(int score = 1,
     // Add a random unrelated field to keep the generator happy.
     filt.AddSimpleField(protos::pbzero::TracePacket::kTraceUuidFieldNumber);
     filt.EndMessage();
-    trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+    trace_config.mutable_trace_filter()->set_bytecode_v2(
+        filt.Serialize().bytecode);
   }
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -1232,6 +1234,67 @@ TEST_F(PerfettoCmdlineTest, UnavailableBugreportLeavesNoEmptyFiles) {
   EXPECT_NE(base::GetFileSize(GetBugreportTracePath()), 0);
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+TEST_F(PerfettoCmdlineTest, DoNotDeleteNotEmptyWriteIntoFileTraceOnError) {
+  // We call `test_helper().RestartService()` to simulate `traced` dropping
+  // the connection to the `perfetto_cmd`, so we run this test only in
+  // `PERFETTO_START_DAEMONS` mode.
+  // FakeProducer crashes is this case, so we just don't start it. Even without
+  // a data source, the tracing session writes some data on disk, that is enough
+  // for us.
+  TraceConfig trace_config;
+  trace_config.set_unique_session_name("my_write_into_file_session");
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10);
+
+  const std::string write_into_file_path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(write_into_file_path);
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          write_into_file_path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  std::string perfetto_cmd_stderr;
+  std::thread background_trace([&perfetto_proc, &perfetto_cmd_stderr]() {
+    EXPECT_EQ(0, perfetto_proc.Run(&perfetto_cmd_stderr))
+        << perfetto_cmd_stderr;
+  });
+
+  // Wait until some data is written into the trace file.
+  bool write_into_file_data_ready = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    protos::gen::Trace trace;
+    if (ParseNotEmptyTraceFromFile(write_into_file_path, trace)) {
+      write_into_file_data_ready = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(write_into_file_data_ready);
+
+  // Tracing session is still running, now simulate `traced` dropping the
+  // connection to the `perfetto_cmd`
+  test_helper().RestartService();
+
+  background_trace.join();
+  // Assert perfetto_cmd disconnected with an error.
+  EXPECT_THAT(
+      perfetto_cmd_stderr,
+      HasSubstr("Service error: EnableTracing IPC request rejected. This is "
+                "likely due to a loss of the traced connection"));
+  // Assert trace file exists and not empty.
+  protos::gen::Trace trace;
+  EXPECT_TRUE(ParseNotEmptyTraceFromFile(write_into_file_path, trace));
+}
+#endif
+
 // Tests that SaveTraceForBugreport() works also if the trace has triggers
 // defined and those triggers have not been hit. This is a regression test for
 // b/188008375 .
@@ -1430,6 +1493,52 @@ TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
   ASSERT_TRUE(ParseNotEmptyTraceFromFile(fpath, trace)) << fpath;
   ExpectTraceContainsTestMessages(trace, kMsgCount);
   ExpectTraceContainsTestMessagesWithSize(trace, kMsgSize);
+}
+
+TEST_F(PerfettoCmdlineTest, NoClobber) {
+  const std::string output_file_path = RandomTraceFileName();
+  const std::string expected_error_message =
+      "Error: Output file '" + output_file_path +
+      "' already exists, refusing to overwrite due to '--no-clobber'.";
+  ScopedFileRemove remove_on_test_exit(output_file_path);
+
+  // Use perfetto to create the initial file. The test process (shell) is denied
+  // 'create' permission in this directory by SELinux.
+  auto perfetto_proc_create =
+      ExecPerfetto({"--time", "1ms", "--out", output_file_path});
+
+  auto perfetto_proc_no_clobber = ExecPerfetto(
+      {"--time", "1ms", "--no-clobber", "--out", output_file_path});
+
+  auto perfetto_proc_overwrite =
+      ExecPerfetto({"--time", "1ms", "--out", output_file_path});
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  // Create the initial file using an authorized domain.
+  ASSERT_EQ(0, perfetto_proc_create.Run(&stderr_)) << stderr_;
+  ASSERT_TRUE(base::FileExists(output_file_path));
+
+  std::string original_file_content;
+  ASSERT_TRUE(base::ReadFile(output_file_path, &original_file_content));
+
+  // Assert that "perfetto --no-clobber" doesn't overwrite the output file.
+  ASSERT_EQ(1, perfetto_proc_no_clobber.Run(&stderr_)) << stderr_;
+  EXPECT_THAT(stderr_, HasSubstr(expected_error_message));
+  {
+    std::string file_content;
+    base::ReadFile(output_file_path, &file_content);
+    EXPECT_EQ(file_content, original_file_content);
+  }
+
+  // Assert regular invocation successfully overwrites a file.
+  ASSERT_EQ(0, perfetto_proc_overwrite.Run(&stderr_)) << stderr_;
+  {
+    std::string file_content;
+    base::ReadFile(output_file_path, &file_content);
+    EXPECT_THAT(file_content, Not(IsEmpty()));
+    EXPECT_NE(file_content, original_file_content);
+  }
 }
 
 }  // namespace perfetto

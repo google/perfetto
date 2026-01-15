@@ -205,4 +205,112 @@ describe('ModifyColumnsNode', () => {
       expect(finalCols[0].name).toBe('identifier');
     });
   });
+
+  describe('onPrevNodesUpdated', () => {
+    it('should preserve modified column types when input changes', () => {
+      // Create initial source node (simulating a slices table)
+      const sourceNode = createMockNode({
+        nodeId: 'slices',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'timestamp'),
+          createColumnInfo('value', 'int'), // Original type is int
+        ],
+      });
+
+      // Create modify columns node and connect it
+      const modifyNode = new ModifyColumnsNode({
+        selectedColumns: [],
+      });
+      connectNodes(sourceNode, modifyNode);
+
+      // Initialize the node to populate columns from source
+      modifyNode.onPrevNodesUpdated();
+
+      // Verify initial state - all columns should be from source
+      expect(modifyNode.state.selectedColumns.length).toBe(3);
+      expect(modifyNode.state.selectedColumns[2].name).toBe('value');
+      expect(modifyNode.state.selectedColumns[2].type).toBe('INT');
+      expect(modifyNode.state.selectedColumns[2].column.type).toEqual({
+        kind: 'int',
+      });
+
+      // User modifies the type of 'value' column to 'duration'
+      modifyNode.state.selectedColumns[2].type = 'DURATION';
+      modifyNode.state.selectedColumns[2].column = {
+        ...modifyNode.state.selectedColumns[2].column,
+        type: {kind: 'duration'},
+      };
+
+      // Verify the type was modified
+      expect(modifyNode.state.selectedColumns[2].type).toBe('DURATION');
+      expect(modifyNode.state.selectedColumns[2].column.type).toEqual({
+        kind: 'duration',
+      });
+
+      // Simulate inserting a new node between source and modify
+      // (e.g., user adds a Limit node between slices and modify)
+      const intermediateNode = createMockNode({
+        nodeId: 'limit',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('ts', 'timestamp'),
+          createColumnInfo('value', 'int'), // Still has original type
+        ],
+      });
+
+      // Reconnect: source -> intermediate -> modify
+      sourceNode.nextNodes = [intermediateNode];
+      intermediateNode.nextNodes = [modifyNode];
+      modifyNode.primaryInput = intermediateNode;
+
+      // This should trigger when the graph structure changes
+      modifyNode.onPrevNodesUpdated();
+
+      // The modified type should be preserved!
+      expect(modifyNode.state.selectedColumns[2].name).toBe('value');
+      expect(modifyNode.state.selectedColumns[2].type).toBe('DURATION');
+      expect(modifyNode.state.selectedColumns[2].column.type).toEqual({
+        kind: 'duration',
+      });
+    });
+
+    it('should preserve checked status and aliases when input changes', () => {
+      const sourceNode = createMockNode({
+        nodeId: 'source',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('value', 'int'),
+        ],
+      });
+
+      const modifyNode = new ModifyColumnsNode({
+        selectedColumns: [],
+      });
+      connectNodes(sourceNode, modifyNode);
+      modifyNode.onPrevNodesUpdated();
+
+      // User customizes the node
+      modifyNode.state.selectedColumns[0].checked = false; // Uncheck 'id'
+      modifyNode.state.selectedColumns[1].alias = 'full_name'; // Rename 'name'
+
+      // Insert intermediate node
+      const intermediateNode = createMockNode({
+        nodeId: 'filter',
+        columns: [
+          createColumnInfo('id', 'int'),
+          createColumnInfo('name', 'string'),
+          createColumnInfo('value', 'int'),
+        ],
+      });
+
+      modifyNode.primaryInput = intermediateNode;
+      modifyNode.onPrevNodesUpdated();
+
+      // Customizations should be preserved
+      expect(modifyNode.state.selectedColumns[0].checked).toBe(false);
+      expect(modifyNode.state.selectedColumns[1].alias).toBe('full_name');
+    });
+  });
 });

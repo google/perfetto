@@ -16,11 +16,10 @@ import {
   QueryNode,
   nextNodeId,
   NodeType,
-  getSecondaryInput,
-  analyzeNode,
-  isAQuery,
   SecondaryInputSpec,
 } from '../../query_node';
+import {getSecondaryInput} from '../graph_utils';
+import {analyzeNode, isAQuery} from '../query_builder_utils';
 import {
   ColumnInfo,
   columnInfoFromName,
@@ -42,9 +41,9 @@ import {
   JoinCondition,
 } from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {ListItem} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
+import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
 import {Form, FormSection} from '../../../../widgets/form';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
@@ -56,6 +55,8 @@ import {NewColumn, AddColumnsNodeState} from './add_columns_types';
 import {SwitchComponent, IfComponent} from './computed_column_components';
 import {AddColumnsSuggestionModal} from './add_columns_suggestion_modal';
 import {AddColumnsConfigurationModal} from './add_columns_configuration_modal';
+import {renderTypeSelector} from './modify_columns_utils';
+import {Icon} from '../../../../widgets/icon';
 
 // Re-export types for backwards compatibility
 export {NewColumn, AddColumnsNodeState} from './add_columns_types';
@@ -88,6 +89,7 @@ export class AddColumnsNode implements QueryNode {
       this.state.expandedSuggestions ?? new Set();
     this.state.columnAliases = this.state.columnAliases ?? new Map();
     this.state.suggestionAliases = this.state.suggestionAliases ?? new Map();
+    this.state.columnTypes = this.state.columnTypes ?? new Map();
     this.state.computedColumns = this.state.computedColumns ?? [];
   }
 
@@ -134,17 +136,31 @@ export class AddColumnsNode implements QueryNode {
 
     // Add columns from connected node (JOIN)
     if (this.rightNode) {
-      // Add only selected columns (with aliases if provided)
+      // Add only selected columns (with aliases and types if provided)
       const newCols =
         this.state.selectedColumns?.map((c) => {
           const alias = this.state.columnAliases?.get(c);
-          // Find the column in rightCols to preserve type information
+          const storedType = this.state.columnTypes?.get(c);
+
+          // Find the column in rightCols to get type information
           const sourceCol = this.rightCols.find((col) => col.name === c);
           if (sourceCol) {
-            // Preserve type information from the source column
+            // Use stored type if available, otherwise use source type
+            let finalType = sourceCol.column.type;
+
+            if (storedType) {
+              // Parse the stored type string
+              const parsedType = parsePerfettoSqlTypeFromString({
+                type: storedType,
+              });
+              if (parsedType.ok) {
+                finalType = parsedType.value;
+              }
+            }
+
             return columnInfoFromSqlColumn({
               name: alias ?? c,
-              type: sourceCol.column.type,
+              type: finalType,
             });
           }
           // Fallback if column not found (shouldn't happen in valid state)
@@ -328,7 +344,7 @@ export class AddColumnsNode implements QueryNode {
   }
 
   // Check if the Apply button should be disabled in the join modal
-  private isApplyDisabled(): boolean {
+  isApplyDisabled(): boolean {
     // When no rightNode exists, require table and columns selection
     if (!this.rightNode) {
       const selectedTable = this.state.selectedSuggestionTable;
@@ -339,7 +355,11 @@ export class AddColumnsNode implements QueryNode {
       // Also disable if there are duplicate column name errors
       return this.getJoinColumnErrors(selectedColumns, true).length > 0;
     }
-    // When rightNode exists, require columns to be selected
+    // When rightNode exists, require both join columns to be specified
+    if (!this.state.leftColumn || !this.state.rightColumn) {
+      return true;
+    }
+    // Require columns to be selected
     if (
       !this.state.selectedColumns ||
       this.state.selectedColumns.length === 0
@@ -514,6 +534,7 @@ export class AddColumnsNode implements QueryNode {
         ? 'Configure Joined Columns'
         : 'Add Columns from Another Source',
       key: modalKey,
+      vAlign: 'TOP',
       className: 'pf-join-modal-wide',
       content: () => {
         return m('div', this.renderGuidedMode());
@@ -622,6 +643,7 @@ export class AddColumnsNode implements QueryNode {
     showModal({
       title: typeConfig.title,
       key: typeConfig.key,
+      vAlign: 'TOP',
       className:
         type === 'switch' || type === 'if'
           ? 'pf-computed-column-modal-wide'
@@ -678,6 +700,9 @@ export class AddColumnsNode implements QueryNode {
     const argSetIdCols = this.getArgSetIdColumns();
 
     if (argSetIdCols.length === 0) {
+      console.warn(
+        'Cannot show args modal: no arg_set_id columns found in input',
+      );
       return;
     }
 
@@ -730,6 +755,7 @@ export class AddColumnsNode implements QueryNode {
     showModal({
       title: 'Add Column from Args',
       key: modalKey,
+      vAlign: 'TOP',
       content: () => {
         const nameError = getColumnNameError();
         const hasMultipleArgSetIdCols = argSetIdCols.length > 1;
@@ -913,8 +939,10 @@ export class AddColumnsNode implements QueryNode {
   private renderAddedColumnsList(): m.Child {
     const hasConnectedNode = this.rightNode !== undefined;
     const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
+    const hasSelectedColumns =
+      this.state.selectedColumns && this.state.selectedColumns.length > 0;
 
-    if (!hasConnectedNode && !hasComputedColumns) {
+    if (!hasSelectedColumns && !hasComputedColumns) {
       return m(EmptyState, {
         title: 'No columns added yet. Use the buttons above to add columns.',
       });
@@ -922,23 +950,9 @@ export class AddColumnsNode implements QueryNode {
 
     const items: m.Child[] = [];
 
-    // Show joined columns
-    if (hasConnectedNode) {
-      items.push(
-        m(ListItem, {
-          icon: 'table_chart',
-          name: 'Joined Source',
-          description: `${this.state.selectedColumns?.length ?? 0} selected columns`,
-          actions: [
-            {
-              label: 'Configure',
-              icon: 'settings',
-              onclick: () => this.showJoinModal(),
-            },
-          ],
-          className: 'pf-joined-source',
-        }),
-      );
+    // Show joined columns as a single row
+    if (hasConnectedNode && hasSelectedColumns) {
+      items.push(this.renderJoinedColumnsRow());
     }
 
     // Show computed columns
@@ -965,34 +979,132 @@ export class AddColumnsNode implements QueryNode {
             : `${typeName} (empty)`;
 
       items.push(
-        m(ListItem, {
-          icon,
-          name: col.name || '(unnamed)',
-          description,
-          actions: [
-            {
-              label: 'Edit',
-              icon: 'edit',
-              onclick: () => {
-                if (col.type === 'switch') {
-                  this.showSwitchModal(index);
-                } else if (col.type === 'if') {
-                  this.showIfModal(index);
-                } else {
-                  this.showExpressionModal(index);
-                }
-              },
-            },
-          ],
-          onRemove: () => {
-            this.state.computedColumns?.splice(index, 1);
-            this.state.onchange?.();
-          },
-        }),
+        this.renderComputedColumnListItem(col, index, icon, description),
       );
     }
 
     return m('.pf-added-columns-list', items);
+  }
+
+  private renderJoinedColumnsRow(): m.Child {
+    const count = this.state.selectedColumns?.length ?? 0;
+    const columnNames = (this.state.selectedColumns ?? [])
+      .map((colName) => {
+        const alias = this.state.columnAliases?.get(colName);
+        return alias || colName;
+      })
+      .join(', ');
+
+    return m(
+      '.pf-exp-list-item',
+      {
+        tabindex: 0,
+        role: 'listitem',
+      },
+      m(Icon, {icon: 'table_chart'}),
+      m(
+        '.pf-exp-list-item-info',
+        m(
+          '.pf-exp-list-item-name',
+          `${count} column${count === 1 ? '' : 's'} from source`,
+        ),
+        m('.pf-exp-list-item-description', columnNames),
+      ),
+      m(
+        '.pf-exp-list-item-actions',
+        m(Button, {
+          label: 'Edit',
+          icon: 'edit',
+          variant: ButtonVariant.Outlined,
+          compact: true,
+          onclick: () => this.showJoinModal(),
+        }),
+        m(Button, {
+          icon: 'close',
+          compact: true,
+          onclick: () => {
+            this.state.selectedColumns = [];
+            this.state.columnAliases?.clear();
+            this.state.columnTypes?.clear();
+            this.state.onchange?.();
+          },
+          title: 'Remove all joined columns',
+        }),
+      ),
+    );
+  }
+
+  private renderComputedColumnListItem(
+    col: NewColumn,
+    index: number,
+    icon: string,
+    description: string,
+  ): m.Child {
+    // Create a ColumnInfo-like object for renderTypeSelector
+    const colInfo: ColumnInfo = {
+      name: col.name || '(unnamed)',
+      type: col.sqlType ?? 'UNKNOWN',
+      checked: true,
+      column: {name: col.name},
+    };
+
+    const handleTypeChange = (_index: number, newType: string) => {
+      if (!this.state.computedColumns) return;
+      const newComputedColumns = [...this.state.computedColumns];
+      newComputedColumns[index] = {
+        ...newComputedColumns[index],
+        sqlType: newType,
+      };
+      this.state.computedColumns = newComputedColumns;
+      this.state.onchange?.();
+    };
+
+    return m(
+      '.pf-exp-list-item',
+      {
+        tabindex: 0,
+        role: 'listitem',
+      },
+      m(Icon, {icon}),
+      m(
+        '.pf-exp-list-item-info',
+        m('.pf-exp-list-item-name', col.name || '(unnamed)'),
+        m('.pf-exp-list-item-description', description),
+      ),
+      m(
+        '.pf-exp-list-item-actions',
+        renderTypeSelector(
+          colInfo,
+          index,
+          this.state.sqlModules,
+          handleTypeChange,
+        ),
+        m(Button, {
+          label: 'Edit',
+          icon: 'edit',
+          variant: ButtonVariant.Outlined,
+          compact: true,
+          onclick: () => {
+            if (col.type === 'switch') {
+              this.showSwitchModal(index);
+            } else if (col.type === 'if') {
+              this.showIfModal(index);
+            } else {
+              this.showExpressionModal(index);
+            }
+          },
+        }),
+        m(Button, {
+          icon: 'close',
+          compact: true,
+          onclick: () => {
+            this.state.computedColumns?.splice(index, 1);
+            this.state.onchange?.();
+          },
+          title: 'Remove item',
+        }),
+      ),
+    );
   }
 
   private renderGuidedMode(): m.Child {
@@ -1087,6 +1199,7 @@ export class AddColumnsNode implements QueryNode {
             (c) => c !== colName,
           );
           this.state.columnAliases?.delete(colName);
+          this.state.columnTypes?.delete(colName);
         }
         this.state.onchange?.();
       },
@@ -1250,6 +1363,9 @@ export class AddColumnsNode implements QueryNode {
       suggestionAliases: this.state.suggestionAliases
         ? new Map(this.state.suggestionAliases)
         : undefined,
+      columnTypes: this.state.columnTypes
+        ? new Map(this.state.columnTypes)
+        : undefined,
       isGuidedConnection: this.state.isGuidedConnection,
       computedColumns: this.state.computedColumns?.map((col) => ({
         ...col,
@@ -1407,6 +1523,9 @@ export class AddColumnsNode implements QueryNode {
       suggestionAliases: this.state.suggestionAliases
         ? Object.fromEntries(this.state.suggestionAliases)
         : undefined,
+      columnTypes: this.state.columnTypes
+        ? Object.fromEntries(this.state.columnTypes)
+        : undefined,
       isGuidedConnection: this.state.isGuidedConnection,
       autoExecute: this.state.autoExecute,
       computedColumns: this.state.computedColumns?.map((c) => ({
@@ -1430,10 +1549,12 @@ export class AddColumnsNode implements QueryNode {
   }
 
   static deserializeState(
+    sqlModules: SqlModules,
     serializedState: AddColumnsNodeState,
   ): AddColumnsNodeState {
     return {
       ...serializedState,
+      sqlModules,
       suggestionSelections:
         (serializedState.suggestionSelections as unknown as Record<
           string,
@@ -1473,6 +1594,18 @@ export class AddColumnsNode implements QueryNode {
           ? new Map(
               Object.entries(
                 serializedState.suggestionAliases as unknown as Record<
+                  string,
+                  string
+                >,
+              ),
+            )
+          : undefined,
+      columnTypes:
+        (serializedState.columnTypes as unknown as Record<string, string>) !==
+        undefined
+          ? new Map(
+              Object.entries(
+                serializedState.columnTypes as unknown as Record<
                   string,
                   string
                 >,

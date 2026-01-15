@@ -36,7 +36,7 @@ import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
 import {SqlHistogram, SqlHistogramState} from '../widgets/charts/sql_histogram';
 import {sqlColumnId} from '../widgets/sql/table/sql_column';
-import {TabOption, TabStrip} from '../../widgets/tabs';
+import {TabOption, TabStrip} from '../../widgets/tab_strip';
 import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
 
@@ -100,7 +100,7 @@ class SqlTableTab implements Tab {
     const addDebugTrack = m(
       Popup,
       {
-        trigger: m(Button, {label: 'Show debug track'}),
+        trigger: m(Button, {label: 'Add debug track'}),
         position: PopupPosition.Top,
       },
       m(AddDebugTrackMenu, {

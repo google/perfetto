@@ -17,6 +17,7 @@ import m from 'mithril';
 import {raf} from '../core/raf_scheduler';
 import {App} from '../public/app';
 import {AppImpl} from '../core/app_impl';
+import z from 'zod';
 
 declare global {
   interface Window {
@@ -24,6 +25,7 @@ declare global {
     app: App;
     produce: typeof produce;
     raf: typeof raf;
+    z: typeof z;
   }
 }
 
@@ -32,4 +34,5 @@ export function registerDebugGlobals() {
   window.app = AppImpl.instance;
   window.produce = produce;
   window.raf = raf;
+  window.z = z;
 }

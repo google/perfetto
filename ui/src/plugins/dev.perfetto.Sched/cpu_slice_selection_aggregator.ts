@@ -12,41 +12,89 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Sorting} from '../../components/aggregation';
+import m from 'mithril';
+import {Icons} from '../../base/semantic_icons';
 import {
   AggregatePivotModel,
   Aggregation,
   Aggregator,
   createIITable,
-  selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
+import {Trace} from '../../public/trace';
+import {Track} from '../../public/track';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  Dataset,
+  DatasetSchema,
+  SourceDataset,
+  UnionDatasetWithLineage,
+} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM} from '../../trace_processor/query_result';
+import {LONG, NUM, UNKNOWN} from '../../trace_processor/query_result';
+import {Anchor} from '../../widgets/anchor';
+
+const CPU_SLICE_SPEC = {
+  id: NUM,
+  dur: LONG,
+  ts: LONG,
+  utid: NUM,
+  ucpu: NUM,
+};
 
 export class CpuSliceSelectionAggregator implements Aggregator {
   readonly id = 'cpu_aggregation';
 
-  probe(area: AreaSelection): Aggregation | undefined {
-    const dataset = selectTracksAndGetDataset(
-      area.tracks,
-      {
-        id: NUM,
-        dur: LONG,
-        ts: LONG,
-        utid: NUM,
-      },
-      CPU_SLICE_TRACK_KIND,
-    );
+  private readonly trace: Trace;
+  private trackDatasetMap?: Map<Dataset, Track>;
+  private unionDataset?: UnionDatasetWithLineage<DatasetSchema>;
 
-    if (!dataset) return undefined;
+  constructor(trace: Trace) {
+    this.trace = trace;
+  }
+
+  probe(area: AreaSelection): Aggregation | undefined {
+    // Collect CPU slice tracks
+    const cpuTracks: Track[] = [];
+
+    for (const track of area.tracks) {
+      if (!track.tags?.kinds?.includes(CPU_SLICE_TRACK_KIND)) continue;
+      const dataset = track.renderer.getDataset?.();
+      if (!dataset || !(dataset instanceof SourceDataset)) continue;
+      if (!dataset.implements(CPU_SLICE_SPEC)) continue;
+      cpuTracks.push(track);
+    }
+
+    if (cpuTracks.length === 0) return undefined;
 
     return {
       prepareData: async (engine: Engine) => {
+        // Build track-to-dataset mapping
+        this.trackDatasetMap = new Map();
+        const datasets: Dataset[] = [];
+        for (const track of cpuTracks) {
+          const dataset = track.renderer.getDataset?.();
+          if (dataset) {
+            datasets.push(dataset);
+            this.trackDatasetMap.set(dataset, track);
+          }
+        }
+
+        // Create union dataset with lineage tracking
+        this.unionDataset = UnionDatasetWithLineage.create(datasets);
+
+        // Query with needed columns for II table
+        const iiQuerySchema = {
+          ...CPU_SLICE_SPEC,
+          __groupid: NUM,
+          __partition: UNKNOWN,
+        };
+        const sql = this.unionDataset.query(iiQuerySchema);
+
+        // Create interval-intersect table for time filtering
         await using iiTable = await createIITable(
           engine,
-          dataset,
+          new SourceDataset({src: `(${sql})`, schema: iiQuerySchema}),
           area.start,
           area.end,
         );
@@ -54,15 +102,17 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
+            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             utid,
             process.name as process_name,
             pid,
             thread.name as thread_name,
             tid,
-            dur,
-            dur * 1.0 / sum(dur) OVER () as fraction_of_total,
-            dur * 1.0 / ${area.end - area.start} as fraction_of_selection
-          from (${iiTable.name}) as sched
+            sched.dur,
+            sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
+            sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
+            ucpu
+          from ${iiTable.name} as sched
           join thread using (utid)
           left join process using (upid)
         `);
@@ -78,20 +128,61 @@ export class CpuSliceSelectionAggregator implements Aggregator {
     return 'CPU by thread';
   }
 
-  getDefaultSorting(): Sorting {
-    return {column: 'total_dur', direction: 'DESC'};
-  }
-
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: ['pid', 'process_name', 'tid', 'thread_name'],
-      values: {
-        count: {func: 'COUNT'},
-        total_dur: {col: 'dur', func: 'SUM'},
-        fraction_of_total: {col: 'fraction_of_total', func: 'SUM'},
-        avg_dur: {col: 'dur', func: 'AVG'},
-      },
+      groupBy: [
+        {id: 'process_name', field: 'process_name'},
+        {id: 'thread_name', field: 'thread_name'},
+      ],
+      aggregates: [
+        {id: 'count', function: 'COUNT'},
+        {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+        {
+          id: 'fraction_of_total_sum',
+          field: 'fraction_of_total',
+          function: 'SUM',
+        },
+        {id: 'dur_avg', field: 'dur', function: 'AVG'},
+      ],
       columns: [
+        {
+          title: 'ID',
+          columnId: 'id_with_lineage',
+          formatHint: 'ID',
+          cellRenderer: (value: unknown) => {
+            // Value is a JSON object {id, groupid, partition}
+            if (typeof value !== 'string') {
+              return String(value);
+            }
+
+            const parsed = JSON.parse(value) as {
+              id: number;
+              groupid: number;
+              partition: unknown;
+            };
+            const {id, groupid, partition} = parsed;
+
+            // Resolve track from lineage
+            const track = this.resolveTrack(groupid, partition);
+            if (!track) {
+              return String(id);
+            }
+
+            return m(
+              Anchor,
+              {
+                title: 'Go to sched slice',
+                icon: Icons.UpdateSelection,
+                onclick: () => {
+                  this.trace.selection.selectTrackEvent(track.uri, id, {
+                    scrollToSelection: true,
+                  });
+                },
+              },
+              String(id),
+            );
+          },
+        },
         {
           title: 'PID',
           columnId: 'pid',
@@ -113,21 +204,55 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           formatHint: 'STRING',
         },
         {
-          title: 'Wall Duration',
+          title: 'CPU Time',
           formatHint: 'DURATION_NS',
           columnId: 'dur',
         },
         {
-          title: 'Wall Duration as % of Total',
+          title: 'CPU Time %',
           columnId: 'fraction_of_total',
           formatHint: 'PERCENT',
         },
         {
-          title: 'Wall Duration % of Selection',
+          title: 'CPU Time / Wall Time',
           columnId: 'fraction_of_selection',
           formatHint: 'PERCENT',
         },
+        {
+          title: 'CPU',
+          columnId: 'ucpu',
+          formatHint: 'NUMERIC',
+        },
       ],
     };
+  }
+
+  /**
+   * Resolve a track from lineage information.
+   */
+  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
+    if (!this.trackDatasetMap || !this.unionDataset) return undefined;
+
+    // Ensure partition is a valid SqlValue
+    const partitionValue =
+      partition === null ||
+      typeof partition === 'number' ||
+      typeof partition === 'bigint' ||
+      typeof partition === 'string' ||
+      partition instanceof Uint8Array
+        ? partition
+        : null;
+
+    const datasets = this.unionDataset.resolveLineage({
+      __groupid: groupId,
+      __partition: partitionValue,
+    });
+
+    for (const dataset of datasets) {
+      const track = this.trackDatasetMap.get(dataset);
+      if (track) return track;
+    }
+
+    return undefined;
   }
 }

@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode} from '../query_node';
+import {
+  QueryNode,
+  SecondaryInputSpec,
+  singleNodeOperation,
+} from '../query_node';
 
 /**
- * Graph traversal utilities for the Explore Page query builder.
+ * Graph traversal and connection utilities for the Explore Page query builder.
  * Consolidates graph traversal logic to eliminate code duplication.
  */
 
@@ -176,27 +180,8 @@ export function insertNodeBetween(
 
   // Store the existing child nodes along with their connection info
   // We need to preserve the port index for secondary input connections
-  const existingChildren: Array<{
-    child: QueryNode;
-    portIndex: number | undefined;
-  }> = [];
-
-  for (const child of parentNode.nextNodes) {
-    if (child !== undefined) {
-      // Check if parentNode is connected to child's secondary inputs
-      // and find the port index if so
-      let portIndex: number | undefined = undefined;
-      if (child.secondaryInputs) {
-        for (const [port, inputNode] of child.secondaryInputs.connections) {
-          if (inputNode === parentNode) {
-            portIndex = port;
-            break;
-          }
-        }
-      }
-      existingChildren.push({child, portIndex});
-    }
-  }
+  // Note: A parent can be connected to a child on multiple ports (e.g., Union node)
+  const existingChildren = captureAllChildConnections(parentNode);
 
   // Clear parent's next nodes (we'll reconnect through newNode)
   parentNode.nextNodes = [];
@@ -239,6 +224,35 @@ export function reconnectParentsToChildren(
       addConnection(parent, child, portIndex);
     }
   }
+}
+
+/**
+ * Captures all connections from a parent to its children, including multiple
+ * connections to the same child on different ports.
+ */
+export function captureAllChildConnections(
+  parentNode: QueryNode,
+): Array<{child: QueryNode; portIndex: number | undefined}> {
+  const connections: Array<{child: QueryNode; portIndex: number | undefined}> =
+    [];
+
+  for (const child of parentNode.nextNodes) {
+    // Check primary input connection
+    if (child.primaryInput === parentNode) {
+      connections.push({child, portIndex: undefined});
+    }
+
+    // Check all secondary input connections
+    if (child.secondaryInputs) {
+      for (const [port, inputNode] of child.secondaryInputs.connections) {
+        if (inputNode === parentNode) {
+          connections.push({child, portIndex: port});
+        }
+      }
+    }
+  }
+
+  return connections;
 }
 
 // ============================================================================
@@ -284,4 +298,266 @@ export function getAllInputNodes(node: QueryNode): QueryNode[] {
   }
 
   return inputs;
+}
+
+// ============================================================================
+// Docking/Undocking Utilities
+// ============================================================================
+
+/**
+ * Finds children of a node that are currently docked (rendered inline with parent).
+ *
+ * A child is considered docked if:
+ * 1. It's a single-node operation (modification node like filter, sort, etc.)
+ * 2. Its primaryInput is the parent node
+ * 3. It doesn't have a layout position (no entry in nodeLayouts)
+ *
+ * @param parentNode The parent node to check
+ * @param nodeLayouts Current layout positions
+ * @returns Array of children that are currently docked to the parent
+ */
+export function findDockedChildren(
+  parentNode: QueryNode,
+  nodeLayouts: ReadonlyMap<string, {x: number; y: number}>,
+): QueryNode[] {
+  return parentNode.nextNodes.filter(
+    (child) =>
+      singleNodeOperation(child.type) &&
+      'primaryInput' in child &&
+      child.primaryInput === parentNode &&
+      !nodeLayouts.has(child.nodeId),
+  );
+}
+
+/**
+ * Gets the effective layout position for a node by walking up the chain.
+ *
+ * If the node has its own layout, returns that. Otherwise, recursively
+ * walks up through primaryInput to find the first ancestor with a layout.
+ * This is useful for docked nodes that don't have their own layout position.
+ *
+ * @param node The node to get the effective layout for
+ * @param nodeLayouts Current layout positions
+ * @returns The effective layout position, or undefined if no ancestor has a layout
+ */
+export function getEffectiveLayout(
+  node: QueryNode,
+  nodeLayouts: ReadonlyMap<string, {x: number; y: number}>,
+): {x: number; y: number} | undefined {
+  // If this node has a layout, return it
+  const directLayout = nodeLayouts.get(node.nodeId);
+  if (directLayout !== undefined) {
+    return directLayout;
+  }
+
+  // Otherwise, walk up the chain via primaryInput
+  if ('primaryInput' in node && node.primaryInput !== undefined) {
+    return getEffectiveLayout(node.primaryInput, nodeLayouts);
+  }
+
+  return undefined;
+}
+
+// Layout offset constants for undocking
+const UNDOCK_X_OFFSET = 250;
+const UNDOCK_STAGGER = 30;
+
+/**
+ * Calculates layout positions for undocking children from a parent.
+ * Positions are staggered diagonally from the parent's position.
+ *
+ * @param children The children to calculate positions for
+ * @param parentLayout The parent's layout position
+ * @param parentLayout.x The parent's x coordinate
+ * @param parentLayout.y The parent's y coordinate
+ * @returns Map of child nodeId to new layout position
+ */
+export function calculateUndockLayouts(
+  children: QueryNode[],
+  parentLayout: {x: number; y: number},
+): Map<string, {x: number; y: number}> {
+  const layouts = new Map<string, {x: number; y: number}>();
+
+  for (let i = 0; i < children.length; i++) {
+    layouts.set(children[i].nodeId, {
+      x: parentLayout.x + UNDOCK_X_OFFSET + i * UNDOCK_STAGGER,
+      y: parentLayout.y + i * UNDOCK_STAGGER,
+    });
+  }
+
+  return layouts;
+}
+
+// ============================================================================
+// Graph Connection Operations
+// ============================================================================
+// These functions encapsulate the bidirectional relationship management
+// between nodes, ensuring consistency when adding/removing connections.
+
+/**
+ * Notifies all downstream nodes that their inputs have changed.
+ */
+export function notifyNextNodes(node: QueryNode): void {
+  for (const nextNode of node.nextNodes) {
+    nextNode.onPrevNodesUpdated?.();
+  }
+}
+
+/**
+ * Helper: Get secondary input at specific port
+ */
+export function getSecondaryInput(
+  node: QueryNode,
+  portIndex: number,
+): QueryNode | undefined {
+  return node.secondaryInputs?.connections.get(portIndex);
+}
+
+/**
+ * Helper: Set secondary input at specific port
+ */
+export function setSecondaryInput(
+  node: QueryNode,
+  portIndex: number,
+  inputNode: QueryNode,
+): void {
+  if (!node.secondaryInputs) {
+    throw new Error('Node does not support secondary inputs');
+  }
+  node.secondaryInputs.connections.set(portIndex, inputNode);
+}
+
+/**
+ * Helper: Remove secondary input at specific port
+ */
+export function removeSecondaryInput(node: QueryNode, portIndex: number): void {
+  if (!node.secondaryInputs) return;
+  node.secondaryInputs.connections.delete(portIndex);
+}
+
+/**
+ * Validates that secondary inputs meet cardinality requirements.
+ * Returns an error message if validation fails, undefined if valid.
+ */
+export function validateSecondaryInputs(node: QueryNode): string | undefined {
+  if (!node.secondaryInputs) {
+    return undefined;
+  }
+
+  const {connections, min, max}: SecondaryInputSpec = node.secondaryInputs;
+  const count = connections.size;
+
+  if (count < min) {
+    return `Requires at least ${min} input${min === 1 ? '' : 's'}, but only ${count} connected`;
+  }
+
+  if (max !== 'unbounded' && count > max) {
+    return `Allows at most ${max} input${max === 1 ? '' : 's'}, but ${count} connected`;
+  }
+
+  return undefined;
+}
+
+/**
+ * Adds a connection from one node to another, updating both forward and
+ * backward links. For multi-source nodes, adds to the specified port index.
+ */
+export function addConnection(
+  fromNode: QueryNode,
+  toNode: QueryNode,
+  portIndex?: number,
+): void {
+  // Update forward link (fromNode -> toNode)
+  if (!fromNode.nextNodes.includes(toNode)) {
+    fromNode.nextNodes.push(toNode);
+  }
+
+  // Determine connection type based on node characteristics
+  if (singleNodeOperation(toNode.type)) {
+    // Single-input operation node (Filter, Sort, etc.)
+    // If portIndex is specified, connect to secondary input
+    if (portIndex !== undefined) {
+      if (!toNode.secondaryInputs) {
+        throw new Error(
+          `Node ${toNode.nodeId} does not support secondary inputs`,
+        );
+      }
+      setSecondaryInput(toNode, portIndex, fromNode);
+    } else {
+      // Otherwise connect to primary input (default from above)
+      toNode.primaryInput = fromNode;
+    }
+    toNode.onPrevNodesUpdated?.();
+  } else if (toNode.secondaryInputs) {
+    // Multi-source node (Union, Join, IntervalIntersect)
+    if (portIndex !== undefined) {
+      // Set at specific port
+      setSecondaryInput(toNode, portIndex, fromNode);
+    } else {
+      // Find first available port
+      let nextPort = 0;
+      while (toNode.secondaryInputs.connections.has(nextPort)) {
+        nextPort++;
+      }
+      setSecondaryInput(toNode, nextPort, fromNode);
+    }
+    toNode.onPrevNodesUpdated?.();
+  }
+}
+
+/**
+ * Removes a connection from one node to another, cleaning up both forward
+ * and backward links.
+ */
+export function removeConnection(
+  fromNode: QueryNode,
+  toNode: QueryNode,
+  specificPort?: number,
+): void {
+  // Check if it's in primary input
+  if (toNode.primaryInput === fromNode) {
+    toNode.primaryInput = undefined;
+    toNode.onPrevNodesUpdated?.();
+  }
+
+  // Check if it's in secondary inputs
+  if (toNode.secondaryInputs) {
+    if (specificPort !== undefined) {
+      // Remove specific port connection
+      const inputNode = toNode.secondaryInputs.connections.get(specificPort);
+      if (inputNode === fromNode) {
+        removeSecondaryInput(toNode, specificPort);
+        toNode.onPrevNodesUpdated?.();
+      }
+    } else {
+      // No specific port - remove ALL connections from fromNode to toNode
+      const portsToRemove: number[] = [];
+      for (const [portIndex, inputNode] of toNode.secondaryInputs.connections) {
+        if (inputNode === fromNode) {
+          portsToRemove.push(portIndex);
+        }
+      }
+      for (const port of portsToRemove) {
+        removeSecondaryInput(toNode, port);
+      }
+      if (portsToRemove.length > 0) {
+        toNode.onPrevNodesUpdated?.();
+      }
+    }
+  }
+
+  // Only remove from nextNodes if no connections remain from fromNode to toNode
+  const stillConnected =
+    toNode.primaryInput === fromNode ||
+    (toNode.secondaryInputs &&
+      Array.from(toNode.secondaryInputs.connections.values()).includes(
+        fromNode,
+      ));
+
+  if (!stillConnected) {
+    const nextIndex = fromNode.nextNodes.indexOf(toNode);
+    if (nextIndex !== -1) {
+      fromNode.nextNodes.splice(nextIndex, 1);
+    }
+  }
 }

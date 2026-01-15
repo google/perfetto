@@ -2,7 +2,7 @@
   "nodes": [
     {
       "nodeId": "0",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "5"
@@ -10,7 +10,7 @@
     },
     {
       "nodeId": "1",
-      "type": 0,
+      "type": "table",
       "state": {
         "sqlTable": "thread_state"
       },
@@ -20,7 +20,7 @@
     },
     {
       "nodeId": "5",
-      "type": 10,
+      "type": "filter",
       "state": {
         "primaryInputId": "0",
         "filters": [
@@ -48,7 +48,7 @@
     },
     {
       "nodeId": "4",
-      "type": 10,
+      "type": "filter",
       "state": {
         "primaryInputId": "1",
         "filters": [
@@ -65,14 +65,12 @@
     },
     {
       "nodeId": "2",
-      "type": 7,
+      "type": "filter_during",
       "state": {
         "primaryInputId": "5",
         "secondaryInputNodeIds": [
           "4"
-        ],
-        "filterNegativeDurPrimary": true,
-        "filterNegativeDurSecondary": true
+        ]
       },
       "nextNodes": [
         "3"
@@ -80,7 +78,7 @@
     },
     {
       "nodeId": "3",
-      "type": 4,
+      "type": "aggregation",
       "state": {
         "primaryInputId": "2",
         "groupByColumns": [

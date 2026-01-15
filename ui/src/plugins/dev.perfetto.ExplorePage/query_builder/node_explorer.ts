@@ -15,13 +15,14 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {isAQuery, Query, QueryNode, queryToRun} from '../query_node';
+import {Query, QueryNode} from '../query_node';
+import {isAQuery, queryToRun} from './query_builder_utils';
 import {Trace} from '../../../public/trace';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
-import {TabStrip} from '../../../widgets/tabs';
+import {TabStrip} from '../../../widgets/tab_strip';
 import {NodeModifyAttrs} from './node_explorer_types';
 import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {DataExplorerEmptyState, InfoBox} from './widgets';
@@ -52,6 +53,8 @@ export interface NodeExplorerAttrs {
   readonly onViewChange?: (view: number) => void;
   /** Whether there's already a result displayed (for reuse optimization) */
   readonly hasExistingResult?: boolean;
+  /** The current query state from Builder (single source of truth) */
+  readonly query?: Query | Error;
 }
 
 enum SelectedView {
@@ -104,6 +107,8 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       );
       this.currentQuery = error;
       attrs.onQueryAnalyzed(error);
+      // Clear prevSqString so that when node becomes valid again, we'll re-process it
+      this.prevSqString = undefined;
       return;
     }
 
@@ -169,13 +174,13 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     }
     const result: m.Children = [];
     for (const btn of buttons) {
-      const attrs: Partial<ButtonAttrs> = {
+      const attrs = {
         onclick: btn.onclick,
         variant: btn.variant ?? ButtonVariant.Outlined, // Default to Outlined
+        label: btn.label,
+        icon: btn.icon,
+        compact: btn.compact,
       };
-      if (btn.label) attrs.label = btn.label;
-      if (btn.icon) attrs.icon = btn.icon;
-      if (btn.compact !== undefined) attrs.compact = btn.compact;
       result.push(m(Button, attrs as ButtonAttrs));
     }
     return result;
@@ -263,16 +268,20 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     return 'info' in obj;
   }
 
-  private renderContent(node: QueryNode, selectedView: number): m.Child {
+  private renderContent(
+    node: QueryNode,
+    selectedView: number,
+    attrs: NodeExplorerAttrs,
+  ): m.Child {
+    // Use query from attrs (single source of truth from Builder)
+    const query = attrs.query ?? this.currentQuery;
     const sql: string =
       this.sqlForDisplay ??
-      (isAQuery(this.currentQuery)
-        ? queryToRun(this.currentQuery)
-        : 'SQL not available.');
-    const textproto: string = isAQuery(this.currentQuery)
-      ? this.currentQuery.textproto
-      : this.currentQuery instanceof Error
-        ? this.currentQuery.message
+      (isAQuery(query) ? queryToRun(query) : 'SQL not available.');
+    const textproto: string = isAQuery(query)
+      ? query.textproto
+      : query instanceof Error
+        ? query.message
         : 'Proto not available.';
 
     return m(
@@ -298,13 +307,13 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
             },
           }),
           this.resultTabMode === 'sql'
-            ? isAQuery(this.currentQuery)
+            ? isAQuery(query)
               ? m(CodeSnippet, {language: 'SQL', text: sql})
               : m(DataExplorerEmptyState, {
                   icon: 'info',
                   title: 'SQL not available',
                 })
-            : isAQuery(this.currentQuery)
+            : isAQuery(query)
               ? m(CodeSnippet, {text: textproto, language: 'textproto'})
               : m(DataExplorerEmptyState, {
                   icon: 'info',
@@ -339,7 +348,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         node instanceof SqlSourceNode ? '.pf-exp-node-explorer-sql-source' : ''
       }`,
       m('.pf-exp-node-explorer__header', this.renderTitleRow(node)),
-      this.renderContent(node, selectedView),
+      this.renderContent(node, selectedView, attrs),
     );
   }
 }

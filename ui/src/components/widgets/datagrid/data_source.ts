@@ -13,10 +13,28 @@
 // limitations under the License.
 
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {DataGridColumn, Filter, Pagination, PivotModel, SortBy} from './model';
+import {Column, Filter, Pivot} from './model';
+
+export interface Pagination {
+  readonly offset: number;
+  readonly limit: number;
+}
 
 export interface DataSource {
-  readonly result?: DataSourceResult;
+  // The row data for the current data grid state (filters, sorting, pagination,
+  // etc)
+  readonly rows?: DataSourceRows;
+
+  // Available distinct values for specified columns (for filter dropdowns)
+  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
+
+  // Available parameter keys for parameterized columns (e.g., for 'args' ->
+  // ['foo', 'bar'])
+  readonly parameterKeys?: ReadonlyMap<string, readonly string[]>;
+
+  // Computed aggregate totals for each aggregate column (grand total across all
+  // filtered rows)
+  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
 
   // Whether the data source is currently loading data/updating.
   readonly isLoading?: boolean;
@@ -31,24 +49,39 @@ export interface DataSource {
 }
 
 export interface DataSourceModel {
-  readonly columns?: readonly DataGridColumn[];
-  readonly sorting?: SortBy;
+  // The columns to display, including their sort direction if any
+  readonly columns?: readonly Column[];
+
+  // Active filters to apply to the data
   readonly filters?: readonly Filter[];
+
+  // Pagination settings (offset and limit for the current page)
   readonly pagination?: Pagination;
-  readonly pivot?: PivotModel;
+
+  // Pivot configuration for grouped/aggregated views
+  readonly pivot?: Pivot;
+
+  // Columns for which to fetch distinct values (for filter dropdowns)
   readonly distinctValuesColumns?: ReadonlySet<string>;
-  // Request parameter keys for these parameterized column prefixes (e.g., 'args', 'skills')
+
+  // Parameterized column prefixes for which to fetch available keys (e.g.,
+  // 'args')
   readonly parameterKeyColumns?: ReadonlySet<string>;
 }
 
-export interface DataSourceResult {
+export interface DataSourceRows {
+  // The total number of rows available in the dataset
   readonly totalRows: number;
+
+  // The offset of the first row in this batch
   readonly rowOffset: number;
+
+  // The actual row data for this batch
   readonly rows: readonly Row[];
-  readonly isLoading?: boolean;
-  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
-  // Available parameter keys for parameterized columns (e.g., for 'args' -> ['foo', 'bar'])
-  readonly parameterKeys?: ReadonlyMap<string, readonly string[]>;
-  // Computed aggregate totals for each aggregate column (grand total across all filtered rows)
-  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
 }
+
+// Reserved column name for rollup level indicator in multi-level pivot tables.
+// The value indicates the depth of the row:
+// - Level 0: Only first groupBy column has value (most aggregated)
+// - Level N-1: All groupBy columns have values (leaf level)
+export const ROLLUP_LEVEL_COLUMN = '__level__';

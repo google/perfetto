@@ -273,4 +273,96 @@ describe('AddColumnsNode', () => {
       expect(query?.referencedModules).toContain('android');
     });
   });
+
+  describe('isApplyDisabled', () => {
+    it('should disable Apply when rightNode exists but leftColumn is not set', () => {
+      const primaryNode = createMockPrimaryNode();
+      const secondaryNode = createMockSecondaryNode();
+      const node = createAddColumnsNodeWithInputs(
+        {
+          selectedColumns: ['name'],
+          leftColumn: '', // Empty string (user cleared the field)
+          rightColumn: 'id',
+        },
+        primaryNode,
+        secondaryNode,
+      );
+
+      const isDisabled = node.isApplyDisabled();
+
+      expect(isDisabled).toBe(true);
+    });
+
+    it('should disable Apply when rightNode exists but rightColumn is not set', () => {
+      const primaryNode = createMockPrimaryNode();
+      const secondaryNode = createMockSecondaryNode();
+      const node = createAddColumnsNodeWithInputs(
+        {
+          selectedColumns: ['name'],
+          leftColumn: 'id',
+          rightColumn: '', // Empty string (user cleared the field)
+        },
+        primaryNode,
+        secondaryNode,
+      );
+
+      const isDisabled = node.isApplyDisabled();
+
+      expect(isDisabled).toBe(true);
+    });
+
+    it('should disable Apply when rightNode exists but both join columns are not set', () => {
+      const primaryNode = createMockPrimaryNode();
+      const secondaryNode = createMockSecondaryNode();
+      const node = createAddColumnsNodeWithInputs(
+        {
+          selectedColumns: ['name'],
+          leftColumn: '', // Empty string (user cleared the field)
+          rightColumn: '', // Empty string (user cleared the field)
+        },
+        primaryNode,
+        secondaryNode,
+      );
+
+      const isDisabled = node.isApplyDisabled();
+
+      expect(isDisabled).toBe(true);
+    });
+
+    it('should enable Apply when rightNode exists with both join columns and selected columns', () => {
+      const primaryNode = createMockPrimaryNode();
+      const secondaryNode = createMockSecondaryNode();
+      const node = createAddColumnsNodeWithInputs(
+        {
+          selectedColumns: ['name', 'category'],
+          leftColumn: 'id',
+          rightColumn: 'id',
+        },
+        primaryNode,
+        secondaryNode,
+      );
+
+      const isDisabled = node.isApplyDisabled();
+
+      expect(isDisabled).toBe(false);
+    });
+
+    it('should disable Apply when rightNode exists with join columns but no selected columns', () => {
+      const primaryNode = createMockPrimaryNode();
+      const secondaryNode = createMockSecondaryNode();
+      const node = createAddColumnsNodeWithInputs(
+        {
+          selectedColumns: [], // Empty
+          leftColumn: 'id',
+          rightColumn: 'id',
+        },
+        primaryNode,
+        secondaryNode,
+      );
+
+      const isDisabled = node.isApplyDisabled();
+
+      expect(isDisabled).toBe(true);
+    });
+  });
 });

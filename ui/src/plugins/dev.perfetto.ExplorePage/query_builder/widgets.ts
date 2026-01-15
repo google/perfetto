@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button, ButtonVariant} from '../../../widgets/button';
+import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {Card} from '../../../widgets/card';
 import {TextInput} from '../../../widgets/text_input';
 import {Icon} from '../../../widgets/icon';
@@ -37,6 +37,33 @@ import {Editor} from '../../../widgets/editor';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {findRef, toHTMLElement} from '../../../base/dom_utils';
 import {assertExists} from '../../../base/logging';
+
+/**
+ * Round action button with consistent styling for Explore Page.
+ * Used for undo/redo/add node buttons - provides unified styling with
+ * primary color, filled variant, and round shape.
+ */
+export interface RoundActionButtonAttrs {
+  readonly icon: string;
+  readonly title: string;
+  readonly onclick: () => void;
+  readonly disabled?: boolean;
+  readonly className?: string;
+}
+
+export function RoundActionButton(attrs: RoundActionButtonAttrs) {
+  return m(Button, {
+    icon: attrs.icon,
+    title: attrs.title,
+    onclick: attrs.onclick,
+    disabled: attrs.disabled,
+    variant: ButtonVariant.Filled,
+    rounded: true,
+    iconFilled: true,
+    intent: Intent.Primary,
+    className: classNames('pf-qb-round-action-button', attrs.className),
+  });
+}
 
 // Empty state widget for the data explorer with warning variant support
 export type DataExplorerEmptyStateVariant = 'default' | 'warning';
@@ -178,7 +205,7 @@ export class Section implements m.ClassComponent<SectionAttrs> {
 // Action button definition for ListItem
 export interface ListItemAction {
   label?: string;
-  icon: string;
+  icon?: string;
   title?: string;
   onclick: () => void;
 }
@@ -235,16 +262,24 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
     // Render action buttons
     if (attrs.actions) {
       for (const action of attrs.actions) {
-        buttons.push(
-          m(Button, {
-            label: action.label,
-            icon: action.icon,
-            title: action.title,
-            variant: ButtonVariant.Outlined,
-            compact: true,
-            onclick: action.onclick,
-          }),
-        );
+        // Build button attributes based on what's available
+        const buttonAttrs: ButtonAttrs = action.label
+          ? {
+              label: action.label,
+              icon: action.icon,
+              title: action.title,
+              variant: ButtonVariant.Outlined,
+              compact: true,
+              onclick: action.onclick,
+            }
+          : {
+              icon: action.icon ?? 'help',
+              title: action.title,
+              variant: ButtonVariant.Outlined,
+              compact: true,
+              onclick: action.onclick,
+            };
+        buttons.push(m(Button, buttonAttrs));
       }
     }
 

@@ -33,6 +33,7 @@
 @import "components/pivot_table";
 @import "components/query_history";
 @import "components/query_table";
+@import "widgets/accordion";
 @import "widgets/anchor";
 @import "widgets/box";
 @import "widgets/button";
@@ -43,6 +44,7 @@
 @import "widgets/chip";
 @import "widgets/code_snippet";
 @import "widgets/details_shell";
+@import "widgets/drawer_panel";
 @import "widgets/editor";
 @import "widgets/empty_state";
 @import "widgets/error";
@@ -68,9 +70,10 @@
 @import "widgets/select";
 @import "widgets/settings_shell";
 @import "widgets/spinner";
-@import "widgets/split_panel";
+@import "widgets/split_panel.scss";
 @import "widgets/sql_table";
 @import "widgets/stack";
+@import "widgets/tab_strip";
 @import "widgets/tabs";
 @import "widgets/tag_input";
 @import "widgets/text_input";

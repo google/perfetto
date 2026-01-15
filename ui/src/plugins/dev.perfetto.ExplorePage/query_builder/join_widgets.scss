@@ -50,7 +50,7 @@
 }
 
 .pf-join-source-card__header {
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   font-weight: 600;
   color: var(--pf-color-text);
   text-transform: uppercase;
@@ -71,11 +71,12 @@
 .pf-join-source-card__columns {
   margin-top: 8px;
   padding-top: 12px;
+  padding-bottom: 8px;
   border-top: 1px solid var(--pf-color-border);
 }
 
 .pf-join-source-card__columns-label {
-  font-size: 12px;
+  font-size: var(--pf-font-size-s);
   font-weight: 600;
   color: var(--pf-color-text-muted);
   margin-bottom: 8px;
@@ -111,7 +112,7 @@
 
 .pf-join-condition-preview__code {
   font-family: "Roboto Mono", monospace;
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   color: var(--pf-color-text);
   display: flex;
   align-items: center;
@@ -179,6 +180,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+
+  // Add spacing below OutlinedFieldReadOnly when used in single-suggestion mode
+  .pf-outlined-field {
+    margin-bottom: 8px;
+  }
 }
 
 .pf-join-modal-info {
@@ -231,7 +237,7 @@
   border-bottom: 1px solid var(--pf-color-border);
 
   h4 {
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     font-weight: 600;
     color: var(--pf-color-text);
     margin: 0;

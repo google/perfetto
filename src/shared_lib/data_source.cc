@@ -14,18 +14,37 @@
  * limitations under the License.
  */
 
-#include "perfetto/public/abi/data_source_abi.h"
+#include "perfetto/public/data_source.h"
 
+#include <atomic>
 #include <bitset>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <vector>
 
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/base/thread_annotations.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
+#include "perfetto/public/abi/atomic.h"
+#include "perfetto/public/abi/data_source_abi.h"
+#include "perfetto/public/abi/stream_writer_abi.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/basic_types.h"
-#include "protos/perfetto/common/data_source_descriptor.gen.h"
-#include "protos/perfetto/config/data_source_config.gen.h"
+#include "perfetto/tracing/internal/data_source_internal.h"
+#include "perfetto/tracing/internal/data_source_type.h"
+#include "perfetto/tracing/internal/tracing_muxer.h"
+#include "perfetto/tracing/internal/tracing_tls.h"
 #include "src/shared_lib/reset_for_testing.h"
 #include "src/shared_lib/stream_writer.h"
+
+#include "protos/perfetto/common/data_source_descriptor.gen.h"  // IWYU pragma: keep
 
 namespace {
 
@@ -59,6 +78,7 @@ struct PerfettoDsImpl {
   // state.
   PerfettoDsOnCreateCustomState on_create_incr_cb = nullptr;
   PerfettoDsOnDeleteCustomState on_delete_incr_cb = nullptr;
+  PerfettoDsOnClearCustomState on_clear_incr_cb = nullptr;
 
   // Passed to all the callbacks as the `user_arg` param.
   void* cb_user_arg;
@@ -99,8 +119,7 @@ struct PerfettoDsAsyncStopper {
   }
 };
 
-namespace perfetto {
-namespace shlib {
+namespace perfetto::shlib {
 
 // These are only exposed to tests.
 
@@ -112,8 +131,7 @@ void DsImplDestroy(struct PerfettoDsImpl* ds_impl) {
   delete ds_impl;
 }
 
-}  // namespace shlib
-}  // namespace perfetto
+}  // namespace perfetto::shlib
 
 namespace {
 
@@ -240,6 +258,14 @@ CreateShlibIncrementalState(DataSourceInstanceThreadLocalState* tls_inst,
       custom_state, ds_impl->on_delete_incr_cb);
 }
 
+bool ClearShlibIncrementalState(void* incremental_state, void* ctx) {
+  auto* ds_impl = reinterpret_cast<PerfettoDsImpl*>(ctx);
+  if (!ds_impl->on_clear_incr_cb) {
+    return false;
+  }
+  return ds_impl->on_clear_incr_cb(incremental_state, ds_impl->cb_user_arg);
+}
+
 }  // namespace
 
 // Exposed through data_source_abi.h
@@ -303,6 +329,12 @@ void PerfettoDsSetOnDeleteIncr(struct PerfettoDsImpl* ds_impl,
   ds_impl->on_delete_incr_cb = cb;
 }
 
+void PerfettoDsSetOnClearIncr(struct PerfettoDsImpl* ds_impl,
+                              PerfettoDsOnClearCustomState cb) {
+  PERFETTO_CHECK(!ds_impl->IsRegistered());
+  ds_impl->on_clear_incr_cb = cb;
+}
+
 void PerfettoDsSetCbUserArg(struct PerfettoDsImpl* ds_impl, void* user_arg) {
   PERFETTO_CHECK(!ds_impl->IsRegistered());
   ds_impl->cb_user_arg = user_arg;
@@ -359,10 +391,15 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
   DataSourceType::CreateCustomTlsFn create_custom_tls_fn = nullptr;
   DataSourceType::CreateIncrementalStateFn create_incremental_state_fn =
       nullptr;
+  DataSourceType::ClearIncrementalStateFn clear_incremental_state_fn = nullptr;
   void* cb_ctx = nullptr;
   if (data_source_type->on_create_incr_cb &&
       data_source_type->on_delete_incr_cb) {
     create_incremental_state_fn = CreateShlibIncrementalState;
+    cb_ctx = data_source_type.get();
+  }
+  if (data_source_type->on_clear_incr_cb) {
+    clear_incremental_state_fn = ClearShlibIncrementalState;
     cb_ctx = data_source_type.get();
   }
   if (data_source_type->on_create_tls_cb &&
@@ -381,7 +418,8 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
       data_source_type->buffer_exhausted_policy;
   bool success = data_source_type->cpp_type.Register(
       dsd, factory, params, data_source_type->on_flush_cb == nullptr,
-      create_custom_tls_fn, create_incremental_state_fn, cb_ctx);
+      create_custom_tls_fn, create_incremental_state_fn,
+      clear_incremental_state_fn, cb_ctx);
   if (!success) {
     return false;
   }

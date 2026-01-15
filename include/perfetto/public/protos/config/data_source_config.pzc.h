@@ -45,6 +45,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_GpuCounterConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuRenderStagesConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_HeapprofdConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InodeFileConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_InputMethodConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InterceptorConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_JavaHprofConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_KernelWakelocksConfig);
@@ -96,6 +97,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   uint32_t,
                   target_buffer,
                   2);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  STRING,
+                  const char*,
+                  target_buffer_name,
+                  11);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   VARINT,
                   uint32_t,
@@ -326,6 +332,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_AndroidUserListConfig,
                   user_list_config,
                   138);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_InputMethodConfig,
+                  inputmethod_config,
+                  139);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   STRING,
                   const char*,

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -83,6 +83,7 @@ export class PowerCounterSelectionAggregator implements Aggregator {
       {
         title: 'Rail Name',
         columnId: 'name',
+        sort: 'DESC',
       },
       {
         title: 'Delta energy (mJ)',
@@ -107,9 +108,5 @@ export class PowerCounterSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Power Counters';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'name', direction: 'DESC'};
   }
 }

@@ -33,7 +33,6 @@
 
 import m from 'mithril';
 
-import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
@@ -54,16 +53,16 @@ import {
   NodePort,
 } from '../../../../widgets/nodegraph';
 import {createEditableTextLabels} from './text_label';
-import {
-  QueryNode,
-  singleNodeOperation,
-  NodeType,
-  addConnection,
-  removeConnection,
-} from '../../query_node';
+import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
 import {NodeBox} from './node_box';
 import {buildMenuItems} from './menu_utils';
-import {getAllNodes, findNodeById} from '../graph_utils';
+import {
+  getAllNodes,
+  findNodeById,
+  addConnection,
+  removeConnection,
+} from '../graph_utils';
+import {RoundActionButton} from '../widgets';
 
 // ========================================
 // TYPE DEFINITIONS
@@ -100,7 +99,8 @@ export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: LayoutMap;
-  readonly labels?: ReadonlyArray<TextLabelData>;
+  readonly labels: ReadonlyArray<TextLabelData>;
+  readonly loadGeneration?: number;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: Position) => void;
@@ -457,22 +457,6 @@ function hasPrimaryInputPort(node: QueryNode): boolean {
   return singleNodeOperation(node.type);
 }
 
-// Find which visual port a parent node is connected to
-function getInputPort(child: QueryNode, parent: QueryNode): number {
-  if (child.primaryInput === parent) {
-    return 0;
-  }
-  if (child.secondaryInputs) {
-    const offset = hasPrimaryInputPort(child) ? 1 : 0;
-    for (const [index, node] of child.secondaryInputs.connections) {
-      if (node === parent) {
-        return index + offset;
-      }
-    }
-  }
-  return 0;
-}
-
 // Convert visual port to secondary input index (undefined means primary input)
 function toSecondaryIndex(
   node: QueryNode,
@@ -508,12 +492,34 @@ function buildConnections(
         continue;
       }
 
-      connections.push({
-        fromNode: qnode.nodeId,
-        fromPort: 0,
-        toNode: child.nodeId,
-        toPort: getInputPort(child, qnode),
-      });
+      // Check if this parent is connected to multiple ports on the child
+      // (e.g., Union node with same parent connected to Input 0 and Input 1)
+      const connectedPorts: number[] = [];
+
+      // Check primary input
+      if (child.primaryInput === qnode) {
+        connectedPorts.push(0);
+      }
+
+      // Check secondary inputs
+      if (child.secondaryInputs) {
+        const offset = hasPrimaryInputPort(child) ? 1 : 0;
+        for (const [index, node] of child.secondaryInputs.connections) {
+          if (node === qnode) {
+            connectedPorts.push(index + offset);
+          }
+        }
+      }
+
+      // Create a separate connection for each port
+      for (const toPort of connectedPorts) {
+        connections.push({
+          fromNode: qnode.nodeId,
+          fromPort: 0,
+          toNode: child.nodeId,
+          toPort: toPort,
+        });
+      }
     }
   }
 
@@ -526,6 +532,9 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
   const toNode = findQueryNode(conn.toNode, rootNodes);
 
   if (!fromNode || !toNode) {
+    console.warn(
+      `Cannot create connection: node not found (from: ${conn.fromNode}, to: ${conn.toNode})`,
+    );
     return;
   }
 
@@ -549,6 +558,9 @@ function handleConnectionRemove(
   const toNode = findQueryNode(conn.toNode, rootNodes);
 
   if (!fromNode || !toNode) {
+    console.warn(
+      `Cannot remove connection: node not found (from: ${conn.fromNode}, to: ${conn.toNode})`,
+    );
     return;
   }
 
@@ -563,8 +575,11 @@ function handleConnectionRemove(
     }
   }
 
+  // Convert visual port to secondary index for removal
+  const secondaryIndex = toSecondaryIndex(toNode, conn.toPort);
+
   // Use the helper function to cleanly remove the connection
-  removeConnection(fromNode, toNode);
+  removeConnection(fromNode, toNode, secondaryIndex);
 
   // Call the parent callback for any additional cleanup (e.g., state management)
   onConnectionRemove(fromNode, toNode, isSecondaryInput);
@@ -595,20 +610,21 @@ export interface TextLabelData {
 export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
+  private hasPerformedInitialRecenter: boolean = false;
+  private recenterRequired: boolean = false;
   private labels: Label[] = [];
   private labelTexts: Map<string, string> = new Map();
   private editingLabels: Set<string> = new Set();
+  private previousLoadGeneration?: number;
 
   oninit(vnode: m.Vnode<GraphAttrs>) {
-    // Load initial labels from attrs if provided
-    if (vnode.attrs.labels) {
-      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
-    }
+    // Load initial labels from attrs
+    this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
   }
 
   onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
     // Only update labels if the reference changed (indicating external state update)
-    if (vnode.attrs.labels !== old.attrs.labels && vnode.attrs.labels) {
+    if (vnode.attrs.labels !== old.attrs.labels) {
       this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
     }
     return true;
@@ -697,9 +713,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       m(MenuDivider),
       m(MenuTitle, {label: 'Operations'}),
       ...operationMenuItems,
-      m(MenuDivider),
       m(MenuTitle, {label: 'Modification nodes'}),
       ...modificationMenuItems,
+      m(MenuDivider),
+      m(MenuItem, {
+        label: 'Label',
+        onclick: () => this.addLabel(attrs),
+      }),
     ];
 
     const moreMenuItems = [
@@ -726,19 +746,23 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       m(
         PopupMenu,
         {
-          trigger: m(Button, {
-            label: 'Add Node',
+          trigger: RoundActionButton({
             icon: Icons.Add,
-            variant: ButtonVariant.Filled,
+            title: 'Add Node',
+            onclick: () => {},
           }),
         },
         addNodeMenuItems,
       ),
       m(Button, {
-        icon: Icons.Edit,
+        icon: 'center_focus_strong',
         variant: ButtonVariant.Minimal,
-        title: 'Add Label',
-        onclick: () => this.addLabel(attrs),
+        title: 'Center Graph',
+        onclick: () => {
+          if (this.nodeGraphApi) {
+            this.nodeGraphApi.recenter();
+          }
+        },
       }),
       m(
         PopupMenu,
@@ -746,7 +770,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           trigger: m(Button, {
             icon: Icons.ContextMenuAlt,
             variant: ButtonVariant.Minimal,
-            className: classNames('pf-exp-more-menu-button'),
           }),
         },
         moreMenuItems,
@@ -760,6 +783,25 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
 
+    // Detect if loadGeneration has changed (indicates a load operation occurred)
+    const loadGenerationChanged =
+      attrs.loadGeneration !== undefined &&
+      attrs.loadGeneration !== this.previousLoadGeneration;
+
+    if (loadGenerationChanged) {
+      // Always sync previousLoadGeneration to prevent repeated detection
+      // This is critical - if we only update when nodes.length > 0, then when
+      // nodeGraphApi is initially null (causing empty nodes), we'd miss the update.
+      // Later panning would then trigger a late recenter causing infinite redraws.
+      this.previousLoadGeneration = attrs.loadGeneration;
+
+      if (nodes.length > 0) {
+        // Content was loaded - defer recenter to onReady callback
+        // We can't recenter immediately because NodeGraph hasn't rendered the new nodes yet
+        this.recenterRequired = true;
+      }
+    }
+
     // Perform auto-layout if nodeLayouts is empty and API is available
     if (
       !this.hasPerformedInitialLayout &&
@@ -768,14 +810,21 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       nodes.length > 0
     ) {
       this.hasPerformedInitialLayout = true;
-      // Defer autoLayout to next tick to ensure DOM nodes are fully rendered
-      setTimeout(() => {
-        if (this.nodeGraphApi) {
-          // Call autoLayout to arrange nodes hierarchically
-          // autoLayout will call onNodeMove for each node it repositions
-          this.nodeGraphApi.autoLayout();
-        }
-      }, 0);
+      this.hasPerformedInitialRecenter = true;
+      // Call autoLayout to arrange nodes hierarchically
+      // autoLayout will call onNodeMove for each node it repositions
+      this.nodeGraphApi.autoLayout();
+      // Recenter will happen in the onReady callback after the next render
+      this.recenterRequired = true;
+    } else if (
+      !this.hasPerformedInitialRecenter &&
+      this.nodeGraphApi &&
+      nodes.length > 0
+    ) {
+      // Recenter on first render even if auto-layout didn't run
+      // (e.g., when loading from localStorage with existing positions)
+      this.hasPerformedInitialRecenter = true;
+      this.recenterRequired = true;
     }
 
     return m(
@@ -794,6 +843,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           fillHeight: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
+
+            // Check if recenter is required and execute it after render
+            if (this.recenterRequired) {
+              this.nodeGraphApi.recenter();
+              this.recenterRequired = false;
+            }
           },
           multiselect: false,
           onNodeSelect: (nodeId: string) => {
@@ -835,18 +890,43 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             m.redraw();
           },
           onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
-            // Remove coordinates so node becomes "docked" (renders via parent's 'next')
-            attrs.nodeLayouts.delete(childNode.id);
-
-            // Create the connection between parent and child
             const parentNode = findQueryNode(targetId, rootNodes);
             const childQueryNode = findQueryNode(childNode.id, rootNodes);
 
-            if (parentNode && childQueryNode) {
-              // Add connection (this will update both nextNodes and primaryInput/secondaryInputs)
-              addConnection(parentNode, childQueryNode);
+            if (!parentNode || !childQueryNode) {
+              console.warn('Cannot dock: parent or child node not found');
+              m.redraw();
+              return;
             }
 
+            const existingChildren = parentNode.nextNodes;
+
+            // Only allow docking if:
+            // 1. Parent has no children, OR
+            // 2. Parent has exactly one child and it's the child being docked (re-docking)
+            const canDock =
+              existingChildren.length === 0 ||
+              (existingChildren.length === 1 &&
+                existingChildren[0] === childQueryNode);
+
+            if (!canDock) {
+              console.warn('Cannot dock: parent already has children');
+              m.redraw();
+              return;
+            }
+
+            // Check if child can be docked (single-node operation)
+            if (!singleNodeOperation(childQueryNode.type)) {
+              console.warn(
+                'Cannot dock: only single-node operations can be docked',
+              );
+              m.redraw();
+              return;
+            }
+
+            // Dock the child
+            attrs.nodeLayouts.delete(childNode.id);
+            addConnection(parentNode, childQueryNode);
             m.redraw();
           },
           contextMenuOnHover: true,

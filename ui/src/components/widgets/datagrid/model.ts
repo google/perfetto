@@ -12,92 +12,148 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Row, SqlValue} from '../../../trace_processor/query_result';
+import {SqlValue} from '../../../trace_processor/query_result';
 
-export type AggregationFunction =
-  | 'SUM'
-  | 'AVG'
-  | 'COUNT'
-  | 'MIN'
-  | 'MAX'
-  | 'ANY';
+/**
+ * A Set-like collection for storing paths of SqlValue arrays.
+ * Uses string serialization internally for efficient lookup while preserving
+ * the original SqlValue types for SQL generation.
+ */
+export class PathSet implements Iterable<readonly SqlValue[]> {
+  private readonly map = new Map<string, readonly SqlValue[]>();
 
-export interface ValueFilter {
-  readonly column: string;
+  constructor(paths?: Iterable<readonly SqlValue[]>) {
+    if (paths) {
+      for (const path of paths) {
+        this.add(path);
+      }
+    }
+  }
+
+  private static toKey(path: readonly SqlValue[]): string {
+    return path.map((v) => String(v)).join('\x00');
+  }
+
+  add(path: readonly SqlValue[]): this {
+    this.map.set(PathSet.toKey(path), path);
+    return this;
+  }
+
+  has(path: readonly SqlValue[]): boolean {
+    return this.map.has(PathSet.toKey(path));
+  }
+
+  delete(path: readonly SqlValue[]): boolean {
+    return this.map.delete(PathSet.toKey(path));
+  }
+
+  get size(): number {
+    return this.map.size;
+  }
+
+  [Symbol.iterator](): Iterator<readonly SqlValue[]> {
+    return this.map.values();
+  }
+
+  values(): IterableIterator<readonly SqlValue[]> {
+    return this.map.values();
+  }
+}
+
+export type AggregateFunction = 'ANY' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
+export type SortDirection = 'ASC' | 'DESC';
+
+interface ColumnBase {
+  // Unique identifier for this column. Allows multiple columns with the same
+  // field but different configurations (e.g., different aggregate functions).
+  readonly id: string;
+  readonly sort?: SortDirection;
+}
+
+export interface Column extends ColumnBase {
+  readonly field: string;
+  readonly aggregate?: AggregateFunction; // Rename to summary
+}
+
+export type Filter = {readonly field: string} & FilterOpAndValue;
+
+interface OpFilter {
   readonly op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'glob' | 'not glob';
   readonly value: SqlValue;
 }
 
-export interface InFilter {
-  readonly column: string;
+interface InFilter {
   readonly op: 'in' | 'not in';
-  readonly value: ReadonlyArray<SqlValue>;
+  readonly value: readonly SqlValue[];
 }
 
-export interface NullFilter {
-  readonly column: string;
+interface NullFilter {
   readonly op: 'is null' | 'is not null';
 }
 
-export type Filter = ValueFilter | NullFilter | InFilter;
+export type FilterOpAndValue = OpFilter | InFilter | NullFilter;
 
-export interface SortByColumn {
-  readonly column: string;
-  readonly direction: 'ASC' | 'DESC';
+interface AggregateField extends ColumnBase {
+  readonly function: AggregateFunction;
+  readonly field: string;
 }
 
-export interface Unsorted {
-  readonly direction: 'UNSORTED';
+interface AggregateFieldCount extends ColumnBase {
+  readonly function: 'COUNT';
 }
 
-export type SortBy = SortByColumn | Unsorted;
+export type AggregateColumn = AggregateField | AggregateFieldCount;
 
-export interface Pagination {
-  readonly offset: number;
-  readonly limit: number;
+export interface GroupByColumn extends ColumnBase {
+  readonly field: string;
 }
 
-/**
- * A pivot value that aggregates a specific column.
- */
-interface PivotValueWithCol {
-  readonly col: string;
-  readonly func: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'ANY';
-}
+// Base pivot configuration without expansion state
+interface PivotBase {
+  // List of fields to group by
+  readonly groupBy: readonly GroupByColumn[];
 
-/**
- * A pivot value that counts rows (doesn't need a specific column).
- */
-interface PivotValueCount {
-  readonly func: 'COUNT';
-}
-
-export type PivotValue = PivotValueWithCol | PivotValueCount;
-
-/**
- * Model for pivot/grouping state of the data grid.
- */
-export interface PivotModel {
-  // Columns to group by, in order
-  readonly groupBy: ReadonlyArray<string>;
-
-  // Aggregated values to compute - keys are alias names, values define the aggregation
-  readonly values: {
-    readonly [key: string]: PivotValue;
-  };
+  // List of aggregate column definitions.
+  readonly aggregates?: readonly AggregateColumn[];
 
   // When set, shows raw rows filtered by these groupBy column values.
   // This allows drilling down into a specific pivot group to see the
   // underlying data. The keys are the groupBy column names.
-  readonly drillDown?: Row;
+  readonly drillDown?: readonly {field: string; value: SqlValue}[];
+
+  // When true, shows leaf-level rows only (no rollup/summary rows).
+  // This displays the data in a flat table format without hierarchical grouping.
+  readonly collapsibleGroups?: boolean;
 }
 
-/**
- * A column in the DataGridModel, with optional aggregation.
- */
-export interface DataGridColumn {
-  readonly column: string;
-  // Optional aggregation function to compute for this column.
-  // Results are returned in DataSourceResult.aggregateTotals.
-  readonly aggregation?: AggregationFunction;
+// Group expansion state for multi-level pivots.
+// Each path is an array of groupBy values from level 0 to the expanded level.
+// For example, with groupBy: [{field: 'process'}, {field: 'thread'}]:
+// - ['processA'] means processA is expanded/collapsed (affecting its threads)
+
+// Whitelist mode: Only groups in expandedGroups are expanded.
+// Empty PathSet = all groups collapsed (default when entering multi-level)
+export interface PivotWithExpandedGroups extends PivotBase {
+  readonly expandedGroups?: PathSet;
+}
+
+// Blacklist mode: All groups expanded EXCEPT those in collapsedGroups.
+// Empty PathSet = all groups expanded (used by "Expand All")
+export interface PivotWithCollapsedGroups extends PivotBase {
+  readonly collapsedGroups?: PathSet;
+}
+
+export type Pivot =
+  | PivotWithExpandedGroups
+  | PivotWithCollapsedGroups
+  | PivotBase;
+
+export interface Model {
+  readonly columns: readonly Column[];
+  readonly filters: readonly Filter[];
+
+  // When pivot mode is enabled, columns are ignored.
+  // Filters are treated as pre-aggregate filters.
+  // TODO(stevegolton): Add post-aggregate (HAVING) filters.
+  readonly pivot?: Pivot;
 }

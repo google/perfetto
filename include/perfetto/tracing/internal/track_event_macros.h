@@ -131,7 +131,9 @@
 // if so, emits one trace event with the given arguments.
 #define PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(method, category, name, ...) \
   do {                                                                         \
-    ::perfetto::internal::ValidateEventNameType<decltype(name)>();             \
+    /* Double parentheses allow decltype to detect the value category, */      \
+    /* enabling the detection of variables (lvalues) vs temporaries. */        \
+    ::perfetto::internal::ValidateEventNameType<decltype((name))>();           \
     namespace tns = PERFETTO_TRACK_EVENT_NAMESPACE;                            \
     /* Compute the category index outside the lambda to work around a GCC 7 */ \
     /* bug. */                                                                 \

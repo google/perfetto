@@ -14,13 +14,8 @@
 
 import {NUM} from '../../../trace_processor/query_result';
 import {Engine} from '../../../trace_processor/engine';
-import {
-  Query,
-  QueryNode,
-  hashNodeQuery,
-  analyzeNode,
-  isAQuery,
-} from '../query_node';
+import {Query, QueryNode} from '../query_node';
+import {hashNodeQuery, analyzeNode, isAQuery} from './query_builder_utils';
 import {getAllDownstreamNodes} from './graph_utils';
 
 /**
@@ -874,7 +869,12 @@ export class QueryExecutionService {
   }
 
   private hashQuery(node: QueryNode): string | undefined {
-    return hashNodeQuery(node);
+    const result = hashNodeQuery(node);
+    if (result instanceof Error) {
+      console.warn(result.message);
+      return undefined;
+    }
+    return result;
   }
 
   private canReuseTable(
@@ -926,6 +926,13 @@ export class QueryExecutionService {
    * @param node The node to process
    * @param engine The engine for analysis and execution
    * @param options Configuration and callbacks
+   * @param options.manual True when user explicitly clicked "Run Query"
+   * @param options.hasExistingResult Whether there's already a result displayed
+   * @param options.onAnalysisStart Called when analysis starts
+   * @param options.onAnalysisComplete Called when analysis completes
+   * @param options.onExecutionStart Called when execution starts
+   * @param options.onExecutionSuccess Called when execution succeeds
+   * @param options.onExecutionError Called when execution fails
    * @returns Object with query (if analyzed) and whether execution occurred
    */
   async processNode(
@@ -938,7 +945,7 @@ export class QueryExecutionService {
       hasExistingResult?: boolean;
       /** Called when analysis starts */
       onAnalysisStart?: () => void;
-      /** Called when analysis completes (with query or error or undefined if skipped) */
+      /** Called when analysis completes (with query, error, or undefined if skipped) */
       onAnalysisComplete?: (query: Query | Error | undefined) => void;
       /** Called when execution starts */
       onExecutionStart?: () => void;
@@ -982,6 +989,7 @@ export class QueryExecutionService {
           durationMs: performance.now() - startTime,
         });
 
+        console.debug('Analysis skipped - reusing existing materialization');
         return {query: undefined, executed: false};
       } catch {
         // If loading fails (e.g., table was dropped), clear materialization state
@@ -1001,7 +1009,7 @@ export class QueryExecutionService {
 
     // Analyze the node
     options.onAnalysisStart?.();
-    let query: Query | Error | undefined;
+    let query: Query | Error;
     try {
       query = await analyzeNode(node, engine);
     } catch (e) {
