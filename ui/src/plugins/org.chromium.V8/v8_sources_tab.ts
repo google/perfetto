@@ -18,19 +18,18 @@ import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema'
 import {Filter} from '../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
-import {Trace} from '../../public/trace';
-import {Editor} from '../../widgets/editor';
-import {TextInput} from '../../widgets/text_input';
-import {Tree, TreeNode} from '../../widgets/tree';
-import {TabStrip} from '../../widgets/tabs';
-import {Row, SqlValue} from '../../trace_processor/query_result';
-import {NUM, STR} from '../../trace_processor/query_result';
-import {CopyableLink} from '../../widgets/copyable_link';
 import {Tab} from '../../public/tab';
+import {Trace} from '../../public/trace';
+import {NUM, Row, SqlValue, STR} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
+import {CopyableLink} from '../../widgets/copyable_link';
+import {Editor} from '../../widgets/editor';
+import {EmptyState} from '../../widgets/empty_state';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
-import {EmptyState} from '../../widgets/empty_state';
+import {TabStrip} from '../../widgets/tab_strip';
+import {TextInput} from '../../widgets/text_input';
+import {Tree, TreeNode} from '../../widgets/tree';
 
 interface V8JsScript {
   v8_js_script_id: number;
