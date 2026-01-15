@@ -318,13 +318,14 @@ TEST(SchemaParserTest, AddToV2) {
   FilterBytecodeParser parser_v2;
   ASSERT_TRUE(parser_v2.Load(result.bytecode.data(), result.bytecode.size()));
 
-  // Field 2 (denied_in_v2): has semantic_type but NOT add_to_v2.
-  // Should be DENIED in v2 bytecode.
+  // Field 2 (denied_in_v2): has semantic_type but NOT
+  // allow_v2_with_semantic_type. Should be DENIED in v2 bytecode.
   auto query_denied = parser_v2.Query(1, 2);
   EXPECT_FALSE(query_denied.allowed);
 
-  // Field 3 (allowed_in_v2): has semantic_type AND add_to_v2=true.
-  // Should be ALLOWED in v2 bytecode (as filter_string without type).
+  // Field 3 (allowed_in_v2): has semantic_type AND
+  // allow_v2_with_semantic_type=true. Should be ALLOWED in v2 bytecode (as
+  // filter_string without type).
   auto query_allowed = parser_v2.Query(1, 3);
   EXPECT_TRUE(query_allowed.allowed);
   EXPECT_TRUE(query_allowed.filter_string_field());
@@ -346,6 +347,35 @@ TEST(SchemaParserTest, AddToV2) {
   EXPECT_TRUE(query_allowed_v54.allowed);
   EXPECT_TRUE(query_allowed_v54.filter_string_field());
   EXPECT_EQ(query_allowed_v54.semantic_type, 2u);  // SEMANTIC_TYPE_JOB
+}
+
+TEST(SchemaParserTest, AllowV1WithFilterString) {
+  FilterUtil filter;
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.AllowV1Root"));
+
+  // Generate bytecode targeting v1.
+  auto result = filter.GenerateFilterBytecode(
+      FilterBytecodeGenerator::BytecodeVersion::kV1);
+  EXPECT_GT(result.bytecode.size(), 0u);
+  EXPECT_EQ(result.v54_overlay.size(), 0u);  // No overlay for v1
+
+  // Parse v1 bytecode.
+  FilterBytecodeParser parser_v1;
+  ASSERT_TRUE(parser_v1.Load(result.bytecode.data(), result.bytecode.size()));
+
+  // Field 2 (denied_in_v1): has filter_string but NOT
+  // allow_v1_with_filter_string. Should be DENIED in v1 bytecode.
+  auto query_denied = parser_v1.Query(1, 2);
+  EXPECT_FALSE(query_denied.allowed);
+
+  // Field 3 (allowed_in_v1): has filter_string AND
+  // allow_v1_with_filter_string=true. Should be ALLOWED in v1 bytecode as
+  // simple field (no filter_string in v1).
+  auto query_allowed = parser_v1.Query(1, 3);
+  EXPECT_TRUE(query_allowed.allowed);
+  EXPECT_TRUE(query_allowed.simple_field());
+  EXPECT_FALSE(query_allowed.filter_string_field());
 }
 
 }  // namespace

@@ -46,36 +46,43 @@ void FilterBytecodeGenerator::AddSimpleField(uint32_t field_id) {
   endmessage_called_ = false;
 }
 
-// Allows a string field which needs to be rewritten using the given chain.
-void FilterBytecodeGenerator::AddFilterStringField(uint32_t field_id) {
-  // String filtering is only available if bytecode v2+ is targeted.
-  PERFETTO_CHECK(min_version_ >= BytecodeVersion::kV2);
+// Allows a string field which needs to be filtered. Optionally specifies a
+// semantic type (0 = none).
+void FilterBytecodeGenerator::AddFilterStringField(uint32_t field_id,
+                                                   uint32_t semantic_type,
+                                                   bool allow_in_v1,
+                                                   bool allow_in_v2) {
+  // String filtering is only available in bytecode v2+.
+  if (min_version_ < BytecodeVersion::kV2) {
+    if (allow_in_v1) {
+      // If allowed in v1, just add as a simple field.
+      AddSimpleField(field_id);
+    }
+    // Otherwise just deny the field by doing nothing.
+    return;
+  }
 
   PERFETTO_CHECK(field_id > last_field_id_);
-  bytecode_.push_back(field_id << kOpcodeShift | kFilterOpcode_FilterString);
-  last_field_id_ = field_id;
-  endmessage_called_ = false;
-}
 
-// Allows a string field with a semantic type.
-void FilterBytecodeGenerator::AddFilterStringFieldWithType(
-    uint32_t field_id,
-    uint32_t semantic_type,
-    bool add_to_v2) {
-  // String filtering is only available if bytecode v2+ is targeted.
-  PERFETTO_CHECK(min_version_ >= BytecodeVersion::kV2);
-  PERFETTO_CHECK(field_id > last_field_id_);
+  // No semantic type: just use the basic filter string opcode.
+  if (semantic_type == 0) {
+    bytecode_.push_back(field_id << kOpcodeShift | kFilterOpcode_FilterString);
+    last_field_id_ = field_id;
+    endmessage_called_ = false;
+    return;
+  }
 
+  // Has semantic type: use v54 opcode or overlay.
   // If min_version is at least v54, we can just use the new opcode directly.
   if (min_version_ >= BytecodeVersion::kV54) {
     bytecode_.push_back(field_id << kOpcodeShift |
                         kFilterOpcode_FilterStringWithType);
     bytecode_.push_back(semantic_type);
   } else {
-    // On v2 bytecode, if add_to_v2 is true, emit the field as a simple
+    // On v2 bytecode, if allow_in_v2 is true, emit the field as a simple
     // filter string (without semantic type). On v54 it will be enhanced via
     // overlay.
-    if (add_to_v2) {
+    if (allow_in_v2) {
       bytecode_.push_back(field_id << kOpcodeShift |
                           kFilterOpcode_FilterString);
     }

@@ -88,7 +88,8 @@ struct ProtoFilterOptions {
   uint32_t semantic_type = 0;
   bool filter_string = false;
   bool passthrough = false;
-  bool add_to_v2 = false;
+  bool allow_v2_with_semantic_type = false;
+  bool allow_v1_with_filter_string = false;
 };
 
 ProtoFilterOptions ReadProtoFilterAnnotation(
@@ -100,7 +101,8 @@ ProtoFilterOptions ReadProtoFilterAnnotation(
     opts.semantic_type = static_cast<uint32_t>(ext.semantic_type());
     opts.filter_string = ext.filter_string();
     opts.passthrough = ext.passthrough();
-    opts.add_to_v2 = ext.add_to_v2();
+    opts.allow_v2_with_semantic_type = ext.allow_v2_with_semantic_type();
+    opts.allow_v1_with_filter_string = ext.allow_v1_with_filter_string();
   }
   return opts;
 }
@@ -254,7 +256,10 @@ FilterUtil::Message* FilterUtil::ParseProtoDescriptor(
       }
       field.filter_string = true;
       field.semantic_type = filter_opts.semantic_type;
-      field.add_to_v2 = filter_opts.add_to_v2;
+      field.allow_v2_with_semantic_type =
+          filter_opts.allow_v2_with_semantic_type;
+      field.allow_v1_with_filter_string =
+          filter_opts.allow_v1_with_filter_string;
       msg->has_filter_string_fields = true;
     }
 
@@ -431,12 +436,9 @@ FilterBytecodeGenerator::SerializeResult FilterUtil::GenerateFilterBytecode(
         continue;
       }
       if (field.filter_string) {
-        if (field.semantic_type != 0) {
-          bytecode_gen.AddFilterStringFieldWithType(
-              field_id, field.semantic_type, field.add_to_v2);
-        } else {
-          bytecode_gen.AddFilterStringField(field_id);
-        }
+        bytecode_gen.AddFilterStringField(field_id, field.semantic_type,
+                                          field.allow_v1_with_filter_string,
+                                          field.allow_v2_with_semantic_type);
         ++it;
         continue;
       }
