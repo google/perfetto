@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import protos from '../../../protos';
+import {base64Decode} from '../../../base/string_utils';
 import {defer, Deferred} from '../../../base/deferred';
 import {errResult, okResult, Result} from '../../../base/result';
 import {binaryEncode} from '../../../base/string_utils';
@@ -35,8 +36,8 @@ export class ChromeExtensionTarget implements RecordingTarget {
   private _connected = false;
   private _extensionVersion?: string;
   private _connectPromise?: Deferred<boolean>;
-  private chromeCategories?: string[];
-  private chromeCategoriesPromise = defer<string[]>();
+  private trackEventDescriptor?: protos.TrackEventDescriptor;
+  private trackEventDescriptorPromise = defer<protos.TrackEventDescriptor>();
   private session?: ChromeExtensionTracingSession;
 
   async *runPreflightChecks(): AsyncGenerator<PreflightCheck> {
@@ -107,19 +108,23 @@ export class ChromeExtensionTarget implements RecordingTarget {
   }
 
   async getServiceState(): Promise<Result<protos.ITracingServiceState>> {
-    const categories = await this.getChromeCategories();
-    if (!categories.ok) return categories;
-    return okResult(categoriesToServiceState(categories.value));
+    const trackEventDescriptor = await this.getTrackEventDescriptor();
+    if (!trackEventDescriptor.ok) return trackEventDescriptor;
+    return okResult(
+      trackEventDescriptorToServiceState(trackEventDescriptor.value),
+    );
   }
 
-  async getChromeCategories(): Promise<Result<string[]>> {
-    if (this.chromeCategories === undefined) {
+  async getTrackEventDescriptor(): Promise<
+    Result<protos.TrackEventDescriptor>
+  > {
+    if (this.trackEventDescriptor === undefined) {
       if (!(await this.connectIfNeeded())) {
         return errResult('Tracing extension not detected');
       }
-      this.chromeCategories = await this.chromeCategoriesPromise;
+      this.trackEventDescriptor = await this.trackEventDescriptorPromise;
     }
-    return okResult(this.chromeCategories);
+    return okResult(this.trackEventDescriptor);
   }
 
   async startTracing(
@@ -140,7 +145,15 @@ export class ChromeExtensionTarget implements RecordingTarget {
       const cp = this._connectPromise;
       this._connectPromise = undefined;
       cp?.resolve(true);
-      this.invokeExtensionMethod('GetCategories');
+      if (
+        this._extensionVersion.localeCompare('0.0.0.20', undefined, {
+          numeric: true,
+        }) >= 0
+      ) {
+        this.invokeExtensionMethod('GetTrackEventDescriptor');
+      } else {
+        this.invokeExtensionMethod('GetCategories');
+      }
       return;
     }
 
@@ -150,7 +163,17 @@ export class ChromeExtensionTarget implements RecordingTarget {
 
     if (msg.type === 'GetCategoriesResponse') {
       const cats = (msg as {type: string; categories: string[]}).categories;
-      this.chromeCategoriesPromise.resolve(cats);
+      this.trackEventDescriptorPromise.resolve(
+        protos.TrackEventDescriptor.create({
+          availableCategories: cats.map((cat) => ({name: cat})),
+        }),
+      );
+    } else if (msg.type === 'GetTrackEventDescriptorResponse') {
+      const descriptor = (msg as {type: string; encodedDescriptor: string})
+        .encodedDescriptor;
+      this.trackEventDescriptorPromise.resolve(
+        protos.TrackEventDescriptor.decode(base64Decode(descriptor)),
+      );
     } else {
       this.session?.onExtensionMessage(`${msg.type}`, msg);
     }
@@ -178,8 +201,8 @@ export class ChromeExtensionTarget implements RecordingTarget {
   }
 }
 
-function categoriesToServiceState(
-  categories: string[],
+function trackEventDescriptorToServiceState(
+  trackEventDescriptor: protos.TrackEventDescriptor,
 ): protos.ITracingServiceState {
   return {
     producers: [{id: 1, name: 'Chrome'}],
@@ -189,9 +212,7 @@ function categoriesToServiceState(
         dsDescriptor: {
           name: 'track_event',
           id: 1,
-          trackEventDescriptor: {
-            availableCategories: categories.map((cat) => ({name: cat})),
-          },
+          trackEventDescriptor,
         },
       },
     ],

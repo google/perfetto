@@ -50,6 +50,14 @@ export function createEditableTextLabels(
           e.stopPropagation();
         }
       },
+      onkeydown: (e: KeyboardEvent) => {
+        const target = e.target as HTMLTextAreaElement;
+        // If editing (not readonly), stop propagation to prevent
+        // Delete/Backspace from triggering label deletion
+        if (!target.readOnly) {
+          e.stopPropagation();
+        }
+      },
       ondblclick: (e: Event) => {
         const target = e.target as HTMLTextAreaElement;
         editingLabels.add(label.id);
