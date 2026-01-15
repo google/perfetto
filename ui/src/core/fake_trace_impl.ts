@@ -45,14 +45,14 @@ export function initializeAppImplForTesting(): AppImpl {
         name: 'Timestamp Format',
         description: '',
         defaultValue: TimestampFormat.Timecode,
-        schema: z.nativeEnum(TimestampFormat),
+        schema: z.enum(TimestampFormat),
       }),
       durationPrecisionSetting: settingsManager.register({
         id: 'durationPrecision',
         name: 'Duration Precision',
         description: '',
         defaultValue: DurationPrecision.Full,
-        schema: z.nativeEnum(DurationPrecision),
+        schema: z.enum(DurationPrecision),
       }),
       timezoneOverrideSetting: settingsManager.register({
         id: 'timezoneOverride',
