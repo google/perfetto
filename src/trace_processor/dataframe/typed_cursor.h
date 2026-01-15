@@ -183,7 +183,7 @@ class TypedCursor {
     }
   }
 
-  void PrepareCursorInternal();
+  PERFETTO_NO_INLINE void PrepareCursorInternal();
 
   uint32_t GetMutations() const {
     uint32_t mutations = dataframe_->non_column_mutations_;

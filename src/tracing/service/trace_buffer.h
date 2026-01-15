@@ -41,6 +41,16 @@ class TraceBuffer {
   // See comment in the header above.
   enum OverwritePolicy { kOverwrite, kDiscard };
 
+  // Type of trace buffer implementation.
+  // TODO(primiano): remove this once TraceBufferV2 proves itself.
+  // kV2 is experimental and kV1WithV2Shadow is a testing-only class that
+  // is used to gather confidence that the two return the same results.
+  enum BufType {
+    kV1,
+    kV2,
+    kV1WithV2Shadow,
+  };
+
   // Argument for out-of-band patches applied through TryPatchChunkContents().
   struct Patch {
     // From SharedMemoryABI::kPacketHeaderSize.
@@ -110,7 +120,7 @@ class TraceBuffer {
   virtual size_t used_size() const = 0;
   virtual OverwritePolicy overwrite_policy() const = 0;
   virtual bool has_data() const = 0;
-  virtual bool is_trace_buffer_v2() const = 0;
+  virtual BufType buf_type() const = 0;
 
   // Exposed for test/fake_packet.{cc,h}.
   static inline constexpr size_t InlineChunkHeaderSize = 16;
