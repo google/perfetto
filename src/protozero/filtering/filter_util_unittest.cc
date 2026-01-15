@@ -195,8 +195,9 @@ PrintChild2.Nested 1 int64 f1
 
 TEST(SchemaParserTest, Passthrough) {
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      TestDescriptor(), TestDescriptorSize(), "protozero.test.PassthroughRoot"));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(TestDescriptor(),
+                                           TestDescriptorSize(),
+                                           "protozero.test.PassthroughRoot"));
 
   EXPECT_EQ(R"(PassthroughRoot 7 message packet PassthroughPacket
 PassthroughRoot 13 int32 i32
@@ -214,8 +215,9 @@ PassthroughPacket 5 bytes cfg
 
 TEST(SchemaParserTest, FilterString) {
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      TestDescriptor(), TestDescriptorSize(), "protozero.test.FilterStringRoot"));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(TestDescriptor(),
+                                           TestDescriptorSize(),
+                                           "protozero.test.FilterStringRoot"));
 
   EXPECT_EQ(R"(FilterStringRoot 7 message packet FilterStringPacket
 FilterStringRoot 13 int32 i32
@@ -234,8 +236,9 @@ FilterStringConfig 1 string f1 # FILTER STRING
 
 TEST(SchemaParserTest, FilterStringWithSemanticType) {
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      TestDescriptor(), TestDescriptorSize(), "protozero.test.SemanticTypeRoot"));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(TestDescriptor(),
+                                           TestDescriptorSize(),
+                                           "protozero.test.SemanticTypeRoot"));
 
   // Generate bytecode with v54 (should use AddFilterStringFieldWithType)
   auto result_v54 = filter.GenerateFilterBytecode(
@@ -263,9 +266,9 @@ TEST(SchemaParserTest, FilterStringWithSemanticType) {
 
 TEST(SchemaParserTest, FilterStringWithSemanticTypeV2) {
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      TestDescriptor(), TestDescriptorSize(),
-      "protozero.test.SemanticTypeV2Root"));
+  ASSERT_TRUE(
+      filter.LoadFromDescriptorSet(TestDescriptor(), TestDescriptorSize(),
+                                   "protozero.test.SemanticTypeV2Root"));
 
   // Generate bytecode targeting v2 parsers (should generate overlay)
   auto result_v2 = filter.GenerateFilterBytecode(

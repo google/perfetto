@@ -335,7 +335,8 @@ int Main(int argc, char** argv) {
   protozero::FilterUtil filter;
   if (!schema_in.empty()) {
     PERFETTO_LOG("Loading proto schema from %s", schema_in.c_str());
-    if (!filter.LoadMessageDefinition(schema_in, root_message_arg, proto_path)) {
+    if (!filter.LoadMessageDefinition(schema_in, root_message_arg,
+                                      proto_path)) {
       PERFETTO_ELOG("Failed to parse proto schema from %s", schema_in.c_str());
       return 1;
     }

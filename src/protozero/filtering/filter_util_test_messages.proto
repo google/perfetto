@@ -147,8 +147,7 @@ message FilterStringRoot {
 }
 
 message FilterStringConfig {
-  optional string f1 = 1
-      [(perfetto.protos.proto_filter).filter_string = true];
+  optional string f1 = 1 [(perfetto.protos.proto_filter).filter_string = true];
 }
 
 message FilterStringPacket {
@@ -197,8 +196,7 @@ message MsgFilterPassthroughRoot {
   optional MsgFilterPassthroughConfig cfg = 2
       [(perfetto.protos.proto_filter).passthrough = true];
   optional MsgFilterPassthroughConfig cfg_filtered = 3;
-  optional string other = 4
-      [(perfetto.protos.proto_filter).passthrough = true];
+  optional string other = 4 [(perfetto.protos.proto_filter).passthrough = true];
 }
 
 message MsgFilterPassthroughSubConfig {
@@ -217,8 +215,7 @@ message MsgFilterStringRoot {
 }
 
 message MsgFilterStringConfig {
-  optional string f2 = 1
-      [(perfetto.protos.proto_filter).filter_string = true];
+  optional string f2 = 1 [(perfetto.protos.proto_filter).filter_string = true];
 }
 
 // Test: MessageFilterTest.SemanticTypeEndToEnd
