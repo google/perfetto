@@ -291,36 +291,23 @@ perfetto_cc_binary(
     deps = [
         ":protos_perfetto_common_cpp",
         ":protos_perfetto_common_semantic_type_cpp",
+        ":protos_perfetto_common_semantic_type_lite",
         ":protos_perfetto_common_semantic_type_zero",
-        ":protos_perfetto_common_zero",
         ":protos_perfetto_config_android_cpp",
-        ":protos_perfetto_config_android_zero",
         ":protos_perfetto_config_cpp",
         ":protos_perfetto_config_ftrace_cpp",
-        ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_cpp",
-        ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_cpp",
-        ":protos_perfetto_config_inode_file_zero",
         ":protos_perfetto_config_interceptors_cpp",
-        ":protos_perfetto_config_interceptors_zero",
         ":protos_perfetto_config_power_cpp",
-        ":protos_perfetto_config_power_zero",
         ":protos_perfetto_config_priority_boost_cpp",
-        ":protos_perfetto_config_priority_boost_zero",
         ":protos_perfetto_config_process_stats_cpp",
-        ":protos_perfetto_config_process_stats_zero",
         ":protos_perfetto_config_profiling_cpp",
-        ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_statsd_cpp",
-        ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_cpp",
-        ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_cpp",
-        ":protos_perfetto_config_system_info_zero",
         ":protos_perfetto_config_track_event_cpp",
-        ":protos_perfetto_config_track_event_zero",
-        ":protos_perfetto_config_zero",
+        ":protos_perfetto_proto_filtering_lite",
         ":protozero",
         ":src_base_base",
         ":src_base_version",
@@ -5806,6 +5793,14 @@ perfetto_cc_protocpp_library(
     ],
 )
 
+# GN target: //protos/perfetto/common:semantic_type_lite
+perfetto_cc_proto_library(
+    name = "protos_perfetto_common_semantic_type_lite",
+    deps = [
+        ":protos_perfetto_common_semantic_type_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/common:semantic_type_source_set
 perfetto_proto_library(
     name = "protos_perfetto_common_semantic_type_protos",
@@ -6634,6 +6629,14 @@ perfetto_cc_protozero_library(
     name = "protos_perfetto_perfetto_sql_zero",
     deps = [
         ":protos_perfetto_perfetto_sql_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/proto_filtering:lite
+perfetto_cc_proto_library(
+    name = "protos_perfetto_proto_filtering_lite",
+    deps = [
+        ":protos_perfetto_proto_filtering_protos",
     ],
 )
 
