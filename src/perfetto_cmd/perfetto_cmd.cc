@@ -166,6 +166,7 @@ Usage: %s
                              If using CLONE_SNAPSHOT triggers, each snapshot
                              will be saved in a new file with a counter suffix
                              (e.g., file.0, file.1, file.2).
+  --no-clobber             : Do not overwrite an existing output file.
   --txt                    : Parse config as pbtxt. Not for production use.
                              Not a stable API.
   --query [--long]         : Queries the service state and prints it as
@@ -238,6 +239,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_QUERY_RAW,
     OPT_VERSION,
     OPT_NOTIFY_FD,
+    OPT_NO_CLOBBER,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
@@ -272,11 +274,13 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
       {"notify-fd", required_argument, nullptr, OPT_NOTIFY_FD},
+      {"no-clobber", no_argument, nullptr, OPT_NO_CLOBBER},
       {nullptr, 0, nullptr, 0}};
 
   std::string config_file_name;
   std::string trace_config_raw;
   bool parse_as_pbtxt = false;
+  bool no_clobber = false;
   TraceConfig::StatsdMetadata statsd_metadata;
 
   ConfigOptions config_options;
@@ -520,6 +524,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       PERFETTO_ELOG("--notify-fd is not supported on Windows");
       return 1;
 #endif
+    }
+
+    if (option == OPT_NO_CLOBBER) {
+      no_clobber = true;
+      continue;
     }
 
     PrintUsage(argv[0]);
@@ -814,7 +823,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
   if (open_out_file) {
-    if (!OpenOutputFile())
+    if (!OpenOutputFile(no_clobber))
       return 1;
     if (!trace_config_->write_into_file())
       packet_writer_.emplace(trace_out_stream_.get());
@@ -1253,7 +1262,7 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   task_runner_.Quit();
 }
 
-bool PerfettoCmd::OpenOutputFile() {
+bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
   base::ScopedFile fd;
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -1262,7 +1271,17 @@ bool PerfettoCmd::OpenOutputFile() {
   } else if (trace_out_path_ == "-") {
     fd.reset(dup(fileno(stdout)));
   } else {
-    fd = base::OpenFile(trace_out_path_, O_RDWR | O_CREAT | O_TRUNC, 0600);
+    // O_CREAT | O_EXCL will fail if the file exists already.
+    const int flags = O_RDWR | O_CREAT | (no_clobber ? O_EXCL : O_TRUNC);
+    fd = base::OpenFile(trace_out_path_, flags, 0600);
+    // Show a specific error message for the EEXIST errno
+    if (!fd && errno == EEXIST) {
+      PERFETTO_ELOG(
+          "Error: Output file '%s' already exists, refusing to overwrite due "
+          "to '--no-clobber'.",
+          trace_out_path_.c_str());
+      return false;
+    }
   }
   if (!fd) {
     PERFETTO_PLOG(

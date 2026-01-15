@@ -26,7 +26,7 @@ import {TraceStream} from '../public/stream';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {NewEngineMode} from '../trace_processor/engine';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
-import {CommandInvocation, CommandManagerImpl} from './command_manager';
+import {CommandInvocation, CommandManagerImpl, Macro} from './command_manager';
 import {featureFlags} from './feature_flags';
 import {loadTrace} from './load_trace';
 import {OmniboxManagerImpl} from './omnibox_manager';
@@ -68,8 +68,8 @@ export interface AppInitArgs {
  * and should use AppImpl instead.
  */
 export class AppImpl implements App {
-  readonly commands = new CommandManagerImpl();
   readonly omnibox = new OmniboxManagerImpl();
+  readonly commands = new CommandManagerImpl(this.omnibox);
   readonly pages = new PageManagerImpl();
   readonly sidebar: SidebarManagerImpl;
   readonly plugins = new PluginManagerImpl();
@@ -91,22 +91,18 @@ export class AppImpl implements App {
   // The current active trace (if any).
   private _activeTrace: TraceImpl | undefined;
 
-  // Extra SQL packages, injected via is_internal_user.js.
+  // Extra SQL packages injected from extensions.
   private _sqlPackagesPromises = new Array<
     Promise<ReadonlyArray<SqlPackage>>
   >();
 
-  // Protobuf descriptor sets as Base64-encoded strings.
-  // Injected via is_internal_user.js.
+  // Protobuf descriptor sets as Base64-encoded strings injected from extensions.
   private _protoDescriptorsPromises = new Array<
     Promise<ReadonlyArray<string>>
   >();
 
-  // Command macros. The key is the macro name, value is a list of commands to
-  // invoke. Injected via is_internal_user.js.
-  private _macrosPromises = new Array<
-    Promise<Map<string, ReadonlyArray<CommandInvocation>>>
-  >();
+  // Command macros. Injected from extensions.
+  private _macrosPromises = new Array<Promise<ReadonlyArray<Macro>>>();
 
   // Initializes the singleton instance - must be called only once and before
   // AppImpl.instance is used.
@@ -313,16 +309,12 @@ export class AppImpl implements App {
     );
   }
 
-  addMacros(
-    args:
-      | Map<string, ReadonlyArray<CommandInvocation>>
-      | Promise<Map<string, ReadonlyArray<CommandInvocation>>>,
-  ) {
+  addMacros(args: ReadonlyArray<Macro> | Promise<ReadonlyArray<Macro>>) {
     this._macrosPromises.push(Promise.resolve(args));
   }
 
-  async macros(): Promise<Map<string, ReadonlyArray<CommandInvocation>>> {
+  async macros(): Promise<ReadonlyArray<Macro>> {
     const macrosArray = await Promise.all(this._macrosPromises);
-    return new Map(macrosArray.flatMap((m) => [...m]));
+    return macrosArray.flat();
   }
 }

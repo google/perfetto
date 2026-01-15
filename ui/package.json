@@ -9,6 +9,7 @@
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
     "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-javascript": "^6.2.4",
     "@codemirror/lint": "^6.8.5",
     "@codemirror/search": "^6.5.11",
     "@codemirror/state": "^6.5.2",
@@ -33,7 +34,7 @@
     "codemirror": "6.0.1",
     "color-convert": "^2.0.1",
     "d3": "^7.9.0",
-    "devtools-protocol": "0.0.1319565",
+    "devtools-protocol": "0.0.1561482",
     "esbuild": "^0.21.5",
     "events": "^3.3.0",
     "fzf": "^0.5.2",

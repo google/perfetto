@@ -28,25 +28,26 @@ export function nextNodeId(): string {
 
 export enum NodeType {
   // Sources
-  kTable,
-  kSimpleSlices,
-  kSqlSource,
-  kTimeRangeSource,
+  kTable = 'table',
+  kSimpleSlices = 'simple_slices',
+  kSqlSource = 'sql_source',
+  kTimeRangeSource = 'time_range_source',
 
   // Single node operations
-  kAggregation,
-  kModifyColumns,
-  kAddColumns,
-  kFilterDuring,
-  kLimitAndOffset,
-  kSort,
-  kFilter,
+  kAggregation = 'aggregation',
+  kModifyColumns = 'modify_columns',
+  kAddColumns = 'add_columns',
+  kFilterDuring = 'filter_during',
+  kLimitAndOffset = 'limit_and_offset',
+  kSort = 'sort',
+  kFilter = 'filter',
+  kCounterToIntervals = 'counter_to_intervals',
 
   // Multi node operations
-  kIntervalIntersect,
-  kUnion,
-  kJoin,
-  kCreateSlices,
+  kIntervalIntersect = 'interval_intersect',
+  kUnion = 'union',
+  kJoin = 'join',
+  kCreateSlices = 'create_slices',
 
   // Deprecated (kept for backward compatibility)
   kMerge = kJoin,
@@ -61,6 +62,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
     case NodeType.kFilter:
+    case NodeType.kCounterToIntervals:
       return true;
     default:
       return false;
@@ -74,6 +76,8 @@ export interface NodeActions {
   onAddAndConnectTable?: (tableName: string, portIndex: number) => void;
   // Insert a ModifyColumns node on an input at a specific port
   onInsertModifyColumnsNode?: (portIndex: number) => void;
+  // Insert a CounterToIntervals node on an input at a specific port
+  onInsertCounterToIntervalsNode?: (portIndex: number) => void;
 }
 
 // Specification for secondary inputs with clear cardinality requirements

@@ -12,58 +12,72 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "../theme";
+
 .pf-tabs {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  height: 100%;
 
   &__tabs {
     display: flex;
-    overflow: hidden;
-    flex: 1;
+    background-color: var(--pf-color-background-secondary);
+    border-bottom: 1px solid var(--pf-color-border);
+    padding-inline: 3px;
+    align-items: flex-end;
   }
 
   &__tab {
-    color: var(--pf-color-text-muted);
-    padding: 4px;
-    margin-top: 3px;
-    align-items: center;
-    cursor: pointer;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     display: flex;
     align-items: baseline;
     gap: 2px;
 
+    font-family: var(--pf-font-compact);
+    font-size: 14px;
+
+    padding: 5px;
+    margin-top: 2px;
+    margin-bottom: -1px; // Overlap the border
+    cursor: pointer;
+
+    border-radius: 3px 3px 0 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border-style: solid;
+    border-color: var(--pf-color-border-secondary);
+    border-width: 1px 1px 0 1px;
+
+    &:not(:first-child) {
+      margin-left: -1px;
+    }
+
     &:hover {
-      background-color: color_hover(transparent);
+      background: color_hover(transparent);
     }
 
-    &[active] {
-      color: var(--pf-color-primary);
-      border-bottom: solid 2px var(--pf-color-primary);
+    &--active {
       cursor: default;
-    }
+      background-color: var(--pf-color-background);
+      box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
+      border-color: var(--pf-color-border);
+      z-index: 1;
 
-    &:nth-child(1) {
-      margin-left: 3px;
+      // Don't change background on hover for active tab
+      &:hover {
+        background-color: var(--pf-color-background);
+      }
     }
   }
 
   &__tab-title {
     margin: 0px 4px;
     overflow: hidden;
+    user-select: none;
   }
 
-  &__tab-icon {
-    &--left {
-      margin-right: 4px;
-      align-self: center;
-    }
-
-    &--right {
-      margin-left: 4px;
-      align-self: center;
-    }
+  &__content {
+    flex: 1;
+    overflow: auto;
   }
 }

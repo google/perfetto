@@ -51,29 +51,39 @@ you run occasionally rather than always.
 
 #### JSON Schema
 
-Macros must be a JSON object with macro names as keys and command arrays as
-values:
+Macros must be a JSON array of macro objects:
 
 ```typescript
-{
-  "macro_name": [
-    {
-      "id": string,      // Command identifier
-      "args": unknown[]  // Array of arguments (types depend on the command)
-    },
-    ...
-  ],
+[
+  {
+    "id": string,        // Unique identifier for the macro
+    "name": string,      // Display name shown in command palette
+    "run": [             // Commands to run when this macro is executed
+      {
+        "id": string,      // Command identifier
+        "args": unknown[]  // Array of arguments (types depend on the command)
+      },
+      ...
+    ]
+  },
   ...
-}
+]
 ```
 
 #### Notes
 
-- Macro names must be valid JSON string keys. Simple names without special
-  characters are recommended for easier use in the command palette.
-- Run macros by typing `>macro name` in the command palette (e.g.,
-  `>CPU Analysis`)
+- **id**: A unique identifier for your macro. Use reverse-domain style naming
+  (e.g., `user.myteam.MemoryAnalysis`, `com.mycompany.LatencyCheck`). Avoid
+  spaces - use PascalCase or camelCase. Keep IDs stable as they are used when
+  referencing macros from startup commands.
+- **name**: The display name shown in the command palette. Can contain spaces.
+- Run macros by typing `>name` in the command palette (e.g., `>Memory Analysis`)
 - Commands in a macro execute sequentially
+
+> **Note (Migration):** The macros format was changed from a dictionary to an
+> array structure. If you had existing macros, they were automatically migrated
+> to the new format. The migrated macros use IDs in the format
+> `dev.perfetto.UserMacro.<old_name>`.
 
 ### Common Issues
 
@@ -214,30 +224,34 @@ Add this to **Settings > Macros** for analyzing memory when needed. This macro
 creates a new workspace to isolate memory-related tracks from the main view:
 
 ```json
-{
-  "Memory Analysis": [
-    {
-      "id": "dev.perfetto.CreateWorkspace",
-      "args": ["Memory Analysis"]
-    },
-    {
-      "id": "dev.perfetto.CopyTracksToWorkspaceByRegexWithAncestors",
-      "args": [".*mem.*|.*rss.*", "Memory Analysis"]
-    },
-    {
-      "id": "dev.perfetto.SwitchWorkspace",
-      "args": ["Memory Analysis"]
-    },
-    {
-      "id": "dev.perfetto.AddDebugCounterTrackWithPivot",
-      "args": [
-        "SELECT ts, process.name as process, value FROM counter JOIN process_counter_track ON counter.track_id = process_counter_track.id JOIN process USING (upid) WHERE counter.name = 'mem.rss' AND value > 50000000",
-        "process",
-        "High Memory Processes (>50MB)"
-      ]
-    }
-  ]
-}
+[
+  {
+    "id": "user.example.MemoryAnalysis",
+    "name": "Memory Analysis",
+    "run": [
+      {
+        "id": "dev.perfetto.CreateWorkspace",
+        "args": ["Memory Analysis"]
+      },
+      {
+        "id": "dev.perfetto.CopyTracksToWorkspaceByRegexWithAncestors",
+        "args": [".*mem.*|.*rss.*", "Memory Analysis"]
+      },
+      {
+        "id": "dev.perfetto.SwitchWorkspace",
+        "args": ["Memory Analysis"]
+      },
+      {
+        "id": "dev.perfetto.AddDebugCounterTrackWithPivot",
+        "args": [
+          "SELECT ts, process.name as process, value FROM counter JOIN process_counter_track ON counter.track_id = process_counter_track.id JOIN process USING (upid) WHERE counter.name = 'mem.rss' AND value > 50000000",
+          "process",
+          "High Memory Processes (>50MB)"
+        ]
+      }
+    ]
+  }
+]
 ```
 
 Run this macro by typing `>Memory Analysis` in the command palette when you need
@@ -248,28 +262,32 @@ to investigate memory issues.
 This macro helps identify performance bottlenecks:
 
 ```json
-{
-  "Find Latency": [
-    {
-      "id": "dev.perfetto.PinTracksByRegex",
-      "args": [".*CPU.*"]
-    },
-    {
-      "id": "dev.perfetto.RunQueryAndShowTab",
-      "args": [
-        "SELECT thread.name, COUNT(*) as blocks, SUM(dur)/1000000 as total_ms FROM thread_state JOIN thread USING(utid) WHERE state = 'D' GROUP BY thread.name ORDER BY total_ms DESC LIMIT 10"
-      ]
-    },
-    {
-      "id": "dev.perfetto.AddDebugSliceTrackWithPivot",
-      "args": [
-        "SELECT ts, 'blocked' as name, thread.name as thread_name, dur FROM thread_state JOIN thread USING (utid) WHERE state IN ('R', 'D+') AND dur > 5000000",
-        "thread_name",
-        "Long Waits (>5ms)"
-      ]
-    }
-  ]
-}
+[
+  {
+    "id": "user.example.FindLatency",
+    "name": "Find Latency",
+    "run": [
+      {
+        "id": "dev.perfetto.PinTracksByRegex",
+        "args": [".*CPU.*"]
+      },
+      {
+        "id": "dev.perfetto.RunQueryAndShowTab",
+        "args": [
+          "SELECT thread.name, COUNT(*) as blocks, SUM(dur)/1000000 as total_ms FROM thread_state JOIN thread USING(utid) WHERE state = 'D' GROUP BY thread.name ORDER BY total_ms DESC LIMIT 10"
+        ]
+      },
+      {
+        "id": "dev.perfetto.AddDebugSliceTrackWithPivot",
+        "args": [
+          "SELECT ts, 'blocked' as name, thread.name as thread_name, dur FROM thread_state JOIN thread USING (utid) WHERE state IN ('R', 'D+') AND dur > 5000000",
+          "thread_name",
+          "Long Waits (>5ms)"
+        ]
+      }
+    ]
+  }
+]
 ```
 
 ## Combining with trace recording

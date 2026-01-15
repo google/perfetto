@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import protos from '../../../protos';
 import {
   RecordSubpage,
   RecordProbe,
@@ -26,9 +27,10 @@ import {
   MultiSelectDiff,
   MultiSelectOption,
 } from '../../../widgets/multiselect';
-import {Result} from '../../../base/result';
+import {Result, unwrapResult} from '../../../base/result';
+import { convertTouchIntoMouseEvents } from 'src/base/touchscreen_handler';
 
-type ChromeCatFunction = () => Promise<Result<string[]>>;
+type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
 
 export function chromeRecordSection(
   chromeCategoryGetter: ChromeCatFunction,
@@ -145,36 +147,48 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
   };
 }
 
-const DISAB_PREFIX = 'disabled-by-default-';
+const DISABLED_PREFIX = 'disabled-by-default-';
 
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
+  private tagsMap = new Map<string, MultiSelectOption[]>();
   private fetchedRuntimeCategories = false;
 
   constructor(private chromeCategoryGetter: ChromeCatFunction) {
     // Initialize first with the static list of builtin categories (in case
     // something goes wrong with the extension).
-    this.initializeCategories(BUILTIN_CATEGORIES);
+    this.initializeCategories(
+      protos.TrackEventDescriptor.create({
+        availableCategories: BUILTIN_CATEGORIES.map((cat) => ({name: cat})),
+      }),
+    );
   }
 
   private async fetchRuntimeCategoriesIfNeeded() {
     if (this.fetchedRuntimeCategories) return;
-    const runtimeCategories = await this.chromeCategoryGetter();
-    if (runtimeCategories.ok) {
-      this.initializeCategories(runtimeCategories.value);
-      m.redraw();
-    }
+    const runtimeCategories = unwrapResult(await this.chromeCategoryGetter());
+    this.initializeCategories(runtimeCategories);
     this.fetchedRuntimeCategories = true;
+    m.redraw();
   }
 
-  private initializeCategories(cats: string[]) {
-    this.options = cats
-      .map((cat) => ({
-        id: cat,
-        name: cat.replace(DISAB_PREFIX, ''),
-        checked: this.options.find((o) => o.id === cat)?.checked ?? false,
-      }))
-      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+  private initializeCategories(descriptor: protos.TrackEventDescriptor) {
+    for (const cat of descriptor.availableCategories) {
+      if (!!cat.name) continue;
+      const option = {
+        id: cat.name,
+        name: cat.name.replace(DISABLED_PREFIX, ''),
+        checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
+      };
+      this.options.push(option);
+      for (const tag of cat.tags) {
+        if (this.tagsMap.has(tag)) {
+          this.tagsMap.get(tag)?.push(option);
+        } else {
+          this.tagsMap.set(tag, [option]);
+        }
+      }
+    }
   }
 
   getEnabledCategories(): string[] {
@@ -216,7 +230,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         Section,
         {title: 'Additional Categories'},
         m(MultiSelect, {
-          options: this.options.filter((o) => !o.id.startsWith(DISAB_PREFIX)),
+          options: this.options.filter((o) => !o.id.startsWith(DISABLED_PREFIX)),
           repeatCheckedItemsAtTop: false,
           fixedSize: false,
           onChange: (diffs: MultiSelectDiff[]) => {
@@ -228,7 +242,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         Section,
         {title: 'High Overhead Categories'},
         m(MultiSelect, {
-          options: this.options.filter((o) => o.id.startsWith(DISAB_PREFIX)),
+          options: this.options.filter((o) => o.id.startsWith(DISABLED_PREFIX)),
           repeatCheckedItemsAtTop: false,
           fixedSize: false,
           onChange: (diffs: MultiSelectDiff[]) => {
@@ -246,7 +260,7 @@ function defaultAndDisabled(category: string) {
 
 const GROUPS = {
   'Task Scheduling': [
-    'toplevel',
+    'toplevJJJel',
     'toplevel.flow',
     'scheduler',
     'sequence_manager',

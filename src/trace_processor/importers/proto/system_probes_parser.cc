@@ -992,6 +992,14 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     machine_tracker->SetNumCpus(packet.num_cpus());
     system_info_tracker->SetNumCpus(packet.num_cpus());
   }
+
+  if (packet.has_memory_size_bytes()) {
+    const auto memory_size_bytes =
+        static_cast<int64_t>(packet.memory_size_bytes());
+    context_->metadata_tracker->SetMetadata(
+        metadata::memory_size_bytes, Variadic::Integer(memory_size_bytes));
+    machine_tracker->SetMemorySizeBytes(memory_size_bytes);
+  }
 }
 
 void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {

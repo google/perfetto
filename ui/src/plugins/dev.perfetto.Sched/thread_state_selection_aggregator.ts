@@ -115,7 +115,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
           create or replace perfetto table ${this.id} as
           select
-            json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id,
+            json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             process.name as process_name,
             process.pid as pid,
             thread.name as thread_name,
@@ -168,7 +168,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
   getColumnDefinitions(): AggregatePivotModel {
     return {
       groupBy: [
-        {id: 'utid', field: 'utid'},
+        {id: 'thread_name', field: 'thread_name'},
         {id: 'state', field: 'state'},
       ],
       aggregates: [
@@ -188,7 +188,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
       columns: [
         {
           title: 'ID',
-          columnId: 'id',
+          columnId: 'id_with_lineage',
           formatHint: 'ID',
           cellRenderer: (value: unknown) => {
             // Value is a JSON object {id, groupid, partition}
