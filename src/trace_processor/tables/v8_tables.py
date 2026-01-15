@@ -353,7 +353,7 @@ V8_IC_EVENT = Table(
     class_name='V8IcEventTable',
     sql_name='__intrinsic_v8_ic_event',
     columns=[
-        C('v8_isolate_id', CppTableId(V8_ISOLATE)),
+        C('v8_isolate_id', CppTableId(V8_ISOLATE), cpp_access=CppAccess.READ),
         C(
             'utid',
             CppUint32(),
