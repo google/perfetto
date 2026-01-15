@@ -230,18 +230,41 @@ message MsgFilterSemanticTypePacket {
       [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_JOB];
 }
 
-// Test: AddToV2 - semantic_type with add_to_v2=true should include field in v2
+// Test: AllowV2WithSemanticType - semantic_type with
+// allow_v2_with_semantic_type=true should include field in v2
 message AddToV2Root {
   optional AddToV2Packet packet = 1;
 }
 
 message AddToV2Packet {
-  // This field has semantic_type but NOT add_to_v2, so it's denied in v2.
+  // This field has semantic_type but NOT allow_v2_with_semantic_type, so it's
+  // denied in v2.
   optional string denied_in_v2 = 2
       [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_ATRACE];
-  // This field has semantic_type AND add_to_v2=true, so it's allowed in v2.
+  // This field has semantic_type AND allow_v2_with_semantic_type=true, so it's
+  // allowed in v2.
   optional string allowed_in_v2 = 3 [(perfetto.protos.proto_filter) = {
     semantic_type: SEMANTIC_TYPE_JOB
-    add_to_v2: true
+    allow_v2_with_semantic_type: true
+  }];
+}
+
+// Test: AllowV1WithFilterString - filter_string with
+// allow_v1_with_filter_string=true should include field in v1 bytecode as
+// simple field
+message AllowV1Root {
+  optional AllowV1Packet packet = 1;
+}
+
+message AllowV1Packet {
+  // This field has filter_string but NOT allow_v1_with_filter_string, so it's
+  // denied in v1.
+  optional string denied_in_v1 = 2
+      [(perfetto.protos.proto_filter).filter_string = true];
+  // This field has filter_string AND allow_v1_with_filter_string=true, so it's
+  // allowed in v1 as a simple field.
+  optional string allowed_in_v1 = 3 [(perfetto.protos.proto_filter) = {
+    filter_string: true
+    allow_v1_with_filter_string: true
   }];
 }

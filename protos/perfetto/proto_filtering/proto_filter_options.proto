@@ -42,7 +42,12 @@ message ProtoFilterOptions {
   // If true and semantic_type is set, the field is also included in v2
   // bytecode (not just v54 overlay). This is useful for fields that
   // need to be filtered by older parsers. Defaults to false.
-  optional bool add_to_v2 = 4;
+  optional bool allow_v2_with_semantic_type = 4;
+
+  // If true and filter_string is set, the field is also included in v1
+  // bytecode. This is useful for fields that need to be filtered by older
+  // parsers. Defaults to false.
+  optional bool allow_v1_with_filter_string = 5;
 }
 
 // Extend google.protobuf.FieldOptions with filtering metadata.
