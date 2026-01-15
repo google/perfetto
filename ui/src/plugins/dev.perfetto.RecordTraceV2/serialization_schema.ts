@@ -60,7 +60,7 @@ export const RECORD_SESSION_SCHEMA = z
     compression: z.boolean().default(false),
     probes: PROBES_SCHEMA,
   })
-  .default({});
+  .prefault({});
 export type RecordSessionSchema = z.infer<typeof RECORD_SESSION_SCHEMA>;
 
 // The schema for the target selection page.
@@ -87,10 +87,10 @@ export const RECORD_PLUGIN_SCHEMA = z
   .object({
     target: TARGET_SCHEMA,
     autoOpenTrace: z.boolean().default(true),
-    lastSession: RECORD_SESSION_SCHEMA.default({}),
+    lastSession: RECORD_SESSION_SCHEMA.prefault({}),
     savedSessions: z.array(SAVED_SESSION_SCHEMA).default([]),
     selectedConfigId: z.string().optional(),
     configModified: z.boolean().default(false),
   })
-  .default({});
+  .prefault({});
 export type RecordPluginSchema = z.infer<typeof RECORD_PLUGIN_SCHEMA>;

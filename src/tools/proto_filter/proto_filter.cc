@@ -19,7 +19,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <optional>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,7 +42,9 @@ namespace {
 const char kUsage[] =
     R"(Usage: proto_filter [options]
 
--s --schema-in:      Path to the root .proto file. Required for most operations
+-s --schema-in:      Path to the root .proto file. Required for most operations.
+                     Filtering options (passthrough, filter_string, semantic_type) are read
+                     from [(perfetto.protos.proto_filter)] annotations on each field.
 -I --proto_path:     Extra include directory for proto includes. If omitted assumed CWD.
 -r --root_message:   Fully qualified name for the root proto message (e.g. perfetto.protos.Trace)
                      If omitted the first message defined in the schema will be used.
@@ -56,13 +57,8 @@ const char kUsage[] =
    --overlay_v54_out: Path of the v54 overlay bytecode file generated from the --schema-in definition.
    --overlay_v54_oct_out: Like --overlay_v54_out, but emits a octal-escaped C string suitable for .pbtx.
 -d --dedupe:         Minimize filter size by deduping leaf messages with same field ids.
--x --passthrough:    Passthrough a nested message as an opaque bytes field.
--g --filter_string:  Filter the string using separately specified rules before passing it through.
--S --semantic_type:  Specify semantic type for a string filter field.
-                     Syntax: MessageName:field:type_value
-                     Example: -S perfetto.protos.TracePacket:name:1
    --min-bytecode-parser: Minimum bytecode parser version to target (v1, v2, v54).
-                     Default: v54. Use v2 for compatibility with older parsers.
+                     Default: v2.
 
 Example usage:
 
@@ -73,9 +69,7 @@ Example usage:
 # Generate the filter bytecode from a .proto schema
 
   proto_filter -r perfetto.protos.Trace -s protos/perfetto/trace/trace.proto \
-               -F /tmp/bytecode [--dedupe] \
-               [-x protos.Message:message_field_to_pass] \
-               [-g protos.Message:string_field_to_filter]
+               -F /tmp/bytecode [--dedupe]
 
 # List the used/filtered fields from a trace file
 
@@ -96,7 +90,6 @@ Example usage:
 # Show which fields are allowed by a filter bytecode
 
   proto_filter -r perfetto.protos.Trace -s protos/perfetto/trace/trace.proto \
-               [-g protos.Message:string_field_to_filter] \
                -f /tmp/bytecode
 )";
 
@@ -218,9 +211,6 @@ int Main(int argc, char** argv) {
       {"overlay_v54_out", required_argument, nullptr, kV54Out},
       {"overlay_v54_oct_out", required_argument, nullptr, kV54OctOut},
       {"min-bytecode-parser", required_argument, nullptr, kMinBytecodeParser},
-      {"passthrough", required_argument, nullptr, 'x'},
-      {"filter_string", required_argument, nullptr, 'g'},
-      {"semantic_type", required_argument, nullptr, 'S'},
       {nullptr, 0, nullptr, 0}};
 
   std::string msg_in;
@@ -234,15 +224,12 @@ int Main(int argc, char** argv) {
   std::string overlay_v54_oct_out;
   std::string proto_path;
   std::string root_message_arg;
-  std::set<std::string> passthrough_fields;
-  std::set<std::string> filter_string_fields;
-  std::map<std::string, uint32_t> filter_string_semantic_types;
   std::string min_bytecode_parser = "v2";  // Default to v2 for compatibility
   bool dedupe = false;
 
   for (;;) {
-    int option = getopt_long(
-        argc, argv, "hvdI:s:r:i:o:f:F:T:x:g:S:c:", long_options, nullptr);
+    int option =
+        getopt_long(argc, argv, "hvdI:s:r:i:o:f:F:T:c:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -312,37 +299,6 @@ int Main(int argc, char** argv) {
       continue;
     }
 
-    if (option == 'x') {
-      passthrough_fields.insert(optarg);
-      continue;
-    }
-
-    if (option == 'g') {
-      filter_string_fields.insert(optarg);
-      continue;
-    }
-
-    if (option == 'S') {
-      // Parse semantic type: "MessageName:field_name:type_value"
-      std::vector<std::string> parts = base::SplitString(optarg, ":");
-      if (parts.size() != 3) {
-        fprintf(stderr,
-                "Invalid semantic type syntax. Expected: "
-                "MessageName:field:type_value\n");
-        exit(1);
-      }
-      std::string field_name = parts[0] + ":" + parts[1];
-      const std::string& type_str = parts[2];
-      std::optional<uint32_t> type_value =
-          base::CStringToUInt32(type_str.c_str());
-      if (!type_value.has_value()) {
-        fprintf(stderr, "Invalid semantic type value: %s\n", type_str.c_str());
-        exit(1);
-      }
-      filter_string_semantic_types[field_name] = *type_value;
-      continue;
-    }
-
     if (option == kMinBytecodeParser) {
       min_bytecode_parser = optarg;
       continue;
@@ -379,9 +335,8 @@ int Main(int argc, char** argv) {
   protozero::FilterUtil filter;
   if (!schema_in.empty()) {
     PERFETTO_LOG("Loading proto schema from %s", schema_in.c_str());
-    if (!filter.LoadMessageDefinition(schema_in, root_message_arg, proto_path,
-                                      passthrough_fields, filter_string_fields,
-                                      filter_string_semantic_types)) {
+    if (!filter.LoadMessageDefinition(schema_in, root_message_arg,
+                                      proto_path)) {
       PERFETTO_ELOG("Failed to parse proto schema from %s", schema_in.c_str());
       return 1;
     }

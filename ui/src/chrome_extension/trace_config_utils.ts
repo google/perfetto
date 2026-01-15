@@ -31,8 +31,9 @@ export function extractTraceConfig(
   }
 }
 
-export function browserSupportsPerfettoConfig(): boolean {
-  const minimumChromeVersion = '91.0.4448.0';
+export function browserAboveMinimumVersion(
+  minimumChromeVersion: string,
+): boolean {
   const runningVersion = String(
     (/Chrome\/(([0-9]+\.?){4})/.exec(navigator.userAgent) || [, 0])[1],
   );
@@ -47,6 +48,14 @@ export function browserSupportsPerfettoConfig(): boolean {
     return runVerArray[index] > minVerArray[index];
   }
   return true; // Exact version match.
+}
+
+export function browserSupportsPerfettoConfig(): boolean {
+  return browserAboveMinimumVersion('91.0.4448.0');
+}
+
+export function browserSupportsTrackEventDescriptor(): boolean {
+  return browserAboveMinimumVersion('145.0.7584.0');
 }
 
 export function hasSystemDataSourceConfig(config: protos.TraceConfig): boolean {

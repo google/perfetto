@@ -353,6 +353,21 @@ enum BuiltinClock {
 
 // End of protos/perfetto/common/builtin_clock.proto
 
+// Begin of protos/perfetto/common/semantic_type.proto
+
+// Semantic types for string fields. This tells the filter what kind of
+// data the field contains, so it can apply the right filtering rules.
+// See /rfcs/0011-subset-string-filter-rules.md for design details.
+// Introduced in: Perfetto v54.
+enum SemanticType {
+  SEMANTIC_TYPE_UNSPECIFIED = 0;
+  SEMANTIC_TYPE_ATRACE = 1;
+  SEMANTIC_TYPE_JOB = 2;
+  SEMANTIC_TYPE_WAKELOCK = 3;
+}
+
+// End of protos/perfetto/common/semantic_type.proto
+
 // Begin of protos/perfetto/config/android/android_game_intervention_list_config.proto
 
 // Data source that lists game modes and game interventions of games
@@ -4895,17 +4910,6 @@ message TraceConfig {
       // If there are no partial matches, the string is left unchanged and the
       // next rule in chain is considered.
       SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS = 5;
-    }
-
-    // Semantic types for string fields. This tells the filter what kind of
-    // data the field contains, so it can apply the right filtering rules.
-    // See /rfcs/0011-subset-string-filter-rules.md for design details.
-    // Introduced in: Perfetto v54.
-    enum SemanticType {
-      SEMANTIC_TYPE_UNSPECIFIED = 0;
-      SEMANTIC_TYPE_ATRACE = 1;
-      SEMANTIC_TYPE_JOB = 2;
-      SEMANTIC_TYPE_WAKELOCK = 3;
     }
 
     // A rule specifies how strings should be filtered.

@@ -367,6 +367,15 @@ TraceRectTableId RectComputation::InsertLayerTraceRectRow(
     row.opacity = opacity;
   }
 
+  if (layer_decoder.has_border_settings()) {
+    protos::pbzero::BorderSettings::Decoder border_settings(
+        layer_decoder.border_settings());
+    if (border_settings.stroke_width() > 0) {
+      row.border_width = border_settings.stroke_width();
+      row.border_color = border_settings.color();
+    }
+  }
+
   row.transform_id = transform_tracker_.GetOrInsertRow(matrix);
   row.is_spy = false;
   return rect_tracker_.context_->storage->mutable_winscope_trace_rect_table()

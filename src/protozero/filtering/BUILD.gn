@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../gn/fuzzer.gni")
+import("../../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../../gn/perfetto_host_executable.gni")
 import("../../../gn/proto_library.gni")
 import("../../../gn/test.gni")
@@ -87,8 +88,26 @@ source_set("filter_util") {
     "..:protozero",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
+    "../../../protos/perfetto/common:semantic_type_zero",
+    "../../../protos/perfetto/proto_filtering:lite",
     "../../base",
   ]
+}
+
+perfetto_proto_library("filter_util_test_messages_@TYPE@") {
+  testonly = true
+  sources = [ "filter_util_test_messages.proto" ]
+  deps = [ "../../../protos/perfetto/proto_filtering:@TYPE@" ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+  proto_generators = []
+  generate_descriptor = "filter_util_test_messages.descriptor"
+  descriptor_root_source = "filter_util_test_messages.proto"
+}
+
+perfetto_cc_proto_descriptor("gen_cc_filter_util_test_descriptor") {
+  testonly = true
+  descriptor_name = "filter_util_test_messages.descriptor"
+  descriptor_target = ":filter_util_test_messages_descriptor"
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -117,7 +136,10 @@ perfetto_unittest_source_set("unittests") {
   # protobuf-full and protobuf-lite. Just skip those targets there.
   # See also https://crug.com/1210223 .
   if (perfetto_build_standalone || perfetto_build_with_android) {
-    deps += [ ":filter_util" ]
+    deps += [
+      ":filter_util",
+      ":gen_cc_filter_util_test_descriptor",
+    ]
     sources += [
       "filter_util_unittest.cc",
       "message_filter_unittest.cc",

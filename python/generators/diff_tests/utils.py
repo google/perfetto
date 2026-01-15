@@ -80,17 +80,20 @@ def get_env(root_dir: str) -> Dict[str, str]:
   """Returns the environment variables for running trace_processor."""
   env = {
       'PERFETTO_BINARY_PATH': os.path.join(root_dir, 'test', 'data'),
+      'PATH': os.environ['PATH'],
   }
   if sys.platform.startswith('linux'):
     env['PATH'] = os.path.join(root_dir, 'buildtools', 'linux64', 'clang',
-                               'bin')
+                               'bin') + ':' + env['PATH']
   elif sys.platform.startswith('darwin'):
     # Sadly, on macOS we need to check out the Android deps to get
     # llvm symbolizer.
     env['PATH'] = os.path.join(root_dir, 'buildtools', 'ndk', 'toolchains',
-                               'llvm', 'prebuilt', 'darwin-x86_64', 'bin')
+                               'llvm', 'prebuilt', 'darwin-x86_64',
+                               'bin') + ':' + env['PATH']
   elif sys.platform.startswith('win32'):
-    env['PATH'] = os.path.join(root_dir, 'buildtools', 'win', 'clang', 'bin')
+    env['PATH'] = os.path.join(root_dir, 'buildtools', 'win', 'clang',
+                               'bin') + ';' + env['PATH']
   return env
 
 

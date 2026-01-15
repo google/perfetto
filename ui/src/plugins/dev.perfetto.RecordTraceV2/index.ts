@@ -88,7 +88,7 @@ export default class implements PerfettoPlugin {
         bufferConfigPage(recMgr),
         instructionsPage(recMgr),
 
-        chromeRecordSection(() => chromeProvider.getChromeCategories()),
+        chromeRecordSection(() => chromeProvider.getTrackEventDescriptor()),
         cpuRecordSection(),
         gpuRecordSection(),
         powerRecordSection(),
