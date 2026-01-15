@@ -619,7 +619,18 @@ def ExtractZipfilePreservePermissions(zf, info, path):
 
 
 def IsGitRepoCheckoutOutAtRevision(path, revision):
-  return ReadFile(os.path.join(path, '.git', 'HEAD')) == revision
+  # Use git rev-parse instead of reading .git/HEAD directly.
+  # Newer git versions (2.45+) use the reftable backend where HEAD doesn't
+  # contain the raw SHA in detached HEAD state.
+  if not os.path.isdir(os.path.join(path, '.git')):
+    return False
+  try:
+    actual = subprocess.check_output(
+        ['git', 'rev-parse', 'HEAD'], cwd=path,
+        stderr=subprocess.DEVNULL).decode().strip()
+    return actual == revision
+  except subprocess.CalledProcessError:
+    return False
 
 
 def RmtreeIfExists(path):
