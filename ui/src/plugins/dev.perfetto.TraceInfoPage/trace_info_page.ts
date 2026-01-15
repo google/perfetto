@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Trace} from '../../public/trace';
-import {TabStrip, TabOption} from '../../widgets/tabs';
+import {TabStrip, TabOption} from '../../widgets/tab_strip';
 import {EmptyState} from '../../widgets/empty_state';
 import type {TabKey} from './utils';
 import {isValidTabKey} from './utils';

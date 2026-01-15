@@ -23,7 +23,7 @@ import {closeModal, redrawModal, showModal} from '../../widgets/modal';
 import {Callout} from '../../widgets/callout';
 import {Spinner} from '../../widgets/spinner';
 import {Stack} from '../../widgets/stack';
-import {TabStrip, TabOption} from '../../widgets/tabs';
+import {TabStrip, TabOption} from '../../widgets/tab_strip';
 import {TextParagraph} from '../../widgets/text_paragraph';
 import {MultiTraceController} from './multi_trace_controller';
 import {TraceFile} from './multi_trace_types';

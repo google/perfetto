@@ -60,6 +60,10 @@
     );
   }
 
+  &__groupby-muted {
+    color: var(--pf-color-text-muted);
+  }
+
   &__table {
     flex: 1;
     overflow: auto;

@@ -53,8 +53,8 @@ export const macroSchema = z.object({
   // Name of the macro.
   name: z.string(),
 
-  // List of command invocations that make up the macro.
-  commands: z.array(commandInvocationSchema).readonly(),
+  // List of command invocations to run when this macro is executed.
+  run: z.array(commandInvocationSchema).readonly(),
 });
 
 /** Type representing a macro configuration. */
@@ -118,7 +118,7 @@ export class CommandManagerImpl implements CommandManager {
     return res;
   }
 
-  registerMacro({id, name, commands}: Macro) {
+  registerMacro({id, name, run}: Macro) {
     this.macros.add(id);
     this.registerCommand({
       id,
@@ -128,7 +128,7 @@ export class CommandManagerImpl implements CommandManager {
         // user in an optional way. But macros should be self-contained
         // so we disable prompts during their execution.
         using _ = this.omnibox.disablePrompts();
-        for (const command of commands) {
+        for (const command of run) {
           await this.runCommand(command.id, ...command.args);
         }
       },
