@@ -125,7 +125,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   }
 
   getTabName() {
-    return 'CPU by thread';
+    return `CPU by thread`;
   }
 
   getColumnDefinitions(): AggregatePivotModel {

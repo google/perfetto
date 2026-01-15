@@ -12,20 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {exists} from '../../base/utils';
+import {ColumnDef} from '../../components/aggregation';
+import {Aggregator} from '../../components/aggregation_adapter';
 import {Area, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
-import {exists} from '../../base/utils';
+import {SqlValue} from '../../trace_processor/query_result';
+import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
-import {Aggregator} from '../../components/aggregation_adapter';
-import {WattsonAggregationPanel} from './aggregation_panel';
-import {ColumnDef} from '../../components/aggregation';
 
 export class WattsonEstimateSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_estimate_aggregation';
-  readonly Panel = WattsonAggregationPanel;
+  private scaleNumericData: boolean = false;
 
   probe(area: AreaSelection) {
     const estimateTracks: string[] = [];
@@ -93,6 +95,28 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     return query;
   }
 
+  renderTopbarControls(): m.Children {
+    return m(SegmentedButtons, {
+      options: [{label: 'µW'}, {label: 'mW'}],
+      selectedOption: this.scaleNumericData ? 0 : 1,
+      onOptionSelected: (index) => {
+        this.scaleNumericData = index === 0;
+      },
+      title: 'Select power units',
+    });
+  }
+
+  private powerUnits(): string {
+    return this.scaleNumericData ? 'µW' : 'mW';
+  }
+
+  private renderMilliwatts(value: SqlValue): m.Children {
+    if (this.scaleNumericData && typeof value === 'number') {
+      return value * 1000;
+    }
+    return String(value);
+  }
+
   getColumnDefinitions(): ColumnDef[] {
     return [
       {
@@ -101,16 +125,16 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
         sort: 'ASC',
       },
       {
-        title: 'Power (estimated mW)',
+        title: `Power (estimated ${this.powerUnits()})`,
         columnId: 'power_mw',
         sum: true,
-        formatHint: 'NUMERIC',
+        cellRenderer: this.renderMilliwatts.bind(this),
       },
       {
-        title: 'Energy (estimated mWs)',
+        title: `Energy (estimated ${this.powerUnits()}s)`,
         columnId: 'energy_mws',
         sum: true,
-        formatHint: 'NUMERIC',
+        cellRenderer: this.renderMilliwatts.bind(this),
       },
     ];
   }
