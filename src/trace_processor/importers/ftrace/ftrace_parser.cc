@@ -86,6 +86,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
+#include "protos/perfetto/trace/ftrace/fwtp_ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/g2d.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "protos/perfetto/trace/ftrace/google_icc_trace.pbzero.h"
@@ -1475,6 +1476,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kDmabufRssStatFieldNumber: {
         ParseDmabufRssStat(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kFwtpPerfettoCounterFieldNumber: {
+        ParseFwtpPerfettoCounter(fld_bytes);
         break;
       }
       default:
@@ -4353,6 +4358,20 @@ void FtraceParser::ParseDmabufRssStat(int64_t ts,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   context_->event_tracker->PushProcessCounterForThread(
       EventTracker::DmabufRssStat(), ts, static_cast<double>(evt.rss()), utid);
+}
+
+void FtraceParser::ParseFwtpPerfettoCounter(protozero::ConstBytes blob) {
+  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+      "pixel_fwtp_counters", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(tracks::kNameFromTraceDimensionBlueprint),
+      tracks::FnNameBlueprint([](base::StringView name) {
+        return base::StackString<255>("%.*s", int(name.size()), name.data());
+      }));
+  protos::pbzero::FwtpPerfettoCounterFtraceEvent::Decoder event(blob);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(event.name()));
+  context_->event_tracker->PushCounter(static_cast<int64_t>(event.timestamp()),
+                                       event.value(), track_id);
 }
 
 }  // namespace perfetto::trace_processor

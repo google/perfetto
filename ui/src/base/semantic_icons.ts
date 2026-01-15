@@ -27,7 +27,8 @@ export class Icons {
   static readonly Add = 'add';
   static readonly Close = 'close';
   static readonly Hide = 'visibility_off';
-  static readonly Filter = 'filter_list';
+  static readonly Filter = 'filter_alt';
+  static readonly FilterOff = 'filter_alt_off';
   static readonly BlankCheckbox = 'check_box_outline_blank';
   static readonly Checkbox = 'check_box';
   static readonly IndeterminateCheckbox = 'indeterminate_check_box';

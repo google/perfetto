@@ -33,9 +33,11 @@
 
 import m from 'mithril';
 
+import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
+import {uuidv4} from '../../../../base/uuid';
 import {
   MenuItem,
   MenuDivider,
@@ -44,12 +46,14 @@ import {
 } from '../../../../widgets/menu';
 import {
   Connection,
+  Label,
   Node,
   NodeGraph,
   NodeGraphApi,
   NodeGraphAttrs,
   NodePort,
 } from '../../../../widgets/nodegraph';
+import {createEditableTextLabels} from './text_label';
 import {
   QueryNode,
   singleNodeOperation,
@@ -57,10 +61,8 @@ import {
   addConnection,
   removeConnection,
 } from '../../query_node';
-import {EmptyGraph} from '../empty_graph';
-import {nodeRegistry} from '../node_registry';
 import {NodeBox} from './node_box';
-import {buildCategorizedMenuItems} from './menu_utils';
+import {buildMenuItems} from './menu_utils';
 import {getAllNodes, findNodeById} from '../graph_utils';
 
 // ========================================
@@ -76,6 +78,7 @@ type LayoutMap = Map<string, Position>;
 const LAYOUT_CONSTANTS = {
   INITIAL_X: 100,
   INITIAL_Y: 100,
+  BATCH_NODE_HORIZONTAL_OFFSET: 250,
 };
 
 // ========================================
@@ -97,20 +100,23 @@ export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly nodeLayouts: LayoutMap;
+  readonly labels?: ReadonlyArray<TextLabelData>;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: Position) => void;
+  readonly onLabelsChange?: (labels: TextLabelData[]) => void;
   readonly onAddSourceNode: (id: string) => void;
   readonly onAddOperationNode: (id: string, node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void;
+  readonly onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void;
   readonly onImport: () => void;
-  readonly onImportWithStatement: () => void;
   readonly onExport: () => void;
-  readonly devMode?: boolean;
-  readonly onDevModeChange?: (enabled: boolean) => void;
 }
 
 // ========================================
@@ -129,40 +135,54 @@ function isChildDocked(child: QueryNode, nodeLayouts: LayoutMap): boolean {
 // NODE PORT AND MENU UTILITIES
 // ========================================
 
+// Calculate the number of ports to display for secondary inputs.
+// Shows one extra empty port for adding new connections, but respects max limit.
+function calculateNumPorts(
+  currentConnections: number,
+  max: number | 'unbounded',
+): number {
+  return max === 'unbounded'
+    ? currentConnections + 1
+    : Math.min(currentConnections + 1, max);
+}
+
 function getInputLabels(node: QueryNode): NodePort[] {
   // Single-input operation nodes always have a top port (even when disconnected)
   if (singleNodeOperation(node.type)) {
-    // Check if node also has secondaryInputs (like AddColumnsNode)
+    const labels: NodePort[] = [];
+    labels.push({content: 'Input', direction: 'top'});
+
+    // Check if node also has secondaryInputs (like AddColumnsNode or FilterDuring)
     if (node.secondaryInputs) {
-      // Show both top port and side ports
-      const labels: NodePort[] = [];
-      labels.push({content: 'Input', direction: 'top'});
+      // Show side ports using the node's custom port names
+      const portNames = node.secondaryInputs.portNames;
+      const currentConnections = node.secondaryInputs.connections.size ?? 0;
+      const numPorts = calculateNumPorts(
+        currentConnections,
+        node.secondaryInputs.max,
+      );
 
-      // For AddColumnsNode, show exactly one left-side port
-      if (node.type === NodeType.kAddColumns) {
-        labels.push({content: 'Table', direction: 'left'});
+      for (let i = 0; i < numPorts; i++) {
+        const portName = getPortName(portNames, i);
+        labels.push({content: portName, direction: 'left'});
       }
-      return labels;
     }
-
-    // Single-input only (Sort, Filter, etc.) - show just top port
-    return [{content: 'Input', direction: 'top'}];
+    return labels;
   }
 
-  // Multi-source nodes (IntervalIntersect, Merge, Union) - no primaryInput
+  // Multi-source nodes (IntervalIntersect, Join, Union) - no primaryInput
   if (node.secondaryInputs) {
-    // Check if node has custom input labels
-    if ('getInputLabels' in node && typeof node.getInputLabels === 'function') {
-      return (node as QueryNode & {getInputLabels: () => string[]})
-        .getInputLabels()
-        .map((label) => ({content: label, direction: 'left' as const}));
-    }
-
-    // Always show one extra empty port for adding new connections
-    const numPorts = (node.secondaryInputs.connections.size ?? 0) + 1;
+    const portNames = node.secondaryInputs.portNames;
+    const currentConnections = node.secondaryInputs.connections.size ?? 0;
+    const numPorts = calculateNumPorts(
+      currentConnections,
+      node.secondaryInputs.max,
+    );
     const labels: NodePort[] = [];
+
     for (let i = 0; i < numPorts; i++) {
-      labels.push({content: `Input ${i}`, direction: 'left'});
+      const portName = getPortName(portNames, i);
+      labels.push({content: portName, direction: 'left'});
     }
     return labels;
   }
@@ -171,35 +191,37 @@ function getInputLabels(node: QueryNode): NodePort[] {
   return [];
 }
 
-function buildMenuItems(
-  nodeType: 'source' | 'multisource' | 'modification',
-  devMode: boolean | undefined,
-  onAddNode: (id: string) => void,
-): m.Children[] {
-  const nodes = nodeRegistry
-    .list()
-    .filter(([_id, descriptor]) => descriptor.type === nodeType)
-    .filter(([_id, descriptor]) => !descriptor.devOnly || devMode);
+// Helper function to get port name from either an array or a function
+function getPortName(
+  portNames: string[] | ((portIndex: number) => string),
+  portIndex: number,
+): string {
+  if (typeof portNames === 'function') {
+    return portNames(portIndex);
+  }
 
-  return buildCategorizedMenuItems(nodes, onAddNode);
+  // Array of names - use the index or fallback if out of bounds
+  return portNames[portIndex] ?? `Input ${portIndex}`;
 }
 
 function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  const modificationItems = buildMenuItems('modification', undefined, (id) =>
+  const multisourceItems = buildMenuItems('multisource', (id) =>
     onAddOperationNode(id, targetNode),
   );
-  const multisourceItems = buildMenuItems('multisource', undefined, (id) =>
+  const modificationItems = buildMenuItems('modification', (id) =>
     onAddOperationNode(id, targetNode),
   );
 
-  // Add a divider between modification and multisource nodes if both exist
-  if (modificationItems.length > 0 && multisourceItems.length > 0) {
-    return [...modificationItems, m(MenuDivider), ...multisourceItems];
-  }
-  return [...modificationItems, ...multisourceItems];
+  return [
+    m(MenuTitle, {label: 'Modification nodes'}),
+    ...modificationItems,
+    m(MenuDivider),
+    m(MenuTitle, {label: 'Operations'}),
+    ...multisourceItems,
+  ];
 }
 
 // ========================================
@@ -236,25 +258,21 @@ function ensureNodeLayouts(
   attrs: GraphAttrs,
   nodeGraphApi: NodeGraphApi | null,
 ): void {
-  // Assign layouts to new nodes using smart placement
+  if (!nodeGraphApi) return;
+
+  let lastPlacement: Position | undefined;
+
   for (const qnode of roots) {
     if (!attrs.nodeLayouts.has(qnode.nodeId)) {
       let placement: Position;
 
-      // Use NodeGraph API to find optimal non-overlapping placement
-      if (nodeGraphApi) {
-        // Create a simple node config without 'next' to get accurate placement
-        // The 'next' property would include docked children and affect size calculation
+      if (!lastPlacement) {
+        // First node - use API placement
         const canDockTop = shouldShowTopPort(qnode);
         const nodeTemplate: Omit<Node, 'x' | 'y'> = {
           id: qnode.nodeId,
           inputs: getInputLabels(qnode),
-          outputs: [
-            {
-              content: 'Output',
-              direction: 'bottom',
-            },
-          ],
+          outputs: [{content: 'Output', direction: 'bottom'}],
           canDockBottom: true,
           canDockTop,
           hue: getNodeHue(qnode),
@@ -263,17 +281,17 @@ function ensureNodeLayouts(
             node: qnode,
             onAddOperationNode: attrs.onAddOperationNode,
           }),
-          // Don't include 'next' here - we want placement for just this node
         };
         placement = nodeGraphApi.findPlacementForNode(nodeTemplate);
       } else {
-        // Fallback to default position if API not ready yet
+        // Subsequent nodes - place to the right of previous
         placement = {
-          x: LAYOUT_CONSTANTS.INITIAL_X,
-          y: LAYOUT_CONSTANTS.INITIAL_Y,
+          x: lastPlacement.x + LAYOUT_CONSTANTS.BATCH_NODE_HORIZONTAL_OFFSET,
+          y: lastPlacement.y,
         };
       }
 
+      lastPlacement = placement;
       attrs.onNodeLayoutChange(qnode.nodeId, placement);
     }
   }
@@ -292,20 +310,30 @@ function getNodeHue(node: QueryNode): number {
       return 122; // Green (#c8e6c9)
     case NodeType.kSqlSource:
       return 199; // Cyan/Light Blue (#b3e5fc)
+    case NodeType.kTimeRangeSource:
+      return 33; // Orange (#ffe0b2)
     case NodeType.kAggregation:
       return 339; // Pink (#f8bbd0)
     case NodeType.kModifyColumns:
       return 261; // Purple (#d1c4e9)
     case NodeType.kAddColumns:
       return 232; // Indigo (#c5cae9)
+    case NodeType.kFilterDuring:
+      return 88; // Light Green (#dcedc8)
     case NodeType.kLimitAndOffset:
       return 175; // Teal (#b2dfdb)
     case NodeType.kSort:
       return 54; // Yellow (#fff9c4)
+    case NodeType.kFilter:
+      return 207; // Blue (#bbdefb)
     case NodeType.kIntervalIntersect:
       return 45; // Amber/Orange (#ffecb3)
     case NodeType.kUnion:
       return 187; // Cyan (#b2ebf2)
+    case NodeType.kJoin:
+      return 14; // Deep Orange (#ffccbc)
+    case NodeType.kCreateSlices:
+      return 100; // Green (#c8e6c9)
     default:
       return 65; // Lime (#f0f4c3)
   }
@@ -374,6 +402,7 @@ function createNodeConfig(
       onAddOperationNode: attrs.onAddOperationNode,
     }),
     next: getNextDockedNode(qnode, attrs),
+    invalid: !qnode.validate(),
   };
 }
 
@@ -510,7 +539,11 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
 function handleConnectionRemove(
   conn: Connection,
   rootNodes: QueryNode[],
-  onConnectionRemove: (fromNode: QueryNode, toNode: QueryNode) => void,
+  onConnectionRemove: (
+    fromNode: QueryNode,
+    toNode: QueryNode,
+    isSecondaryInput: boolean,
+  ) => void,
 ): void {
   const fromNode = findQueryNode(conn.fromNode, rootNodes);
   const toNode = findQueryNode(conn.toNode, rootNodes);
@@ -519,11 +552,40 @@ function handleConnectionRemove(
     return;
   }
 
+  // Check BEFORE removal if this is a secondary input connection
+  let isSecondaryInput = false;
+  if (toNode.secondaryInputs?.connections) {
+    for (const node of toNode.secondaryInputs.connections.values()) {
+      if (node === fromNode) {
+        isSecondaryInput = true;
+        break;
+      }
+    }
+  }
+
   // Use the helper function to cleanly remove the connection
   removeConnection(fromNode, toNode);
 
   // Call the parent callback for any additional cleanup (e.g., state management)
-  onConnectionRemove(fromNode, toNode);
+  onConnectionRemove(fromNode, toNode, isSecondaryInput);
+}
+
+// ========================================
+// TEXT LABEL SERIALIZATION
+// ========================================
+
+/**
+ * Serializable representation of a text label.
+ * This interface contains only plain data types that can be safely
+ * serialized to/from JSON, unlike the Label interface which includes
+ * Mithril vnodes in the content field.
+ */
+export interface TextLabelData {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly text: string;
 }
 
 // ========================================
@@ -533,30 +595,99 @@ function handleConnectionRemove(
 export class Graph implements m.ClassComponent<GraphAttrs> {
   private nodeGraphApi: NodeGraphApi | null = null;
   private hasPerformedInitialLayout: boolean = false;
+  private labels: Label[] = [];
+  private labelTexts: Map<string, string> = new Map();
+  private editingLabels: Set<string> = new Set();
 
-  private renderEmptyNodeGraph(attrs: GraphAttrs) {
-    return m(EmptyGraph, {
-      onAddSourceNode: attrs.onAddSourceNode,
-      onImport: attrs.onImport,
+  oninit(vnode: m.Vnode<GraphAttrs>) {
+    // Load initial labels from attrs if provided
+    if (vnode.attrs.labels) {
+      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
+    }
+  }
+
+  onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
+    // Only update labels if the reference changed (indicating external state update)
+    if (vnode.attrs.labels !== old.attrs.labels && vnode.attrs.labels) {
+      this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
+    }
+    return true;
+  }
+
+  /**
+   * Notifies parent component that labels have changed.
+   * Called after any label modification (add, move, resize, delete).
+   */
+  private notifyLabelsChanged(attrs: GraphAttrs) {
+    if (attrs.onLabelsChange) {
+      attrs.onLabelsChange(this.serializeLabels());
+    }
+  }
+
+  private addLabel(attrs: GraphAttrs) {
+    const id = uuidv4();
+    // Offset from the last label if one exists, otherwise use default position
+    const lastLabel = this.labels[this.labels.length - 1];
+    const x = lastLabel !== undefined ? lastLabel.x + 30 : 100;
+    const y = lastLabel !== undefined ? lastLabel.y + 30 : 100;
+    this.labels.push({
+      id,
+      x,
+      y,
+      width: 200,
+      content: undefined, // Will be set in view
     });
+    this.labelTexts.set(id, 'New label');
+    this.notifyLabelsChanged(attrs);
+    m.redraw();
+  }
+
+  /**
+   * Serializes the current text labels to a JSON-compatible format.
+   * Returns an array of TextLabelData that can be stored or transmitted.
+   */
+  serializeLabels(): TextLabelData[] {
+    return this.labels.map((label) => ({
+      id: label.id,
+      x: label.x,
+      y: label.y,
+      width: label.width,
+      text: this.labelTexts.get(label.id) ?? '',
+    }));
+  }
+
+  /**
+   * Deserializes text labels from a JSON-compatible format.
+   * Replaces the current labels with the deserialized data.
+   */
+  deserializeLabels(data: TextLabelData[]): void {
+    this.labels = data.map((labelData) => ({
+      id: labelData.id,
+      x: labelData.x,
+      y: labelData.y,
+      width: labelData.width,
+      content: undefined, // Will be set in view
+    }));
+
+    this.labelTexts.clear();
+    for (const labelData of data) {
+      this.labelTexts.set(labelData.id, labelData.text);
+    }
+
+    this.editingLabels.clear();
+    m.redraw();
   }
 
   private renderControls(attrs: GraphAttrs) {
-    const sourceMenuItems = buildMenuItems(
-      'source',
-      attrs.devMode,
-      attrs.onAddSourceNode,
-    );
+    const sourceMenuItems = buildMenuItems('source', attrs.onAddSourceNode);
 
     const modificationMenuItems = buildMenuItems(
       'modification',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 
     const operationMenuItems = buildMenuItems(
       'multisource',
-      attrs.devMode,
       attrs.onAddSourceNode,
     );
 
@@ -573,9 +704,14 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
     const moreMenuItems = [
       m(MenuItem, {
-        label: 'Export',
+        label: 'Export to JSON',
         icon: Icons.Download,
         onclick: attrs.onExport,
+      }),
+      m(MenuItem, {
+        label: 'Import from JSON',
+        icon: 'file_upload',
+        onclick: attrs.onImport,
       }),
       m(MenuItem, {
         label: 'Clear All Nodes',
@@ -598,13 +734,19 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         },
         addNodeMenuItems,
       ),
+      m(Button, {
+        icon: Icons.Edit,
+        variant: ButtonVariant.Minimal,
+        title: 'Add Label',
+        onclick: () => this.addLabel(attrs),
+      }),
       m(
         PopupMenu,
         {
           trigger: m(Button, {
             icon: Icons.ContextMenuAlt,
             variant: ButtonVariant.Minimal,
-            style: {marginLeft: '8px'},
+            className: classNames('pf-exp-more-menu-button'),
           }),
         },
         moreMenuItems,
@@ -614,22 +756,6 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
   view({attrs}: m.CVnode<GraphAttrs>) {
     const {rootNodes, selectedNode} = attrs;
-    const allNodes = getAllNodes(rootNodes);
-
-    if (allNodes.length === 0) {
-      return m(
-        '.pf-exp-node-graph',
-        {
-          tabindex: 0,
-          onclick: (e: MouseEvent) => {
-            if (e.target === e.currentTarget) {
-              attrs.onDeselect();
-            }
-          },
-        },
-        this.renderEmptyNodeGraph(attrs),
-      );
-    }
 
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
@@ -665,6 +791,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             selectedNode?.nodeId ? [selectedNode.nodeId] : [],
           ),
           hideControls: true,
+          fillHeight: true,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
           },
@@ -720,6 +847,37 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
               addConnection(parentNode, childQueryNode);
             }
 
+            m.redraw();
+          },
+          contextMenuOnHover: true,
+          labels: createEditableTextLabels(
+            this.labels,
+            this.labelTexts,
+            this.editingLabels,
+            () => this.notifyLabelsChanged(attrs),
+          ),
+          onLabelMove: (labelId: string, x: number, y: number) => {
+            const label = this.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.x = x;
+              label.y = y;
+              this.notifyLabelsChanged(attrs);
+            }
+          },
+          onLabelResize: (labelId: string, width: number) => {
+            const label = this.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.width = width;
+              this.notifyLabelsChanged(attrs);
+            }
+          },
+          onLabelRemove: (labelId: string) => {
+            const labelIndex = this.labels.findIndex((l) => l.id === labelId);
+            if (labelIndex !== -1) {
+              this.labels.splice(labelIndex, 1);
+            }
+            this.labelTexts.delete(labelId);
+            this.notifyLabelsChanged(attrs);
             m.redraw();
           },
         } satisfies NodeGraphAttrs),

@@ -122,8 +122,17 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
   }
 }
 
+uint32_t FindIdColumnIndex(const std::vector<std::string>& names) {
+  for (uint32_t i = 0; i < names.size(); ++i) {
+    if (names[i] == "id" || names[i] == "_auto_id") {
+      return i;
+    }
+  }
+  PERFETTO_FATAL("No id column found");
+}
+
 std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
-  std::string id;
+  uint32_t id_col_idx = FindIdColumnIndex(spec.column_names);
   std::string create_stmt = "CREATE TABLE x(";
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
     create_stmt += spec.column_names[i] + " " +
@@ -131,12 +140,9 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
     if (spec.column_names[i] == "_auto_id") {
       create_stmt += " HIDDEN";
     }
-    if (spec.column_names[i] == "id" || spec.column_names[i] == "_auto_id") {
-      id = spec.column_names[i];
-    }
     create_stmt += ", ";
   }
-  create_stmt += "PRIMARY KEY(" + id + ")) WITHOUT ROWID";
+  create_stmt += "PRIMARY KEY(" + spec.column_names[id_col_idx] + "))";
   return create_stmt;
 }
 
@@ -160,6 +166,7 @@ int DataframeModule::Create(sqlite3* db,
     return r;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
+  res->id_col_idx = FindIdColumnIndex(state->dataframe->column_names());
   res->state = ctx->OnCreate(argc, argv, std::move(state));
   res->name = argv[2];
   *vtab = res.release();
@@ -189,6 +196,7 @@ int DataframeModule::Connect(sqlite3* db,
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
   res->state = vtab_state;
+  res->id_col_idx = FindIdColumnIndex(state->dataframe->column_names());
   res->name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
@@ -445,6 +453,7 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
     auto* s = sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
     s->dataframe->PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
+    c->id_col_idx = v->id_col_idx;
   }
   // SQLite's API claims it will never pass more than 16 arguments
   // so assert that here as our std::array is fixed size.
@@ -474,8 +483,27 @@ int DataframeModule::Column(sqlite3_vtab_cursor* cur,
   return SQLITE_OK;
 }
 
-int DataframeModule::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
-  return SQLITE_ERROR;
+struct RowidCallback : dataframe::CellCallback {
+  void OnCell(int64_t v) { *rowid = v; }
+  PERFETTO_NORETURN void OnCell(double) {
+    PERFETTO_FATAL("Unexpected type for rowid");
+  }
+  PERFETTO_NORETURN void OnCell(NullTermStringView) {
+    PERFETTO_FATAL("Unexpected type for rowid");
+  }
+  PERFETTO_NORETURN void OnCell(std::nullptr_t) {
+    PERFETTO_FATAL("Unexpected type for rowid");
+  }
+  void OnCell(uint32_t v) { *rowid = static_cast<sqlite_int64>(v); }
+  void OnCell(int32_t v) { *rowid = static_cast<sqlite_int64>(v); }
+  sqlite_int64* rowid;
+};
+
+int DataframeModule::Rowid(sqlite3_vtab_cursor* cur, sqlite_int64* rowid) {
+  auto* c = GetCursor(cur);
+  RowidCallback callback{{}, rowid};
+  c->df_cursor.Cell(c->id_col_idx, callback);
+  return SQLITE_OK;
 }
 
 }  // namespace perfetto::trace_processor

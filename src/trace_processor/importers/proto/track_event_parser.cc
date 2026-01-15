@@ -132,7 +132,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       task_line_number_args_key_id_(
           context->storage->InternString("task.posted_from.line_number")),
       log_message_body_key_id_(
-          context->storage->InternString("track_event.log_message")),
+          context->storage->InternString("track_event.log_message.message")),
       log_message_source_location_function_name_key_id_(
           context->storage->InternString(
               "track_event.log_message.function_name")),

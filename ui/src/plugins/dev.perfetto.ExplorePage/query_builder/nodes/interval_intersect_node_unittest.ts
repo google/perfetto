@@ -14,30 +14,21 @@
 
 import {IntervalIntersectNode} from './interval_intersect_node';
 import {ModifyColumnsNode} from './modify_columns_node';
-import {QueryNode, NodeType, notifyNextNodes} from '../../query_node';
+import {QueryNode, notifyNextNodes} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import {
   PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
+import {createMockNode} from '../testing/test_utils';
 
 describe('IntervalIntersectNode', () => {
   function createMockPrevNode(id: string, columns: ColumnInfo[]): QueryNode {
-    return {
+    return createMockNode({
       nodeId: id,
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: columns,
-      state: {},
-      validate: () => true,
+      columns,
       getTitle: () => `Mock ${id}`,
-      nodeSpecificModify: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockPrevNode(id, columns),
-      getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
-    } as QueryNode;
+    });
   }
 
   function createColumnInfo(
@@ -655,6 +646,117 @@ describe('IntervalIntersectNode', () => {
       expect(node.validate()).toBe(true);
       expect(node.state.issues?.queryError).toBeUndefined();
     });
+
+    it('should fail validation when partition column is missing from an input', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node3 = createMockPrevNode('node3', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        // Missing 'utid' column
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2, node3],
+        partitionColumns: ['utid'],
+      });
+
+      expect(node.validate()).toBe(false);
+      expect(node.state.issues?.queryError?.message).toContain(
+        "Partition column 'utid' is missing from Input 2",
+      );
+      expect(node.state.issues?.queryError?.message).toContain(
+        'remove the partitioning',
+      );
+    });
+
+    it('should pass validation when all inputs have partition columns', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node3 = createMockPrevNode('node3', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2, node3],
+        partitionColumns: ['utid'],
+      });
+
+      expect(node.validate()).toBe(true);
+    });
+
+    it('should fail validation when only some partition columns are missing', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+        createColumnInfo('upid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+        // Missing 'upid' column
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        partitionColumns: ['utid', 'upid'],
+      });
+
+      expect(node.validate()).toBe(false);
+      expect(node.state.issues?.queryError?.message).toContain(
+        "Partition column 'upid' is missing from Input 1",
+      );
+    });
+
+    it('should pass validation with empty partition columns array', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        partitionColumns: [],
+      });
+
+      expect(node.validate()).toBe(true);
+      expect(node.state.issues?.queryError).toBeUndefined();
+    });
   });
 
   describe('getTitle', () => {
@@ -811,14 +913,12 @@ describe('IntervalIntersectNode', () => {
         partitionColumns: ['utid'],
       };
 
-      const deserialized = IntervalIntersectNode.deserializeState(
+      const deserialized = IntervalIntersectNode.deserializeConnections(
         nodes,
         serialized,
       );
 
       expect(deserialized.inputNodes).toEqual([node1, node2, node3]);
-      expect(deserialized.filterNegativeDur).toEqual([true, false, true]);
-      expect(deserialized.partitionColumns).toEqual(['utid']);
     });
 
     it('should handle missing nodes gracefully', () => {
@@ -845,14 +945,13 @@ describe('IntervalIntersectNode', () => {
         partitionColumns: ['utid'],
       };
 
-      const deserialized = IntervalIntersectNode.deserializeState(
+      const deserialized = IntervalIntersectNode.deserializeConnections(
         nodes,
         serialized,
       );
 
       // Should only include found nodes (node_missing is filtered out)
       expect(deserialized.inputNodes).toEqual([node1, node2]);
-      expect(deserialized.filterNegativeDur).toEqual([true, false, true]);
     });
   });
 
