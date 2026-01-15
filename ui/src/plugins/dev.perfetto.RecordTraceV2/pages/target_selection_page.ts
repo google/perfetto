@@ -379,9 +379,6 @@ class TargetSelector implements m.ClassComponent<TargetSelectorAttrs> {
       .then(() => this.refreshTargets());
     this.recMgr.listTargets().then((targets) => {
       this.targets = targets;
-      if (!this.recMgr.currentTarget && targets.length > 0) {
-        this.recMgr.setTarget(targets[0]);
-      }
       m.redraw();
     });
   }
