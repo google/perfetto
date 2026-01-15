@@ -175,7 +175,6 @@ export default class AndroidStartup implements PerfettoPlugin {
       whereClause =
         'WHERE ' + whereFilters.join(' AND ') + ' AND t.is_main_thread = 1';
     } else if (args.autoSelect) {
-      // Default to the last startup
       whereClause = 'WHERE t.is_main_thread = 1';
     } else {
       return;
