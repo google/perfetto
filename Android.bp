@@ -13518,6 +13518,36 @@ filegroup {
     ],
 }
 
+// GN: //src/protozero/filtering:filter_util_test_messages_descriptor
+genrule {
+    name: "perfetto_src_protozero_filtering_filter_util_test_messages_descriptor",
+    srcs: [
+        "src/protozero/filtering/filter_util_test_messages.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    out: [
+        "perfetto_src_protozero_filtering_filter_util_test_messages_descriptor.bin",
+    ],
+}
+
+// GN: //src/protozero/filtering:gen_cc_filter_util_test_descriptor
+genrule {
+    name: "perfetto_src_protozero_filtering_gen_cc_filter_util_test_descriptor",
+    srcs: [
+        ":perfetto_src_protozero_filtering_filter_util_test_messages_descriptor",
+    ],
+    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    out: [
+        "src/protozero/filtering/filter_util_test_messages.descriptor.h",
+    ],
+    tool_files: [
+        "tools/gen_cc_proto_descriptor.py",
+    ],
+}
+
 // GN: //src/protozero/filtering:message_filter
 filegroup {
     name: "perfetto_src_protozero_filtering_message_filter",
@@ -18630,6 +18660,7 @@ cc_test {
         "perfetto_src_ipc_test_messages_ipc_gen_headers",
         "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
         "perfetto_src_protovm_test_messages_lite_gen_headers",
+        "perfetto_src_protozero_filtering_gen_cc_filter_util_test_descriptor",
         "perfetto_src_protozero_testing_messages_cpp_gen_headers",
         "perfetto_src_protozero_testing_messages_lite_gen_headers",
         "perfetto_src_protozero_testing_messages_other_package_cpp_gen_headers",

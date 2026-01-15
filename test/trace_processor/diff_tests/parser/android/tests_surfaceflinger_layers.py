@@ -189,7 +189,17 @@ class SurfaceFlingerLayers(TestSuite):
         INCLUDE PERFETTO MODULE android.winscope.rect;
 
         SELECT
-          sfl.layer_id, wtr.group_id, wtr.depth, wtr.is_visible, wtr.opacity, rect.x, rect.y, rect.w, rect.h
+          sfl.layer_id,
+          wtr.group_id,
+          wtr.depth,
+          wtr.is_visible,
+          wtr.opacity,
+          wtr.border_width,
+          wtr.border_color,
+          rect.x,
+          rect.y,
+          rect.w,
+          rect.h
         FROM surfaceflinger_layer AS sfl
         INNER JOIN android_winscope_trace_rect AS wtr
           ON sfl.layer_rect_id = wtr.id
@@ -198,15 +208,15 @@ class SurfaceFlingerLayers(TestSuite):
           ON rect.id = wtr.rect_id
         """,
         out=Csv("""
-        "layer_id","group_id","depth","is_visible","opacity","x","y","w","h"
-        1,0,1,0,"[NULL]",0.000000,0.000000,1.000000,1.000000
-        2,0,2,1,1.000000,0.000000,0.000000,2.000000,2.000000
-        3,0,3,1,0.500000,0.000000,0.000000,2.000000,2.000000
-        4,1,1,1,1.000000,0.000000,0.000000,1.000000,1.000000
-        5,0,4,1,1.000000,0.000000,0.000000,1.000000,1.000000
-        6,0,5,1,1.000000,2.000000,2.000000,1.000000,1.000000
-        7,0,6,1,1.000000,2.000000,2.000000,1.000000,1.000000
-        9,2,1,1,1.000000,-50.000000,-100.000000,100.000000,200.000000
+        "layer_id","group_id","depth","is_visible","opacity","border_width","border_color","x","y","w","h"
+        1,0,1,0,"[NULL]",0.450000,4294901760,0.000000,0.000000,1.000000,1.000000
+        2,0,2,1,1.000000,1.200000,0,0.000000,0.000000,2.000000,2.000000
+        3,0,3,1,0.500000,"[NULL]","[NULL]",0.000000,0.000000,2.000000,2.000000
+        4,1,1,1,1.000000,"[NULL]","[NULL]",0.000000,0.000000,1.000000,1.000000
+        5,0,4,1,1.000000,"[NULL]","[NULL]",0.000000,0.000000,1.000000,1.000000
+        6,0,5,1,1.000000,"[NULL]","[NULL]",2.000000,2.000000,1.000000,1.000000
+        7,0,6,1,1.000000,"[NULL]","[NULL]",2.000000,2.000000,1.000000,1.000000
+        9,2,1,1,1.000000,"[NULL]","[NULL]",-50.000000,-100.000000,100.000000,200.000000
         """))
 
   def test_display_rects(self):
