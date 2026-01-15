@@ -37,6 +37,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "protos/perfetto/config/trace_config.pbzero.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 
@@ -378,6 +379,13 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
         stripped_nested += "  # PASSTHROUGH";
       if (field.filter_string)
         stripped_nested += "  # FILTER STRING";
+      using TraceFilter = perfetto::protos::pbzero::TraceConfig::TraceFilter;
+      if (field.semantic_type) {
+        stripped_nested +=
+            std::string("  # SEMANTIC TYPE ") +
+            TraceFilter::SemanticType_Name(
+                static_cast<TraceFilter::SemanticType>(field.semantic_type));
+      }
       fprintf(print_stream_, "%-60s %3u %-8s %-32s%s\n", stripped_name.c_str(),
               field_id, field.type.c_str(), field.name.c_str(),
               stripped_nested.c_str());
