@@ -390,14 +390,18 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
       std::string stripped_nested =
           nested_type ? " " + StripPrefix(nested_type->full_name, root_prefix)
                       : "";
-      if (result.filter_string_field()) {
+      // Use bytecode result if available, otherwise fall back to schema field.
+      bool is_filter_string =
+          filter_bytecode ? result.filter_string_field() : field.filter_string;
+      uint32_t semantic =
+          filter_bytecode ? result.semantic_type : field.semantic_type;
+      if (is_filter_string) {
         stripped_nested += "  # FILTER STRING";
-        if (result.semantic_type != 0) {
+        if (semantic != 0) {
           stripped_nested +=
               std::string("  # SEMANTIC TYPE ") +
               perfetto::protos::pbzero::SemanticType_Name(
-                  static_cast<perfetto::protos::pbzero::SemanticType>(
-                      result.semantic_type));
+                  static_cast<perfetto::protos::pbzero::SemanticType>(semantic));
         }
       }
       fprintf(print_stream_, "%-60s %3u %-8s %-32s%s\n", stripped_name.c_str(),
