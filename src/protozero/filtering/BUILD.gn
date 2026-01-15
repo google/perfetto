@@ -87,6 +87,7 @@ source_set("filter_util") {
     "..:protozero",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
+    "../../../protos/perfetto/common:semantic_type_zero",
     "../../../protos/perfetto/config:zero",
     "../../base",
   ]
