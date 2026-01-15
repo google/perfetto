@@ -60,7 +60,8 @@ void FilterBytecodeGenerator::AddFilterStringField(uint32_t field_id) {
 // Allows a string field with a semantic type.
 void FilterBytecodeGenerator::AddFilterStringFieldWithType(
     uint32_t field_id,
-    uint32_t semantic_type) {
+    uint32_t semantic_type,
+    bool add_to_v2) {
   // String filtering is only available if bytecode v2+ is targeted.
   PERFETTO_CHECK(min_version_ >= BytecodeVersion::kV2);
   PERFETTO_CHECK(field_id > last_field_id_);
@@ -70,8 +71,10 @@ void FilterBytecodeGenerator::AddFilterStringFieldWithType(
     bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterStringWithType);
     bytecode_.push_back(semantic_type);
   } else {
-    // On bytecode v2, the field will just be totally denied. Just don't add
-    // anything.
+    // Add the v2 opcode if requested.
+    if (add_to_v2) {
+      bytecode_.push_back(field_id << 3 | kFilterOpcode_FilterString);
+    }
 
     // On v54 it will allowed.
     v54_overlay_.push_back(num_messages_);

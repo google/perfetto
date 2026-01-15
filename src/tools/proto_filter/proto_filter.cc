@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -61,7 +62,11 @@ const char kUsage[] =
 -S --semantic_type:  Specify semantic type for a string filter field.
                      Syntax: MessageName:field:type_value
                      Example: -S perfetto.protos.TracePacket:name:1
-   --min-bytecode-parser: Minimum bytecode parser version to target (v1, v2, v54).
+--semantic_type_add_to_v2:
+                     Same as --semantic_type but also adds the semantic type to v2 bytecode.
+                     Syntax: MessageName:field:type_value
+                     Example: --semantic_type_add_to_v2 perfetto.protos.TracePacket:name:1
+--min-bytecode-parser: Minimum bytecode parser version to target (v1, v2, v54).
                      Default: v2.
 
 Example usage:
@@ -186,6 +191,7 @@ enum LongOnlyOption {
   kV54Out = 256,
   kV54OctOut,
   kMinBytecodeParser,
+  kSemanticTypeAddToV2,
 };
 
 // Parses version string (v1, v2, v54) to BytecodeVersion enum.
@@ -221,6 +227,8 @@ int Main(int argc, char** argv) {
       {"passthrough", required_argument, nullptr, 'x'},
       {"filter_string", required_argument, nullptr, 'g'},
       {"semantic_type", required_argument, nullptr, 'S'},
+      {"semantic_type_add_to_v2", required_argument, nullptr,
+       kSemanticTypeAddToV2},
       {nullptr, 0, nullptr, 0}};
 
   std::string msg_in;
@@ -236,7 +244,8 @@ int Main(int argc, char** argv) {
   std::string root_message_arg;
   std::set<std::string> passthrough_fields;
   std::set<std::string> filter_string_fields;
-  std::map<std::string, uint32_t> filter_string_semantic_types;
+  std::map<std::string, protozero::FilterUtil::SemanticType>
+      filter_string_semantic_types;
   std::string min_bytecode_parser = "v2";  // Default to v2 for compatibility
   bool dedupe = false;
 
@@ -322,7 +331,7 @@ int Main(int argc, char** argv) {
       continue;
     }
 
-    if (option == 'S') {
+    if (option == 'S' || option == kSemanticTypeAddToV2) {
       // Parse semantic type: "MessageName:field_name:type_value"
       std::vector<std::string> parts = base::SplitString(optarg, ":");
       if (parts.size() != 3) {
@@ -339,7 +348,9 @@ int Main(int argc, char** argv) {
         fprintf(stderr, "Invalid semantic type value: %s\n", type_str.c_str());
         exit(1);
       }
-      filter_string_semantic_types[field_name] = *type_value;
+      auto& entry = filter_string_semantic_types[field_name];
+      entry.type = *type_value;
+      entry.should_add_to_v2 = (option == kSemanticTypeAddToV2);
       continue;
     }
 

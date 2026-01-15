@@ -95,7 +95,7 @@ bool FilterUtil::LoadMessageDefinition(
     const std::string& proto_dir_path,
     const std::set<std::string>& passthrough_fields,
     const std::set<std::string>& string_filter_fields,
-    const std::map<std::string, uint32_t>& filter_string_semantic_types) {
+    const std::map<std::string, SemanticType>& filter_string_semantic_types) {
   passthrough_fields_ = passthrough_fields;
   passthrough_fields_seen_.clear();
   filter_string_fields_ = string_filter_fields;
@@ -242,7 +242,9 @@ FilterUtil::Message* FilterUtil::ParseProtoDescriptor(
       // Check if this field has a semantic type.
       auto it = filter_string_semantic_types_.find(message_and_field);
       if (it != filter_string_semantic_types_.end()) {
-        field.semantic_type = it->second;
+        field.semantic_type = it->second.type;
+        field.filter_string_with_semantic_type_add_to_v2 =
+            it->second.should_add_to_v2;
       }
     }
     if (proto_field->message_type() && !passthrough) {
@@ -416,8 +418,9 @@ FilterBytecodeGenerator::SerializeResult FilterUtil::GenerateFilterBytecode(
       }
       if (field.filter_string) {
         if (field.semantic_type != 0) {
-          bytecode_gen.AddFilterStringFieldWithType(field_id,
-                                                    field.semantic_type);
+          bytecode_gen.AddFilterStringFieldWithType(
+              field_id, field.semantic_type,
+              field.filter_string_with_semantic_type_add_to_v2);
         } else {
           bytecode_gen.AddFilterStringField(field_id);
         }
