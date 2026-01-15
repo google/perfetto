@@ -95,9 +95,11 @@ base::Status CollapsedStackTraceReader::ParseLine(std::string_view line) {
     StringId name = storage->InternString("collapsed_stack samples");
     StringId type = storage->InternString("samples");
     StringId unit = storage->InternString("count");
-    profile_id_ =
-        storage->mutable_aggregate_profile_table()->Insert({scope, name, type, unit}).id;
-    mapping_ = &context_->mapping_tracker->CreateDummyMapping("[collapsed_stack]");
+    profile_id_ = storage->mutable_aggregate_profile_table()
+                      ->Insert({scope, name, type, unit})
+                      .id;
+    mapping_ =
+        &context_->mapping_tracker->CreateDummyMapping("[collapsed_stack]");
   }
 
   // Find the last space to separate stack from count.
@@ -129,8 +131,8 @@ base::Status CollapsedStackTraceReader::ParseLine(std::string_view line) {
     if (frame_name.empty()) {
       continue;
     }
-    FrameId frame_id =
-        mapping_->InternDummyFrame(base::StringView(frame_name), base::StringView());
+    FrameId frame_id = mapping_->InternDummyFrame(base::StringView(frame_name),
+                                                  base::StringView());
     callsite_id = context_->stack_profile_tracker->InternCallsite(
         callsite_id, frame_id, depth);
     ++depth;
