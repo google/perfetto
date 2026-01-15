@@ -67,17 +67,10 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
 
   private store?: Store<InstrumentsSamplesProfilePluginState>;
 
-  private migrateInstrumentsSamplesProfilePluginState(
-    init: unknown,
-  ): InstrumentsSamplesProfilePluginState {
-    const result =
-      INSTRUMENTS_SAMPLES_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore(InstrumentsSamplesProfilePlugin.id, (init) =>
-      this.migrateInstrumentsSamplesProfilePluginState(init),
+    this.store = ctx.mountStore(
+      InstrumentsSamplesProfilePlugin.id,
+      INSTRUMENTS_SAMPLES_PROFILE_PLUGIN_STATE_SCHEMA,
     );
     const pResult = await ctx.engine.query(`
       select distinct upid

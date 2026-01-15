@@ -13,38 +13,31 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {LogFilteringCriteria, LogPanelCache, LogPanel} from './logs_panel';
+import {z} from 'zod';
+import {LogPanelCache, LogPanel} from './logs_panel';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {createAndroidLogTrack} from './logs_track';
-import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 
-const VERSION = 1;
+const LogFilteringCriteriaSchema = z.object({
+  minimumLevel: z.number().default(2),
+  tags: z.array(z.string()).default([]),
+  isTagRegex: z.boolean().default(false),
+  textEntry: z.string().default(''),
+  hideNonMatching: z.boolean().default(true),
+  machineExcludeList: z.array(z.number()).default([]),
+});
 
-const DEFAULT_STATE: AndroidLogPluginState = {
-  version: VERSION,
-  filter: {
-    // The first two log priorities are ignored.
-    minimumLevel: 2,
-    tags: [],
-    isTagRegex: false,
-    textEntry: '',
-    hideNonMatching: true,
-    machineExcludeList: [],
-  },
-};
-
-interface AndroidLogPluginState {
-  version: number;
-  filter: LogFilteringCriteria;
-}
+const AndroidLogPluginStateSchema = z.object({
+  filter: LogFilteringCriteriaSchema.prefault({}),
+});
 
 async function getMachineIds(engine: Engine): Promise<number[]> {
   // A machine might not provide Android logs, even if configured to do so.
@@ -63,13 +56,9 @@ async function getMachineIds(engine: Engine): Promise<number[]> {
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidLog';
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const store = ctx.mountStore<AndroidLogPluginState>(
+    const store = ctx.mountStore(
       'com.android.AndroidLogFilterState',
-      (init) => {
-        return exists(init) && (init as {version: unknown}).version === VERSION
-          ? (init as AndroidLogPluginState)
-          : DEFAULT_STATE;
-      },
+      AndroidLogPluginStateSchema,
     );
 
     const result = await ctx.engine.query(
@@ -110,7 +99,7 @@ export default class implements PerfettoPlugin {
     // Eternal tabs should always be available even if there is nothing to show
     const filterStore = store.createSubStore(
       ['filter'],
-      (x) => x as LogFilteringCriteria,
+      LogFilteringCriteriaSchema,
     );
 
     const cache: LogPanelCache = {

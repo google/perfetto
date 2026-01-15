@@ -93,16 +93,10 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   private groups = new Map<string, TrackNode>();
   private store?: Store<TraceProcessorTrackPluginState>;
 
-  private migrateTraceProcessorTrackPluginState(
-    init: unknown,
-  ): TraceProcessorTrackPluginState {
-    const result = TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore(TraceProcessorTrackPlugin.id, (init) =>
-      this.migrateTraceProcessorTrackPluginState(init),
+    this.store = ctx.mountStore(
+      TraceProcessorTrackPlugin.id,
+      TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA,
     );
     await this.addCounters(ctx);
     await this.addSlices(ctx);

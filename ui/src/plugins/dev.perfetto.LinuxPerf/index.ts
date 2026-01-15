@@ -68,14 +68,10 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
 
   private store?: Store<LinuxPerfPluginState>;
 
-  private migrateLinuxPerfPluginState(init: unknown): LinuxPerfPluginState {
-    const result = LINUX_PERF_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(LinuxPerfPlugin.id, (init) =>
-      this.migrateLinuxPerfPluginState(init),
+    this.store = trace.mountStore(
+      LinuxPerfPlugin.id,
+      LINUX_PERF_PLUGIN_STATE_SCHEMA,
     );
     const store = assertExists(this.store);
     await this.addProcessPerfSamplesTracks(trace, store);

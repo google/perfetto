@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {runQueryForQueryTable} from '../../components/query_table/queries';
+import {z} from 'zod';
+import {
+  QueryResponse,
+  runQueryForQueryTable,
+} from '../../components/query_table/queries';
 import {QueryResultsTable} from '../../components/query_table/query_table';
 import {Flag} from '../../public/feature_flag';
 import {PerfettoPlugin} from '../../public/plugin';
@@ -25,127 +29,183 @@ import {Anchor} from '../../widgets/anchor';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {shortUuid} from '../../base/uuid';
 
+// Schema for a single tab's persistent state (what goes in permalinks)
+const SerializedTabSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  editorText: z.string(),
+});
+
+type SerializedTab = z.infer<typeof SerializedTabSchema>;
+
+// Schema for the full plugin state
+const queryPageStateSchema = z.object({
+  tabs: z.array(SerializedTabSchema).default([]),
+  activeTabId: z.string().optional(),
+});
+
+// Transient state (not persisted) - query results and loading state per tab
+interface TransientTabState {
+  queryResult?: QueryResponse;
+  isLoading: boolean;
+}
+
 export default class QueryPagePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.QueryPage';
   static readonly dependencies = [SqlModulesPlugin];
 
   static addQueryPageMiniFlag: Flag;
 
+  // Transient state keyed by tab ID - not persisted in permalinks
+  private transientState = new Map<string, TransientTabState>();
+
   async onTraceLoad(trace: Trace): Promise<void> {
-    // Multi-tab state: array of editor tabs with active tab tracking
-    const editorTabs: QueryEditorTab[] = [];
+    const store = trace.mountStore(QueryPagePlugin.id, queryPageStateSchema);
+    this.transientState.clear();
 
-    function createNewTabName(index: number): string {
-      return `Query ${index}`;
-    }
-
-    function createNewTab(
+    const createNewTab = (
       tabName?: string,
       editorText: string = '',
-    ): QueryEditorTab {
-      // If no tab name is provided, count up until we find a unique name
+    ): SerializedTab => {
+      // If no tab name is provided, generate a unique one
       if (!tabName) {
+        const existingNames = new Set(store.state.tabs.map((t) => t.title));
         let count = 1;
-        const existingNames = new Set<string>();
-        // This function is only called during initialization, so we can
-        // safely access the existing tabs from the closure.
-        for (const tab of editorTabs) {
-          existingNames.add(tab.title);
-        }
-        while (existingNames.has(createNewTabName(count))) {
+        while (existingNames.has(`Query ${count}`)) {
           count++;
         }
-        tabName = createNewTabName(count);
+        tabName = `Query ${count}`;
       }
 
       return {
         id: shortUuid(),
-        editorText,
-        queryResult: undefined,
-        isLoading: false,
         title: tabName,
+        editorText,
       };
+    };
+
+    // Initialize with one tab if empty
+    if (store.state.tabs.length === 0) {
+      const initialTab = createNewTab();
+      store.edit((draft) => {
+        draft.tabs.push(initialTab);
+        draft.activeTabId = initialTab.id;
+      });
     }
 
-    editorTabs.push(createNewTab());
-    let activeTabId = editorTabs[0].id;
-
-    // Helper to find the active tab
-    function getActiveTab(): QueryEditorTab | undefined {
-      return editorTabs.find((t) => t.id === activeTabId);
+    // Initialize transient state for all tabs
+    for (const tab of store.state.tabs) {
+      this.transientState.set(tab.id, {isLoading: false});
     }
 
-    async function onExecute(tabId: string, text: string) {
+    // Build QueryEditorTab array from store + transient state
+    const getEditorTabs = (): QueryEditorTab[] => {
+      return store.state.tabs.map((tab) => {
+        const transient = this.transientState.get(tab.id) ?? {isLoading: false};
+        return {
+          id: tab.id,
+          title: tab.title,
+          editorText: tab.editorText,
+          queryResult: transient.queryResult,
+          isLoading: transient.isLoading,
+        };
+      });
+    };
+
+    const getActiveTabId = (): string => {
+      return store.state.activeTabId ?? store.state.tabs[0]?.id;
+    };
+
+    const getActiveTab = (): QueryEditorTab | undefined => {
+      const tabs = getEditorTabs();
+      return tabs.find((t) => t.id === getActiveTabId());
+    };
+
+    const onExecute = async (tabId: string, text: string) => {
       if (!text) return;
 
-      const tab = editorTabs.find((t) => t.id === tabId);
-      if (!tab) return;
+      const transient = this.transientState.get(tabId);
+      if (!transient) return;
 
-      tab.queryResult = undefined;
+      transient.queryResult = undefined;
       queryHistoryStorage.saveQuery(text);
 
-      tab.isLoading = true;
-      tab.queryResult = await runQueryForQueryTable(text, trace.engine);
-      tab.isLoading = false;
+      transient.isLoading = true;
+      transient.queryResult = await runQueryForQueryTable(text, trace.engine);
+      transient.isLoading = false;
 
       trace.tabs.showTab('dev.perfetto.QueryPage');
-    }
+    };
 
-    function onEditorContentUpdate(tabId: string, content: string) {
-      const tab = editorTabs.find((t) => t.id === tabId);
-      if (tab) {
-        tab.editorText = content;
-      }
-    }
+    const onEditorContentUpdate = (tabId: string, content: string) => {
+      store.edit((draft) => {
+        const tab = draft.tabs.find((t) => t.id === tabId);
+        if (tab) {
+          tab.editorText = content;
+        }
+      });
+    };
 
-    function onTabChange(tabId: string) {
-      activeTabId = tabId;
-    }
+    const onTabChange = (tabId: string) => {
+      store.edit((draft) => {
+        draft.activeTabId = tabId;
+      });
+    };
 
-    function onTabClose(tabId: string) {
-      const index = editorTabs.findIndex((t) => t.id === tabId);
+    const onTabClose = (tabId: string) => {
+      const tabs = store.state.tabs;
+      const index = tabs.findIndex((t) => t.id === tabId);
       if (index === -1) return;
 
       // Don't close the last tab
-      if (editorTabs.length === 1) return;
+      if (tabs.length === 1) return;
 
-      editorTabs.splice(index, 1);
+      store.edit((draft) => {
+        draft.tabs.splice(index, 1);
 
-      // If we closed the active tab, switch to an adjacent one
-      if (activeTabId === tabId) {
-        const newIndex = Math.min(index, editorTabs.length - 1);
-        activeTabId = editorTabs[newIndex].id;
-      }
-    }
+        // If we closed the active tab, switch to an adjacent one
+        if (draft.activeTabId === tabId) {
+          const newIndex = Math.min(index, draft.tabs.length - 1);
+          draft.activeTabId = draft.tabs[newIndex].id;
+        }
+      });
 
-    function onTabAdd(
+      this.transientState.delete(tabId);
+    };
+
+    const onTabAdd = (
       tabName?: string,
       initialQuery?: string,
       autoExecute?: boolean,
-    ) {
+    ) => {
       const newTab = createNewTab(tabName, initialQuery);
-      editorTabs.push(newTab);
-      activeTabId = newTab.id;
+      store.edit((draft) => {
+        draft.tabs.push(newTab);
+        draft.activeTabId = newTab.id;
+      });
+      this.transientState.set(newTab.id, {isLoading: false});
 
       if (autoExecute) {
         onExecute(newTab.id, initialQuery ?? '');
       }
-    }
+    };
 
-    function onTabRename(tabId: string, newName: string) {
-      const tab = editorTabs.find((t) => t.id === tabId);
-      if (tab) {
-        tab.title = newName;
-      }
-    }
+    const onTabRename = (tabId: string, newName: string) => {
+      store.edit((draft) => {
+        const tab = draft.tabs.find((t) => t.id === tabId);
+        if (tab) {
+          tab.title = newName;
+        }
+      });
+    };
 
     trace.pages.registerPage({
       route: '/query',
       render: () =>
         m(QueryPage, {
           trace,
-          editorTabs,
-          activeTabId,
+          editorTabs: getEditorTabs(),
+          activeTabId: getActiveTabId(),
           onEditorContentUpdate,
           onExecute,
           onTabChange,

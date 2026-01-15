@@ -40,14 +40,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   private readonly trackMap = new Map<number, Track>();
   private store?: Store<HeapProfilePluginState>;
 
-  private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
-    const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(HeapProfilePlugin.id, (init) =>
-      this.migrateHeapProfilePluginState(init),
+    this.store = trace.mountStore(
+      HeapProfilePlugin.id,
+      HEAP_PROFILE_PLUGIN_STATE_SCHEMA,
     );
     await this.createHeapProfileTable(trace);
     await this.addProcessTracks(trace);

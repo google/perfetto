@@ -13,49 +13,34 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
 import {Cpu} from '../../components/cpu';
-import {FtraceFilter, FtracePluginState as FtraceFilters} from './common';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
 
-const VERSION = 1;
+const FtraceFilterSchema = z.object({
+  excludeList: z.array(z.string()).default([]),
+});
 
-const DEFAULT_STATE: FtraceFilters = {
-  version: VERSION,
-  filter: {
-    excludeList: [],
-  },
-};
+const FtracePluginStateSchema = z.object({
+  filter: FtraceFilterSchema.prefault({}),
+});
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Ftrace';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const store = ctx.mountStore<FtraceFilters>(
+    const store = ctx.mountStore(
       'dev.perfetto.FtraceFilters',
-      (init: unknown) => {
-        if (
-          typeof init === 'object' &&
-          init !== null &&
-          'version' in init &&
-          init.version === VERSION
-        ) {
-          return init as {} as FtraceFilters;
-        } else {
-          return DEFAULT_STATE;
-        }
-      },
+      FtracePluginStateSchema,
     );
 
-    const filterStore = store.createSubStore(
-      ['filter'],
-      (x) => x as FtraceFilter,
-    );
+    const filterStore = store.createSubStore(['filter'], FtraceFilterSchema);
 
     const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
 

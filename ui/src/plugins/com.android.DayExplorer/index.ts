@@ -46,11 +46,6 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
 
   private store?: Store<DayExplorerPluginState>;
 
-  private migrateDayExplorerPluginState(init: unknown): DayExplorerPluginState {
-    const result = DAY_EXPLORER_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   private support(ctx: Trace) {
     return ctx.plugins.getPlugin(SupportPlugin);
   }
@@ -314,8 +309,9 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore(DayExplorerPlugin.id, (init) =>
-      this.migrateDayExplorerPluginState(init),
+    this.store = ctx.mountStore(
+      DayExplorerPlugin.id,
+      DAY_EXPLORER_PLUGIN_STATE_SCHEMA,
     );
 
     const support = this.support(ctx);
