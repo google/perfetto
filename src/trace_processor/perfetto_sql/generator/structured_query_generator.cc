@@ -794,8 +794,8 @@ base::StatusOr<std::string> GeneratorImpl::FilterToIntervals(
     }
     sql +=
         "\n  FROM "
-        "_interval_merge_overlapping_partitioned!(fti_intervals_raw, " +
-        partition_cols[0] + ")\n)";
+        "_interval_merge_overlapping_partitioned!(fti_intervals_raw, (" +
+        partition_cols[0] + "))\n)";
   }
 
   // Use _interval_intersect! macro to compute overlaps
