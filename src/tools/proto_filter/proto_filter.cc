@@ -62,7 +62,7 @@ const char kUsage[] =
                      Syntax: MessageName:field:type_value
                      Example: -S perfetto.protos.TracePacket:name:1
    --min-bytecode-parser: Minimum bytecode parser version to target (v1, v2, v54).
-                     Default: v54. Use v2 for compatibility with older parsers.
+                     Default: v2.
 
 Example usage:
 

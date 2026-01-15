@@ -83,6 +83,8 @@ WINSCOPE_TRACE_RECT_TABLE = Table(
         C('is_visible', CppInt64()),
         C('opacity', CppOptional(CppDouble())),
         C('transform_id', CppTableId(WINSCOPE_TRANSFORM_TABLE)),
+        C('border_width', CppOptional(CppDouble())),
+        C('border_color', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='WinscopeTraceRect',
@@ -104,6 +106,10 @@ WINSCOPE_TRACE_RECT_TABLE = Table(
                 'Opacity',
             'transform_id':
                 'Used to match trace rect to transform in __intrinsic_winscope_transform',
+            'border_width':
+                'Border width',
+            'border_color':
+                'Border color',
         }))
 
 INPUTMETHOD_CLIENTS_TABLE = Table(

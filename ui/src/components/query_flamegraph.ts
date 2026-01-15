@@ -512,7 +512,7 @@ async function computeFlamegraphTree(
   const nodes = [];
   for (; it.valid(); it.next()) {
     const properties = new Map<string, FlamegraphPropertyDefinition>();
-    for (const a of [...agg, ...unagg]) {
+    for (const a of unagg) {
       const r = it.get(a.name);
       if (r !== null) {
         const value = r as string;
@@ -520,6 +520,19 @@ async function computeFlamegraphTree(
           displayName: a.displayName,
           value,
           isVisible: a.isVisible ? a.isVisible(value) : true,
+          isAggregatable: false,
+        });
+      }
+    }
+    for (const a of agg) {
+      const r = it.get(a.name);
+      if (r !== null) {
+        const value = r as string;
+        properties.set(a.name, {
+          displayName: a.displayName,
+          value,
+          isVisible: a.isVisible ? a.isVisible(value) : true,
+          isAggregatable: true,
         });
       }
     }

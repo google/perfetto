@@ -47,6 +47,7 @@ struct SystemInfo {
   std::optional<Utsname> utsname_info;
   std::optional<uint32_t> page_size;
   std::optional<uint32_t> num_cpus;
+  std::optional<uint64_t> memory_size_bytes;
   std::string android_build_fingerprint;
   std::string android_device_manufacturer;
   std::optional<uint64_t> android_sdk_version;

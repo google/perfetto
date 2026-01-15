@@ -38,6 +38,7 @@ class MachineTracker {
   void SetAndroidBuildFingerprint(StringId build_fingerprint);
   void SetAndroidDeviceManufacturer(StringId device_manufacturer);
   void SetAndroidSdkVersion(int64_t sdk_version);
+  void SetMemorySizeBytes(int64_t memory_size_bytes);
 
   std::optional<MachineId> machine_id() const { return machine_id_; }
 

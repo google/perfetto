@@ -212,7 +212,7 @@ function main() {
     id: 'timestampFormat',
     name: 'Timestamp format',
     description: 'The format of timestamps throughout Perfetto.',
-    schema: z.nativeEnum(TimestampFormat),
+    schema: z.enum(TimestampFormat),
     defaultValue: TimestampFormat.Timecode,
   });
 
@@ -229,7 +229,7 @@ function main() {
     id: 'durationPrecision',
     name: 'Duration precision',
     description: 'The precision of durations throughout Perfetto.',
-    schema: z.nativeEnum(DurationPrecision),
+    schema: z.enum(DurationPrecision),
     defaultValue: DurationPrecision.Full,
   });
 

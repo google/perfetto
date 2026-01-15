@@ -152,6 +152,11 @@ config("abseil_config") {
       "-Wno-overflow",
     ]
   }
+}
+
+# We separate this from the above because frameworks need to be forcefully
+# propogated to all dependents, unlike regular link flags.
+config("abseil_framework_config") {
   if (is_mac) {
     ldflags = [
       "-framework",
@@ -554,6 +559,7 @@ source_set("abseil_cpp") {
   configs += [ ":abseil_config" ]
   public_configs = [ ":abseil_config" ]
   deps = [ "//gn:default_deps" ]
+  all_dependent_configs = [ ":abseil_framework_config" ]
 }
 
 # Configuration for utf8_range (required by protobuf v22+).
