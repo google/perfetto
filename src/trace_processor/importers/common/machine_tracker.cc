@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/importers/common/machine_tracker.h"
 
-#include <cmath>
-
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {

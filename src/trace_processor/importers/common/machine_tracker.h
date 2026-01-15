@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_MACHINE_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_MACHINE_TRACKER_H_
 
+#include <cmath>
 #include <cstdint>
 
 #include "src/trace_processor/storage/trace_storage.h"
