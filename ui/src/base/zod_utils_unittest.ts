@@ -75,44 +75,35 @@ describe('getZodSchemaInfo', () => {
     });
   });
 
-  it('identifies native enum schema with string values', () => {
+  it('identifies native enum schema with string values as enum', () => {
     enum StringEnum {
       A = 'a',
       B = 'b',
       C = 'c',
     }
-    const schema = z.nativeEnum(StringEnum);
+    const schema = z.enum(StringEnum);
 
     const result = getZodSchemaInfo(schema);
 
+    // Native string enums are treated as regular enums
     expect(result).toEqual({
-      kind: 'nativeEnum',
-      entries: [
-        {key: 'A', value: 'a'},
-        {key: 'B', value: 'b'},
-        {key: 'C', value: 'c'},
-      ],
+      kind: 'enum',
+      options: ['a', 'b', 'c'],
     });
   });
 
-  it('identifies native enum schema with numeric values', () => {
+  it('returns unknown for native enum with numeric values', () => {
     enum NumericEnum {
       First = 0,
       Second = 1,
       Third = 2,
     }
-    const schema = z.nativeEnum(NumericEnum);
+    const schema = z.enum(NumericEnum);
 
     const result = getZodSchemaInfo(schema);
 
-    expect(result).toEqual({
-      kind: 'nativeEnum',
-      entries: [
-        {key: 'First', value: 0},
-        {key: 'Second', value: 1},
-        {key: 'Third', value: 2},
-      ],
-    });
+    // Numeric enums are not supported
+    expect(result).toEqual({kind: 'unknown'});
   });
 
   it('returns unknown for object schema', () => {
@@ -132,10 +123,26 @@ describe('getZodSchemaInfo', () => {
   });
 
   it('returns unknown for record schema', () => {
-    const schema = z.record(z.string());
+    const schema = z.record(z.string(), z.string());
 
     const result = getZodSchemaInfo(schema);
 
     expect(result).toEqual({kind: 'unknown'});
+  });
+
+  it('returns number for int() mofidier type', () => {
+    const schema = z.number().int();
+
+    const result = getZodSchemaInfo(schema);
+
+    expect(result).toMatchObject({kind: 'number'});
+  });
+
+  it('returns number for int() type', () => {
+    const schema = z.int();
+
+    const result = getZodSchemaInfo(schema);
+
+    expect(result).toMatchObject({kind: 'number'});
   });
 });
