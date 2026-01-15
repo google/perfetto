@@ -18,6 +18,8 @@ syntax = "proto2";
 
 package protozero.test;
 
+import "protos/perfetto/proto_filtering/proto_filter_options.proto";
+
 // Test: SchemaToBytecode_Simple
 message SimpleRoot {
   optional int32 i32 = 13;
@@ -176,4 +178,11 @@ message SemanticTypeV2Packet {
 // Test: SemanticTypeValidation
 message ValidationRoot {
   optional string field = 1;
+}
+
+// TODO(lalitm): add tests for annotation-based filtering.
+message AnnotatedRoot {
+  optional int32 id = 1;
+  optional string name = 2
+      [(perfetto.protos.proto_filter).filter_string = true];
 }
