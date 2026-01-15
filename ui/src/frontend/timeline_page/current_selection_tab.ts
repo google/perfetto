@@ -38,7 +38,6 @@ export class CurrentSelectionTab
   implements m.ClassComponent<CurrentSelectionTabAttrs>
 {
   private readonly fadeContext = new FadeContext();
-  private currentAreaSubTabId?: string;
 
   view({attrs}: m.Vnode<CurrentSelectionTabAttrs>): m.Children {
     const section = this.renderCurrentSelectionTabContent(attrs.trace);
@@ -119,8 +118,9 @@ export class CurrentSelectionTab
     // Find the active tab or just pick the first one if that selected tab is
     // not available.
     const [activeTab, activeTabContent] =
-      renderedTabs.find(([tab]) => tab.id === this.currentAreaSubTabId) ??
-      renderedTabs[0];
+      renderedTabs.find(
+        ([tab]) => tab.id === trace.selection.currentSelectionSubTab,
+      ) ?? renderedTabs[0];
 
     // Determine if any tab content is loading
     const isLoading = renderedTabs.some(([_, content]) => content?.isLoading);
@@ -138,7 +138,8 @@ export class CurrentSelectionTab
                 label: tab.name,
                 key: tab.id,
                 active: activeTab === tab,
-                onclick: () => (this.currentAreaSubTabId = tab.id),
+                onclick: () =>
+                  trace.selection.setCurrentSelectionSubTab(tab.id),
               });
             }),
           ),

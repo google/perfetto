@@ -1,0 +1,47 @@
+# Copyright (C) 2025 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Merge main to canary
+
+on:
+  workflow_dispatch:  # Manual trigger via GitHub UI button
+
+permissions:
+  contents: write  # Required to push to canary branch
+
+jobs:
+  merge-main-to-canary:
+    runs-on: ubuntu-latest
+    environment: canary
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: canary
+          fetch-depth: 0  # Full history needed for merge
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch origin/main
+        run: git fetch origin main
+
+      - name: Merge main into canary (prefer main on conflicts)
+        run: |
+          git merge origin/main -X theirs -m "Merge main into canary (automated)"
+
+      - name: Push to canary
+        run: git push origin canary

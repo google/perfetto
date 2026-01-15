@@ -2,7 +2,7 @@
   "nodes": [
     {
       "nodeId": "0",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "2"
@@ -10,7 +10,7 @@
     },
     {
       "nodeId": "3",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "4"
@@ -18,7 +18,7 @@
     },
     {
       "nodeId": "551",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "552"
@@ -26,21 +26,17 @@
     },
     {
       "nodeId": "553",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": []
     },
     {
       "nodeId": "570",
-      "type": 11,
+      "type": "interval_intersect",
       "state": {
         "intervalNodes": [
           "571",
           "572"
-        ],
-        "filterNegativeDur": [
-          true,
-          true
         ],
         "partitionColumns": [
           "utid"
@@ -50,7 +46,7 @@
     },
     {
       "nodeId": "571",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "570"
@@ -58,7 +54,7 @@
     },
     {
       "nodeId": "572",
-      "type": 0,
+      "type": "table",
       "state": {
         "sqlTable": "thread_state"
       },
@@ -68,7 +64,7 @@
     },
     {
       "nodeId": "573",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "574",
@@ -77,7 +73,7 @@
     },
     {
       "nodeId": "574",
-      "type": 4,
+      "type": "aggregation",
       "state": {
         "primaryInputId": "573",
         "groupByColumns": [
@@ -156,7 +152,7 @@
     },
     {
       "nodeId": "1000",
-      "type": 10,
+      "type": "filter",
       "state": {
         "primaryInputId": "573",
         "filters": [
@@ -171,7 +167,7 @@
     },
     {
       "nodeId": "2",
-      "type": 4,
+      "type": "aggregation",
       "state": {
         "primaryInputId": "0",
         "groupByColumns": [
@@ -234,7 +230,7 @@
     },
     {
       "nodeId": "4",
-      "type": 4,
+      "type": "aggregation",
       "state": {
         "primaryInputId": "3",
         "groupByColumns": [
@@ -297,7 +293,7 @@
     },
     {
       "nodeId": "552",
-      "type": 10,
+      "type": "filter",
       "state": {
         "primaryInputId": "551",
         "filters": [

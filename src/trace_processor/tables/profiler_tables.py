@@ -466,7 +466,8 @@ PERF_SESSION_TABLE = Table(
 PERF_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='PerfSampleTable',
-    sql_name='perf_sample',
+    wrapping_sql_view=WrappingSqlView('perf_sample'),
+    sql_name='__intrinsic_perf_sample',
     columns=[
         C(
             'ts',

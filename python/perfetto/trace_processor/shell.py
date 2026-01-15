@@ -19,11 +19,16 @@ import sys
 import tempfile
 import time
 import shutil
-from typing import List, Optional
+from typing import List, Optional, Union
 from urllib import request, error
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.platform import PlatformDelegate
+
+# Import TYPE_CHECKING to avoid circular imports
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+  from perfetto.trace_processor.api import SqlPackage
 
 # Default port that trace_processor_shell runs on
 TP_PORT = 9001
@@ -38,7 +43,7 @@ def load_shell(
     platform_delegate: PlatformDelegate,
     load_timeout: int = 2,
     extra_flags: Optional[List[str]] = None,
-    add_sql_packages: Optional[List[str]] = None,
+    add_sql_packages: Optional[List[Union[str, 'SqlPackage']]] = None,
 ):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
@@ -66,7 +71,14 @@ def load_shell(
 
   if add_sql_packages:
     for package in add_sql_packages:
-      args.extend(['--add-sql-package', package])
+      if isinstance(package, str):
+        args.extend(['--add-sql-package', package])
+      else:
+        # It's a SqlPackage object
+        pkg_str = package.path
+        if package.package:
+          pkg_str += f'@{package.package}'
+        args.extend(['--add-sql-package', pkg_str])
 
   if extra_flags:
     args.extend(extra_flags)

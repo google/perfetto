@@ -2,7 +2,7 @@
   "nodes": [
     {
       "nodeId": "499",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "504"
@@ -10,7 +10,7 @@
     },
     {
       "nodeId": "505",
-      "type": 0,
+      "type": "table",
       "state": {
         "sqlTable": "thread_state"
       },
@@ -20,15 +20,11 @@
     },
     {
       "nodeId": "1064",
-      "type": 11,
+      "type": "interval_intersect",
       "state": {
         "intervalNodes": [
           "1067",
           "1068"
-        ],
-        "filterNegativeDur": [
-          true,
-          true
         ],
         "partitionColumns": [
           "utid"
@@ -38,7 +34,7 @@
     },
     {
       "nodeId": "1066",
-      "type": 0,
+      "type": "table",
       "state": {
         "sqlTable": "thread_state"
       },
@@ -48,7 +44,7 @@
     },
     {
       "nodeId": "1068",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "1064"
@@ -56,7 +52,7 @@
     },
     {
       "nodeId": "504",
-      "type": 10,
+      "type": "filter",
       "state": {
         "primaryInputId": "499",
         "filters": [
@@ -73,7 +69,7 @@
     },
     {
       "nodeId": "506",
-      "type": 10,
+      "type": "filter",
       "state": {
         "primaryInputId": "505",
         "filters": [
@@ -90,7 +86,7 @@
     },
     {
       "nodeId": "1067",
-      "type": 10,
+      "type": "filter",
       "state": {
         "primaryInputId": "1066",
         "filters": [
@@ -107,14 +103,12 @@
     },
     {
       "nodeId": "500",
-      "type": 7,
+      "type": "filter_during",
       "state": {
         "primaryInputId": "504",
         "secondaryInputNodeIds": [
           "506"
         ],
-        "filterNegativeDurPrimary": true,
-        "filterNegativeDurSecondary": true,
         "partitionColumns": []
       },
       "nextNodes": [
@@ -123,7 +117,7 @@
     },
     {
       "nodeId": "507",
-      "type": 4,
+      "type": "aggregation",
       "state": {
         "primaryInputId": "500",
         "groupByColumns": [

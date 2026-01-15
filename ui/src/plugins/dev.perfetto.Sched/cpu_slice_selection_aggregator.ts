@@ -39,6 +39,7 @@ const CPU_SLICE_SPEC = {
   dur: LONG,
   ts: LONG,
   utid: NUM,
+  ucpu: NUM,
 };
 
 export class CpuSliceSelectionAggregator implements Aggregator {
@@ -101,7 +102,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
-            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id,
+            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             utid,
             process.name as process_name,
             pid,
@@ -109,7 +110,8 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             tid,
             sched.dur,
             sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
-            sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection
+            sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
+            ucpu
           from ${iiTable.name} as sched
           join thread using (utid)
           left join process using (upid)
@@ -129,9 +131,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   getColumnDefinitions(): AggregatePivotModel {
     return {
       groupBy: [
-        {id: 'pid', field: 'pid'},
         {id: 'process_name', field: 'process_name'},
-        {id: 'tid', field: 'tid'},
         {id: 'thread_name', field: 'thread_name'},
       ],
       aggregates: [
@@ -147,7 +147,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
       columns: [
         {
           title: 'ID',
-          columnId: 'id',
+          columnId: 'id_with_lineage',
           formatHint: 'ID',
           cellRenderer: (value: unknown) => {
             // Value is a JSON object {id, groupid, partition}
@@ -204,19 +204,24 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           formatHint: 'STRING',
         },
         {
-          title: 'Wall Duration',
+          title: 'CPU Time',
           formatHint: 'DURATION_NS',
           columnId: 'dur',
         },
         {
-          title: 'Wall Duration as % of Total',
+          title: 'CPU Time %',
           columnId: 'fraction_of_total',
           formatHint: 'PERCENT',
         },
         {
-          title: 'Wall Duration % of Selection',
+          title: 'CPU Time / Wall Time',
           columnId: 'fraction_of_selection',
           formatHint: 'PERCENT',
+        },
+        {
+          title: 'CPU',
+          columnId: 'ucpu',
+          formatHint: 'NUMERIC',
         },
       ],
     };
