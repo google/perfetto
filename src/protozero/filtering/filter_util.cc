@@ -401,7 +401,8 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
           stripped_nested +=
               std::string("  # SEMANTIC TYPE ") +
               perfetto::protos::pbzero::SemanticType_Name(
-                  static_cast<perfetto::protos::pbzero::SemanticType>(semantic));
+                  static_cast<perfetto::protos::pbzero::SemanticType>(
+                      semantic));
         }
       }
       fprintf(print_stream_, "%-60s %3u %-8s %-32s%s\n", stripped_name.c_str(),
