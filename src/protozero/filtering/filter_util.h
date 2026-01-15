@@ -109,6 +109,9 @@ class FilterUtil {
       // 0 = unspecified/unset. Only meaningful when filter_string == true.
       // Maps to SemanticType enum values from semantic_type.proto.
       uint32_t semantic_type = 0;
+      // If true and semantic_type is set, include this field in v2 bytecode
+      // (as simple filter_string) in addition to the v54 overlay.
+      bool add_to_v2 = false;
       // Only when type == "message". Note that when using Dedupe() this can
       // be aliased against a different submessage which happens to have the
       // same set of field ids.
