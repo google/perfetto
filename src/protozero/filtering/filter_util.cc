@@ -388,8 +388,6 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
       } else {  // simple field
         PERFETTO_CHECK(result.simple_field() || result.filter_string_field() ||
                        !filter_bytecode);
-        PERFETTO_CHECK(result.filter_string_field() == field.filter_string ||
-                       !filter_bytecode);
       }
 
       auto stripped_name = StripPrefix(descr.full_name, root_prefix);
