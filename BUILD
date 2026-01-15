@@ -288,6 +288,7 @@ perfetto_cc_binary(
     ],
     deps = [
         ":protos_perfetto_common_cpp",
+        ":protos_perfetto_common_semantic_type_zero",
         ":protos_perfetto_common_zero",
         ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_android_zero",
@@ -5730,6 +5731,25 @@ perfetto_proto_library(
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
+    ],
+)
+
+# GN target: //protos/perfetto/common:semantic_type_source_set
+perfetto_proto_library(
+    name = "protos_perfetto_common_semantic_type_protos",
+    srcs = [
+        "protos/perfetto/common/semantic_type.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+)
+
+# GN target: //protos/perfetto/common:semantic_type_zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_common_semantic_type_zero",
+    deps = [
+        ":protos_perfetto_common_semantic_type_protos",
     ],
 )
 

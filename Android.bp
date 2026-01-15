@@ -3635,6 +3635,50 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/common:semantic_type_zero
+filegroup {
+    name: "perfetto_protos_perfetto_common_semantic_type_zero",
+    srcs: [
+        "protos/perfetto/common/semantic_type.proto",
+    ],
+}
+
+// GN: //protos/perfetto/common:semantic_type_zero
+genrule {
+    name: "perfetto_protos_perfetto_common_semantic_type_zero_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_common_semantic_type_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_common_semantic_type_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/common/semantic_type.pbzero.cc",
+    ],
+}
+
+// GN: //protos/perfetto/common:semantic_type_zero
+genrule {
+    name: "perfetto_protos_perfetto_common_semantic_type_zero_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_common_semantic_type_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_common_semantic_type_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/common/semantic_type.pbzero.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/common:zero
 filegroup {
     name: "perfetto_protos_perfetto_common_zero",
@@ -17853,6 +17897,7 @@ cc_test {
         ":perfetto_include_perfetto_tracing_tracing",
         ":perfetto_protos_perfetto_common_cpp_gen",
         ":perfetto_protos_perfetto_common_lite_gen",
+        ":perfetto_protos_perfetto_common_semantic_type_zero_gen",
         ":perfetto_protos_perfetto_common_zero_gen",
         ":perfetto_protos_perfetto_config_android_cpp_gen",
         ":perfetto_protos_perfetto_config_android_lite_gen",
@@ -18290,6 +18335,7 @@ cc_test {
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
         "perfetto_protos_perfetto_common_lite_gen_headers",
+        "perfetto_protos_perfetto_common_semantic_type_zero_gen_headers",
         "perfetto_protos_perfetto_common_zero_gen_headers",
         "perfetto_protos_perfetto_config_android_cpp_gen_headers",
         "perfetto_protos_perfetto_config_android_lite_gen_headers",
