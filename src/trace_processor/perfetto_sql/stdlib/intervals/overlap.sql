@@ -544,9 +544,9 @@ CREATE PERFETTO MACRO _interval_merge_overlapping_partitioned(
     -- Column name for partition grouping.
     partition_columns ColumnNameList
 )
--- The returned table has the schema (ts TIMESTAMP, dur DURATION, partition).
+-- The returned table has the schema (ts TIMESTAMP, dur DURATION, partitions).
 -- |ts| is the start of the merged interval. |dur| is the duration of the
--- merged interval. |partition| is the partition key.
+-- merged interval. |partitions| is all of the columns in partition_columns.
 RETURNS TableOrSubquery AS
 (
   -- Algorithm: For each partition, merge overlaps in three steps:
