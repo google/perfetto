@@ -143,7 +143,7 @@ TEST(FilterBytecodeGeneratorTest, Nested) {
 TEST(FilterBytecodeGeneratorTest, SemanticTypeOverlayV2) {
   // Test that generating for v2 with semantic types creates an overlay
   FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV2);
-  gen.AddFilterStringFieldWithType(1u, 42u);  // field_id=1, semantic_type=42
+  gen.AddFilterStringFieldWithType(1u, 42u, false);  // field_id=1, type=42
   gen.EndMessage();
 
   auto result = gen.Serialize();
@@ -175,7 +175,7 @@ TEST(FilterBytecodeGeneratorTest, SemanticTypeOverlayV2) {
 TEST(FilterBytecodeGeneratorTest, SemanticTypeV54NoOverlay) {
   // Test that generating for v54 with semantic types doesn't create an overlay
   FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV54);
-  gen.AddFilterStringFieldWithType(1u, 42u);
+  gen.AddFilterStringFieldWithType(1u, 42u, false);
   gen.EndMessage();
 
   auto result = gen.Serialize();

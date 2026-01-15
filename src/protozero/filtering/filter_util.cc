@@ -88,6 +88,7 @@ struct ProtoFilterOptions {
   uint32_t semantic_type = 0;
   bool filter_string = false;
   bool passthrough = false;
+  bool add_to_v2 = false;
 };
 
 ProtoFilterOptions ReadProtoFilterAnnotation(
@@ -99,6 +100,7 @@ ProtoFilterOptions ReadProtoFilterAnnotation(
     opts.semantic_type = static_cast<uint32_t>(ext.semantic_type());
     opts.filter_string = ext.filter_string();
     opts.passthrough = ext.passthrough();
+    opts.add_to_v2 = ext.add_to_v2();
   }
   return opts;
 }
@@ -252,6 +254,7 @@ FilterUtil::Message* FilterUtil::ParseProtoDescriptor(
       }
       field.filter_string = true;
       field.semantic_type = filter_opts.semantic_type;
+      field.add_to_v2 = filter_opts.add_to_v2;
       msg->has_filter_string_fields = true;
     }
 
@@ -429,8 +432,8 @@ FilterBytecodeGenerator::SerializeResult FilterUtil::GenerateFilterBytecode(
       }
       if (field.filter_string) {
         if (field.semantic_type != 0) {
-          bytecode_gen.AddFilterStringFieldWithType(field_id,
-                                                    field.semantic_type);
+          bytecode_gen.AddFilterStringFieldWithType(
+              field_id, field.semantic_type, field.add_to_v2);
         } else {
           bytecode_gen.AddFilterStringField(field_id);
         }

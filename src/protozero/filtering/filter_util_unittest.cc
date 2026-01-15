@@ -303,5 +303,50 @@ TEST(SchemaParserTest, SemanticTypeValidation) {
       TestDescriptor(), TestDescriptorSize(), "protozero.test.ValidationRoot"));
 }
 
+TEST(SchemaParserTest, AddToV2) {
+  FilterUtil filter;
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.AddToV2Root"));
+
+  // Generate bytecode targeting v2.
+  auto result = filter.GenerateFilterBytecode(
+      FilterBytecodeGenerator::BytecodeVersion::kV2);
+  EXPECT_GT(result.bytecode.size(), 0u);
+  EXPECT_GT(result.v54_overlay.size(), 0u);
+
+  // Parse base v2 bytecode.
+  FilterBytecodeParser parser_v2;
+  ASSERT_TRUE(parser_v2.Load(result.bytecode.data(), result.bytecode.size()));
+
+  // Field 2 (denied_in_v2): has semantic_type but NOT add_to_v2.
+  // Should be DENIED in v2 bytecode.
+  auto query_denied = parser_v2.Query(1, 2);
+  EXPECT_FALSE(query_denied.allowed);
+
+  // Field 3 (allowed_in_v2): has semantic_type AND add_to_v2=true.
+  // Should be ALLOWED in v2 bytecode (as filter_string without type).
+  auto query_allowed = parser_v2.Query(1, 3);
+  EXPECT_TRUE(query_allowed.allowed);
+  EXPECT_TRUE(query_allowed.filter_string_field());
+  EXPECT_EQ(query_allowed.semantic_type, 0u);  // No type in v2
+
+  // Parse with v54 overlay.
+  FilterBytecodeParser parser_v54;
+  ASSERT_TRUE(parser_v54.Load(result.bytecode.data(), result.bytecode.size(),
+                              result.v54_overlay.data(),
+                              result.v54_overlay.size()));
+
+  // With overlay, both fields should be allowed with their semantic types.
+  auto query_denied_v54 = parser_v54.Query(1, 2);
+  EXPECT_TRUE(query_denied_v54.allowed);
+  EXPECT_TRUE(query_denied_v54.filter_string_field());
+  EXPECT_EQ(query_denied_v54.semantic_type, 1u);  // SEMANTIC_TYPE_ATRACE
+
+  auto query_allowed_v54 = parser_v54.Query(1, 3);
+  EXPECT_TRUE(query_allowed_v54.allowed);
+  EXPECT_TRUE(query_allowed_v54.filter_string_field());
+  EXPECT_EQ(query_allowed_v54.semantic_type, 2u);  // SEMANTIC_TYPE_JOB
+}
+
 }  // namespace
 }  // namespace protozero

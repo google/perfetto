@@ -229,3 +229,19 @@ message MsgFilterSemanticTypePacket {
   optional string category = 3
       [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_JOB];
 }
+
+// Test: AddToV2 - semantic_type with add_to_v2=true should include field in v2
+message AddToV2Root {
+  optional AddToV2Packet packet = 1;
+}
+
+message AddToV2Packet {
+  // This field has semantic_type but NOT add_to_v2, so it's denied in v2.
+  optional string denied_in_v2 = 2
+      [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_ATRACE];
+  // This field has semantic_type AND add_to_v2=true, so it's allowed in v2.
+  optional string allowed_in_v2 = 3 [(perfetto.protos.proto_filter) = {
+    semantic_type: SEMANTIC_TYPE_JOB
+    add_to_v2: true
+  }];
+}
