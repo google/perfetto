@@ -136,7 +136,8 @@ message PassthroughConfig {
 message PassthroughPacket {
   optional int32 f1 = 3;
   optional int64 f2 = 4;
-  optional PassthroughConfig cfg = 5;
+  optional PassthroughConfig cfg = 5
+      [(perfetto.protos.proto_filter).passthrough = true];
 }
 
 // Test: FilterString
@@ -146,7 +147,8 @@ message FilterStringRoot {
 }
 
 message FilterStringConfig {
-  optional string f1 = 1;
+  optional string f1 = 1
+      [(perfetto.protos.proto_filter).filter_string = true];
 }
 
 message FilterStringPacket {
@@ -162,8 +164,10 @@ message SemanticTypeRoot {
 }
 
 message SemanticTypePacket {
-  optional string name = 3;
-  optional string category = 4;
+  optional string name = 3
+      [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_ATRACE];
+  optional string category = 4
+      [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_JOB];
 }
 
 // Test: FilterStringWithSemanticTypeV2
@@ -172,17 +176,59 @@ message SemanticTypeV2Root {
 }
 
 message SemanticTypeV2Packet {
-  optional string name = 2;
-}
-
-// Test: SemanticTypeValidation
-message ValidationRoot {
-  optional string field = 1;
-}
-
-// TODO(lalitm): add tests for annotation-based filtering.
-message AnnotatedRoot {
-  optional int32 id = 1;
   optional string name = 2
+      [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_ATRACE];
+}
+
+// Test: SemanticTypeValidation - validates that semantic_type on non-string
+// field fails. This has a semantic_type on an int32 which should be rejected.
+message ValidationRoot {
+  optional int32 field = 1
+      [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_ATRACE];
+}
+
+// ============================================================================
+// Messages for message_filter_unittest.cc tests
+// ============================================================================
+
+// Test: MessageFilterTest.Passthrough
+message MsgFilterPassthroughRoot {
+  optional int64 timestamp = 1;
+  optional MsgFilterPassthroughConfig cfg = 2
+      [(perfetto.protos.proto_filter).passthrough = true];
+  optional MsgFilterPassthroughConfig cfg_filtered = 3;
+  optional string other = 4
+      [(perfetto.protos.proto_filter).passthrough = true];
+}
+
+message MsgFilterPassthroughSubConfig {
+  optional string f4 = 6;
+}
+
+message MsgFilterPassthroughConfig {
+  optional int64 f1 = 3;
+  optional string f2 = 4;
+  optional MsgFilterPassthroughSubConfig f3 = 5;
+}
+
+// Test: MessageFilterTest.StringFilter
+message MsgFilterStringRoot {
+  optional MsgFilterStringConfig cfg = 1;
+}
+
+message MsgFilterStringConfig {
+  optional string f2 = 1
       [(perfetto.protos.proto_filter).filter_string = true];
+}
+
+// Test: MessageFilterTest.SemanticTypeEndToEnd
+message MsgFilterSemanticTypeRoot {
+  optional MsgFilterSemanticTypePacket packet = 1;
+}
+
+message MsgFilterSemanticTypePacket {
+  optional string atrace_name = 2
+      [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_ATRACE];
+  optional string category = 3
+      [(perfetto.protos.proto_filter).semantic_type = SEMANTIC_TYPE_JOB];
 }
