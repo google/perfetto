@@ -15,6 +15,9 @@
  */
 
 #include "src/trace_processor/importers/common/machine_tracker.h"
+
+#include <cmath>
+
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
@@ -61,8 +64,10 @@ void MachineTracker::SetAndroidSdkVersion(int64_t sdk_version) {
   getRow()->set_android_sdk_version(sdk_version);
 }
 
-void MachineTracker::SetMemorySizeBytes(int64_t memory_size_bytes) {
-  getRow()->set_memory_size_bytes(memory_size_bytes);
+void MachineTracker::SetSystemRamBytes(int64_t system_ram_bytes) {
+  auto row = getRow();
+  row->set_system_ram_bytes(system_ram_bytes);
+  row->set_system_ram_gb(BytesToGB(system_ram_bytes));
 }
 
 PERFETTO_ALWAYS_INLINE

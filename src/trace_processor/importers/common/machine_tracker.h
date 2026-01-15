@@ -30,6 +30,11 @@ class MachineTracker {
   MachineTracker(TraceProcessorContext* context, uint32_t raw_machine_id);
   ~MachineTracker();
 
+  // Converts bytes to GB using power of 10.
+  static inline int64_t BytesToGB(int64_t bytes) {
+    return static_cast<int64_t>(std::round(static_cast<double>(bytes) / 1e9));
+  }
+
   void SetMachineInfo(StringId sysname,
                       StringId release,
                       StringId version,
@@ -38,7 +43,7 @@ class MachineTracker {
   void SetAndroidBuildFingerprint(StringId build_fingerprint);
   void SetAndroidDeviceManufacturer(StringId device_manufacturer);
   void SetAndroidSdkVersion(int64_t sdk_version);
-  void SetMemorySizeBytes(int64_t memory_size_bytes);
+  void SetSystemRamBytes(int64_t system_ram_bytes);
 
   std::optional<MachineId> machine_id() const { return machine_id_; }
 
