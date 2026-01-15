@@ -445,8 +445,11 @@ void V8Tracker::AddJsCode(int64_t timestamp,
                                               code.machine_code().size))
           : TraceBlobView());
 
-  context_->storage->mutable_v8_js_code_table()->Insert(
-      {jit_code_id, function_id, tier});
+  auto v8_js_code_id =
+      context_->storage->mutable_v8_js_code_table()
+          ->Insert({jit_code_id, function_id, tier})
+          .id;
+  jit_to_v8_js_code_.Insert(jit_code_id, v8_js_code_id);
 }
 
 void V8Tracker::AddInternalCode(int64_t timestamp,
@@ -580,7 +583,7 @@ void V8Tracker::AddICEvent(int64_t timestamp,
   row.ts = timestamp;
   row.type = context_->storage->InternString(ic_event.type());
   row.keyed = ic_event.keyed();
-  row.map = ic_event.map();
+  row.map = static_cast<int64_t>(ic_event.map());
   row.key = context_->storage->InternString(ic_event.key());
   row.old_state = context_->storage->InternString(ic_event.old_state());
   row.new_state = context_->storage->InternString(ic_event.new_state());
@@ -588,6 +591,7 @@ void V8Tracker::AddICEvent(int64_t timestamp,
   row.slow_stub_reason =
       context_->storage->InternString(ic_event.slow_stub_reason());
   row.v8_js_code_id = *v8_js_code_id;
+  row.pc = static_cast<int64_t>(pc);
   row.byte_offset = byte_offset;
 
   context_->storage->mutable_v8_ic_event_table()->Insert(row);
