@@ -32,12 +32,13 @@
 
 #include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/descriptor.h>
+#include <google/protobuf/descriptor.pb.h>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/common/semantic_type.pbzero.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 
@@ -97,11 +98,8 @@ bool FilterUtil::LoadMessageDefinition(
     const std::set<std::string>& string_filter_fields,
     const std::map<std::string, uint32_t>& filter_string_semantic_types) {
   passthrough_fields_ = passthrough_fields;
-  passthrough_fields_seen_.clear();
   filter_string_fields_ = string_filter_fields;
-  filter_string_fields_seen_.clear();
   filter_string_semantic_types_ = filter_string_semantic_types;
-  filter_string_semantic_types_seen_.clear();
 
   // The protobuf compiler doesn't like backslashes and prints an error like:
   // Error C:\it7mjanpw3\perfetto-a16500 -1:0: Backslashes, consecutive slashes,
@@ -149,6 +147,53 @@ bool FilterUtil::LoadMessageDefinition(
                   root_message.c_str(), proto_file.c_str());
     return false;
   }
+
+  return LoadFromDescriptor(root_msg);
+}
+
+bool FilterUtil::LoadFromDescriptorSet(
+    const uint8_t* descriptor_set_bytes,
+    size_t descriptor_set_size,
+    const std::string& root_message,
+    const std::set<std::string>& passthrough_fields,
+    const std::set<std::string>& string_filter_fields,
+    const std::map<std::string, uint32_t>& filter_string_semantic_types) {
+  passthrough_fields_ = passthrough_fields;
+  filter_string_fields_ = string_filter_fields;
+  filter_string_semantic_types_ = filter_string_semantic_types;
+
+  google::protobuf::FileDescriptorSet fds;
+  if (!fds.ParseFromArray(descriptor_set_bytes,
+                          static_cast<int>(descriptor_set_size))) {
+    PERFETTO_ELOG("Failed to parse FileDescriptorSet");
+    return false;
+  }
+
+  google::protobuf::DescriptorPool pool;
+  for (const auto& file : fds.file()) {
+    if (!pool.BuildFile(file)) {
+      PERFETTO_ELOG("Failed to build file descriptor for %s",
+                    file.name().c_str());
+      return false;
+    }
+  }
+
+  const google::protobuf::Descriptor* root_msg =
+      pool.FindMessageTypeByName(root_message);
+  if (!root_msg) {
+    PERFETTO_ELOG("Could not find the root message \"%s\"",
+                  root_message.c_str());
+    return false;
+  }
+
+  return LoadFromDescriptor(root_msg);
+}
+
+bool FilterUtil::LoadFromDescriptor(
+    const google::protobuf::Descriptor* root_msg) {
+  passthrough_fields_seen_.clear();
+  filter_string_fields_seen_.clear();
+  filter_string_semantic_types_seen_.clear();
 
   // |descriptors_by_full_name| is passed by argument rather than being a member
   // field so that we don't risk leaving it out of sync (and depending on it in
@@ -379,12 +424,12 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
         stripped_nested += "  # PASSTHROUGH";
       if (field.filter_string)
         stripped_nested += "  # FILTER STRING";
-      using TraceFilter = perfetto::protos::pbzero::TraceConfig::TraceFilter;
       if (field.semantic_type) {
         stripped_nested +=
             std::string("  # SEMANTIC TYPE ") +
-            TraceFilter::SemanticType_Name(
-                static_cast<TraceFilter::SemanticType>(field.semantic_type));
+            perfetto::protos::pbzero::SemanticType_Name(
+                static_cast<perfetto::protos::pbzero::SemanticType>(
+                    field.semantic_type));
       }
       fprintf(print_stream_, "%-60s %3u %-8s %-32s%s\n", stripped_name.c_str(),
               field_id, field.type.c_str(), field.name.c_str(),

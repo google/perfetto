@@ -17,7 +17,6 @@
 #include "src/protozero/filtering/filter_util.h"
 
 #include <cstdint>
-#include <cstring>
 #include <map>
 #include <optional>
 #include <regex>
@@ -31,17 +30,19 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
+#include "src/protozero/filtering/filter_util_test_messages.descriptor.h"
 #include "test/gtest_and_gmock.h"
 
 namespace protozero {
 
 namespace {
 
-perfetto::base::TempFile MkTemp(const char* str) {
-  auto tmp = perfetto::base::TempFile::Create();
-  perfetto::base::WriteAll(*tmp, str, strlen(str));
-  perfetto::base::FlushFile(*tmp);
-  return tmp;
+const uint8_t* TestDescriptor() {
+  return perfetto::kFilterUtilTestMessagesDescriptor.data();
+}
+
+size_t TestDescriptorSize() {
+  return perfetto::kFilterUtilTestMessagesDescriptor.size();
 }
 
 std::string FilterToText(FilterUtil& filter,
@@ -63,16 +64,9 @@ std::string FilterToText(FilterUtil& filter,
 }
 
 TEST(SchemaParserTest, SchemaToBytecode_Simple) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    optional int32 i32 = 13;
-    optional fixed64 f64 = 5;
-    optional string str = 71;
-  }
-  )");
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", ""));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.SimpleRoot"));
   std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   FilterBytecodeParser fbp;
   ASSERT_TRUE(fbp.Load(bytecode.data(), bytecode.size()));
@@ -88,19 +82,9 @@ TEST(SchemaParserTest, SchemaToBytecode_Simple) {
 }
 
 TEST(SchemaParserTest, SchemaToBytecode_Nested) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    message Child {
-      repeated fixed64 f64 = 3;
-      optional Child recurse = 4;
-    }
-    oneof xxx { int32 i32 = 1; }
-    optional Child chld = 2;
-  }
-  )");
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "", ""));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.NestedRoot"));
   std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   FilterBytecodeParser fbp;
   ASSERT_TRUE(fbp.Load(bytecode.data(), bytecode.size()));
@@ -120,32 +104,9 @@ TEST(SchemaParserTest, SchemaToBytecode_Nested) {
 }
 
 TEST(SchemaParserTest, SchemaToBytecode_Dedupe) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    message Nested {
-      message Child1 {
-        optional int32 f1 = 3;
-        optional int64 f2 = 4;
-      }
-      message Child2 {
-        optional string f1 = 3;
-        optional bytes f2 = 4;
-      }
-      message ChildNonDedupe {
-        optional string f1 = 3;
-        optional bytes f2 = 4;
-        optional int32 extra = 1;
-      }
-      optional Child1 chld1 = 1;
-      optional Child2 chld2 = 2;
-      optional ChildNonDedupe chld3 = 3;
-    }
-    repeated Nested nested = 1;
-  }
-  )");
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", ""));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.DedupeRoot"));
   filter.Dedupe();
   std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   FilterBytecodeParser fbp;
@@ -173,29 +134,9 @@ TEST(SchemaParserTest, SchemaToBytecode_Dedupe) {
 }
 
 TEST(SchemaParserTest, FieldLookup) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    message Nested {
-      message Child1 {
-        optional int32 f1 = 3;
-        optional int64 f2 = 4;
-        repeated Child2 c2 = 5;
-      }
-      message Child2 {
-        optional string f3 = 6;
-        optional bytes f4 = 7;
-        repeated Child1 c1 = 8;
-      }
-      optional Child1 x1 = 1;
-      optional Child2 x2 = 2;
-    }
-    repeated Nested n = 1;
-  }
-  )");
-
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", ""));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.LookupRoot"));
   std::vector<uint32_t> fld;
 
   fld = {1, 1, 3};
@@ -209,41 +150,20 @@ TEST(SchemaParserTest, FieldLookup) {
 }
 
 TEST(SchemaParserTest, PrintAsText) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    optional int32 i32 = 13;
-    optional Child1 c1 = 2;
-    optional Child2 c2 = 7;
-  }
-  message Child1 {
-    optional int32 f1 = 3;
-    optional int64 f2 = 4;
-  }
-  message Child2 {
-    optional int32 f1 = 3;
-    optional int64 f2 = 4;
-    repeated Root c1 = 5;
-    repeated Nested n1 = 6;
-    message Nested {
-      optional int64 f1 = 1;
-    }
-  }
-  )");
-
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", ""));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.PrintRoot"));
 
-  EXPECT_EQ(R"(Root 2 message c1 Child1
-Root 7 message c2 Child2
-Root 13 int32 i32
-Child1 3 int32 f1
-Child1 4 int64 f2
-Child2 3 int32 f1
-Child2 4 int64 f2
-Child2 5 message c1 Root
-Child2 6 message n1 Child2.Nested
-Child2.Nested 1 int64 f1
+  EXPECT_EQ(R"(PrintRoot 2 message c1 PrintChild1
+PrintRoot 7 message c2 PrintChild2
+PrintRoot 13 int32 i32
+PrintChild1 3 int32 f1
+PrintChild1 4 int64 f2
+PrintChild2 3 int32 f1
+PrintChild2 4 int64 f2
+PrintChild2 5 message c1 PrintRoot
+PrintChild2 6 message n1 PrintChild2.Nested
+PrintChild2.Nested 1 int64 f1
 )",
             FilterToText(filter));
 
@@ -254,94 +174,39 @@ Child2.Nested 1 int64 f1
 }
 
 TEST(SchemaParserTest, PrintAsTextWithBytecodeFiltering) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    optional int32 i32 = 13;
-    optional Child1 c1 = 2;
-    optional Child2 c2 = 7;
-  }
-  message Child1 {
-    optional int32 f1 = 3;
-    optional int64 f2 = 4;
-  }
-  message Child2 {
-    optional int32 f1 = 3;
-    optional int64 f2 = 4;
-    repeated Root c1 = 5;
-    repeated Nested n1 = 6;
-    message Nested {
-      optional int64 f1 = 1;
-    }
-  }
-  )");
-
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", ""));
-
-  auto schema_subset = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    optional Child2 c2 = 7;
-  }
-  message Child1 {
-    optional int32 f1 = 3;
-    optional int64 f2 = 4;
-  }
-  message Child2 {
-    optional int64 f2 = 4;
-    repeated Root c1 = 5;
-    repeated Nested n1 = 6;
-    message Nested {
-      optional int64 f1 = 1;
-    }
-  }
-  )");
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.PrintRoot"));
 
   FilterUtil filter_subset;
-  ASSERT_TRUE(
-      filter_subset.LoadMessageDefinition(schema_subset.path(), "Root", ""));
+  ASSERT_TRUE(filter_subset.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(),
+      "protozero.test.PrintRootSubset"));
   std::string bytecode = filter_subset.GenerateFilterBytecode().bytecode;
 
-  // Note: Child1 isn't listed even though the filter allows it, because it
-  // isn't reachable from the root message.
-  EXPECT_EQ(R"(Root 7 message c2 Child2
-Child2 4 int64 f2
-Child2 5 message c1 Root
-Child2 6 message n1 Child2.Nested
-Child2.Nested 1 int64 f1
+  // Note: PrintChild1 isn't listed even though the filter allows it, because
+  // it isn't reachable from the root message.
+  EXPECT_EQ(R"(PrintRoot 7 message c2 PrintChild2
+PrintChild2 4 int64 f2
+PrintChild2 5 message c1 PrintRoot
+PrintChild2 6 message n1 PrintChild2.Nested
+PrintChild2.Nested 1 int64 f1
 )",
             FilterToText(filter, bytecode));
 }
 
 TEST(SchemaParserTest, Passthrough) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    optional int32 i32 = 13;
-    optional TracePacket packet = 7;
-  }
-  message TraceConfig {
-    optional int32 f3 = 3;
-    optional int64 f4 = 4;
-  }
-  message TracePacket {
-    optional int32 f1 = 3;
-    optional int64 f2 = 4;
-    optional TraceConfig cfg = 5;
-  }
-  )");
-
   FilterUtil filter;
-  std::set<std::string> passthrough{"TracePacket:cfg"};
-  ASSERT_TRUE(
-      filter.LoadMessageDefinition(schema.path(), "Root", "", passthrough));
+  std::set<std::string> passthrough{"protozero.test.PassthroughPacket:cfg"};
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.PassthroughRoot",
+      passthrough));
 
-  EXPECT_EQ(R"(Root 7 message packet TracePacket
-Root 13 int32 i32
-TracePacket 3 int32 f1
-TracePacket 4 int64 f2
-TracePacket 5 bytes cfg
+  EXPECT_EQ(R"(PassthroughRoot 7 message packet PassthroughPacket
+PassthroughRoot 13 int32 i32
+PassthroughPacket 3 int32 f1
+PassthroughPacket 4 int64 f2
+PassthroughPacket 5 bytes cfg
 )",
             FilterToText(filter));
 
@@ -352,33 +217,18 @@ TracePacket 5 bytes cfg
 }
 
 TEST(SchemaParserTest, FilterString) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    optional int32 i32 = 13;
-    optional TracePacket packet = 7;
-  }
-  message TraceConfig {
-    optional string f1 = 1;
-  }
-  message TracePacket {
-    optional int32 f1 = 3;
-    optional int64 f2 = 4;
-    optional TraceConfig cfg = 5;
-  }
-  )");
-
   FilterUtil filter;
-  std::set<std::string> filter_string{"TraceConfig:f1"};
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", "", {},
-                                           filter_string));
+  std::set<std::string> filter_string{"protozero.test.FilterStringConfig:f1"};
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.FilterStringRoot",
+      {}, filter_string));
 
-  EXPECT_EQ(R"(Root 7 message packet TracePacket
-Root 13 int32 i32
-TracePacket 3 int32 f1
-TracePacket 4 int64 f2
-TracePacket 5 message cfg TraceConfig
-TraceConfig 1 string f1 # FILTER STRING
+  EXPECT_EQ(R"(FilterStringRoot 7 message packet FilterStringPacket
+FilterStringRoot 13 int32 i32
+FilterStringPacket 3 int32 f1
+FilterStringPacket 4 int64 f2
+FilterStringPacket 5 message cfg FilterStringConfig
+FilterStringConfig 1 string f1 # FILTER STRING
 )",
             FilterToText(filter));
 
@@ -389,27 +239,17 @@ TraceConfig 1 string f1 # FILTER STRING
 }
 
 TEST(SchemaParserTest, FilterStringWithSemanticType) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    optional int32 i32 = 13;
-    optional TracePacket packet = 7;
-  }
-  message TracePacket {
-    optional string name = 3;
-    optional string category = 4;
-  }
-  )");
-
   FilterUtil filter;
-  std::set<std::string> filter_string{"TracePacket:name",
-                                      "TracePacket:category"};
+  std::set<std::string> filter_string{
+      "protozero.test.SemanticTypePacket:name",
+      "protozero.test.SemanticTypePacket:category"};
   std::map<std::string, uint32_t> semantic_types{
-      {"TracePacket:name", 1},      // SEMANTIC_TYPE_ATRACE
-      {"TracePacket:category", 2},  // SEMANTIC_TYPE_JOB
+      {"protozero.test.SemanticTypePacket:name", 1},  // SEMANTIC_TYPE_ATRACE
+      {"protozero.test.SemanticTypePacket:category", 2},  // SEMANTIC_TYPE_JOB
   };
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", "", {},
-                                           filter_string, semantic_types));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.SemanticTypeRoot",
+      {}, filter_string, semantic_types));
 
   // Generate bytecode with v54 (should use AddFilterStringFieldWithType)
   auto result_v54 = filter.GenerateFilterBytecode(
@@ -422,7 +262,7 @@ TEST(SchemaParserTest, FilterStringWithSemanticType) {
   ASSERT_TRUE(
       parser.Load(result_v54.bytecode.data(), result_v54.bytecode.size()));
 
-  // Query the TracePacket message (index 1) for field 3 (name)
+  // Query the SemanticTypePacket message (index 1) for field 3 (name)
   auto query_name = parser.Query(1, 3);
   EXPECT_TRUE(query_name.allowed);
   EXPECT_TRUE(query_name.filter_string_field());
@@ -436,21 +276,14 @@ TEST(SchemaParserTest, FilterStringWithSemanticType) {
 }
 
 TEST(SchemaParserTest, FilterStringWithSemanticTypeV2) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    optional TracePacket packet = 1;
-  }
-  message TracePacket {
-    optional string name = 2;
-  }
-  )");
-
   FilterUtil filter;
-  std::set<std::string> filter_string{"TracePacket:name"};
-  std::map<std::string, uint32_t> semantic_types{{"TracePacket:name", 1}};
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", "", {},
-                                           filter_string, semantic_types));
+  std::set<std::string> filter_string{
+      "protozero.test.SemanticTypeV2Packet:name"};
+  std::map<std::string, uint32_t> semantic_types{
+      {"protozero.test.SemanticTypeV2Packet:name", 1}};
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(),
+      "protozero.test.SemanticTypeV2Root", {}, filter_string, semantic_types));
 
   // Generate bytecode targeting v2 parsers (should generate overlay)
   auto result_v2 = filter.GenerateFilterBytecode(
@@ -478,18 +311,13 @@ TEST(SchemaParserTest, FilterStringWithSemanticTypeV2) {
 }
 
 TEST(SchemaParserTest, SemanticTypeValidation) {
-  auto schema = MkTemp(R"(
-  syntax = "proto2";
-  message Root {
-    optional string field = 1;
-  }
-  )");
-
   FilterUtil filter;
   // Semantic type without filter_string should fail
-  std::map<std::string, uint32_t> semantic_types{{"Root:field", 1}};
-  EXPECT_FALSE(filter.LoadMessageDefinition(schema.path(), "Root", "", {}, {},
-                                            semantic_types));
+  std::map<std::string, uint32_t> semantic_types{
+      {"protozero.test.ValidationRoot:field", 1}};
+  EXPECT_FALSE(filter.LoadFromDescriptorSet(
+      TestDescriptor(), TestDescriptorSize(), "protozero.test.ValidationRoot",
+      {}, {}, semantic_types));
 }
 
 }  // namespace

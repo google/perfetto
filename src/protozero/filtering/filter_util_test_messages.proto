@@ -1,0 +1,179 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package protozero.test;
+
+// Test: SchemaToBytecode_Simple
+message SimpleRoot {
+  optional int32 i32 = 13;
+  optional fixed64 f64 = 5;
+  optional string str = 71;
+}
+
+// Test: SchemaToBytecode_Nested
+message NestedRoot {
+  message Child {
+    repeated fixed64 f64 = 3;
+    optional Child recurse = 4;
+  }
+  oneof xxx {
+    int32 i32 = 1;
+  }
+  optional Child chld = 2;
+}
+
+// Test: SchemaToBytecode_Dedupe
+message DedupeRoot {
+  message Nested {
+    message Child1 {
+      optional int32 f1 = 3;
+      optional int64 f2 = 4;
+    }
+    message Child2 {
+      optional string f1 = 3;
+      optional bytes f2 = 4;
+    }
+    message ChildNonDedupe {
+      optional string f1 = 3;
+      optional bytes f2 = 4;
+      optional int32 extra = 1;
+    }
+    optional Child1 chld1 = 1;
+    optional Child2 chld2 = 2;
+    optional ChildNonDedupe chld3 = 3;
+  }
+  repeated Nested nested = 1;
+}
+
+// Test: FieldLookup
+message LookupRoot {
+  message Nested {
+    message Child1 {
+      optional int32 f1 = 3;
+      optional int64 f2 = 4;
+      repeated Child2 c2 = 5;
+    }
+    message Child2 {
+      optional string f3 = 6;
+      optional bytes f4 = 7;
+      repeated Child1 c1 = 8;
+    }
+    optional Child1 x1 = 1;
+    optional Child2 x2 = 2;
+  }
+  repeated Nested n = 1;
+}
+
+// Test: PrintAsText and PrintAsTextWithBytecodeFiltering
+message PrintRoot {
+  optional int32 i32 = 13;
+  optional PrintChild1 c1 = 2;
+  optional PrintChild2 c2 = 7;
+}
+
+message PrintChild1 {
+  optional int32 f1 = 3;
+  optional int64 f2 = 4;
+}
+
+message PrintChild2 {
+  optional int32 f1 = 3;
+  optional int64 f2 = 4;
+  repeated PrintRoot c1 = 5;
+  repeated Nested n1 = 6;
+  message Nested {
+    optional int64 f1 = 1;
+  }
+}
+
+// Subset for PrintAsTextWithBytecodeFiltering
+message PrintRootSubset {
+  optional PrintChild2Subset c2 = 7;
+}
+
+message PrintChild1Subset {
+  optional int32 f1 = 3;
+  optional int64 f2 = 4;
+}
+
+message PrintChild2Subset {
+  optional int64 f2 = 4;
+  repeated PrintRootSubset c1 = 5;
+  repeated Nested n1 = 6;
+  message Nested {
+    optional int64 f1 = 1;
+  }
+}
+
+// Test: Passthrough
+message PassthroughRoot {
+  optional int32 i32 = 13;
+  optional PassthroughPacket packet = 7;
+}
+
+message PassthroughConfig {
+  optional int32 f3 = 3;
+  optional int64 f4 = 4;
+}
+
+message PassthroughPacket {
+  optional int32 f1 = 3;
+  optional int64 f2 = 4;
+  optional PassthroughConfig cfg = 5;
+}
+
+// Test: FilterString
+message FilterStringRoot {
+  optional int32 i32 = 13;
+  optional FilterStringPacket packet = 7;
+}
+
+message FilterStringConfig {
+  optional string f1 = 1;
+}
+
+message FilterStringPacket {
+  optional int32 f1 = 3;
+  optional int64 f2 = 4;
+  optional FilterStringConfig cfg = 5;
+}
+
+// Test: FilterStringWithSemanticType
+message SemanticTypeRoot {
+  optional int32 i32 = 13;
+  optional SemanticTypePacket packet = 7;
+}
+
+message SemanticTypePacket {
+  optional string name = 3;
+  optional string category = 4;
+}
+
+// Test: FilterStringWithSemanticTypeV2
+message SemanticTypeV2Root {
+  optional SemanticTypeV2Packet packet = 1;
+}
+
+message SemanticTypeV2Packet {
+  optional string name = 2;
+}
+
+// Test: SemanticTypeValidation
+message ValidationRoot {
+  optional string field = 1;
+}
