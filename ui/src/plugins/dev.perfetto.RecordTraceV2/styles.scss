@@ -61,10 +61,10 @@
       visibility: hidden;
     }
     .record-target {
-      font-size: 14px;
+      font-size: var(--pf-font-size-m);
       overflow: hidden;
       text-overflow: ellipsis;
-      line-height: 14px;
+      line-height: var(--pf-font-size-m);
       align-self: center;
       display: -webkit-box;
       -webkit-line-clamp: 2;
