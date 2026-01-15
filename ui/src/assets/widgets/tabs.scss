@@ -33,7 +33,6 @@
     gap: 2px;
 
     font-family: var(--pf-font-compact);
-    font-size: 14px;
 
     padding: 5px;
     margin-top: 2px;
@@ -59,7 +58,6 @@
     &--active {
       cursor: default;
       background-color: var(--pf-color-background);
-      box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
       border-color: var(--pf-color-border);
       z-index: 1;
 
