@@ -81,7 +81,7 @@ describe('getZodSchemaInfo', () => {
       B = 'b',
       C = 'c',
     }
-    const schema = z.nativeEnum(StringEnum);
+    const schema = z.enum(StringEnum);
 
     const result = getZodSchemaInfo(schema);
 
@@ -98,7 +98,7 @@ describe('getZodSchemaInfo', () => {
       Second = 1,
       Third = 2,
     }
-    const schema = z.nativeEnum(NumericEnum);
+    const schema = z.enum(NumericEnum);
 
     const result = getZodSchemaInfo(schema);
 
@@ -128,5 +128,21 @@ describe('getZodSchemaInfo', () => {
     const result = getZodSchemaInfo(schema);
 
     expect(result).toEqual({kind: 'unknown'});
+  });
+
+  it('returns number for int() mofidier type', () => {
+    const schema = z.number().int();
+
+    const result = getZodSchemaInfo(schema);
+
+    expect(result).toMatchObject({kind: 'number'});
+  });
+
+  it('returns number for int() type', () => {
+    const schema = z.int();
+
+    const result = getZodSchemaInfo(schema);
+
+    expect(result).toMatchObject({kind: 'number'});
   });
 });
