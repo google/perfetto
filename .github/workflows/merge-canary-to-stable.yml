@@ -39,9 +39,11 @@ jobs:
       - name: Fetch origin/canary
         run: git fetch origin canary
 
-      - name: Merge canary into stable (prefer canary on conflicts)
+      - name: Merge canary into stable (replace stable tree with canary)
         run: |
-          git merge origin/canary -X theirs -m "Merge canary into stable (automated)"
+          git merge -s ours origin/canary --no-commit
+          git read-tree -m -u origin/canary
+          git commit -m "Merge canary into stable (automated)"
 
       - name: Push to stable
         run: git push origin stable
