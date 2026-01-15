@@ -26,6 +26,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/trace.pb.h"
+#include "src/protozero/filtering/filter_test.descriptor.h"
 #include "src/protozero/filtering/filter_util.h"
 #include "src/protozero/filtering/message_filter.h"
 
@@ -130,31 +131,11 @@ TEST(MessageFilterTest, EndToEnd) {
 }
 
 TEST(MessageFilterTest, Passthrough) {
-  auto schema = perfetto::base::TempFile::Create();
-  static const char kSchema[] = R"(
-  syntax = "proto2";
-  message TracePacket {
-    optional int64 timestamp = 1;
-    optional TraceConfig cfg = 2;
-    optional TraceConfig cfg_filtered = 3;
-    optional string other = 4;
-  };
-  message SubConfig {
-    optional string f4 = 6;
-  }
-  message TraceConfig {
-    optional int64 f1 = 3;
-    optional string f2 = 4;
-    optional SubConfig f3 = 5;
-  }
-  )";
-
-  perfetto::base::WriteAll(*schema, kSchema, strlen(kSchema));
-  perfetto::base::FlushFile(*schema);
-
+  // Uses pre-compiled proto filter annotations for passthrough.
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadMessageDefinition(
-      schema.path(), "", "", {"TracePacket:other", "TracePacket:cfg"}));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      kFilterTestDescriptor.data(), kFilterTestDescriptor.size(),
+      "perfetto.protos.test.PassthroughTracePacket"));
   std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   ASSERT_GT(bytecode.size(), 0u);
 
@@ -279,23 +260,11 @@ TEST(MessageFilterTest, ChangeRoot) {
 }
 
 TEST(MessageFilterTest, StringFilter) {
-  auto schema = perfetto::base::TempFile::Create();
-  static const char kSchema[] = R"(
-  syntax = "proto2";
-  message TracePacket {
-    optional TraceConfig cfg = 1;
-  };
-  message TraceConfig {
-    optional string f2 = 1;
-  }
-  )";
-
-  perfetto::base::WriteAll(*schema, kSchema, strlen(kSchema));
-  perfetto::base::FlushFile(*schema);
-
+  // Uses pre-compiled proto filter annotations for filter_string.
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "", "", {},
-                                           {"TraceConfig:f2"}));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      kFilterTestDescriptor.data(), kFilterTestDescriptor.size(),
+      "perfetto.protos.test.StringFilterTracePacket"));
   std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   ASSERT_GT(bytecode.size(), 0u);
   PERFETTO_LOG(
@@ -932,30 +901,11 @@ TEST(MessageFilterTest, RealTracePassthrough) {
 
 // End-to-end test for semantic type support with different bytecode versions
 TEST(MessageFilterTest, SemanticTypeEndToEnd) {
-  auto schema = perfetto::base::TempFile::Create();
-  static const char kSchema[] = R"(
-  syntax = "proto2";
-  message Root {
-    optional TracePacket packet = 1;
-  }
-  message TracePacket {
-    optional string atrace_name = 2;
-    optional string category = 3;
-  }
-  )";
-  perfetto::base::WriteAll(*schema, kSchema, strlen(kSchema));
-  perfetto::base::FlushFile(*schema);
-
+  // Uses pre-compiled proto filter annotations for semantic_type.
   FilterUtil filter;
-  std::set<std::string> filter_strings{"TracePacket:atrace_name",
-                                       "TracePacket:category"};
-  std::map<std::string, uint32_t> semantic_types{
-      {"TracePacket:atrace_name", 1},  // SEMANTIC_TYPE_ATRACE
-      {"TracePacket:category", 2},     // SEMANTIC_TYPE_JOB
-  };
-
-  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", "", {},
-                                           filter_strings, semantic_types));
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      kFilterTestDescriptor.data(), kFilterTestDescriptor.size(),
+      "perfetto.protos.test.SemanticTypeRoot"));
 
   // Test with v54 bytecode (semantic types inline)
   {

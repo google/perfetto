@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import("../../../gn/fuzzer.gni")
+import("../../../gn/perfetto.gni")
+import("../../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../../gn/perfetto_host_executable.gni")
 import("../../../gn/proto_library.gni")
 import("../../../gn/test.gni")
@@ -87,9 +89,28 @@ source_set("filter_util") {
     "..:protozero",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
-    "../../../protos/perfetto/config:zero",
+    "../../../protos/perfetto/common:semantic_type_zero",
     "../../base",
   ]
+}
+
+# Proto library for test messages with filter annotations.
+# This generates a binary descriptor file (filter_test.descriptor).
+perfetto_proto_library("filter_test_@TYPE@") {
+  testonly = true
+  sources = [ "testdata/filter_test.proto" ]
+  deps = [ "../../../protos/perfetto/proto_filtering:@TYPE@" ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+  proto_generators = []  # We only need the descriptor, not generated code.
+  generate_descriptor = "filter_test.descriptor"
+  descriptor_root_source = "testdata/filter_test.proto"
+}
+
+# Generate C++ header with embedded descriptor bytes.
+perfetto_cc_proto_descriptor("gen_cc_filter_test_descriptor") {
+  testonly = true
+  descriptor_name = "filter_test.descriptor"
+  descriptor_target = ":filter_test_descriptor"
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -118,7 +139,10 @@ perfetto_unittest_source_set("unittests") {
   # protobuf-full and protobuf-lite. Just skip those targets there.
   # See also https://crug.com/1210223 .
   if (perfetto_build_standalone || perfetto_build_with_android) {
-    deps += [ ":filter_util" ]
+    deps += [
+      ":filter_util",
+      ":gen_cc_filter_test_descriptor",
+    ]
     sources += [
       "filter_util_unittest.cc",
       "message_filter_unittest.cc",

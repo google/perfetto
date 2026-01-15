@@ -44,3 +44,14 @@ perfetto_proto_library("@TYPE@") {
     "cpp",
   ]
 }
+
+# Separate target for semantic_type.proto to avoid depending on the whole of
+# common when only the SemanticType enum is needed.
+perfetto_proto_library("semantic_type_@TYPE@") {
+  sources = [ "semantic_type.proto" ]
+  proto_generators = [
+    "lite",
+    "zero",
+    "cpp",
+  ]
+}
