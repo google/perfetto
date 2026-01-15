@@ -95,13 +95,17 @@ source_set("filter_util") {
 }
 
 perfetto_proto_library("filter_util_test_messages_@TYPE@") {
+  testonly = true
   sources = [ "filter_util_test_messages.proto" ]
+  deps = [ "../../../protos/perfetto/proto_filtering:@TYPE@" ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   proto_generators = []
   generate_descriptor = "filter_util_test_messages.descriptor"
   descriptor_root_source = "filter_util_test_messages.proto"
 }
 
 perfetto_cc_proto_descriptor("gen_cc_filter_util_test_descriptor") {
+  testonly = true
   descriptor_name = "filter_util_test_messages.descriptor"
   descriptor_target = ":filter_util_test_messages_descriptor"
 }

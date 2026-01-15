@@ -13522,12 +13522,15 @@ filegroup {
 genrule {
     name: "perfetto_src_protozero_filtering_filter_util_test_messages_descriptor",
     srcs: [
+        ":libprotobuf-internal-descriptor-proto",
+        "protos/perfetto/common/semantic_type.proto",
+        "protos/perfetto/proto_filtering/proto_filter_options.proto",
         "src/protozero/filtering/filter_util_test_messages.proto",
     ],
     tools: [
         "aprotoc",
     ],
-    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --proto_path=external/protobuf/src --descriptor_set_out=$(out) $(in)",
     out: [
         "perfetto_src_protozero_filtering_filter_util_test_messages_descriptor.bin",
     ],
