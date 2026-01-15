@@ -445,10 +445,9 @@ void V8Tracker::AddJsCode(int64_t timestamp,
                                               code.machine_code().size))
           : TraceBlobView());
 
-  auto v8_js_code_id =
-      context_->storage->mutable_v8_js_code_table()
-          ->Insert({jit_code_id, function_id, tier})
-          .id;
+  auto v8_js_code_id = context_->storage->mutable_v8_js_code_table()
+                           ->Insert({jit_code_id, function_id, tier})
+                           .id;
   jit_to_v8_js_code_.Insert(jit_code_id, v8_js_code_id);
 }
 
@@ -573,7 +572,6 @@ void V8Tracker::AddICEvent(int64_t timestamp,
     return;
   }
 
-  auto jit_code = context_->storage->jit_code_table().FindById(*jit_code_id);
   // TODO: implement full source position table support.
   uint32_t byte_offset = 0;
 
