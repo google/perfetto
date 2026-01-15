@@ -141,6 +141,7 @@ export class ChromeExtensionTarget implements RecordingTarget {
       this._connectPromise = undefined;
       cp?.resolve(true);
       this.invokeExtensionMethod('GetCategories');
+      this.invokeExtensionMethod('GetTrackEventDescriptor');
       return;
     }
 
@@ -151,6 +152,8 @@ export class ChromeExtensionTarget implements RecordingTarget {
     if (msg.type === 'GetCategoriesResponse') {
       const cats = (msg as {type: string; categories: string[]}).categories;
       this.chromeCategoriesPromise.resolve(cats);
+    } else if (msg.type === 'GetTrackEventDescriptorResponse') {
+      console.log(msg);
     } else {
       this.session?.onExtensionMessage(`${msg.type}`, msg);
     }
