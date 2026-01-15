@@ -55,11 +55,11 @@ type MatchType =
 function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
   switch (importance) {
     case 'high':
-      return 'Very frequent';
+      return 'Very common';
     case 'mid':
-      return 'Frequent';
+      return 'Common';
     case 'low':
-      return 'Low';
+      return 'Deprecated';
   }
 }
 
@@ -233,6 +233,13 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     const allTagsSet = new Set<string>();
     for (const module of allModules) {
       if (module.tables.length > 0) {
+        // Skip disabled modules when collecting tags if hideDisabledModules is enabled
+        if (
+          this.hideDisabledModules &&
+          attrs.sqlModules.isModuleDisabled(module.includeKey)
+        ) {
+          continue;
+        }
         for (const tag of module.tags) {
           allTagsSet.add(tag);
         }
@@ -527,20 +534,23 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           onQueryChange: attrs.onSearchQueryChange,
           autofocus: attrs.autofocus,
         }),
-        m(Switch, {
-          label: 'Hide modules with no data',
-          checked: this.hideDisabledModules,
-          onchange: () => {
-            this.hideDisabledModules = !this.hideDisabledModules;
-          },
-        }),
-        m(Switch, {
-          label: 'Only show timestamped tables',
-          checked: this.onlyShowTimestampedTables,
-          onchange: () => {
-            this.onlyShowTimestampedTables = !this.onlyShowTimestampedTables;
-          },
-        }),
+        m(
+          '.pf-search-and-filter-switches',
+          m(Switch, {
+            label: 'Hide modules with no data',
+            checked: this.hideDisabledModules,
+            onchange: () => {
+              this.hideDisabledModules = !this.hideDisabledModules;
+            },
+          }),
+          m(Switch, {
+            label: 'Only show timestamped tables',
+            checked: this.onlyShowTimestampedTables,
+            onchange: () => {
+              this.onlyShowTimestampedTables = !this.onlyShowTimestampedTables;
+            },
+          }),
+        ),
       ),
       m(
         '.pf-table-cards-container',

@@ -13,9 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from '../../../widgets/button';
-import {SplitPanel, Tab} from '../../../widgets/split_panel';
-import {renderWidgetShowcase} from '../widgets_page_utils';
+import {SplitPanel} from '../../../widgets/split_panel';
+import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
+
+let splitValue = 50;
 
 export function renderSplitPanel(): m.Children {
   return [
@@ -24,7 +25,7 @@ export function renderSplitPanel(): m.Children {
       m('h1', 'SplitPanel'),
       m(
         'p',
-        'A resizable split panel container for dividing content into adjustable sections with a draggable divider.',
+        'A simple resizable split panel with a draggable handle. Supports both horizontal and vertical layouts, with percentage or fixed-pixel sizing modes.',
       ),
     ),
     renderWidgetShowcase({
@@ -33,38 +34,77 @@ export function renderSplitPanel(): m.Children {
           '',
           {
             style: {
-              height: '400px',
-              width: '400px',
-              border: 'solid 2px gray',
+              height: '300px',
+              width: '500px',
+              border: '1px solid var(--pf-color-border)',
             },
           },
-          m(
-            SplitPanel,
-            {
-              leftHandleContent: [
-                opts.leftContent && m(Button, {icon: 'Menu'}),
-              ],
-              drawerContent: 'Drawer Content',
-              tabs:
-                opts.tabs &&
-                m(
-                  '.pf-split-panel__tabs',
-                  m(
-                    Tab,
-                    {active: true, hasCloseButton: opts.showCloseButtons},
-                    'Foo',
-                  ),
-                  m(Tab, {hasCloseButton: opts.showCloseButtons}, 'Bar'),
-                ),
+          m(SplitPanel, {
+            key: `${opts.vertical}-${opts.pixels}-${opts.controlledPanel}`,
+            direction: opts.vertical ? 'vertical' : 'horizontal',
+            split: opts.pixels ? {pixels: splitValue} : {percent: splitValue},
+            controlledPanel: opts.controlledPanel,
+            minSize: 50,
+            onResize: (size) => {
+              splitValue = size;
             },
-            'Main Content',
-          ),
+            firstPanel: m(
+              '',
+              {
+                style: {
+                  padding: '8px',
+                },
+              },
+              m('div', 'First Panel'),
+              m(
+                'div',
+                {
+                  style: {
+                    fontSize: '12px',
+                    color: 'var(--pf-color-text-muted)',
+                  },
+                },
+                opts.pixels
+                  ? opts.controlledPanel === 'first'
+                    ? `${splitValue.toFixed(0)}px`
+                    : 'flex'
+                  : opts.controlledPanel === 'first'
+                    ? `${splitValue.toFixed(1)}%`
+                    : `${(100 - splitValue).toFixed(1)}%`,
+              ),
+            ),
+            secondPanel: m(
+              '',
+              {
+                style: {
+                  padding: '8px',
+                },
+              },
+              m('div', 'Second Panel'),
+              m(
+                'div',
+                {
+                  style: {
+                    fontSize: '12px',
+                    color: 'var(--pf-color-text-muted)',
+                  },
+                },
+                opts.pixels
+                  ? opts.controlledPanel === 'second'
+                    ? `${splitValue.toFixed(0)}px`
+                    : 'flex'
+                  : opts.controlledPanel === 'second'
+                    ? `${splitValue.toFixed(1)}%`
+                    : `${(100 - splitValue).toFixed(1)}%`,
+              ),
+            ),
+          }),
         );
       },
       initialOpts: {
-        leftContent: true,
-        tabs: true,
-        showCloseButtons: true,
+        vertical: false,
+        pixels: false,
+        controlledPanel: new EnumOption('first', ['first', 'second'] as const),
       },
     }),
   ];

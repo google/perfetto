@@ -15,6 +15,7 @@
 import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {assetSrc} from '../../base/assets';
+import {showModal} from '../../widgets/modal';
 
 import {Builder} from './query_builder/builder';
 import {
@@ -22,13 +23,11 @@ import {
   QueryNodeState,
   NodeType,
   NodeActions,
-  addConnection,
-  removeConnection,
   singleNodeOperation,
-  notifyNextNodes,
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
 import {FilterNode} from './query_builder/nodes/filter_node';
+import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
 import {Trace} from '../../public/trace';
 
 import {exportStateAsJson, deserializeState} from './json_handler';
@@ -42,8 +41,14 @@ import {
   insertNodeBetween,
   getInputNodeAtPort,
   getAllInputNodes,
+  findDockedChildren,
+  calculateUndockLayouts,
+  getEffectiveLayout,
+  addConnection,
+  removeConnection,
+  notifyNextNodes,
+  captureAllChildConnections,
 } from './query_builder/graph_utils';
-import {showExamplesModal} from './examples_modal';
 import {
   showStateOverwriteWarning,
   showExportWarning,
@@ -55,13 +60,16 @@ export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, {x: number; y: number}>;
-  labels?: Array<{
+  labels: Array<{
     id: string;
     x: number;
     y: number;
     width: number;
     text: string;
   }>;
+  isExplorerCollapsed?: boolean;
+  sidebarWidth?: number;
+  loadGeneration?: number; // Incremented each time content is loaded
 }
 
 interface ExplorePageAttrs {
@@ -73,6 +81,8 @@ interface ExplorePageAttrs {
       | ExplorePageState
       | ((currentState: ExplorePageState) => ExplorePageState),
   ) => void;
+  readonly hasAutoInitialized: boolean;
+  readonly setHasAutoInitialized: (value: boolean) => void;
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
@@ -80,7 +90,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
-  private hasAutoInitialized = false;
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -106,6 +115,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       },
       onInsertModifyColumnsNode: (portIndex: number) => {
         this.handleInsertModifyColumnsNode(attrs, node, portIndex);
+      },
+      onInsertCounterToIntervalsNode: (portIndex: number) => {
+        this.handleInsertCounterToIntervalsNode(attrs, node, portIndex);
       },
     };
   }
@@ -136,7 +148,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       let initialState: PreCreateState | PreCreateState[] | null = {};
       if (descriptor.preCreate) {
         const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-        if (!sqlModules) return;
+        if (!sqlModules) {
+          console.warn('Cannot add operation node: SQL modules not loaded yet');
+          return;
+        }
         initialState = await descriptor.preCreate({sqlModules});
       }
 
@@ -154,7 +169,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       }
 
       const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-      if (!sqlModules) return;
+      if (!sqlModules) {
+        console.warn('Cannot add operation node: SQL modules not loaded yet');
+        return;
+      }
 
       // Use a wrapper object to hold the node reference (allows mutation without 'let')
       const nodeRef: {current?: QueryNode} = {};
@@ -185,6 +203,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               );
             }
           },
+          onInsertCounterToIntervalsNode: (portIndex: number) => {
+            if (nodeRef.current !== undefined) {
+              this.handleInsertCounterToIntervalsNode(
+                attrs,
+                nodeRef.current,
+                portIndex,
+              );
+            }
+          },
         },
       };
 
@@ -209,33 +236,70 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       } else {
         // For multi-source nodes: just connect and add to root nodes
         // Don't insert in-between - the node combines multiple sources
+
+        // Undock docked children before adding (docking requires exactly one child)
+        const dockedChildren = findDockedChildren(node, state.nodeLayouts);
+
         addConnection(node, newNode);
 
-        onStateUpdate((currentState) => ({
-          ...currentState,
-          rootNodes: [...currentState.rootNodes, newNode],
-          selectedNode: newNode,
-        }));
+        onStateUpdate((currentState) => {
+          const updatedLayouts = new Map(currentState.nodeLayouts);
+
+          // Undock existing docked children by giving them layouts.
+          // Use getEffectiveLayout to handle the case where the parent node is
+          // itself docked (no direct layout) - we walk up the chain to find
+          // the first ancestor with a layout.
+          const effectiveLayout = getEffectiveLayout(
+            node,
+            currentState.nodeLayouts,
+          );
+          if (effectiveLayout !== undefined && dockedChildren.length > 0) {
+            const undockLayouts = calculateUndockLayouts(
+              dockedChildren,
+              effectiveLayout,
+            );
+            for (const [nodeId, layout] of undockLayouts) {
+              updatedLayouts.set(nodeId, layout);
+            }
+          }
+
+          return {
+            ...currentState,
+            rootNodes: [...currentState.rootNodes, newNode],
+            nodeLayouts: updatedLayouts,
+            selectedNode: newNode,
+          };
+        });
       }
 
       return newNode;
     }
 
+    console.warn(
+      `Cannot add operation node: unknown type '${derivedNodeId}' for source node ${node.nodeId}`,
+    );
     return undefined;
   }
 
   private async handleAddSourceNode(attrs: ExplorePageAttrs, id: string) {
     const descriptor = nodeRegistry.get(id);
-    if (!descriptor) return;
+    if (!descriptor) {
+      console.warn(`Cannot add source node: unknown node type '${id}'`);
+      return;
+    }
 
     let initialState: PreCreateState | PreCreateState[] | null = {};
 
     if (descriptor.preCreate) {
       const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-      if (!sqlModules) return;
+      if (!sqlModules) {
+        console.warn('Cannot add source node: SQL modules not loaded yet');
+        return;
+      }
       initialState = await descriptor.preCreate({sqlModules});
     }
 
+    // User cancelled the preCreate dialog
     if (initialState === null) {
       return;
     }
@@ -263,7 +327,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     // If no nodes were successfully created, return early
+    // (errors were already logged in the try-catch above)
     if (newNodes.length === 0) {
+      console.warn('No nodes were created from the preCreate result');
       return;
     }
 
@@ -274,11 +340,93 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
-  private async autoInitializeHighImportanceTables(attrs: ExplorePageAttrs) {
-    this.hasAutoInitialized = true;
-
+  private async createExploreGraph(attrs: ExplorePageAttrs) {
     const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
     if (!sqlModules) return;
+
+    const newNodes: QueryNode[] = [];
+
+    // Create slices source node
+    const slicesNode = new SlicesSourceNode({});
+    newNodes.push(slicesNode);
+
+    // Get high-frequency tables with data
+    const tableDescriptor = nodeRegistry.get('table');
+    if (tableDescriptor) {
+      const highFreqTables = sqlModules
+        .listTables()
+        .filter((table) => table.importance === 'high');
+
+      for (const sqlTable of highFreqTables) {
+        try {
+          // Check if the module is disabled (no data available)
+          const module = sqlModules.getModuleForTable(sqlTable.name);
+          if (module && sqlModules.isModuleDisabled(module.includeKey)) {
+            continue; // Skip tables from disabled modules
+          }
+
+          const tableNode = tableDescriptor.factory(
+            {
+              sqlTable,
+              sqlModules,
+              trace: attrs.trace,
+            },
+            {allNodes: attrs.state.rootNodes},
+          );
+          newNodes.push(tableNode);
+        } catch (error) {
+          console.error(
+            `Failed to create table node for ${sqlTable.name}:`,
+            error,
+          );
+        }
+      }
+    }
+
+    // Add all nodes to root nodes with grid layout
+    if (newNodes.length > 0) {
+      // Calculate grid dimensions (as square as possible)
+      const totalNodes = newNodes.length;
+      const cols = Math.ceil(Math.sqrt(totalNodes));
+
+      // Create layout map with grid positions
+      const newNodeLayouts = new Map();
+      const NODE_WIDTH = 300;
+      const NODE_HEIGHT = 200;
+      const GRID_PADDING_X = 10;
+      const GRID_PADDING_Y = 10;
+      const START_X = 50;
+      const START_Y = 50;
+
+      newNodes.forEach((node, index) => {
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        newNodeLayouts.set(node.nodeId, {
+          x: START_X + col * (NODE_WIDTH + GRID_PADDING_X),
+          y: START_Y + row * (NODE_HEIGHT + GRID_PADDING_Y),
+        });
+      });
+
+      // Atomically update state with new nodes and incremented loadGeneration
+      attrs.onStateUpdate((currentState) => ({
+        ...currentState,
+        rootNodes: newNodes, // Replace all nodes
+        nodeLayouts: newNodeLayouts,
+        selectedNode: newNodes[0], // Select the first node (slices)
+        labels: [], // Clear labels
+        loadGeneration: (currentState.loadGeneration ?? 0) + 1,
+      }));
+    }
+  }
+
+  private async autoInitializeHighImportanceTables(attrs: ExplorePageAttrs) {
+    attrs.setHasAutoInitialized(true);
+
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      console.warn('Cannot auto-initialize tables: SQL modules not loaded yet');
+      return;
+    }
 
     try {
       // Load the base page state from JSON
@@ -293,7 +441,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       }
       const json = await response.text();
       const newState = deserializeState(json, attrs.trace, sqlModules);
-      attrs.onStateUpdate(newState);
+      // Atomically update state with incremented loadGeneration
+      attrs.onStateUpdate((currentState) => ({
+        ...newState,
+        loadGeneration: (currentState.loadGeneration ?? 0) + 1,
+      }));
     } catch (error) {
       console.error('Failed to load base page state:', error);
       // Silently fail - leave the page empty if JSON can't be loaded
@@ -307,11 +459,17 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     portIndex: number,
   ) {
     const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) return;
+    if (!sqlModules) {
+      console.warn('Cannot add table: SQL modules not loaded yet');
+      return;
+    }
 
     // Get the table descriptor
     const descriptor = nodeRegistry.get('table');
-    if (!descriptor) return;
+    if (!descriptor) {
+      console.warn("Cannot add table: 'table' node type not found in registry");
+      return;
+    }
 
     // Find the table in SQL modules
     const sqlTable = sqlModules.listTables().find((t) => t.name === tableName);
@@ -346,11 +504,19 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     portIndex: number,
   ) {
     const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) return;
+    if (!sqlModules) {
+      console.warn('Cannot insert modify columns node: SQL modules not loaded');
+      return;
+    }
 
     // Get the ModifyColumns descriptor
     const descriptor = nodeRegistry.get('modify_columns');
-    if (!descriptor) return;
+    if (!descriptor) {
+      console.warn(
+        "Cannot insert modify columns node: 'modify_columns' node type not found in registry",
+      );
+      return;
+    }
 
     // Get the current input node at the specified port
     const inputNode = getInputNodeAtPort(targetNode, portIndex);
@@ -386,6 +552,62 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
+  private async handleInsertCounterToIntervalsNode(
+    attrs: ExplorePageAttrs,
+    targetNode: QueryNode,
+    portIndex: number,
+  ) {
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      console.warn(
+        'Cannot insert counter to intervals node: SQL modules not loaded',
+      );
+      return;
+    }
+
+    // Get the CounterToIntervals descriptor
+    const descriptor = nodeRegistry.get('counter_to_intervals');
+    if (!descriptor) {
+      console.warn(
+        "Cannot insert counter to intervals node: 'counter_to_intervals' node type not found in registry",
+      );
+      return;
+    }
+
+    // Get the current input node at the specified port
+    const inputNode = getInputNodeAtPort(targetNode, portIndex);
+
+    if (!inputNode) {
+      console.warn(`No input node found at port ${portIndex}`);
+      return;
+    }
+
+    // Create the CounterToIntervals node
+    const newNode = descriptor.factory(
+      {
+        sqlModules,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
+
+    // Remove the old connection from inputNode to targetNode
+    removeConnection(inputNode, targetNode);
+
+    // Add connection from inputNode to CounterToIntervals node (sets primaryInput)
+    addConnection(inputNode, newNode);
+
+    // Add connection from CounterToIntervals node to targetNode at the same port
+    addConnection(newNode, targetNode, portIndex);
+
+    // Add the new node to root nodes (so it appears in the graph)
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, newNode],
+      selectedNode: newNode,
+    }));
+  }
+
   /**
    * Cleans up all existing nodes (drops materialized tables) and clears
    * the initialized nodes set. Used when replacing the entire graph state.
@@ -405,6 +627,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       rootNodes: [],
       selectedNode: undefined,
+      nodeLayouts: new Map(),
+      labels: [],
     }));
   }
 
@@ -495,43 +719,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   /**
-   * Finds which port a node is connected to in a child's secondary inputs.
-   * Returns undefined if not connected to any secondary input (i.e., connected to primary input).
-   *
-   * Example: If node B is connected to child C's secondary input at port 1, returns 1.
-   */
-  private findSecondaryInputPort(
-    child: QueryNode,
-    node: QueryNode,
-  ): number | undefined {
-    if (!child.secondaryInputs) return undefined;
-
-    for (const [port, inputNode] of child.secondaryInputs.connections) {
-      if (inputNode === node) {
-        return port;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Captures how the deleted node connected to each of its children.
-   * This information is needed to reconnect the parent with the same port semantics.
-   *
-   * Example:
-   *   A → B → C (primary)     =>  portIndex = undefined
-   *   A → B → D (secondary 1) =>  portIndex = 1
-   */
-  private captureChildConnections(
-    deletedNode: QueryNode,
-  ): Array<{child: QueryNode; portIndex: number | undefined}> {
-    return deletedNode.nextNodes.map((child) => ({
-      child,
-      portIndex: this.findSecondaryInputPort(child, deletedNode),
-    }));
-  }
-
-  /**
    * Gets the primary input parent of a node.
    * Returns undefined for:
    * - Source nodes (no inputs)
@@ -577,7 +764,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     // STEP 2: Capture graph structure BEFORE modification
     // We need to capture this info before removeConnection() clears the references
     const primaryParent = this.getPrimaryParent(node);
-    const childConnections = this.captureChildConnections(node);
+    const childConnections = captureAllChildConnections(node);
     const allInputs = getAllInputNodes(node); // Capture ALL parents (primary + secondary)
 
     // STEP 3: Remove the node from the graph
@@ -653,9 +840,16 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const newRootNodesSet = new Set(state.rootNodes.filter((n) => n !== node));
 
     // Add orphaned children to root nodes so they remain visible
-    // Children are orphaned if there was no primary parent to reconnect them to
+    // Children are orphaned ONLY if:
+    // 1. There was no primary parent to reconnect them to, AND
+    // 2. They were connected via PRIMARY input (not secondary)
+    // Children connected via secondary input still have their own primary parent!
     if (primaryParent === undefined && childConnections.length > 0) {
-      const orphanedChildren = childConnections.map((c) => c.child);
+      // Only children connected via primary input are truly orphaned
+      const orphanedChildren = childConnections
+        .filter((c) => c.portIndex === undefined) // Primary input only
+        .map((c) => c.child);
+
       for (const child of orphanedChildren) {
         newRootNodesSet.add(child);
       }
@@ -664,7 +858,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       // For multiple children, offset their positions to avoid overlapping
       if (deletedNodeLayout !== undefined) {
         let layoutOffsetCount = 0;
-        for (const {child} of childConnections) {
+        for (const child of orphanedChildren) {
           const childHasNoLayout = !updatedNodeLayouts.has(child.nodeId);
           if (childHasNoLayout) {
             const offsetX = layoutOffsetCount * 30; // Offset each child by 30px
@@ -706,6 +900,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     const newRootNodes = Array.from(newRootNodesSet);
+
+    // STEP 5c: Remove the deleted node's layout from the map
+    // Now that we've transferred the layout to children/orphans, clean it up
+    updatedNodeLayouts.delete(node.nodeId);
 
     // STEP 6: Update selection if deleted node was selected
     const newSelectedNode =
@@ -790,12 +988,20 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private async loadStateFromJson(attrs: ExplorePageAttrs, json: string) {
     const {trace, sqlModulesPlugin, state, onStateUpdate} = attrs;
     const sqlModules = sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) return;
+    if (!sqlModules) {
+      console.warn('Cannot load state from JSON: SQL modules not loaded yet');
+      return;
+    }
 
     await this.cleanupExistingNodes(state.rootNodes);
 
     const newState = deserializeState(json, trace, sqlModules);
-    onStateUpdate(newState);
+    // Atomically update state with incremented loadGeneration
+    // This ensures the Graph component sees the generation change in a single render
+    onStateUpdate((currentState) => ({
+      ...newState,
+      loadGeneration: (currentState.loadGeneration ?? 0) + 1,
+    }));
   }
 
   async handleImport(attrs: ExplorePageAttrs) {
@@ -807,9 +1013,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       if (files && files.length > 0) {
         const file = files[0];
 
-        // Show warning modal after file is selected
-        const confirmed = await showStateOverwriteWarning();
-        if (!confirmed) return;
+        // Show warning modal after file is selected (only if canvas has nodes or labels)
+        if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
+          const confirmed = await showStateOverwriteWarning();
+          if (!confirmed) return;
+        }
 
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -885,30 +1093,49 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
-  private async handleLoadExample(attrs: ExplorePageAttrs) {
-    const selectedExample = await showExamplesModal();
-    if (!selectedExample) return;
-
-    // Show warning modal after example is selected
-    const confirmed = await showStateOverwriteWarning();
-    if (!confirmed) return;
+  /**
+   * Centralized method to load JSON from a URL path.
+   * Handles confirmation, fetching, and error handling.
+   */
+  private async loadJsonFromPath(
+    attrs: ExplorePageAttrs,
+    jsonPath: string,
+    errorTitle: string = 'Failed to Load',
+  ): Promise<void> {
+    // Show warning modal before loading (only if canvas has nodes or labels)
+    if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
+      const confirmed = await showStateOverwriteWarning();
+      if (!confirmed) return;
+    }
 
     try {
-      const response = await fetch(assetSrc(selectedExample.jsonPath));
+      const response = await fetch(assetSrc(jsonPath));
       if (!response.ok) {
         throw new Error(
-          `Failed to load example: ${response.status} ${response.statusText}`,
+          `Failed to load: ${response.status} ${response.statusText}`,
         );
       }
       const json = await response.text();
       await this.loadStateFromJson(attrs, json);
     } catch (error) {
-      console.error('Failed to load example:', error);
+      console.error(`Failed to load from ${jsonPath}:`, error);
+      showModal({
+        title: errorTitle,
+        content: () =>
+          m(
+            'div',
+            `An error occurred while loading: ${error instanceof Error ? error.message : String(error)}`,
+          ),
+        buttons: [],
+      });
     }
   }
 
   private handleUndo(attrs: ExplorePageAttrs) {
-    if (!this.historyManager) return;
+    if (!this.historyManager) {
+      console.warn('Cannot undo: history manager not initialized');
+      return;
+    }
 
     const previousState = this.historyManager.undo();
     if (previousState) {
@@ -917,7 +1144,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 
   private handleRedo(attrs: ExplorePageAttrs) {
-    if (!this.historyManager) return;
+    if (!this.historyManager) {
+      console.warn('Cannot redo: history manager not initialized');
+      return;
+    }
 
     const nextState = this.historyManager.redo();
     if (nextState) {
@@ -983,8 +1213,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       this.cleanupManager = new CleanupManager(this.queryExecutionService);
     }
 
-    // Auto-initialize high-importance tables on first load
-    if (state.rootNodes.length === 0 && !this.hasAutoInitialized) {
+    // Auto-initialize high-importance tables on first render when state is empty
+    // Never load base JSON if we've already initialized in this session (even after clearing nodes)
+    if (state.rootNodes.length === 0 && !attrs.hasAutoInitialized) {
       void this.autoInitializeHighImportanceTables(wrappedAttrs);
     }
 
@@ -1012,11 +1243,26 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
         labels: state.labels,
+        loadGeneration: state.loadGeneration,
+        isExplorerCollapsed: state.isExplorerCollapsed,
+        sidebarWidth: state.sidebarWidth,
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
             rootNodes: [...currentState.rootNodes, node],
             selectedNode: node,
+          }));
+        },
+        onExplorerCollapsedChange: (collapsed) => {
+          wrappedAttrs.onStateUpdate((currentState) => ({
+            ...currentState,
+            isExplorerCollapsed: collapsed,
+          }));
+        },
+        onSidebarWidthChange: (width) => {
+          wrappedAttrs.onStateUpdate((currentState) => ({
+            ...currentState,
+            sidebarWidth: width,
           }));
         },
         onNodeSelected: (node) => {
@@ -1066,7 +1312,36 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onImport: () => this.handleImport(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
-        onLoadExample: () => this.handleLoadExample(wrappedAttrs),
+        onLoadEmptyTemplate: async () => {
+          // Show warning modal before clearing (only if canvas has nodes or labels)
+          if (state.rootNodes.length > 0 || state.labels.length > 0) {
+            const confirmed = await showStateOverwriteWarning();
+            if (!confirmed) return;
+          }
+
+          // Clear all nodes for empty graph and increment loadGeneration
+          wrappedAttrs.onStateUpdate((currentState) => {
+            return {
+              ...currentState,
+              rootNodes: [],
+              selectedNode: undefined,
+              nodeLayouts: new Map(),
+              labels: [],
+              loadGeneration: (currentState.loadGeneration ?? 0) + 1,
+            };
+          });
+        },
+        onLoadExampleByPath: (jsonPath: string) =>
+          this.loadJsonFromPath(wrappedAttrs, jsonPath, 'Failed to Load'),
+        onLoadExploreTemplate: async () => {
+          // Show warning modal before loading (only if canvas has nodes or labels)
+          if (state.rootNodes.length > 0 || state.labels.length > 0) {
+            const confirmed = await showStateOverwriteWarning();
+            if (!confirmed) return;
+          }
+
+          await this.createExploreGraph(wrappedAttrs);
+        },
         onFilterAdd: (node, filter, filterOperator) => {
           this.handleFilterAdd(wrappedAttrs, node, filter, filterOperator);
         },

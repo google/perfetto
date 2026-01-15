@@ -19,8 +19,8 @@ import {
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
-  notifyNextNodes,
 } from '../../query_node';
+import {notifyNextNodes} from '../graph_utils';
 import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
@@ -37,19 +37,17 @@ import {
   MultiSelectDiff,
 } from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
-import {NodeTitle} from '../node_styling_widgets';
+import {NodeTitle, ColumnName} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
   comment?: string;
-  filterNegativeDur?: boolean[]; // Per-input filter to exclude negative durations
   partitionColumns?: string[]; // Columns to partition by during interval intersection
 }
 
 export interface IntervalIntersectNodeState extends QueryNodeState {
   inputNodes: QueryNode[];
-  filterNegativeDur?: boolean[]; // Per-input filter to exclude negative durations
   partitionColumns?: string[]; // Columns to partition by during interval intersection
 }
 
@@ -96,8 +94,10 @@ export class IntervalIntersectNode implements QueryNode {
     // Partition columns preserve their type from the first input node
     if (this.state.partitionColumns) {
       const firstNode = inputNodes[0];
+      const firstNodeCols =
+        firstNode !== undefined ? this.getEffectiveCols(firstNode) : [];
       for (const colName of this.state.partitionColumns) {
-        const sourceCol = firstNode?.finalCols.find((c) => c.name === colName);
+        const sourceCol = firstNodeCols.find((c) => c.name === colName);
 
         // Validate that partition column types match across all input nodes
         // Skip validation if type is unknown/NA
@@ -112,7 +112,8 @@ export class IntervalIntersectNode implements QueryNode {
               continue;
             }
 
-            const otherCol = node.finalCols.find((c) => c.name === colName);
+            const nodeCols = this.getEffectiveCols(node);
+            const otherCol = nodeCols.find((c) => c.name === colName);
             const otherType = otherCol?.type;
 
             // Only warn if both types are known and different
@@ -150,7 +151,8 @@ export class IntervalIntersectNode implements QueryNode {
     for (const node of inputNodes) {
       if (node === undefined) continue;
 
-      for (const col of node.finalCols) {
+      const nodeCols = this.getEffectiveCols(node);
+      for (const col of nodeCols) {
         if (
           col.name !== 'id' &&
           col.name !== 'ts' &&
@@ -166,7 +168,8 @@ export class IntervalIntersectNode implements QueryNode {
     for (const node of inputNodes) {
       if (node === undefined) continue;
 
-      for (const col of node.finalCols) {
+      const nodeCols = this.getEffectiveCols(node);
+      for (const col of nodeCols) {
         if (
           col.name !== 'id' &&
           col.name !== 'ts' &&
@@ -186,7 +189,7 @@ export class IntervalIntersectNode implements QueryNode {
       if (node === undefined) continue;
 
       // Find the actual column info for id to get its type
-      const nodeCols = node.finalCols;
+      const nodeCols = this.getEffectiveCols(node);
       const idCol = nodeCols.find((c) => c.name === 'id');
 
       // Create id_N column with explicit type handling
@@ -221,19 +224,9 @@ export class IntervalIntersectNode implements QueryNode {
   constructor(state: IntervalIntersectNodeState) {
     this.nodeId = nextNodeId();
 
-    // Initialize filterNegativeDur array with true for each inputNode if not provided
-    const filterNegativeDur = state.filterNegativeDur ?? [];
-    // Fill missing indices with true (default to filtering enabled)
-    for (let i = 0; i < state.inputNodes.length; i++) {
-      if (filterNegativeDur[i] === undefined) {
-        filterNegativeDur[i] = true;
-      }
-    }
-
     this.state = {
       ...state,
       autoExecute: state.autoExecute ?? false,
-      filterNegativeDur,
     };
     this.secondaryInputs = {
       connections: new Map(),
@@ -288,6 +281,7 @@ export class IntervalIntersectNode implements QueryNode {
     };
 
     for (const inputNode of inputNodes) {
+      // Require standard interval columns (id, ts, dur)
       if (!checkColumns(inputNode, ['id', 'ts', 'dur'])) return false;
     }
 
@@ -325,7 +319,7 @@ export class IntervalIntersectNode implements QueryNode {
     return loadNodeDoc('interval_intersect');
   }
 
-  private renderPartitionSelector(compact: boolean = false): m.Child {
+  private renderPartitionSelector(): m.Child {
     // Initialize partition columns if needed
     if (!this.state.partitionColumns) {
       this.state.partitionColumns = [];
@@ -366,7 +360,6 @@ export class IntervalIntersectNode implements QueryNode {
         label,
         options: partitionOptions,
         showNumSelected: false,
-        compact,
         onChange: (diffs: MultiSelectDiff[]) => {
           if (!this.state.partitionColumns) {
             this.state.partitionColumns = [];
@@ -392,8 +385,24 @@ export class IntervalIntersectNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
+    const details: m.Child[] = [NodeTitle(this.getTitle())];
+
+    // Display partition columns (read-only)
+    if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
+      details.push(
+        m(
+          'div',
+          'Partition by: ',
+          this.state.partitionColumns.map((col, index) => [
+            ColumnName(col),
+            index < this.state.partitionColumns!.length - 1 ? ', ' : '',
+          ]),
+        ),
+      );
+    }
+
     return {
-      content: [NodeTitle(this.getTitle()), this.renderPartitionSelector(true)],
+      content: details,
     };
   }
 
@@ -422,27 +431,6 @@ export class IntervalIntersectNode implements QueryNode {
   }
 
   onPrevNodesUpdated(): void {
-    // Initialize filterNegativeDur if it doesn't exist
-    if (!this.state.filterNegativeDur) {
-      this.state.filterNegativeDur = [];
-    }
-
-    // Compact filterNegativeDur array to match inputNodes length
-    // When nodes are removed, inputNodes is compacted, so we need to match that
-    if (this.state.filterNegativeDur.length > this.inputNodesList.length) {
-      this.state.filterNegativeDur = this.state.filterNegativeDur.slice(
-        0,
-        this.inputNodesList.length,
-      );
-    }
-
-    // Initialize missing indices with true (default to filtering enabled)
-    for (let i = 0; i < this.inputNodesList.length; i++) {
-      if (this.state.filterNegativeDur[i] === undefined) {
-        this.state.filterNegativeDur[i] = true;
-      }
-    }
-
     // Validate and clean up partition columns
     this.cleanupPartitionColumns();
 
@@ -521,11 +509,6 @@ export class IntervalIntersectNode implements QueryNode {
     const error = this.state.issues?.queryError;
     const duplicateWarnings = this.checkDuplicateColumns();
 
-    // Initialize filterNegativeDur array if needed
-    if (!this.state.filterNegativeDur) {
-      this.state.filterNegativeDur = [];
-    }
-
     // Map inputNodes to UI elements with their indices
     const connectedInputs: Array<{node: QueryNode; index: number}> =
       this.inputNodesList.map((node, index) => ({node, index}));
@@ -567,7 +550,7 @@ export class IntervalIntersectNode implements QueryNode {
     }
 
     // Add partition selector
-    const partitionSelector = this.renderPartitionSelector(false);
+    const partitionSelector = this.renderPartitionSelector();
     if (partitionSelector !== null) {
       sections.push({
         content: partitionSelector,
@@ -577,37 +560,45 @@ export class IntervalIntersectNode implements QueryNode {
     // Add input nodes section
     sections.push({
       content: connectedInputs.map(({node, index}) => {
-        const filterEnabled = this.state.filterNegativeDur?.[index] ?? true;
+        const isCounter = this.isCounterNode(node);
+
+        // Build description based on state
+        const description = isCounter
+          ? 'Missing dur column - click below to convert to intervals'
+          : '';
+
+        // Build actions array
+        const actions = [];
+
+        // Add convert to intervals action if this is counter data
+        if (isCounter) {
+          actions.push({
+            label: 'Convert to Intervals',
+            onclick: () => {
+              if (this.state.actions?.onInsertCounterToIntervalsNode) {
+                this.state.actions.onInsertCounterToIntervalsNode(index);
+              }
+            },
+          });
+        }
+
+        // Add pick columns action
+        actions.push({
+          icon: 'view_column',
+          title: 'Pick columns',
+          onclick: () => {
+            if (this.state.actions?.onInsertModifyColumnsNode) {
+              this.state.actions.onInsertModifyColumnsNode(index);
+            }
+          },
+        });
 
         return m(ListItem, {
           key: node.nodeId,
           icon: 'input',
           name: `Input ${index}`,
-          description: filterEnabled
-            ? 'Filtering unfinished intervals'
-            : 'Including all intervals',
-          actions: [
-            {
-              icon: filterEnabled ? 'check_box' : 'check_box_outline_blank',
-              title: 'Filter out intervals with negative duration',
-              onclick: () => {
-                if (!this.state.filterNegativeDur) {
-                  this.state.filterNegativeDur = [];
-                }
-                this.state.filterNegativeDur[index] = !filterEnabled;
-                this.state.onchange?.();
-              },
-            },
-            {
-              icon: 'view_column',
-              title: 'Pick columns',
-              onclick: () => {
-                if (this.state.actions?.onInsertModifyColumnsNode) {
-                  this.state.actions.onInsertModifyColumnsNode(index);
-                }
-              },
-            },
-          ],
+          description,
+          actions,
         });
       }),
     });
@@ -618,12 +609,26 @@ export class IntervalIntersectNode implements QueryNode {
     };
   }
 
+  // Check if a node is counter data (has id, ts, track_id, value but NOT dur)
+  private isCounterNode(node: QueryNode): boolean {
+    const cols = new Set(node.finalCols.map((c) => c.name));
+    return (
+      !cols.has('dur') &&
+      cols.has('id') &&
+      cols.has('ts') &&
+      cols.has('track_id') &&
+      cols.has('value')
+    );
+  }
+
+  // Get the finalCols for a node
+  private getEffectiveCols(node: QueryNode): ColumnInfo[] {
+    return node.finalCols;
+  }
+
   clone(): QueryNode {
     const stateCopy: IntervalIntersectNodeState = {
       inputNodes: [...this.state.inputNodes],
-      filterNegativeDur: this.state.filterNegativeDur
-        ? [...this.state.filterNegativeDur]
-        : undefined,
       partitionColumns: this.state.partitionColumns
         ? [...this.state.partitionColumns]
         : undefined,
@@ -639,7 +644,6 @@ export class IntervalIntersectNode implements QueryNode {
       this.inputNodesList[0],
       this.inputNodesList.slice(1),
       this.state.partitionColumns,
-      this.state.filterNegativeDur,
       this.nodeId,
     );
 
@@ -662,7 +666,6 @@ export class IntervalIntersectNode implements QueryNode {
       intervalNodes: this.inputNodesList
         .filter((n): n is QueryNode => n !== undefined)
         .map((n) => n.nodeId),
-      filterNegativeDur: this.state.filterNegativeDur,
       partitionColumns: this.state.partitionColumns,
     };
   }
@@ -672,7 +675,6 @@ export class IntervalIntersectNode implements QueryNode {
   ): IntervalIntersectNodeState {
     return {
       inputNodes: [],
-      filterNegativeDur: state.filterNegativeDur,
       partitionColumns: state.partitionColumns,
     };
   }

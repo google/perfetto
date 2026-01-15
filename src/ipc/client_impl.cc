@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/ipc/service_descriptor.h"
@@ -75,6 +76,8 @@ ClientImpl::~ClientImpl() {
 
 void ClientImpl::TryConnect() {
   PERFETTO_DCHECK(socket_name_);
+  if (sock_ && sock_->is_connected())
+    return;
   sock_ = base::UnixSocket::Connect(
       socket_name_, this, task_runner_, base::GetSockFamily(socket_name_),
       base::SockType::kStream, base::SockPeerCredMode::kIgnore);
@@ -152,21 +155,44 @@ bool ClientImpl::SendFrame(const Frame& frame, int fd) {
 }
 
 void ClientImpl::OnConnect(base::UnixSocket*, bool connected) {
+  // If the connection fails, we get a OnConnect(connected=false) call.
+  // We retry here with two strategies in parallel:
+  // - A time-based approach, with backoff.
+  // - An event-based approach using inotify.
+  // We cannot rely only on inotify because it's not supported on all platforms
+  // (and even on Linux, it works only if the underlying FS supports it).
   if (!connected && socket_retry_) {
-    socket_backoff_ms_ =
-        (socket_backoff_ms_ < 10000) ? socket_backoff_ms_ + 1000 : 30000;
-    PERFETTO_DLOG(
-        "Connection to traced's UNIX socket failed, retrying in %u seconds",
-        socket_backoff_ms_ / 1000);
     auto weak_this = weak_ptr_factory_.GetWeakPtr();
-    task_runner_->PostDelayedTask(
-        [weak_this] {
-          if (weak_this)
-            static_cast<ClientImpl&>(*weak_this).TryConnect();
-        },
-        socket_backoff_ms_);
+    if (!delayed_reconnect_pending_) {
+      delayed_reconnect_pending_ = true;
+      socket_backoff_ms_ =
+          (socket_backoff_ms_ < 10000) ? socket_backoff_ms_ + 1000 : 30000;
+      PERFETTO_DLOG(
+          "Connection to traced's UNIX socket failed, retrying in %u seconds",
+          socket_backoff_ms_ / 1000);
+
+      task_runner_->PostDelayedTask(
+          [weak_this] {
+            if (!weak_this)
+              return;
+            auto& thiz = *static_cast<ClientImpl*>(weak_this.get());
+            thiz.delayed_reconnect_pending_ = false;
+            thiz.TryConnect();
+          },
+          socket_backoff_ms_);
+    }  // if(delayed_reconnect_pending_)
+
+    if (!sock_inotify_) {
+      sock_inotify_ = base::WatchUnixSocketCreation(
+          task_runner_, socket_name_, [weak_this] {
+            if (weak_this)
+              static_cast<ClientImpl*>(weak_this.get())->TryConnect();
+          });
+    }  // if(!sock_inotify_)
     return;
   }
+
+  sock_inotify_.reset();
 
   // Drain the BindService() calls that were queued before establishing the
   // connection with the host. Note that if we got disconnected, the call to

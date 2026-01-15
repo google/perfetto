@@ -63,23 +63,6 @@ describe('FilterDuringNode', () => {
   }
 
   describe('constructor', () => {
-    it('should initialize with default filter settings', () => {
-      const node = new FilterDuringNode({});
-
-      expect(node.state.filterNegativeDurPrimary).toBe(true);
-      expect(node.state.filterNegativeDurSecondary).toBe(true);
-    });
-
-    it('should preserve provided filter settings', () => {
-      const node = new FilterDuringNode({
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: false,
-      });
-
-      expect(node.state.filterNegativeDurPrimary).toBe(false);
-      expect(node.state.filterNegativeDurSecondary).toBe(false);
-    });
-
     it('should have correct node type', () => {
       const node = new FilterDuringNode({});
 
@@ -321,7 +304,7 @@ describe('FilterDuringNode', () => {
       expect(sq?.id).toBe(node.nodeId);
     });
 
-    it('should create query with correct column selection', () => {
+    it('should create query using experimentalFilterToIntervals with correct structure', () => {
       const primaryNode = createMockNode('primary', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'TIMESTAMP'),
@@ -342,17 +325,23 @@ describe('FilterDuringNode', () => {
 
       const sq = node.getStructuredQuery();
 
-      expect(sq?.selectColumns).toBeDefined();
-      expect(sq?.selectColumns?.length).toBe(5);
+      // Should use experimentalFilterToIntervals (not intervalIntersect + selectColumns)
+      expect(sq?.experimentalFilterToIntervals).toBeDefined();
+      // intervalIntersect should not be set (null in the oneof)
+      expect(sq?.intervalIntersect).toBeNull();
+      // selectColumns is an empty array when not used (proto repeated field default)
+      expect(sq?.selectColumns?.length ?? 0).toBe(0);
 
-      // Check that columns are in the same order as primary input
-      const colNames = sq?.selectColumns?.map(
-        (c) => c.alias || c.columnNameOrExpression,
-      );
-      expect(colNames).toEqual(['id', 'ts', 'dur', 'name', 'cpu']);
+      // Base and intervals should be set
+      expect(sq?.experimentalFilterToIntervals?.base).toBeDefined();
+      expect(sq?.experimentalFilterToIntervals?.intervals).toBeDefined();
+
+      // Default clipToIntervals should not be explicitly set to true
+      // (proto boolean defaults to false, but generator treats unset as true)
+      expect(sq?.experimentalFilterToIntervals?.clipToIntervals).toBeFalsy();
     });
 
-    it('should map id from id_0', () => {
+    it('should pass primary input as base query with dur filter when enabled', () => {
       const primaryNode = createMockNode('primary', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'TIMESTAMP'),
@@ -365,19 +354,21 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
+      // Dur filter is always applied
       const node = new FilterDuringNode({});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
       const sq = node.getStructuredQuery();
+      const baseQuery = sq?.experimentalFilterToIntervals?.base;
 
-      // Find the id column in selectColumns
-      const idColumn = sq?.selectColumns?.find((c) => c.alias === 'id');
-      expect(idColumn?.columnNameOrExpression).toBe('id_0');
-      expect(idColumn?.alias).toBe('id');
+      // Base query should have dur >= 0 filter applied
+      expect(baseQuery?.filters).toBeDefined();
+      expect(baseQuery?.filters?.length).toBe(1);
+      expect(baseQuery?.filters?.[0]?.columnName).toBe('dur');
     });
 
-    it('should use intersected ts and dur without alias', () => {
+    it('should pass secondary input as intervals query with dur filter when enabled', () => {
       const primaryNode = createMockNode('primary', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'TIMESTAMP'),
@@ -390,24 +381,21 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
+      // Dur filter is always applied
       const node = new FilterDuringNode({});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
       const sq = node.getStructuredQuery();
+      const intervalsQuery = sq?.experimentalFilterToIntervals?.intervals;
 
-      const tsColumn = sq?.selectColumns?.find(
-        (c) => c.columnNameOrExpression === 'ts' && !c.alias,
-      );
-      const durColumn = sq?.selectColumns?.find(
-        (c) => c.columnNameOrExpression === 'dur' && !c.alias,
-      );
-
-      expect(tsColumn).toBeDefined();
-      expect(durColumn).toBeDefined();
+      // Intervals query should have dur >= 0 filter applied
+      expect(intervalsQuery?.filters).toBeDefined();
+      expect(intervalsQuery?.filters?.length).toBe(1);
+      expect(intervalsQuery?.filters?.[0]?.columnName).toBe('dur');
     });
 
-    it('should respect filterNegativeDur settings', () => {
+    it('should set clipToIntervals to false when configured', () => {
       const primaryNode = createMockNode('primary', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'TIMESTAMP'),
@@ -420,17 +408,47 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: true,
-      });
+      const node = new FilterDuringNode({clipToIntervals: false});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
       const sq = node.getStructuredQuery();
 
-      // The query should be created successfully
+      expect(sq?.experimentalFilterToIntervals?.clipToIntervals).toBe(false);
+    });
+
+    it('should not explicitly set clipToIntervals to true (relies on proto default)', () => {
+      const primaryNode = createMockNode('primary', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'TIMESTAMP'),
+        createColumnInfo('dur', 'DURATION'),
+      ]);
+
+      const secondaryNode = createMockNode('secondary', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'TIMESTAMP'),
+        createColumnInfo('dur', 'DURATION'),
+      ]);
+
+      const node = new FilterDuringNode({clipToIntervals: true});
+      node.primaryInput = primaryNode;
+      node.secondaryInputs.connections.set(0, secondaryNode);
+
+      const sq = node.getStructuredQuery();
+
+      // When clipToIntervals is true, we don't set it explicitly to true,
+      // because the proto's semantic default is true (clip to intervals).
+      // Proto boolean fields default to false in proto3, but the generator
+      // treats "not explicitly set" as "use default = true (clip)".
+      // The key test is that it's NOT explicitly set to true - instead
+      // the builder only sets it when false.
+      // We verify the query is generated correctly - the C++ generator tests
+      // cover the actual clip_to_intervals behavior.
       expect(sq).toBeDefined();
+      expect(sq?.experimentalFilterToIntervals).toBeDefined();
+      // Verify clipToIntervals is falsy (either false or undefined),
+      // meaning the builder didn't set it to true explicitly
+      expect(sq?.experimentalFilterToIntervals?.clipToIntervals).toBeFalsy();
     });
 
     it('should generate query when secondary input has no id column', () => {
@@ -472,8 +490,8 @@ describe('FilterDuringNode', () => {
       ]);
 
       const node = new FilterDuringNode({
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: true,
+        partitionColumns: ['utid'],
+        clipToIntervals: false,
       });
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
@@ -483,10 +501,8 @@ describe('FilterDuringNode', () => {
       expect(serialized).toEqual({
         primaryInputId: primaryNode.nodeId,
         secondaryInputNodeIds: [secondaryNode.nodeId],
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: true,
-        partitionColumns: undefined,
-        clipToIntervals: undefined,
+        partitionColumns: ['utid'],
+        clipToIntervals: false,
       });
     });
 
@@ -498,8 +514,6 @@ describe('FilterDuringNode', () => {
       expect(serialized).toEqual({
         primaryInputId: undefined,
         secondaryInputNodeIds: [],
-        filterNegativeDurPrimary: true,
-        filterNegativeDurSecondary: true,
         partitionColumns: undefined,
         clipToIntervals: undefined,
       });
@@ -509,19 +523,20 @@ describe('FilterDuringNode', () => {
   describe('clone', () => {
     it('should create a new node with same state', () => {
       const node = new FilterDuringNode({
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: true,
+        partitionColumns: ['utid', 'cpu'],
+        clipToIntervals: false,
       });
 
       const cloned = node.clone() as FilterDuringNode;
 
       expect(cloned).toBeInstanceOf(FilterDuringNode);
-      expect(
-        (cloned.state as FilterDuringNodeState).filterNegativeDurPrimary,
-      ).toBe(false);
-      expect(
-        (cloned.state as FilterDuringNodeState).filterNegativeDurSecondary,
-      ).toBe(true);
+      expect((cloned.state as FilterDuringNodeState).partitionColumns).toEqual([
+        'utid',
+        'cpu',
+      ]);
+      expect((cloned.state as FilterDuringNodeState).clipToIntervals).toBe(
+        false,
+      );
       expect(cloned.nodeId).not.toBe(node.nodeId); // Should have different ID
     });
   });
@@ -870,8 +885,6 @@ describe('FilterDuringNode', () => {
         expect(serialized).toEqual({
           primaryInputId: primaryNode.nodeId,
           secondaryInputNodeIds: [secondaryNode.nodeId],
-          filterNegativeDurPrimary: true,
-          filterNegativeDurSecondary: true,
           partitionColumns: ['utid'],
           clipToIntervals: undefined,
         });
@@ -890,21 +903,21 @@ describe('FilterDuringNode', () => {
     describe('deserializeState with partition columns', () => {
       it('should restore partition columns from serialized state', () => {
         const state = FilterDuringNode.deserializeState({
-          filterNegativeDurPrimary: false,
-          filterNegativeDurSecondary: true,
           partitionColumns: ['utid', 'cpu'],
+          clipToIntervals: false,
         });
 
         expect(state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect(state.clipToIntervals).toBe(false);
       });
 
       it('should handle missing partition columns in serialized state', () => {
         const state = FilterDuringNode.deserializeState({
-          filterNegativeDurPrimary: false,
-          filterNegativeDurSecondary: true,
+          clipToIntervals: true,
         });
 
         expect(state.partitionColumns).toBeUndefined();
+        expect(state.clipToIntervals).toBe(true);
       });
     });
 
@@ -944,7 +957,7 @@ describe('FilterDuringNode', () => {
     });
 
     describe('getStructuredQuery with partition columns', () => {
-      it('should pass partition columns to interval intersect', () => {
+      it('should pass partition columns to experimentalFilterToIntervals', () => {
         const primaryNode = createMockNode('primary', [
           createColumnInfo('id', 'INT'),
           createColumnInfo('ts', 'TIMESTAMP'),
@@ -970,6 +983,9 @@ describe('FilterDuringNode', () => {
         // Query should be generated successfully with partition columns
         expect(sq).toBeDefined();
         expect(sq?.id).toBe(node.nodeId);
+        expect(sq?.experimentalFilterToIntervals?.partitionColumns).toEqual([
+          'utid',
+        ]);
       });
 
       it('should work without partition columns', () => {
@@ -1024,6 +1040,140 @@ describe('FilterDuringNode', () => {
 
         // 'cpu' should be removed as it doesn't exist in inputs
         expect(node.state.partitionColumns).toEqual(['utid']);
+      });
+    });
+
+    describe('selectColumns', () => {
+      it('should include all columns when clipToIntervals is true', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('name', 'STRING'),
+          createColumnInfo('cpu', 'INT'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const node = new FilterDuringNode({clipToIntervals: true});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const sq = node.getStructuredQuery();
+
+        // Should include selectColumns with all primary columns
+        // When clipToIntervals is true, ts and dur must be first
+        expect(sq?.experimentalFilterToIntervals?.selectColumns).toBeDefined();
+        expect(sq?.experimentalFilterToIntervals?.selectColumns?.length).toBe(
+          5,
+        );
+        expect(sq?.experimentalFilterToIntervals?.selectColumns).toEqual([
+          'ts',
+          'dur',
+          'id',
+          'name',
+          'cpu',
+        ]);
+      });
+
+      it('should include all columns when clipToIntervals is false', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('cpu', 'INT'),
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('name', 'STRING'),
+          createColumnInfo('dur', 'DURATION'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const node = new FilterDuringNode({clipToIntervals: false});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const sq = node.getStructuredQuery();
+
+        // Should preserve exact original order when clipToIntervals is false
+        expect(sq?.experimentalFilterToIntervals?.selectColumns).toBeDefined();
+        expect(sq?.experimentalFilterToIntervals?.selectColumns).toEqual([
+          'cpu',
+          'id',
+          'name',
+          'dur',
+          'ts',
+        ]);
+      });
+
+      it('should reorder columns with ts and dur first when clipToIntervals is true', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('cpu', 'INT'),
+          createColumnInfo('name', 'STRING'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const node = new FilterDuringNode({clipToIntervals: true});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const sq = node.getStructuredQuery();
+
+        // When clipToIntervals is true, ts and dur must be first,
+        // then other columns (cpu, name, id)
+        // C++ will output: ii.ts, ii.dur, cpu, name, id, original_ts, original_dur
+        expect(sq?.experimentalFilterToIntervals?.selectColumns).toEqual([
+          'ts',
+          'dur',
+          'cpu',
+          'name',
+          'id',
+        ]);
+      });
+
+      it('should preserve original order when clipToIntervals is false', () => {
+        const primaryNode = createMockNode('primary', [
+          createColumnInfo('cpu', 'INT'),
+          createColumnInfo('name', 'STRING'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const secondaryNode = createMockNode('secondary', [
+          createColumnInfo('id', 'INT'),
+          createColumnInfo('ts', 'TIMESTAMP'),
+          createColumnInfo('dur', 'DURATION'),
+        ]);
+
+        const node = new FilterDuringNode({clipToIntervals: false});
+        node.primaryInput = primaryNode;
+        node.secondaryInputs.connections.set(0, secondaryNode);
+
+        const sq = node.getStructuredQuery();
+
+        // When clipToIntervals is false, preserve original column order
+        expect(sq?.experimentalFilterToIntervals?.selectColumns).toEqual([
+          'cpu',
+          'name',
+          'ts',
+          'id',
+          'dur',
+        ]);
       });
     });
   });

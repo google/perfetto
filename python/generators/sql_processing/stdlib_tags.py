@@ -24,24 +24,15 @@ from typing import Optional
 
 # Valid tags that can be used for categorizing modules.
 # Tags should be short, descriptive, and help users find modules for their problems.
-# Use nested tags (with :) for important subcategories that users would search for.
 #
 # Tag categories:
 # - Platform/OS: android, chrome, linux
-# - Hardware/Resources: cpu, gpu, memory, power, io, network, camera
+# - Hardware/Resources: cpu, gpu, memory, power
 # - Performance: performance, startup
-# - UI/Graphics: ui (with subtags: ui:frames, ui:jank)
-# - App/Process: app-lifecycle, per-app
+# - UI/Graphics: ui, input
+# - App/Process: app-lifecycle
 # - System: scheduling, ipc, virtualization
-# - Analysis/Utilities: analysis, trace, utilities, metadata, visualization, export
-#
-# Nested tags (use ":" for subcategories):
-# - cpu:frequency, cpu:idle
-# - memory:heap
-# - power:battery, power:rails, power:wakeup
-# - ui:frames, ui:jank
-# - ipc:binder
-# - chrome:benchmarks, chrome:navigation, chrome:scroll
+# - Analysis/Utilities: trace, utilities, metadata
 VALID_TAGS = frozenset({
     # Platform/OS tags
     'android',
@@ -50,18 +41,9 @@ VALID_TAGS = frozenset({
 
     # Hardware/Resource tags
     'cpu',
-    'cpu:frequency',
-    'cpu:idle',
     'gpu',
     'memory',
-    'memory:heap',
     'power',
-    'power:battery',
-    'power:rails',
-    'power:wakeup',
-    'io',
-    'network',
-    'camera',
 
     # Performance tags
     'performance',
@@ -69,49 +51,37 @@ VALID_TAGS = frozenset({
 
     # UI/Graphics tags
     'ui',
-    'ui:frames',
-    'ui:jank',
     'input',
 
     # App/Process tags
     'app-lifecycle',
-    'per-app',
 
     # System tags
     'scheduling',
     'ipc',
-    'ipc:binder',
     'virtualization',
 
     # Analysis/Utility tags
-    'analysis',
     'trace',
     'utilities',
     'metadata',
-    'visualization',
-    'export',
-
-    # Chrome-specific tags
-    'chrome:benchmarks',
-    'chrome:navigation',
-    'chrome:scroll',
 })
 
 # Dictionary mapping module names to their tags
 # All tags must be from the VALID_TAGS set above
 MODULE_TAGS = {
     # Android - Power & Battery
-    'android.battery': ['android', 'power', 'power:battery'],
-    'android.battery.charging_states': ['android', 'power', 'power:battery'],
-    'android.battery.doze': ['android', 'power', 'power:battery'],
-    'android.battery_stats': ['android', 'power', 'power:battery'],
-    'android.power_rails': ['android', 'power', 'power:rails'],
-    'android.wakeups': ['android', 'power', 'power:wakeup'],
-    'android.suspend': ['android', 'power', 'power:wakeup'],
+    'android.battery': ['android', 'power'],
+    'android.battery.charging_states': ['android', 'power'],
+    'android.battery.doze': ['android', 'power'],
+    'android.battery_stats': ['android', 'power'],
+    'android.power_rails': ['android', 'power'],
+    'android.wakeups': ['android', 'power'],
+    'android.suspend': ['android', 'power'],
 
     # Android - CPU
     'android.cpu.cluster_type': ['android', 'cpu'],
-    'android.cpu.cpu_per_uid': ['android', 'cpu', 'per-app'],
+    'android.cpu.cpu_per_uid': ['android', 'cpu'],
     'android.dvfs': ['android', 'cpu', 'power'],
 
     # Android - GPU
@@ -121,49 +91,34 @@ MODULE_TAGS = {
     'android.gpu.memory': ['android', 'gpu', 'memory'],
 
     # Android - Memory
-    'android.memory.heap_graph.dominator_tree': [
-        'android', 'memory', 'memory:heap'
-    ],
-    'android.memory.heap_graph.helpers': ['android', 'memory', 'memory:heap'],
-    'android.memory.heap_graph.excluded_refs': [
-        'android', 'memory', 'memory:heap'
-    ],
-    'android.memory.heap_graph.dominator_class_tree': [
-        'android', 'memory', 'memory:heap'
-    ],
-    'android.memory.heap_graph.raw_dominator_tree': [
-        'android', 'memory', 'memory:heap'
-    ],
-    'android.memory.heap_graph.class_relationship': [
-        'android', 'memory', 'memory:heap'
-    ],
-    'android.memory.heap_graph.class_summary_tree': [
-        'android', 'memory', 'memory:heap'
-    ],
+    'android.memory.heap_graph.dominator_tree': ['android', 'memory'],
+    'android.memory.heap_graph.helpers': ['android', 'memory'],
+    'android.memory.heap_graph.excluded_refs': ['android', 'memory'],
+    'android.memory.heap_graph.dominator_class_tree': ['android', 'memory'],
+    'android.memory.heap_graph.raw_dominator_tree': ['android', 'memory'],
+    'android.memory.heap_graph.class_relationship': ['android', 'memory'],
+    'android.memory.heap_graph.class_summary_tree': ['android', 'memory'],
     'android.memory.heap_graph.heap_graph_class_aggregation': [
-        'android', 'memory', 'memory:heap'
+        'android', 'memory'
     ],
-    'android.memory.heap_profile.callstacks': [
-        'android', 'memory', 'memory:heap'
-    ],
-    'android.memory.heap_profile.summary_tree': [
-        'android', 'memory', 'memory:heap'
-    ],
+    'android.memory.heap_profile.callstacks': ['android', 'memory'],
+    'android.memory.heap_profile.summary_tree': ['android', 'memory'],
     'android.memory.dmabuf': ['android', 'memory'],
     'android.memory.lmk': ['android', 'memory'],
-    'android.memory.process': ['android', 'memory', 'per-app'],
+    'android.memory.process': ['android', 'memory'],
     'android.dumpsys.show_map': ['android', 'memory'],
 
     # Android - UI & Graphics
-    'android.frames.per_frame_metrics': ['android', 'ui', 'ui:frames'],
-    'android.frames.timeline': ['android', 'ui', 'ui:frames'],
-    'android.frames.timeline_maxsdk28': ['android', 'ui', 'ui:frames'],
-    'android.frames.jank_type': ['android', 'ui', 'ui:frames', 'ui:jank'],
+    'android.frames.per_frame_metrics': ['android', 'ui'],
+    'android.frames.timeline': ['android', 'ui'],
+    'android.frames.timeline_maxsdk28': ['android', 'ui'],
+    'android.frames.jank_type': ['android', 'ui'],
     'android.frame_blocking_calls.blocking_calls_aggregation': [
-        'android', 'ui', 'ui:frames'
+        'android', 'ui'
     ],
-    'android.cujs.cujs_base': ['android', 'ui', 'ui:jank'],
-    'android.cujs.sysui_cujs': ['android', 'ui', 'ui:jank'],
+    'android.cujs.base': ['android', 'ui'],
+    'android.cujs.sysui_cujs': ['android', 'ui'],
+    'android.cujs.threads': ['android', 'ui'],
     'android.input': ['android', 'ui', 'input'],
     'android.screenshots': ['android', 'ui'],
     'android.surfaceflinger': ['android', 'ui'],
@@ -193,9 +148,9 @@ MODULE_TAGS = {
     'android.anrs': ['android', 'app-lifecycle', 'performance'],
 
     # Android - IPC & Communication
-    'android.binder': ['android', 'ipc', 'ipc:binder'],
-    'android.binder_breakdown': ['android', 'ipc', 'ipc:binder'],
-    'android.network_packets': ['android', 'network'],
+    'android.binder': ['android', 'ipc'],
+    'android.binder_breakdown': ['android', 'ipc'],
+    'android.network_packets': ['android'],
 
     # Android - System
     'android.version': ['android', 'metadata'],
@@ -204,70 +159,56 @@ MODULE_TAGS = {
     'android.auto.multiuser': ['android', 'metadata'],
     'android.entity_state_residency': ['android', 'power'],
     'android.device': ['android', 'metadata'],
-    'android.process_metadata': ['android', 'per-app'],
+    'android.process_metadata': ['android', 'metadata'],
     'android.thread': ['android', 'metadata'],
     'android.monitor_contention': ['android', 'performance'],
     'android.oom_adjuster': ['android', 'app-lifecycle', 'memory'],
-    'android.kernel_wakelocks': ['android', 'power', 'power:wakeup'],
+    'android.kernel_wakelocks': ['android', 'power'],
     'android.statsd': ['android', 'metadata'],
-    'android.garbage_collection': [
-        'android', 'memory', 'per-app', 'performance'
-    ],
+    'android.garbage_collection': ['android', 'memory', 'performance'],
 
     # Chrome - Performance & Benchmarks
-    'chrome.speedometer': ['chrome', 'chrome:benchmarks'],
-    'chrome.speedometer_2_1': ['chrome', 'chrome:benchmarks'],
-    'chrome.speedometer_3': ['chrome', 'chrome:benchmarks'],
+    'chrome.speedometer': ['chrome', 'performance'],
+    'chrome.speedometer_2_1': ['chrome', 'performance'],
+    'chrome.speedometer_3': ['chrome', 'performance'],
 
     # Chrome - Input & Interaction
     'chrome.event_latency': ['chrome', 'input'],
     'chrome.event_latency_description': ['chrome', 'input'],
     'chrome.input': ['chrome', 'input'],
     'chrome.android_input': ['chrome', 'input'],
-    'chrome.scroll_interactions': ['chrome', 'input', 'chrome:scroll'],
+    'chrome.scroll_interactions': ['chrome', 'input'],
     'chrome.interactions': ['chrome', 'input'],
     'chrome.web_content_interactions': ['chrome', 'input'],
 
     # Chrome - UI & Jank
     'chrome.graphics_pipeline': ['chrome', 'ui'],
     'chrome.vsync_intervals': ['chrome', 'ui'],
-    'chrome.scroll_jank.scroll_jank_cause_map': [
-        'chrome', 'ui', 'ui:jank', 'chrome:scroll'
-    ],
-    'chrome.scroll_jank.predictor_error': [
-        'chrome', 'ui', 'ui:jank', 'chrome:scroll'
-    ],
-    'chrome.scroll_jank.scroll_offsets': ['chrome', 'chrome:scroll'],
-    'chrome.scroll_jank.scroll_jank_v3_cause': [
-        'chrome', 'ui', 'ui:jank', 'chrome:scroll'
-    ],
-    'chrome.scroll_jank.scroll_jank_cause_utils': [
-        'chrome', 'ui', 'ui:jank', 'chrome:scroll'
-    ],
-    'chrome.scroll_jank.scroll_jank_intervals': [
-        'chrome', 'ui', 'ui:jank', 'chrome:scroll'
-    ],
-    'chrome.scroll_jank.scroll_jank_v3': [
-        'chrome', 'ui', 'ui:jank', 'chrome:scroll'
-    ],
-    'chrome.scroll_jank.utils': ['chrome', 'ui', 'ui:jank', 'chrome:scroll'],
-    'chrome.scroll_jank_tagging': ['chrome', 'ui', 'ui:jank', 'chrome:scroll'],
-    'chrome.chrome_scrolls': ['chrome', 'chrome:scroll'],
+    'chrome.scroll_jank.scroll_jank_cause_map': ['chrome', 'ui'],
+    'chrome.scroll_jank.predictor_error': ['chrome', 'ui'],
+    'chrome.scroll_jank.scroll_offsets': ['chrome', 'ui'],
+    'chrome.scroll_jank.scroll_jank_v3_cause': ['chrome', 'ui'],
+    'chrome.scroll_jank.scroll_jank_cause_utils': ['chrome', 'ui'],
+    'chrome.scroll_jank.scroll_jank_intervals': ['chrome', 'ui'],
+    'chrome.scroll_jank.scroll_jank_v3': ['chrome', 'ui'],
+    'chrome.scroll_jank.utils': ['chrome', 'ui'],
+    'chrome.scroll_jank_tagging': ['chrome', 'ui'],
+    'chrome.chrome_scrolls': ['chrome', 'ui'],
 
     # Chrome - Other
-    'chrome.page_loads': ['chrome', 'chrome:navigation'],
+    'chrome.page_loads': ['chrome'],
     'chrome.startups': ['chrome', 'startup'],
     'chrome.tasks': ['chrome'],
     'chrome.histograms': ['chrome'],
     'chrome.metadata': ['chrome'],
 
     # Linux - CPU
-    'linux.cpu.frequency': ['linux', 'cpu', 'cpu:frequency'],
-    'linux.cpu.idle': ['linux', 'cpu', 'cpu:idle', 'power'],
-    'linux.cpu.idle_time_in_state': ['linux', 'cpu', 'cpu:idle', 'power'],
-    'linux.cpu.idle_stats': ['linux', 'cpu', 'cpu:idle', 'power'],
+    'linux.cpu.frequency': ['linux', 'cpu'],
+    'linux.cpu.idle': ['linux', 'cpu', 'power'],
+    'linux.cpu.idle_time_in_state': ['linux', 'cpu', 'power'],
+    'linux.cpu.idle_stats': ['linux', 'cpu', 'power'],
     'linux.cpu.utilization.general': ['linux', 'cpu'],
-    'linux.cpu.utilization.process': ['linux', 'cpu', 'per-app'],
+    'linux.cpu.utilization.process': ['linux', 'cpu'],
     'linux.cpu.utilization.slice': ['linux', 'cpu'],
     'linux.cpu.utilization.system': ['linux', 'cpu'],
     'linux.cpu.utilization.thread': ['linux', 'cpu'],
@@ -276,8 +217,8 @@ MODULE_TAGS = {
     # Linux - Other
     'linux.memory.general': ['linux', 'memory'],
     'linux.memory.high_watermark': ['linux', 'memory'],
-    'linux.memory.process': ['linux', 'memory', 'per-app'],
-    'linux.block_io': ['linux', 'io'],
+    'linux.memory.process': ['linux', 'memory'],
+    'linux.block_io': ['linux'],
     'linux.irqs': ['linux'],
     'linux.devfreq': ['linux', 'power'],
     'linux.perf.samples': ['linux', 'performance'],
@@ -303,11 +244,11 @@ MODULE_TAGS = {
     'slices.time_in_state': ['trace'],
 
     # Graphs & Analysis
-    'graphs.hierarchy': ['analysis'],
-    'graphs.partition': ['analysis'],
-    'graphs.dominator_tree': ['analysis'],
-    'graphs.search': ['analysis'],
-    'graphs.critical_path': ['analysis', 'performance'],
+    'graphs.hierarchy': ['utilities'],
+    'graphs.partition': ['utilities'],
+    'graphs.dominator_tree': ['utilities'],
+    'graphs.search': ['utilities'],
+    'graphs.critical_path': ['utilities', 'performance'],
 
     # Utilities
     'time.conversion': ['utilities'],
@@ -316,12 +257,12 @@ MODULE_TAGS = {
     'counters.intervals': ['utilities'],
 
     # Visualization
-    'viz.threads': ['visualization'],
-    'viz.summary.threads': ['visualization'],
-    'viz.summary.counters': ['visualization'],
-    'viz.summary.slices': ['visualization'],
-    'viz.summary.processes': ['visualization'],
-    'viz.summary.trace': ['visualization'],
+    'viz.threads': ['utilities'],
+    'viz.summary.threads': ['utilities'],
+    'viz.summary.counters': ['utilities'],
+    'viz.summary.slices': ['utilities'],
+    'viz.summary.processes': ['utilities'],
+    'viz.summary.trace': ['utilities'],
 
     # Traced
     'traced.stats': ['metadata'],
@@ -331,7 +272,7 @@ MODULE_TAGS = {
     'intervals.overlap': ['utilities'],
 
     # Export
-    'export.to_firefox_profile': ['export'],
+    'export.to_firefox_profile': ['utilities'],
 
     # Stacks
     'stacks.cpu_profiling': ['performance', 'cpu'],
@@ -340,7 +281,7 @@ MODULE_TAGS = {
     'v8.jit': ['performance'],
 
     # Pixel
-    'pixel.camera': ['camera'],
+    'pixel.camera': ['android'],
 
     # AppleOS
     'appleos.instruments.samples': ['performance'],
@@ -456,13 +397,14 @@ _validate_tags()
 #   'low': Specialized or advanced tables, less frequently needed
 #   None/absent: Normal importance (default)
 TABLE_IMPORTANCE = {
-    # HIGH IMPORTANCE - Core timestamped tables, fundamental for most analyses
+    # HIGH IMPORTANCE - Core tables, fundamental for most analyses
     'thread_state':
         'high',  # CPU scheduling: what threads ran when and for how long
     'sched': 'high',  # Kernel scheduling events table
     'thread': 'high',  # Thread metadata and information
     'process': 'high',  # Process metadata and information
     'counter': 'high',  # Time-series metrics: memory, battery, custom counters
+    'track': 'high',  # Tracks for organizing slices and counters
     'thread_or_process_slice':
         'high',  # Unified slice table for thread and process slices
 
@@ -495,11 +437,12 @@ TABLE_IMPORTANCE = {
     'chrome_graphics_pipeline_display_frame_steps':
         'mid',  # Graphics pipeline post-surface aggregation
 
-    # LOW IMPORTANCE - Raw/specialized tables, less frequently needed
-    'slices':
-        'low',  # Raw slice table, prefer thread_or_process_slice for most use cases
-    'sched_slice':
-        'low',  # Raw scheduling slice table, prefer thread_state for most use cases
+    # LOW IMPORTANCE - Deprecated table names, kept for backward compatibility
+    'slices': 'low',  # Raw slice table, prefer thread_or_process_slice
+    'sched_slice': 'low',  # Raw scheduling slice table, prefer thread_state
+    'counters': 'low',  # Raw counter table, prefer counter table
+    'raw': 'low',
+    'gpu_track': 'low',
 }
 
 

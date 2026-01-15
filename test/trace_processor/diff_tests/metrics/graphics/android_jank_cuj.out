@@ -139,6 +139,9 @@ android_jank_cuj {
       frame_dur_max: 40000000
       sf_callback_missed_frames: 0
       hwui_callback_missed_frames: 0
+      anim_duration: 500000000
+      weighted_missed_app_frames: 0.1125
+      weighted_missed_sf_frames: 0.2105
     }
     timeline_metrics {
       total_frames: 6
@@ -403,6 +406,9 @@ android_jank_cuj {
       frame_dur_max: 62000000
       sf_callback_missed_frames: 1
       hwui_callback_missed_frames: 1
+      anim_duration: 250000000
+      weighted_missed_app_frames: 0.25625
+      weighted_missed_sf_frames: 0.0355
     }
     timeline_metrics {
       total_frames: 13

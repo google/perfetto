@@ -13,14 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SqlValue} from '../../../trace_processor/query_result';
 import {Box} from '../../../widgets/box';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {Stack, StackAuto} from '../../../widgets/stack';
-import {Filter} from './model';
-import {DataGridApi} from './datagrid';
-import {DataGridExportButton} from './export_button';
+import {isEmptyVnodes} from '../../../base/mithril_utils';
 
 export class GridFilterBar implements m.ClassComponent {
   view({children}: m.Vnode) {
@@ -28,144 +25,72 @@ export class GridFilterBar implements m.ClassComponent {
   }
 }
 
-export interface GridFilterAttrs {
-  readonly content: string;
-  onRemove(): void;
+export interface GridFilterChipAttrs {
+  readonly content: m.Children;
+  readonly onRemove?: () => void;
 }
 
-export class GridFilterChip implements m.ClassComponent<GridFilterAttrs> {
-  view({attrs}: m.Vnode<GridFilterAttrs>): m.Children {
+export class GridFilterChip implements m.ClassComponent<GridFilterChipAttrs> {
+  view({attrs}: m.Vnode<GridFilterChipAttrs>): m.Children {
     return m(Chip, {
       className: 'pf-grid-filter',
       label: attrs.content,
-      removable: true,
+      removable: attrs.onRemove !== undefined,
       onRemove: attrs.onRemove,
-      title: attrs.content,
       removeButtonTitle: 'Remove filter',
     });
   }
 }
 
-export type OnFilterRemove = (index: number) => void;
-
-// Format a drill-down value for display
-function formatDrillDownValue(value: SqlValue): string {
-  if (value === null) return 'NULL';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'bigint') {
-    return value.toLocaleString();
-  }
-  if (value instanceof Uint8Array) return `<${value.length} bytes>`;
-  return String(value);
-}
-
-export interface DrillDownIndicatorAttrs {
-  readonly onBack: () => void;
-  // The groupBy column names in order
-  readonly groupBy: ReadonlyArray<string>;
-  // The drill-down values keyed by column name
-  readonly values: {readonly [key: string]: SqlValue};
-  // Function to format a column name for display
-  readonly formatColumnName: (columnName: string) => string;
+export interface DrillDownField {
+  readonly title: m.Children;
+  readonly value: m.Children;
 }
 
 export interface DataGridToolbarAttrs {
-  readonly filters: ReadonlyArray<Filter>;
-  readonly schema: unknown; // SchemaRegistry - avoid circular import
-  readonly rootSchema: string;
-  readonly totalRows: number;
-  readonly showRowCount: boolean;
-  readonly showExportButton: boolean;
-  readonly toolbarItemsLeft?: m.Children;
-  readonly toolbarItemsRight?: m.Children;
-  readonly dataGridApi: DataGridApi;
-  readonly onFilterRemove: OnFilterRemove;
-  readonly formatFilter: (filter: Filter) => string;
-  readonly drillDown?: DrillDownIndicatorAttrs;
+  readonly leftItems?: m.Children;
+  readonly rightItems?: m.Children;
+  readonly filterChips?: m.Children;
+
+  // Drill-down state - when set, shows "Back to pivot" and drill-down values
+  readonly drillDownFields?: readonly DrillDownField[];
+  readonly onExitDrillDown?: () => void;
 }
 
 export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
   view({attrs}: m.Vnode<DataGridToolbarAttrs>): m.Children {
     const {
-      filters,
-      totalRows,
-      showRowCount,
-      showExportButton,
-      toolbarItemsLeft,
-      toolbarItemsRight,
-      dataGridApi,
-      onFilterRemove,
-      formatFilter,
-      drillDown,
+      leftItems,
+      rightItems,
+      filterChips,
+      drillDownFields,
+      onExitDrillDown,
     } = attrs;
 
-    // Build left-side toolbar items
-    const leftItems: m.Children[] = [];
-
-    // Show back button and drill-down context when in drill-down mode
-    if (drillDown) {
-      leftItems.push(
+    // Build drill-down indicator
+    const drillDownIndicator =
+      drillDownFields &&
+      onExitDrillDown &&
+      m(
+        Stack,
+        {orientation: 'horizontal', spacing: 'small'},
         m(Button, {
-          icon: 'arrow_back',
           label: 'Back to pivot',
-          onclick: drillDown.onBack,
+          variant: ButtonVariant.Filled,
+          icon: 'arrow_back',
+          onclick: onExitDrillDown,
         }),
-      );
-      // Show chips for each drill-down value
-      drillDown.groupBy.forEach((colName) => {
-        const value = drillDown.values[colName];
-        const displayName = drillDown.formatColumnName(colName);
-        const displayValue = formatDrillDownValue(value);
-        leftItems.push(
-          m(Chip, {
-            label: `${displayName}: ${displayValue}`,
-            title: `Drilling down where ${displayName} = ${displayValue}`,
+        drillDownFields.map(({title, value}) =>
+          m(GridFilterChip, {
+            content: [title, ' = ', value],
           }),
-        );
-      });
-    }
-
-    if (Boolean(toolbarItemsLeft)) {
-      leftItems.push(toolbarItemsLeft);
-    }
-
-    // Filter chips in auto-expanding section
-    if (filters.length > 0) {
-      leftItems.push(
-        m(StackAuto, [
-          m(GridFilterBar, [
-            filters.map((filter) => {
-              return m(GridFilterChip, {
-                content: formatFilter(filter),
-                onRemove: () => {
-                  const filterIndex = filters.indexOf(filter);
-                  onFilterRemove(filterIndex);
-                },
-              });
-            }),
-          ]),
-        ]),
+        ),
       );
-    }
 
-    // Build right-side toolbar items
-    const rightItems: m.Children[] = [];
-
-    if (showRowCount) {
-      const rowCountText = `${totalRows.toLocaleString()} rows`;
-      rightItems.push(m('.pf-data-grid__row-count', rowCountText));
-    }
-
-    if (Boolean(toolbarItemsRight)) {
-      rightItems.push(toolbarItemsRight);
-    }
-
-    if (showExportButton) {
-      rightItems.push(m(DataGridExportButton, {api: dataGridApi}));
-    }
-
-    // Only render toolbar if there are items to show
-    if (leftItems.length === 0 && rightItems.length === 0) {
+    // Don't render anything if toolbar is empty
+    if (
+      isEmptyVnodes([leftItems, rightItems, filterChips, drillDownIndicator])
+    ) {
       return undefined;
     }
 
@@ -182,6 +107,12 @@ export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
             spacing: 'small',
           },
           leftItems,
+          drillDownIndicator,
+          !isEmptyVnodes(filterChips) &&
+            m(
+              StackAuto,
+              m(Stack, {orientation: 'horizontal', wrap: true}, filterChips),
+            ),
         ),
         m(
           Stack,

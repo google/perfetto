@@ -70,6 +70,17 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig, StatsdLogging){
                                   STATSD_LOGGING_DISABLED) = 2,
 };
 
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig, WriteFlushMode){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  WRITE_FLUSH_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  WRITE_FLUSH_AUTO) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  WRITE_FLUSH_DISABLED) = 2,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  WRITE_FLUSH_ENABLED) = 3,
+};
+
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_TraceFilter,
                         StringFilterPolicy){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
@@ -84,6 +95,17 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_TraceFilter,
                                   SFP_ATRACE_MATCH_BREAK) = 4,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
                                   SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS) = 5,
+};
+
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_TraceFilter, SemanticType){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
+                                  SEMANTIC_TYPE_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
+                                  SEMANTIC_TYPE_ATRACE) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
+                                  SEMANTIC_TYPE_JOB) = 2,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
+                                  SEMANTIC_TYPE_WAKELOCK) = 3,
 };
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_TriggerConfig, TriggerMode){
@@ -104,6 +126,16 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_BufferConfig, FillPolicy){
                                   RING_BUFFER) = 1,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
                                   DISCARD) = 2,
+};
+
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_BufferConfig,
+                        ExperimentalMode){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
+                                  MODE_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
+                                  TRACE_BUFFER_V2) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
+                                  TRACE_BUFFER_V2_SHADOW_MODE) = 2,
 };
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig);
@@ -294,9 +326,9 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   41);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   VARINT,
-                  bool,
-                  no_flush_before_write_into_file,
-                  42);
+                  enum perfetto_protos_TraceConfig_WriteFlushMode,
+                  write_flush_mode,
+                  44);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   VARINT,
                   bool,
@@ -365,6 +397,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
                   perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,
                   string_filter_chain,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
+                  STRING,
+                  const char*,
+                  bytecode_overlay_v54,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
+                  MSG,
+                  perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,
+                  string_filter_chain_v54,
+                  5);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_TraceFilter_StringFilterChain);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,
@@ -390,6 +432,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterRule,
                   const char*,
                   atrace_payload_starts_with,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterRule,
+                  STRING,
+                  const char*,
+                  name,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterRule,
+                  VARINT,
+                  enum perfetto_protos_TraceConfig_TraceFilter_SemanticType,
+                  semantic_type,
+                  5);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_IncidentReportConfig);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_IncidentReportConfig,
@@ -610,5 +662,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,
                   bool,
                   clear_before_clone,
                   6);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,
+                  STRING,
+                  const char*,
+                  name,
+                  7);
+PERFETTO_PB_FIELD(
+    perfetto_protos_TraceConfig_BufferConfig,
+    VARINT,
+    enum perfetto_protos_TraceConfig_BufferConfig_ExperimentalMode,
+    experimental_mode,
+    8);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_CONFIG_TRACE_CONFIG_PZC_H_

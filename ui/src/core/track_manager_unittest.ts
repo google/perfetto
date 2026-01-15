@@ -19,6 +19,7 @@ import {Track, TrackRenderContext} from '../public/track';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {TrackManagerImpl} from '../core/track_manager';
+import {TrackNode} from '../public/workspace';
 
 function makeMockTrack() {
   return {
@@ -45,8 +46,10 @@ let mockTrack: ReturnType<typeof makeMockTrack>;
 let td: Track;
 let trackManager: TrackManagerImpl;
 const visibleWindow = new HighPrecisionTimeSpan(HighPrecisionTime.ZERO, 0);
+const dummyTrackNode = new TrackNode({name: 'test', uri: 'foo'});
 const dummyCtx: TrackRenderContext = {
   trackUri: 'foo',
+  trackNode: dummyTrackNode,
   ctx: new CanvasRenderingContext2D(),
   size: {width: 123, height: 123},
   visibleWindow,

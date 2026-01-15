@@ -109,7 +109,7 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
     const recMgr = attrs.recMgr;
 
     return [
-      m('header', 'Select platform'),
+      m('header', 'Target platform'),
       m(SegmentedButtons, {
         className: 'platform-selector',
         options: TARGET_PLATFORMS.map((p) => ({label: p.name, icon: p.icon})),
@@ -131,7 +131,7 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
         m(TargetSelector, {
           recMgr,
           provider: recMgr.currentProvider,
-          key: new ObjToId().getKey(recMgr.currentProvider),
+          key: `${new ObjToId().getKey(recMgr.currentProvider)}-${recMgr.currentPlatform}`,
         }),
       ],
 
@@ -139,7 +139,7 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
         m(TargetDetails, {
           recMgr,
           target: recMgr.currentTarget,
-          key: new ObjToId().getKey(recMgr.currentTarget),
+          key: `${new ObjToId().getKey(recMgr.currentTarget)}-${recMgr.currentPlatform}`,
         }),
       ],
     ];

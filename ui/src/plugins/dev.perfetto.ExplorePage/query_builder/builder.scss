@@ -36,8 +36,8 @@
 
   height: 100%;
 
-  // SplitPanel's main section needs to have the grid layout
-  .pf-split-panel__main {
+  // DrawerPanel's main section needs to have the grid layout
+  .pf-drawer-panel__main {
     display: grid;
     grid-template-columns: 1fr auto auto auto;
     overflow: hidden;
@@ -76,7 +76,7 @@
     .pf-button {
       width: 100%;
       height: 60px;
-      font-size: 20px;
+      font-size: var(--pf-font-size-xxl);
       box-shadow: none;
       border: none;
       border-radius: 0;
@@ -117,17 +117,18 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
 
-    .pf-button {
-      width: 40px;
-      height: 40px;
-      font-size: 20px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  // Shared styling for all round action buttons (undo/redo/add node)
+  .pf-qb-round-action-button {
+    width: 40px;
+    height: 40px;
+    font-size: var(--pf-font-size-xxl);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: box-shadow 0.2s ease;
 
-      &:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        transform: scale(1.05);
-      }
+    &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
   }
 
@@ -187,8 +188,59 @@
   }
 }
 
-.pf-source-card {
-  width: 200px;
+.pf-source-cards-horizontal {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding-bottom: 8px;
+  max-width: 380px;
+}
+
+.pf-template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+  max-width: 510px;
+}
+
+.pf-top-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 750px;
+}
+
+.pf-tutorial-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 500px;
+}
+
+.pf-solution-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 510px;
+}
+
+.pf-starting-section-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  color: var(--pf-color-text-primary);
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+.pf-template-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -209,7 +261,7 @@
 
     h3 {
       margin: 0;
-      font-size: 16px;
+      font-size: var(--pf-font-size-l);
       font-weight: 500;
       transition: color 0.1s ease;
     }
@@ -230,15 +282,66 @@
 
   p {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--pf-font-size-m);
     line-height: 1.4;
+    color: var(--pf-color-text-muted);
+    text-align: center;
+  }
+}
+
+.pf-source-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+
+  .pf-source-card-clickable {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 2px;
+    transition: transform 0.1s ease;
+
+    .pf-icon {
+      font-size: var(--pf-font-size-xxl);
+      color: var(--pf-color-primary);
+      transition: color 0.1s ease;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: var(--pf-font-size-m);
+      font-weight: 500;
+      transition: color 0.1s ease;
+      text-align: center;
+    }
+  }
+
+  &:hover .pf-source-card-clickable,
+  &:focus-within .pf-source-card-clickable {
+    transform: translateY(-2px);
+
+    .pf-icon {
+      color: var(--pf-color-accent);
+    }
+
+    h3 {
+      color: var(--pf-color-accent);
+    }
+  }
+
+  p {
+    margin: 0;
+    font-size: var(--pf-font-size-s);
+    line-height: 1.3;
     color: var(--pf-color-text-muted);
     text-align: center;
   }
 
   .pf-source-card-hotkey {
-    align-self: flex-end;
-    margin-top: 4px;
+    align-self: center;
+    margin-top: 2px;
   }
 }
 
@@ -274,7 +377,7 @@
 
     h3 {
       margin: 0;
-      font-size: 16px;
+      font-size: var(--pf-font-size-l);
       font-weight: 500;
       transition: color 0.1s ease;
     }
@@ -295,7 +398,7 @@
 
   p {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--pf-font-size-s);
     line-height: 1.4;
     color: var(--pf-color-text-muted);
     text-align: center;
@@ -308,7 +411,7 @@
   max-height: 400px;
   overflow-y: auto;
   padding: 12px;
-  font-size: 13px;
+  font-size: var(--pf-font-size-s);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;

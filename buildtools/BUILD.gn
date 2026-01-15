@@ -27,6 +27,7 @@ _buildtools_visibility = [
   "./*",
   "../gn:*",
   "../gn/standalone:*",
+  "../src/base:flat_hash_map_benchmark",
 ]
 
 # Used to suppress warnings coming from googletest macros expansions.
@@ -138,6 +139,8 @@ config("abseil_config") {
     cflags += [
       "-Wno-deprecated-builtins",
       "-Wno-deprecated-pragma",
+      "-Wno-gcc-compat",
+      "-Wno-nullability-extension",
       "-Wno-unknown-warning-option",
     ]
   }
@@ -145,6 +148,19 @@ config("abseil_config") {
     cflags += [
       "-Wno-stringop-overflow",
       "-Wno-ignored-attributes",
+      "-Wno-pedantic",
+      "-Wno-overflow",
+    ]
+  }
+}
+
+# We separate this from the above because frameworks need to be forcefully
+# propogated to all dependents, unlike regular link flags.
+config("abseil_framework_config") {
+  if (is_mac) {
+    ldflags = [
+      "-framework",
+      "CoreFoundation",
     ]
   }
 }
@@ -543,6 +559,7 @@ source_set("abseil_cpp") {
   configs += [ ":abseil_config" ]
   public_configs = [ ":abseil_config" ]
   deps = [ "//gn:default_deps" ]
+  all_dependent_configs = [ ":abseil_framework_config" ]
 }
 
 # Configuration for utf8_range (required by protobuf v22+).
@@ -1221,12 +1238,6 @@ if (current_toolchain == host_toolchain) {
       # Protobuf does has its own #define WIN32_LEAN_AND_MEAN.
       configs -= [ "//gn/standalone:win32_lean_and_mean" ]
     }
-    if (is_mac) {
-      ldflags = [
-        "-framework",
-        "CoreFoundation",
-      ]
-    }
   }
 }  # host_toolchain
 
@@ -1449,7 +1460,7 @@ if (use_custom_libcxx) {
       "libcxx/src/vector.cpp",
       "libcxx/src/verbose_abort.cpp",
     ]
-    if (!using_sanitizer) {
+    if (!using_sanitizer || is_ubsan) {
       # In {a,t,m}san configurations, operator new and operator delete will be
       # provided by the sanitizer runtime library.  Since libc++ defines these
       # symbols with weak linkage, and the *san runtime uses strong linkage, it
@@ -1459,6 +1470,8 @@ if (use_custom_libcxx) {
       # perfetto, when cross-compiling, we build only targets with sanitizers,
       # but not host artifacts, and using_sanitizer is only true for the
       # target toolchain, while is_asan is globally true on all toolchains.
+      # However, ubsan standalone does not provide operator new/delete, so we
+      # need to include new.cpp for ubsan builds.
       sources += [ "libcxx/src/new.cpp" ]
     }
 

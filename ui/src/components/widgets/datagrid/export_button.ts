@@ -13,31 +13,37 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {download} from '../../../base/download_utils';
 import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
+import {ActionButtonHelper} from '../../../widgets/action_button_helper';
+import {copyToClipboard} from '../../../base/clipboard';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {download} from '../../../base/download_utils';
-import {DataGridApi} from './datagrid';
-import {CopyButtonHelper} from '../../../widgets/copy_to_clipboard_button';
 
-export interface DataGridCopyButtonAttrs {
-  readonly api: DataGridApi;
+export type ExportFormat = 'tsv' | 'json' | 'markdown';
+
+export interface DataGridExportButtonAttrs {
+  readonly onExportData: (format: ExportFormat) => Promise<string>;
 }
 
 /**
  * DataGrid copy button component with dropdown menu for copying data to clipboard
  * in different formats (TSV, Markdown, JSON).
- * Maintains its own CopyButtonHelper state to show "Copied" feedback.
+ * Maintains its own ActionButtonHelper state to show "Copied" feedback.
  */
 export class DataGridExportButton
-  implements m.ClassComponent<DataGridCopyButtonAttrs>
+  implements m.ClassComponent<DataGridExportButtonAttrs>
 {
-  private helper = new CopyButtonHelper();
+  private helper = new ActionButtonHelper();
 
-  view({attrs}: m.CVnode<DataGridCopyButtonAttrs>) {
-    const {api} = attrs;
+  private async copyToClipboardWithHelper(content: Promise<string>) {
+    await this.helper.execute(async () => await copyToClipboard(await content));
+  }
+
+  view({attrs}: m.CVnode<DataGridExportButtonAttrs>) {
+    const {onExportData} = attrs;
     const loading = this.helper.state === 'working';
-    const icon = this.helper.state === 'copied' ? Icons.Check : Icons.Download;
+    const icon = this.helper.state === 'done' ? Icons.Check : Icons.Download;
 
     return m(
       PopupMenu,
@@ -56,8 +62,7 @@ export class DataGridExportButton
             icon: 'tsv',
             title: 'Tab-separated values - paste into spreadsheets',
             onclick: async () => {
-              const content = await api.exportData('tsv');
-              await this.helper.copy(content);
+              await this.copyToClipboardWithHelper(onExportData('tsv'));
             },
           }),
           m(MenuItem, {
@@ -65,8 +70,7 @@ export class DataGridExportButton
             icon: 'table',
             title: 'Markdown table format',
             onclick: async () => {
-              const content = await api.exportData('markdown');
-              await this.helper.copy(content);
+              await this.copyToClipboardWithHelper(onExportData('markdown'));
             },
           }),
           m(MenuItem, {
@@ -74,8 +78,7 @@ export class DataGridExportButton
             icon: 'data_object',
             title: 'JSON array of objects',
             onclick: async () => {
-              const content = await api.exportData('json');
-              await this.helper.copy(content);
+              await this.copyToClipboardWithHelper(onExportData('json'));
             },
           }),
         ]),
@@ -86,7 +89,7 @@ export class DataGridExportButton
             icon: 'tsv',
             title: 'Tab-separated values - opens in Excel/Sheets',
             onclick: async () => {
-              const content = await api.exportData('tsv');
+              const content = await onExportData('tsv');
               download({
                 content,
                 mimeType: 'text/tab-separated-values',
@@ -99,7 +102,7 @@ export class DataGridExportButton
             icon: 'table',
             title: 'Markdown table format - paste into docs',
             onclick: async () => {
-              const content = await api.exportData('markdown');
+              const content = await onExportData('markdown');
               download({
                 content,
                 mimeType: 'text/markdown',
@@ -112,7 +115,7 @@ export class DataGridExportButton
             icon: 'data_object',
             title: 'JSON array - use in scripts/tools',
             onclick: async () => {
-              const content = await api.exportData('json');
+              const content = await onExportData('json');
               download({
                 content,
                 mimeType: 'application/json',

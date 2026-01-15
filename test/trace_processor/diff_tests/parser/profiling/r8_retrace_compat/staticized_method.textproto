@@ -1,0 +1,53 @@
+# Test data for StaticizedMethodStackSampleRetraceTest
+# R8 mapping: Instance method test() was made static
+#   a.a -> Main.test()
+
+packet {
+  clock_snapshot {
+    clocks: { clock_id: 6 timestamp: 0 }
+    clocks: { clock_id: 4 timestamp: 10 }
+  }
+}
+packet {
+  process_tree {
+    processes { pid: 1 ppid: 0 cmdline: "init" uid: 0 }
+    processes { pid: 100 ppid: 1 cmdline: "com.example.app" uid: 10001 }
+  }
+}
+packet {
+  packages_list {
+    packages { name: "com.example.app" uid: 10001 }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  previous_packet_dropped: true
+  incremental_state_cleared: true
+  timestamp: 100
+  profile_packet {
+    strings { iid: 1 str: "a.a" }
+    strings { iid: 2 str: "data/app/com.example.app/base.apk" }
+    strings { iid: 3 str: "" }
+    frames { iid: 1 function_name_id: 1 mapping_id: 1 rel_pc: 0x1000 }
+    callstacks { iid: 1 frame_ids: 1 }
+    mappings { iid: 1 path_string_ids: 2 build_id: 3 }
+    process_dumps {
+      pid: 100
+      samples { callstack_id: 1 self_allocated: 1000 alloc_count: 1 }
+    }
+  }
+}
+packet {
+  deobfuscation_mapping {
+    package_name: "com.example.app"
+    version_code: 1
+    obfuscated_classes {
+      obfuscated_name: "a"
+      deobfuscated_name: "com.example.Main"
+      obfuscated_methods {
+        obfuscated_name: "a"
+        deobfuscated_name: "test"
+      }
+    }
+  }
+}

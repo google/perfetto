@@ -51,8 +51,17 @@ source_set("service") {
     "trace_buffer.h",
     "trace_buffer_v1.cc",
     "trace_buffer_v1.h",
+    "trace_buffer_v1_with_v2_shadow.cc",
+    "trace_buffer_v1_with_v2_shadow.h",
+    "trace_buffer_v2.cc",
+    "trace_buffer_v2.h",
+    "tracing_service_endpoints_impl.cc",
+    "tracing_service_endpoints_impl.h",
     "tracing_service_impl.cc",
     "tracing_service_impl.h",
+    "tracing_service_session.cc",
+    "tracing_service_session.h",
+    "tracing_service_structs.h",
   ]
   if (is_android && perfetto_build_with_android) {
     deps += [
@@ -105,6 +114,7 @@ perfetto_unittest_source_set("unittests") {
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
     "trace_buffer_v1_unittest.cc",
+    "trace_buffer_v2_unittest.cc",
   ]
 
   if (enable_perfetto_zlib) {
@@ -129,8 +139,12 @@ if (enable_perfetto_benchmarks) {
       "../../../protos/perfetto/trace/ftrace:zero",
       "../../protozero",
       "../core",
+      "../test:test_support",
     ]
-    sources = [ "packet_stream_validator_benchmark.cc" ]
+    sources = [
+      "packet_stream_validator_benchmark.cc",
+      "trace_buffer_benchmark.cc",
+    ]
   }
 }
 

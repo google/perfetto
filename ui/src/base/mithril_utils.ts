@@ -84,3 +84,14 @@ export class Gate implements m.ClassComponent<GateAttrs> {
 }
 
 export type MithrilEvent<T extends Event = Event> = T & {redraw: boolean};
+
+// Check if a mithril children is empty (falsy or empty array). If
+// it is any of these, mithril will not render anything. Useful for when we want
+// to optionally avoid rendering a wrapper for some children for instance.
+export function isEmptyVnodes(children: m.Children): boolean {
+  if (!Boolean(children)) return true;
+  if (Array.isArray(children)) {
+    return children.length === 0 || children.every(isEmptyVnodes);
+  }
+  return false;
+}
