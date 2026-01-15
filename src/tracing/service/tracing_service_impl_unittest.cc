@@ -6681,8 +6681,10 @@ TEST_F(TracingServiceImplTest, StringFiltering) {
   // Message 1: TracePacket proto. Allow only the `for_testing` sub-field.
   filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
   filt.EndMessage();
-  // Message 2: TestEvent proto. Allow only the `str` sub-field as a striong.
-  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber);
+  // Message 2: TestEvent proto. Allow only the `str` sub-field as a string.
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                            /*semantic_type=*/0, /*allow_in_v1=*/false,
+                            /*allow_in_v2=*/false);
   filt.EndMessage();
   trace_config.mutable_trace_filter()->set_bytecode_v2(
       filt.Serialize().bytecode);
@@ -6751,7 +6753,9 @@ TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
   filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
   filt.EndMessage();
   // Message 2: TestEvent proto. Allow only the `str` sub-field as a string.
-  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber);
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                            /*semantic_type=*/0, /*allow_in_v1=*/false,
+                            /*allow_in_v2=*/false);
   filt.EndMessage();
   trace_config.mutable_trace_filter()->set_bytecode_v2(
       filt.Serialize().bytecode);

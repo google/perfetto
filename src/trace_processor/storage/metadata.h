@@ -52,7 +52,8 @@ namespace metadata {
   F(benchmark_story_tags,              KeyType::kMulti,   Variadic::kString), \
   F(ftrace_setup_errors,               KeyType::kMulti,   Variadic::kString), \
   F(ftrace_latest_data_start_ns,       KeyType::kSingle,  Variadic::kInt),    \
-  F(memory_size_bytes,                 KeyType::kSingle,  Variadic::kInt),    \
+  F(system_ram_bytes,                  KeyType::kSingle,  Variadic::kInt),    \
+  F(system_ram_gb,                     KeyType::kSingle,  Variadic::kInt),    \
   F(range_of_interest_start_us,        KeyType::kSingle,  Variadic::kInt),    \
   F(slow_start_data_source,            KeyType::kMulti,   Variadic::kString), \
   F(statsd_triggering_subscription_id, KeyType::kSingle,  Variadic::kInt),    \

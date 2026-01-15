@@ -83,11 +83,11 @@ message SystemInfo {
   // Not serialised as of perfetto v44.
   optional int64 hz = 3;
 
-  // The size of the memory in bytes.
+  // The size of the system RAM in bytes.
   //
   // On Linux/Android: sysinfo.totalram * sysinfo.mem_unit.
   // Other POSIX (e.g. Mac): sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE).
   //
   // Introduced in perfetto v54 / Android 26Q1+.
-  optional uint64 memory_size_bytes = 16;
+  optional uint64 system_ram_bytes = 16;
 }
