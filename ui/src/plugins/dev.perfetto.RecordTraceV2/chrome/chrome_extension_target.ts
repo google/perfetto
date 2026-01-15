@@ -175,7 +175,7 @@ export class ChromeExtensionTarget implements RecordingTarget {
         descriptor = new Uint8Array(Object.values(descriptor));
       }
       this.trackEventDescriptorPromise.resolve(
-        protos.TrackEventDescriptor.decode(descriptor),
+        protos.TrackEventDescriptor.decode(descriptor as Uint8Array),
       );
     } else {
       this.session?.onExtensionMessage(`${msg.type}`, msg);
