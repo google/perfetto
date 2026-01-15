@@ -67,6 +67,21 @@ class FilterUtil {
       const std::set<std::string>& filter_string_fields = {},
       const std::map<std::string, uint32_t>& filter_string_semantic_types = {});
 
+  // Loads a message schema from a serialized FileDescriptorSet.
+  // Args:
+  // descriptor_set_bytes: pointer to the serialized FileDescriptorSet proto.
+  // descriptor_set_size: size of the serialized data.
+  // root_message: fully qualified message name (e.g., perfetto.protos.Trace).
+  // passthrough, filter_string_fields, filter_string_semantic_types: same as
+  //     LoadMessageDefinition.
+  bool LoadFromDescriptorSet(
+      const uint8_t* descriptor_set_bytes,
+      size_t descriptor_set_size,
+      const std::string& root_message,
+      const std::set<std::string>& passthrough_fields = {},
+      const std::set<std::string>& filter_string_fields = {},
+      const std::map<std::string, uint32_t>& filter_string_semantic_types = {});
+
   // Deduplicates leaf messages having the same sets of field ids.
   // It changes the internal state and affects the behavior of next calls to
   // GenerateFilterBytecode() and PrintAsText().
@@ -130,6 +145,10 @@ class FilterUtil {
   };
 
   using DescriptorsByNameMap = std::map<std::string, Message*>;
+
+  // Shared implementation: parses descriptor and validates field configs.
+  bool LoadFromDescriptor(const google::protobuf::Descriptor* root_msg);
+
   Message* ParseProtoDescriptor(const google::protobuf::Descriptor*,
                                 DescriptorsByNameMap*);
 
