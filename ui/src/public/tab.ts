@@ -13,12 +13,32 @@
 // limitations under the License.
 
 import m from 'mithril';
+import z from 'zod';
+
+export interface GenericTabInstance {
+  // Id of the tab renderer instance
+  readonly tabId: string;
+
+  // Unique ID for this tab instance
+  readonly id: string;
+
+  // This tab's configuration
+  readonly config: unknown;
+}
+
+export interface GenericTab<T> {
+  readonly id: string;
+  readonly render: (id: string, config: T) => m.Children;
+  readonly schema: z.ZodType<T>;
+}
 
 export interface TabManager {
   registerTab(tab: TabDescriptor): void;
   showTab(uri: string): void;
   hideTab(uri: string): void;
   addDefaultTab(uri: string): void;
+  registerGenericTab<T>(tab: GenericTab<T>): void;
+  openGenericTab(config: GenericTabInstance): void;
 }
 
 export interface Tab {

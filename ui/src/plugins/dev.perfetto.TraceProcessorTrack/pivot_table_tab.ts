@@ -29,6 +29,9 @@ import {extensions} from '../../components/extensions';
 import {SLICE_TABLE} from '../../components/widgets/sql/table_definitions';
 import {resolveTableDefinition} from '../../components/widgets/sql/table/columns';
 
+/**
+ * @deprecated Use DataGrid in a custom tab instead.
+ */
 export class PivotTableTab implements AreaSelectionTab {
   readonly id = 'pivot_table';
   readonly name = 'Pivot Table';

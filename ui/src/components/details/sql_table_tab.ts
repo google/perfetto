@@ -46,6 +46,9 @@ export interface AddSqlTableTabParams {
   imports?: string[];
 }
 
+/**
+ * @deprecated New code should not depend on this.
+ */
 export function addLegacyTableTab(
   trace: Trace,
   config: AddSqlTableTabParams,

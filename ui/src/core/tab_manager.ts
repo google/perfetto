@@ -13,8 +13,14 @@
 // limitations under the License.
 
 import {DetailsPanel} from '../public/details_panel';
-import {TabDescriptor, TabManager} from '../public/tab';
+import {
+  GenericTab,
+  GenericTabInstance,
+  TabDescriptor,
+  TabManager,
+} from '../public/tab';
 import {DrawerPanelVisibility, toggleVisibility} from '../widgets/drawer_panel';
+import {Registry} from '../base/registry';
 
 export interface ResolvedTab {
   uri: string;
@@ -154,6 +160,27 @@ export class TabManagerImpl implements TabManager, Disposable {
    * @returns List of resolved tabs.
    */
   resolveTabs(tabUris: string[]): ResolvedTab[] {
+    const genericTabs = this.genericTabs.map(
+      ({id, tabId, config}): ResolvedTab => {
+        return {
+          uri: id,
+          tab: {
+            uri: id,
+            isEphemeral: true,
+            content: {
+              render: () => {
+                const resolvedTabRenderer = this.genericTabsReg.get(tabId);
+                const {schema, render} = resolvedTabRenderer;
+                const parsedConfig = schema.parse(config);
+                return render(id, parsedConfig);
+              },
+              getTitle: () => `Generic Tab (${tabId})`,
+            },
+          },
+        };
+      },
+    );
+
     // Refresh the list of old tabs
     const newTabs = new Map<string, TabDescriptor>();
     const tabs: ResolvedTab[] = [];
@@ -185,7 +212,7 @@ export class TabManagerImpl implements TabManager, Disposable {
 
     this._instantiatedTabs = newTabs;
 
-    return tabs;
+    return tabs.concat(genericTabs);
   }
 
   setTabPanelVisibility(visibility: DrawerPanelVisibility): void {
@@ -221,5 +248,19 @@ export class TabManagerImpl implements TabManager, Disposable {
     if (tab.isEphemeral) {
       this._registry.delete(tab.uri);
     }
+  }
+
+  private readonly genericTabsReg = new Registry<GenericTab<unknown>>(
+    ({id}) => id,
+  );
+  private readonly genericTabs: GenericTabInstance[] = [];
+
+  registerGenericTab<T>(tab: GenericTab<T>) {
+    this.genericTabsReg.register(tab as unknown as GenericTab<unknown>);
+  }
+
+  openGenericTab(config: GenericTabInstance) {
+    this.genericTabs.push(config);
+    this._currentTab = config.id;
   }
 }

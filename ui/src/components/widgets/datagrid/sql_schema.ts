@@ -257,7 +257,7 @@ export class SQLSchemaResolver {
     this.registry = registry;
     this.rootSchemaName = rootSchemaName;
     this.baseAlias =
-      baseAlias ?? `${registry[rootSchemaName]?.table ?? 'base'}_0`;
+      baseAlias ?? `${rootSchemaName.replace(/[^a-zA-Z0-9_]/g, '_')}_0`;
   }
 
   /**

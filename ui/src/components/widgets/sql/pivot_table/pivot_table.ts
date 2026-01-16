@@ -42,6 +42,9 @@ export interface PivotTableAttrs {
   extraRowButton?(node: PivotTreeNode): m.Children;
 }
 
+/**
+ * @deprecated Use DataGrid instead.
+ */
 export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   view({attrs}: m.CVnode<PivotTableAttrs>) {
     const state = attrs.state;

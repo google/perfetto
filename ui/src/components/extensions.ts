@@ -31,6 +31,10 @@ import {type addQueryResultsTab} from './query_table/query_result_tab';
 export interface ExtensionApi {
   addDebugSliceTrack: typeof addDebugSliceTrack;
   addDebugCounterTrack: typeof addDebugCounterTrack;
+
+  /**
+   * @deprecated New code should not depend on this.
+   */
   addLegacySqlTableTab: typeof addLegacyTableTab;
   addVisualizedArgTracks: typeof addVisualizedArgTracks;
   addQueryResultsTab: typeof addQueryResultsTab;
