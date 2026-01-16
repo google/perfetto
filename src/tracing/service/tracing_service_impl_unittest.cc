@@ -6746,7 +6746,9 @@ TEST_F(TracingServiceImplTest, StringFilteringSemanticTypeUnspecified) {
     consumer->Connect(svc.get());
 
     std::unique_ptr<MockProducer> producer = CreateMockProducer();
-    producer->Connect(svc.get(), "mock_producer");
+    std::string producer_name =
+        "mock_producer_" + std::to_string(bytecode_semantic_type);
+    producer->Connect(svc.get(), producer_name);
     producer->RegisterDataSource("ds_1");
 
     TraceConfig trace_config;
