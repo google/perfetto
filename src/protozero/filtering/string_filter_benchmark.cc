@@ -97,10 +97,12 @@ void Benchmark(
 
 }  // namespace
 
+// Benchmarks use UNSPECIFIED (semantic_type=0) by default, so we use
+// Unspecified() mask to match.
 static void BM_ProtozeroStringRewriterRedactMissing(benchmark::State& state) {
   Benchmark(state, {{Policy::kMatchRedactGroups,
                      R"(S\|[^|]+\|\*job\*\/.*\/.*\/(.*)\n)", "",
-                     SemanticTypeMask::All()}});
+                     SemanticTypeMask::Unspecified()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterRedactMissing)
     ->Unit(benchmark::kMillisecond)
@@ -110,7 +112,7 @@ static void BM_ProtozeroStringRewriterAtraceRedactMissing(
     benchmark::State& state) {
   Benchmark(state, {{Policy::kAtraceMatchRedactGroups,
                      R"(S\|[^|]+\|\*job\*\/.*\/.*\/(.*)\n)", "*job*",
-                     SemanticTypeMask::All()}});
+                     SemanticTypeMask::Unspecified()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactMissing)
     ->Unit(benchmark::kMillisecond)
@@ -119,7 +121,7 @@ BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactMissing)
 static void BM_ProtozeroStringRewriterRedactRare(benchmark::State& state) {
   Benchmark(state,
             {{Policy::kMatchRedactGroups, R"(B\|[^|]+\|VerifyClass (.*)\n)", "",
-              SemanticTypeMask::All()}});
+              SemanticTypeMask::Unspecified()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterRedactRare)
     ->Unit(benchmark::kMillisecond)
@@ -129,7 +131,7 @@ static void BM_ProtozeroStringRewriterAtraceRedactRare(
     benchmark::State& state) {
   Benchmark(state, {{Policy::kAtraceMatchRedactGroups,
                      R"(B\|[^|]+\|VerifyClass (.*)\n)", "VerifyClass",
-                     SemanticTypeMask::All()}});
+                     SemanticTypeMask::Unspecified()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactRare)
     ->Unit(benchmark::kMillisecond)
@@ -139,7 +141,7 @@ static void BM_ProtozeroStringRewriterAtraceSearchSingleRedactRare(
     benchmark::State& state) {
   Benchmark(state, {{Policy::kAtraceRepeatedSearchRedactGroups,
                      R"(VerifyClass (.*)\n)", "VerifyClass",
-                     SemanticTypeMask::All()}});
+                     SemanticTypeMask::Unspecified()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceSearchSingleRedactRare)
     ->Unit(benchmark::kMillisecond)
@@ -148,7 +150,7 @@ BENCHMARK(BM_ProtozeroStringRewriterAtraceSearchSingleRedactRare)
 static void BM_ProtozeroStringRewriterRedactCommon(benchmark::State& state) {
   Benchmark(state, {{Policy::kMatchRedactGroups,
                      R"(B\|[^|]+\|Lock contention on a monitor lock (.*)\n)",
-                     "", SemanticTypeMask::All()}});
+                     "", SemanticTypeMask::Unspecified()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterRedactCommon)
     ->Unit(benchmark::kMillisecond)
@@ -156,10 +158,10 @@ BENCHMARK(BM_ProtozeroStringRewriterRedactCommon)
 
 static void BM_ProtozeroStringRewriterAtraceRedactCommon(
     benchmark::State& state) {
-  Benchmark(state,
-            {{Policy::kAtraceMatchRedactGroups,
-              R"(B\|[^|]+\|Lock contention on a monitor lock (.*)\n)",
-              "Lock contention on a monitor lock", SemanticTypeMask::All()}});
+  Benchmark(state, {{Policy::kAtraceMatchRedactGroups,
+                     R"(B\|[^|]+\|Lock contention on a monitor lock (.*)\n)",
+                     "Lock contention on a monitor lock",
+                     SemanticTypeMask::Unspecified()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactCommon)
     ->Unit(benchmark::kMillisecond)
@@ -169,7 +171,7 @@ static void BM_ProtozeroStringRewriterAtraceRedactSpammy(
     benchmark::State& state) {
   Benchmark(state, {{Policy::kAtraceMatchRedactGroups,
                      R"(C\|[^|]+\|Heap size \(KB\)\|(\d+)\n)", "Heap size (KB)",
-                     SemanticTypeMask::All()}});
+                     SemanticTypeMask::Unspecified()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactSpammy)
     ->Unit(benchmark::kMillisecond)
@@ -179,7 +181,7 @@ static void BM_ProtozeroStringRewriterAtraceSearchSingleRedactSpammy(
     benchmark::State& state) {
   Benchmark(state, {{Policy::kAtraceRepeatedSearchRedactGroups,
                      R"(Heap size \(KB\)\|(\d+))", "Heap size (KB)",
-                     SemanticTypeMask::All()}});
+                     SemanticTypeMask::Unspecified()}});
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceSearchSingleRedactSpammy)
     ->Unit(benchmark::kMillisecond)
@@ -215,16 +217,18 @@ BENCHMARK(BM_ProtozeroStringFilterSemanticTypeNoMatch)
     ->Unit(benchmark::kMillisecond)
     ->Arg(10);
 
-static void BM_ProtozeroStringFilterSemanticTypeAllTypes(
+static void BM_ProtozeroStringFilterSemanticTypeBothMatch(
     benchmark::State& state) {
+  // Both rules explicitly include semantic type 1
+  auto mask_type1 = SemanticTypeMask::FromWords(1ULL << 1, 0);
   Benchmark(state,
             {{Policy::kAtraceMatchRedactGroups,
               R"(B\|\d+\|Lock contention on a monitor lock (.*))",
-              "Lock contention on a monitor lock", SemanticTypeMask::All()},
+              "Lock contention on a monitor lock", mask_type1},
              {Policy::kAtraceMatchRedactGroups, R"(B\|\d+\|foo (.*))", "foo",
-              SemanticTypeMask::All()}},
+              mask_type1}},
             1);  // Filter with semantic type 1 (all rules match)
 }
-BENCHMARK(BM_ProtozeroStringFilterSemanticTypeAllTypes)
+BENCHMARK(BM_ProtozeroStringFilterSemanticTypeBothMatch)
     ->Unit(benchmark::kMillisecond)
     ->Arg(10);
