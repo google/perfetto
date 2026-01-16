@@ -324,8 +324,32 @@ TEST(StringFilterTest, SemanticTypeBasicMatching) {
 TEST(StringFilterTest, SemanticTypeDefaultMask) {
   StringFilter filter;
 
-  // Add rule without explicit semantic type mask (defaults to all types)
+  // Add rule without explicit semantic type mask (defaults to UNSPECIFIED only)
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(data:(.*))", "");
+
+  // Verify rule applies to semantic type 0 (UNSPECIFIED)
+  std::string str0 = "data:value0";
+  ASSERT_TRUE(filter.MaybeFilter(str0.data(), str0.size(), 0));
+  ASSERT_EQ(str0, "data:P60RED");
+
+  // Verify rule does NOT apply to semantic type 1 (default is UNSPECIFIED only)
+  std::string str1 = "data:value1";
+  ASSERT_FALSE(filter.MaybeFilter(str1.data(), str1.size(), 1));
+  ASSERT_EQ(str1, "data:value1");
+
+  // Verify rule does NOT apply to semantic type 2
+  std::string str2 = "data:value2";
+  ASSERT_FALSE(filter.MaybeFilter(str2.data(), str2.size(), 2));
+  ASSERT_EQ(str2, "data:value2");
+}
+
+TEST(StringFilterTest, SemanticTypeExplicitMultipleTypes) {
+  StringFilter filter;
+
+  // Add rule with explicit mask for types 0, 1, and 2
+  auto mask = StringFilter::SemanticTypeMask::FromWords(0x7, 0);  // bits 0,1,2
+  filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(data:(.*))", "",
+                 "", mask);
 
   // Verify rule applies to semantic type 0
   std::string str0 = "data:value0";
@@ -342,15 +366,10 @@ TEST(StringFilterTest, SemanticTypeDefaultMask) {
   ASSERT_TRUE(filter.MaybeFilter(str2.data(), str2.size(), 2));
   ASSERT_EQ(str2, "data:P60RED");
 
-  // Verify rule applies to semantic type 100
-  std::string str100 = "data:val100";
-  ASSERT_TRUE(filter.MaybeFilter(str100.data(), str100.size(), 100));
-  ASSERT_EQ(str100, "data:P60RED");
-
-  // Verify rule applies to semantic type 127
-  std::string str127 = "data:val127";
-  ASSERT_TRUE(filter.MaybeFilter(str127.data(), str127.size(), 127));
-  ASSERT_EQ(str127, "data:P60RED");
+  // Verify rule does NOT apply to semantic type 3 (not in mask)
+  std::string str3 = "data:value3";
+  ASSERT_FALSE(filter.MaybeFilter(str3.data(), str3.size(), 3));
+  ASSERT_EQ(str3, "data:value3");
 }
 
 TEST(StringFilterTest, SemanticTypeMultipleRules) {
@@ -366,8 +385,11 @@ TEST(StringFilterTest, SemanticTypeMultipleRules) {
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(bar:(.*))", "",
                  "", mask_type2);
 
-  // Add rule with default mask (applies to all types)
-  filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(baz:(.*))", "");
+  // Add rule for types 1 and 2
+  auto mask_type1_and_2 =
+      StringFilter::SemanticTypeMask::FromWords((1ULL << 1) | (1ULL << 2), 0);
+  filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(baz:(.*))", "",
+                 "", mask_type1_and_2);
 
   // Test string with type 1: only foo and baz rules should apply
   std::string str1a = "foo:secret";
@@ -407,13 +429,13 @@ TEST(StringFilterTest, SemanticTypeZero) {
   // Add rule with default mask (applies to all types including 0)
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(all:(.*))", "");
 
-  // Test with semantic type 0 (unspecified) - rules apply conservatively
-  // Even type-specific rules apply to UNSPECIFIED since we don't know what
-  // the field contains.
+  // Test with semantic type 0 (unspecified) - UNSPECIFIED is its own category.
+  // Type-specific rules do NOT apply to UNSPECIFIED.
   std::string str1 = "type1:value";
-  ASSERT_TRUE(filter.MaybeFilter(str1.data(), str1.size(), 0));
-  ASSERT_EQ(str1, "type1:P60RE");
+  ASSERT_FALSE(filter.MaybeFilter(str1.data(), str1.size(), 0));
+  ASSERT_EQ(str1, "type1:value");
 
+  // But rules with default mask (all bits set) still apply to type 0
   std::string str2 = "all:value";
   ASSERT_TRUE(filter.MaybeFilter(str2.data(), str2.size(), 0));
   ASSERT_EQ(str2, "all:P60RE");
@@ -497,10 +519,11 @@ TEST(StringFilterTest, SemanticTypeWithPolicies) {
 
   // Test kMatchBreak
   StringFilter filter3;
+  auto mask_type2 = StringFilter::SemanticTypeMask::FromWords(1ULL << 2, 0);
   filter3.AddRule(StringFilter::Policy::kMatchBreak, R"(break:.*)", "", "",
                   mask_type1);
-  filter3.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(break:(.*))",
-                  "");
+  filter3.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(break:(.*))", "",
+                  "", mask_type2);
   std::string str3 = "break:value";
   ASSERT_FALSE(filter3.MaybeFilter(str3.data(), str3.size(), 1));
   ASSERT_EQ(str3, "break:value");
@@ -514,7 +537,7 @@ TEST(StringFilterTest, SemanticTypeWithPolicies) {
   filter4.AddRule(StringFilter::Policy::kAtraceMatchBreak,
                   R"(B\|\d+\|abreak .*)", "abreak", "", mask_type1);
   filter4.AddRule(StringFilter::Policy::kAtraceMatchRedactGroups,
-                  R"(B\|\d+\|abreak (.*))", "abreak");
+                  R"(B\|\d+\|abreak (.*))", "abreak", "", mask_type2);
   std::string str4 = "B|1234|abreak value";
   ASSERT_FALSE(filter4.MaybeFilter(str4.data(), str4.size(), 1));
   ASSERT_EQ(str4, "B|1234|abreak value");
@@ -655,13 +678,13 @@ TEST(StringFilterTest, SemanticTypeMaskConstruction) {
   ASSERT_EQ(multi65, "multi:val");
 }
 
-// Rules with specific semantic types also apply to UNSPECIFIED (0) fields.
-// Rationale: UNSPECIFIED means "we don't know what this contains", so we
-// apply rules conservatively to avoid leaking sensitive data.
-TEST(StringFilterTest, RuleWithSpecificTypeAlsoAppliesToUnspecified) {
+// UNSPECIFIED (0) is treated as its own distinct category. A rule with
+// a specific semantic type mask does NOT apply to UNSPECIFIED fields
+// unless the mask explicitly includes bit 0.
+TEST(StringFilterTest, UnspecifiedIsItsOwnCategory) {
   StringFilter filter;
 
-  // Add rule that targets semantic type 1 (ATRACE)
+  // Add rule that targets semantic type 1 (ATRACE) - does NOT include bit 0
   auto mask_atrace = StringFilter::SemanticTypeMask::FromWords(1ULL << 1, 0);
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(secret:(.*))", "",
                  "", mask_atrace);
@@ -671,15 +694,32 @@ TEST(StringFilterTest, RuleWithSpecificTypeAlsoAppliesToUnspecified) {
   ASSERT_TRUE(filter.MaybeFilter(str1.data(), str1.size(), 1));
   ASSERT_EQ(str1, "secret:P60RE");
 
-  // Rule also applies to semantic_type=0 (UNSPECIFIED) - conservative behavior
+  // Rule does NOT apply to semantic_type=0 (UNSPECIFIED) - it's its own
+  // category
   std::string str2 = "secret:value";
-  ASSERT_TRUE(filter.MaybeFilter(str2.data(), str2.size(), 0));
-  ASSERT_EQ(str2, "secret:P60RE");
+  ASSERT_FALSE(filter.MaybeFilter(str2.data(), str2.size(), 0));
+  ASSERT_EQ(str2, "secret:value");
 
   // Rule does NOT apply to semantic_type=2 (different type, not in mask)
   std::string str3 = "secret:value";
   ASSERT_FALSE(filter.MaybeFilter(str3.data(), str3.size(), 2));
   ASSERT_EQ(str3, "secret:value");
+
+  // Add a second filter with rule that explicitly includes UNSPECIFIED (bit 0)
+  StringFilter filter2;
+  auto mask_with_unspecified =
+      StringFilter::SemanticTypeMask::FromWords((1ULL << 0) | (1ULL << 1), 0);
+  filter2.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(secret:(.*))",
+                  "", "", mask_with_unspecified);
+
+  // This rule applies to both type 0 and type 1
+  std::string str4 = "secret:value";
+  ASSERT_TRUE(filter2.MaybeFilter(str4.data(), str4.size(), 0));
+  ASSERT_EQ(str4, "secret:P60RE");
+
+  std::string str5 = "secret:value";
+  ASSERT_TRUE(filter2.MaybeFilter(str5.data(), str5.size(), 1));
+  ASSERT_EQ(str5, "secret:P60RE");
 }
 
 }  // namespace
