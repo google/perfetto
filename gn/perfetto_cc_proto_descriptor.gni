@@ -28,6 +28,7 @@ template("perfetto_cc_proto_descriptor") {
   }
 
   action(target_name) {
+    forward_variables_from(invoker, [ "testonly" ])
     generated_header = "${target_gen_dir}/${invoker.descriptor_name}.h"
     if (is_target) {
       descriptor_file_path =

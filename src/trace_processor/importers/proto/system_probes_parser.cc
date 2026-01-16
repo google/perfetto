@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -993,12 +994,15 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     system_info_tracker->SetNumCpus(packet.num_cpus());
   }
 
-  if (packet.has_memory_size_bytes()) {
-    const auto memory_size_bytes =
-        static_cast<int64_t>(packet.memory_size_bytes());
+  if (packet.has_system_ram_bytes()) {
+    const auto system_ram_bytes =
+        static_cast<int64_t>(packet.system_ram_bytes());
     context_->metadata_tracker->SetMetadata(
-        metadata::memory_size_bytes, Variadic::Integer(memory_size_bytes));
-    machine_tracker->SetMemorySizeBytes(memory_size_bytes);
+        metadata::system_ram_bytes, Variadic::Integer(system_ram_bytes));
+    context_->metadata_tracker->SetMetadata(
+        metadata::system_ram_gb,
+        Variadic::Integer(MachineTracker::BytesToGB(system_ram_bytes)));
+    machine_tracker->SetSystemRamBytes(system_ram_bytes);
   }
 }
 

@@ -407,10 +407,12 @@ TEST(StringFilterTest, SemanticTypeZero) {
   // Add rule with default mask (applies to all types including 0)
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(all:(.*))", "");
 
-  // Test with semantic type 0 (unspecified)
+  // Test with semantic type 0 (unspecified) - rules apply conservatively
+  // Even type-specific rules apply to UNSPECIFIED since we don't know what
+  // the field contains.
   std::string str1 = "type1:value";
-  ASSERT_FALSE(filter.MaybeFilter(str1.data(), str1.size(), 0));
-  ASSERT_EQ(str1, "type1:value");
+  ASSERT_TRUE(filter.MaybeFilter(str1.data(), str1.size(), 0));
+  ASSERT_EQ(str1, "type1:P60RE");
 
   std::string str2 = "all:value";
   ASSERT_TRUE(filter.MaybeFilter(str2.data(), str2.size(), 0));
@@ -651,6 +653,33 @@ TEST(StringFilterTest, SemanticTypeMaskConstruction) {
   std::string multi65 = "multi:val";
   ASSERT_FALSE(filter.MaybeFilter(multi65.data(), multi65.size(), 65));
   ASSERT_EQ(multi65, "multi:val");
+}
+
+// Rules with specific semantic types also apply to UNSPECIFIED (0) fields.
+// Rationale: UNSPECIFIED means "we don't know what this contains", so we
+// apply rules conservatively to avoid leaking sensitive data.
+TEST(StringFilterTest, RuleWithSpecificTypeAlsoAppliesToUnspecified) {
+  StringFilter filter;
+
+  // Add rule that targets semantic type 1 (ATRACE)
+  auto mask_atrace = StringFilter::SemanticTypeMask::FromWords(1ULL << 1, 0);
+  filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(secret:(.*))", "",
+                 "", mask_atrace);
+
+  // Rule applies to semantic_type=1 (ATRACE)
+  std::string str1 = "secret:value";
+  ASSERT_TRUE(filter.MaybeFilter(str1.data(), str1.size(), 1));
+  ASSERT_EQ(str1, "secret:P60RE");
+
+  // Rule also applies to semantic_type=0 (UNSPECIFIED) - conservative behavior
+  std::string str2 = "secret:value";
+  ASSERT_TRUE(filter.MaybeFilter(str2.data(), str2.size(), 0));
+  ASSERT_EQ(str2, "secret:P60RE");
+
+  // Rule does NOT apply to semantic_type=2 (different type, not in mask)
+  std::string str3 = "secret:value";
+  ASSERT_FALSE(filter.MaybeFilter(str3.data(), str3.size(), 2));
+  ASSERT_EQ(str3, "secret:value");
 }
 
 }  // namespace
