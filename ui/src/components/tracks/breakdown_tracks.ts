@@ -258,7 +258,7 @@ export class BreakdownTracks {
       [],
     );
 
-    this.createBreakdownHierarchy(
+    await this.createBreakdownHierarchy(
       [],
       rootTrackNode,
       this.props.aggregation,
@@ -347,7 +347,7 @@ export class BreakdownTracks {
       }
 
       parent.addChildInOrder(currNode);
-      this.createBreakdownHierarchy(
+      await this.createBreakdownHierarchy(
         newFilters,
         currNode,
         nextSqlInfo,
