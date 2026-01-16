@@ -521,7 +521,7 @@ RETURNS TableOrSubquery AS
     value = 0
 );
 
--- Helper to unparenthesize a column list wiht __intrinsic_token_apply.
+-- Helper to unparenthesize a column list with __intrinsic_token_apply.
 CREATE PERFETTO MACRO _imop_identity(
     col ColumnName
 )
@@ -538,7 +538,7 @@ $col;
 -- For example, with partition 'A':
 --   Input: (ts=1, dur=10), (ts=5, dur=12)
 --   Output: (ts=1, dur=16)
-CREATE PERFETTO MACRO _interval_merge_overlapping_partitioned(
+CREATE PERFETTO MACRO interval_merge_overlapping_partitioned(
     -- Table or subquery containing interval data.
     intervals TableOrSubquery,
     -- Column name for partition grouping.

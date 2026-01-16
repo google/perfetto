@@ -5155,7 +5155,7 @@ TEST(StructuredQueryGeneratorTest,
   EXPECT_THAT(res, testing::HasSubstr("_interval_intersect!((fti_base, "
                                       "fti_intervals), (utid))"));
   // Should use partitioned merge for overlapping intervals
-  EXPECT_THAT(res, testing::HasSubstr("_interval_merge_overlapping_partitioned!"
+  EXPECT_THAT(res, testing::HasSubstr("interval_merge_overlapping_partitioned!"
                                       "(fti_intervals_raw, (utid))"));
 }
 
@@ -5184,7 +5184,7 @@ TEST(StructuredQueryGeneratorTest,
   EXPECT_THAT(res, testing::HasSubstr("_interval_intersect!((fti_base, "
                                       "fti_intervals), (utid, upid))"));
   // Should use partitioned merge with first partition column
-  EXPECT_THAT(res, testing::HasSubstr("_interval_merge_overlapping_partitioned!"
+  EXPECT_THAT(res, testing::HasSubstr("interval_merge_overlapping_partitioned!"
                                       "(fti_intervals_raw, (utid))"));
   // fti_intervals should include both partition columns
   EXPECT_THAT(res, testing::HasSubstr("utid"));
