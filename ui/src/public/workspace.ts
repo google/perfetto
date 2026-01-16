@@ -71,6 +71,7 @@ export interface TrackNodeArgs {
   collapsed: boolean;
   isSummary: boolean;
   removable: boolean;
+  onExpand?: () => void;
 }
 
 /**
@@ -118,6 +119,7 @@ export class TrackNode {
   protected readonly tracksById = new Map<string, TrackNode>();
   protected readonly tracksByUri = new Map<string, TrackNode>();
   private _parent?: TrackNode;
+  private _onExpand?: () => void;
   public _workspace?: Workspace;
 
   get parent(): TrackNode | undefined {
@@ -133,6 +135,7 @@ export class TrackNode {
       collapsed = true,
       isSummary = false,
       removable = false,
+      onExpand,
     } = args ?? {};
 
     this.id = createSessionUniqueId();
@@ -143,6 +146,7 @@ export class TrackNode {
     this.isSummary = isSummary;
     this._collapsed = collapsed;
     this.removable = removable;
+    this._onExpand = onExpand;
   }
 
   /**
@@ -252,7 +256,10 @@ export class TrackNode {
    * Mark this node as un-collapsed, indicating its children should be rendered.
    */
   expand(): void {
-    this._collapsed = false;
+    if (this._collapsed) {
+      this._collapsed = false;
+      this._onExpand?.();
+    }
   }
 
   /**
@@ -267,7 +274,11 @@ export class TrackNode {
    * Toggle the collapsed state.
    */
   toggleCollapsed(): void {
+    const wasCollapsed = this._collapsed;
     this._collapsed = !this._collapsed;
+    if (wasCollapsed && !this._collapsed) {
+      this._onExpand?.();
+    }
   }
 
   /**

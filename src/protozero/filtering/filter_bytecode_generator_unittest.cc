@@ -143,7 +143,8 @@ TEST(FilterBytecodeGeneratorTest, Nested) {
 TEST(FilterBytecodeGeneratorTest, SemanticTypeOverlayV2) {
   // Test that generating for v2 with semantic types creates an overlay
   FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV2);
-  gen.AddFilterStringFieldWithType(1u, 42u);  // field_id=1, semantic_type=42
+  gen.AddFilterStringField(1u, /*semantic_type=*/42u, /*allow_in_v1=*/false,
+                           /*allow_in_v2=*/false);
   gen.EndMessage();
 
   auto result = gen.Serialize();
@@ -175,7 +176,8 @@ TEST(FilterBytecodeGeneratorTest, SemanticTypeOverlayV2) {
 TEST(FilterBytecodeGeneratorTest, SemanticTypeV54NoOverlay) {
   // Test that generating for v54 with semantic types doesn't create an overlay
   FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV54);
-  gen.AddFilterStringFieldWithType(1u, 42u);
+  gen.AddFilterStringField(1u, /*semantic_type=*/42u, /*allow_in_v1=*/false,
+                           /*allow_in_v2=*/false);
   gen.EndMessage();
 
   auto result = gen.Serialize();
@@ -191,6 +193,51 @@ TEST(FilterBytecodeGeneratorTest, SemanticTypeV54NoOverlay) {
   EXPECT_TRUE(query.allowed);
   EXPECT_TRUE(query.filter_string_field());
   EXPECT_EQ(query.semantic_type, 42u);
+}
+
+TEST(FilterBytecodeGeneratorTest, AllowInV1) {
+  // Test that allow_in_v1=true adds field as simple field in v1 bytecode
+  FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV1);
+  // Field 1: denied in v1 (allow_in_v1=false)
+  gen.AddFilterStringField(1u, /*semantic_type=*/0u, /*allow_in_v1=*/false,
+                           /*allow_in_v2=*/false);
+  // Field 2: allowed in v1 as simple field (allow_in_v1=true)
+  gen.AddFilterStringField(2u, /*semantic_type=*/0u, /*allow_in_v1=*/true,
+                           /*allow_in_v2=*/false);
+  // Field 3: with semantic type, denied in v1 (allow_in_v1=false)
+  gen.AddFilterStringField(3u, /*semantic_type=*/42u, /*allow_in_v1=*/false,
+                           /*allow_in_v2=*/false);
+  // Field 4: with semantic type, allowed in v1 (allow_in_v1=true)
+  gen.AddFilterStringField(4u, /*semantic_type=*/42u, /*allow_in_v1=*/true,
+                           /*allow_in_v2=*/false);
+  gen.EndMessage();
+
+  auto result = gen.Serialize();
+  EXPECT_GT(result.bytecode.size(), 0u);
+  EXPECT_EQ(result.v54_overlay.size(), 0u);  // No overlay for v1
+
+  FilterBytecodeParser parser;
+  ASSERT_TRUE(
+      parser.Load(reinterpret_cast<const uint8_t*>(result.bytecode.data()),
+                  result.bytecode.size()));
+
+  // Field 1: should be denied
+  EXPECT_FALSE(parser.Query(0, 1).allowed);
+
+  // Field 2: should be allowed as simple field (no filter_string in v1)
+  auto query2 = parser.Query(0, 2);
+  EXPECT_TRUE(query2.allowed);
+  EXPECT_TRUE(query2.simple_field());
+  EXPECT_FALSE(query2.filter_string_field());
+
+  // Field 3: should be denied
+  EXPECT_FALSE(parser.Query(0, 3).allowed);
+
+  // Field 4: should be allowed as simple field
+  auto query4 = parser.Query(0, 4);
+  EXPECT_TRUE(query4.allowed);
+  EXPECT_TRUE(query4.simple_field());
+  EXPECT_FALSE(query4.filter_string_field());
 }
 
 }  // namespace
