@@ -219,6 +219,182 @@ describe('SqlSourceNode', () => {
 
       expect(node.validate()).toBe(true);
     });
+
+    describe('statement structure validation', () => {
+      it('should reject statements that do not start with SELECT', () => {
+        const node = new SqlSourceNode({
+          sql: 'CREATE TABLE foo AS SELECT * FROM slice',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(false);
+        expect(node.state.issues?.queryError?.message).toContain('SELECT');
+      });
+
+      it('should reject multiple SELECT statements', () => {
+        const node = new SqlSourceNode({
+          sql: 'SELECT * FROM slice; SELECT * FROM thread',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(false);
+        expect(node.state.issues?.queryError?.message).toContain(
+          'INCLUDE PERFETTO MODULE',
+        );
+      });
+
+      it('should allow subqueries', () => {
+        const node = new SqlSourceNode({
+          sql: 'SELECT * FROM (SELECT * FROM slice) AS sub',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow CTEs', () => {
+        const node = new SqlSourceNode({
+          sql: 'WITH cte AS (SELECT * FROM slice) SELECT * FROM cte',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow nested subqueries', () => {
+        const node = new SqlSourceNode({
+          sql: `SELECT * FROM (
+            SELECT id FROM (
+              SELECT id FROM slice
+            ) AS inner_sub
+          ) AS outer_sub`,
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow SELECT in WHERE subquery', () => {
+        const node = new SqlSourceNode({
+          sql: 'SELECT * FROM slice WHERE id IN (SELECT id FROM thread)',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow SELECT in comments', () => {
+        const node = new SqlSourceNode({
+          sql: '-- SELECT * FROM thread\nSELECT * FROM slice',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow SELECT in string literals', () => {
+        const node = new SqlSourceNode({
+          sql: "SELECT 'SELECT * FROM thread' AS query FROM slice",
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow SELECT in multi-line comments', () => {
+        const node = new SqlSourceNode({
+          sql: '/* SELECT * FROM thread */ SELECT * FROM slice',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow UNION queries', () => {
+        const node = new SqlSourceNode({
+          sql: 'SELECT * FROM slice UNION SELECT * FROM thread',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow UNION ALL queries', () => {
+        const node = new SqlSourceNode({
+          sql: 'SELECT * FROM slice UNION ALL SELECT * FROM thread',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow INTERSECT queries', () => {
+        const node = new SqlSourceNode({
+          sql: 'SELECT id FROM slice INTERSECT SELECT id FROM thread',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow EXCEPT queries', () => {
+        const node = new SqlSourceNode({
+          sql: 'SELECT id FROM slice EXCEPT SELECT id FROM thread',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow INCLUDE PERFETTO MODULE before SELECT', () => {
+        const node = new SqlSourceNode({
+          sql: 'INCLUDE PERFETTO MODULE slices.slices; SELECT * FROM slice',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow multiple INCLUDE PERFETTO MODULE before SELECT', () => {
+        const node = new SqlSourceNode({
+          sql: `INCLUDE PERFETTO MODULE slices.slices;
+                INCLUDE PERFETTO MODULE android.startup;
+                SELECT * FROM slice`,
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should reject non-INCLUDE statements before SELECT', () => {
+        const node = new SqlSourceNode({
+          sql: 'DROP TABLE foo; SELECT * FROM slice',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(false);
+        expect(node.state.issues?.queryError?.message).toContain(
+          'INCLUDE PERFETTO MODULE',
+        );
+      });
+
+      it('should reject INCLUDE PERFETTO MODULE after SELECT', () => {
+        const node = new SqlSourceNode({
+          sql: 'SELECT * FROM slice; INCLUDE PERFETTO MODULE slices.slices',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(false);
+      });
+
+      it('should reject query without SELECT', () => {
+        const node = new SqlSourceNode({
+          sql: 'INCLUDE PERFETTO MODULE slices.slices',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(false);
+        expect(node.state.issues?.queryError?.message).toContain('SELECT');
+      });
+
+      it('should allow trailing semicolon', () => {
+        const node = new SqlSourceNode({
+          sql: 'SELECT * FROM slice;',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+
+      it('should allow INCLUDE with trailing semicolon', () => {
+        const node = new SqlSourceNode({
+          sql: 'INCLUDE PERFETTO MODULE foo; SELECT * FROM slice;',
+          trace: mockTrace,
+        });
+        expect(node.validate()).toBe(true);
+      });
+    });
   });
 
   describe('getTitle', () => {
