@@ -401,8 +401,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       parameterKeyColumns: this.parameterKeyColumns,
     });
 
-    console.debug('Datagrid pivot model:', this.pivot);
-
     // Expose the API
     attrs.onReady?.({
       exportData: async (format) => {

@@ -16,7 +16,7 @@ import {Protocol} from 'devtools-protocol';
 import {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
 import {Client} from 'noice-json-rpc';
 
-import {base64Encode, base64Decode} from '../base/string_utils';
+import {base64Encode} from '../base/string_utils';
 import {
   ConsumerPortResponse,
   GetTraceStatsResponse,
@@ -255,11 +255,10 @@ export class ChromeTracingController extends RpcConsumerPort {
 
   getTrackEventDescriptor() {
     const fetchTrackEventDescriptor = async () => {
-      let serializedDescriptor: Uint8Array;
+      let encodedDescriptor: string;
       if (browserSupportsTrackEventDescriptor()) {
-        serializedDescriptor = base64Decode(
-          (await this.api.Tracing.getTrackEventDescriptor()).descriptor,
-        );
+        encodedDescriptor = (await this.api.Tracing.getTrackEventDescriptor())
+          .descriptor;
       } else {
         const categories = (await this.api.Tracing.getCategories()).categories;
         const descriptor = protos.TrackEventDescriptor.create({
@@ -269,12 +268,13 @@ export class ChromeTracingController extends RpcConsumerPort {
             });
           }),
         });
-        serializedDescriptor =
-          protos.TrackEventDescriptor.encode(descriptor).finish();
+        encodedDescriptor = base64Encode(
+          protos.TrackEventDescriptor.encode(descriptor).finish(),
+        );
       }
       this.uiPort.postMessage({
         type: 'GetTrackEventDescriptorResponse',
-        serializedDescriptor,
+        encodedDescriptor,
       });
     };
     // If a target is already attached, we simply fetch the categories.
