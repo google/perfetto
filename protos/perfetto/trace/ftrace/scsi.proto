@@ -16,7 +16,7 @@ message ScsiDispatchCmdErrorFtraceEvent {
   optional uint32 data_sglen = 8;
   optional uint32 prot_sglen = 9;
   optional uint32 prot_op = 10;
-  optional string cmnd = 11;
+  optional bytes cmnd = 11;
   optional int32 driver_tag = 12;
   optional int32 scheduler_tag = 13;
 }
@@ -31,7 +31,7 @@ message ScsiDispatchCmdTimeoutFtraceEvent {
   optional uint32 data_sglen = 8;
   optional uint32 prot_sglen = 9;
   optional uint32 prot_op = 10;
-  optional string cmnd = 11;
+  optional bytes cmnd = 11;
   optional int32 driver_tag = 12;
   optional int32 scheduler_tag = 13;
   optional uint32 sense_key = 14;

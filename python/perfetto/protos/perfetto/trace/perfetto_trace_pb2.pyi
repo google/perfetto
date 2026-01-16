@@ -21,6 +21,13 @@ class BuiltinClock(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     BUILTIN_CLOCK_PERF: _ClassVar[BuiltinClock]
     BUILTIN_CLOCK_MAX_ID: _ClassVar[BuiltinClock]
 
+class SemanticType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    SEMANTIC_TYPE_UNSPECIFIED: _ClassVar[SemanticType]
+    SEMANTIC_TYPE_ATRACE: _ClassVar[SemanticType]
+    SEMANTIC_TYPE_JOB: _ClassVar[SemanticType]
+    SEMANTIC_TYPE_WAKELOCK: _ClassVar[SemanticType]
+
 class AndroidLogId(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     LID_DEFAULT: _ClassVar[AndroidLogId]
@@ -1539,6 +1546,10 @@ BUILTIN_CLOCK_BOOTTIME: BuiltinClock
 BUILTIN_CLOCK_TSC: BuiltinClock
 BUILTIN_CLOCK_PERF: BuiltinClock
 BUILTIN_CLOCK_MAX_ID: BuiltinClock
+SEMANTIC_TYPE_UNSPECIFIED: SemanticType
+SEMANTIC_TYPE_ATRACE: SemanticType
+SEMANTIC_TYPE_JOB: SemanticType
+SEMANTIC_TYPE_WAKELOCK: SemanticType
 LID_DEFAULT: AndroidLogId
 LID_RADIO: AndroidLogId
 LID_EVENTS: AndroidLogId
@@ -4642,16 +4653,6 @@ class TraceConfig(_message.Message):
         SFP_MATCH_BREAK: TraceConfig.TraceFilter.StringFilterPolicy
         SFP_ATRACE_MATCH_BREAK: TraceConfig.TraceFilter.StringFilterPolicy
         SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS: TraceConfig.TraceFilter.StringFilterPolicy
-        class SemanticType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = ()
-            SEMANTIC_TYPE_UNSPECIFIED: _ClassVar[TraceConfig.TraceFilter.SemanticType]
-            SEMANTIC_TYPE_ATRACE: _ClassVar[TraceConfig.TraceFilter.SemanticType]
-            SEMANTIC_TYPE_JOB: _ClassVar[TraceConfig.TraceFilter.SemanticType]
-            SEMANTIC_TYPE_WAKELOCK: _ClassVar[TraceConfig.TraceFilter.SemanticType]
-        SEMANTIC_TYPE_UNSPECIFIED: TraceConfig.TraceFilter.SemanticType
-        SEMANTIC_TYPE_ATRACE: TraceConfig.TraceFilter.SemanticType
-        SEMANTIC_TYPE_JOB: TraceConfig.TraceFilter.SemanticType
-        SEMANTIC_TYPE_WAKELOCK: TraceConfig.TraceFilter.SemanticType
         class StringFilterRule(_message.Message):
             __slots__ = ("policy", "regex_pattern", "atrace_payload_starts_with", "name", "semantic_type")
             POLICY_FIELD_NUMBER: _ClassVar[int]
@@ -4663,8 +4664,8 @@ class TraceConfig(_message.Message):
             regex_pattern: str
             atrace_payload_starts_with: str
             name: str
-            semantic_type: _containers.RepeatedScalarFieldContainer[TraceConfig.TraceFilter.SemanticType]
-            def __init__(self, policy: _Optional[_Union[TraceConfig.TraceFilter.StringFilterPolicy, str]] = ..., regex_pattern: _Optional[str] = ..., atrace_payload_starts_with: _Optional[str] = ..., name: _Optional[str] = ..., semantic_type: _Optional[_Iterable[_Union[TraceConfig.TraceFilter.SemanticType, str]]] = ...) -> None: ...
+            semantic_type: _containers.RepeatedScalarFieldContainer[SemanticType]
+            def __init__(self, policy: _Optional[_Union[TraceConfig.TraceFilter.StringFilterPolicy, str]] = ..., regex_pattern: _Optional[str] = ..., atrace_payload_starts_with: _Optional[str] = ..., name: _Optional[str] = ..., semantic_type: _Optional[_Iterable[_Union[SemanticType, str]]] = ...) -> None: ...
         class StringFilterChain(_message.Message):
             __slots__ = ("rules",)
             RULES_FIELD_NUMBER: _ClassVar[int]
@@ -4799,7 +4800,7 @@ class Utsname(_message.Message):
     def __init__(self, sysname: _Optional[str] = ..., version: _Optional[str] = ..., release: _Optional[str] = ..., machine: _Optional[str] = ...) -> None: ...
 
 class SystemInfo(_message.Message):
-    __slots__ = ("utsname", "android_build_fingerprint", "android_device_manufacturer", "android_soc_model", "android_guest_soc_model", "android_hardware_revision", "android_storage_model", "android_ram_model", "android_serial_console", "tracing_service_version", "android_sdk_version", "page_size", "num_cpus", "timezone_off_mins", "hz", "memory_size_bytes")
+    __slots__ = ("utsname", "android_build_fingerprint", "android_device_manufacturer", "android_soc_model", "android_guest_soc_model", "android_hardware_revision", "android_storage_model", "android_ram_model", "android_serial_console", "tracing_service_version", "android_sdk_version", "page_size", "num_cpus", "timezone_off_mins", "hz", "system_ram_bytes")
     UTSNAME_FIELD_NUMBER: _ClassVar[int]
     ANDROID_BUILD_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
     ANDROID_DEVICE_MANUFACTURER_FIELD_NUMBER: _ClassVar[int]
@@ -4815,7 +4816,7 @@ class SystemInfo(_message.Message):
     NUM_CPUS_FIELD_NUMBER: _ClassVar[int]
     TIMEZONE_OFF_MINS_FIELD_NUMBER: _ClassVar[int]
     HZ_FIELD_NUMBER: _ClassVar[int]
-    MEMORY_SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_RAM_BYTES_FIELD_NUMBER: _ClassVar[int]
     utsname: Utsname
     android_build_fingerprint: str
     android_device_manufacturer: str
@@ -4831,8 +4832,8 @@ class SystemInfo(_message.Message):
     num_cpus: int
     timezone_off_mins: int
     hz: int
-    memory_size_bytes: int
-    def __init__(self, utsname: _Optional[_Union[Utsname, _Mapping]] = ..., android_build_fingerprint: _Optional[str] = ..., android_device_manufacturer: _Optional[str] = ..., android_soc_model: _Optional[str] = ..., android_guest_soc_model: _Optional[str] = ..., android_hardware_revision: _Optional[str] = ..., android_storage_model: _Optional[str] = ..., android_ram_model: _Optional[str] = ..., android_serial_console: _Optional[str] = ..., tracing_service_version: _Optional[str] = ..., android_sdk_version: _Optional[int] = ..., page_size: _Optional[int] = ..., num_cpus: _Optional[int] = ..., timezone_off_mins: _Optional[int] = ..., hz: _Optional[int] = ..., memory_size_bytes: _Optional[int] = ...) -> None: ...
+    system_ram_bytes: int
+    def __init__(self, utsname: _Optional[_Union[Utsname, _Mapping]] = ..., android_build_fingerprint: _Optional[str] = ..., android_device_manufacturer: _Optional[str] = ..., android_soc_model: _Optional[str] = ..., android_guest_soc_model: _Optional[str] = ..., android_hardware_revision: _Optional[str] = ..., android_storage_model: _Optional[str] = ..., android_ram_model: _Optional[str] = ..., android_serial_console: _Optional[str] = ..., tracing_service_version: _Optional[str] = ..., android_sdk_version: _Optional[int] = ..., page_size: _Optional[int] = ..., num_cpus: _Optional[int] = ..., timezone_off_mins: _Optional[int] = ..., hz: _Optional[int] = ..., system_ram_bytes: _Optional[int] = ...) -> None: ...
 
 class TraceStats(_message.Message):
     __slots__ = ("buffer_stats", "chunk_payload_histogram_def", "writer_stats", "producers_connected", "producers_seen", "data_sources_registered", "data_sources_seen", "tracing_sessions", "total_buffers", "chunks_discarded", "patches_discarded", "invalid_packets", "filter_stats", "flushes_requested", "flushes_succeeded", "flushes_failed", "final_flush_outcome")
@@ -5241,6 +5242,7 @@ class FrameTimelineEvent(_message.Message):
         JANK_NON_ANIMATING: _ClassVar[FrameTimelineEvent.JankType]
         JANK_APP_RESYNCED_JITTER: _ClassVar[FrameTimelineEvent.JankType]
         JANK_DISPLAY_NOT_ON: _ClassVar[FrameTimelineEvent.JankType]
+        JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS: _ClassVar[FrameTimelineEvent.JankType]
     JANK_UNSPECIFIED: FrameTimelineEvent.JankType
     JANK_NONE: FrameTimelineEvent.JankType
     JANK_SF_SCHEDULING: FrameTimelineEvent.JankType
@@ -5256,6 +5258,7 @@ class FrameTimelineEvent(_message.Message):
     JANK_NON_ANIMATING: FrameTimelineEvent.JankType
     JANK_APP_RESYNCED_JITTER: FrameTimelineEvent.JankType
     JANK_DISPLAY_NOT_ON: FrameTimelineEvent.JankType
+    JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS: FrameTimelineEvent.JankType
     class JankSeverityType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         SEVERITY_UNKNOWN: _ClassVar[FrameTimelineEvent.JankSeverityType]
@@ -8897,8 +8900,8 @@ class DpuDsiRxFtraceEvent(_message.Message):
     CMD_FIELD_NUMBER: _ClassVar[int]
     RX_BUF_FIELD_NUMBER: _ClassVar[int]
     cmd: int
-    rx_buf: int
-    def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[int] = ...) -> None: ...
+    rx_buf: bytes
+    def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[bytes] = ...) -> None: ...
 
 class DpuDsiTxFtraceEvent(_message.Message):
     __slots__ = ("type", "tx_buf", "last", "delay_ms")
@@ -8907,10 +8910,10 @@ class DpuDsiTxFtraceEvent(_message.Message):
     LAST_FIELD_NUMBER: _ClassVar[int]
     DELAY_MS_FIELD_NUMBER: _ClassVar[int]
     type: int
-    tx_buf: int
+    tx_buf: bytes
     last: int
     delay_ms: int
-    def __init__(self, type: _Optional[int] = ..., tx_buf: _Optional[int] = ..., last: _Optional[int] = ..., delay_ms: _Optional[int] = ...) -> None: ...
+    def __init__(self, type: _Optional[int] = ..., tx_buf: _Optional[bytes] = ..., last: _Optional[int] = ..., delay_ms: _Optional[int] = ...) -> None: ...
 
 class DpuDispDpuUnderrunFtraceEvent(_message.Message):
     __slots__ = ("id", "frames_pending", "vsync_count")
@@ -11784,8 +11787,8 @@ class I2cWriteFtraceEvent(_message.Message):
     addr: int
     flags: int
     len: int
-    buf: int
-    def __init__(self, adapter_nr: _Optional[int] = ..., msg_nr: _Optional[int] = ..., addr: _Optional[int] = ..., flags: _Optional[int] = ..., len: _Optional[int] = ..., buf: _Optional[int] = ...) -> None: ...
+    buf: bytes
+    def __init__(self, adapter_nr: _Optional[int] = ..., msg_nr: _Optional[int] = ..., addr: _Optional[int] = ..., flags: _Optional[int] = ..., len: _Optional[int] = ..., buf: _Optional[bytes] = ...) -> None: ...
 
 class I2cResultFtraceEvent(_message.Message):
     __slots__ = ("adapter_nr", "nr_msgs", "ret")
@@ -11810,8 +11813,8 @@ class I2cReplyFtraceEvent(_message.Message):
     addr: int
     flags: int
     len: int
-    buf: int
-    def __init__(self, adapter_nr: _Optional[int] = ..., msg_nr: _Optional[int] = ..., addr: _Optional[int] = ..., flags: _Optional[int] = ..., len: _Optional[int] = ..., buf: _Optional[int] = ...) -> None: ...
+    buf: bytes
+    def __init__(self, adapter_nr: _Optional[int] = ..., msg_nr: _Optional[int] = ..., addr: _Optional[int] = ..., flags: _Optional[int] = ..., len: _Optional[int] = ..., buf: _Optional[bytes] = ...) -> None: ...
 
 class SmbusReadFtraceEvent(_message.Message):
     __slots__ = ("adapter_nr", "flags", "addr", "command", "protocol")
@@ -13666,8 +13669,8 @@ class DsiRxFtraceEvent(_message.Message):
     CMD_FIELD_NUMBER: _ClassVar[int]
     RX_BUF_FIELD_NUMBER: _ClassVar[int]
     cmd: int
-    rx_buf: int
-    def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[int] = ...) -> None: ...
+    rx_buf: bytes
+    def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[bytes] = ...) -> None: ...
 
 class DsiTxFtraceEvent(_message.Message):
     __slots__ = ("last", "tx_buf", "type")
@@ -13675,9 +13678,9 @@ class DsiTxFtraceEvent(_message.Message):
     TX_BUF_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
     last: int
-    tx_buf: int
+    tx_buf: bytes
     type: int
-    def __init__(self, last: _Optional[int] = ..., tx_buf: _Optional[int] = ..., type: _Optional[int] = ...) -> None: ...
+    def __init__(self, last: _Optional[int] = ..., tx_buf: _Optional[bytes] = ..., type: _Optional[int] = ...) -> None: ...
 
 class PanelWriteGenericFtraceEvent(_message.Message):
     __slots__ = ("pid", "trace_name", "trace_begin", "name", "type", "value")
@@ -14250,10 +14253,10 @@ class ScsiDispatchCmdErrorFtraceEvent(_message.Message):
     data_sglen: int
     prot_sglen: int
     prot_op: int
-    cmnd: str
+    cmnd: bytes
     driver_tag: int
     scheduler_tag: int
-    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., rtn: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., cmnd: _Optional[str] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ...) -> None: ...
+    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., rtn: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., cmnd: _Optional[bytes] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ...) -> None: ...
 
 class ScsiDispatchCmdTimeoutFtraceEvent(_message.Message):
     __slots__ = ("host_no", "channel", "id", "lun", "result", "opcode", "cmd_len", "data_sglen", "prot_sglen", "prot_op", "cmnd", "driver_tag", "scheduler_tag", "sense_key", "asc", "ascq")
@@ -14283,13 +14286,13 @@ class ScsiDispatchCmdTimeoutFtraceEvent(_message.Message):
     data_sglen: int
     prot_sglen: int
     prot_op: int
-    cmnd: str
+    cmnd: bytes
     driver_tag: int
     scheduler_tag: int
     sense_key: int
     asc: int
     ascq: int
-    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., result: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., cmnd: _Optional[str] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ..., sense_key: _Optional[int] = ..., asc: _Optional[int] = ..., ascq: _Optional[int] = ...) -> None: ...
+    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., result: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., cmnd: _Optional[bytes] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ..., sense_key: _Optional[int] = ..., asc: _Optional[int] = ..., ascq: _Optional[int] = ...) -> None: ...
 
 class ScsiEhWakeupFtraceEvent(_message.Message):
     __slots__ = ("host_no",)

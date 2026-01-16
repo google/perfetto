@@ -11,11 +11,11 @@ message DsiCmdFifoStatusFtraceEvent {
 }
 message DsiRxFtraceEvent {
   optional uint32 cmd = 1;
-  optional uint32 rx_buf = 2;
+  optional bytes rx_buf = 2;
 }
 message DsiTxFtraceEvent {
   optional uint32 last = 1;
-  optional uint32 tx_buf = 2;
+  optional bytes tx_buf = 2;
   optional uint32 type = 3;
 }
 message PanelWriteGenericFtraceEvent {

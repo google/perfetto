@@ -72,6 +72,38 @@ struct EventHeader {
   uint32_t time_delta : 27;
 };
 
+// Reads a __data_loc field and extracts the data start pointer and length.
+template <typename T>
+static bool GetDataLocStartAndLength(const uint8_t* start,
+                                     const uint8_t* field_start,
+                                     const uint8_t* end,
+                                     const Field& field,
+                                     T* out_data_start,
+                                     size_t* out_len) {
+  PERFETTO_DCHECK(field.ftrace_size == 4);
+  // See kernel header include/trace/trace_events.h
+  uint32_t data = 0;
+  const uint8_t* ptr = field_start;
+  if (!CpuReader::ReadAndAdvance(&ptr, end, &data)) {
+    PERFETTO_DFATAL("couldn't read __data_loc value");
+    return false;
+  }
+
+  const uint16_t offset = data & 0xffff;
+  const uint16_t len = (data >> 16) & 0xffff;
+  const uint8_t* const data_start = start + offset;
+
+  if (PERFETTO_UNLIKELY(len == 0))
+    return true;
+  if (PERFETTO_UNLIKELY(data_start < start || data_start + len > end)) {
+    PERFETTO_DFATAL("__data_loc points at invalid location");
+    return false;
+  }
+  *out_data_start = data_start;
+  *out_len = len;
+  return true;
+}
+
 // Reads a string from `start` until the first '\0' byte or until fixed_len
 // characters have been read. Appends it to `*out` as field `field_id`.
 void ReadIntoString(const uint8_t* start,
@@ -87,26 +119,28 @@ bool ReadDataLoc(const uint8_t* start,
                  const uint8_t* end,
                  const Field& field,
                  protozero::Message* message) {
-  PERFETTO_DCHECK(field.ftrace_size == 4);
-  // See kernel header include/trace/trace_events.h
-  uint32_t data = 0;
-  const uint8_t* ptr = field_start;
-  if (!CpuReader::ReadAndAdvance(&ptr, end, &data)) {
-    PERFETTO_DFATAL("couldn't read __data_loc value");
-    return false;
-  }
+  const uint8_t* string_start = nullptr;
+  size_t len = 0;
 
-  const uint16_t offset = data & 0xffff;
-  const uint16_t len = (data >> 16) & 0xffff;
-  const uint8_t* const string_start = start + offset;
-
-  if (PERFETTO_UNLIKELY(len == 0))
-    return true;
-  if (PERFETTO_UNLIKELY(string_start < start || string_start + len > end)) {
-    PERFETTO_DFATAL("__data_loc points at invalid location");
+  if (!GetDataLocStartAndLength(start, field_start, end, field, &string_start,
+                                &len))
     return false;
-  }
   ReadIntoString(string_start, len, field.proto_field_id, message);
+  return true;
+}
+
+bool ReadDataLocUint8(const uint8_t* start,
+                      const uint8_t* field_start,
+                      const uint8_t* end,
+                      const Field& field,
+                      protozero::Message* message) {
+  const uint8_t* data_start = nullptr;
+  size_t len = 0;
+
+  if (!GetDataLocStartAndLength(start, field_start, end, field, &data_start,
+                                &len))
+    return false;
+  message->AppendBytes(field.proto_field_id, data_start, len);
   return true;
 }
 
@@ -915,6 +949,8 @@ bool CpuReader::ParseField(const Field& field,
     }
     case kDataLocToString:
       return ReadDataLoc(start, field_start, end, field, message);
+    case kDataLocUint8ToBytes:
+      return ReadDataLocUint8(start, field_start, end, field, message);
     case kBoolToUint32:
     case kBoolToUint64:
       ReadIntoVarInt<uint8_t>(field_start, field_id, message);

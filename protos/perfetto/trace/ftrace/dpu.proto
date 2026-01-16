@@ -19,11 +19,11 @@ message DpuDsiCmdFifoStatusFtraceEvent {
 }
 message DpuDsiRxFtraceEvent {
   optional uint32 cmd = 1;
-  optional uint32 rx_buf = 2;
+  optional bytes rx_buf = 2;
 }
 message DpuDsiTxFtraceEvent {
   optional uint32 type = 1;
-  optional uint32 tx_buf = 2;
+  optional bytes tx_buf = 2;
   optional uint32 last = 3;
   optional uint32 delay_ms = 4;
 }

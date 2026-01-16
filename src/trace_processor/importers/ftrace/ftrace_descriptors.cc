@@ -230,7 +230,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
             {"addr", ProtoSchemaType::kUint32},
             {"flags", ProtoSchemaType::kUint32},
             {"len", ProtoSchemaType::kUint32},
-            {"buf", ProtoSchemaType::kUint32},
+            {"buf", ProtoSchemaType::kBytes},
         },
     },
     {
@@ -253,7 +253,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
             {"addr", ProtoSchemaType::kUint32},
             {"flags", ProtoSchemaType::kUint32},
             {"len", ProtoSchemaType::kUint32},
-            {"buf", ProtoSchemaType::kUint32},
+            {"buf", ProtoSchemaType::kBytes},
         },
     },
     {
@@ -4749,7 +4749,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
         {
             {},
             {"cmd", ProtoSchemaType::kUint32},
-            {"rx_buf", ProtoSchemaType::kUint32},
+            {"rx_buf", ProtoSchemaType::kBytes},
         },
     },
     {
@@ -4758,7 +4758,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
         {
             {},
             {"last", ProtoSchemaType::kUint32},
-            {"tx_buf", ProtoSchemaType::kUint32},
+            {"tx_buf", ProtoSchemaType::kBytes},
             {"type", ProtoSchemaType::kUint32},
         },
     },
@@ -5447,7 +5447,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
         {
             {},
             {"cmd", ProtoSchemaType::kUint32},
-            {"rx_buf", ProtoSchemaType::kUint32},
+            {"rx_buf", ProtoSchemaType::kBytes},
         },
     },
     {
@@ -5456,7 +5456,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
         {
             {},
             {"type", ProtoSchemaType::kUint32},
-            {"tx_buf", ProtoSchemaType::kUint32},
+            {"tx_buf", ProtoSchemaType::kBytes},
             {"last", ProtoSchemaType::kUint32},
             {"delay_ms", ProtoSchemaType::kUint32},
         },
@@ -6636,7 +6636,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
             {"data_sglen", ProtoSchemaType::kUint32},
             {"prot_sglen", ProtoSchemaType::kUint32},
             {"prot_op", ProtoSchemaType::kUint32},
-            {"cmnd", ProtoSchemaType::kString},
+            {"cmnd", ProtoSchemaType::kBytes},
             {"driver_tag", ProtoSchemaType::kInt32},
             {"scheduler_tag", ProtoSchemaType::kInt32},
         },
@@ -6656,7 +6656,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
             {"data_sglen", ProtoSchemaType::kUint32},
             {"prot_sglen", ProtoSchemaType::kUint32},
             {"prot_op", ProtoSchemaType::kUint32},
-            {"cmnd", ProtoSchemaType::kString},
+            {"cmnd", ProtoSchemaType::kBytes},
             {"driver_tag", ProtoSchemaType::kInt32},
             {"scheduler_tag", ProtoSchemaType::kInt32},
             {"sense_key", ProtoSchemaType::kUint32},

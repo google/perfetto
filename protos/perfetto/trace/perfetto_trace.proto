@@ -8959,11 +8959,11 @@ message DpuDsiCmdFifoStatusFtraceEvent {
 }
 message DpuDsiRxFtraceEvent {
   optional uint32 cmd = 1;
-  optional uint32 rx_buf = 2;
+  optional bytes rx_buf = 2;
 }
 message DpuDsiTxFtraceEvent {
   optional uint32 type = 1;
-  optional uint32 tx_buf = 2;
+  optional bytes tx_buf = 2;
   optional uint32 last = 3;
   optional uint32 delay_ms = 4;
 }
@@ -10504,7 +10504,7 @@ message I2cWriteFtraceEvent {
   optional uint32 addr = 3;
   optional uint32 flags = 4;
   optional uint32 len = 5;
-  optional uint32 buf = 6;
+  optional bytes buf = 6;
 }
 message I2cResultFtraceEvent {
   optional int32 adapter_nr = 1;
@@ -10517,7 +10517,7 @@ message I2cReplyFtraceEvent {
   optional uint32 addr = 3;
   optional uint32 flags = 4;
   optional uint32 len = 5;
-  optional uint32 buf = 6;
+  optional bytes buf = 6;
 }
 message SmbusReadFtraceEvent {
   optional int32 adapter_nr = 1;
@@ -11520,11 +11520,11 @@ message DsiCmdFifoStatusFtraceEvent {
 }
 message DsiRxFtraceEvent {
   optional uint32 cmd = 1;
-  optional uint32 rx_buf = 2;
+  optional bytes rx_buf = 2;
 }
 message DsiTxFtraceEvent {
   optional uint32 last = 1;
-  optional uint32 tx_buf = 2;
+  optional bytes tx_buf = 2;
   optional uint32 type = 3;
 }
 message PanelWriteGenericFtraceEvent {
@@ -11865,7 +11865,7 @@ message ScsiDispatchCmdErrorFtraceEvent {
   optional uint32 data_sglen = 8;
   optional uint32 prot_sglen = 9;
   optional uint32 prot_op = 10;
-  optional string cmnd = 11;
+  optional bytes cmnd = 11;
   optional int32 driver_tag = 12;
   optional int32 scheduler_tag = 13;
 }
@@ -11880,7 +11880,7 @@ message ScsiDispatchCmdTimeoutFtraceEvent {
   optional uint32 data_sglen = 8;
   optional uint32 prot_sglen = 9;
   optional uint32 prot_op = 10;
-  optional string cmnd = 11;
+  optional bytes cmnd = 11;
   optional int32 driver_tag = 12;
   optional int32 scheduler_tag = 13;
   optional uint32 sense_key = 14;
