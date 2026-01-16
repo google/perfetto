@@ -455,8 +455,8 @@ function flamegraphMetricsForHeapProfile(
   upid: number,
   metrics: {name: string; unit: string; columnName: string}[],
 ) {
-  return metricsFromTableOrSubquery(
-    `
+  return metricsFromTableOrSubquery({
+    tableOrSubquery: `
       (
         select
           id,
@@ -480,17 +480,19 @@ function flamegraphMetricsForHeapProfile(
         ))
       )
     `,
-    metrics,
-    'include perfetto module android.memory.heap_profile.callstacks',
-    [{name: 'mapping_name', displayName: 'Mapping'}],
-    [
+    tableMetrics: metrics,
+    dependencySql:
+      'include perfetto module android.memory.heap_profile.callstacks',
+    unaggregatableProperties: [{name: 'mapping_name', displayName: 'Mapping'}],
+    aggregatableProperties: [
       {
         name: 'source_location',
         displayName: 'Source Location',
         mergeAggregation: 'ONE_OR_SUMMARY',
       },
     ],
-  );
+    nameColumnLabel: 'Symbol',
+  });
 }
 
 function getFlamegraphTitle(type: ProfileType) {
