@@ -103,7 +103,7 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
     unrecoverable_parse_error_ = true;
     status = base::ErrStatus(
         "Trace parse failure (%s) (ERR:tp-parse). "
-        "The trace file is likely corrupt.",
+        "The trace file is corrupt.",
         status.c_message());
   }
   return status;
