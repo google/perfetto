@@ -147,8 +147,8 @@ function renderProfilingDetailsPanel(
 ): m.Children {
   const flamegraph = new QueryFlamegraph(trace);
   const metrics: ReadonlyArray<QueryFlamegraphMetric> =
-    metricsFromTableOrSubquery(
-      `
+    metricsFromTableOrSubquery({
+      tableOrSubquery: `
         (
           select
             id,
@@ -162,23 +162,26 @@ function renderProfilingDetailsPanel(
           ))
         )
       `,
-      [
+      tableMetrics: [
         {
           name: config.metricName,
           unit: '',
           columnName: 'self_count',
         },
       ],
-      `include perfetto module ${config.sqlModule}`,
-      [{name: 'mapping_name', displayName: 'Mapping'}],
-      [
+      dependencySql: `include perfetto module ${config.sqlModule}`,
+      unaggregatableProperties: [
+        {name: 'mapping_name', displayName: 'Mapping'},
+      ],
+      aggregatableProperties: [
         {
           name: 'source_location',
           displayName: 'Source Location',
           mergeAggregation: 'ONE_OR_SUMMARY',
         },
       ],
-    );
+      nameColumnLabel: 'Symbol',
+    });
 
   const state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
 
