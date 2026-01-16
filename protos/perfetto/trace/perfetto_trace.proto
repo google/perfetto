@@ -15570,6 +15570,8 @@ message InternedData {
   repeated InternedString viewcapture_window_name = 39;
   repeated InternedString viewcapture_view_id = 40;
   repeated InternedString viewcapture_class_name = 41;
+  repeated InternedString viewcapture_content_description = 45;
+  repeated InternedString viewcapture_text = 46;
 
   // Interned context for android.app_wakelocks.
   repeated AppWakelockInfo app_wakelock_info = 42;
