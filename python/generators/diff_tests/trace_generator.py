@@ -16,6 +16,7 @@
 import os
 import struct
 import subprocess
+import sys
 import tempfile
 from typing import Any, IO, List, Optional
 
@@ -53,7 +54,7 @@ class TraceGenerator:
   def serialize_python_trace(self, root_dir: str, python_trace_path: str,
                              out_stream: IO[bytes]):
     python_cmd = [
-        'python3',
+        sys.executable,
         python_trace_path,
         self.trace_descriptor_path,
     ]
