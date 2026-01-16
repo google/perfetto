@@ -386,8 +386,8 @@ export class BreakdownTracks {
     return await this.createTrackNode(
       title,
       newFilters,
-      (uri: string, filtersClause: string) => {
-        return SliceTrack.createMaterialized({
+      async (uri: string, filtersClause: string) => {
+        return SliceTrack.create({
           trace: this.props.trace,
           uri,
           dataset: new SourceDataset({
@@ -428,6 +428,7 @@ export class BreakdownTracks {
         return createQueryCounterTrack({
           trace: this.props.trace,
           uri,
+          materialize: false,
           data: {
             sqlSource: `
               SELECT ts, value FROM
