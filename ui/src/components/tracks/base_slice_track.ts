@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {colorCompare} from '../../base/color';
-import {Point2D} from '../../base/geom';
 import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
@@ -812,8 +811,7 @@ export abstract class BaseSliceTrack<
     };
   }
 
-  private findSlice(pos: Point2D, timescale: TimeScale): undefined | SliceT {
-    const {x, y} = pos;
+  private findSlice({x, y, timescale}: TrackMouseEvent): undefined | SliceT {
     const trackHeight = this.computedTrackHeight;
     const sliceHeight = this.sliceLayout.sliceHeight;
     const padding = this.sliceLayout.padding;
@@ -854,9 +852,9 @@ export abstract class BaseSliceTrack<
     return undefined;
   }
 
-  onMouseMove({x, y, timescale}: TrackMouseEvent): void {
+  onMouseMove(e: TrackMouseEvent): void {
     const prevHoveredSlice = this.hoveredSlice;
-    this.hoveredSlice = this.findSlice({x, y}, timescale);
+    this.hoveredSlice = this.findSlice(e);
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
       if (this.hoveredSlice === undefined) {
@@ -879,7 +877,7 @@ export abstract class BaseSliceTrack<
   }
 
   onMouseClick(event: TrackMouseEvent): boolean {
-    const slice = this.findSlice(event, event.timescale);
+    const slice = this.findSlice(event);
     if (slice === undefined) {
       return false;
     }
