@@ -73,12 +73,11 @@ struct EventHeader {
 };
 
 // Reads a __data_loc field and extracts the data start pointer and length.
-template <typename T>
 static bool GetDataLocStartAndLength(const uint8_t* start,
                                      const uint8_t* field_start,
                                      const uint8_t* end,
                                      const Field& field,
-                                     T* out_data_start,
+                                     const uint8_t** out_data_start,
                                      size_t* out_len) {
   PERFETTO_DCHECK(field.ftrace_size == 4);
   // See kernel header include/trace/trace_events.h
