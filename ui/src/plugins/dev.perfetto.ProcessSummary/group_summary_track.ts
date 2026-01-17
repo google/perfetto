@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
+import {Monitor} from '../../base/monitor';
 import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
@@ -30,6 +31,7 @@ import {
   TrackRenderContext,
 } from '../../public/track';
 import {Point2D} from '../../base/geom';
+import {TimeScale} from '../../base/time_scale';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
@@ -65,16 +67,52 @@ export interface Config {
 
 type Mode = 'sched' | 'slices';
 
+interface GroupSummaryHover {
+  utid: number;
+  lane: number;
+  count: number;
+  pid?: bigint;
+}
+
+function computeHover(
+  pos: Point2D | undefined,
+  timescale: TimeScale,
+  data: Data,
+  threads: ThreadMap,
+): GroupSummaryHover | undefined {
+  if (pos === undefined) return undefined;
+
+  const {x, y} = pos;
+  if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) return undefined;
+
+  const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+  const lane = Math.floor((y - MARGIN_TOP) / (laneHeight + 1));
+  const t = timescale.pxToHpTime(x).toTime('floor');
+
+  const [i, j] = searchRange(data.starts, t, searchEq(data.lanes, lane));
+  if (i === j || i >= data.starts.length || t > data.ends[i]) return undefined;
+
+  const utid = data.utids[i];
+  const count = data.counts[i];
+  const pid = threads.get(utid)?.pid;
+  return {utid, lane, count, pid};
+}
+
 export class GroupSummaryTrack implements TrackRenderer {
   private mousePos?: Point2D;
-  private utidHoveredInThisTrack = -1;
-  private laneHoveredInThisTrack = -1;
-  private countHoveredInThisTrack = -1;
+  private hover?: GroupSummaryHover;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private trackUuid = uuidv4Sql();
   private mode: Mode = 'slices';
   private maxLanes: number = 1;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
+
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly hoverMonitor = new Monitor([
+    () => this.hover?.utid,
+    () => this.hover?.lane,
+    () => this.hover?.count,
+  ]);
 
   constructor(
     private readonly trace: Trace,
@@ -346,24 +384,20 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   renderTooltip(): m.Children {
-    if (this.mousePos === undefined) {
+    if (this.hover === undefined) {
       return undefined;
     }
 
     if (this.mode === 'sched') {
       // Show thread/process info for scheduling mode
-      if (this.utidHoveredInThisTrack === -1) {
-        return undefined;
-      }
-
-      const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
+      const hoveredThread = this.threads.get(this.hover.utid);
       if (!hoveredThread) {
         return undefined;
       }
 
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
 
-      const count = this.countHoveredInThisTrack;
+      const count = this.hover.count;
       const countDiv = count > 1 && m('div', `and ${count - 1} other events`);
       if (hoveredThread.pid !== undefined) {
         const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
@@ -373,7 +407,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       }
     } else {
       // Show track name/info for slice mode
-      const laneIndex = this.laneHoveredInThisTrack;
+      const laneIndex = this.hover.lane;
       if (laneIndex < 0 || laneIndex >= this.sliceTracks.length) {
         return undefined;
       }
@@ -382,7 +416,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       const track = this.trace.tracks.getTrack(trackUri);
       const trackTitle = (track as {title?: string})?.title ?? trackUri;
 
-      const count = this.countHoveredInThisTrack;
+      const count = this.hover.count;
       const countDiv = count > 1 && m('div', `${count} slices`);
 
       return m('.tooltip', [m('div', `Track: ${trackTitle}`), countDiv]);
@@ -393,6 +427,16 @@ export class GroupSummaryTrack implements TrackRenderer {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
+
+    // Compute and apply hover state. Done during render so panning updates it.
+    this.hover = computeHover(this.mousePos, timescale, data, this.threads);
+    if (this.hoverMonitor.ifStateChanged()) {
+      if (this.mode === 'sched') {
+        this.trace.timeline.hoveredUtid = this.hover?.utid;
+        this.trace.timeline.hoveredPid = this.hover?.pid;
+      }
+      this.trace.raf.scheduleFullRedraw();
+    }
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
@@ -457,54 +501,11 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  onMouseMove({x, y, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
+  onMouseMove({x, y}: TrackMouseEvent) {
     this.mousePos = {x, y};
-    if (data === undefined) return;
-    if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
-      this.utidHoveredInThisTrack = -1;
-      this.laneHoveredInThisTrack = -1;
-      this.countHoveredInThisTrack = -1;
-      this.trace.timeline.hoveredUtid = undefined;
-      this.trace.timeline.hoveredPid = undefined;
-      return;
-    }
-
-    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
-    const lane = Math.floor((y - MARGIN_TOP) / (laneHeight + 1));
-    const t = timescale.pxToHpTime(x).toTime('floor');
-
-    const [i, j] = searchRange(data.starts, t, searchEq(data.lanes, lane));
-    if (i === j || i >= data.starts.length || t > data.ends[i]) {
-      this.utidHoveredInThisTrack = -1;
-      this.laneHoveredInThisTrack = -1;
-      this.countHoveredInThisTrack = -1;
-      this.trace.timeline.hoveredUtid = undefined;
-      this.trace.timeline.hoveredPid = undefined;
-      return;
-    }
-
-    const utid = data.utids[i];
-    const count = data.counts[i];
-    this.utidHoveredInThisTrack = utid;
-    this.laneHoveredInThisTrack = lane;
-    this.countHoveredInThisTrack = count;
-
-    if (this.mode === 'sched') {
-      const threadInfo = this.threads.get(utid);
-      this.trace.timeline.hoveredUtid = utid;
-      this.trace.timeline.hoveredPid = threadInfo?.pid;
-    }
-
-    // Trigger redraw to update tooltip
-    m.redraw();
   }
 
   onMouseOut() {
-    this.utidHoveredInThisTrack = -1;
-    this.laneHoveredInThisTrack = -1;
-    this.trace.timeline.hoveredUtid = undefined;
-    this.trace.timeline.hoveredPid = undefined;
     this.mousePos = undefined;
   }
 }
