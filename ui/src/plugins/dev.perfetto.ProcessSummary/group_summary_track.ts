@@ -99,7 +99,6 @@ function computeHover(
 }
 
 export class GroupSummaryTrack implements TrackRenderer {
-  private mousePos?: Point2D;
   private hover?: GroupSummaryHover;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private trackUuid = uuidv4Sql();
@@ -112,11 +111,6 @@ export class GroupSummaryTrack implements TrackRenderer {
     () => this.hover?.utid,
     () => this.hover?.lane,
     () => this.hover?.count,
-  ]);
-
-  // Monitor for mouse position changes (avoids recomputing hover on every frame).
-  private readonly mousePosMonitor = new Monitor([
-    () => this.mousePos !== undefined,
   ]);
 
   constructor(
@@ -433,20 +427,6 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     if (data === undefined) return; // Can't possibly draw anything.
 
-    // Compute and apply hover state. Only recompute when mouse is over this
-    // track or just left (to clear hover state).
-    const mousePosChanged = this.mousePosMonitor.ifStateChanged();
-    if (this.mousePos !== undefined || mousePosChanged) {
-      this.hover = computeHover(this.mousePos, timescale, data, this.threads);
-      if (this.hoverMonitor.ifStateChanged()) {
-        if (this.mode === 'sched') {
-          this.trace.timeline.hoveredUtid = this.hover?.utid;
-          this.trace.timeline.hoveredPid = this.hover?.pid;
-        }
-        this.trace.raf.scheduleFullRedraw();
-      }
-    }
-
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
@@ -510,11 +490,27 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  onMouseMove({x, y}: TrackMouseEvent) {
-    this.mousePos = {x, y};
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
+    const data = this.fetcher.data;
+    if (data === undefined) return;
+    this.hover = computeHover({x, y}, timescale, data, this.threads);
+    if (this.hoverMonitor.ifStateChanged()) {
+      if (this.mode === 'sched') {
+        this.trace.timeline.hoveredUtid = this.hover?.utid;
+        this.trace.timeline.hoveredPid = this.hover?.pid;
+      }
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   onMouseOut() {
-    this.mousePos = undefined;
+    this.hover = undefined;
+    if (this.hoverMonitor.ifStateChanged()) {
+      if (this.mode === 'sched') {
+        this.trace.timeline.hoveredUtid = undefined;
+        this.trace.timeline.hoveredPid = undefined;
+      }
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 }

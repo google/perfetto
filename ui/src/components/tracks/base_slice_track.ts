@@ -199,15 +199,9 @@ export abstract class BaseSliceTrack<
 
   private charWidth = -1;
   protected hoveredSlice?: SliceT;
-  private mousePos?: Point2D;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
-
-  // Monitor for mouse position changes (avoids recomputing hover on every frame).
-  private readonly mousePosMonitor = new Monitor([
-    () => this.mousePos !== undefined,
-  ]);
 
   private maxDataDepth = 0;
 
@@ -529,25 +523,6 @@ export abstract class BaseSliceTrack<
 
       if (selectedId === slice.id) {
         discoveredSelection = slice;
-      }
-    }
-
-    // Compute and apply hover state. Only recompute when mouse is over this
-    // track or just left (to clear hover state).
-    const mousePosChanged = this.mousePosMonitor.ifStateChanged();
-    if (this.mousePos !== undefined || mousePosChanged) {
-      const prevHoveredSlice = this.hoveredSlice;
-      this.hoveredSlice = this.mousePos
-        ? this.findSlice(this.mousePos, timescale)
-        : undefined;
-      if (this.hoverMonitor.ifStateChanged()) {
-        this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
-        if (this.hoveredSlice === undefined) {
-          this.onSliceOut({slice: assertExists(prevHoveredSlice)});
-        } else {
-          this.onSliceOver({slice: this.hoveredSlice});
-        }
-        this.trace.raf.scheduleFullRedraw();
       }
     }
 
@@ -879,12 +854,28 @@ export abstract class BaseSliceTrack<
     return undefined;
   }
 
-  onMouseMove({x, y}: TrackMouseEvent): void {
-    this.mousePos = {x, y};
+  onMouseMove({x, y, timescale}: TrackMouseEvent): void {
+    const prevHoveredSlice = this.hoveredSlice;
+    this.hoveredSlice = this.findSlice({x, y}, timescale);
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
+      if (this.hoveredSlice === undefined) {
+        this.onSliceOut({slice: assertExists(prevHoveredSlice)});
+      } else {
+        this.onSliceOver({slice: this.hoveredSlice});
+      }
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   onMouseOut(): void {
-    this.mousePos = undefined;
+    const prevHoveredSlice = this.hoveredSlice;
+    this.hoveredSlice = undefined;
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.timeline.highlightedSliceId = undefined;
+      this.onSliceOut({slice: assertExists(prevHoveredSlice)});
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   onMouseClick(event: TrackMouseEvent): boolean {

@@ -424,7 +424,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
   private limits?: CounterLimits;
 
   private hover?: CounterTooltipState;
-  private mousePos?: Point2D;
   private options?: CounterOptions;
   private readonly rangeSharer: RangeSharer;
 
@@ -432,11 +431,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
   private readonly hoverMonitor = new Monitor([
     () => this.hover?.ts,
     () => this.hover?.lastDisplayValue,
-  ]);
-
-  // Monitor for mouse position changes (avoids recomputing hover on every frame).
-  private readonly mousePosMonitor = new Monitor([
-    () => this.mousePos !== undefined,
   ]);
 
   private readonly trash: AsyncDisposableStack;
@@ -787,16 +781,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     const limits = this.limits;
     const data = this.counters;
 
-    // Compute and apply hover state. Only recompute when mouse is over this
-    // track or just left (to clear hover state).
-    const mousePosChanged = this.mousePosMonitor.ifStateChanged();
-    if (this.mousePos !== undefined || mousePosChanged) {
-      this.hover = computeCounterHover(this.mousePos, timescale, data);
-      if (this.hoverMonitor.ifStateChanged()) {
-        this.trace.raf.scheduleFullRedraw();
-      }
-    }
-
     if (data.timestamps.length === 0 || limits === undefined) {
       checkerboardExcept(
         ctx,
@@ -968,12 +952,18 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     );
   }
 
-  onMouseMove({x, y}: TrackMouseEvent) {
-    this.mousePos = {x, y};
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
+    this.hover = computeCounterHover({x, y}, timescale, this.counters);
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   onMouseOut() {
-    this.mousePos = undefined;
+    this.hover = undefined;
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   async onDestroy(): Promise<void> {
