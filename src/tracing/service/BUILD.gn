@@ -92,6 +92,7 @@ perfetto_unittest_source_set("unittests") {
     ":service",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/common:semantic_type_cpp",
     "../../../protos/perfetto/trace:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/ftrace:cpp",
