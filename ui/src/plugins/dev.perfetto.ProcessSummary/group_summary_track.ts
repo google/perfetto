@@ -18,7 +18,12 @@ import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import m from 'mithril';
-import {colorForThread, colorForTid} from '../../components/colorizer';
+import {
+  colorForThread,
+  colorForTid,
+  USE_CONSISTENT_COLORS,
+} from '../../components/colorizer';
+import {ColorScheme} from '../../base/color_scheme';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
@@ -57,6 +62,22 @@ interface Data extends TrackData {
   ends: BigInt64Array;
   utids: Int32Array;
   lanes: Uint32Array;
+}
+
+// Pre-computed render data. Rebuilt when any rendering state changes.
+// Ordered to minimize fillStyle changes during rendering.
+interface RenderCache {
+  readonly tStarts: BigInt64Array;
+  readonly tEnds: BigInt64Array;
+  readonly ys: Float64Array;
+  readonly length: number;
+  readonly laneHeight: number;
+  // Sparse: only store where fillStyle changes.
+  // runs[i] = {index, fillStyle} means "from index onwards, use fillStyle"
+  readonly runs: ReadonlyArray<{
+    readonly index: number;
+    readonly fillStyle: string;
+  }>;
 }
 
 export interface Config {
@@ -106,6 +127,10 @@ export class GroupSummaryTrack implements TrackRenderer {
   private maxLanes: number = 1;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
 
+  // Pre-computed render cache. Rebuilt when any rendering state changes.
+  private renderCache?: RenderCache;
+  private readonly renderMonitor: Monitor;
+
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
     () => this.hover?.utid,
@@ -121,6 +146,12 @@ export class GroupSummaryTrack implements TrackRenderer {
     hasSched: boolean,
   ) {
     this.mode = hasSched ? 'sched' : 'slices';
+    this.renderMonitor = new Monitor([
+      () => this.fetcher.data,
+      () => USE_CONSISTENT_COLORS.get(),
+      hasSched ? () => this.trace.timeline.hoveredUtid : () => undefined,
+      hasSched ? () => this.trace.timeline.hoveredPid : () => undefined,
+    ]);
   }
 
   async onCreate(ctx: TrackContext): Promise<void> {
@@ -438,56 +469,126 @@ export class GroupSummaryTrack implements TrackRenderer {
       timescale.timeToPx(data.end),
     );
 
-    assertTrue(data.starts.length === data.ends.length);
-    assertTrue(data.starts.length === data.utids.length);
+    // Rebuild render cache if any rendering state changed (slow path).
+    if (this.renderMonitor.ifStateChanged()) {
+      this.renderCache = this.buildRenderCache(data);
+    }
 
-    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+    const cache = this.renderCache;
+    if (cache === undefined || cache.runs.length === 0) return;
 
-    for (let i = 0; i < data.ends.length; i++) {
-      const tStart = Time.fromRaw(data.starts[i]);
-      const tEnd = Time.fromRaw(data.ends[i]);
+    // Fast path: iterate with sparse fillStyle runs.
+    const {tStarts, tEnds, ys, runs, laneHeight} = cache;
+    let runIdx = 0;
+    ctx.fillStyle = runs[0].fillStyle;
 
-      // Cull slices that lie completely outside the visible window
+    for (let i = 0; i < cache.length; i++) {
+      const tStart = Time.fromRaw(tStarts[i]);
+      const tEnd = Time.fromRaw(tEnds[i]);
+
+      // Cull slices that lie completely outside the visible window.
       if (!visibleWindow.overlaps(tStart, tEnd)) continue;
 
-      const utid = data.utids[i];
-      const lane = data.lanes[i];
+      // Advance to next fillStyle run if needed (integer comparison, not string).
+      if (runIdx + 1 < runs.length && i >= runs[runIdx + 1].index) {
+        ctx.fillStyle = runs[++runIdx].fillStyle;
+      }
 
       const rectStart = Math.floor(timescale.timeToPx(tStart));
       const rectEnd = Math.floor(timescale.timeToPx(tEnd));
-      const rectWidth = Math.max(1, rectEnd - rectStart);
+      ctx.fillRect(
+        rectStart,
+        ys[i],
+        Math.max(1, rectEnd - rectStart),
+        laneHeight,
+      );
+    }
+  }
 
-      let colorScheme;
+  private buildRenderCache(data: Data): RenderCache {
+    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+    const numRows = data.length;
 
-      if (this.mode === 'sched') {
-        // Scheduling mode: color by thread (utid)
-        const threadInfo = this.threads.get(utid);
-        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-        const pid = (threadInfo ? threadInfo.pid : -1) || -1;
+    // Parallel arrays for render data.
+    const tStarts = new BigInt64Array(numRows);
+    const tEnds = new BigInt64Array(numRows);
+    const ys = new Float64Array(numRows);
+    const runs: Array<{index: number; fillStyle: string}> = [];
 
-        const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-        const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-        const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-        colorScheme = colorForThread(threadInfo);
-
-        if (isHovering && !isThreadHovered) {
-          if (!isProcessHovered) {
-            ctx.fillStyle = colorScheme.disabled.cssString;
-          } else {
-            ctx.fillStyle = colorScheme.variant.cssString;
-          }
-        } else {
-          ctx.fillStyle = colorScheme.base.cssString;
+    if (this.mode === 'sched') {
+      // Build color scheme cache per unique utid.
+      const colorSchemes = new Map<number, ColorScheme>();
+      for (let i = 0; i < numRows; i++) {
+        const utid = data.utids[i];
+        if (!colorSchemes.has(utid)) {
+          const threadInfo = this.threads.get(utid);
+          colorSchemes.set(utid, colorForThread(threadInfo));
         }
-      } else {
-        // Slice mode: consistent color based on pidForColor
-        colorScheme = colorForTid(this.config.pidForColor);
-        ctx.fillStyle = colorScheme.base.cssString;
       }
 
-      const y = MARGIN_TOP + laneHeight * lane + lane;
-      ctx.fillRect(rectStart, y, rectWidth, laneHeight);
+      const hoveredUtid = this.trace.timeline.hoveredUtid;
+      const hoveredPid = this.trace.timeline.hoveredPid;
+      const isHovering = hoveredUtid !== undefined;
+
+      // First pass: compute fillStyle for each element.
+      const fillStyles: string[] = new Array(numRows);
+      for (let i = 0; i < numRows; i++) {
+        const utid = data.utids[i];
+        const colorScheme = colorSchemes.get(utid)!;
+
+        if (isHovering && hoveredUtid !== utid) {
+          const threadInfo = this.threads.get(utid);
+          const pid = (threadInfo ? threadInfo.pid : -1) ?? -1;
+          if (hoveredPid !== pid) {
+            fillStyles[i] = colorScheme.disabled.cssString;
+          } else {
+            fillStyles[i] = colorScheme.variant.cssString;
+          }
+        } else {
+          fillStyles[i] = colorScheme.base.cssString;
+        }
+      }
+
+      // Sort indices by fillStyle to minimize context switches.
+      const sortedIndices = new Uint32Array(numRows);
+      for (let i = 0; i < numRows; i++) {
+        sortedIndices[i] = i;
+      }
+      sortedIndices.sort((a, b) => {
+        const cmp = fillStyles[a].localeCompare(fillStyles[b]);
+        return cmp !== 0 ? cmp : a - b; // Stable sort by original index
+      });
+
+      // Build sparse runs array and populate render data.
+      let lastFillStyle = '';
+      for (let si = 0; si < numRows; si++) {
+        const i = sortedIndices[si];
+        const lane = data.lanes[i];
+        const fillStyle = fillStyles[i];
+
+        if (fillStyle !== lastFillStyle) {
+          runs.push({index: si, fillStyle});
+          lastFillStyle = fillStyle;
+        }
+
+        tStarts[si] = data.starts[i];
+        tEnds[si] = data.ends[i];
+        ys[si] = MARGIN_TOP + laneHeight * lane + lane;
+      }
+    } else {
+      // Slices mode: single color for all.
+      const colorScheme = colorForTid(this.config.pidForColor);
+      runs.push({index: 0, fillStyle: colorScheme.base.cssString});
+
+      for (let i = 0; i < numRows; i++) {
+        const lane = data.lanes[i];
+        tStarts[i] = data.starts[i];
+        tEnds[i] = data.ends[i];
+        ys[i] = MARGIN_TOP + laneHeight * lane + lane;
+      }
     }
+
+    return {tStarts, tEnds, ys, length: numRows, laneHeight, runs};
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {

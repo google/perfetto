@@ -62,6 +62,14 @@ interface CpuFreqHover {
   idle: number;
 }
 
+// Pre-computed render colors. Rebuilt when hover state changes.
+interface RenderCache {
+  readonly fillStyle: string;
+  readonly strokeStyle: string;
+  readonly hoverFillStyle: string;
+  readonly hoverStrokeStyle: string;
+}
+
 function computeHover(
   pos: Point2D | undefined,
   timescale: TimeScale,
@@ -89,6 +97,10 @@ export class CpuFreqTrack implements TrackRenderer {
 
   private trash!: AsyncDisposableStack;
 
+  // Pre-computed render cache. Rebuilt when hover state changes.
+  private renderCache?: RenderCache;
+  private readonly renderMonitor: Monitor;
+
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
     () => this.hover?.ts,
@@ -99,7 +111,9 @@ export class CpuFreqTrack implements TrackRenderer {
   constructor(
     private readonly config: Config,
     private readonly trace: Trace,
-  ) {}
+  ) {
+    this.renderMonitor = new Monitor([() => this.trace.timeline.hoveredUtid]);
+  }
 
   async onCreate() {
     this.trash = new AsyncDisposableStack();
@@ -321,16 +335,16 @@ export class CpuFreqTrack implements TrackRenderer {
     // The values we have for cpufreq are in kHz so +1 to unitGroup.
     const yLabel = `${num} ${kUnits[unitGroup + 1]}Hz`;
 
-    const color = colorForCpu(this.config.cpu);
-    let saturation = 45;
-    if (this.trace.timeline.hoveredUtid !== undefined) {
-      saturation = 0;
+    // Rebuild render cache if hover state changed (slow path).
+    if (this.renderMonitor.ifStateChanged()) {
+      this.renderCache = this.buildRenderCache();
     }
 
-    ctx.fillStyle = color
-      .setHSL({s: saturation, l: 50})
-      .setAlpha(0.6).cssString;
-    ctx.strokeStyle = color.setHSL({s: saturation, l: 50}).cssString;
+    const cache = this.renderCache;
+    if (cache === undefined) return;
+
+    ctx.fillStyle = cache.fillStyle;
+    ctx.strokeStyle = cache.strokeStyle;
 
     const calculateX = (timestamp: time) => {
       return Math.floor(timescale.timeToPx(timestamp));
@@ -411,8 +425,8 @@ export class CpuFreqTrack implements TrackRenderer {
     ctx.font = '10px Roboto Condensed';
 
     if (this.hover !== undefined) {
-      ctx.fillStyle = color.setHSL({s: 45, l: 75}).cssString;
-      ctx.strokeStyle = color.setHSL({s: 45, l: 45}).cssString;
+      ctx.fillStyle = cache.hoverFillStyle;
+      ctx.strokeStyle = cache.hoverStrokeStyle;
 
       const xStart = Math.floor(timescale.timeToPx(this.hover.ts));
       const xEnd =
@@ -478,5 +492,17 @@ export class CpuFreqTrack implements TrackRenderer {
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.raf.scheduleFullRedraw();
     }
+  }
+
+  private buildRenderCache(): RenderCache {
+    const color = colorForCpu(this.config.cpu);
+    const saturation = this.trace.timeline.hoveredUtid !== undefined ? 0 : 45;
+
+    return {
+      fillStyle: color.setHSL({s: saturation, l: 50}).setAlpha(0.6).cssString,
+      strokeStyle: color.setHSL({s: saturation, l: 50}).cssString,
+      hoverFillStyle: color.setHSL({s: 45, l: 75}).cssString,
+      hoverStrokeStyle: color.setHSL({s: 45, l: 45}).cssString,
+    };
   }
 }

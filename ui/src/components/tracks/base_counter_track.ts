@@ -150,6 +150,16 @@ interface CounterTooltipState {
   tsEnd?: time;
 }
 
+// Pre-computed render colors. Rebuilt when yMax changes.
+interface RenderCache {
+  readonly yMax: number;
+  readonly fillStyle: string;
+  readonly strokeStyle: string;
+  readonly zeroLineStyle: string;
+  readonly hoverFillStyle: string;
+  readonly hoverStrokeStyle: string;
+}
+
 function computeCounterHover(
   pos: Point2D | undefined,
   timescale: TimeScale,
@@ -426,6 +436,9 @@ export abstract class BaseCounterTrack implements TrackRenderer {
   private hover?: CounterTooltipState;
   private options?: CounterOptions;
   private readonly rangeSharer: RangeSharer;
+
+  // Pre-computed render cache. Rebuilt when yMax changes.
+  private renderCache?: RenderCache;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -811,13 +824,14 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     const effectiveHeight = this.getHeight() - MARGIN_TOP;
     const endPx = size.width;
 
-    // Use hue to differentiate the scale of the counter value
-    const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
-    const expCapped = Math.min(exp - 3, 9);
-    const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
+    // Rebuild render cache if yMax changed (affects hue-based colors).
+    if (this.renderCache === undefined || this.renderCache.yMax !== yMax) {
+      this.renderCache = this.buildRenderCache(yMax);
+    }
 
-    ctx.fillStyle = `hsla(${hue}, 45%, 50%, 0.6)`;
-    ctx.strokeStyle = `hsl(${hue}, 45%, 50%)`;
+    const cache = this.renderCache;
+    ctx.fillStyle = cache.fillStyle;
+    ctx.strokeStyle = cache.strokeStyle;
 
     const calculateX = (ts: time) => {
       return Math.floor(timescale.timeToPx(ts));
@@ -868,7 +882,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
     if (yMin < 0 && yMax > 0) {
       // Draw the Y=0 dashed line.
-      ctx.strokeStyle = `hsl(${hue}, 10%, 71%)`;
+      ctx.strokeStyle = cache.zeroLineStyle;
       ctx.beginPath();
       ctx.setLineDash([2, 4]);
       ctx.moveTo(0, zeroY);
@@ -881,8 +895,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
     const hover = this.hover;
     if (hover !== undefined) {
-      ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
-      ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
+      ctx.fillStyle = cache.hoverFillStyle;
+      ctx.strokeStyle = cache.hoverStrokeStyle;
 
       const rawXStart = calculateX(hover.ts);
       const xStart = Math.max(0, rawXStart);
@@ -964,6 +978,22 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.raf.scheduleFullRedraw();
     }
+  }
+
+  private buildRenderCache(yMax: number): RenderCache {
+    // Use hue to differentiate the scale of the counter value.
+    const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
+    const expCapped = Math.min(exp - 3, 9);
+    const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
+
+    return {
+      yMax,
+      fillStyle: `hsla(${hue}, 45%, 50%, 0.6)`,
+      strokeStyle: `hsl(${hue}, 45%, 50%)`,
+      zeroLineStyle: `hsl(${hue}, 10%, 71%)`,
+      hoverFillStyle: `hsl(${hue}, 45%, 75%)`,
+      hoverStrokeStyle: `hsl(${hue}, 45%, 45%)`,
+    };
   }
 
   async onDestroy(): Promise<void> {
