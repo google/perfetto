@@ -15,6 +15,8 @@
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {colorCompare} from '../../base/color';
+import {Point2D} from '../../base/geom';
+import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
 import {assertExists} from '../../base/logging';
@@ -197,6 +199,10 @@ export abstract class BaseSliceTrack<
 
   private charWidth = -1;
   protected hoveredSlice?: SliceT;
+  private mousePos?: Point2D;
+
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
   private maxDataDepth = 0;
 
@@ -521,6 +527,10 @@ export abstract class BaseSliceTrack<
       }
     }
 
+    // Update hover state based on current mouse position and timescale.
+    // This is done during render so panning correctly updates hover.
+    this.updateHoverState(timescale);
+
     // Second pass: fill slices by color.
     const vizSlicesByColor = vizSlices.slice();
     if (!this.forceTimestampRenderOrder) {
@@ -807,7 +817,11 @@ export abstract class BaseSliceTrack<
     };
   }
 
-  private findSlice({x, y, timescale}: TrackMouseEvent): undefined | SliceT {
+  private findSlice(
+    pos: Point2D,
+    timescale: TimeScale,
+  ): undefined | SliceT {
+    const {x, y} = pos;
     const trackHeight = this.computedTrackHeight;
     const sliceHeight = this.sliceLayout.sliceHeight;
     const padding = this.sliceLayout.padding;
@@ -848,15 +862,25 @@ export abstract class BaseSliceTrack<
     return undefined;
   }
 
-  onMouseMove(event: TrackMouseEvent): void {
-    this.updateHoveredSlice(this.findSlice(event));
+  private updateHoverState(timescale: TimeScale): void {
+    if (this.mousePos === undefined) {
+      this.updateHoveredSlice(undefined);
+    } else {
+      this.updateHoveredSlice(this.findSlice(this.mousePos, timescale));
+    }
 
-    // Maybe do this in the caller?
-    this.trace.raf.scheduleFullRedraw();
+    // Schedule DOM redraw if hover state changed (for tooltip update).
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
+  }
+
+  onMouseMove({x, y}: TrackMouseEvent): void {
+    this.mousePos = {x, y};
   }
 
   onMouseOut(): void {
-    this.updateHoveredSlice(undefined);
+    this.mousePos = undefined;
   }
 
   private updateHoveredSlice(slice?: SliceT): void {

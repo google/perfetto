@@ -16,8 +16,11 @@ import m from 'mithril';
 import z from 'zod';
 import {searchSegment} from '../../base/binary_search';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {Point2D} from '../../base/geom';
 import {assertTrue, assertUnreachable} from '../../base/logging';
+import {Monitor} from '../../base/monitor';
 import {Time, time} from '../../base/time';
+import {TimeScale} from '../../base/time_scale';
 import {uuidv4Sql} from '../../base/uuid';
 import {raf} from '../../core/raf_scheduler';
 import {Trace} from '../../public/trace';
@@ -402,8 +405,15 @@ export abstract class BaseCounterTrack implements TrackRenderer {
   private limits?: CounterLimits;
 
   private hover?: CounterTooltipState;
+  private mousePos?: Point2D;
   private options?: CounterOptions;
   private readonly rangeSharer: RangeSharer;
+
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly hoverMonitor = new Monitor([
+    () => this.hover?.ts,
+    () => this.hover?.lastDisplayValue,
+  ]);
 
   private readonly trash: AsyncDisposableStack;
 
@@ -754,6 +764,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     const data = this.counters;
 
     if (data.timestamps.length === 0 || limits === undefined) {
+      // Update hover state even when no data (to clear hover if needed).
+      this.updateHoverState(timescale);
       checkerboardExcept(
         ctx,
         this.getHeight(),
@@ -764,6 +776,10 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       );
       return;
     }
+
+    // Update hover state based on current mouse position and timescale.
+    // This is done during render so panning correctly updates hover.
+    this.updateHoverState(timescale);
 
     assertTrue(data.timestamps.length === data.minDisplayValues.length);
     assertTrue(data.timestamps.length === data.maxDisplayValues.length);
@@ -924,34 +940,45 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     );
   }
 
-  onMouseMove({x, timescale}: TrackMouseEvent) {
-    const data = this.counters;
-    if (data === undefined) return;
-    const time = timescale.pxToHpTime(x);
-
-    const [left, right] = searchSegment(data.timestamps, time.toTime());
-
-    if (left === -1) {
-      this.hover = undefined;
-      return;
-    }
-
-    const ts = Time.fromRaw(data.timestamps[left]);
-    const tsEnd =
-      right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
-    const lastDisplayValue = data.lastDisplayValues[left];
-    this.hover = {
-      ts,
-      tsEnd,
-      lastDisplayValue,
-    };
-
-    // Full redraw to update the tooltip
-    raf.scheduleFullRedraw();
+  onMouseMove({x, y}: TrackMouseEvent) {
+    this.mousePos = {x, y};
   }
 
   onMouseOut() {
-    this.hover = undefined;
+    this.mousePos = undefined;
+  }
+
+  private updateHoverState(timescale: TimeScale): void {
+    if (this.mousePos === undefined) {
+      this.hover = undefined;
+    } else {
+      const data = this.counters;
+      if (data === undefined || data.timestamps.length === 0) {
+        this.hover = undefined;
+      } else {
+        const time = timescale.pxToHpTime(this.mousePos.x);
+        const [left, right] = searchSegment(data.timestamps, time.toTime());
+
+        if (left === -1) {
+          this.hover = undefined;
+        } else {
+          const ts = Time.fromRaw(data.timestamps[left]);
+          const tsEnd =
+            right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
+          const lastDisplayValue = data.lastDisplayValues[left];
+          this.hover = {
+            ts,
+            tsEnd,
+            lastDisplayValue,
+          };
+        }
+      }
+    }
+
+    // Schedule DOM redraw if hover state changed (for tooltip update).
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   async onDestroy(): Promise<void> {

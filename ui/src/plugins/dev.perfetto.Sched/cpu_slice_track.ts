@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
+import {Monitor} from '../../base/monitor';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
@@ -67,6 +68,11 @@ export class CpuSliceTrack implements TrackRenderer {
   private lastRowId = -1;
   private trackUuid = uuidv4Sql();
 
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly localHoverMonitor: Monitor;
+  // Monitor for global hover state (triggers canvas redraw for other tracks).
+  private readonly globalHoverMonitor: Monitor;
+
   readonly rootTableName = 'sched_slice';
 
   constructor(
@@ -74,7 +80,16 @@ export class CpuSliceTrack implements TrackRenderer {
     private readonly uri: string,
     private readonly ucpu: number,
     private readonly threads: ThreadMap,
-  ) {}
+  ) {
+    this.localHoverMonitor = new Monitor([
+      () => this.utidHoveredInThisTrack,
+      () => this.countHoveredInThisTrack,
+    ]);
+    this.globalHoverMonitor = new Monitor([
+      () => this.trace.timeline.hoveredUtid,
+      () => this.trace.timeline.hoveredPid,
+    ]);
+  }
 
   async onCreate() {
     await this.trace.engine.query(`
@@ -242,6 +257,10 @@ export class CpuSliceTrack implements TrackRenderer {
 
     if (data === undefined) return; // Can't possibly draw anything.
 
+    // Update hover state based on current mouse position and timescale.
+    // This is done during render so panning correctly updates hover.
+    this.updateHoverState(timescale, data);
+
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
@@ -254,6 +273,62 @@ export class CpuSliceTrack implements TrackRenderer {
     );
 
     this.renderSlices(trackCtx, data);
+  }
+
+  private updateHoverState(timescale: TimeScale, data: Data): void {
+    if (this.mousePos === undefined) {
+      // Only clear global hover state if we were the ones who set it.
+      if (this.utidHoveredInThisTrack !== undefined) {
+        this.trace.timeline.hoveredUtid = undefined;
+        this.trace.timeline.hoveredPid = undefined;
+      }
+      this.utidHoveredInThisTrack = undefined;
+      this.countHoveredInThisTrack = undefined;
+    } else {
+      const {x, y} = this.mousePos;
+      if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
+        // Only clear global hover state if we were the ones who set it.
+        if (this.utidHoveredInThisTrack !== undefined) {
+          this.trace.timeline.hoveredUtid = undefined;
+          this.trace.timeline.hoveredPid = undefined;
+        }
+        this.utidHoveredInThisTrack = undefined;
+        this.countHoveredInThisTrack = undefined;
+      } else {
+        const t = timescale.pxToHpTime(x);
+        let hoveredUtid: number | undefined = undefined;
+        let hoveredCount: number | undefined = undefined;
+
+        for (let i = 0; i < data.startQs.length; i++) {
+          const tStart = Time.fromRaw(data.startQs[i]);
+          const tEnd = Time.fromRaw(data.endQs[i]);
+          const count = data.counts[i];
+          const utid = data.utids[i];
+          if (t.gte(tStart) && t.lt(tEnd)) {
+            hoveredUtid = utid;
+            hoveredCount = count;
+            break;
+          }
+        }
+
+        this.utidHoveredInThisTrack = hoveredUtid;
+        this.countHoveredInThisTrack = hoveredCount;
+        const threadInfo = exists(hoveredUtid)
+          ? this.threads.get(hoveredUtid)
+          : undefined;
+        this.trace.timeline.hoveredUtid = hoveredUtid;
+        this.trace.timeline.hoveredPid = threadInfo?.pid;
+      }
+    }
+
+    // Schedule DOM redraw if local hover state changed (for tooltip update).
+    if (this.localHoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
+    // Schedule canvas redraw if global hover state changed (for other tracks).
+    if (this.globalHoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleCanvasRedraw();
+    }
   }
 
   renderSlices(
@@ -410,49 +485,11 @@ export class CpuSliceTrack implements TrackRenderer {
     }
   }
 
-  onMouseMove({x, y, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
+  onMouseMove({x, y}: TrackMouseEvent) {
     this.mousePos = {x, y};
-    if (data === undefined) return;
-    if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
-      this.utidHoveredInThisTrack = undefined;
-      this.countHoveredInThisTrack = undefined;
-      this.trace.timeline.hoveredUtid = undefined;
-      this.trace.timeline.hoveredPid = undefined;
-      return;
-    }
-    const t = timescale.pxToHpTime(x);
-    let hoveredUtid = undefined;
-    let hoveredCount = undefined;
-
-    for (let i = 0; i < data.startQs.length; i++) {
-      const tStart = Time.fromRaw(data.startQs[i]);
-      const tEnd = Time.fromRaw(data.endQs[i]);
-      const count = data.counts[i];
-      const utid = data.utids[i];
-      if (t.gte(tStart) && t.lt(tEnd)) {
-        hoveredUtid = utid;
-        hoveredCount = count;
-        break;
-      }
-    }
-    this.utidHoveredInThisTrack = hoveredUtid;
-    this.countHoveredInThisTrack = hoveredCount;
-    const threadInfo = exists(hoveredUtid)
-      ? this.threads.get(hoveredUtid)
-      : undefined;
-    this.trace.timeline.hoveredUtid = hoveredUtid;
-    this.trace.timeline.hoveredPid = threadInfo?.pid;
-
-    // Trigger redraw to update tooltip
-    m.redraw();
   }
 
   onMouseOut() {
-    this.utidHoveredInThisTrack = -1;
-    this.countHoveredInThisTrack = -1;
-    this.trace.timeline.hoveredUtid = undefined;
-    this.trace.timeline.hoveredPid = undefined;
     this.mousePos = undefined;
   }
 

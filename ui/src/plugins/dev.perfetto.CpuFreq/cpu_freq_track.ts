@@ -14,7 +14,9 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchSegment} from '../../base/binary_search';
+import {Point2D} from '../../base/geom';
 import {assertTrue} from '../../base/logging';
+import {Monitor} from '../../base/monitor';
 import {duration, time, Time} from '../../base/time';
 import {colorForCpu} from '../../components/colorizer';
 import m from 'mithril';
@@ -25,6 +27,7 @@ import {TrackRenderer} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
+import {TimeScale} from '../../base/time_scale';
 import {
   createPerfettoTable,
   createView,
@@ -57,11 +60,19 @@ export class CpuFreqTrack implements TrackRenderer {
   private hoveredTs: time | undefined = undefined;
   private hoveredTsEnd: time | undefined = undefined;
   private hoveredIdle: number | undefined = undefined;
+  private mousePos?: Point2D;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private trackUuid = uuidv4Sql();
 
   private trash!: AsyncDisposableStack;
+
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly hoverMonitor = new Monitor([
+    () => this.hoveredTs,
+    () => this.hoveredValue,
+    () => this.hoveredIdle,
+  ]);
 
   constructor(
     private readonly config: Config,
@@ -269,6 +280,10 @@ export class CpuFreqTrack implements TrackRenderer {
       return;
     }
 
+    // Update hover state based on current mouse position and timescale.
+    // This is done during render so panning correctly updates hover.
+    this.updateHoverState(timescale, data);
+
     assertTrue(data.timestamps.length === data.lastFreqKHz.length);
     assertTrue(data.timestamps.length === data.minFreqKHz.length);
     assertTrue(data.timestamps.length === data.maxFreqKHz.length);
@@ -431,28 +446,35 @@ export class CpuFreqTrack implements TrackRenderer {
     );
   }
 
-  onMouseMove({x, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
-    if (data === undefined) return;
-    const time = timescale.pxToHpTime(x);
+  private updateHoverState(timescale: TimeScale, data: Data): void {
+    if (this.mousePos === undefined) {
+      this.hoveredTs = undefined;
+      this.hoveredTsEnd = undefined;
+      this.hoveredValue = undefined;
+      this.hoveredIdle = undefined;
+    } else {
+      const time = timescale.pxToHpTime(this.mousePos.x);
+      const [left, right] = searchSegment(data.timestamps, time.toTime());
 
-    const [left, right] = searchSegment(data.timestamps, time.toTime());
+      this.hoveredTs =
+        left === -1 ? undefined : Time.fromRaw(data.timestamps[left]);
+      this.hoveredTsEnd =
+        right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
+      this.hoveredValue = left === -1 ? undefined : data.lastFreqKHz[left];
+      this.hoveredIdle = left === -1 ? undefined : data.lastIdleValues[left];
+    }
 
-    this.hoveredTs =
-      left === -1 ? undefined : Time.fromRaw(data.timestamps[left]);
-    this.hoveredTsEnd =
-      right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
-    this.hoveredValue = left === -1 ? undefined : data.lastFreqKHz[left];
-    this.hoveredIdle = left === -1 ? undefined : data.lastIdleValues[left];
+    // Schedule DOM redraw if hover state changed (for tooltip update).
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
+  }
 
-    // Trigger redraw to update tooltip
-    m.redraw();
+  onMouseMove({x, y}: TrackMouseEvent) {
+    this.mousePos = {x, y};
   }
 
   onMouseOut() {
-    this.hoveredValue = undefined;
-    this.hoveredTs = undefined;
-    this.hoveredTsEnd = undefined;
-    this.hoveredIdle = undefined;
+    this.mousePos = undefined;
   }
 }
