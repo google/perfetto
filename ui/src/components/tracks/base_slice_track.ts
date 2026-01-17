@@ -15,6 +15,8 @@
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {colorCompare} from '../../base/color';
+import {Point2D} from '../../base/geom';
+import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
 import {assertExists} from '../../base/logging';
@@ -197,6 +199,10 @@ export abstract class BaseSliceTrack<
 
   private charWidth = -1;
   protected hoveredSlice?: SliceT;
+  private mousePos?: Point2D;
+
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
   private maxDataDepth = 0;
 
@@ -521,6 +527,21 @@ export abstract class BaseSliceTrack<
       }
     }
 
+    // Compute and apply hover state. Done during render so panning updates it.
+    const prevHoveredSlice = this.hoveredSlice;
+    this.hoveredSlice = this.mousePos
+      ? this.findSlice(this.mousePos, timescale)
+      : undefined;
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
+      if (this.hoveredSlice === undefined) {
+        this.onSliceOut({slice: assertExists(prevHoveredSlice)});
+      } else {
+        this.onSliceOver({slice: this.hoveredSlice});
+      }
+      this.trace.raf.scheduleFullRedraw();
+    }
+
     // Second pass: fill slices by color.
     const vizSlicesByColor = vizSlices.slice();
     if (!this.forceTimestampRenderOrder) {
@@ -807,7 +828,8 @@ export abstract class BaseSliceTrack<
     };
   }
 
-  private findSlice({x, y, timescale}: TrackMouseEvent): undefined | SliceT {
+  private findSlice(pos: Point2D, timescale: TimeScale): undefined | SliceT {
+    const {x, y} = pos;
     const trackHeight = this.computedTrackHeight;
     const sliceHeight = this.sliceLayout.sliceHeight;
     const padding = this.sliceLayout.padding;
@@ -848,36 +870,16 @@ export abstract class BaseSliceTrack<
     return undefined;
   }
 
-  onMouseMove(event: TrackMouseEvent): void {
-    this.updateHoveredSlice(this.findSlice(event));
-
-    // Maybe do this in the caller?
-    this.trace.raf.scheduleFullRedraw();
+  onMouseMove({x, y}: TrackMouseEvent): void {
+    this.mousePos = {x, y};
   }
 
   onMouseOut(): void {
-    this.updateHoveredSlice(undefined);
-  }
-
-  private updateHoveredSlice(slice?: SliceT): void {
-    const lastHoveredSlice = this.hoveredSlice;
-    this.hoveredSlice = slice;
-
-    // Only notify the Impl if the hovered slice changes:
-    if (slice === lastHoveredSlice) return;
-
-    if (this.hoveredSlice === undefined) {
-      this.trace.timeline.highlightedSliceId = undefined;
-      this.onSliceOut({slice: assertExists(lastHoveredSlice)});
-    } else {
-      const args: OnSliceOverArgs<SliceT> = {slice: this.hoveredSlice};
-      this.trace.timeline.highlightedSliceId = this.hoveredSlice.id;
-      this.onSliceOver(args);
-    }
+    this.mousePos = undefined;
   }
 
   onMouseClick(event: TrackMouseEvent): boolean {
-    const slice = this.findSlice(event);
+    const slice = this.findSlice(event, event.timescale);
     if (slice === undefined) {
       return false;
     }
