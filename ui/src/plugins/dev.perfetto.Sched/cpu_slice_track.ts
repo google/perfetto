@@ -20,7 +20,8 @@ import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
 import m from 'mithril';
-import {colorForThread} from '../../components/colorizer';
+import {ColorCache, colorForThread} from '../../components/colorizer';
+import {ColorScheme} from '../../base/color_scheme';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
@@ -67,6 +68,17 @@ export class CpuSliceTrack implements TrackRenderer {
   private lastRowId = -1;
   private trackUuid = uuidv4Sql();
 
+  private readonly colorCache: ColorCache<
+    number,
+    {
+      scheme: ColorScheme;
+      textBaseAlpha: Color;
+      textVariantAlpha: Color;
+      textDisabledAlpha: Color;
+      selectionBorder: Color;
+    }
+  >;
+
   readonly rootTableName = 'sched_slice';
 
   constructor(
@@ -74,7 +86,19 @@ export class CpuSliceTrack implements TrackRenderer {
     private readonly uri: string,
     private readonly ucpu: number,
     private readonly threads: ThreadMap,
-  ) {}
+  ) {
+    this.colorCache = new ColorCache((utid) => {
+      const threadInfo = this.threads.get(utid);
+      const scheme = colorForThread(threadInfo);
+      return {
+        scheme,
+        textBaseAlpha: scheme.textBase.setAlpha(0.6),
+        textVariantAlpha: scheme.textVariant.setAlpha(0.6),
+        textDisabledAlpha: scheme.textDisabled.setAlpha(0.6),
+        selectionBorder: scheme.base.setHSL({l: 30}),
+      };
+    });
+  }
 
   async onCreate() {
     await this.trace.engine.query(`
@@ -305,20 +329,25 @@ export class CpuSliceTrack implements TrackRenderer {
       const isHovering = this.trace.timeline.hoveredUtid !== undefined;
       const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
       const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-      const colorScheme = colorForThread(threadInfo);
+      const cachedColors = this.colorCache.get(utid);
+      const colorScheme = cachedColors.scheme;
       let color: Color;
       let textColor: Color;
+      let textAlphaColor: Color;
       if (isHovering && !isThreadHovered) {
         if (!isProcessHovered) {
           color = colorScheme.disabled;
           textColor = colorScheme.textDisabled;
+          textAlphaColor = cachedColors.textDisabledAlpha;
         } else {
           color = colorScheme.variant;
           textColor = colorScheme.textVariant;
+          textAlphaColor = cachedColors.textVariantAlpha;
         }
       } else {
         color = colorScheme.base;
         textColor = colorScheme.textBase;
+        textAlphaColor = cachedColors.textBaseAlpha;
       }
       ctx.fillStyle = color.cssString;
 
@@ -376,7 +405,7 @@ export class CpuSliceTrack implements TrackRenderer {
       ctx.fillStyle = textColor.cssString;
       ctx.font = '12px Roboto Condensed';
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
-      ctx.fillStyle = textColor.setAlpha(0.6).cssString;
+      ctx.fillStyle = textAlphaColor.cssString;
       ctx.font = '10px Roboto Condensed';
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
@@ -389,13 +418,13 @@ export class CpuSliceTrack implements TrackRenderer {
           const tStart = Time.fromRaw(data.startQs[startIndex]);
           const tEnd = Time.fromRaw(data.endQs[startIndex]);
           const utid = data.utids[startIndex];
-          const color = colorForThread(this.threads.get(utid));
+          const cachedColors = this.colorCache.get(utid);
           const rectStart = timescale.timeToPx(tStart);
           const rectEnd = timescale.timeToPx(tEnd);
           const rectWidth = Math.max(1, rectEnd - rectStart);
 
           // Draw a rectangle around the slice that is currently selected.
-          ctx.strokeStyle = color.base.setHSL({l: 30}).cssString;
+          ctx.strokeStyle = cachedColors.selectionBorder.cssString;
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(

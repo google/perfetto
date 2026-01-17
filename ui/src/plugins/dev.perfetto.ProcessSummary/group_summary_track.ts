@@ -17,7 +17,12 @@ import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import m from 'mithril';
-import {colorForThread, colorForTid} from '../../components/colorizer';
+import {
+  ColorCache,
+  colorForThread,
+  colorForTid,
+} from '../../components/colorizer';
+import {ColorScheme} from '../../base/color_scheme';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
@@ -76,6 +81,11 @@ export class GroupSummaryTrack implements TrackRenderer {
   private maxLanes: number = 1;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
 
+  // Color cache for sched mode (keyed by utid)
+  private readonly schedColorCache: ColorCache<number, ColorScheme>;
+  // Color cache for slice mode (single entry keyed by pidForColor)
+  private readonly sliceColorCache: ColorCache<number, ColorScheme>;
+
   constructor(
     private readonly trace: Trace,
     private readonly config: Config,
@@ -84,6 +94,10 @@ export class GroupSummaryTrack implements TrackRenderer {
     hasSched: boolean,
   ) {
     this.mode = hasSched ? 'sched' : 'slices';
+    this.schedColorCache = new ColorCache((utid) =>
+      colorForThread(this.threads.get(utid)),
+    );
+    this.sliceColorCache = new ColorCache((pid) => colorForTid(pid));
   }
 
   async onCreate(ctx: TrackContext): Promise<void> {
@@ -424,8 +438,6 @@ export class GroupSummaryTrack implements TrackRenderer {
       const rectEnd = Math.floor(timescale.timeToPx(tEnd));
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
-      let colorScheme;
-
       if (this.mode === 'sched') {
         // Scheduling mode: color by thread (utid)
         const threadInfo = this.threads.get(utid);
@@ -435,7 +447,7 @@ export class GroupSummaryTrack implements TrackRenderer {
         const isHovering = this.trace.timeline.hoveredUtid !== undefined;
         const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
         const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-        colorScheme = colorForThread(threadInfo);
+        const colorScheme = this.schedColorCache.get(utid);
 
         if (isHovering && !isThreadHovered) {
           if (!isProcessHovered) {
@@ -448,7 +460,9 @@ export class GroupSummaryTrack implements TrackRenderer {
         }
       } else {
         // Slice mode: consistent color based on pidForColor
-        colorScheme = colorForTid(this.config.pidForColor);
+        const colorScheme = this.sliceColorCache.get(
+          Number(this.config.pidForColor),
+        );
         ctx.fillStyle = colorScheme.base.cssString;
       }
 

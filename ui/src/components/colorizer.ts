@@ -43,6 +43,35 @@ const USE_CONSISTENT_COLORS = featureFlags.register({
   defaultValue: false,
 });
 
+// A generic cache that invalidates when the theme changes.
+// Each track should create its own instance.
+export class ColorCache<K, V> {
+  private cache = new Map<K, V>();
+  private lastConsistentColorsFlag: boolean;
+
+  constructor(private readonly compute: (key: K) => V) {
+    this.lastConsistentColorsFlag = USE_CONSISTENT_COLORS.get();
+  }
+
+  get(key: K): V {
+    this.checkInvalidation();
+    let cached = this.cache.get(key);
+    if (cached === undefined) {
+      cached = this.compute(key);
+      this.cache.set(key, cached);
+    }
+    return cached;
+  }
+
+  private checkInvalidation(): void {
+    const currentFlag = USE_CONSISTENT_COLORS.get();
+    if (currentFlag !== this.lastConsistentColorsFlag) {
+      this.cache.clear();
+      this.lastConsistentColorsFlag = currentFlag;
+    }
+  }
+}
+
 const randColourState: RandState = {seed: 0};
 
 const MD_PALETTE_RAW: Color[] = [
