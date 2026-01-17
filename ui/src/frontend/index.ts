@@ -391,6 +391,7 @@ function onCssLoaded() {
       'Minimum height of tracks in the trace viewer page, in pixels.',
     schema: z.number().int().min(MINIMUM_TRACK_MIN_HEIGHT_PX),
     defaultValue: DEFAULT_TRACK_MIN_HEIGHT_PX,
+    requiresReload: true,
   });
 
   // Add command to toggle the theme.

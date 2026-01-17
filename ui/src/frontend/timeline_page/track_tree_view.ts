@@ -66,7 +66,11 @@ import {
   shiftDragPanInteraction,
   wheelNavigationInteraction,
 } from './timeline_interactions';
-import {TrackView} from './track_view';
+import {
+  DEFAULT_TRACK_MIN_HEIGHT_PX,
+  TRACK_MIN_HEIGHT_SETTING,
+  TrackView,
+} from './track_view';
 import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
 import {EmptyState} from '../../widgets/empty_state';
@@ -137,9 +141,13 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private canvasRect?: Rect2D;
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
+  private readonly trackMinHeightPx: number;
 
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
+    this.trackMinHeightPx =
+      (attrs.trace.settings.get(TRACK_MIN_HEIGHT_SETTING)?.get() as number) ??
+      DEFAULT_TRACK_MIN_HEIGHT_PX;
   }
 
   private hoveredTrackNode?: TrackNode;
@@ -185,7 +193,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         });
       }
 
-      const trackView = new TrackView(trace, node, top);
+      const trackView = new TrackView(trace, node, top, this.trackMinHeightPx);
       renderedTracks.push(trackView);
 
       // Advance the global top position.
