@@ -36,7 +36,7 @@ const PERCEIVED_BRIGHTNESS_LIMIT = 180;
 // However we do it, we should make it possible for folks to switch back the a
 // previous palette, or define their own.
 
-const USE_CONSISTENT_COLORS = featureFlags.register({
+export const USE_CONSISTENT_COLORS = featureFlags.register({
   id: 'useConsistentColors',
   name: 'Use common color palette for timeline elements',
   description: 'Use the same color palette for all timeline elements.',
