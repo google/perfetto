@@ -83,7 +83,6 @@ function computeHover(
 
 export class CpuFreqTrack implements TrackRenderer {
   private hover?: CpuFreqHover;
-  private mousePos?: Point2D;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private trackUuid = uuidv4Sql();
@@ -95,11 +94,6 @@ export class CpuFreqTrack implements TrackRenderer {
     () => this.hover?.ts,
     () => this.hover?.value,
     () => this.hover?.idle,
-  ]);
-
-  // Monitor for mouse position changes (avoids recomputing hover on every frame).
-  private readonly mousePosMonitor = new Monitor([
-    () => this.mousePos !== undefined,
   ]);
 
   constructor(
@@ -308,16 +302,6 @@ export class CpuFreqTrack implements TrackRenderer {
       return;
     }
 
-    // Compute and apply hover state. Only recompute when mouse is over this
-    // track or just left (to clear hover state).
-    const mousePosChanged = this.mousePosMonitor.ifStateChanged();
-    if (this.mousePos !== undefined || mousePosChanged) {
-      this.hover = computeHover(this.mousePos, timescale, data);
-      if (this.hoverMonitor.ifStateChanged()) {
-        this.trace.raf.scheduleFullRedraw();
-      }
-    }
-
     assertTrue(data.timestamps.length === data.lastFreqKHz.length);
     assertTrue(data.timestamps.length === data.minFreqKHz.length);
     assertTrue(data.timestamps.length === data.maxFreqKHz.length);
@@ -480,11 +464,19 @@ export class CpuFreqTrack implements TrackRenderer {
     );
   }
 
-  onMouseMove({x, y}: TrackMouseEvent) {
-    this.mousePos = {x, y};
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
+    const data = this.fetcher.data;
+    if (data === undefined) return;
+    this.hover = computeHover({x, y}, timescale, data);
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   onMouseOut() {
-    this.mousePos = undefined;
+    this.hover = undefined;
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 }
