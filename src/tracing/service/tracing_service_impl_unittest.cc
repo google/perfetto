@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -67,6 +68,7 @@
 #include "src/tracing/test/test_shared_memory.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/semantic_type.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
@@ -6728,6 +6730,135 @@ TEST_F(TracingServiceImplTest, StringFiltering) {
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
                                                   Eq("B|1023|payP6ad1P")))));
+}
+
+// Comprehensive test for UNSPECIFIED semantic type handling.
+// UNSPECIFIED (0) is treated as its own distinct category.
+//
+// We use two sessions (one per bytecode semantic type) with multiple rules
+// and packets per session to minimize setup/teardown overhead.
+TEST_F(TracingServiceImplTest, StringFilteringSemanticTypeUnspecified) {
+  // Runs a session with given bytecode semantic type and multiple rules,
+  // returning a map of string prefix -> output string.
+  auto run_session = [this](uint32_t bytecode_semantic_type)
+      -> std::map<std::string, std::string> {
+    std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+
+    std::unique_ptr<MockProducer> producer = CreateMockProducer();
+    std::string producer_name =
+        "mock_producer_" + std::to_string(bytecode_semantic_type);
+    producer->Connect(svc.get(), producer_name);
+    producer->RegisterDataSource("ds_1");
+
+    TraceConfig trace_config;
+    trace_config.add_buffers()->set_size_kb(32);
+    auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+    ds_cfg->set_name("ds_1");
+    ds_cfg->set_target_buffer(0);
+
+    protozero::FilterBytecodeGenerator filt;
+    filt.AddNestedField(1, 1);
+    filt.EndMessage();
+    filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
+    filt.EndMessage();
+    filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                              bytecode_semantic_type, /*allow_in_v1=*/false,
+                              /*allow_in_v2=*/false);
+    filt.EndMessage();
+    trace_config.mutable_trace_filter()->set_bytecode_v2(
+        filt.Serialize().bytecode);
+
+    // Add multiple rules with different semantic type configurations.
+    // Each rule matches a unique prefix so we can identify which rule fired.
+    auto* chain =
+        trace_config.mutable_trace_filter()->mutable_string_filter_chain();
+
+    // Rule 1: empty semantic_type (defaults to UNSPECIFIED only)
+    auto* rule1 = chain->add_rules();
+    rule1->set_policy(
+        protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+    rule1->set_regex_pattern(R"(empty:(.*))");
+
+    // Rule 2: [UNSPECIFIED]
+    auto* rule2 = chain->add_rules();
+    rule2->set_policy(
+        protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+    rule2->set_regex_pattern(R"(unspec:(.*))");
+    rule2->add_semantic_type(protos::gen::SEMANTIC_TYPE_UNSPECIFIED);
+
+    // Rule 3: [ATRACE]
+    auto* rule3 = chain->add_rules();
+    rule3->set_policy(
+        protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+    rule3->set_regex_pattern(R"(atrace:(.*))");
+    rule3->add_semantic_type(protos::gen::SEMANTIC_TYPE_ATRACE);
+
+    // Rule 4: [UNSPECIFIED, ATRACE]
+    auto* rule4 = chain->add_rules();
+    rule4->set_policy(
+        protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+    rule4->set_regex_pattern(R"(both:(.*))");
+    rule4->add_semantic_type(protos::gen::SEMANTIC_TYPE_UNSPECIFIED);
+    rule4->add_semantic_type(protos::gen::SEMANTIC_TYPE_ATRACE);
+
+    consumer->EnableTracing(trace_config);
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("ds_1");
+    producer->WaitForDataSourceStart("ds_1");
+
+    std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+
+    // Write packets with strings matching each rule
+    for (const char* s :
+         {"empty:data", "unspec:data", "atrace:data", "both:data"}) {
+      auto tp = writer->NewTracePacket();
+      tp->set_for_testing()->set_str(s);
+    }
+
+    auto flush_request = consumer->Flush();
+    producer->ExpectFlush(writer.get());
+    EXPECT_TRUE(flush_request.WaitForReply());
+
+    const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
+    EXPECT_CALL(*producer, StopDataSource(id1));
+
+    consumer->DisableTracing();
+    consumer->WaitForTracingDisabled();
+
+    // Collect results keyed by prefix
+    std::map<std::string, std::string> results;
+    for (const auto& packet : consumer->ReadBuffers()) {
+      if (packet.has_for_testing() && !packet.for_testing().str().empty()) {
+        const std::string& s = packet.for_testing().str();
+        auto colon = s.find(':');
+        if (colon != std::string::npos) {
+          results[s.substr(0, colon)] = s;
+        }
+      }
+    }
+    return results;
+  };
+
+  // Session 1: bytecode=UNSPECIFIED(0)
+  // Rules that include bit 0 should match, others should not.
+  {
+    auto r = run_session(0);
+    EXPECT_EQ(r["empty"], "empty:P60R");    // empty -> UNSPECIFIED, MATCH
+    EXPECT_EQ(r["unspec"], "unspec:P60R");  // [UNSPECIFIED], MATCH
+    EXPECT_EQ(r["atrace"], "atrace:data");  // [ATRACE], NO MATCH
+    EXPECT_EQ(r["both"], "both:P60R");      // [UNSPECIFIED,ATRACE], MATCH
+  }
+
+  // Session 2: bytecode=ATRACE(1)
+  // Rules that include bit 1 should match, others should not.
+  {
+    auto r = run_session(1);
+    EXPECT_EQ(r["empty"], "empty:data");    // empty -> UNSPECIFIED, NO MATCH
+    EXPECT_EQ(r["unspec"], "unspec:data");  // [UNSPECIFIED], NO MATCH
+    EXPECT_EQ(r["atrace"], "atrace:P60R");  // [ATRACE], MATCH
+    EXPECT_EQ(r["both"], "both:P60R");      // [UNSPECIFIED,ATRACE], MATCH
+  }
 }
 
 TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
