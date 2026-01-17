@@ -204,6 +204,11 @@ export abstract class BaseSliceTrack<
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
+  // Monitor for mouse position changes (avoids recomputing hover on every frame).
+  private readonly mousePosMonitor = new Monitor([
+    () => this.mousePos !== undefined,
+  ]);
+
   private maxDataDepth = 0;
 
   // Computed layout.
@@ -527,19 +532,23 @@ export abstract class BaseSliceTrack<
       }
     }
 
-    // Compute and apply hover state. Done during render so panning updates it.
-    const prevHoveredSlice = this.hoveredSlice;
-    this.hoveredSlice = this.mousePos
-      ? this.findSlice(this.mousePos, timescale)
-      : undefined;
-    if (this.hoverMonitor.ifStateChanged()) {
-      this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
-      if (this.hoveredSlice === undefined) {
-        this.onSliceOut({slice: assertExists(prevHoveredSlice)});
-      } else {
-        this.onSliceOver({slice: this.hoveredSlice});
+    // Compute and apply hover state. Only recompute when mouse is over this
+    // track or just left (to clear hover state).
+    const mousePosChanged = this.mousePosMonitor.ifStateChanged();
+    if (this.mousePos !== undefined || mousePosChanged) {
+      const prevHoveredSlice = this.hoveredSlice;
+      this.hoveredSlice = this.mousePos
+        ? this.findSlice(this.mousePos, timescale)
+        : undefined;
+      if (this.hoverMonitor.ifStateChanged()) {
+        this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
+        if (this.hoveredSlice === undefined) {
+          this.onSliceOut({slice: assertExists(prevHoveredSlice)});
+        } else {
+          this.onSliceOver({slice: this.hoveredSlice});
+        }
+        this.trace.raf.scheduleFullRedraw();
       }
-      this.trace.raf.scheduleFullRedraw();
     }
 
     // Second pass: fill slices by color.

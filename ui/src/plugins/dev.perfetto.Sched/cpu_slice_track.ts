@@ -103,6 +103,11 @@ export class CpuSliceTrack implements TrackRenderer {
     () => this.hover?.count,
   ]);
 
+  // Monitor for mouse position changes (avoids recomputing hover on every frame).
+  private readonly mousePosMonitor = new Monitor([
+    () => this.mousePos !== undefined,
+  ]);
+
   readonly rootTableName = 'sched_slice';
 
   constructor(
@@ -275,12 +280,16 @@ export class CpuSliceTrack implements TrackRenderer {
 
     if (data === undefined) return; // Can't possibly draw anything.
 
-    // Compute and apply hover state. Done during render so panning updates it.
-    this.hover = computeHover(this.mousePos, timescale, data, this.threads);
-    if (this.hoverMonitor.ifStateChanged()) {
-      this.trace.timeline.hoveredUtid = this.hover?.utid;
-      this.trace.timeline.hoveredPid = this.hover?.pid;
-      this.trace.raf.scheduleFullRedraw();
+    // Compute and apply hover state. Only recompute when mouse is over this
+    // track or just left (to clear hover state).
+    const mousePosChanged = this.mousePosMonitor.ifStateChanged();
+    if (this.mousePos !== undefined || mousePosChanged) {
+      this.hover = computeHover(this.mousePos, timescale, data, this.threads);
+      if (this.hoverMonitor.ifStateChanged()) {
+        this.trace.timeline.hoveredUtid = this.hover?.utid;
+        this.trace.timeline.hoveredPid = this.hover?.pid;
+        this.trace.raf.scheduleFullRedraw();
+      }
     }
 
     // If the cached trace slices don't fully cover the visible time range,

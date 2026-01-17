@@ -97,6 +97,11 @@ export class CpuFreqTrack implements TrackRenderer {
     () => this.hover?.idle,
   ]);
 
+  // Monitor for mouse position changes (avoids recomputing hover on every frame).
+  private readonly mousePosMonitor = new Monitor([
+    () => this.mousePos !== undefined,
+  ]);
+
   constructor(
     private readonly config: Config,
     private readonly trace: Trace,
@@ -303,10 +308,14 @@ export class CpuFreqTrack implements TrackRenderer {
       return;
     }
 
-    // Compute and apply hover state. Done during render so panning updates it.
-    this.hover = computeHover(this.mousePos, timescale, data);
-    if (this.hoverMonitor.ifStateChanged()) {
-      this.trace.raf.scheduleFullRedraw();
+    // Compute and apply hover state. Only recompute when mouse is over this
+    // track or just left (to clear hover state).
+    const mousePosChanged = this.mousePosMonitor.ifStateChanged();
+    if (this.mousePos !== undefined || mousePosChanged) {
+      this.hover = computeHover(this.mousePos, timescale, data);
+      if (this.hoverMonitor.ifStateChanged()) {
+        this.trace.raf.scheduleFullRedraw();
+      }
     }
 
     assertTrue(data.timestamps.length === data.lastFreqKHz.length);
