@@ -27,6 +27,7 @@ SOURCE_FILES = [
     {
         "files": [
             "protos/perfetto/common/builtin_clock.proto",
+            "protos/perfetto/common/semantic_type.proto",
             "protos/perfetto/common/track_event_descriptor.proto",
             "protos/perfetto/config/priority_boost/priority_boost_config.proto",
             "protos/perfetto/config/test_config.proto",

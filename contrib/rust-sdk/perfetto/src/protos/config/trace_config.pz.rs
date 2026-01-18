@@ -19,6 +19,7 @@
 use crate::pb_enum;
 use crate::pb_msg;
 use crate::protos::common::builtin_clock::*;
+use crate::protos::common::semantic_type::*;
 use crate::protos::config::data_source_config::*;
 use crate::protos::config::priority_boost::priority_boost_config::*;
 
@@ -37,6 +38,13 @@ pb_enum!(TraceConfigStatsdLogging {
     STATSD_LOGGING_UNSPECIFIED: 0,
     STATSD_LOGGING_ENABLED: 1,
     STATSD_LOGGING_DISABLED: 2,
+});
+
+pb_enum!(TraceConfigWriteFlushMode {
+    WRITE_FLUSH_UNSPECIFIED: 0,
+    WRITE_FLUSH_AUTO: 1,
+    WRITE_FLUSH_DISABLED: 2,
+    WRITE_FLUSH_ENABLED: 3,
 });
 
 pb_enum!(TraceFilterStringFilterPolicy {
@@ -59,6 +67,12 @@ pb_enum!(BufferConfigFillPolicy {
     UNSPECIFIED: 0,
     RING_BUFFER: 1,
     DISCARD: 2,
+});
+
+pb_enum!(BufferConfigExperimentalMode {
+    MODE_UNSPECIFIED: 0,
+    TRACE_BUFFER_V2: 1,
+    TRACE_BUFFER_V2_SHADOW_MODE: 2,
 });
 
 pb_msg!(TraceConfig {
@@ -99,7 +113,7 @@ pb_msg!(TraceConfig {
     session_semaphores: SessionSemaphore, msg, 39,
     priority_boost: PriorityBoostConfig, msg, 40,
     exclusive_prio: u32, primitive, 41,
-    no_flush_before_write_into_file: bool, primitive, 42,
+    write_flush_mode: TraceConfigWriteFlushMode, enum, 44,
     trace_all_machines: bool, primitive, 43,
 });
 
@@ -124,6 +138,8 @@ pb_msg!(TraceFilter {
     bytecode: String, primitive, 1,
     bytecode_v2: String, primitive, 2,
     string_filter_chain: StringFilterChain, msg, 3,
+    bytecode_overlay_v54: String, primitive, 4,
+    string_filter_chain_v54: StringFilterChain, msg, 5,
 });
 
 pb_msg!(StringFilterChain {
@@ -134,6 +150,8 @@ pb_msg!(StringFilterRule {
     policy: TraceFilterStringFilterPolicy, enum, 1,
     regex_pattern: String, primitive, 2,
     atrace_payload_starts_with: String, primitive, 3,
+    name: String, primitive, 4,
+    semantic_type: SemanticType, enum, 5,
 });
 
 pb_msg!(IncidentReportConfig {
@@ -204,4 +222,6 @@ pb_msg!(BufferConfig {
     fill_policy: BufferConfigFillPolicy, enum, 4,
     transfer_on_clone: bool, primitive, 5,
     clear_before_clone: bool, primitive, 6,
+    name: String, primitive, 7,
+    experimental_mode: BufferConfigExperimentalMode, enum, 8,
 });
