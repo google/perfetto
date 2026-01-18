@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
-import {colorCompare} from '../../base/color';
 import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
@@ -146,6 +145,19 @@ interface SliceInternal {
   w: number;
 }
 
+// Render state computed during data loading.
+interface SlicePipelineGlobalState<S> {
+  maxDataDepth: number;
+  // Slices grouped by color for efficient batched rendering.
+  byColor: Map<string, S[]>;
+}
+
+// Undersample factor for offscreen canvas rendering.
+// Values < 1 mean fewer pixels per bucket, so we scale UP during blit.
+// This makes the sampling decision once during offscreen render, then just
+// duplicates pixels during blit - reducing shimmer from re-sampling.
+const OFFSCREEN_OVERSAMPLE = 0.5;
+
 // We use this to avoid exposing subclasses to the properties that live on
 // SliceInternal. Within BaseSliceTrack the underlying storage and private
 // methods use CastInternal<S> (i.e. whatever the subclass requests
@@ -215,8 +227,12 @@ export abstract class BaseSliceTrack<
   private readonly pipeline: TrackRenderPipeline<
     RowT,
     CastInternal<SliceT>,
-    {maxDataDepth: number}
+    SlicePipelineGlobalState<CastInternal<SliceT>>
   >;
+
+  // Offscreen canvas for pre-rendered slice fills.
+  private offscreenCanvas?: OffscreenCanvas;
+  private offscreenCtx?: OffscreenCanvasRenderingContext2D;
 
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
@@ -262,12 +278,6 @@ export abstract class BaseSliceTrack<
     this.highlightHoveredAndSameTitle(slices);
   }
 
-  // TODO(hjd): Remove.
-  drawSchedLatencyArrow(
-    _: CanvasRenderingContext2D,
-    _selectedSlice?: SliceT,
-  ): void {}
-
   constructor(
     protected readonly trace: Trace,
     protected readonly uri: string,
@@ -297,7 +307,7 @@ export abstract class BaseSliceTrack<
     // Initialize the pipeline with SQL provider, state factory, and row handler.
     this.pipeline = new TrackRenderPipeline(
       this.trace,
-      (rawSql, key) => {
+      (rawSql: string, key: CacheKey) => {
         const extraCols = this.extraSqlColumns.join(',');
         return `
           SELECT
@@ -317,10 +327,29 @@ export abstract class BaseSliceTrack<
           CROSS JOIN (${rawSql}) s using (id)
         `;
       },
-      () => ({maxDataDepth: 0}),
+      () => ({
+        maxDataDepth: 0,
+        byColor: new Map<string, CastInternal<SliceT>[]>(),
+      }),
       (row, state) => {
         const slice = this.rowToSliceInternal(row);
-        state.maxDataDepth = Math.max(state.maxDataDepth, slice.depth);
+        state.maxDataDepth = Math.max(state.maxDataDepth, row.depth);
+
+        // Skip instants and incomplete slices (drawn directly in render loop).
+        if (slice.flags & SLICE_FLAGS_INSTANT) return slice;
+        if (slice.flags & SLICE_FLAGS_INCOMPLETE) return slice;
+
+        // Group by color for batched rendering, unless forceTimestampRenderOrder
+        // is set (in which case we need to preserve draw order for z-ordering).
+        const color = this.forceTimestampRenderOrder
+          ? '' // Use single key to preserve timestamp order
+          : slice.colorScheme.base.cssString;
+        let group = state.byColor.get(color);
+        if (group === undefined) {
+          group = [];
+          state.byColor.set(color, group);
+        }
+        group.push(slice);
         return slice;
       },
     );
@@ -347,6 +376,12 @@ export abstract class BaseSliceTrack<
 
   private getTableName(): string {
     return `slice_${this.trackUuid}`;
+  }
+
+  // Compute the y coordinate for a slice at the given depth.
+  private getSliceY(depth: number): number {
+    const {padding, sliceHeight, rowGap} = this.sliceLayout;
+    return padding + depth * (sliceHeight + rowGap);
   }
 
   private oldQuery?: string;
@@ -461,9 +496,96 @@ export abstract class BaseSliceTrack<
       this.slices = this.pipeline.getActiveBuffer();
       this.slicesKey = this.pipeline.getCacheKey();
       const state = this.pipeline.getGlobalState();
-      this.maxDepth = Math.max(this.maxDepth, state?.maxDataDepth ?? 0);
+      // Call onUpdatedSlices BEFORE rendering to offscreen canvas so
+      // subclasses can set colorScheme and other properties first.
       this.onUpdatedSlices(this.slices);
+      if (state !== undefined) {
+        this.maxDepth = Math.max(this.maxDepth, state.maxDataDepth);
+        this.renderToOffscreenCanvas(state.byColor, this.slicesKey);
+      }
     }
+  }
+
+  // Render slices to offscreen canvas, batched by color using rect() + fill().
+  private renderToOffscreenCanvas(
+    byColor: Map<string, CastInternal<SliceT>[]>,
+    cacheKey: CacheKey,
+  ): void {
+    const bucketSize = Number(cacheKey.bucketSize);
+
+    // Canvas width: OFFSCREEN_OVERSAMPLE pixels per bucket.
+    const canvasWidth =
+      Math.ceil(Number(cacheKey.end - cacheKey.start) / bucketSize) *
+      OFFSCREEN_OVERSAMPLE;
+    // Canvas height: current track height + margin for depth growth.
+    const canvasHeight = this.getHeight() + 100;
+
+    // Create or resize offscreen canvas.
+    if (
+      this.offscreenCanvas === undefined ||
+      this.offscreenCanvas.width !== canvasWidth ||
+      this.offscreenCanvas.height !== canvasHeight
+    ) {
+      this.offscreenCanvas = new OffscreenCanvas(canvasWidth, canvasHeight);
+      this.offscreenCtx = this.offscreenCanvas.getContext('2d') ?? undefined;
+    }
+
+    const ctx = this.offscreenCtx;
+    if (ctx === undefined) return;
+
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    const sliceHeight = this.sliceLayout.sliceHeight;
+
+    // Helper to compute slice x/w in offscreen canvas coordinates.
+    const getSliceXW = (slice: CastInternal<SliceT>) => {
+      const x =
+        (Number(slice.startNs - cacheKey.start) / bucketSize) *
+        OFFSCREEN_OVERSAMPLE;
+      const w = Math.max(
+        (Number(slice.durNs) / bucketSize) * OFFSCREEN_OVERSAMPLE,
+        1,
+      );
+      return {x, w};
+    };
+
+    // Draw slices batched by color using rect() + fill().
+    // When forceTimestampRenderOrder is true, all slices are in one group
+    // but we still get the color from each slice (not the map key).
+    for (const [, slices] of byColor) {
+      let currentColor = '';
+      for (const slice of slices) {
+        const color = slice.colorScheme.base.cssString;
+        if (color !== currentColor) {
+          if (currentColor !== '') ctx.fill();
+          ctx.beginPath();
+          ctx.fillStyle = color;
+          currentColor = color;
+        }
+        const {x, w} = getSliceXW(slice);
+        const y = this.getSliceY(slice.depth);
+        ctx.rect(x, y, w, sliceHeight);
+      }
+      if (currentColor !== '') ctx.fill();
+    }
+
+    // Second pass: draw fillRatio overlays.
+    ctx.fillStyle = '#FFFFFF50';
+    ctx.beginPath();
+    for (const [, slices] of byColor) {
+      for (const slice of slices) {
+        const fillRatio = clamp(slice.fillRatio, 0, 1);
+        if (floatEqual(fillRatio, 1)) continue;
+
+        const {x, w} = getSliceXW(slice);
+        const y = this.getSliceY(slice.depth);
+        const lightW = w * (1 - fillRatio);
+        if (lightW < 1) continue;
+
+        ctx.rect(x + w - lightW, y, lightW, sliceHeight);
+      }
+    }
+    ctx.fill();
   }
 
   render({
@@ -508,8 +630,6 @@ export abstract class BaseSliceTrack<
     // canvas (e.g., color, fonts) dominate any number crunching we do in JS.
 
     const sliceHeight = this.sliceLayout.sliceHeight;
-    const padding = this.sliceLayout.padding;
-    const rowSpacing = this.sliceLayout.rowGap;
 
     // First pass: compute geometry of slices.
 
@@ -564,25 +684,38 @@ export abstract class BaseSliceTrack<
       }
     }
 
-    // Second pass: fill slices by color.
-    const vizSlicesByColor = vizSlices.slice();
-    if (!this.forceTimestampRenderOrder) {
-      vizSlicesByColor.sort((a, b) =>
-        colorCompare(a.colorScheme.base, b.colorScheme.base),
-      );
+    // Second pass: Blit offscreen canvas + draw instants/incomplete/highlighted.
+    //
+    // Regular slice fills are pre-rendered to offscreen canvas during data
+    // loading, so we just blit with appropriate transform here.
+    if (this.offscreenCanvas) {
+      const offscreen = this.offscreenCanvas;
+      const offscreenKey = this.slicesKey;
+      const bucketSize = Number(offscreenKey.bucketSize);
+      const timePerPx = timescale.pxToDuration(1);
+      const scaleX = bucketSize / timePerPx / OFFSCREEN_OVERSAMPLE;
+
+      // Round offset to integer pixel to ensure consistent nearest-neighbor
+      // sampling during pan. Without this, sub-pixel offsets cause the rounding
+      // threshold to cross, making different source pixels get sampled.
+      const offsetX = Math.round(timescale.timeToPx(offscreenKey.start));
+      ctx.save();
+      ctx.imageSmoothingQuality = 'high';
+      ctx.translate(offsetX, 0);
+      ctx.scale(scaleX, 1);
+      ctx.drawImage(offscreen, 0, 0);
+      ctx.restore();
     }
-    let lastColor = undefined;
+
+    // Draw instants, incomplete, and highlighted slices (not in offscreen).
     for (const slice of vizSlices) {
+      const y = this.getSliceY(slice.depth);
       const color = slice.isHighlighted
         ? slice.colorScheme.variant
         : slice.colorScheme.base;
-      const colorString = color.cssString;
-      if (colorString !== lastColor) {
-        lastColor = colorString;
-        ctx.fillStyle = colorString;
-      }
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+
       if (slice.flags & SLICE_FLAGS_INSTANT) {
+        ctx.fillStyle = color.cssString;
         this.drawChevron(ctx, slice.x, y, sliceHeight);
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
         const w = CROP_INCOMPLETE_SLICE_FLAG.get()
@@ -597,7 +730,9 @@ export abstract class BaseSliceTrack<
           color,
           !CROP_INCOMPLETE_SLICE_FLAG.get(),
         );
-      } else {
+      } else if (slice.isHighlighted) {
+        // Redraw highlighted regular slices on top of offscreen canvas.
+        ctx.fillStyle = color.cssString;
         const w = Math.max(
           slice.w,
           FADE_THIN_SLICES_FLAG.get()
@@ -606,36 +741,6 @@ export abstract class BaseSliceTrack<
         );
         ctx.fillRect(slice.x, y, w, sliceHeight);
       }
-    }
-
-    // Pass 2.5: Draw fillRatio light section.
-    ctx.fillStyle = `#FFFFFF50`;
-    for (const slice of vizSlicesByColor) {
-      // Can't draw fill ratio on incomplete or instant slices.
-      if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
-        continue;
-      }
-
-      // Clamp fillRatio between 0.0 -> 1.0
-      const fillRatio = clamp(slice.fillRatio, 0, 1);
-
-      // Don't draw anything if the fill ratio is 1.0ish
-      if (floatEqual(fillRatio, 1)) {
-        continue;
-      }
-
-      // Work out the width of the light section
-      const sliceDrawWidth = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
-      const lightSectionDrawWidth = sliceDrawWidth * (1 - fillRatio);
-
-      // Don't draw anything if the light section is smaller than 1 px
-      if (lightSectionDrawWidth < 1) {
-        continue;
-      }
-
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      const x = slice.x + (sliceDrawWidth - lightSectionDrawWidth);
-      ctx.fillRect(x, y, lightSectionDrawWidth, sliceHeight);
     }
 
     // Third pass, draw the titles (e.g., process name for sched slices).
@@ -658,7 +763,7 @@ export abstract class BaseSliceTrack<
       ctx.fillStyle = textColor.cssString;
       const title = cropText(slice.title, charWidth, slice.w);
       const rectXCenter = slice.x + slice.w / 2;
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const y = this.getSliceY(slice.depth);
       const yDiv = slice.subTitle ? 3 : 2;
       const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
       ctx.fillText(title, rectXCenter, yMidPoint);
@@ -677,7 +782,7 @@ export abstract class BaseSliceTrack<
       }
       const rectXCenter = slice.x + slice.w / 2;
       const subTitle = cropText(slice.subTitle, charWidth, slice.w);
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const y = this.getSliceY(slice.depth);
       const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
       ctx.fillText(subTitle, rectXCenter, yMidPoint);
     }
@@ -690,7 +795,7 @@ export abstract class BaseSliceTrack<
 
       // Draw a thicker border around the selected slice (or chevron).
       const slice = discoveredSelection;
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const y = this.getSliceY(slice.depth);
       ctx.strokeStyle = colors.COLOR_TIMELINE_OVERLAY;
       ctx.beginPath();
       const THICKNESS = 3;
@@ -714,16 +819,11 @@ export abstract class BaseSliceTrack<
       timescale.timeToPx(this.slicesKey.start),
       timescale.timeToPx(this.slicesKey.end),
     );
-
-    // TODO(hjd): Remove this.
-    // The only thing this does is drawing the sched latency arrow. We should
-    // have some abstraction for that arrow (ideally the same we'd use for
-    // flows).
-    this.drawSchedLatencyArrow(ctx, this.selectedSlice);
   }
 
   async onDestroy(): Promise<void> {
     await this.trash.asyncDispose();
+    this.offscreenCanvas = undefined; // Release canvas memory
   }
 
   renderTooltip() {
