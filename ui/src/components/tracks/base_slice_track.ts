@@ -39,7 +39,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
-import {TrackDataLoader} from './track_data_loader';
+import {TrackRenderPipeline} from './track_render_pipeline';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -203,7 +203,7 @@ export abstract class BaseSliceTrack<
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
-  private maxDataDepth = 0;
+  private maxDepth = 0;
 
   // Computed layout.
   private computedTrackHeight = 0;
@@ -212,7 +212,7 @@ export abstract class BaseSliceTrack<
 
   // Handles data loading with viewport caching, double-buffering, cooperative
   // multitasking, and abort detection when the viewport changes.
-  private readonly loader: TrackDataLoader<
+  private readonly pipeline: TrackRenderPipeline<
     RowT,
     CastInternal<SliceT>,
     {maxDataDepth: number}
@@ -294,8 +294,8 @@ export abstract class BaseSliceTrack<
       subtitleSizePx: sliceLayout.subtitleSizePx ?? 8,
     };
 
-    // Initialize the fetcher with SQL provider, converter, and render state logic.
-    this.loader = new TrackDataLoader(
+    // Initialize the pipeline with SQL provider, state factory, and row handler.
+    this.pipeline = new TrackRenderPipeline(
       this.trace,
       (rawSql, key) => {
         const extraCols = this.extraSqlColumns.join(',');
@@ -317,11 +317,11 @@ export abstract class BaseSliceTrack<
           CROSS JOIN (${rawSql}) s using (id)
         `;
       },
-      (row) => this.rowToSliceInternal(row),
-      undefined,
-      () => ({maxDataDepth: this.maxDataDepth}),
-      (slice, state) => {
+      () => ({maxDataDepth: 0}),
+      (row, state) => {
+        const slice = this.rowToSliceInternal(row);
         state.maxDataDepth = Math.max(state.maxDataDepth, slice.depth);
+        return slice;
       },
     );
   }
@@ -414,6 +414,7 @@ export abstract class BaseSliceTrack<
     }
     this.onUpdatedSlices(incomplete);
     this.incomplete = incomplete;
+    this.maxDepth = maxIncompleteDepth;
 
     // Multiply the layer parameter by the rowCount
     await this.engine.query(`
@@ -424,7 +425,6 @@ export abstract class BaseSliceTrack<
         where dur != -1
       ));
     `);
-    this.maxDataDepth = maxIncompleteDepth;
 
     this.trash.defer(async () => {
       await this.engine.tryQuery(`drop table ${this.getTableName()}`);
@@ -456,15 +456,12 @@ export abstract class BaseSliceTrack<
       await this.initialize();
       this.oldQuery = query;
     }
-
-    const result = await this.loader.onUpdate(query, this.rowSpec, ctx);
+    const result = await this.pipeline.onUpdate(query, this.rowSpec, ctx);
     if (result === 'updated') {
-      this.slices = this.loader.getActiveBuffer();
-      this.slicesKey = this.loader.getCacheKey();
-      const renderState = this.loader.getRenderGlobalState();
-      if (renderState !== undefined) {
-        this.maxDataDepth = renderState.maxDataDepth;
-      }
+      this.slices = this.pipeline.getActiveBuffer();
+      this.slicesKey = this.pipeline.getCacheKey();
+      const state = this.pipeline.getGlobalState();
+      this.maxDepth = Math.max(this.maxDepth, state?.maxDataDepth ?? 0);
       this.onUpdatedSlices(this.slices);
     }
   }
@@ -891,7 +888,7 @@ export abstract class BaseSliceTrack<
   }
 
   private updateSliceAndTrackHeight() {
-    const rows = Math.max(this.maxDataDepth, this.depthGuess) + 1;
+    const rows = Math.max(this.maxDepth, this.depthGuess) + 1;
     const {padding = 2, sliceHeight = 12, rowGap = 0} = this.sliceLayout;
 
     // Compute the track height.
