@@ -407,36 +407,41 @@ interface WellKnownTrackTags {
   type: string;
 }
 
+// Slice interface for rendered track events.
+// Properties from row data (id, ts, dur, depth) have no prefix.
+// Slice-specific computed properties use _ prefix to avoid clashes.
 export interface Slice {
-  // These properties are updated only once per query result when the Slice
-  // object is created and don't change afterwards.
+  // These come directly from row data (no prefix, shared with row).
   readonly id: number;
-  readonly startNs: time;
-  readonly endNs: time;
-  readonly durNs: duration;
   readonly ts: time;
-  readonly count: number;
   readonly dur: duration;
   readonly depth: number;
-  readonly flags: number;
+
+  // These are Slice-specific computed properties (use _ prefix).
+  // Q suffix indicates quantized values (bucket-aligned for rendering).
+  readonly _startNsQ: time;
+  readonly _endNsQ: time;
+  readonly _durNsQ: duration;
+  readonly _count: number;
+  readonly _flags: number;
 
   // Each slice can represent some extra numerical information by rendering a
   // portion of the slice with a lighter tint.
-  // |fillRatio\ describes the ratio of the normal area to the tinted area
+  // |_fillRatio| describes the ratio of the normal area to the tinted area
   // width of the slice, normalized between 0.0 -> 1.0.
   // 0.0 means the whole slice is tinted.
   // 1.0 means none of the slice is tinted.
-  // E.g. If |fillRatio| = 0.65 the slice will be rendered like this:
+  // E.g. If |_fillRatio| = 0.65 the slice will be rendered like this:
   // [############|*******]
   // ^------------^-------^
   //     Normal     Light
-  readonly fillRatio: number;
+  readonly _fillRatio: number;
 
   // These can be changed by the Impl.
-  title?: string;
-  subTitle: string;
-  colorScheme: ColorScheme;
-  isHighlighted: boolean;
+  _title?: string;
+  _subTitle: string;
+  _colorScheme: ColorScheme;
+  _isHighlighted: boolean;
 }
 
 /**

@@ -117,8 +117,11 @@ export class TrackRenderPipeline<
    * @param sqlProvider A function that generates the SQL query given the raw
    *   SQL source and a normalized cache key. The cache key provides start, end,
    *   and bucketSize for viewport-based queries.
-   * @param converter A function that converts a raw SQL row to the result type.
-   *   Called once per row during data loading.
+   * @param creator A function that creates a new result row from a raw SQL row.
+   *   Called when the buffer needs to grow.
+   * @param updater A function that updates an existing result row in-place.
+   *   Called when reusing existing buffer slots. If undefined, creator is used
+   *   instead (with allocation).
    * @param renderMonitor Optional monitor that triggers render state
    *   recomputation when its state changes (e.g., when hover state changes).
    * @param renderGlobalStateFactory Factory function that creates a fresh
@@ -130,7 +133,10 @@ export class TrackRenderPipeline<
   constructor(
     private readonly trace: Trace,
     private readonly sqlProvider: (rawSql: string, key: CacheKey) => string,
-    private readonly converter: (raw: RawRow) => ResultRow,
+    private readonly creator: (raw: RawRow) => ResultRow,
+    private readonly updater:
+      | ((raw: RawRow, target: ResultRow) => void)
+      | undefined,
     private readonly renderMonitor: Monitor | undefined,
     private readonly renderGlobalStateFactory: (
       key: CacheKey,
@@ -203,13 +209,18 @@ export class TrackRenderPipeline<
         if (await this.maybeYieldAndCheckAbort(key, ctx, i)) {
           return 'aborted';
         }
-        const res = this.converter(it);
-        if (i < buffer.length) {
-          buffer[i] = res;
+        if (i < buffer.length && this.updater !== undefined) {
+          // Reuse existing object (zero allocations)
+          this.updater(it, buffer[i]);
+        } else if (i < buffer.length) {
+          // No updater provided, replace with new object
+          buffer[i] = this.creator(it);
         } else {
-          buffer.push(res);
+          // Buffer needs to grow, create new object
+          buffer.push(this.creator(it));
         }
       }
+      // Trim buffer if data shrunk (fewer rows than before)
       buffer.length = i;
       this.key = key;
     }

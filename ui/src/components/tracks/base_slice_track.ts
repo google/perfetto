@@ -36,7 +36,6 @@ import {
 } from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
-import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
 import {TrackRenderPipeline} from './track_render_pipeline';
 
@@ -51,7 +50,6 @@ const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const SLICE_MIN_WIDTH_FADED_PX = 0.1;
 
 const CHEVRON_WIDTH_PX = 10;
-const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK;
 const INCOMPLETE_SLICE_WIDTH_PX = 20;
 
 export const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
@@ -77,7 +75,7 @@ function filterVisibleSlices<S extends Slice>(
 ): S[] {
   // Here we aim to reduce the number of slices we have to draw
   // by ignoring those that are not visible. A slice is visible iff:
-  //   slice.endNsQ >= start && slice.startNsQ <= end
+  //   slice._endNsQ >= start && slice._startNsQ <= end
   // It's allowable to include slices which aren't visible but we
   // must not exclude visible slices.
   // We could filter this.slices using this condition but since most
@@ -113,7 +111,7 @@ function filterVisibleSlices<S extends Slice>(
   // by timestamp you can binary search for the last slice such
   // that slice.start <= end.
 
-  return slices.filter((slice) => slice.startNs <= end && slice.endNs >= start);
+  return slices.filter((slice) => slice._startNsQ <= end && slice._endNsQ >= start);
 }
 
 export const filterVisibleSlicesForTesting = filterVisibleSlices;
@@ -163,7 +161,7 @@ const OFFSCREEN_OVERSAMPLE = 0.5;
 // methods use CastInternal<S> (i.e. whatever the subclass requests
 // plus our implementation fields) but when we call 'virtual' methods that
 // the subclass should implement we use just S hiding x & w.
-type CastInternal<S extends Slice> = S & SliceInternal;
+export type CastInternal<S extends Slice> = S & SliceInternal;
 
 export interface SliceLayout {
   // Vertical spacing between slices and track.
@@ -327,8 +325,10 @@ export abstract class BaseSliceTrack<
           CROSS JOIN (${rawSql}) s using (id)
         `;
       },
-      (row: RowT) => this.rowToSliceInternal(row),
-      undefined,
+      (row: RowT) => this.createSliceInternal(row),
+      (row: RowT, slice: CastInternal<SliceT>) =>
+        this.updateSliceInternal(row, slice),
+      undefined, // renderMonitor
       // Factory: create empty render state with byColor map.
       (): SliceRenderState<CastInternal<SliceT>> => ({
         maxDataDepth: this.maxDataDepth,
@@ -342,14 +342,14 @@ export abstract class BaseSliceTrack<
         state.maxDataDepth = Math.max(state.maxDataDepth, slice.depth);
 
         // Skip instants and incomplete slices (drawn directly in render loop).
-        if (slice.flags & SLICE_FLAGS_INSTANT) return;
-        if (slice.flags & SLICE_FLAGS_INCOMPLETE) return;
+        if (slice._flags & SLICE_FLAGS_INSTANT) return;
+        if (slice._flags & SLICE_FLAGS_INCOMPLETE) return;
 
         // Group by color for batched rendering, unless forceTimestampRenderOrder
         // is set (in which case we need to preserve draw order for z-ordering).
         const color = this.forceTimestampRenderOrder
           ? '' // Use single key to preserve timestamp order
-          : slice.colorScheme.base.cssString;
+          : slice._colorScheme.base.cssString;
         let group = state.byColor.get(color);
         if (group === undefined) {
           group = [];
@@ -449,7 +449,7 @@ export abstract class BaseSliceTrack<
     const it = queryRes.iter(this.rowSpec);
     let maxIncompleteDepth = 0;
     for (let i = 0; it.valid(); it.next(), ++i) {
-      incomplete[i] = this.rowToSliceInternal(it);
+      incomplete[i] = this.createSliceInternal(it);
       maxIncompleteDepth = Math.max(maxIncompleteDepth, incomplete[i].depth);
     }
     this.onUpdatedSlices(incomplete);
@@ -545,10 +545,10 @@ export abstract class BaseSliceTrack<
     // Helper to compute slice x/w in offscreen canvas coordinates.
     const getSliceXW = (slice: CastInternal<SliceT>) => {
       const x =
-        (Number(slice.startNs - cacheKey.start) / bucketSize) *
+        (Number(slice._startNsQ - cacheKey.start) / bucketSize) *
         OFFSCREEN_OVERSAMPLE;
       const w = Math.max(
-        (Number(slice.durNs) / bucketSize) * OFFSCREEN_OVERSAMPLE,
+        (Number(slice._durNsQ) / bucketSize) * OFFSCREEN_OVERSAMPLE,
         1,
       );
       return {x, w};
@@ -560,7 +560,7 @@ export abstract class BaseSliceTrack<
     for (const [, slices] of byColor) {
       let currentColor = '';
       for (const slice of slices) {
-        const color = slice.colorScheme.base.cssString;
+        const color = slice._colorScheme.base.cssString;
         if (color !== currentColor) {
           if (currentColor !== '') ctx.fill();
           ctx.beginPath();
@@ -579,7 +579,7 @@ export abstract class BaseSliceTrack<
     ctx.beginPath();
     for (const [, slices] of byColor) {
       for (const slice of slices) {
-        const fillRatio = clamp(slice.fillRatio, 0, 1);
+        const fillRatio = clamp(slice._fillRatio, 0, 1);
         if (floatEqual(fillRatio, 1)) continue;
 
         const {x, w} = getSliceXW(slice);
@@ -648,15 +648,15 @@ export abstract class BaseSliceTrack<
       // partially visible. This might end up with a negative x if the
       // slice starts before the visible time or with a width that overflows
       // pxEnd.
-      slice.x = timescale.timeToPx(slice.startNs);
-      slice.w = timescale.durationToPx(slice.durNs);
+      slice.x = timescale.timeToPx(slice._startNsQ);
+      slice.w = timescale.durationToPx(slice._durNsQ);
 
-      if (slice.flags & SLICE_FLAGS_INSTANT) {
+      if (slice._flags & SLICE_FLAGS_INSTANT) {
         // In the case of an instant slice, set the slice geometry on the
         // bounding box that will contain the chevron.
         slice.x -= this.instantWidthPx / 2;
         slice.w = this.instantWidthPx;
-      } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
+      } else if (slice._flags & SLICE_FLAGS_INCOMPLETE) {
         let widthPx;
         if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
           widthPx =
@@ -715,14 +715,14 @@ export abstract class BaseSliceTrack<
     // Draw instants, incomplete, and highlighted slices (not in offscreen).
     for (const slice of vizSlices) {
       const y = this.getSliceY(slice.depth);
-      const color = slice.isHighlighted
-        ? slice.colorScheme.variant
-        : slice.colorScheme.base;
+      const color = slice._isHighlighted
+        ? slice._colorScheme.variant
+        : slice._colorScheme.base;
 
-      if (slice.flags & SLICE_FLAGS_INSTANT) {
+      if (slice._flags & SLICE_FLAGS_INSTANT) {
         ctx.fillStyle = color.cssString;
         this.drawChevron(ctx, slice.x, y, sliceHeight);
-      } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
+      } else if (slice._flags & SLICE_FLAGS_INCOMPLETE) {
         const w = CROP_INCOMPLETE_SLICE_FLAG.get()
           ? slice.w
           : Math.max(slice.w - 2, 2);
@@ -735,7 +735,7 @@ export abstract class BaseSliceTrack<
           color,
           !CROP_INCOMPLETE_SLICE_FLAG.get(),
         );
-      } else if (slice.isHighlighted) {
+      } else if (slice._isHighlighted) {
         // Redraw highlighted regular slices on top of offscreen canvas.
         ctx.fillStyle = color.cssString;
         const w = Math.max(
@@ -754,22 +754,22 @@ export abstract class BaseSliceTrack<
     ctx.textBaseline = 'middle';
     for (const slice of vizSlices) {
       if (
-        slice.flags & SLICE_FLAGS_INSTANT ||
-        !slice.title ||
+        slice._flags & SLICE_FLAGS_INSTANT ||
+        !slice._title ||
         slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX
       ) {
         continue;
       }
 
       // Change the title color dynamically depending on contrast.
-      const textColor = slice.isHighlighted
-        ? slice.colorScheme.textVariant
-        : slice.colorScheme.textBase;
+      const textColor = slice._isHighlighted
+        ? slice._colorScheme.textVariant
+        : slice._colorScheme.textBase;
       ctx.fillStyle = textColor.cssString;
-      const title = cropText(slice.title, charWidth, slice.w);
+      const title = cropText(slice._title, charWidth, slice.w);
       const rectXCenter = slice.x + slice.w / 2;
       const y = this.getSliceY(slice.depth);
-      const yDiv = slice.subTitle ? 3 : 2;
+      const yDiv = slice._subTitle ? 3 : 2;
       const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
       ctx.fillText(title, rectXCenter, yMidPoint);
     }
@@ -780,13 +780,13 @@ export abstract class BaseSliceTrack<
     for (const slice of vizSlices) {
       if (
         slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX ||
-        !slice.subTitle ||
-        slice.flags & SLICE_FLAGS_INSTANT
+        !slice._subTitle ||
+        slice._flags & SLICE_FLAGS_INSTANT
       ) {
         continue;
       }
       const rectXCenter = slice.x + slice.w / 2;
-      const subTitle = cropText(slice.subTitle, charWidth, slice.w);
+      const subTitle = cropText(slice._subTitle, charWidth, slice.w);
       const y = this.getSliceY(slice.depth);
       const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
       ctx.fillText(subTitle, rectXCenter, yMidPoint);
@@ -839,52 +839,34 @@ export abstract class BaseSliceTrack<
     return undefined;
   }
 
-  private rowToSliceInternal(row: RowT): CastInternal<SliceT> {
-    const slice = this.rowToSlice(row);
+  // Create a new slice from a row (called when buffer grows)
+  protected abstract createSlice(row: RowT): SliceT;
 
-    // If this is a more updated version of the selected slice throw
-    // away the old one.
+  // Update an existing slice in-place (called when reusing buffer slots)
+  protected abstract updateSlice(row: RowT, slice: SliceT): void;
+
+  // Wraps createSlice to add internal fields
+  private createSliceInternal(row: RowT): CastInternal<SliceT> {
+    const slice = this.createSlice(row) as CastInternal<SliceT>;
+    slice.x = -1;
+    slice.w = -1;
+    // Clear selected slice if we're creating an updated version
     if (this.selectedSlice?.id === slice.id) {
       this.selectedSlice = undefined;
     }
-
-    return {
-      ...slice,
-      x: -1,
-      w: -1,
-    };
+    return slice;
   }
 
-  protected abstract rowToSlice(row: RowT): SliceT;
-
-  protected rowToSliceBase(row: RowT): Slice {
-    let flags = 0;
-    if (row.dur === -1n) {
-      flags |= SLICE_FLAGS_INCOMPLETE;
-    } else if (row.dur === 0n) {
-      flags |= SLICE_FLAGS_INSTANT;
+  // Wraps updateSlice - x/w are preserved, not reset
+  private updateSliceInternal(
+    row: RowT,
+    slice: CastInternal<SliceT>,
+  ): void {
+    this.updateSlice(row, slice);
+    // Clear selected slice if we're updating it
+    if (this.selectedSlice?.id === slice.id) {
+      this.selectedSlice = undefined;
     }
-
-    return {
-      id: row.id,
-      startNs: Time.fromRaw(row.tsQ),
-      endNs: Time.fromRaw(row.tsQ + row.durQ),
-      durNs: row.durQ,
-      ts: Time.fromRaw(row.ts),
-      count: row.count,
-      dur: row.dur,
-      flags,
-      depth: row.depth,
-      title: '',
-      subTitle: '',
-      fillRatio: 1,
-
-      // The derived class doesn't need to initialize these. They are
-      // rewritten on every renderCanvas() call. We just need to initialize
-      // them to something.
-      colorScheme: DEFAULT_SLICE_COLOR,
-      isHighlighted: false,
-    };
   }
 
   private findSlice({x, y, timescale}: TrackMouseEvent): undefined | SliceT {
@@ -910,7 +892,7 @@ export abstract class BaseSliceTrack<
 
     for (const slice of this.incomplete) {
       const startPx = CROP_INCOMPLETE_SLICE_FLAG.get()
-        ? timescale.timeToPx(slice.startNs)
+        ? timescale.timeToPx(slice._startNsQ)
         : slice.x;
       const cropUnfinishedSlicesCondition = CROP_INCOMPLETE_SLICE_FLAG.get()
         ? startPx + INCOMPLETE_SLICE_WIDTH_PX >= x
@@ -1037,8 +1019,8 @@ export abstract class BaseSliceTrack<
     for (const slice of slices) {
       const isHovering =
         this.trace.timeline.highlightedSliceId === slice.id ||
-        (this.hoveredSlice && this.hoveredSlice.title === slice.title);
-      slice.isHighlighted = !!isHovering;
+        (this.hoveredSlice && this.hoveredSlice._title === slice._title);
+      slice._isHighlighted = !!isHovering;
     }
   }
 

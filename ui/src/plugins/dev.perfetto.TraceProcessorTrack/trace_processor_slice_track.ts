@@ -68,37 +68,49 @@ export async function createTraceProcessorSliceTrack({
     trace,
     uri,
     dataset: await getDataset(trace.engine, trackIds, depthTableName),
-    sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
-    fillRatio: (row) => {
-      if (row.dur > 0n && row.thread_dur !== null) {
-        return clamp(BIMath.ratio(row.thread_dur, row.dur), 0, 1);
-      } else {
-        return 1;
-      }
+    // Only keep id for detailsPanel (category accessed in tooltip must be added)
+    keep: ['id', 'category'],
+    // Cached resolvers - compute once per unique dependency value
+    title: {
+      keys: ['name'],
+      fn: (row) => (row.name === null ? '[null]' : row.name),
+    },
+    fill: {
+      keys: ['dur', 'thread_dur'],
+      fn: (row) => {
+        if (row.dur > 0n && row.thread_dur !== null) {
+          return clamp(BIMath.ratio(row.thread_dur, row.dur), 0, 1);
+        } else {
+          return 1;
+        }
+      },
+    },
+    color: {
+      keys: ['correlation_id', 'name', 'id'],
+      fn: (row) => {
+        if (row.correlation_id !== null) {
+          return getColorForSlice(row.correlation_id, {
+            stripTrailingDigits: false,
+          });
+        }
+        if (row.name !== null) {
+          return getColorForSlice(row.name);
+        }
+        return getColorForSlice(`${row.id}`);
+      },
     },
     tooltip: (slice) => {
       return renderTooltip(trace, slice, {
-        title: slice.title,
+        title: slice._title,
         extras:
-          exists(slice.row.category) && m('', 'Category: ', slice.row.category),
+          exists(slice.category) && m('', 'Category: ', slice.category),
       });
     },
     detailsPanel: detailsPanel
       ? (row) => detailsPanel(row)
       : () => new ThreadSliceDetailsPanel(trace),
-    colorizer: (row) => {
-      if (row.correlation_id) {
-        return getColorForSlice(row.correlation_id, {
-          stripTrailingDigits: false,
-        });
-      }
-      if (row.name) {
-        return getColorForSlice(row.name);
-      }
-      return getColorForSlice(`${row.id}`);
-    },
   });
 }
 

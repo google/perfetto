@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {ColorScheme} from '../../base/color_scheme';
 import {Time} from '../../base/time';
+import {CachedResolver} from './cached_resolver';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventDetails, TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
@@ -58,7 +59,10 @@ export interface InstantStyle {
   render(ctx: CanvasRenderingContext2D, rect: Size2D & Point2D): void;
 }
 
-export interface SliceTrackAttrs<T extends DatasetSchema> {
+export interface SliceTrackAttrs<
+  T extends DatasetSchema,
+  K extends keyof T = keyof T,
+> {
   /**
    * The trace object used by the track for accessing the query engine and other
    * trace-related resources.
@@ -163,7 +167,7 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
    * An optional function to override the tooltip content for each event. If
    * omitted, the title will be used instead.
    */
-  tooltip?(slice: SliceWithRow<T>): m.Children;
+  tooltip?(slice: SliceWithRow<T, K>): m.Children;
 
   /**
    * An optional callback to customize the details panel for events on this
@@ -173,7 +177,7 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
    * fields from the dataset with appropriate formatting for common slice
    * properties (name, ts, dur).
    */
-  detailsPanel?(row: T): TrackEventDetailsPanel;
+  detailsPanel?(row: Pick<T, K>): TrackEventDetailsPanel;
 
   /**
    * An optional callback to define the fill ratio for slices. The fill ratio is
@@ -184,6 +188,44 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
    * 'full'.
    */
   fillRatio?(row: T): number;
+
+  // NEW: Cached resolvers. Declare which row properties you depend on, and
+  // the result is cached by those values. Takes precedence over legacy lambdas.
+
+  /**
+   * Cached color resolver. Declare dependencies and compute function.
+   * Results are cached by the dependency values.
+   */
+  readonly color?: {
+    readonly keys: readonly (keyof T)[];
+    readonly fn: (row: T) => ColorScheme;
+  };
+
+  /**
+   * Cached title resolver. Declare dependencies and compute function.
+   * Results are cached by the dependency values.
+   */
+  readonly title?: {
+    readonly keys: readonly (keyof T)[];
+    readonly fn: (row: T) => string | undefined;
+  };
+
+  /**
+   * Cached fill ratio resolver. Declare dependencies and compute function.
+   * Results are cached by the dependency values.
+   */
+  readonly fill?: {
+    readonly keys: readonly (keyof T)[];
+    readonly fn: (row: T) => number;
+  };
+
+  /**
+   * Explicitly declare which row properties to keep on the slice.
+   * Only these properties will be copied to slice.row, reducing memory and
+   * making dependencies explicit. If not specified, all schema columns are
+   * copied (legacy behavior).
+   */
+  readonly keep?: readonly K[];
 
   /**
    * An optional function to define buttons which are displayed on the track
@@ -200,22 +242,30 @@ export type RowSchema = {
   readonly layer?: number;
 } & DatasetSchema;
 
-// We attach a copy of our rows to each slice, so that the tooltip can be
-// resolved properly.
-type SliceWithRow<T> = Slice & {row: T};
+// Slice has id, ts, dur, depth directly (shared with row data).
+// Other Slice properties use _ prefix. Extra row properties from K are added.
+type SliceWithRow<T, K extends keyof T = keyof T> = Slice & Pick<T, K>;
 
-function getDataset<T extends DatasetSchema>(
-  attrs: SliceTrackAttrs<T>,
+function getDataset<T extends DatasetSchema, K extends keyof T>(
+  attrs: SliceTrackAttrs<T, K>,
 ): SourceDataset<T> {
   const dataset = attrs.dataset;
   return typeof dataset === 'function' ? dataset() : dataset;
 }
 
-export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
-  SliceWithRow<T>,
-  BaseRow & T
-> {
+export class SliceTrack<
+  T extends RowSchema,
+  K extends keyof T = keyof T,
+> extends BaseSliceTrack<SliceWithRow<T, K>, BaseRow & T> {
   readonly rootTableName?: string;
+
+  // Keys to copy from row to slice.row (from attrs.keep or all schema keys)
+  private readonly keepKeys: readonly string[];
+
+  // Cached resolvers (created from attrs config)
+  private readonly colorResolver?: CachedResolver<T, keyof T, ColorScheme>;
+  private readonly titleResolver?: CachedResolver<T, keyof T, string | undefined>;
+  private readonly fillResolver?: CachedResolver<T, keyof T, number>;
 
   /**
    * Factory function to create a SliceTrack. This is purely an alias for new
@@ -225,7 +275,9 @@ export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
    * @param attrs The track attributes
    * @returns A fully initialized SliceTrack
    */
-  static create<T extends RowSchema>(attrs: SliceTrackAttrs<T>): SliceTrack<T> {
+  static create<T extends RowSchema, K extends keyof T = keyof T>(
+    attrs: SliceTrackAttrs<T, K>,
+  ): SliceTrack<T, K> {
     return new SliceTrack(attrs);
   }
 
@@ -248,9 +300,9 @@ export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
    * @param attrs The track attributes
    * @returns A fully initialized SliceTrack
    */
-  static async createMaterialized<T extends RowSchema>(
-    attrs: SliceTrackAttrs<T>,
-  ): Promise<SliceTrack<T>> {
+  static async createMaterialized<T extends RowSchema, K extends keyof T = keyof T>(
+    attrs: SliceTrackAttrs<T, K>,
+  ): Promise<SliceTrack<T, K>> {
     const originalDataset = getDataset(attrs);
     // Create materialized table from the render query - we might as well
     // materialize the calculated columns that are missing from the source
@@ -282,7 +334,7 @@ export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
     });
   }
 
-  private constructor(private readonly attrs: SliceTrackAttrs<T>) {
+  private constructor(private readonly attrs: SliceTrackAttrs<T, K>) {
     const dataset = getDataset(attrs);
     super(
       attrs.trace,
@@ -294,45 +346,138 @@ export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
       attrs.forceTsRenderOrder ?? false,
     );
     this.rootTableName = attrs.rootTableName;
-  }
 
-  override rowToSlice(row: BaseRow & T): SliceWithRow<T> {
-    const slice = this.rowToSliceBase(row);
-    const title = this.getTitle(row);
-    const color = this.getColor(row, title);
-    const dataset = getDataset(this.attrs);
+    // Keys to copy from row - filter out properties already on Slice
+    // (id, ts, dur, depth are already stored as _id, _ts, _dur, _depth)
+    const sliceProps = new Set(['id', 'ts', 'dur', 'depth']);
+    const allKeys = attrs.keep
+      ? (attrs.keep as readonly string[])
+      : Object.keys(dataset.schema);
+    this.keepKeys = allKeys.filter((k) => !sliceProps.has(k));
 
-    // Take a copy of the row, only copying the keys listed in the schema to
-    // avoid leaking internal columns.
-    // - Avoid using Object.keys() because it is slow.
-    // - We can avoid having to check hasOwnProperty() here as we dataset.schema
-    //   is almost always guaranteed to be a simple object, though we need to
-    //   disable the lint check.
-    const clonedRow: Record<string, SqlValue> = {};
-    // eslint-disable-next-line guard-for-in
-    for (const k in dataset.schema) {
-      clonedRow[k] = row[k];
+    // Create cached resolvers from config
+    if (attrs.color) {
+      this.colorResolver = new CachedResolver(attrs.color.keys, attrs.color.fn);
     }
-
-    return {
-      ...slice,
-      title,
-      colorScheme: color,
-      fillRatio: this.attrs.fillRatio?.(row) ?? slice.fillRatio,
-      row: clonedRow as T,
-    };
+    if (attrs.title) {
+      this.titleResolver = new CachedResolver(attrs.title.keys, attrs.title.fn);
+    }
+    if (attrs.fill) {
+      this.fillResolver = new CachedResolver(attrs.fill.keys, attrs.fill.fn);
+    }
   }
 
-  private getTitle(row: T) {
-    if (this.attrs.sliceName) return this.attrs.sliceName(row);
-    if ('name' in row && typeof row.name === 'string') return row.name;
+  // Flags are derived from dur, compute once
+  private computeFlags(dur: bigint): number {
+    if (dur === -1n) return SLICE_FLAGS_INCOMPLETE;
+    if (dur === 0n) return SLICE_FLAGS_INSTANT;
+    return 0;
+  }
+
+  // Copy kept row properties (no prefix - row data is primary)
+  private copyKeptPropsInto(src: T, dest: Record<string, SqlValue>): void {
+    const keys = this.keepKeys;
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      dest[k] = (src as Record<string, SqlValue>)[k];
+    }
+  }
+
+  // Create a new slice object (used when buffer grows)
+  protected override createSlice(row: BaseRow & T): SliceWithRow<T, K> {
+    const title = this.resolveTitle(row);
+    const slice: Record<string, unknown> = {
+      // Row properties (no prefix, shared)
+      id: row.id,
+      ts: Time.fromRaw(row.ts),
+      dur: row.dur,
+      depth: row.depth,
+      // Slice-specific computed properties (use _ prefix, Q = quantized)
+      _startNsQ: Time.fromRaw(row.tsQ),
+      _endNsQ: Time.fromRaw(row.tsQ + row.durQ),
+      _durNsQ: row.durQ,
+      _count: row.count,
+      _flags: this.computeFlags(row.dur),
+      _fillRatio: this.resolveFillRatio(row),
+      _subTitle: '',
+      _isHighlighted: false,
+      _title: title,
+      _colorScheme: this.resolveColor(row, title),
+    };
+    // Add extra kept row properties (no prefix)
+    this.copyKeptPropsInto(row, slice as Record<string, SqlValue>);
+    return slice as SliceWithRow<T, K>;
+  }
+
+  // Update existing slice in-place (zero allocations)
+  protected override updateSlice(
+    row: BaseRow & T,
+    slice: SliceWithRow<T, K>,
+  ): void {
+    const title = this.resolveTitle(row);
+    const s = slice as Record<string, unknown>;
+    // Row properties (no prefix, shared)
+    s.id = row.id;
+    s.ts = Time.fromRaw(row.ts);
+    s.dur = row.dur;
+    s.depth = row.depth;
+    // Slice-specific computed properties (use _ prefix, Q = quantized)
+    s._startNsQ = Time.fromRaw(row.tsQ);
+    s._endNsQ = Time.fromRaw(row.tsQ + row.durQ);
+    s._durNsQ = row.durQ;
+    s._count = row.count;
+    s._flags = this.computeFlags(row.dur);
+    s._fillRatio = this.resolveFillRatio(row);
+    s._subTitle = '';
+    s._isHighlighted = false;
+    s._title = title;
+    s._colorScheme = this.resolveColor(row, title);
+    // Update extra kept row properties (no prefix)
+    this.copyKeptPropsInto(row, s as Record<string, SqlValue>);
+  }
+
+  // Resolution methods: cached resolvers take precedence over legacy lambdas.
+
+  private resolveTitle(row: T): string | undefined {
+    // Cached resolver takes precedence
+    if (this.titleResolver) {
+      return this.titleResolver.get(row);
+    }
+    // Legacy API (no caching)
+    if (this.attrs.sliceName) {
+      return this.attrs.sliceName(row);
+    }
+    // Default: use 'name' column if present
+    if ('name' in row && typeof row.name === 'string') {
+      return row.name;
+    }
     return undefined;
   }
 
-  private getColor(row: T, title: string | undefined) {
-    if (this.attrs.colorizer) return this.attrs.colorizer(row);
+  private resolveColor(row: T, title: string | undefined): ColorScheme {
+    // Cached resolver takes precedence
+    if (this.colorResolver) {
+      return this.colorResolver.get(row);
+    }
+    // Legacy API (no caching)
+    if (this.attrs.colorizer) {
+      return this.attrs.colorizer(row);
+    }
+    // Default: color by title or id
     if (title) return getColorForSlice(title);
     return getColorForSlice(`${row.id}`);
+  }
+
+  private resolveFillRatio(row: T): number {
+    // Cached resolver takes precedence
+    if (this.fillResolver) {
+      return this.fillResolver.get(row);
+    }
+    // Legacy API (no caching)
+    if (this.attrs.fillRatio) {
+      return this.attrs.fillRatio(row);
+    }
+    return 1;
   }
 
   override getSqlSource(): string {
@@ -412,7 +557,7 @@ export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
 
   override onUpdatedSlices(slices: Slice[]) {
     for (const slice of slices) {
-      slice.isHighlighted = slice === this.hoveredSlice;
+      slice._isHighlighted = slice === this.hoveredSlice;
     }
   }
 
@@ -420,7 +565,7 @@ export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
     return this.attrs.shellButtons?.();
   }
 
-  override renderTooltipForSlice(slice: SliceWithRow<T>): m.Children {
+  override renderTooltipForSlice(slice: SliceWithRow<T, K>): m.Children {
     return this.attrs.tooltip?.(slice) ?? renderTooltip(this.trace, slice);
   }
 
@@ -446,26 +591,26 @@ export class SliceTrack<T extends RowSchema> extends BaseSliceTrack<
 // Most tooltips follow a predictable formula. This function extracts the
 // duration and title from the slice and formats them in a standard way,
 // allowing some optional overrides to be passed.
-export function renderTooltip<T>(
+export function renderTooltip<T, K extends keyof T = keyof T>(
   trace: Trace,
-  slice: SliceWithRow<T>,
+  slice: SliceWithRow<T, K>,
   opts: {readonly title?: string; readonly extras?: m.Children} = {},
 ) {
   const durationFormatted = formatDurationForTooltip(trace, slice);
-  const {title = slice.title, extras} = opts;
+  const {title = slice._title, extras} = opts;
   return [
     m('', exists(durationFormatted) && m('b', durationFormatted), ' ', title),
     extras,
-    slice.count > 1 && m('div', `and ${slice.count - 1} other events`),
+    slice._count > 1 && m('div', `and ${slice._count - 1} other events`),
   ];
 }
 
 // Given a slice, format the duration of the slice for a tooltip.
 function formatDurationForTooltip(trace: Trace, slice: Slice) {
-  const {dur, flags} = slice;
-  if (flags & SLICE_FLAGS_INCOMPLETE) {
+  const {dur, _flags} = slice;
+  if (_flags & SLICE_FLAGS_INCOMPLETE) {
     return '[Incomplete]';
-  } else if (flags & SLICE_FLAGS_INSTANT) {
+  } else if (_flags & SLICE_FLAGS_INSTANT) {
     return undefined;
   } else {
     return formatDuration(trace, dur);
