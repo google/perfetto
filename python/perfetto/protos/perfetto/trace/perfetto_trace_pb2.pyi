@@ -8904,16 +8904,16 @@ class DpuDsiRxFtraceEvent(_message.Message):
     def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[bytes] = ...) -> None: ...
 
 class DpuDsiTxFtraceEvent(_message.Message):
-    __slots__ = ("type", "tx_buf", "last", "delay_ms")
+    __slots__ = ("type", "last", "delay_ms", "tx_buf")
     TYPE_FIELD_NUMBER: _ClassVar[int]
-    TX_BUF_FIELD_NUMBER: _ClassVar[int]
     LAST_FIELD_NUMBER: _ClassVar[int]
     DELAY_MS_FIELD_NUMBER: _ClassVar[int]
+    TX_BUF_FIELD_NUMBER: _ClassVar[int]
     type: int
-    tx_buf: bytes
     last: int
     delay_ms: int
-    def __init__(self, type: _Optional[int] = ..., tx_buf: _Optional[bytes] = ..., last: _Optional[int] = ..., delay_ms: _Optional[int] = ...) -> None: ...
+    tx_buf: bytes
+    def __init__(self, type: _Optional[int] = ..., last: _Optional[int] = ..., delay_ms: _Optional[int] = ..., tx_buf: _Optional[bytes] = ...) -> None: ...
 
 class DpuDispDpuUnderrunFtraceEvent(_message.Message):
     __slots__ = ("id", "frames_pending", "vsync_count")
@@ -13673,14 +13673,14 @@ class DsiRxFtraceEvent(_message.Message):
     def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[bytes] = ...) -> None: ...
 
 class DsiTxFtraceEvent(_message.Message):
-    __slots__ = ("last", "tx_buf", "type")
+    __slots__ = ("last", "type", "tx_buf")
     LAST_FIELD_NUMBER: _ClassVar[int]
-    TX_BUF_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
+    TX_BUF_FIELD_NUMBER: _ClassVar[int]
     last: int
-    tx_buf: bytes
     type: int
-    def __init__(self, last: _Optional[int] = ..., tx_buf: _Optional[bytes] = ..., type: _Optional[int] = ...) -> None: ...
+    tx_buf: bytes
+    def __init__(self, last: _Optional[int] = ..., type: _Optional[int] = ..., tx_buf: _Optional[bytes] = ...) -> None: ...
 
 class PanelWriteGenericFtraceEvent(_message.Message):
     __slots__ = ("pid", "trace_name", "trace_begin", "name", "type", "value")
@@ -14229,7 +14229,7 @@ class ScmCallEndFtraceEvent(_message.Message):
     def __init__(self) -> None: ...
 
 class ScsiDispatchCmdErrorFtraceEvent(_message.Message):
-    __slots__ = ("host_no", "channel", "id", "lun", "rtn", "opcode", "cmd_len", "data_sglen", "prot_sglen", "prot_op", "cmnd", "driver_tag", "scheduler_tag")
+    __slots__ = ("host_no", "channel", "id", "lun", "rtn", "opcode", "cmd_len", "data_sglen", "prot_sglen", "prot_op", "driver_tag", "scheduler_tag", "cmnd")
     HOST_NO_FIELD_NUMBER: _ClassVar[int]
     CHANNEL_FIELD_NUMBER: _ClassVar[int]
     ID_FIELD_NUMBER: _ClassVar[int]
@@ -14240,9 +14240,9 @@ class ScsiDispatchCmdErrorFtraceEvent(_message.Message):
     DATA_SGLEN_FIELD_NUMBER: _ClassVar[int]
     PROT_SGLEN_FIELD_NUMBER: _ClassVar[int]
     PROT_OP_FIELD_NUMBER: _ClassVar[int]
-    CMND_FIELD_NUMBER: _ClassVar[int]
     DRIVER_TAG_FIELD_NUMBER: _ClassVar[int]
     SCHEDULER_TAG_FIELD_NUMBER: _ClassVar[int]
+    CMND_FIELD_NUMBER: _ClassVar[int]
     host_no: int
     channel: int
     id: int
@@ -14253,13 +14253,13 @@ class ScsiDispatchCmdErrorFtraceEvent(_message.Message):
     data_sglen: int
     prot_sglen: int
     prot_op: int
-    cmnd: bytes
     driver_tag: int
     scheduler_tag: int
-    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., rtn: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., cmnd: _Optional[bytes] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ...) -> None: ...
+    cmnd: bytes
+    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., rtn: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ..., cmnd: _Optional[bytes] = ...) -> None: ...
 
 class ScsiDispatchCmdTimeoutFtraceEvent(_message.Message):
-    __slots__ = ("host_no", "channel", "id", "lun", "result", "opcode", "cmd_len", "data_sglen", "prot_sglen", "prot_op", "cmnd", "driver_tag", "scheduler_tag", "sense_key", "asc", "ascq")
+    __slots__ = ("host_no", "channel", "id", "lun", "result", "opcode", "cmd_len", "data_sglen", "prot_sglen", "prot_op", "driver_tag", "scheduler_tag", "sense_key", "asc", "ascq", "cmnd")
     HOST_NO_FIELD_NUMBER: _ClassVar[int]
     CHANNEL_FIELD_NUMBER: _ClassVar[int]
     ID_FIELD_NUMBER: _ClassVar[int]
@@ -14270,12 +14270,12 @@ class ScsiDispatchCmdTimeoutFtraceEvent(_message.Message):
     DATA_SGLEN_FIELD_NUMBER: _ClassVar[int]
     PROT_SGLEN_FIELD_NUMBER: _ClassVar[int]
     PROT_OP_FIELD_NUMBER: _ClassVar[int]
-    CMND_FIELD_NUMBER: _ClassVar[int]
     DRIVER_TAG_FIELD_NUMBER: _ClassVar[int]
     SCHEDULER_TAG_FIELD_NUMBER: _ClassVar[int]
     SENSE_KEY_FIELD_NUMBER: _ClassVar[int]
     ASC_FIELD_NUMBER: _ClassVar[int]
     ASCQ_FIELD_NUMBER: _ClassVar[int]
+    CMND_FIELD_NUMBER: _ClassVar[int]
     host_no: int
     channel: int
     id: int
@@ -14286,13 +14286,13 @@ class ScsiDispatchCmdTimeoutFtraceEvent(_message.Message):
     data_sglen: int
     prot_sglen: int
     prot_op: int
-    cmnd: bytes
     driver_tag: int
     scheduler_tag: int
     sense_key: int
     asc: int
     ascq: int
-    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., result: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., cmnd: _Optional[bytes] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ..., sense_key: _Optional[int] = ..., asc: _Optional[int] = ..., ascq: _Optional[int] = ...) -> None: ...
+    cmnd: bytes
+    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., result: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ..., sense_key: _Optional[int] = ..., asc: _Optional[int] = ..., ascq: _Optional[int] = ..., cmnd: _Optional[bytes] = ...) -> None: ...
 
 class ScsiEhWakeupFtraceEvent(_message.Message):
     __slots__ = ("host_no",)
