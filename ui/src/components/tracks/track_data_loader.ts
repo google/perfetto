@@ -20,7 +20,10 @@ import {CacheKey} from './timeline_cache';
 
 declare const window: Window & {
   scheduler?: {
-    yield: () => Promise<undefined>;
+    postTask: <T>(
+      callback: () => T,
+      options?: {priority?: 'user-blocking' | 'user-visible' | 'background'},
+    ) => Promise<T>;
   };
 };
 
@@ -71,7 +74,7 @@ export type UpdateResult = 'updated' | 'aborted' | 'unchanged';
  *   (rawSql, key) => `SELECT ... FROM mipmap(${key.start}, ${key.end}, ...)`,
  *   (row) => this.rowToSlice(row),
  *   undefined,  // or a Monitor for render state invalidation
- *   () => ({maxDepth: 0}),
+ *   (key) => ({maxDepth: 0, cacheKey: key}),  // Factory receives CacheKey
  *   (slice, state) => { state.maxDepth = Math.max(state.maxDepth, slice.depth); },
  * );
  *
@@ -99,7 +102,9 @@ export class TrackDataLoader<RawRow extends Row, ResultRow, RenderGlobalState> {
 
   private latestRenderState?: RenderGlobalState;
 
+  private useUserVisibleYield: boolean = false;
   private readonly yield: () => Promise<undefined>;
+  private readonly timeBetweenYieldsMs: number;
 
   /**
    * Creates a new TrackDataLoader.
@@ -113,7 +118,8 @@ export class TrackDataLoader<RawRow extends Row, ResultRow, RenderGlobalState> {
    * @param renderMonitor Optional monitor that triggers render state
    *   recomputation when its state changes (e.g., when hover state changes).
    * @param renderGlobalStateFactory Factory function that creates a fresh
-   *   render state object for accumulation.
+   *   render state object for accumulation. Receives the CacheKey to enable
+   *   viewport-aware state initialization (e.g., creating offscreen canvases).
    * @param updateRenderStateForRow Called for each row to update the aggregate
    *   render state (e.g., tracking max depth).
    */
@@ -122,16 +128,34 @@ export class TrackDataLoader<RawRow extends Row, ResultRow, RenderGlobalState> {
     private readonly sqlProvider: (rawSql: string, key: CacheKey) => string,
     private readonly converter: (raw: RawRow) => ResultRow,
     private readonly renderMonitor: Monitor | undefined,
-    private readonly renderGlobalStateFactory: () => RenderGlobalState,
+    private readonly renderGlobalStateFactory: (
+      key: CacheKey,
+    ) => RenderGlobalState,
     private readonly updateRenderStateForRow: (
       result: ResultRow,
       state: RenderGlobalState,
     ) => void,
   ) {
-    const setTimeoutYield = () =>
-      new Promise<undefined>((resolve) => setTimeout(resolve, 0));
-    this.yield =
-      window.scheduler?.yield.bind(window.scheduler) ?? setTimeoutYield;
+    if (window.scheduler !== undefined) {
+      const scheduler = window.scheduler;
+      // Alternate between user-visible and background priorities.
+      // This balances responsiveness (user-visible) with allowing other
+      // background tasks to make progress (background).
+      this.yield = () => {
+        const priority = this.useUserVisibleYield
+          ? 'user-visible'
+          : 'background';
+        this.useUserVisibleYield = !this.useUserVisibleYield;
+        return scheduler.postTask(() => undefined, {priority});
+      };
+      this.timeBetweenYieldsMs = 5;
+    } else {
+      this.yield = () =>
+        new Promise<undefined>((resolve) => setTimeout(resolve, 0));
+      // Double the yield interval for setTimeout to balance responsiveness
+      // with throughput.
+      this.timeBetweenYieldsMs = 10;
+    }
   }
 
   /**
@@ -197,7 +221,7 @@ export class TrackDataLoader<RawRow extends Row, ResultRow, RenderGlobalState> {
           buffer[i] = {...active[i]};
         }
       }
-      const renderGlobalState = this.renderGlobalStateFactory();
+      const renderGlobalState = this.renderGlobalStateFactory(this.key);
       for (let i = 0; i < buffer.length; i++) {
         if (await this.maybeYieldAndCheckAbort(this.key, ctx, i)) {
           return 'aborted';
@@ -258,9 +282,7 @@ export class TrackDataLoader<RawRow extends Row, ResultRow, RenderGlobalState> {
     if (i % 1000 !== 0) {
       return false;
     }
-    // Yield if more than 4ms have passed since the last yield.
-    const TIME_BETWEEN_YIELDS_MS = 4;
-    if (performance.now() - this.lastYield > TIME_BETWEEN_YIELDS_MS) {
+    if (performance.now() - this.lastYield > this.timeBetweenYieldsMs) {
       await this.yield();
       this.lastYield = performance.now();
     }
