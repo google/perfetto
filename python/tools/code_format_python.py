@@ -45,7 +45,9 @@ class Yapf(CodeFormatterBase):
     filtered = super().filter_files(files)
     # However some executable python script in tools are extensionless.
     filtered += [
-        f for f in files if f.startswith('tools/') and is_python_exec_script(f)
+        f for f in files
+        if (f.startswith('tools/') or f.startswith('contrib/rust-sdk/tools/')
+           ) and is_python_exec_script(f)
     ]
     # Apply ignore list.
     filtered = [
