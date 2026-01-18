@@ -28,7 +28,7 @@ declare const window: Window & {
 };
 
 /**
- * Result of a TrackDataLoader.onUpdate() call.
+ * Result of a TrackRenderPipeline.onUpdate() call.
  *
  * - 'updated': New data was fetched and/or render state was recomputed. The
  *   caller should read getActiveBuffer() and getRenderGlobalState() and update
@@ -69,21 +69,21 @@ export type UpdateResult = 'updated' | 'aborted' | 'unchanged';
  *
  * ```typescript
  * // In your track's constructor:
- * this.loader = new TrackDataLoader(
+ * this.pipeline = new TrackRenderPipeline(
  *   trace,
  *   (rawSql, key) => `SELECT ... FROM mipmap(${key.start}, ${key.end}, ...)`,
  *   (row) => this.rowToSlice(row),
  *   undefined,  // or a Monitor for render state invalidation
- *   (key) => ({maxDepth: 0, cacheKey: key}),  // Factory receives CacheKey
+ *   (key) => ({maxDepth: 0}),
  *   (slice, state) => { state.maxDepth = Math.max(state.maxDepth, slice.depth); },
  * );
  *
  * // In your track's onUpdate():
- * const result = await this.loader.onUpdate(sql, rowSpec, ctx);
+ * const result = await this.pipeline.onUpdate(sql, rowSpec, ctx);
  * if (result === 'updated') {
- *   this.data = this.loader.getActiveBuffer();
- *   this.cacheKey = this.loader.getCacheKey();
- *   this.maxDepth = this.loader.getRenderGlobalState()?.maxDepth ?? 0;
+ *   this.data = this.pipeline.getActiveBuffer();
+ *   this.cacheKey = this.pipeline.getCacheKey();
+ *   this.maxDepth = this.pipeline.getRenderGlobalState()?.maxDepth ?? 0;
  * }
  * ```
  *
@@ -91,7 +91,11 @@ export type UpdateResult = 'updated' | 'aborted' | 'unchanged';
  * @template ResultRow The converted row type stored in the buffer.
  * @template RenderGlobalState Aggregate state computed from all rows.
  */
-export class TrackDataLoader<RawRow extends Row, ResultRow, RenderGlobalState> {
+export class TrackRenderPipeline<
+  RawRow extends Row,
+  ResultRow,
+  RenderGlobalState,
+> {
   private lastRawSql?: string;
   private key = CacheKey.zero();
   private lastYield: number = 0;
@@ -107,7 +111,7 @@ export class TrackDataLoader<RawRow extends Row, ResultRow, RenderGlobalState> {
   private readonly timeBetweenYieldsMs: number;
 
   /**
-   * Creates a new TrackDataLoader.
+   * Creates a new TrackRenderPipeline.
    *
    * @param trace The trace object for engine access and RAF scheduling.
    * @param sqlProvider A function that generates the SQL query given the raw
@@ -119,9 +123,9 @@ export class TrackDataLoader<RawRow extends Row, ResultRow, RenderGlobalState> {
    *   recomputation when its state changes (e.g., when hover state changes).
    * @param renderGlobalStateFactory Factory function that creates a fresh
    *   render state object for accumulation. Receives the CacheKey to enable
-   *   viewport-aware state initialization (e.g., creating offscreen canvases).
+   *   viewport-aware state initialization.
    * @param updateRenderStateForRow Called for each row to update the aggregate
-   *   render state (e.g., tracking max depth).
+   *   render state (e.g., tracking max depth, grouping by color).
    */
   constructor(
     private readonly trace: Trace,
