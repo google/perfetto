@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
-import {colorCompare} from '../../base/color';
 import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
@@ -68,56 +67,6 @@ export const FADE_THIN_SLICES_FLAG = featureFlags.register({
   description: 'Display sub-pixel slices in a faded way',
   defaultValue: false,
 });
-
-// Exposed and standalone to allow for testing without making this
-// visible to subclasses.
-function filterVisibleSlices<S extends Slice>(
-  slices: S[],
-  start: time,
-  end: time,
-): S[] {
-  // Here we aim to reduce the number of slices we have to draw
-  // by ignoring those that are not visible. A slice is visible iff:
-  //   slice.endNsQ >= start && slice.startNsQ <= end
-  // It's allowable to include slices which aren't visible but we
-  // must not exclude visible slices.
-  // We could filter this.slices using this condition but since most
-  // often we should have the case where there are:
-  // - First a bunch of non-visible slices to the left of the viewport
-  // - Then a bunch of visible slices within the viewport
-  // - Finally a second bunch of non-visible slices to the right of the
-  //   viewport.
-  // It seems more sensible to identify the left-most and right-most
-  // visible slices then 'slice' to select these slices and everything
-  // between.
-
-  // We do not need to handle non-ending slices (where dur = -1
-  // but the slice is drawn as 'infinite' length) as this is handled
-  // by a special code path. See 'incomplete' in maybeRequestData.
-
-  // While the slices are guaranteed to be ordered by timestamp we must
-  // consider async slices (which are not perfectly nested). This is to
-  // say if we see slice A then B it is guaranteed the A.start <= B.start
-  // but there is no guarantee that (A.end < B.start XOR A.end >= B.end).
-  // Due to this is not possible to use binary search to find the first
-  // visible slice. Consider the following situation:
-  //         start V            V end
-  //     AAA  CCC       DDD   EEEEEEE
-  //      BBBBBBBBBBBB            GGG
-  //                           FFFFFFF
-  // B is visible but A and C are not. In general there could be
-  // arbitrarily many slices between B and D which are not visible.
-
-  // You could binary search to find D (i.e. the first slice which
-  // starts after |start|) then work backwards to find B.
-  // The last visible slice is simpler, since the slices are sorted
-  // by timestamp you can binary search for the last slice such
-  // that slice.start <= end.
-
-  return slices.filter((slice) => slice.startNs <= end && slice.endNs >= start);
-}
-
-export const filterVisibleSlicesForTesting = filterVisibleSlices;
 
 // The minimal set of columns that any table/view must expose to render tracks.
 // Note: this class assumes that, at the SQL level, slices are:
@@ -200,6 +149,12 @@ export abstract class BaseSliceTrack<
   private charWidth = -1;
   protected hoveredSlice?: SliceT;
 
+  // TODO(lalitm): move to render cache interface.
+  // Slices that are currently visible. Indexes into this.slices.
+  private vizSlices = new Uint32Array(0);
+  private vizSliceCount = 0;
+  private vizSlicesByColor = new Map<string, Array<number>>();
+
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
@@ -261,12 +216,6 @@ export abstract class BaseSliceTrack<
   onUpdatedSlices(slices: Array<SliceT>): void {
     this.highlightHoveredAndSameTitle(slices);
   }
-
-  // TODO(hjd): Remove.
-  drawSchedLatencyArrow(
-    _: CanvasRenderingContext2D,
-    _selectedSlice?: SliceT,
-  ): void {}
 
   constructor(
     protected readonly trace: Trace,
@@ -487,13 +436,12 @@ export abstract class BaseSliceTrack<
       charWidth = this.charWidth = ctx.measureText('dbpqaouk').width / 8;
     }
 
-    // Filter only the visible slices. |this.slices| will have more slices than
-    // needed because maybeRequestData() over-fetches to handle small pan/zooms.
-    // We don't want to waste time drawing slices that are off screen.
-    const vizSlices = this.getVisibleSlicesInternal(
-      visibleWindow.start.toTime('floor'),
-      visibleWindow.end.toTime('ceil'),
-    );
+    const sliceHeight = this.sliceLayout.sliceHeight;
+    const padding = this.sliceLayout.padding;
+    const rowSpacing = this.sliceLayout.rowGap;
+    const minWidth = FADE_THIN_SLICES_FLAG.get()
+      ? SLICE_MIN_WIDTH_FADED_PX
+      : SLICE_MIN_WIDTH_PX;
 
     const selection = this.trace.selection.selection;
     const selectedId =
@@ -501,31 +449,76 @@ export abstract class BaseSliceTrack<
         ? selection.eventId
         : undefined;
 
+    // Performance is of paramount importance here since this is called
+    // at 60FPS. The key strategy is to minimise the number of times that
+    // we call into the browser. This is because more than any number
+    // crunching we do in JS, the dominating factor is the state changes
+    // we do on the canvas (e.g., colors, fonts, ...).
+    //
+    // So for this reason, we structure our data such that it's opitmized for
+    // keeping as many propeties similar between different draw calls.
+    //
+    // This is much faster than trying to batch everything into one go even at
+    // the cost of iterating over the data multiple times.
+
+    // ==============================================================
+    // First pass: figure out which slices are visible.
+    // ==============================================================
+
+    // For each slice, we figure out whether or not we're going to
+    // draw it. We can do this by having a Uint32Array where each element
+    // is an index into this.slices. We cache this between frames to avoid
+    // allocating memory every frame.
+    if (this.vizSlices.length < this.slices.length) {
+      this.vizSlices = new Uint32Array(this.slices.length);
+    }
+    {
+      // Slice visibility is computed using tsq / endTsq. The means an
+      // event at ts=100n can end up with tsq=90n depending on the bucket
+      // calculation. start and end here are the direct unquantised
+      // boundaries so when start=100n we should see the event at tsq=90n
+      // Ideally we would quantize start and end via the same calculation
+      // we used for slices but since that calculation happens in SQL
+      // this is hard. Instead we increase the range by +1 bucket in each
+      // direction. It's fine to overestimate since false positives
+      // (incorrectly marking a slice as visible) are not a problem it's
+      // only false negatives we have to avoid.
+      const start = Time.sub(
+        visibleWindow.start.toTime('floor'),
+        this.slicesKey.bucketSize,
+      );
+      const end = Time.add(
+        visibleWindow.end.toTime('ceil'),
+        this.slicesKey.bucketSize,
+      );
+      this.vizSliceCount = 0;
+      for (let i = 0; i < this.slices.length; i++) {
+        const slice = this.slices[i];
+        if (slice.endNs >= start && slice.startNs <= end) {
+          this.vizSlices[this.vizSliceCount++] = i;
+        }
+      }
+    }
+
+    // ==============================================================
+    // Second pass: compute geometry for each visible slice.
+    // ==============================================================
+
     if (selectedId === undefined) {
       this.selectedSlice = undefined;
     }
     let discoveredSelection: CastInternal<SliceT> | undefined;
 
-    // Believe it or not, doing 4xO(N) passes is ~2x faster than trying to draw
-    // everything in one go. The key is that state changes operations on the
-    // canvas (e.g., color, fonts) dominate any number crunching we do in JS.
-
-    const sliceHeight = this.sliceLayout.sliceHeight;
-    const padding = this.sliceLayout.padding;
-    const rowSpacing = this.sliceLayout.rowGap;
-
-    // First pass: compute geometry of slices.
-
     // pxEnd is the last visible pixel in the visible viewport. Drawing
     // anything < 0 or > pxEnd doesn't produce any visible effect as it goes
     // beyond the visible portion of the canvas.
     const pxEnd = size.width;
-
-    for (const slice of vizSlices) {
+    for (let i = 0; i < this.vizSliceCount; i++) {
       // Compute the basic geometry for any visible slice, even if only
       // partially visible. This might end up with a negative x if the
       // slice starts before the visible time or with a width that overflows
       // pxEnd.
+      const slice = this.slices[this.vizSlices[i]];
       slice.x = timescale.timeToPx(slice.startNs);
       slice.w = timescale.durationToPx(slice.durNs);
 
@@ -534,19 +527,6 @@ export abstract class BaseSliceTrack<
         // bounding box that will contain the chevron.
         slice.x -= this.instantWidthPx / 2;
         slice.w = this.instantWidthPx;
-      } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
-        let widthPx;
-        if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
-          widthPx =
-            slice.x > 0
-              ? Math.min(pxEnd, INCOMPLETE_SLICE_WIDTH_PX)
-              : Math.max(0, INCOMPLETE_SLICE_WIDTH_PX + slice.x);
-          slice.x = Math.max(slice.x, 0);
-        } else {
-          slice.x = Math.max(slice.x, 0);
-          widthPx = pxEnd - slice.x;
-        }
-        slice.w = widthPx;
       } else {
         // If the slice is an actual slice, intersect the slice geometry with
         // the visible viewport (this affects only the first and last slice).
@@ -561,61 +541,112 @@ export abstract class BaseSliceTrack<
         slice.x = Math.max(slice.x, 0);
         slice.w = sliceVizLimit - slice.x;
       }
-
       if (selectedId === slice.id) {
         discoveredSelection = slice;
       }
     }
 
-    // Second pass: fill slices by color.
-    const vizSlicesByColor = vizSlices.slice();
-    if (!this.forceTimestampRenderOrder) {
-      vizSlicesByColor.sort((a, b) =>
-        colorCompare(a.colorScheme.base, b.colorScheme.base),
-      );
-    }
-    let lastColor = undefined;
-    for (const slice of vizSlices) {
-      const color = slice.isHighlighted
-        ? slice.colorScheme.variant
-        : slice.colorScheme.base;
-      const colorString = color.cssString;
-      if (colorString !== lastColor) {
-        lastColor = colorString;
-        ctx.fillStyle = colorString;
-      }
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      if (slice.flags & SLICE_FLAGS_INSTANT) {
-        this.drawChevron(ctx, slice.x, y, sliceHeight);
-      } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
-        const w = CROP_INCOMPLETE_SLICE_FLAG.get()
-          ? slice.w
-          : Math.max(slice.w - 2, 2);
-        drawIncompleteSlice(
-          ctx,
-          slice.x,
-          y,
-          w,
-          sliceHeight,
-          color,
-          !CROP_INCOMPLETE_SLICE_FLAG.get(),
-        );
+    // Handle incomplete slices separately because they have different logic.
+    for (const slice of this.incomplete) {
+      slice.x = timescale.timeToPx(slice.startNs);
+      slice.w = timescale.durationToPx(slice.durNs);
+
+      let widthPx;
+      if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
+        widthPx =
+          slice.x > 0
+            ? Math.min(pxEnd, INCOMPLETE_SLICE_WIDTH_PX)
+            : Math.max(0, INCOMPLETE_SLICE_WIDTH_PX + slice.x);
+        slice.x = Math.max(slice.x, 0);
       } else {
-        const w = Math.max(
-          slice.w,
-          FADE_THIN_SLICES_FLAG.get()
-            ? SLICE_MIN_WIDTH_FADED_PX
-            : SLICE_MIN_WIDTH_PX,
-        );
-        ctx.fillRect(slice.x, y, w, sliceHeight);
+        slice.x = Math.max(slice.x, 0);
+        widthPx = pxEnd - slice.x;
+      }
+      slice.w = widthPx;
+      if (selectedId === slice.id) {
+        discoveredSelection = slice;
       }
     }
 
-    // Pass 2.5: Draw fillRatio light section.
+    // =============================================================
+    // Third pass: draw the actual slices in order optimized for
+    // minimal canvas state changes.
+    // ============================================================
+
+    this.vizSlicesByColor.clear();
+    if (this.forceTimestampRenderOrder) {
+      this.vizSlicesByColor.set(
+        '',
+        Array.from(this.vizSlices.slice(0, this.vizSliceCount)),
+      );
+    } else {
+      for (let i = 0; i < this.vizSliceCount; i++) {
+        const vizI = this.vizSlices[i];
+        const slice = this.slices[vizI];
+        const color = slice.colorScheme.base;
+        let res = this.vizSlicesByColor.get(color.cssString);
+        if (res === undefined) {
+          res = [];
+          this.vizSlicesByColor.set(color.cssString, res);
+        }
+        res.push(vizI);
+      }
+    }
+
+    // We still need the color change logic because of highlighted slices and
+    // `forceTimestampRenderOrder`.
+    let lastColor = undefined;
+    for (const [_, sliceIndices] of this.vizSlicesByColor) {
+      for (const sliceIndex of sliceIndices) {
+        const slice = this.slices[sliceIndex];
+        const color = slice.isHighlighted
+          ? slice.colorScheme.variant
+          : slice.colorScheme.base;
+        const colorString = color.cssString;
+        if (colorString !== lastColor) {
+          lastColor = colorString;
+          ctx.fillStyle = colorString;
+        }
+        const y = padding + slice.depth * (sliceHeight + rowSpacing);
+        if (slice.flags & SLICE_FLAGS_INSTANT) {
+          this.drawChevron(ctx, slice.x, y, sliceHeight);
+        } else {
+          const w = Math.max(slice.w, minWidth);
+          ctx.fillRect(slice.x, y, w, sliceHeight);
+        }
+      }
+    }
+
+    // Draw incomplete slices on top of everything else.
+    for (const slice of this.incomplete) {
+      const color = slice.isHighlighted
+        ? slice.colorScheme.variant
+        : slice.colorScheme.base;
+      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const w = CROP_INCOMPLETE_SLICE_FLAG.get()
+        ? slice.w
+        : Math.max(slice.w - 2, 2);
+      drawIncompleteSlice(
+        ctx,
+        slice.x,
+        y,
+        w,
+        sliceHeight,
+        color,
+        !CROP_INCOMPLETE_SLICE_FLAG.get(),
+      );
+    }
+
+    // =============================================================
+    // Fourth pass: draw overlay for fillRatio.
+    // =============================================================
+
     ctx.fillStyle = `#FFFFFF50`;
-    for (const slice of vizSlicesByColor) {
-      // Can't draw fill ratio on incomplete or instant slices.
-      if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
+    for (let i = 0; i < this.vizSliceCount; i++) {
+      const slice = this.slices[this.vizSlices[i]];
+
+      // Can't draw fill ratio on instants.
+      if (slice.flags & SLICE_FLAGS_INSTANT) {
         continue;
       }
 
@@ -641,49 +672,44 @@ export abstract class BaseSliceTrack<
       ctx.fillRect(x, y, lightSectionDrawWidth, sliceHeight);
     }
 
-    // Third pass, draw the titles (e.g., process name for sched slices).
+    // =============================================================
+    // Fifth pass: draw the slice titles.
+    // =============================================================
+
     ctx.textAlign = 'center';
     ctx.font = this.getTitleFont();
     ctx.textBaseline = 'middle';
-    for (const slice of vizSlices) {
-      if (
-        slice.flags & SLICE_FLAGS_INSTANT ||
-        !slice.title ||
-        slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX
-      ) {
+    for (let i = 0; i < this.vizSliceCount; i++) {
+      const slice = this.slices[this.vizSlices[i]];
+      if (slice.flags & SLICE_FLAGS_INSTANT) {
         continue;
       }
-
-      // Change the title color dynamically depending on contrast.
-      const textColor = slice.isHighlighted
-        ? slice.colorScheme.textVariant
-        : slice.colorScheme.textBase;
-      ctx.fillStyle = textColor.cssString;
-      const title = cropText(slice.title, charWidth, slice.w);
-      const rectXCenter = slice.x + slice.w / 2;
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      const yDiv = slice.subTitle ? 3 : 2;
-      const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
-      ctx.fillText(title, rectXCenter, yMidPoint);
+      this.drawSliceTitle(ctx, slice, charWidth);
+    }
+    for (const slice of this.incomplete) {
+      this.drawSliceTitle(ctx, slice, charWidth);
     }
 
-    // Fourth pass, draw the subtitles (e.g., thread name for sched slices).
+    // =============================================================
+    // Sixth pass: draw the slice subtitles.
+    // =============================================================
+
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.font = this.getSubtitleFont();
-    for (const slice of vizSlices) {
-      if (
-        slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX ||
-        !slice.subTitle ||
-        slice.flags & SLICE_FLAGS_INSTANT
-      ) {
+    for (let i = 0; i < this.vizSliceCount; i++) {
+      const slice = this.slices[this.vizSlices[i]];
+      if (slice.flags & SLICE_FLAGS_INSTANT) {
         continue;
       }
-      const rectXCenter = slice.x + slice.w / 2;
-      const subTitle = cropText(slice.subTitle, charWidth, slice.w);
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
-      ctx.fillText(subTitle, rectXCenter, yMidPoint);
+      this.drawSliceSubtitle(ctx, slice, charWidth);
     }
+    for (const slice of this.incomplete) {
+      this.drawSliceSubtitle(ctx, slice, charWidth);
+    }
+
+    // ============================================================
+    // The end of drawing passes. Remainder is other rendering.
+    // ============================================================
 
     // Here we need to ensure we never draw a slice that hasn't been
     // updated via the math above so we don't use this.selectedSlice
@@ -717,12 +743,6 @@ export abstract class BaseSliceTrack<
       timescale.timeToPx(this.slicesKey.start),
       timescale.timeToPx(this.slicesKey.end),
     );
-
-    // TODO(hjd): Remove this.
-    // The only thing this does is drawing the sched latency arrow. We should
-    // have some abstraction for that arrow (ideally the same we'd use for
-    // flows).
-    this.drawSchedLatencyArrow(ctx, this.selectedSlice);
   }
 
   async onDestroy(): Promise<void> {
@@ -860,36 +880,6 @@ export abstract class BaseSliceTrack<
     return true;
   }
 
-  private getVisibleSlicesInternal(
-    start: time,
-    end: time,
-  ): Array<CastInternal<SliceT>> {
-    // Slice visibility is computed using tsq / endTsq. The means an
-    // event at ts=100n can end up with tsq=90n depending on the bucket
-    // calculation. start and end here are the direct unquantised
-    // boundaries so when start=100n we should see the event at tsq=90n
-    // Ideally we would quantize start and end via the same calculation
-    // we used for slices but since that calculation happens in SQL
-    // this is hard. Instead we increase the range by +1 bucket in each
-    // direction. It's fine to overestimate since false positives
-    // (incorrectly marking a slice as visible) are not a problem it's
-    // only false negatives we have to avoid.
-    start = Time.sub(start, this.slicesKey.bucketSize);
-    end = Time.add(end, this.slicesKey.bucketSize);
-
-    let slices = filterVisibleSlices<CastInternal<SliceT>>(
-      this.slices,
-      start,
-      end,
-    );
-    slices = slices.concat(this.incomplete);
-    // The selected slice is always visible:
-    if (this.selectedSlice && !this.slices.includes(this.selectedSlice)) {
-      slices.push(this.selectedSlice);
-    }
-    return slices;
-  }
-
   private updateSliceAndTrackHeight() {
     const rows = Math.max(this.maxDataDepth, this.depthGuess) + 1;
     const {padding = 2, sliceHeight = 12, rowGap = 0} = this.sliceLayout;
@@ -925,6 +915,44 @@ export abstract class BaseSliceTrack<
     ctx.lineTo(midX, y); // Back to A.
     ctx.closePath();
     ctx.fill();
+  }
+
+  private drawSliceTitle(
+    ctx: CanvasRenderingContext2D,
+    slice: CastInternal<SliceT>,
+    charWidth: number,
+  ): void {
+    if (!slice.title || slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX) {
+      return;
+    }
+    const {padding, sliceHeight, rowGap} = this.sliceLayout;
+    // Change the title color dynamically depending on contrast.
+    const textColor = slice.isHighlighted
+      ? slice.colorScheme.textVariant
+      : slice.colorScheme.textBase;
+    ctx.fillStyle = textColor.cssString;
+    const title = cropText(slice.title, charWidth, slice.w);
+    const rectXCenter = slice.x + slice.w / 2;
+    const y = padding + slice.depth * (sliceHeight + rowGap);
+    const yDiv = slice.subTitle ? 3 : 2;
+    const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
+    ctx.fillText(title, rectXCenter, yMidPoint);
+  }
+
+  private drawSliceSubtitle(
+    ctx: CanvasRenderingContext2D,
+    slice: CastInternal<SliceT>,
+    charWidth: number,
+  ): void {
+    if (slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX || !slice.subTitle) {
+      return;
+    }
+    const {padding, sliceHeight, rowGap} = this.sliceLayout;
+    const rectXCenter = slice.x + slice.w / 2;
+    const subTitle = cropText(slice.subTitle, charWidth, slice.w);
+    const y = padding + slice.depth * (sliceHeight + rowGap);
+    const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
+    ctx.fillText(subTitle, rectXCenter, yMidPoint);
   }
 
   // This is a good default implementation for highlighting slices. By default
