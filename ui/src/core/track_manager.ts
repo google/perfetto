@@ -19,11 +19,13 @@ import {
   TrackManager,
   TrackFilterCriteria,
   Overlay,
+  TrackRenderContext,
+  TrackDisplayContext,
 } from '../public/track';
 import {AsyncLimiter} from '../base/async_limiter';
-import {TrackRenderContext} from '../public/track';
 import {TrackNode} from '../public/workspace';
 import {TraceImpl} from './trace_impl';
+import {assertExists} from '../base/logging';
 
 export interface TrackWithFSM {
   readonly track: TrackRenderer;
@@ -179,6 +181,7 @@ class TrackFSMImpl implements TrackWithFSM {
   private error?: Error;
   private tickSinceLastUsed = 0;
   private created = false;
+  private latestDisplayContext?: TrackDisplayContext;
 
   constructor(desc: Track) {
     this.desc = desc;
@@ -211,6 +214,8 @@ class TrackFSMImpl implements TrackWithFSM {
   }
 
   render(ctx: TrackRenderContext): void {
+    // Store the latest display context for abort checking
+    this.latestDisplayContext = ctx;
     this.limiter.schedule(async () => {
       // Don't enter the track again once an error has occurred
       if (this.error !== undefined) {
@@ -223,7 +228,14 @@ class TrackFSMImpl implements TrackWithFSM {
           await this.track.onCreate?.(ctx);
           this.created = true;
         }
-        await Promise.resolve(this.track.onUpdate?.(ctx));
+        await Promise.resolve(
+          this.track.onUpdate?.({
+            visibleWindow: ctx.visibleWindow,
+            size: ctx.size,
+            resolution: ctx.resolution,
+            latestDisplayContext: () => assertExists(this.latestDisplayContext),
+          }),
+        );
       } catch (e) {
         this.error = e;
       }

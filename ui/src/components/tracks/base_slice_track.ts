@@ -26,7 +26,6 @@ import {Time, time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {uuidv4Sql} from '../../base/uuid';
 import {featureFlags} from '../../core/feature_flags';
-import {raf} from '../../core/raf_scheduler';
 import {Trace} from '../../public/trace';
 import {
   Slice,
@@ -34,11 +33,13 @@ import {
   TrackMouseEvent,
   TrackRenderContext,
   TrackRenderer,
+  TrackUpdateContext,
 } from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
+import {TrackDataLoader} from './track_data_loader';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -209,6 +210,14 @@ export abstract class BaseSliceTrack<
 
   private readonly trash: AsyncDisposableStack;
 
+  // Handles data loading with viewport caching, double-buffering, cooperative
+  // multitasking, and abort detection when the viewport changes.
+  private readonly loader: TrackDataLoader<
+    RowT,
+    CastInternal<SliceT>,
+    {maxDataDepth: number}
+  >;
+
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
   // OnSliceOverArgs {slice?: S}) so it makes future extensions
@@ -284,6 +293,37 @@ export abstract class BaseSliceTrack<
       titleSizePx: sliceLayout.titleSizePx ?? 12,
       subtitleSizePx: sliceLayout.subtitleSizePx ?? 8,
     };
+
+    // Initialize the fetcher with SQL provider, converter, and render state logic.
+    this.loader = new TrackDataLoader(
+      this.trace,
+      (rawSql, key) => {
+        const extraCols = this.extraSqlColumns.join(',');
+        return `
+          SELECT
+            (z.ts / ${key.bucketSize}) * ${key.bucketSize} as tsQ,
+            ((z.dur + ${key.bucketSize - 1n}) / ${key.bucketSize}) * ${key.bucketSize} as durQ,
+            z.count as count,
+            s.ts as ts,
+            s.dur as dur,
+            s.id,
+            s.depth
+            ${extraCols ? ',' + extraCols : ''}
+          FROM ${this.getTableName()}(
+            ${key.start},
+            ${key.end},
+            ${key.bucketSize}
+          ) z
+          CROSS JOIN (${rawSql}) s using (id)
+        `;
+      },
+      (row) => this.rowToSliceInternal(row),
+      undefined,
+      () => ({maxDataDepth: this.maxDataDepth}),
+      (slice, state) => {
+        state.maxDataDepth = Math.max(state.maxDataDepth, slice.depth);
+      },
+    );
   }
 
   onFullRedraw(): void {
@@ -367,8 +407,10 @@ export abstract class BaseSliceTrack<
     }
     const incomplete = new Array<CastInternal<SliceT>>(queryRes.numRows());
     const it = queryRes.iter(this.rowSpec);
+    let maxIncompleteDepth = 0;
     for (let i = 0; it.valid(); it.next(), ++i) {
       incomplete[i] = this.rowToSliceInternal(it);
+      maxIncompleteDepth = Math.max(maxIncompleteDepth, incomplete[i].depth);
     }
     this.onUpdatedSlices(incomplete);
     this.incomplete = incomplete;
@@ -382,6 +424,7 @@ export abstract class BaseSliceTrack<
         where dur != -1
       ));
     `);
+    this.maxDataDepth = maxIncompleteDepth;
 
     this.trash.defer(async () => {
       await this.engine.tryQuery(`drop table ${this.getTableName()}`);
@@ -407,24 +450,23 @@ export abstract class BaseSliceTrack<
     return result.maybeFirstRow({rowCount: NUM})?.rowCount;
   }
 
-  async onUpdate({visibleWindow, size}: TrackRenderContext): Promise<void> {
+  async onUpdate(ctx: TrackUpdateContext): Promise<void> {
     const query = this.getSqlSource();
     if (query !== this.oldQuery) {
       await this.initialize();
       this.oldQuery = query;
     }
 
-    const windowSizePx = Math.max(1, size.width);
-    const timespan = visibleWindow.toTimeSpan();
-    const rawSlicesKey = CacheKey.create(
-      timespan.start,
-      timespan.end,
-      windowSizePx,
-    );
-
-    // If the visible time range is outside the cached area, requests
-    // asynchronously new data from the SQL engine.
-    await this.maybeRequestData(rawSlicesKey);
+    const result = await this.loader.onUpdate(query, this.rowSpec, ctx);
+    if (result === 'updated') {
+      this.slices = this.loader.getActiveBuffer();
+      this.slicesKey = this.loader.getCacheKey();
+      const renderState = this.loader.getRenderGlobalState();
+      if (renderState !== undefined) {
+        this.maxDataDepth = renderState.maxDataDepth;
+      }
+      this.onUpdatedSlices(this.slices);
+    }
   }
 
   render({
@@ -693,74 +735,6 @@ export abstract class BaseSliceTrack<
       return this.renderTooltipForSlice(hoveredSlice);
     }
     return undefined;
-  }
-
-  // This method figures out if the visible window is outside the bounds of
-  // the cached data and if so issues new queries (i.e. sorta subsumes the
-  // onBoundsChange).
-  private async maybeRequestData(rawSlicesKey: CacheKey) {
-    if (rawSlicesKey.isCoveredBy(this.slicesKey)) {
-      return; // We have the data already, no need to re-query
-    }
-
-    // Determine the cache key:
-    const slicesKey = rawSlicesKey.normalize();
-    if (!rawSlicesKey.isCoveredBy(slicesKey)) {
-      throw new Error(
-        `Normalization error ${slicesKey.toString()} ${rawSlicesKey.toString()}`,
-      );
-    }
-
-    // Here convert each row to a Slice. We do what we can do
-    // generically in the base class, and delegate the rest to the impl
-    // via that rowToSlice() abstract call.
-    const slices = new Array<CastInternal<SliceT>>();
-
-    // The mipmap virtual table will error out when passed a 0 length time span.
-    const resolution = slicesKey.bucketSize;
-    const extraCols = this.extraSqlColumns.join(',');
-    const queryRes = await this.engine.query(`
-      SELECT
-        (z.ts / ${resolution}) * ${resolution} as tsQ,
-        ((z.dur + ${resolution - 1n}) / ${resolution}) * ${resolution} as durQ,
-        z.count as count,
-        s.ts as ts,
-        s.dur as dur,
-        s.id,
-        s.depth
-        ${extraCols ? ',' + extraCols : ''}
-      FROM ${this.getTableName()}(
-        ${slicesKey.start},
-        ${slicesKey.end},
-        ${resolution}
-      ) z
-      CROSS JOIN (${this.getSqlSource()}) s using (id)
-    `);
-
-    const it = queryRes.iter(this.rowSpec);
-
-    let maxDataDepth = this.maxDataDepth;
-    for (let i = 0; it.valid(); it.next(), ++i) {
-      if (it.dur === -1n) {
-        continue;
-      }
-
-      maxDataDepth = Math.max(maxDataDepth, it.depth);
-      // Construct the base slice. The Impl will construct and return
-      // the full derived T["slice"] (e.g. CpuSlice) in the
-      // rowToSlice() method.
-      slices.push(this.rowToSliceInternal(it));
-    }
-    for (const incomplete of this.incomplete) {
-      maxDataDepth = Math.max(maxDataDepth, incomplete.depth);
-    }
-    this.maxDataDepth = maxDataDepth;
-
-    this.slicesKey = slicesKey;
-    this.onUpdatedSlices(slices);
-    this.slices = slices;
-
-    raf.scheduleCanvasRedraw();
   }
 
   private rowToSliceInternal(row: RowT): CastInternal<SliceT> {

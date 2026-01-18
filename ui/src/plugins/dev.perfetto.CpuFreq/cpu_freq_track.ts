@@ -23,7 +23,7 @@ import m from 'mithril';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
-import {TrackRenderer} from '../../public/track';
+import {TrackUpdateContext, TrackRenderer} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
@@ -194,7 +194,7 @@ export class CpuFreqTrack implements TrackRenderer {
   async onUpdate({
     visibleWindow,
     resolution,
-  }: TrackRenderContext): Promise<void> {
+  }: TrackUpdateContext): Promise<void> {
     await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 

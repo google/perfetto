@@ -29,6 +29,7 @@ import {
   TrackContext,
   TrackMouseEvent,
   TrackRenderContext,
+  TrackUpdateContext,
 } from '../../public/track';
 import {Point2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
@@ -288,7 +289,7 @@ export class GroupSummaryTrack implements TrackRenderer {
   async onUpdate({
     visibleWindow,
     resolution,
-  }: TrackRenderContext): Promise<void> {
+  }: TrackUpdateContext): Promise<void> {
     await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 

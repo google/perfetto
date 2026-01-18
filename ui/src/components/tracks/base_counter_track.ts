@@ -30,6 +30,7 @@ import {
   TrackRenderer,
   TrackSetting,
   TrackSettingDescriptor,
+  TrackUpdateContext,
 } from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {Button} from '../../widgets/button';
@@ -762,7 +763,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     this.chartHeightSizeSetting,
   ];
 
-  async onUpdate({visibleWindow, size}: TrackRenderContext): Promise<void> {
+  async onUpdate({visibleWindow, size}: TrackUpdateContext): Promise<void> {
     const windowSizePx = Math.max(1, size.width);
     const timespan = visibleWindow.toTimeSpan();
     const rawCountersKey = CacheKey.create(

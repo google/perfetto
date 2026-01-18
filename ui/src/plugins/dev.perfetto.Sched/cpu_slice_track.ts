@@ -28,7 +28,7 @@ import {checkerboardExcept} from '../../components/checkerboard';
 import {Point2D} from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {TimeScale} from '../../base/time_scale';
-import {TrackRenderer, SnapPoint} from '../../public/track';
+import {TrackRenderer, SnapPoint, TrackUpdateContext} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
@@ -159,7 +159,7 @@ export class CpuSliceTrack implements TrackRenderer {
   async onUpdate({
     visibleWindow,
     resolution,
-  }: TrackRenderContext): Promise<void> {
+  }: TrackUpdateContext): Promise<void> {
     await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
   }
 

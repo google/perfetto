@@ -117,6 +117,15 @@ export class CacheKey {
     return r;
   }
 
+  equals(other: CacheKey): boolean {
+    let r = true;
+    r = r && other.start === this.start;
+    r = r && other.end === this.end;
+    r = r && other.bucketSize === this.bucketSize;
+    r = r && other.windowSizePx === this.windowSizePx;
+    return r;
+  }
+
   // toString is 'load bearing' in that it's used to key e.g. caches
   // with CacheKey's.
   toString() {

@@ -89,10 +89,9 @@ export interface TrackContext {
 }
 
 /**
- * Contextual information about the track passed to track lifecycle hooks &
- * render hooks with additional information about the timeline/canvas.
+ * Base interface containing contextual information used for displaying a track.
  */
-export interface TrackRenderContext extends TrackContext {
+export interface TrackDisplayContext {
   /**
    * The time span of the visible window.
    */
@@ -113,7 +112,32 @@ export interface TrackRenderContext extends TrackContext {
    * calculate their own based on the timespan and the track dimensions.
    */
   readonly resolution: duration;
+}
 
+/**
+ * Contextual information about the track passed to onUpdate lifecycle hook.
+ */
+export interface TrackUpdateContext extends TrackDisplayContext {
+  /**
+   * Always returns the latest display context used for rendering.
+   *
+   * onUpdate implementations can compare fields of the object returned by
+   * this function with the values passed into them to decide whether to abandon
+   * work they are doing as its no longer relevant and to yield back to the
+   * core.
+   *
+   * If an implementation does does to yield based on this, it should request
+   * a canvas redraw to ensure that onUpdate is called again with the latest
+   * values.
+   */
+  readonly latestDisplayContext: () => TrackDisplayContext;
+}
+
+/**
+ * Contextual information about the track passed to track lifecycle hooks &
+ * render hooks with additional information about the timeline/canvas.
+ */
+export interface TrackRenderContext extends TrackContext, TrackDisplayContext {
   /**
    * Canvas context used for rendering.
    */
@@ -275,7 +299,7 @@ export interface TrackRenderer {
    * resolution to work out whether any data needs to be reloaded based on these
    * properties and perform a reload.
    */
-  onUpdate?(ctx: TrackRenderContext): Promise<void>;
+  onUpdate?(ctx: TrackUpdateContext): Promise<void>;
 
   /**
    * Optional lifecycle hook called when the track is no longer visible. Should
