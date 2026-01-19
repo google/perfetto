@@ -89,9 +89,11 @@ source_set("lib") {
     "../protozero:proto_ring_buffer",
     "../trace_processor:lib",
     "../trace_processor:storage_minimal",
+    "../trace_processor/util:auto_symbolizer",
     "../trace_processor/util:descriptors",
     "../trace_processor/util:gzip",
     "../trace_processor/util:protozero_to_text",
+    "../trace_processor/util:symbol_path_discovery",
     "../trace_processor/util:tar_writer",
     "../trace_processor/util:trace_type",
   ]
@@ -166,6 +168,7 @@ source_set("integrationtests") {
   sources = [
     "pprof_reader.cc",
     "pprof_reader.h",
+    "trace_to_bundle_integrationtest.cc",
     "trace_to_pprof_integrationtest.cc",
     "trace_to_text_integrationtest.cc",
   ]

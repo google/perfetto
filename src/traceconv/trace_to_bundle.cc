@@ -16,94 +16,16 @@
 
 #include "src/traceconv/trace_to_bundle.h"
 
-#include <cstdlib>
-#include <cstring>
-#include <memory>
 #include <string>
-#include <unordered_set>
-#include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
-#include "src/profiling/symbolizer/symbolize_database.h"
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/auto_symbolizer.h"
+#include "src/trace_processor/util/symbol_path_discovery.h"
 #include "src/trace_processor/util/tar_writer.h"
-#include "src/traceconv/utils.h"
 
 namespace perfetto::trace_to_text {
-
-namespace {
-
-std::vector<std::string> GetAllMappingNames(
-    trace_processor::TraceProcessor* tp) {
-  std::vector<std::string> mapping_names;
-  auto it = tp->ExecuteQuery(R"(
-    SELECT DISTINCT name
-    FROM stack_profile_mapping
-    WHERE build_id != '' AND name != ''
-  )");
-  while (it.Next()) {
-    mapping_names.push_back(it.Get(0).AsString());
-  }
-  return mapping_names;
-}
-
-std::vector<std::string> GetDefaultSymbolPaths() {
-  std::vector<std::string> paths;
-  paths.emplace_back("/usr/lib/debug");
-  const char* home = getenv("HOME");
-  if (home) {
-    paths.emplace_back(std::string(home) + "/.debug");
-  }
-  return paths;
-}
-
-// Creates a symbolizer based on provided paths, context, and discovered
-// mapping names
-std::unique_ptr<profiling::Symbolizer> CreateSymbolizer(
-    const BundleContext& context,
-    const std::vector<std::string>& mapping_names) {
-  if (mapping_names.empty()) {
-    return nullptr;
-  }
-
-  std::unordered_set<std::string> dirs;
-  std::unordered_set<std::string> files;
-
-  // Always add paths from PERFETTO_BINARY_PATH environment variable
-  std::vector<std::string> env_binary_paths =
-      profiling::GetPerfettoBinaryPath();
-  if (!env_binary_paths.empty()) {
-    dirs.insert(env_binary_paths.begin(), env_binary_paths.end());
-  }
-
-  // Add automatic paths unless disabled
-  if (!context.no_auto_symbol_paths) {
-    std::vector<std::string> auto_paths = GetDefaultSymbolPaths();
-    dirs.insert(auto_paths.begin(), auto_paths.end());
-  }
-
-  // Add user-provided paths
-  if (!context.symbol_paths.empty()) {
-    dirs.insert(context.symbol_paths.begin(), context.symbol_paths.end());
-  }
-
-  // Add binary paths from mappings (they might contain embedded symbols)
-  for (const auto& name : mapping_names) {
-    if (!name.empty() && name[0] == '/') {
-      files.insert(name);
-    }
-  }
-  return profiling::MaybeLocalSymbolizer(
-      std::vector<std::string>(dirs.begin(), dirs.end()),
-      std::vector<std::string>(files.begin(), files.end()), "index");
-}
-
-}  // namespace
 
 int TraceToBundle(const std::string& input_file_path,
                   const std::string& output_file_path,
@@ -115,43 +37,7 @@ int TraceToBundle(const std::string& input_file_path,
     return 1;
   }
 
-  // Check if this is an Android trace - bundle mode doesn't work for Android
-  // yet.
-  bool is_android;
-  {
-    auto android_check = tp->ExecuteQuery(R"(
-      SELECT COUNT(*)
-      FROM metadata
-      WHERE name = 'android_build_fingerprint'
-        OR (
-          name = 'system_release'
-          AND (value GLOB '*android*' OR value GLOB '*Android*')
-        )
-    )");
-    is_android = android_check.Next() && android_check.Get(0).AsLong() > 0;
-  }
-  if (is_android) {
-    PERFETTO_ELOG(R"(
-Bundle mode does not currently support Android traces.
-For Android traces, please use the existing 'symbolize' mode instead:
-
-  # Set up symbol paths (choose one):
-  export PERFETTO_BINARY_PATH="/path/to/android/symbols"
-  export PERFETTO_SYMBOLIZER_MODE=index
-  # OR
-  export BREAKPAD_SYMBOL_DIR="/path/to/breakpad/symbols"
-
-  # Generate symbols and create bundle:
-  traceconv symbolize input.perfetto symbols.pb
-  cat input.perfetto symbols.pb > output.perfetto
-
-For more information on setting up Android symbols, see:
-https://perfetto.dev/docs/data-sources/native-heap-profiler#symbolization
-)");
-    return 1;
-  }
-
-  // Add original trace file directly (memory efficient)
+  // Add original trace file directly (memory efficient).
   trace_processor::util::TarWriter tar(output_file_path);
   auto add_trace_status =
       tar.AddFileFromPath("trace.perfetto", input_file_path);
@@ -161,21 +47,47 @@ https://perfetto.dev/docs/data-sources/native-heap-profiler#symbolization
     return 1;
   }
 
-  // Symbolize the trace if possible.
-  std::vector<std::string> mapping_names = GetAllMappingNames(tp.get());
-  if (auto symbolizer = CreateSymbolizer(context, mapping_names); symbolizer) {
-    std::string symbols_proto;
-    profiling::SymbolizeDatabase(tp.get(), symbolizer.get(),
-                                 [&symbols_proto](const std::string& packet) {
-                                   symbols_proto += packet;
-                                 });
-    auto add_symbols_status = tar.AddFile("symbols.pb", symbols_proto);
-    if (!add_symbols_status.ok()) {
-      PERFETTO_ELOG("Failed to add symbols to TAR archive: %s",
-                    add_symbols_status.c_message());
-      return 1;
+  // Discover symbol paths from well-known locations.
+  trace_processor::util::SymbolizerConfig sym_config;
+  sym_config.no_auto_symbol_paths = context.no_auto_symbol_paths;
+  sym_config.symbol_paths = context.symbol_paths;
+
+  // Add paths discovered from well-known locations (unless disabled).
+  if (!context.no_auto_symbol_paths) {
+    auto discovered = trace_processor::util::DiscoverSymbolPaths(
+        {}, context.android_product_out, context.working_dir);
+    for (const auto& path : discovered.native_symbol_paths) {
+      sym_config.symbol_paths.push_back(path);
     }
   }
+
+  // Symbolize the trace if possible.
+  auto sym_result = trace_processor::util::Symbolize(tp.get(), sym_config);
+  switch (sym_result.error) {
+    case trace_processor::util::SymbolizerError::kOk:
+      if (!sym_result.symbols.empty()) {
+        auto add_symbols_status = tar.AddFile("symbols.pb", sym_result.symbols);
+        if (!add_symbols_status.ok()) {
+          PERFETTO_ELOG("Failed to add symbols to TAR archive: %s",
+                        add_symbols_status.c_message());
+          return 1;
+        }
+      }
+      break;
+    case trace_processor::util::SymbolizerError::kNoMappingsToSymbolize:
+      // No mappings to symbolize is not an error.
+      break;
+    case trace_processor::util::SymbolizerError::kSymbolizerNotAvailable:
+      PERFETTO_ELOG("Symbolizer not available: %s",
+                    sym_result.error_details.c_str());
+      // Continue without symbols rather than failing.
+      break;
+    case trace_processor::util::SymbolizerError::kSymbolizationFailed:
+      PERFETTO_ELOG("Symbolization failed: %s",
+                    sym_result.error_details.c_str());
+      return 1;
+  }
+
   return 0;
 }
 

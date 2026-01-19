@@ -367,6 +367,17 @@ source_set("auto_symbolizer") {
   ]
 }
 
+source_set("symbol_path_discovery") {
+  sources = [
+    "symbol_path_discovery.cc",
+    "symbol_path_discovery.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
 source_set("winscope_proto_mapping") {
   sources = [ "winscope_proto_mapping.h" ]
   deps = [
@@ -392,6 +403,7 @@ source_set("unittests") {
     "protozero_to_text_unittests.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
+    "symbol_path_discovery_unittest.cc",
     "tar_writer_unittest.cc",
     "trace_blob_view_reader_unittest.cc",
     "zip_reader_unittest.cc",
@@ -416,6 +428,7 @@ source_set("unittests") {
     ":protozero_to_text",
     ":regex",
     ":sql_argument",
+    ":symbol_path_discovery",
     ":tar_writer",
     ":trace_blob_view_reader",
     ":zip_reader",

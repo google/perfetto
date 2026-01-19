@@ -29,6 +29,12 @@ struct BundleContext {
 
   // If true, disables automatic symbol path discovery
   bool no_auto_symbol_paths = false;
+
+  // Value of ANDROID_PRODUCT_OUT for AOSP builds symbol discovery
+  std::string android_product_out;
+
+  // Working directory for Gradle project detection
+  std::string working_dir;
 };
 
 // Creates a bundle from the input trace with symbolization,
