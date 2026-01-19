@@ -354,6 +354,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_art_hprof_art_hprof",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
+        ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -555,6 +556,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_art_hprof_art_hprof",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
+        ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -2120,6 +2122,15 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_art_method_art_method_event",
     srcs = [
         "src/trace_processor/importers/art_method/art_method_event.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/collapsed_stack:collapsed_stack
+perfetto_filegroup(
+    name = "src_trace_processor_importers_collapsed_stack_collapsed_stack",
+    srcs = [
+        "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.cc",
+        "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h",
     ],
 )
 
@@ -8014,6 +8025,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_art_hprof_art_hprof",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
+        ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -8244,6 +8256,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_art_hprof_art_hprof",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
+        ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",

@@ -18,6 +18,9 @@ Unreleased:
     * Added relevant threads jank CUJ module and counter-based weighted jank
       metrics.
   Trace Processor:
+    * Added support for Collapsed Stack format (from Brendan Gregg's FlameGraph
+      tools). This format uses semicolon-separated stack frames with a count,
+      e.g., "main;foo;bar 100".
     * Added support for Firefox Profiler's preprocessed JSON format.
     * Removed deprecated `RegisterSqlModule()` C++ API (use
       `RegisterSqlPackage()` instead) and

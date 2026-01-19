@@ -1063,3 +1063,60 @@ involves collecting CPU profiles from Go programs or converting `perf.data` file
 - **`perf_data_converter` GitHub Repository:**
   [https://github.com/google/perf_data_converter](https://github.com/google/perf_data_converter)
 
+## Collapsed Stack format
+
+**Description:** The Collapsed Stack format is a simple text-based format for
+representing profiling data, commonly used with Brendan Gregg's FlameGraph
+tools. Each line contains a semicolon-separated stack trace (from root to leaf)
+followed by a space and a sample count. This format is popular for its
+simplicity and is often used as an intermediate format when generating flame
+graphs from various profiling sources.
+
+**Format Specification:**
+
+```
+frame1;frame2;frame3 count
+# Lines starting with # are comments
+```
+
+- Each line represents a unique stack trace with its sample count
+- Frames are separated by semicolons (`;`)
+- The root frame comes first, the leaf frame comes last
+- The count is a positive integer separated from the stack by a space
+- Lines starting with `#` are treated as comments
+- Empty lines and leading/trailing whitespace are ignored
+
+**Common Scenarios:** This format is typically used when:
+
+- Working with output from `perf script` that has been processed through
+  `stackcollapse-perf.pl` or similar tools.
+- Using Brendan Gregg's FlameGraph toolchain for generating SVG flame graphs.
+- Converting profiles from various sources into a universal, simple format.
+- Analyzing profiles that have been aggregated or pre-processed.
+
+**Perfetto Support:**
+
+- **Perfetto UI:** When a collapsed stack file is opened, Perfetto visualizes
+  the profiling data as an interactive flamegraph, similar to pprof files.
+
+**How to Generate:**
+
+The most common generation paths involve processing `perf` output:
+
+```bash
+# Record a profile
+sudo perf record -F 99 -g -- ./my_program
+
+# Convert to collapsed stack format
+perf script | stackcollapse-perf.pl > profile.collapsed
+
+# Open in Perfetto
+# Navigate to ui.perfetto.dev and upload profile.collapsed
+```
+
+**External Resources:**
+
+- **FlameGraph GitHub Repository:**
+  [https://github.com/brendangregg/FlameGraph](https://github.com/brendangregg/FlameGraph)
+- **Brendan Gregg's Flame Graphs page:**
+  [https://www.brendangregg.com/flamegraphs.html](https://www.brendangregg.com/flamegraphs.html)
