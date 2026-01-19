@@ -215,6 +215,16 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   41);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
+                  perfetto_protos_InternedString,
+                  viewcapture_content_description,
+                  45);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_InternedString,
+                  viewcapture_text,
+                  46);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
                   perfetto_protos_AppWakelockInfo,
                   app_wakelock_info,
                   42);
