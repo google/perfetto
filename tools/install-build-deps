@@ -619,7 +619,18 @@ def ExtractZipfilePreservePermissions(zf, info, path):
 
 
 def IsGitRepoCheckoutOutAtRevision(path, revision):
-  return ReadFile(os.path.join(path, '.git', 'HEAD')) == revision
+  # Use git rev-parse instead of reading .git/HEAD directly.
+  # Newer git versions (2.45+) use the reftable backend where HEAD doesn't
+  # contain the raw SHA in detached HEAD state.
+  if not os.path.isdir(os.path.join(path, '.git')):
+    return False
+  try:
+    actual = subprocess.check_output(
+        ['git', 'rev-parse', 'HEAD'], cwd=path,
+        stderr=subprocess.DEVNULL).decode().strip()
+    return actual == revision
+  except subprocess.CalledProcessError:
+    return False
 
 
 def RmtreeIfExists(path):
@@ -796,7 +807,19 @@ def InstallPythonVenv():
   subprocess.check_call(cmd)
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
-  subprocess.check_call(cmd)
+  if subprocess.call(cmd) != 0:
+    if shutil.which("gpkg"):
+      # Give actionable instructions to Googlers on how to go/corp-airlock.
+      print(
+          '''\033[33m
++---------------------------------------------------------+
+| venv installation failed, likely due to go/corp-airlock |
+| Run `gcert && gpkg setup` and try again                 |
++---------------------------------------------------------+
+\033[0m''',
+          file=sys.stderr)
+    sys.exit(1)
+
   with open(PYTHON_STATUS_FILE, 'w') as f:
     f.write(HashLocalFile(PYTHON_REQUIREMENTS))
 

@@ -229,6 +229,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> CreateSlices(
       const StructuredQuery::ExperimentalCreateSlices::Decoder&);
 
+  base::StatusOr<std::string> CounterIntervals(
+      const StructuredQuery::ExperimentalCounterIntervals::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
   static base::StatusOr<std::string> ExperimentalFilterGroup(
@@ -293,7 +296,10 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
       !root_query.has_experimental_union() && !root_query.has_sql() &&
       !root_query.has_inner_query_id() && !root_query.filters() &&
       !root_query.has_experimental_filter_group() &&
-      !root_query.has_group_by() && !root_query.select_columns();
+      !root_query.has_group_by() && !root_query.select_columns() &&
+      !root_query.has_experimental_add_columns() &&
+      !root_query.has_experimental_create_slices() &&
+      !root_query.has_experimental_counter_intervals();
 
   std::string sql = "WITH ";
   size_t cte_count = 0;
@@ -370,6 +376,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
       StructuredQuery::ExperimentalCreateSlices::Decoder create_slices_decoder(
           q.experimental_create_slices());
       ASSIGN_OR_RETURN(source, CreateSlices(create_slices_decoder));
+    } else if (q.has_experimental_counter_intervals()) {
+      StructuredQuery::ExperimentalCounterIntervals::Decoder
+          counter_intervals_decoder(q.experimental_counter_intervals());
+      ASSIGN_OR_RETURN(source, CounterIntervals(counter_intervals_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -769,7 +779,7 @@ base::StatusOr<std::string> GeneratorImpl::FilterToIntervals(
         "  FROM interval_merge_overlapping!(fti_intervals_raw, 0)\n"
         ")";
   } else {
-    // Partitioned: use _interval_merge_overlapping_partitioned for each
+    // Partitioned: use interval_merge_overlapping_partitioned for each
     // partition column and add a dummy id. We only support a single partition
     // column for the merge operation, but multiple for the intersection.
     // For simplicity, we merge on the first partition column.
@@ -784,8 +794,8 @@ base::StatusOr<std::string> GeneratorImpl::FilterToIntervals(
     }
     sql +=
         "\n  FROM "
-        "_interval_merge_overlapping_partitioned!(fti_intervals_raw, " +
-        partition_cols[0] + ")\n)";
+        "interval_merge_overlapping_partitioned!(fti_intervals_raw, (" +
+        partition_cols[0] + "))\n)";
   }
 
   // Use _interval_intersect! macro to compute overlaps
@@ -1192,6 +1202,30 @@ WHERE end_ts IS NOT NULL)
              starts_table.c_str(), ends_table.c_str(), starts_ts_col.c_str(),
              ends_ts_col.c_str(), ends_ts_col.c_str(), starts_ts_col.c_str())
       .ToStdString();
+}
+
+base::StatusOr<std::string> GeneratorImpl::CounterIntervals(
+    const StructuredQuery::ExperimentalCounterIntervals::Decoder&
+        counter_intervals) {
+  // Validate required fields
+  if (!counter_intervals.has_input_query()) {
+    return base::ErrStatus("CounterIntervals must specify an input_query");
+  }
+
+  // Reference the counters.intervals module which contains
+  // counter_leading_intervals
+  referenced_modules_.Insert("counters.intervals", nullptr);
+
+  // Generate nested source
+  std::string input_table = NestedSource(counter_intervals.input_query());
+
+  // Use counter_leading_intervals! macro to convert counter data to intervals
+  // The macro expects a table with (id, ts, track_id, value) columns
+  // and returns (id, ts, dur, track_id, value, next_value, delta_value)
+  std::string sql =
+      "(SELECT * FROM counter_leading_intervals!(" + input_table + "))";
+
+  return sql;
 }
 
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(

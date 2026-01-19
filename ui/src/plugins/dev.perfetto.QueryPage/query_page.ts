@@ -13,8 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {findRef, toHTMLElement} from '../../base/dom_utils';
-import {assertExists} from '../../base/logging';
 import {Icons} from '../../base/semantic_icons';
 import {QueryResponse} from '../../components/query_table/queries';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
@@ -31,8 +29,11 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
+import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
-import {ResizeHandle} from '../../widgets/resize_handle';
+import {Spinner} from '../../widgets/spinner';
+import {SplitPanel} from '../../widgets/split_panel';
+import {Tabs, TabsTab} from '../../widgets/tabs';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
@@ -41,75 +42,180 @@ import {DataSource} from '../../components/widgets/datagrid/data_source';
 import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {TableList} from './table_list';
+import {Icon} from '../../widgets/icon';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
+
+// Represents a single query editor tab with its own state.
+export interface QueryEditorTab {
+  readonly id: string;
+  editorText: string;
+  queryResult?: QueryResponse;
+  isLoading: boolean;
+  title: string;
+}
 
 export interface QueryPageAttrs {
   // The trace to run queries against.
   readonly trace: Trace;
 
-  // Current text displayed in the query editor.
-  readonly editorText: string;
+  // All editor tabs.
+  readonly editorTabs: QueryEditorTab[];
 
-  // The results of the last executed query, if any.
-  readonly queryResult?: QueryResponse;
+  // The currently active editor tab ID.
+  readonly activeTabId: string;
 
-  // Whether a query is currently being executed.
-  readonly isLoading: boolean;
-
-  // Called when the content of the editor is updated.
-  onEditorContentUpdate?(content: string): void;
+  // Called when the content of an editor is updated.
+  onEditorContentUpdate?(tabId: string, content: string): void;
 
   // Called when the user requests to execute a query.
-  onExecute?(query: string): void;
+  onExecute?(tabId: string, query: string): void;
+
+  // Called when the user switches to a different tab.
+  onTabChange?(tabId: string): void;
+
+  // Called when the user closes a tab.
+  onTabClose?(tabId: string): void;
+
+  // Called when the user wants to add a new tab.
+  onTabAdd?(
+    tabName?: string,
+    initialQuery?: string,
+    autoExecute?: boolean,
+  ): void;
+
+  // Called when the user renames a tab.
+  onTabRename?(tabId: string, newName: string): void;
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
-  private dataSource?: DataSource;
-  private editorHeight: number = 0;
-  private editorElement?: HTMLElement;
+  // Map of tab ID to DataSource for each tab's query results
+  private dataSources = new Map<string, DataSource>();
 
-  oncreate({dom}: m.VnodeDOM<QueryPageAttrs>) {
-    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
-    this.editorElement.style.height = '200px';
-  }
-
-  onbeforeupdate(
-    vnode: m.Vnode<QueryPageAttrs>,
-    oldVnode: m.Vnode<QueryPageAttrs>,
-  ) {
-    // Update the datasource if present
-    if (vnode.attrs.queryResult !== oldVnode.attrs.queryResult) {
-      if (vnode.attrs.queryResult) {
-        this.dataSource = new InMemoryDataSource(vnode.attrs.queryResult.rows);
-      } else {
-        this.dataSource = undefined;
-      }
-    }
-  }
+  // Track previous query results to detect changes
+  private prevQueryResults = new Map<string, QueryResponse | undefined>();
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
-    const {
-      isLoading,
-      editorText,
-      trace,
-      onEditorContentUpdate,
-      queryResult,
-      onExecute,
-    } = attrs;
+    const {editorTabs, activeTabId} = attrs;
+
+    // Update data sources for tabs whose results have changed
+    for (const tab of editorTabs) {
+      const prevResult = this.prevQueryResults.get(tab.id);
+      if (tab.queryResult !== prevResult) {
+        if (tab.queryResult) {
+          this.dataSources.set(
+            tab.id,
+            new InMemoryDataSource(tab.queryResult.rows),
+          );
+        } else {
+          this.dataSources.delete(tab.id);
+        }
+        this.prevQueryResults.set(tab.id, tab.queryResult);
+      }
+    }
+
+    // Clean up data sources for removed tabs
+    const tabIds = new Set(editorTabs.map((t) => t.id));
+    for (const id of this.dataSources.keys()) {
+      if (!tabIds.has(id)) {
+        this.dataSources.delete(id);
+        this.prevQueryResults.delete(id);
+      }
+    }
+
+    // Build editor tabs for the left panel
+    const leftTabs: TabsTab[] = editorTabs.map((tab) => ({
+      key: tab.id,
+      title: tab.title,
+      closable: editorTabs.length > 1,
+      content: this.renderEditorTabContent(attrs, tab),
+    }));
+
+    // Add "+" tab for creating new tabs
+    leftTabs.push({
+      key: '__add_tab__',
+      title: m(Icon, {icon: Icons.Add}),
+      content: null, // Never shown
+    });
+
+    const leftPanel = m(Tabs, {
+      className: 'pf-query-page__editor-tabs',
+      tabs: leftTabs,
+      activeTabKey: activeTabId,
+      onTabChange: (key) => {
+        if (key === '__add_tab__') {
+          attrs.onTabAdd?.();
+        } else {
+          attrs.onTabChange?.(key);
+        }
+      },
+      onTabClose: (key) => attrs.onTabClose?.(key),
+    });
+
+    const activeTab = editorTabs.find((t) => t.id === activeTabId);
+
+    const sidebarPanel = m(Tabs, {
+      className: 'pf-query-page__sidebar',
+      tabs: [
+        {
+          key: 'history',
+          title: 'History',
+          content: m(QueryHistoryComponent, {
+            className: 'pf-query-page__history',
+            trace: attrs.trace,
+            runQuery: (query: string) => {
+              if (activeTab) {
+                attrs.onExecute?.(activeTab.id, query);
+              }
+            },
+            setQuery: (query: string) => {
+              if (activeTab) {
+                attrs.onEditorContentUpdate?.(activeTab.id, query);
+              }
+            },
+          }),
+        },
+        {
+          key: 'tables',
+          title: 'Tables',
+          content: this.renderTablesTab(attrs),
+        },
+      ],
+    });
 
     return m(
       '.pf-query-page',
+      m(SplitPanel, {
+        direction: 'horizontal',
+        initialSplit: {pixels: 500},
+        controlledPanel: 'second',
+        minSize: 100,
+        firstPanel: leftPanel,
+        secondPanel: sidebarPanel,
+      }),
+    );
+  }
+
+  private renderEditorTabContent(
+    attrs: QueryPageAttrs,
+    tab: QueryEditorTab,
+  ): m.Children {
+    const {trace} = attrs;
+    const dataSource = this.dataSources.get(tab.id);
+
+    const editorPanel = m('.pf-query-page__editor-panel', [
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
           m(Button, {
             label: 'Run Query',
             icon: 'play_arrow',
-            loading: isLoading,
-            intent: isLoading ? Intent.None : Intent.Primary,
+            loading: tab.isLoading,
+            intent: tab.isLoading ? Intent.None : Intent.Primary,
             variant: ButtonVariant.Filled,
             onclick: () => {
-              attrs.onExecute?.(editorText);
+              attrs.onExecute?.(tab.id, tab.editorText);
             },
           }),
           m(
@@ -133,9 +239,21 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               },
             }),
           m(CopyToClipboardButton, {
-            textToCopy: editorText,
-            title: 'Copy query to clipboard',
-            label: 'Copy Query',
+            textToCopy: tab.editorText,
+            tooltip: 'Copy query to clipboard',
+          }),
+          m(Button, {
+            icon: 'edit',
+            tooltip: 'Rename this tab',
+            onclick: async () => {
+              const newName = await trace.omnibox.prompt(
+                'Enter new tab name:',
+                tab.title,
+              );
+              if (newName && newName.trim()) {
+                attrs.onTabRename?.(tab.id, newName.trim());
+              }
+            },
           }),
         ]),
       ]),
@@ -176,7 +294,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             ],
           ),
         ),
-      editorText.includes('"') &&
+      tab.editorText.includes('"') &&
         m(
           Box,
           m(
@@ -188,35 +306,36 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           ),
         ),
       m(Editor, {
-        ref: 'editor',
         language: 'perfetto-sql',
-        text: editorText,
-        onUpdate: onEditorContentUpdate,
-        onExecute: onExecute,
+        text: tab.editorText,
+        onUpdate: (content) => attrs.onEditorContentUpdate?.(tab.id, content),
+        onExecute: (query) => attrs.onExecute?.(tab.id, query),
       }),
-      m(ResizeHandle, {
-        onResize: (deltaPx: number) => {
-          this.editorHeight += deltaPx;
-          this.editorElement!.style.height = `${this.editorHeight}px`;
-        },
-        onResizeStart: () => {
-          this.editorHeight = this.editorElement!.clientHeight;
-        },
-      }),
-      this.dataSource &&
-        queryResult &&
-        this.renderQueryResult(trace, queryResult, this.dataSource),
-      m(QueryHistoryComponent, {
-        className: 'pf-query-page__history',
-        trace: trace,
-        runQuery: (query: string) => {
-          onExecute?.(query);
-        },
-        setQuery: (query: string) => {
-          onEditorContentUpdate?.(query);
-        },
-      }),
+    ]);
+
+    const resultsPanel = m(
+      '.pf-query-page__results-panel',
+      dataSource && tab.queryResult
+        ? this.renderQueryResult(trace, tab.queryResult, dataSource)
+        : tab.isLoading
+          ? m(EmptyState, {
+              title: 'Running query...',
+              icon: 'hourglass_empty',
+              fillHeight: true,
+            })
+          : m(EmptyState, {
+              title: 'Run a query to see results',
+              fillHeight: true,
+            }),
     );
+
+    return m(SplitPanel, {
+      direction: 'vertical',
+      initialSplit: {percent: 50},
+      minSize: 100,
+      firstPanel: editorPanel,
+      secondPanel: resultsPanel,
+    });
   }
 
   private renderQueryResult(
@@ -279,6 +398,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           return m(DataGrid, {
             schema,
             rootSchema: 'data',
+            enablePivotControls: false, // In-memory datasource does not support pivoting
             initialColumns: queryResult.columns.map((col) => ({
               id: col,
               field: col,
@@ -286,6 +406,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             className: 'pf-query-page__results',
             data: dataSource,
             showExportButton: true,
+            emptyStateMessage: 'Query returned no rows',
             toolbarItemsLeft: m(
               'span.pf-query-page__results-summary',
               `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
@@ -317,6 +438,30 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         })(),
       ];
     }
+  }
+
+  private renderTablesTab(attrs: QueryPageAttrs): m.Children {
+    const sqlModulesPlugin = attrs.trace.plugins.getPlugin(SqlModulesPlugin);
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+
+    if (!sqlModules) {
+      return m(
+        EmptyState,
+        {
+          title: 'Loading tables...',
+          icon: 'hourglass_empty',
+          fillHeight: true,
+        },
+        m(Spinner),
+      );
+    }
+
+    return m(TableList, {
+      sqlModules,
+      onQueryTable: (tableName, query) => {
+        attrs.onTabAdd?.(tableName, query, true);
+      },
+    });
   }
 
   private shouldDisplayPerfettoSqlAgentBanner(attrs: QueryPageAttrs) {

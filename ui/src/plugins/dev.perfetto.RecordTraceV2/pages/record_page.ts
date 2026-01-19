@@ -30,6 +30,7 @@ import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {Stack} from '../../../widgets/stack';
 import {Anchor} from '../../../widgets/anchor';
+import {TARGET_PLATFORMS} from '../interfaces/target_platform';
 
 export interface RecordPageAttrs {
   readonly app: App;
@@ -280,10 +281,11 @@ class RecordingCtl implements m.ClassComponent<RecCtlAttrs> {
       setTimeout(() => m.redraw(), 1000);
     }
     const eta: string | undefined = currentSession?.eta;
+    const platform = TARGET_PLATFORMS.find((p) => p.id === target?.platform);
     return m(
       '.record-ctl',
       m(Button, {
-        icon: 'cable',
+        icon: platform?.icon ?? 'cable',
         title: 'Click to select another target',
         onclick: () => this.recMgr.app.navigate('#!/record/target'),
       }),

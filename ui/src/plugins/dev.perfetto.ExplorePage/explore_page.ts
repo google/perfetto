@@ -70,6 +70,7 @@ export interface ExplorePageState {
   isExplorerCollapsed?: boolean;
   sidebarWidth?: number;
   loadGeneration?: number; // Incremented each time content is loaded
+  clipboardNode?: QueryNode;
 }
 
 interface ExplorePageAttrs {
@@ -115,6 +116,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       },
       onInsertModifyColumnsNode: (portIndex: number) => {
         this.handleInsertModifyColumnsNode(attrs, node, portIndex);
+      },
+      onInsertCounterToIntervalsNode: (portIndex: number) => {
+        this.handleInsertCounterToIntervalsNode(attrs, node, portIndex);
       },
     };
   }
@@ -194,6 +198,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           onInsertModifyColumnsNode: (portIndex: number) => {
             if (nodeRef.current !== undefined) {
               this.handleInsertModifyColumnsNode(
+                attrs,
+                nodeRef.current,
+                portIndex,
+              );
+            }
+          },
+          onInsertCounterToIntervalsNode: (portIndex: number) => {
+            if (nodeRef.current !== undefined) {
+              this.handleInsertCounterToIntervalsNode(
                 attrs,
                 nodeRef.current,
                 portIndex,
@@ -540,6 +553,62 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
+  private async handleInsertCounterToIntervalsNode(
+    attrs: ExplorePageAttrs,
+    targetNode: QueryNode,
+    portIndex: number,
+  ) {
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      console.warn(
+        'Cannot insert counter to intervals node: SQL modules not loaded',
+      );
+      return;
+    }
+
+    // Get the CounterToIntervals descriptor
+    const descriptor = nodeRegistry.get('counter_to_intervals');
+    if (!descriptor) {
+      console.warn(
+        "Cannot insert counter to intervals node: 'counter_to_intervals' node type not found in registry",
+      );
+      return;
+    }
+
+    // Get the current input node at the specified port
+    const inputNode = getInputNodeAtPort(targetNode, portIndex);
+
+    if (!inputNode) {
+      console.warn(`No input node found at port ${portIndex}`);
+      return;
+    }
+
+    // Create the CounterToIntervals node
+    const newNode = descriptor.factory(
+      {
+        sqlModules,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
+
+    // Remove the old connection from inputNode to targetNode
+    removeConnection(inputNode, targetNode);
+
+    // Add connection from inputNode to CounterToIntervals node (sets primaryInput)
+    addConnection(inputNode, newNode);
+
+    // Add connection from CounterToIntervals node to targetNode at the same port
+    addConnection(newNode, targetNode, portIndex);
+
+    // Add the new node to root nodes (so it appears in the graph)
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, newNode],
+      selectedNode: newNode,
+    }));
+  }
+
   /**
    * Cleans up all existing nodes (drops materialized tables) and clears
    * the initialized nodes set. Used when replacing the entire graph state.
@@ -570,6 +639,31 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       rootNodes: [...currentState.rootNodes, node.clone()],
     }));
+  }
+
+  private handleCopy(attrs: ExplorePageAttrs, node: QueryNode): void {
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      clipboardNode: node.clone(),
+    }));
+  }
+
+  private handlePaste(attrs: ExplorePageAttrs): void {
+    const {state, onStateUpdate} = attrs;
+    if (state.clipboardNode === undefined) {
+      return;
+    }
+    onStateUpdate((currentState) => {
+      if (currentState.clipboardNode === undefined) {
+        return currentState;
+      }
+      const newNode = currentState.clipboardNode.clone();
+      return {
+        ...currentState,
+        rootNodes: [...currentState.rootNodes, newNode],
+        selectedNode: newNode,
+      };
+    });
   }
 
   /**
@@ -968,14 +1062,35 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
   private handleKeyDown(event: KeyboardEvent, attrs: ExplorePageAttrs) {
     const {state} = attrs;
-    if (state.selectedNode) {
-      return;
-    }
+
     // Do not interfere with text inputs
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLTextAreaElement
     ) {
+      return;
+    }
+
+    // Handle copy/paste shortcuts - these work when a node IS selected
+    if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+      if (state.selectedNode !== undefined) {
+        this.handleCopy(attrs, state.selectedNode);
+      }
+      // Always preventDefault to avoid browser copy interfering with the page,
+      // even when no node is selected.
+      event.preventDefault();
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+      this.handlePaste(attrs);
+      event.preventDefault();
+      return;
+    }
+
+    // For other shortcuts, skip if a node is selected to avoid interfering
+    // with node-specific interactions
+    if (state.selectedNode) {
       return;
     }
 

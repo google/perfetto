@@ -12,19 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
-import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
-import {z} from 'zod';
+.pf-v8-loading-container {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-export const PPROF_PAGE_STATE_SCHEMA = z.object({
-  flamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
-  selectedProfileId: z.string().optional(),
-});
+.pf-v8-percent-cell {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 
-export type PprofPageState = z.infer<typeof PPROF_PAGE_STATE_SCHEMA>;
+  .bar {
+    position: relative;
+    height: 100%;
+  }
 
-export interface PprofProfile {
-  readonly id: string;
-  readonly displayName: string;
-  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
+  .value {
+    position: absolute;
+    z-index: 1;
+    right: 0;
+  }
 }
