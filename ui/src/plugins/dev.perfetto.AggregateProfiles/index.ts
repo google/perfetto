@@ -18,36 +18,36 @@ import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {NUM, STR} from '../../trace_processor/query_result';
-import {PprofPage} from './pprof_page';
-import {PprofPageState, PPROF_PAGE_STATE_SCHEMA} from './types';
+import {AggregateProfilesPage} from './aggregate_profiles_page';
+import {AggregateProfilesPageState, AGGREGATE_PROFILES_PAGE_STATE_SCHEMA} from './types';
 import {Store} from '../../base/store';
 import {assertExists} from '../../base/logging';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.PprofProfiles';
-  private store?: Store<PprofPageState>;
+  static readonly id = 'dev.perfetto.AggregateProfiles';
+  private store?: Store<AggregateProfilesPageState>;
 
-  private migratePprofPageState(init: unknown): PprofPageState {
-    const result = PPROF_PAGE_STATE_SCHEMA.safeParse(init);
+  private migratePageState(init: unknown): AggregateProfilesPageState {
+    const result = AGGREGATE_PROFILES_PAGE_STATE_SCHEMA.safeParse(init);
     return result.data ?? {};
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore('dev.perfetto.PprofProfiles', (init) =>
-      this.migratePprofPageState(init),
+    this.store = trace.mountStore('dev.perfetto.AggregateProfiles', (init) =>
+      this.migratePageState(init),
     );
-    const profiles = await this.getPprofProfiles(trace);
+    const profiles = await this.getProfiles(trace);
     if (profiles.length === 0) {
       return;
     }
     const store = assertExists(this.store);
     trace.pages.registerPage({
-      route: '/pprof',
+      route: '/aggregateprofiles',
       render: () =>
-        m(PprofPage, {
+        m(AggregateProfilesPage, {
           trace,
           state: store.state,
-          onStateChange: (state: PprofPageState) => {
+          onStateChange: (state: AggregateProfilesPageState) => {
             store.edit((draft) => {
               draft.selectedProfileId = state.selectedProfileId;
               draft.flamegraphState = state.flamegraphState;
@@ -59,35 +59,35 @@ export default class implements PerfettoPlugin {
     trace.sidebar.addMenuItem({
       section: 'current_trace',
       sortOrder: 11,
-      text: 'pprof Profiles',
-      href: '#!/pprof',
+      text: 'Aggregate Profiles',
+      href: '#!/aggregateprofiles',
       icon: 'analytics',
     });
     trace.onTraceReady.addListener(async () => {
       const hasAnyTracks = trace.workspaces.all[0].flatTracks.length > 0;
       // TODO(lalitm): it's really bad that we're unconditionally navigating
-      // to the pprof page: really we should check if the user has not already
+      // to the profiles page: really we should check if the user has not already
       // set a page and then only navigate if no page is set. However:
       //  a) no API exists for checking the current page
       //  b) there is already some code in UI load time which navigates
       //     to the viewer page so we would always fail this check.
       // So for now just leave this as-is.
       if (!hasAnyTracks && profiles.length > 0) {
-        trace.navigate('#!/pprof');
+        trace.navigate('#!/aggregateprofiles');
       }
     });
   }
 
-  private async getPprofProfiles(trace: Trace) {
+  private async getProfiles(trace: Trace) {
     const result = await trace.engine.query(
       'SELECT DISTINCT scope FROM __intrinsic_aggregate_profile ORDER BY scope',
     );
     const profiles = [];
     for (const it = result.iter({scope: STR}); it.valid(); it.next()) {
-      const metrics = await this.getPprofMetrics(trace, it.scope);
+      const metrics = await this.getProfileMetrics(trace, it.scope);
       if (metrics.length > 0) {
         profiles.push({
-          id: `pprof_${it.scope}`,
+          id: `profile_${it.scope}`,
           displayName: it.scope,
           metrics,
         });
@@ -96,7 +96,7 @@ export default class implements PerfettoPlugin {
     return profiles;
   }
 
-  private async getPprofMetrics(
+  private async getProfileMetrics(
     trace: Trace,
     scope: string,
   ): Promise<QueryFlamegraphMetric[]> {
@@ -123,6 +123,7 @@ export default class implements PerfettoPlugin {
       metrics.push({
         name: it.display_name,
         unit: it.sample_type_unit,
+        nameColumnLabel: 'Symbol',
         dependencySql: 'include perfetto module callstacks.stack_profile',
         statement: `
           WITH profile_samples AS MATERIALIZED (

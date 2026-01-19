@@ -28,25 +28,25 @@ import {Callout} from '../../widgets/callout';
 import {TabStrip} from '../../widgets/tab_strip';
 import {Icon} from '../../widgets/icon';
 import {Flamegraph} from '../../widgets/flamegraph';
-import {PprofProfile, PprofPageState} from './types';
+import {AggregateProfile, AggregateProfilesPageState} from './types';
 
-const HIDE_PAGE_EXPLANATION_KEY = 'hidePprofPageExplanation';
-const HIDE_VIEW_EXPLANATION_KEY = 'hidePprofViewExplanation';
+const HIDE_PAGE_EXPLANATION_KEY = 'hideAggregateProfilesPageExplanation';
+const HIDE_VIEW_EXPLANATION_KEY = 'hideAggregateProfilesViewExplanation';
 
-export interface PprofPageAttrs {
+export interface AggregateProfilesPageAttrs {
   readonly trace: Trace;
-  readonly state: PprofPageState;
-  readonly onStateChange: (state: PprofPageState) => void;
-  readonly profiles: ReadonlyArray<PprofProfile>;
+  readonly state: AggregateProfilesPageState;
+  readonly onStateChange: (state: AggregateProfilesPageState) => void;
+  readonly profiles: ReadonlyArray<AggregateProfile>;
 }
 
-export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
-  private profiles?: ReadonlyArray<PprofProfile>;
+export class AggregateProfilesPage implements m.ClassComponent<AggregateProfilesPageAttrs> {
+  private profiles?: ReadonlyArray<AggregateProfile>;
   private readonly monitor = new Monitor([() => this.profiles]);
   private flamegraphWithMetrics?: QueryFlamegraphWithMetrics;
   private currentTab = 'flamegraph';
 
-  view({attrs}: m.CVnode<PprofPageAttrs>): m.Children {
+  view({attrs}: m.CVnode<AggregateProfilesPageAttrs>): m.Children {
     this.profiles = attrs.profiles;
     if (this.monitor.ifStateChanged()) {
       const selectedProfile =
@@ -65,7 +65,7 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
       {
         fillHeight: true,
         spacing: 'medium',
-        className: 'pf-pprof-page',
+        className: 'pf-aggregate-profiles-page',
       },
       [
         attrs.profiles.length > 1 &&
@@ -101,7 +101,7 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
     );
   }
 
-  private createFlamegraph(attrs: PprofPageAttrs, profile: PprofProfile): void {
+  private createFlamegraph(attrs: AggregateProfilesPageAttrs, profile: AggregateProfile): void {
     if (profile.metrics.length === 0) {
       this.flamegraphWithMetrics = undefined;
       attrs.onStateChange({
@@ -139,7 +139,7 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
       HIDE_VIEW_EXPLANATION_KEY,
     );
     return m(TabStrip, {
-      className: 'pf-pprof-page__tabs',
+      className: 'pf-aggregate-profiles-page__tabs',
       tabs: [
         {
           key: 'flamegraph',
@@ -147,7 +147,7 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
           rightIcon: !showViewExplanation
             ? m(Icon, {
                 icon: 'help',
-                className: 'pf-pprof-page__help-icon',
+                className: 'pf-aggregate-profiles-page__help-icon',
                 onclick: () => this.showExplanation(HIDE_VIEW_EXPLANATION_KEY),
               })
             : undefined,
@@ -177,13 +177,13 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
         icon: 'help',
         dismissible: true,
         onDismiss: () => this.dismissExplanation(HIDE_PAGE_EXPLANATION_KEY),
-        className: 'pf-pprof-page__page-explanation',
+        className: 'pf-aggregate-profiles-page__page-explanation',
       },
       m(
         'p',
-        `This page shows pprof profile analysis, complementing the timeline view.
+        `This page shows aggregate profile analysis, complementing the timeline view.
          While the timeline visualizes events across time, this page aggregates
-         samples from pprof profiles in the trace.`,
+         samples from profiles (pprof, collapsed stack, etc.) in the trace.`,
       ),
     );
   }
@@ -195,7 +195,7 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
         icon: 'help',
         dismissible: true,
         onDismiss: () => this.dismissExplanation(HIDE_VIEW_EXPLANATION_KEY),
-        className: 'pf-pprof-page__view-explanation',
+        className: 'pf-aggregate-profiles-page__view-explanation',
       },
       m(
         'p',
@@ -210,13 +210,13 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
     );
   }
 
-  private renderControlsRow(attrs: PprofPageAttrs): m.Children {
+  private renderControlsRow(attrs: AggregateProfilesPageAttrs): m.Children {
     return m(
       Stack,
       {
         orientation: 'horizontal',
         spacing: 'medium',
-        className: 'pf-pprof-page__controls',
+        className: 'pf-aggregate-profiles-page__controls',
       },
       [
         m(StackAuto),
@@ -226,13 +226,13 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
     );
   }
 
-  private renderProfileSelector(attrs: PprofPageAttrs): m.Children {
+  private renderProfileSelector(attrs: AggregateProfilesPageAttrs): m.Children {
     return m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
-      m('label', {className: 'pf-pprof-page__profile-label'}, 'Profile:'),
+      m('label', {className: 'pf-aggregate-profiles-page__profile-label'}, 'Profile:'),
       m(
         Select,
         {
-          className: 'pf-pprof-page__profile-select',
+          className: 'pf-aggregate-profiles-page__profile-select',
           oninput: (e: Event) => {
             const selectedIndex = parseInt(
               (e.target as HTMLSelectElement).value,
@@ -264,15 +264,15 @@ export class PprofPage implements m.ClassComponent<PprofPageAttrs> {
       EmptyState,
       {
         icon: 'analytics',
-        title: 'No pprof Profiles Available',
+        title: 'No Aggregate Profiles Available',
         fillHeight: true,
-        className: 'pf-pprof-page__empty',
+        className: 'pf-aggregate-profiles-page__empty',
       },
       [
         m(
           'p',
-          'This trace contains no pprof profiles. ' +
-            'pprof profiles can be captured using various profiling tools and imported into traces.',
+          'This trace contains no aggregate profiles. ' +
+            'Aggregate profiles (pprof, collapsed stack) can be captured using various profiling tools and imported into traces.',
         ),
       ],
     );

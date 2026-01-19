@@ -452,8 +452,8 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       ),
     ].join(' OR ');
 
-    const metrics = metricsFromTableOrSubquery(
-      `
+    const metrics = metricsFromTableOrSubquery({
+      tableOrSubquery: `
       (
         select
           id,
@@ -472,23 +472,26 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         ))
       )
     `,
-      [
+      tableMetrics: [
         {
           name: 'Perf Samples',
           unit: '',
           columnName: 'self_count',
         },
       ],
-      'include perfetto module linux.perf.samples',
-      [{name: 'mapping_name', displayName: 'Mapping'}],
-      [
+      dependencySql: 'include perfetto module linux.perf.samples',
+      unaggregatableProperties: [
+        {name: 'mapping_name', displayName: 'Mapping'},
+      ],
+      aggregatableProperties: [
         {
           name: 'source_location',
           displayName: 'Source location',
           mergeAggregation: 'ONE_OR_SUMMARY',
         },
       ],
-    );
+      nameColumnLabel: 'Symbol',
+    });
     const store = assertExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(

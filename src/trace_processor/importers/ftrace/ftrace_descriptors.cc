@@ -222,7 +222,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
     },
     {
         "i2c_write",
-        6,
+        7,
         {
             {},
             {"adapter_nr", ProtoSchemaType::kInt32},
@@ -230,7 +230,8 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
             {"addr", ProtoSchemaType::kUint32},
             {"flags", ProtoSchemaType::kUint32},
             {"len", ProtoSchemaType::kUint32},
-            {"buf", ProtoSchemaType::kUint32},
+            {},
+            {"buf", ProtoSchemaType::kBytes},
         },
     },
     {
@@ -245,7 +246,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
     },
     {
         "i2c_reply",
-        6,
+        7,
         {
             {},
             {"adapter_nr", ProtoSchemaType::kInt32},
@@ -253,7 +254,8 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
             {"addr", ProtoSchemaType::kUint32},
             {"flags", ProtoSchemaType::kUint32},
             {"len", ProtoSchemaType::kUint32},
-            {"buf", ProtoSchemaType::kUint32},
+            {},
+            {"buf", ProtoSchemaType::kBytes},
         },
     },
     {
@@ -4745,21 +4747,23 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
     },
     {
         "dsi_rx",
-        2,
+        3,
         {
             {},
             {"cmd", ProtoSchemaType::kUint32},
-            {"rx_buf", ProtoSchemaType::kUint32},
+            {},
+            {"rx_buf", ProtoSchemaType::kBytes},
         },
     },
     {
         "dsi_tx",
-        3,
+        4,
         {
             {},
             {"last", ProtoSchemaType::kUint32},
-            {"tx_buf", ProtoSchemaType::kUint32},
+            {},
             {"type", ProtoSchemaType::kUint32},
+            {"tx_buf", ProtoSchemaType::kBytes},
         },
     },
     {
@@ -5443,22 +5447,24 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
     },
     {
         "dpu_dsi_rx",
-        2,
+        3,
         {
             {},
             {"cmd", ProtoSchemaType::kUint32},
-            {"rx_buf", ProtoSchemaType::kUint32},
+            {},
+            {"rx_buf", ProtoSchemaType::kBytes},
         },
     },
     {
         "dpu_dsi_tx",
-        4,
+        5,
         {
             {},
             {"type", ProtoSchemaType::kUint32},
-            {"tx_buf", ProtoSchemaType::kUint32},
+            {},
             {"last", ProtoSchemaType::kUint32},
             {"delay_ms", ProtoSchemaType::kUint32},
+            {"tx_buf", ProtoSchemaType::kBytes},
         },
     },
     {
@@ -6623,7 +6629,7 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
     },
     {
         "scsi_dispatch_cmd_error",
-        13,
+        14,
         {
             {},
             {"host_no", ProtoSchemaType::kUint32},
@@ -6636,14 +6642,15 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
             {"data_sglen", ProtoSchemaType::kUint32},
             {"prot_sglen", ProtoSchemaType::kUint32},
             {"prot_op", ProtoSchemaType::kUint32},
-            {"cmnd", ProtoSchemaType::kString},
+            {},
             {"driver_tag", ProtoSchemaType::kInt32},
             {"scheduler_tag", ProtoSchemaType::kInt32},
+            {"cmnd", ProtoSchemaType::kBytes},
         },
     },
     {
         "scsi_dispatch_cmd_timeout",
-        16,
+        17,
         {
             {},
             {"host_no", ProtoSchemaType::kUint32},
@@ -6656,12 +6663,13 @@ std::array<FtraceMessageDescriptor, 602> descriptors{{
             {"data_sglen", ProtoSchemaType::kUint32},
             {"prot_sglen", ProtoSchemaType::kUint32},
             {"prot_op", ProtoSchemaType::kUint32},
-            {"cmnd", ProtoSchemaType::kString},
+            {},
             {"driver_tag", ProtoSchemaType::kInt32},
             {"scheduler_tag", ProtoSchemaType::kInt32},
             {"sense_key", ProtoSchemaType::kUint32},
             {"asc", ProtoSchemaType::kUint32},
             {"ascq", ProtoSchemaType::kUint32},
+            {"cmnd", ProtoSchemaType::kBytes},
         },
     },
     {

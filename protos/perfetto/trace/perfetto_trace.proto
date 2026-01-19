@@ -4933,9 +4933,19 @@ message TraceConfig {
       // Introduced in: Perfetto v54.
       optional string name = 4;
 
-      // The semantic types this rule applies to. If empty, the rule applies
-      // to all string fields regardless of their semantic type. If non-empty,
-      // the rule only applies to fields whose semantic type is in this list.
+      // The semantic types this rule applies to.
+      //
+      // SEMANTIC_TYPE_UNSPECIFIED (0) is treated as its own distinct category:
+      // - If empty, the rule applies only to fields with UNSPECIFIED type.
+      // - If non-empty, the rule applies only to fields whose semantic type
+      //   is explicitly listed. To match UNSPECIFIED fields, you must include
+      //   SEMANTIC_TYPE_UNSPECIFIED in the list.
+      //
+      // Examples:
+      //   semantic_type: []           -> matches only UNSPECIFIED fields
+      //   semantic_type: [ATRACE]     -> matches only ATRACE fields
+      //   semantic_type: [UNSPECIFIED, ATRACE] -> matches both
+      //
       // See /rfcs/0011-subset-string-filter-rules.md for design details.
       // Introduced in: Perfetto v54.
       repeated SemanticType semantic_type = 5;
@@ -5886,6 +5896,7 @@ message FrameTimelineEvent {
     JANK_NON_ANIMATING = 2048;
     JANK_APP_RESYNCED_JITTER = 4096;
     JANK_DISPLAY_NOT_ON = 8192;
+    JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS = 16384;
   };
 
   // Specifies the severity of a jank.
@@ -8958,13 +8969,13 @@ message DpuDsiCmdFifoStatusFtraceEvent {
 }
 message DpuDsiRxFtraceEvent {
   optional uint32 cmd = 1;
-  optional uint32 rx_buf = 2;
+  optional bytes rx_buf = 3;
 }
 message DpuDsiTxFtraceEvent {
   optional uint32 type = 1;
-  optional uint32 tx_buf = 2;
   optional uint32 last = 3;
   optional uint32 delay_ms = 4;
+  optional bytes tx_buf = 5;
 }
 message DpuDispDpuUnderrunFtraceEvent {
   optional int32 id = 1;
@@ -10503,7 +10514,7 @@ message I2cWriteFtraceEvent {
   optional uint32 addr = 3;
   optional uint32 flags = 4;
   optional uint32 len = 5;
-  optional uint32 buf = 6;
+  optional bytes buf = 7;
 }
 message I2cResultFtraceEvent {
   optional int32 adapter_nr = 1;
@@ -10516,7 +10527,7 @@ message I2cReplyFtraceEvent {
   optional uint32 addr = 3;
   optional uint32 flags = 4;
   optional uint32 len = 5;
-  optional uint32 buf = 6;
+  optional bytes buf = 7;
 }
 message SmbusReadFtraceEvent {
   optional int32 adapter_nr = 1;
@@ -11519,12 +11530,12 @@ message DsiCmdFifoStatusFtraceEvent {
 }
 message DsiRxFtraceEvent {
   optional uint32 cmd = 1;
-  optional uint32 rx_buf = 2;
+  optional bytes rx_buf = 3;
 }
 message DsiTxFtraceEvent {
   optional uint32 last = 1;
-  optional uint32 tx_buf = 2;
   optional uint32 type = 3;
+  optional bytes tx_buf = 4;
 }
 message PanelWriteGenericFtraceEvent {
   optional int32 pid = 1;
@@ -11864,9 +11875,9 @@ message ScsiDispatchCmdErrorFtraceEvent {
   optional uint32 data_sglen = 8;
   optional uint32 prot_sglen = 9;
   optional uint32 prot_op = 10;
-  optional string cmnd = 11;
   optional int32 driver_tag = 12;
   optional int32 scheduler_tag = 13;
+  optional bytes cmnd = 14;
 }
 message ScsiDispatchCmdTimeoutFtraceEvent {
   optional uint32 host_no = 1;
@@ -11879,12 +11890,12 @@ message ScsiDispatchCmdTimeoutFtraceEvent {
   optional uint32 data_sglen = 8;
   optional uint32 prot_sglen = 9;
   optional uint32 prot_op = 10;
-  optional string cmnd = 11;
   optional int32 driver_tag = 12;
   optional int32 scheduler_tag = 13;
   optional uint32 sense_key = 14;
   optional uint32 asc = 15;
   optional uint32 ascq = 16;
+  optional bytes cmnd = 17;
 }
 message ScsiEhWakeupFtraceEvent {
   optional uint32 host_no = 1;
@@ -15559,6 +15570,8 @@ message InternedData {
   repeated InternedString viewcapture_window_name = 39;
   repeated InternedString viewcapture_view_id = 40;
   repeated InternedString viewcapture_class_name = 41;
+  repeated InternedString viewcapture_content_description = 45;
+  repeated InternedString viewcapture_text = 46;
 
   // Interned context for android.app_wakelocks.
   repeated AppWakelockInfo app_wakelock_info = 42;
