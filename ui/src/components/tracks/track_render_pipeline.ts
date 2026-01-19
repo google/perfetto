@@ -217,7 +217,7 @@ export class TrackRenderPipeline<RawRow extends Row, ResultRow, GlobalState> {
       commit();
       return {status: 'updated'};
     }
-    return {status: 'updated', commit};
+    return {status: 'needs-commit', commit};
   }
 
   /**
