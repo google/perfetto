@@ -82,6 +82,19 @@ export interface Engine {
   query(sql: string): Promise<QueryResult>;
 
   /**
+   * Execute a query and return a streaming result immediately.
+   *
+   * Unlike query(), this method returns immediately without waiting for any
+   * rows. Batches arrive incrementally in the background. Use:
+   * - result.isComplete() to check if all batches have arrived
+   * - result.waitMoreRows() to wait for the next batch
+   * - result.iter() to iterate through currently available rows
+   *
+   * @param sql The query to execute.
+   */
+  queryStreaming(sql: string): QueryResult;
+
+  /**
    * Execute a query against the database, returning a promise that resolves
    * when the query has completed or failed. The promise will never get
    * rejected, it will always successfully resolve. Use the returned wrapper
@@ -570,6 +583,15 @@ export abstract class EngineBase implements Engine, Disposable {
     }
   }
 
+  // Returns a streaming query result immediately without waiting for any rows.
+  // Batches will arrive incrementally in the background.
+  queryStreaming(sqlQuery: string, tag?: string): QueryResult {
+    this.logQueryStart(sqlQuery, tag);
+    const result = createQueryResult({query: sqlQuery, tag});
+    this.streamingQuery(result, sqlQuery, tag);
+    return result;
+  }
+
   async tryQuery(sql: string, tag?: string): Promise<Result<QueryResult>> {
     try {
       const result = await this.query(sql, tag);
@@ -707,6 +729,13 @@ export class EngineProxy implements Engine, Disposable {
       return createQueryResult({query, tag: this.tag});
     }
     return await this.engine.query(query, this.tag);
+  }
+
+  queryStreaming(query: string): QueryResult {
+    if (this.disposed) {
+      return createQueryResult({query, tag: this.tag});
+    }
+    return this.engine.queryStreaming(query, this.tag);
   }
 
   async tryQuery(query: string): Promise<Result<QueryResult>> {
