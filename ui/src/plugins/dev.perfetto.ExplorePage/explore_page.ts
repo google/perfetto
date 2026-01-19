@@ -70,6 +70,7 @@ export interface ExplorePageState {
   isExplorerCollapsed?: boolean;
   sidebarWidth?: number;
   loadGeneration?: number; // Incremented each time content is loaded
+  clipboardNode?: QueryNode;
 }
 
 interface ExplorePageAttrs {
@@ -640,6 +641,31 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
+  private handleCopy(attrs: ExplorePageAttrs, node: QueryNode): void {
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      clipboardNode: node.clone(),
+    }));
+  }
+
+  private handlePaste(attrs: ExplorePageAttrs): void {
+    const {state, onStateUpdate} = attrs;
+    if (state.clipboardNode === undefined) {
+      return;
+    }
+    onStateUpdate((currentState) => {
+      if (currentState.clipboardNode === undefined) {
+        return currentState;
+      }
+      const newNode = currentState.clipboardNode.clone();
+      return {
+        ...currentState,
+        rootNodes: [...currentState.rootNodes, newNode],
+        selectedNode: newNode,
+      };
+    });
+  }
+
   /**
    * Helper to set filters on a node and optionally set the filter operator.
    * Reduces duplication across multiple filter-setting locations.
@@ -1036,14 +1062,35 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
   private handleKeyDown(event: KeyboardEvent, attrs: ExplorePageAttrs) {
     const {state} = attrs;
-    if (state.selectedNode) {
-      return;
-    }
+
     // Do not interfere with text inputs
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLTextAreaElement
     ) {
+      return;
+    }
+
+    // Handle copy/paste shortcuts - these work when a node IS selected
+    if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+      if (state.selectedNode !== undefined) {
+        this.handleCopy(attrs, state.selectedNode);
+      }
+      // Always preventDefault to avoid browser copy interfering with the page,
+      // even when no node is selected.
+      event.preventDefault();
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+      this.handlePaste(attrs);
+      event.preventDefault();
+      return;
+    }
+
+    // For other shortcuts, skip if a node is selected to avoid interfering
+    // with node-specific interactions
+    if (state.selectedNode) {
       return;
     }
 

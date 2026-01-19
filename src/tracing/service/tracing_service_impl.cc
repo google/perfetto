@@ -361,9 +361,11 @@ using StringFilterRule =
 
 std::optional<protozero::StringFilter::SemanticTypeMask>
 ConvertSemanticTypeMask(const StringFilterRule& rule) {
-  // If no semantic types are specified, match all semantic types.
+  // UNSPECIFIED (0) is treated as its own category - it only matches rules
+  // that explicitly include bit 0 in their mask. If no semantic types are
+  // specified, default to matching only UNSPECIFIED (bit 0).
   if (rule.semantic_type().empty()) {
-    return protozero::StringFilter::SemanticTypeMask::All();
+    return protozero::StringFilter::SemanticTypeMask::Unspecified();
   }
 
   protozero::StringFilter::SemanticTypeMask mask;
@@ -2629,10 +2631,9 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
               WriteIntoFile(tracing_session, std::move(packets));
         } while (has_more && !stop_writing_into_file);
 
-        // Ensure all data was written to the file.
-        base::FlushFile(tracing_session->write_into_file.get());
-
         if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
+          // Ensure all data was written to the file before we close it.
+          base::FlushFile(tracing_session->write_into_file.get());
           tracing_session->write_into_file.reset();
           tracing_session->write_period_ms = 0;
           if (tracing_session->state == TracingSession::STARTED)
@@ -4066,8 +4067,8 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
 
   if (sys_info.page_size.has_value())
     info->set_page_size(*sys_info.page_size);
-  if (sys_info.memory_size_bytes.has_value())
-    info->set_memory_size_bytes(*sys_info.memory_size_bytes);
+  if (sys_info.system_ram_bytes.has_value())
+    info->set_system_ram_bytes(*sys_info.system_ram_bytes);
   if (sys_info.num_cpus.has_value())
     info->set_num_cpus(*sys_info.num_cpus);
 

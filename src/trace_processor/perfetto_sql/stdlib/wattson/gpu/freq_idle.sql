@@ -23,6 +23,26 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
+-- GPU power state which is analogous to CPU idle state
+CREATE PERFETTO TABLE _pvr_gpu_power_state (
+  -- Timestamp
+  ts TIMESTAMP,
+  -- Duration
+  dur DURATION,
+  -- GPU power state
+  power_state LONG
+) AS
+SELECT
+  s.ts,
+  iif(s.dur = -1, trace_end() - s.ts, s.dur) AS dur,
+  -- Map slice names to integer states
+  CASE s.name WHEN 'OFF' THEN 0 WHEN 'PG' THEN 1 WHEN 'ON' THEN 2 ELSE -1 END AS power_state
+FROM slice AS s
+JOIN track AS t
+  ON s.track_id = t.id
+WHERE
+  t.name = 'powervr_gpu_power_state';
+
 -- Gapless time slices of GPU freq from trace_start() to trace_end()
 CREATE PERFETTO TABLE _gapless_gpu_freq AS
 WITH
@@ -66,6 +86,21 @@ SELECT
   *
 FROM nominal_freqs;
 
+-- A single source for GPU power state information
+-- from either mali or pvr which are mutually exclusive
+CREATE PERFETTO VIEW _gpu_power_state AS
+SELECT
+  ts,
+  dur,
+  power_state
+FROM android_mali_gpu_power_state
+UNION ALL
+SELECT
+  ts,
+  dur,
+  power_state
+FROM _pvr_gpu_power_state;
+
 -- Gapless time slices of GPU idle from trace_start() to trace_end()
 CREATE PERFETTO TABLE _gapless_gpu_power_state AS
 -- Prepend NULL slices up to first idle events
@@ -75,13 +110,13 @@ WITH
       trace_start() AS ts,
       min(ts) - trace_start() AS dur,
       NULL AS power_state
-    FROM android_mali_gpu_power_state
+    FROM _gpu_power_state
     UNION ALL
     SELECT
       ts,
       dur,
       power_state
-    FROM android_mali_gpu_power_state
+    FROM _gpu_power_state
   )
 SELECT
   *

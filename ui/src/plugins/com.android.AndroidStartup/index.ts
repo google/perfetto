@@ -19,9 +19,57 @@ import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import {optimizationsTrack} from './optimizations';
+import {Time} from '../../base/time';
+import {App} from '../../public/app';
+import {RouteArgs} from '../../public/route_schema';
 
-export default class implements PerfettoPlugin {
+const STARTUP_TRACK_URI = '/android_startups';
+const BREAKDOWN_TRACK_URI = '/android_startups_breakdown';
+
+interface StartupArgs {
+  packageName?: string;
+  startupId?: number;
+  autoSelect?: boolean; // true if the base plugin id 'com.android.AndroidStartup' is present in the route args
+}
+
+function getStartupArgsFromRouteArgs(args: RouteArgs): StartupArgs {
+  const tempArgs: StartupArgs = {autoSelect: false};
+
+  const baseKey = AndroidStartup.id;
+  const packageNameKey = baseKey + '.packageName';
+  const startupIdKey = baseKey + '.startupId';
+
+  const packageName = args[packageNameKey];
+  if (typeof packageName === 'string') {
+    tempArgs.packageName = packageName;
+  }
+
+  const startupId = args[startupIdKey];
+  if (typeof startupId === 'string') {
+    const numStartupId = Number(startupId);
+    if (!isNaN(numStartupId) && Number.isInteger(numStartupId)) {
+      tempArgs.startupId = numStartupId;
+    }
+  }
+
+  // Default behaviour: if the flag '${AndroidStartup.id}' is the ONLY argument
+  // then auto-select the last startup.
+  if (args.hasOwnProperty(baseKey)) {
+    tempArgs.autoSelect = true;
+  }
+
+  return tempArgs;
+}
+
+let startupArgs: StartupArgs;
+
+export default class AndroidStartup implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidStartup';
+
+  static onActivate(app: App): void {
+    const args: RouteArgs = app.initialRouteArgs;
+    startupArgs = getStartupArgsFromRouteArgs(args);
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
@@ -38,12 +86,11 @@ export default class implements PerfettoPlugin {
       include perfetto module android.startup.startup_breakdowns;
     `);
 
-    const startupTrackUri = `/android_startups`;
     ctx.tracks.registerTrack({
-      uri: startupTrackUri,
+      uri: STARTUP_TRACK_URI,
       renderer: await SliceTrack.createMaterialized({
         trace: ctx,
-        uri: startupTrackUri,
+        uri: STARTUP_TRACK_URI,
         dataset: new SourceDataset({
           schema: {
             id: NUM,
@@ -66,17 +113,16 @@ export default class implements PerfettoPlugin {
     // Needs a sort order lower than 'Ftrace Events' so that it is prioritized in the UI.
     const startupTrack = new TrackNode({
       name: 'Android App Startups',
-      uri: startupTrackUri,
+      uri: STARTUP_TRACK_URI,
       sortOrder: -6,
     });
     ctx.defaultWorkspace.addChildInOrder(startupTrack);
 
-    const breakdownTrackUri = '/android_startups_breakdown';
     ctx.tracks.registerTrack({
-      uri: breakdownTrackUri,
+      uri: BREAKDOWN_TRACK_URI,
       renderer: await SliceTrack.createMaterialized({
         trace: ctx,
-        uri: breakdownTrackUri,
+        uri: BREAKDOWN_TRACK_URI,
         dataset: new SourceDataset({
           schema: {
             ts: LONG,
@@ -97,7 +143,7 @@ export default class implements PerfettoPlugin {
     // Needs a sort order lower than 'Ftrace Events' so that it is prioritized in the UI.
     const breakdownTrack = new TrackNode({
       name: 'Android App Startups Breakdown',
-      uri: breakdownTrackUri,
+      uri: BREAKDOWN_TRACK_URI,
       sortOrder: -6,
     });
     startupTrack.addChildLast(breakdownTrack);
@@ -106,5 +152,109 @@ export default class implements PerfettoPlugin {
     if (optimizations) {
       startupTrack.addChildLast(optimizations);
     }
+
+    await this.selectStartupMainThread(ctx, startupArgs);
+  }
+
+  private async selectStartupMainThread(ctx: Trace, args: StartupArgs) {
+    const e = ctx.engine;
+
+    const whereFilters = [];
+    if (args.packageName !== undefined) {
+      whereFilters.push(`s.package = '${args.packageName}'`);
+    }
+    if (args.startupId !== undefined) {
+      whereFilters.push(`s.startup_id = ${args.startupId}`);
+    }
+
+    // Order by descending ts to get the last startup first
+    const orderByClause = 'ORDER BY s.ts DESC';
+    let whereClause = '';
+
+    if (whereFilters.length > 0) {
+      whereClause =
+        'WHERE ' + whereFilters.join(' AND ') + ' AND t.is_main_thread = 1';
+    } else if (args.autoSelect) {
+      whereClause = 'WHERE t.is_main_thread = 1';
+    } else {
+      return;
+    }
+
+    const query = `
+      SELECT
+        s.ts,
+        s.dur,
+        tt.id AS main_thread_track_id
+      FROM
+        android_startups s
+      JOIN
+        android_startup_processes p ON s.startup_id = p.startup_id
+      JOIN
+        thread t ON p.upid = t.upid
+      JOIN
+        thread_track tt ON t.utid = tt.utid
+      ${whereClause}
+      ${orderByClause}
+      LIMIT 1;
+    `;
+
+    const result = await e.query(query);
+    const it = result.iter({
+      ts: LONG,
+      dur: LONG_NULL,
+      main_thread_track_id: NUM,
+    });
+    if (!it.valid()) {
+      return;
+    }
+
+    const startupInfo = {
+      ts: it.ts,
+      dur: it.dur ?? 0n, // Default duration to 0 if null
+      mainThreadTrackId: it.main_thread_track_id,
+    };
+
+    // 1. Pin the Android Startups track first.
+    const trackNode = ctx.currentWorkspace.getTrackByUri(STARTUP_TRACK_URI);
+    if (trackNode) {
+      trackNode.pin();
+    }
+
+    // 2. Scroll the main thread track and focus into view
+
+    // Construct the track URI. Typically, thread tracks use the format /slice_{track_id}.
+    const mainThreadTrackUri = `/slice_${startupInfo.mainThreadTrackId}`;
+    const startTime = Time.fromRaw(BigInt(startupInfo.ts));
+    const endTime = Time.fromRaw(BigInt(startupInfo.ts + startupInfo.dur));
+
+    ctx.scrollTo({
+      track: {
+        uri: mainThreadTrackUri,
+        expandGroup: true,
+      },
+      time:
+        startupInfo.dur > 0n
+          ? {
+              start: startTime,
+              end: endTime,
+              behavior: {viewPercentage: 0.8},
+            }
+          : {
+              start: startTime,
+              behavior: 'focus',
+            },
+    });
+
+    // 3. Select the area on the main thread track
+    ctx.selection.selectArea(
+      {
+        start: startTime,
+        end: endTime,
+        trackUris: [mainThreadTrackUri],
+      },
+      {
+        switchToCurrentSelectionTab: true,
+      },
+    );
   }
 }

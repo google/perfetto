@@ -779,7 +779,7 @@ base::StatusOr<std::string> GeneratorImpl::FilterToIntervals(
         "  FROM interval_merge_overlapping!(fti_intervals_raw, 0)\n"
         ")";
   } else {
-    // Partitioned: use _interval_merge_overlapping_partitioned for each
+    // Partitioned: use interval_merge_overlapping_partitioned for each
     // partition column and add a dummy id. We only support a single partition
     // column for the merge operation, but multiple for the intersection.
     // For simplicity, we merge on the first partition column.
@@ -794,8 +794,8 @@ base::StatusOr<std::string> GeneratorImpl::FilterToIntervals(
     }
     sql +=
         "\n  FROM "
-        "_interval_merge_overlapping_partitioned!(fti_intervals_raw, " +
-        partition_cols[0] + ")\n)";
+        "interval_merge_overlapping_partitioned!(fti_intervals_raw, (" +
+        partition_cols[0] + "))\n)";
   }
 
   // Use _interval_intersect! macro to compute overlaps

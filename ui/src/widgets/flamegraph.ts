@@ -37,6 +37,7 @@ import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
 import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
 import {Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
+import {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 
 const LABEL_FONT_STYLE = '12px Roboto';
@@ -166,6 +167,9 @@ export type FlamegraphState = z.infer<typeof FLAMEGRAPH_STATE_SCHEMA>;
 interface FlamegraphMetric {
   readonly name: string;
   readonly unit: string;
+  // Label for the name column in copy stack table and tooltip.
+  // Examples: "Symbol", "Slice", "Class". Defaults to "Name".
+  readonly nameColumnLabel?: string;
 }
 
 export interface FlamegraphAttrs {
@@ -361,12 +365,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   };
   private lastClickedNode?: RenderNode;
 
+  // Track hovered node by index to avoid redraws when mouse moves within same node.
+  // We also keep hoveredX/Y so we can re-find the node after render nodes change.
+  private hoveredNodeIdx?: number;
   private hoveredX?: number;
   private hoveredY?: number;
 
   private canvasWidth = 0;
   private labelCharWidth = 0;
   private viewportRect?: Rect2D;
+  private lastPopupVisible = false;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -401,9 +409,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const canvasHeight =
       Math.max(maxDepth - minDepth + PADDING_NODE_COUNT, PADDING_NODE_COUNT) *
       NODE_HEIGHT;
-    const hoveredNode = this.renderNodes?.find((n) =>
-      isIntersecting(this.hoveredX, this.hoveredY, n),
-    );
+    const hoveredNode =
+      this.hoveredNodeIdx !== undefined
+        ? this.renderNodes?.[this.hoveredNodeIdx]
+        : undefined;
     return m(
       '.pf-flamegraph',
       this.renderFilterBar(attrs),
@@ -413,8 +422,21 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           className: 'pf-virtual-canvas',
           overflowX: 'hidden',
           overflowY: 'auto',
-          onscroll: () => {
-            // Trigger mithril redraw to update popup visibility
+          onscroll: (e: MithrilEvent<Event>) => {
+            // Only redraw if popup visibility would change
+            if (!this.tooltipPos) {
+              e.redraw = false;
+              return;
+            }
+            const target = e.target as HTMLElement;
+            const scrollTop = target.scrollTop;
+            const clientHeight = target.clientHeight;
+            const tooltipY = this.tooltipPos.y;
+            const nowVisible =
+              tooltipY >= scrollTop && tooltipY <= scrollTop + clientHeight;
+            if (nowVisible === this.lastPopupVisible) {
+              e.redraw = false;
+            }
           },
           onCanvasRedraw: ({
             ctx,
@@ -432,28 +454,31 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               height: `${canvasHeight}px`,
               cursor: hoveredNode === undefined ? 'default' : 'pointer',
             },
-            onmousemove: ({offsetX, offsetY}: MouseEvent) => {
+            onmousemove: (e: MithrilEvent<MouseEvent>) => {
+              const {offsetX, offsetY} = e;
               this.hoveredX = offsetX;
               this.hoveredY = offsetY;
+
+              const nodeIdx = this.renderNodes?.findIndex((n) =>
+                isIntersecting(offsetX, offsetY, n),
+              );
+              const newHoveredIdx =
+                nodeIdx !== undefined && nodeIdx !== -1 ? nodeIdx : undefined;
+
+              if (newHoveredIdx === this.hoveredNodeIdx) {
+                e.redraw = false;
+                return;
+              }
+              this.hoveredNodeIdx = newHoveredIdx;
+
               if (this.tooltipPos?.state === 'CLICK') {
                 return;
               }
-              const renderNode = this.renderNodes?.find((n) =>
-                isIntersecting(offsetX, offsetY, n),
-              );
-              if (renderNode === undefined) {
+              if (newHoveredIdx === undefined) {
                 this.tooltipPos = undefined;
                 return;
               }
-              if (
-                isIntersecting(
-                  this.tooltipPos?.x,
-                  this.tooltipPos?.y,
-                  renderNode,
-                )
-              ) {
-                return;
-              }
+              const renderNode = this.renderNodes![newHoveredIdx];
               this.tooltipPos = {
                 x: offsetX,
                 y: renderNode.y,
@@ -462,6 +487,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               };
             },
             onmouseout: () => {
+              this.hoveredNodeIdx = undefined;
               this.hoveredX = undefined;
               this.hoveredY = undefined;
               if (
@@ -500,36 +526,36 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               const renderNode = this.renderNodes?.find((n) =>
                 isIntersecting(offsetX, offsetY, n),
               );
-              // TODO(lalitm): ignore merged nodes for now as we haven't quite
-              // figured out the UX for this.
               if (renderNode?.source.kind === 'MERGED') {
                 return;
               }
               this.zoomRegion = renderNode?.source;
             },
           },
-          m(
-            Popup,
-            {
-              trigger: m('.popup-anchor', {
-                style: {
-                  left: this.tooltipPos?.x + 'px',
-                  top: this.tooltipPos?.y + 'px',
-                },
-              }),
-              // We have a wide set of buttons that would overflow given the
-              // normal width constraints of the popup.
-              fitContent: true,
-              position: PopupPosition.Right,
-              isOpen:
-                this.isPopupAnchorVisible() &&
-                (this.tooltipPos?.state === 'HOVER' ||
-                  this.tooltipPos?.state === 'CLICK'),
-              className: 'pf-flamegraph-tooltip-popup',
-              offset: NODE_HEIGHT,
-            },
-            this.renderTooltip(),
-          ),
+          (() => {
+            const popupVisible =
+              this.isPopupAnchorVisible() &&
+              (this.tooltipPos?.state === 'HOVER' ||
+                this.tooltipPos?.state === 'CLICK');
+            this.lastPopupVisible = popupVisible;
+            return m(
+              Popup,
+              {
+                trigger: m('.popup-anchor', {
+                  style: {
+                    left: this.tooltipPos?.x + 'px',
+                    top: this.tooltipPos?.y + 'px',
+                  },
+                }),
+                fitContent: true,
+                position: PopupPosition.Right,
+                isOpen: popupVisible,
+                className: 'pf-flamegraph-tooltip-popup',
+                offset: NODE_HEIGHT,
+              },
+              this.renderTooltip(),
+            );
+          })(),
         ),
       ),
     );
@@ -600,6 +626,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         );
       }
       this.tooltipPos = undefined;
+      // Re-find hovered node using stored coordinates
+      const nodeIdx = this.renderNodes?.findIndex((n) =>
+        isIntersecting(this.hoveredX, this.hoveredY, n),
+      );
+      this.hoveredNodeIdx =
+        nodeIdx !== undefined && nodeIdx !== -1 ? nodeIdx : undefined;
     }
     if (this.attrs.data === undefined || this.renderNodes === undefined) {
       return;
@@ -857,7 +889,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       nodeActions,
       rootActions,
     } = assertExists(this.attrs.data);
-    const {unit} = assertExists(this.selectedMetric);
+    const {unit, nameColumnLabel} = assertExists(this.selectedMetric);
     if (source.kind === 'ROOT') {
       const val = displaySize(allRootsCumulativeValue, unit);
       const percent = displayPercentage(
@@ -909,12 +941,17 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
       selfPercentText += `, parent: ${parentSelfPercent}`;
     }
+    const nameLabel = nameColumnLabel ?? 'Name';
     return m(
       'div',
       // Show marker at the top of the tooltip
       marker &&
         m('.tooltip-text-line', m('.tooltip-marker-text', `■ ${marker}`)),
-      m('.tooltip-bold-text', name),
+      m(
+        '.tooltip-text-line',
+        m('.tooltip-bold-text', `${nameLabel}:`),
+        m('.tooltip-text', name),
+      ),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', 'Cumulative:'),
@@ -1106,7 +1143,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private buildStackString(node: FlamegraphNode, withDetails: boolean): string {
     const {nodes, unfilteredCumulativeValue} = assertExists(this.attrs.data);
-    const {unit} = assertExists(this.selectedMetric);
+    const metric = assertExists(this.selectedMetric);
     const view = this.attrs.state.view;
 
     // Walk via parentId for all modes. Reverse for TOP_DOWN and PIVOT below.
@@ -1157,11 +1194,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     };
 
     // Build header: Name | Non-agg props | Cumulative | Self | Agg props
-    const headers = ['Name'];
+    const nameLabel = metric.nameColumnLabel ?? 'Name';
+    const unitDisplay = getUnitDisplayName(metric.unit);
+    const headers = [nameLabel];
     for (const key of unaggKeys) {
       headers.push(getDisplayName(key));
     }
-    headers.push('Cumulative', 'Self');
+    headers.push(
+      `Cumulative ${metric.name} (${unitDisplay})`,
+      `Self ${metric.name} (${unitDisplay})`,
+    );
     for (const key of aggKeys) {
       headers.push(getDisplayName(key));
     }
@@ -1172,12 +1214,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     lines.push('|' + headers.map(() => '------').join('|') + '|');
 
     for (const entry of stack) {
-      const cumulative = displaySize(entry.cumulativeValue, unit);
+      const cumulative = displaySize(entry.cumulativeValue, metric.unit);
       const cumulativePercent = displayPercentage(
         entry.cumulativeValue,
         unfilteredCumulativeValue,
       );
-      const self = displaySize(entry.selfValue, unit);
+      const self = displaySize(entry.selfValue, metric.unit);
       const selfPercent = displayPercentage(
         entry.selfValue,
         unfilteredCumulativeValue,
@@ -1263,7 +1305,16 @@ function computeRenderNodes(
     const state = computeState(qXStart, qXEnd, zoomRegion, depthMatchingZoom);
 
     if (width < MIN_PIXEL_DISPLAYED) {
-      const parentChildMergeKey = `${parentId}_${depth}`;
+      // Check if parent was merged - if so, use x-position-based key so that
+      // children of different parents that were merged together also merge.
+      // This enables recursive merging: if parents A and B merged into the
+      // same visual node, their children should also merge together.
+      const parentMergedX = mergedKeyToX.get(`${parentId}_${depth}`);
+      const parentChildMergeKey =
+        parentMergedX !== undefined
+          ? `x_${Math.round(parentMergedX)}_${depth}`
+          : `p_${parentId}_${depth}`;
+
       const mergedXKey = `${id}_${depth > 0 ? depth + 1 : depth - 1}`;
       const childMergedIdx = keyToChildMergedIdx.get(parentChildMergeKey);
       if (childMergedIdx !== undefined) {
@@ -1282,7 +1333,7 @@ function computeRenderNodes(
         mergedKeyToX.set(mergedXKey, r.x);
         continue;
       }
-      const mergedX = mergedKeyToX.get(`${parentId}_${depth}`) ?? x;
+      const mergedX = parentMergedX ?? x;
       renderNodes.push({
         x: mergedX,
         y,
@@ -1398,6 +1449,13 @@ function displayPercentage(size: number, totalSize: number): string {
   return `${((size / totalSize) * 100.0).toFixed(2)}%`;
 }
 
+function getUnitDisplayName(unit: string | undefined): string {
+  if (unit === undefined || unit === '' || unit === 'count') {
+    return 'count';
+  }
+  return unit;
+}
+
 function toTags(state: FlamegraphState): ReadonlyArray<string> {
   const toString = (x: FlamegraphFilter) => {
     switch (x.kind) {
@@ -1499,7 +1557,14 @@ const BLACK_COLOR = new HSLColor([0, 0, 0]);
 // Lightness 85 ensures even darken(10) stays above brightness threshold for black text
 const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 85]);
 
-function makeColorScheme(base: Color, variant: Color) {
+interface ColorScheme {
+  readonly base: Color;
+  readonly variant: Color;
+  readonly textBase: Color;
+  readonly textVariant: Color;
+}
+
+function makeColorScheme(base: Color, variant: Color): ColorScheme {
   // Use the same text color for both base and variant to prevent text color
   // switching on hover. The text color is determined by the base color only.
   const textColor =
@@ -1514,19 +1579,38 @@ function makeColorScheme(base: Color, variant: Color) {
   };
 }
 
-function getFlamegraphColorScheme(name: string, greyed: boolean) {
+// Pre-computed color schemes for special cases
+const GREYED_COLOR_SCHEME = makeColorScheme(
+  GRAY_VARIANT_COLOR,
+  GRAY_VARIANT_COLOR.darken(5),
+);
+const ROOT_COLOR_SCHEME = makeColorScheme(
+  GRAY_VARIANT_COLOR.darken(10),
+  GRAY_VARIANT_COLOR.darken(15),
+);
+
+// Cache for computed color schemes by name
+const colorSchemeCache = new Map<string, ColorScheme>();
+
+function getFlamegraphColorScheme(name: string, greyed: boolean): ColorScheme {
   if (greyed) {
-    return makeColorScheme(GRAY_VARIANT_COLOR, GRAY_VARIANT_COLOR.darken(5));
+    return GREYED_COLOR_SCHEME;
   }
   if (name === 'unknown' || name === 'root') {
-    return makeColorScheme(
-      GRAY_VARIANT_COLOR.darken(10),
-      GRAY_VARIANT_COLOR.darken(15),
-    );
+    return ROOT_COLOR_SCHEME;
   }
+
+  // Check cache first
+  let scheme = colorSchemeCache.get(name);
+  if (scheme !== undefined) {
+    return scheme;
+  }
+
   // Hash the name to get a predictable hue, then create color with fixed
   // saturation and lightness values to match what pprof web UI does.
   const hue = hash(name, 360);
   const base = new HSLColor({h: hue, s: 46, l: 80});
-  return makeColorScheme(base, base.darken(15).saturate(15));
+  scheme = makeColorScheme(base, base.darken(15).saturate(15));
+  colorSchemeCache.set(name, scheme);
+  return scheme;
 }
