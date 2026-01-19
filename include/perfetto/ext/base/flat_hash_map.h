@@ -251,7 +251,9 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
     if (PERFETTO_UNLIKELY(res.needs_insert)) {
       if (PERFETTO_UNLIKELY(growth_info_.growth_left == 0)) {
         GrowAndRehash();
-        return Insert(std::move(key), std::move(value));
+        // After rehash, table has no tombstones. Find an empty slot directly
+        // instead of recursing (which would prevent inlining).
+        res.idx = FindFirstNonFull(key_hash);
       }
       PERFETTO_DCHECK(res.idx != kNotFound);
       size_t insert_idx = res.idx;
