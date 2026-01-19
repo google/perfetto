@@ -28,7 +28,6 @@ import {Trace} from '../../../public/trace';
 import {duration} from '../../../base/time';
 import {formatDuration} from '../../../components/time_utils';
 import type {TabKey} from '../utils';
-import {formatFileSize} from '../utils';
 
 export interface OverviewData {
   // Status counts
@@ -318,7 +317,7 @@ function createTraceMetrics(
       label: 'Trace Size',
       value:
         data.traceSizeBytes !== undefined
-          ? formatFileSize(Number(data.traceSizeBytes)).formatted
+          ? formatFileSize(Number(data.traceSizeBytes))
           : undefined,
       help: 'Total size of the trace file on disk',
     },
