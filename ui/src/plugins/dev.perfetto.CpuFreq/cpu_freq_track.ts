@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath as BIMath} from '../../base/bigint_math';
-import {searchSegment} from '../../base/binary_search';
+import {searchSorted} from '../../base/binary_search';
 import {Point2D} from '../../base/geom';
 import {assertTrue} from '../../base/logging';
 import {Monitor} from '../../base/monitor';
-import {duration, time, Time} from '../../base/time';
+import {Time, time} from '../../base/time';
 import {colorForCpu} from '../../components/colorizer';
 import m from 'mithril';
-import {TrackData} from '../../components/tracks/track_data';
-import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
+import {CacheKey} from '../../components/tracks/timeline_cache';
+import {TrackRenderPipeline} from '../../components/tracks/track_render_pipeline';
 import {TrackUpdateContext, TrackRenderer} from '../../public/track';
-import {LONG, NUM} from '../../trace_processor/query_result';
+import {LONG, NUM, Row} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {TimeScale} from '../../base/time_scale';
@@ -36,12 +35,30 @@ import {
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
 
-export interface Data extends TrackData {
-  timestamps: BigInt64Array;
-  minFreqKHz: Uint32Array;
-  maxFreqKHz: Uint32Array;
-  lastFreqKHz: Uint32Array;
-  lastIdleValues: Int8Array;
+// Row spec for the freq mipmap query.
+const FREQ_ROW = {
+  ts: LONG,
+  minFreq: NUM,
+  maxFreq: NUM,
+  lastFreq: NUM,
+};
+
+// Row spec for the idle mipmap query.
+const IDLE_ROW = {
+  lastIdle: NUM,
+};
+
+// Entry stored in the freq pipeline buffer.
+interface FreqEntry {
+  ts: time;
+  minFreqKHz: number;
+  maxFreqKHz: number;
+  lastFreqKHz: number;
+}
+
+// Entry stored in the idle pipeline buffer.
+interface IdleEntry {
+  lastIdleValue: number;
 }
 
 interface Config {
@@ -65,29 +82,44 @@ interface CpuFreqHover {
 function computeHover(
   pos: Point2D | undefined,
   timescale: TimeScale,
-  data: Data,
+  freqData: FreqEntry[] | undefined,
+  idleData: IdleEntry[] | undefined,
 ): CpuFreqHover | undefined {
   if (pos === undefined) return undefined;
+  if (freqData === undefined || freqData.length === 0) return undefined;
 
-  const time = timescale.pxToHpTime(pos.x);
-  const [left, right] = searchSegment(data.timestamps, time.toTime());
-  if (left === -1) return undefined;
+  const targetTime = timescale.pxToHpTime(pos.x).toTime();
+  const idx = searchSorted(freqData, targetTime, (e) => e.ts);
+  if (idx === -1) return undefined;
 
   return {
-    ts: Time.fromRaw(data.timestamps[left]),
-    tsEnd: right === -1 ? undefined : Time.fromRaw(data.timestamps[right]),
-    value: data.lastFreqKHz[left],
-    idle: data.lastIdleValues[left],
+    ts: freqData[idx].ts,
+    tsEnd: idx + 1 < freqData.length ? freqData[idx + 1].ts : undefined,
+    value: freqData[idx].lastFreqKHz,
+    idle: idleData?.[idx]?.lastIdleValue ?? -1,
   };
 }
 
 export class CpuFreqTrack implements TrackRenderer {
   private hover?: CpuFreqHover;
-  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private trackUuid = uuidv4Sql();
+  private cacheKey = CacheKey.zero();
 
   private trash!: AsyncDisposableStack;
+
+  // Separate pipelines for freq and idle data to avoid JOIN issues with
+  // table-valued functions.
+  private freqPipeline?: TrackRenderPipeline<
+    Row & typeof FREQ_ROW,
+    FreqEntry,
+    object
+  >;
+  private idlePipeline?: TrackRenderPipeline<
+    Row & typeof IDLE_ROW,
+    IdleEntry,
+    object
+  >;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -189,82 +221,60 @@ export class CpuFreqTrack implements TrackRenderer {
       `,
       }),
     );
+
+    // Initialize the pipelines separately to avoid JOIN issues with
+    // table-valued functions.
+    this.freqPipeline = new TrackRenderPipeline(
+      this.trace,
+      (_rawSql: string, key: CacheKey) => `
+        SELECT
+          min_value as minFreq,
+          max_value as maxFreq,
+          last_ts as ts,
+          last_value as lastFreq
+        FROM cpu_freq_${this.trackUuid}(${key.start}, ${key.end}, ${key.bucketSize})
+      `,
+      () => ({}),
+      (row, _state) => ({
+        ts: Time.fromRaw(row.ts),
+        minFreqKHz: row.minFreq,
+        maxFreqKHz: row.maxFreq,
+        lastFreqKHz: row.lastFreq,
+      }),
+    );
+
+    this.idlePipeline = new TrackRenderPipeline(
+      this.trace,
+      (_rawSql: string, key: CacheKey) => `
+        SELECT last_value as lastIdle
+        FROM cpu_idle_${this.trackUuid}(${key.start}, ${key.end}, ${key.bucketSize})
+      `,
+      () => ({}),
+      (row, _state) => ({
+        lastIdleValue: row.lastIdle,
+      }),
+    );
   }
 
-  async onUpdate({
-    visibleWindow,
-    resolution,
-  }: TrackUpdateContext): Promise<void> {
-    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
+  async onUpdate(ctx: TrackUpdateContext): Promise<void> {
+    if (this.freqPipeline === undefined || this.idlePipeline === undefined) {
+      return;
+    }
+
+    // Run both pipelines. They use the same cache key parameters so rows
+    // should align by index.
+    const [freqResult, idleResult] = await Promise.all([
+      this.freqPipeline.onUpdate('', FREQ_ROW, ctx),
+      this.idlePipeline.onUpdate('', IDLE_ROW, ctx),
+    ]);
+
+    if (freqResult === 'updated' || idleResult === 'updated') {
+      this.cacheKey = this.freqPipeline.getCacheKey();
+    }
   }
 
   async onDestroy(): Promise<void> {
     await this.trash.asyncDispose();
-  }
-
-  async onBoundsChange(
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<Data> {
-    // The resolution should always be a power of two for the logic of this
-    // function to make sense.
-    assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
-
-    const freqResult = await this.trace.engine.query(`
-      SELECT
-        min_value as minFreq,
-        max_value as maxFreq,
-        last_ts as ts,
-        last_value as lastFreq
-      FROM cpu_freq_${this.trackUuid}(
-        ${start},
-        ${end},
-        ${resolution}
-      );
-    `);
-    const idleResult = await this.trace.engine.query(`
-      SELECT last_value as lastIdle
-      FROM cpu_idle_${this.trackUuid}(
-        ${start},
-        ${end},
-        ${resolution}
-      );
-    `);
-
-    const freqRows = freqResult.numRows();
-    const idleRows = idleResult.numRows();
-    assertTrue(freqRows == idleRows);
-
-    const data: Data = {
-      start,
-      end,
-      resolution,
-      length: freqRows,
-      timestamps: new BigInt64Array(freqRows),
-      minFreqKHz: new Uint32Array(freqRows),
-      maxFreqKHz: new Uint32Array(freqRows),
-      lastFreqKHz: new Uint32Array(freqRows),
-      lastIdleValues: new Int8Array(freqRows),
-    };
-
-    const freqIt = freqResult.iter({
-      ts: LONG,
-      minFreq: NUM,
-      maxFreq: NUM,
-      lastFreq: NUM,
-    });
-    const idleIt = idleResult.iter({
-      lastIdle: NUM,
-    });
-    for (let i = 0; freqIt.valid(); ++i, freqIt.next(), idleIt.next()) {
-      data.timestamps[i] = freqIt.ts;
-      data.minFreqKHz[i] = freqIt.minFreq;
-      data.maxFreqKHz[i] = freqIt.maxFreq;
-      data.lastFreqKHz[i] = freqIt.lastFreq;
-      data.lastIdleValues[i] = idleIt.lastIdle;
-    }
-    return data;
   }
 
   getHeight() {
@@ -295,17 +305,13 @@ export class CpuFreqTrack implements TrackRenderer {
     colors,
   }: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const data = this.fetcher.data;
+    const freqData = this.freqPipeline?.getActiveBuffer() ?? [];
+    const idleData = this.idlePipeline?.getActiveBuffer() ?? [];
 
-    if (data === undefined || data.timestamps.length === 0) {
+    if (freqData.length === 0) {
       // Can't possibly draw anything.
       return;
     }
-
-    assertTrue(data.timestamps.length === data.lastFreqKHz.length);
-    assertTrue(data.timestamps.length === data.minFreqKHz.length);
-    assertTrue(data.timestamps.length === data.maxFreqKHz.length);
-    assertTrue(data.timestamps.length === data.lastIdleValues.length);
 
     const endPx = size.width;
     const zeroY = MARGIN_TOP + RECT_HEIGHT;
@@ -339,29 +345,26 @@ export class CpuFreqTrack implements TrackRenderer {
       return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
     };
 
+    // Find the visible range of data points.
     const timespan = visibleWindow.toTimeSpan();
-    const start = timespan.start;
-    const end = timespan.end;
-
-    const [rawStartIdx] = searchSegment(data.timestamps, start);
+    const rawStartIdx = searchSorted(freqData, timespan.start, (e) => e.ts);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
-    const [, rawEndIdx] = searchSegment(data.timestamps, end);
-    const endIdx = rawEndIdx === -1 ? data.timestamps.length : rawEndIdx;
+    const rawEndIdx = searchSorted(freqData, timespan.end, (e) => e.ts);
+    const endIdx = rawEndIdx === -1 ? 0 : rawEndIdx + 1;
 
     // Draw the CPU frequency graph.
     {
       ctx.beginPath();
-      const timestamp = Time.fromRaw(data.timestamps[startIdx]);
-      ctx.moveTo(Math.max(calculateX(timestamp), 0), zeroY);
+      ctx.moveTo(Math.max(calculateX(freqData[startIdx].ts), 0), zeroY);
 
       let lastDrawnY = zeroY;
       for (let i = startIdx; i < endIdx; i++) {
-        const timestamp = Time.fromRaw(data.timestamps[i]);
-        const x = Math.max(0, calculateX(timestamp));
-        const minY = calculateY(data.minFreqKHz[i]);
-        const maxY = calculateY(data.maxFreqKHz[i]);
-        const lastY = calculateY(data.lastFreqKHz[i]);
+        const entry = freqData[i];
+        const x = Math.max(0, calculateX(entry.ts));
+        const minY = calculateY(entry.minFreqKHz);
+        const maxY = calculateY(entry.maxFreqKHz);
+        const lastY = calculateY(entry.lastFreqKHz);
 
         ctx.lineTo(x, lastDrawnY);
         if (minY === maxY) {
@@ -385,7 +388,9 @@ export class CpuFreqTrack implements TrackRenderer {
     ctx.fillStyle = `rgba(128,128,128, 0.2)`;
     {
       for (let i = startIdx; i < endIdx; i++) {
-        if (data.lastIdleValues[i] < 0) {
+        const freqEntry = freqData[i];
+        const idleValue = idleData[i]?.lastIdleValue ?? -1;
+        if (idleValue < 0) {
           continue;
         }
 
@@ -393,15 +398,14 @@ export class CpuFreqTrack implements TrackRenderer {
         // coordinates. Instead we use floating point which prevents flickering as
         // we pan and zoom; this relies on the browser anti-aliasing pixels
         // correctly.
-        const timestamp = Time.fromRaw(data.timestamps[i]);
-        const x = timescale.timeToPx(timestamp);
+        const x = timescale.timeToPx(freqEntry.ts);
         const xEnd =
-          i === data.lastIdleValues.length - 1
+          i === freqData.length - 1
             ? endPx
-            : timescale.timeToPx(Time.fromRaw(data.timestamps[i + 1]));
+            : timescale.timeToPx(freqData[i + 1].ts);
 
         const width = xEnd - x;
-        const height = calculateY(data.lastFreqKHz[i]) - zeroY;
+        const height = calculateY(freqEntry.lastFreqKHz) - zeroY;
 
         ctx.clearRect(x, zeroY, width, height);
         ctx.fillRect(x, zeroY, width, height);
@@ -459,15 +463,15 @@ export class CpuFreqTrack implements TrackRenderer {
       this.getHeight(),
       0,
       size.width,
-      timescale.timeToPx(data.start),
-      timescale.timeToPx(data.end),
+      timescale.timeToPx(this.cacheKey.start),
+      timescale.timeToPx(this.cacheKey.end),
     );
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
-    if (data === undefined) return;
-    this.hover = computeHover({x, y}, timescale, data);
+    const freqData = this.freqPipeline?.getActiveBuffer();
+    const idleData = this.idlePipeline?.getActiveBuffer();
+    this.hover = computeHover({x, y}, timescale, freqData, idleData);
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.raf.scheduleFullRedraw();
     }

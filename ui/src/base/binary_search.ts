@@ -122,3 +122,31 @@ export function searchSegment<T extends Numeric>(
     return [left, left + 1];
   }
 }
+
+// Given a sorted array of objects and a numeric |needle|, find the index of the
+// last element whose key (extracted via |keyFn|) is <= |needle|. Returns -1 if
+// all keys are greater than |needle|.
+//
+// This is useful for finding which time-based entry contains a given timestamp.
+export function searchSorted<T, K extends Numeric>(
+  haystack: ArrayLike<T>,
+  needle: K,
+  keyFn: (item: T) => K,
+): number {
+  if (haystack.length === 0) return -1;
+
+  let left = 0;
+  let right = haystack.length - 1;
+
+  // Binary search for the rightmost element with key <= needle
+  while (left < right) {
+    const mid = Math.floor((left + right + 1) / 2);
+    if (keyFn(haystack[mid]) <= needle) {
+      left = mid;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return keyFn(haystack[left]) <= needle ? left : -1;
+}

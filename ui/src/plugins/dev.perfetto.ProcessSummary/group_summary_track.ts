@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Monitor} from '../../base/monitor';
-import {searchEq, searchRange} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
-import {duration, time, Time} from '../../base/time';
+import {Time, time} from '../../base/time';
 import m from 'mithril';
 import {colorForThread, colorForTid} from '../../components/colorizer';
-import {TrackData} from '../../components/tracks/track_data';
-import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
+import {CacheKey} from '../../components/tracks/timeline_cache';
+import {TrackRenderPipeline} from '../../components/tracks/track_render_pipeline';
 import {TrackRenderer} from '../../public/track';
-import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
+import {LONG, NUM, Row} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {
   TrackContext,
@@ -49,15 +47,28 @@ const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
-interface Data extends TrackData {
-  maxLanes: number;
+// Row spec for the group summary mipmap query.
+const GROUP_SUMMARY_ROW = {
+  count: NUM,
+  ts: LONG,
+  dur: LONG,
+  lane: NUM,
+  utid: NUM,
+};
+type GroupSummaryRow = typeof GROUP_SUMMARY_ROW;
 
-  // Slices are stored in a columnar fashion. All fields have the same length.
-  counts: Uint32Array;
-  starts: BigInt64Array;
-  ends: BigInt64Array;
-  utids: Int32Array;
-  lanes: Uint32Array;
+// Entry stored in the pipeline buffer.
+interface GroupSummaryEntry {
+  count: number;
+  start: time;
+  end: time;
+  utid: number;
+  lane: number;
+}
+
+// Global state tracked across entries.
+interface GroupSummaryGlobalState {
+  maxLanes: number;
 }
 
 export interface Config {
@@ -78,34 +89,45 @@ interface GroupSummaryHover {
 function computeHover(
   pos: Point2D | undefined,
   timescale: TimeScale,
-  data: Data,
+  data: GroupSummaryEntry[] | undefined,
+  maxLanes: number,
   threads: ThreadMap,
 ): GroupSummaryHover | undefined {
   if (pos === undefined) return undefined;
+  if (data === undefined || data.length === 0) return undefined;
 
   const {x, y} = pos;
   if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) return undefined;
 
-  const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+  const laneHeight = Math.floor(RECT_HEIGHT / maxLanes);
   const lane = Math.floor((y - MARGIN_TOP) / (laneHeight + 1));
   const t = timescale.pxToHpTime(x).toTime('floor');
 
-  const [i, j] = searchRange(data.starts, t, searchEq(data.lanes, lane));
-  if (i === j || i >= data.starts.length || t > data.ends[i]) return undefined;
-
-  const utid = data.utids[i];
-  const count = data.counts[i];
-  const pid = threads.get(utid)?.pid;
-  return {utid, lane, count, pid};
+  // Find entry that matches the lane and contains the time
+  for (const entry of data) {
+    if (entry.lane === lane && t >= entry.start && t <= entry.end) {
+      const pid = threads.get(entry.utid)?.pid;
+      return {utid: entry.utid, lane: entry.lane, count: entry.count, pid};
+    }
+  }
+  return undefined;
 }
 
 export class GroupSummaryTrack implements TrackRenderer {
   private hover?: GroupSummaryHover;
-  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private trackUuid = uuidv4Sql();
   private mode: Mode = 'slices';
   private maxLanes: number = 1;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
+  private cacheKey = CacheKey.zero();
+
+  // Handles data loading with viewport caching, double-buffering, cooperative
+  // multitasking, and abort detection when the viewport changes.
+  private pipeline?: TrackRenderPipeline<
+    Row & GroupSummaryRow,
+    GroupSummaryEntry,
+    GroupSummaryGlobalState
+  >;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -130,6 +152,55 @@ export class GroupSummaryTrack implements TrackRenderer {
     } else {
       await this.createSlicesMipmap(ctx.trackNode);
     }
+    this.initializePipeline();
+  }
+
+  private initializePipeline(): void {
+    const getSql = (key: CacheKey) => {
+      if (this.mode === 'sched') {
+        return `
+          select
+            (z.ts / ${key.bucketSize}) * ${key.bucketSize} as ts,
+            iif(s.dur = -1, s.dur, max(z.dur, ${key.bucketSize})) as dur,
+            z.count,
+            z.depth as lane,
+            s.utid
+          from process_summary_${this.trackUuid}(
+            ${key.start}, ${key.end}, ${key.bucketSize}
+          ) z
+          cross join sched s using (id)
+        `;
+      } else {
+        return `
+          select
+            (z.ts / ${key.bucketSize}) * ${key.bucketSize} as ts,
+            max(z.dur, ${key.bucketSize}) as dur,
+            z.count,
+            z.depth as lane,
+            -1 as utid
+          from process_summary_${this.trackUuid}(
+            ${key.start}, ${key.end}, ${key.bucketSize}
+          ) z
+        `;
+      }
+    };
+
+    this.pipeline = new TrackRenderPipeline(
+      this.trace,
+      (_rawSql: string, key: CacheKey) => getSql(key),
+      () => ({maxLanes: this.maxLanes}),
+      (row, _state) => {
+        const start = Time.fromRaw(row.ts);
+        const end = Time.add(start, row.dur);
+        return {
+          count: row.count,
+          start,
+          end,
+          utid: row.utid,
+          lane: row.lane,
+        };
+      },
+    );
   }
 
   private async createSchedMipmap(): Promise<void> {
@@ -286,97 +357,19 @@ export class GroupSummaryTrack implements TrackRenderer {
     this.maxLanes = 8;
   }
 
-  async onUpdate({
-    visibleWindow,
-    resolution,
-  }: TrackUpdateContext): Promise<void> {
-    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
+  async onUpdate(ctx: TrackUpdateContext): Promise<void> {
+    if (this.pipeline === undefined) return;
+
+    const result = await this.pipeline.onUpdate('', GROUP_SUMMARY_ROW, ctx);
+    if (result === 'updated') {
+      this.cacheKey = this.pipeline.getCacheKey();
+    }
   }
 
   async onDestroy(): Promise<void> {
-    this.fetcher[Symbol.dispose]();
     await this.trace.engine.tryQuery(`
       drop table process_summary_${this.trackUuid}
     `);
-  }
-
-  async onBoundsChange(
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<Data> {
-    // Resolution must always be a power of 2 for this logic to work
-    assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
-
-    const queryRes = await this.queryData(start, end, resolution);
-    const numRows = queryRes.numRows();
-    const slices: Data = {
-      start,
-      end,
-      resolution,
-      length: numRows,
-      maxLanes: this.maxLanes,
-      counts: new Uint32Array(numRows),
-      starts: new BigInt64Array(numRows),
-      ends: new BigInt64Array(numRows),
-      lanes: new Uint32Array(numRows),
-      utids: new Int32Array(numRows),
-    };
-
-    const it = queryRes.iter({
-      count: NUM,
-      ts: LONG,
-      dur: LONG,
-      lane: NUM,
-      utid: NUM,
-    });
-
-    for (let row = 0; it.valid(); it.next(), row++) {
-      const start = Time.fromRaw(it.ts);
-      const dur = it.dur;
-      const end = Time.add(start, dur);
-
-      slices.counts[row] = it.count;
-      slices.starts[row] = start;
-      slices.ends[row] = end;
-      slices.lanes[row] = it.lane;
-      slices.utids[row] = it.utid;
-      slices.end = Time.max(end, slices.end);
-    }
-    return slices;
-  }
-
-  private async queryData(
-    start: time,
-    end: time,
-    bucketSize: duration,
-  ): Promise<QueryResult> {
-    if (this.mode === 'sched') {
-      return this.trace.engine.query(`
-        select
-          (z.ts / ${bucketSize}) * ${bucketSize} as ts,
-          iif(s.dur = -1, s.dur, max(z.dur, ${bucketSize})) as dur,
-          z.count,
-          z.depth as lane,
-          s.utid
-        from process_summary_${this.trackUuid}(
-          ${start}, ${end}, ${bucketSize}
-        ) z
-        cross join sched s using (id)
-      `);
-    } else {
-      return this.trace.engine.query(`
-        select
-          (z.ts / ${bucketSize}) * ${bucketSize} as ts,
-          max(z.dur, ${bucketSize}) as dur,
-          z.count,
-          z.depth as lane,
-          -1 as utid
-        from process_summary_${this.trackUuid}(
-          ${start}, ${end}, ${bucketSize}
-        ) z
-      `);
-    }
   }
 
   getHeight(): number {
@@ -424,9 +417,9 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
-    const data = this.fetcher.data;
+    const data = this.pipeline?.getActiveBuffer() ?? [];
 
-    if (data === undefined) return; // Can't possibly draw anything.
+    if (data.length === 0) return; // Can't possibly draw anything.
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
@@ -435,24 +428,21 @@ export class GroupSummaryTrack implements TrackRenderer {
       this.getHeight(),
       0,
       size.width,
-      timescale.timeToPx(data.start),
-      timescale.timeToPx(data.end),
+      timescale.timeToPx(this.cacheKey.start),
+      timescale.timeToPx(this.cacheKey.end),
     );
 
-    assertTrue(data.starts.length === data.ends.length);
-    assertTrue(data.starts.length === data.utids.length);
+    const laneHeight = Math.floor(RECT_HEIGHT / this.maxLanes);
 
-    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
-
-    for (let i = 0; i < data.ends.length; i++) {
-      const tStart = Time.fromRaw(data.starts[i]);
-      const tEnd = Time.fromRaw(data.ends[i]);
+    for (const entry of data) {
+      const tStart = entry.start;
+      const tEnd = entry.end;
 
       // Cull slices that lie completely outside the visible window
       if (!visibleWindow.overlaps(tStart, tEnd)) continue;
 
-      const utid = data.utids[i];
-      const lane = data.lanes[i];
+      const utid = entry.utid;
+      const lane = entry.lane;
 
       const rectStart = Math.floor(timescale.timeToPx(tStart));
       const rectEnd = Math.floor(timescale.timeToPx(tEnd));
@@ -492,9 +482,14 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
-    if (data === undefined) return;
-    this.hover = computeHover({x, y}, timescale, data, this.threads);
+    const data = this.pipeline?.getActiveBuffer();
+    this.hover = computeHover(
+      {x, y},
+      timescale,
+      data,
+      this.maxLanes,
+      this.threads,
+    );
     if (this.hoverMonitor.ifStateChanged()) {
       if (this.mode === 'sched') {
         this.trace.timeline.hoveredUtid = this.hover?.utid;

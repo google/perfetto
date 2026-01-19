@@ -12,24 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Monitor} from '../../base/monitor';
-import {search, searchEq, searchSegment} from '../../base/binary_search';
-import {assertExists, assertTrue} from '../../base/logging';
-import {duration, Time, time} from '../../base/time';
+import {searchSorted} from '../../base/binary_search';
+import {assertExists} from '../../base/logging';
+import {Time, time} from '../../base/time';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
 import m from 'mithril';
 import {colorForThread} from '../../components/colorizer';
-import {TrackData} from '../../components/tracks/track_data';
-import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
+import {CacheKey} from '../../components/tracks/timeline_cache';
+import {TrackRenderPipeline} from '../../components/tracks/track_render_pipeline';
 import {Point2D} from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {TimeScale} from '../../base/time_scale';
 import {TrackRenderer, SnapPoint, TrackUpdateContext} from '../../public/track';
-import {LONG, NUM} from '../../trace_processor/query_result';
+import {LONG, NUM, Row} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {TrackEventDetails} from '../../public/selection';
@@ -38,17 +37,30 @@ import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
 
-export interface Data extends TrackData {
-  // Slices are stored in a columnar fashion. All fields have the same length.
-  counts: Float64Array;
-  ids: Float64Array;
-  startQs: BigInt64Array;
-  endQs: BigInt64Array;
-  tses: BigInt64Array;
-  durs: BigInt64Array;
-  utids: Uint32Array;
-  flags: Uint8Array;
-  lastRowId: number;
+// Row spec for the CPU slice mipmap query.
+const CPU_SLICE_ROW = {
+  count: NUM,
+  tsQ: LONG,
+  tsEndQ: LONG,
+  ts: LONG,
+  dur: LONG,
+  utid: NUM,
+  id: NUM,
+  isIncomplete: NUM,
+  isRealtime: NUM,
+};
+type CpuSliceRow = typeof CPU_SLICE_ROW;
+
+// Entry stored in the pipeline buffer.
+interface CpuSliceEntry {
+  count: number;
+  id: number;
+  startQ: time;
+  endQ: time;
+  ts: time;
+  dur: bigint;
+  utid: number;
+  flags: number;
 }
 
 const MARGIN_TOP = 3;
@@ -67,23 +79,20 @@ interface CpuSliceHover {
 function computeHover(
   pos: Point2D | undefined,
   timescale: TimeScale,
-  data: Data,
+  data: CpuSliceEntry[] | undefined,
   threads: ThreadMap,
 ): CpuSliceHover | undefined {
   if (pos === undefined) return undefined;
+  if (data === undefined || data.length === 0) return undefined;
 
   const {x, y} = pos;
   if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) return undefined;
 
   const t = timescale.pxToHpTime(x);
-  for (let i = 0; i < data.startQs.length; i++) {
-    const tStart = Time.fromRaw(data.startQs[i]);
-    const tEnd = Time.fromRaw(data.endQs[i]);
-    if (t.containedWithin(tStart, tEnd)) {
-      const utid = data.utids[i];
-      const count = data.counts[i];
-      const pid = threads.get(utid)?.pid;
-      return {utid, count, pid};
+  for (const entry of data) {
+    if (t.containedWithin(entry.startQ, entry.endQ)) {
+      const pid = threads.get(entry.utid)?.pid;
+      return {utid: entry.utid, count: entry.count, pid};
     }
   }
   return undefined;
@@ -91,10 +100,18 @@ function computeHover(
 
 export class CpuSliceTrack implements TrackRenderer {
   private hover?: CpuSliceHover;
-  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private lastRowId = -1;
   private trackUuid = uuidv4Sql();
+  private cacheKey = CacheKey.zero();
+
+  // Handles data loading with viewport caching, double-buffering, cooperative
+  // multitasking, and abort detection when the viewport changes.
+  private pipeline?: TrackRenderPipeline<
+    Row & CpuSliceRow,
+    CpuSliceEntry,
+    {lastRowId: number}
+  >;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -132,6 +149,41 @@ export class CpuSliceTrack implements TrackRenderer {
         not utid in (select utid from thread where is_idle)
     `);
     this.lastRowId = it.firstRow({lastRowId: NUM}).lastRowId;
+
+    // Initialize the pipeline.
+    this.pipeline = new TrackRenderPipeline(
+      this.trace,
+      (_rawSql: string, key: CacheKey) => `
+        select
+          (z.ts / ${key.bucketSize}) * ${key.bucketSize} as tsQ,
+          (((z.ts + z.dur) / ${key.bucketSize}) + 1) * ${key.bucketSize} as tsEndQ,
+          z.count,
+          s.ts,
+          s.dur,
+          s.utid,
+          s.id,
+          s.dur = -1 as isIncomplete,
+          ifnull(s.priority < 100, 0) as isRealtime
+        from cpu_slice_${this.trackUuid}(${key.start}, ${key.end}, ${key.bucketSize}) z
+        cross join sched s using (id)
+      `,
+      () => ({lastRowId: this.lastRowId}),
+      (row, _state) => {
+        let flags = 0;
+        if (row.isIncomplete) flags |= CPU_SLICE_FLAGS_INCOMPLETE;
+        if (row.isRealtime) flags |= CPU_SLICE_FLAGS_REALTIME;
+        return {
+          count: row.count,
+          id: row.id,
+          startQ: Time.fromRaw(row.tsQ),
+          endQ: Time.fromRaw(row.tsEndQ),
+          ts: Time.fromRaw(row.ts),
+          dur: row.dur,
+          utid: row.utid,
+          flags,
+        };
+      },
+    );
   }
 
   getDataset() {
@@ -156,88 +208,19 @@ export class CpuSliceTrack implements TrackRenderer {
     });
   }
 
-  async onUpdate({
-    visibleWindow,
-    resolution,
-  }: TrackUpdateContext): Promise<void> {
-    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
-  }
+  async onUpdate(ctx: TrackUpdateContext): Promise<void> {
+    if (this.pipeline === undefined) return;
 
-  async onBoundsChange(
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<Data> {
-    assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
-
-    const queryRes = await this.trace.engine.query(`
-      select
-        (z.ts / ${resolution}) * ${resolution} as tsQ,
-        (((z.ts + z.dur) / ${resolution}) + 1) * ${resolution} as tsEndQ,
-        z.count,
-        s.ts,
-        s.dur,
-        s.utid,
-        s.id,
-        s.dur = -1 as isIncomplete,
-        ifnull(s.priority < 100, 0) as isRealtime
-      from cpu_slice_${this.trackUuid}(${start}, ${end}, ${resolution}) z
-      cross join sched s using (id)
-    `);
-
-    const numRows = queryRes.numRows();
-    const slices: Data = {
-      start,
-      end,
-      resolution,
-      length: numRows,
-      lastRowId: this.lastRowId,
-      counts: new Float64Array(numRows),
-      ids: new Float64Array(numRows),
-      startQs: new BigInt64Array(numRows),
-      endQs: new BigInt64Array(numRows),
-      tses: new BigInt64Array(numRows),
-      durs: new BigInt64Array(numRows),
-      utids: new Uint32Array(numRows),
-      flags: new Uint8Array(numRows),
-    };
-
-    const it = queryRes.iter({
-      count: NUM,
-      tsQ: LONG,
-      tsEndQ: LONG,
-      ts: LONG,
-      dur: LONG,
-      utid: NUM,
-      id: NUM,
-      isIncomplete: NUM,
-      isRealtime: NUM,
-    });
-    for (let row = 0; it.valid(); it.next(), row++) {
-      slices.counts[row] = it.count;
-      slices.startQs[row] = it.tsQ;
-      slices.endQs[row] = it.tsEndQ;
-      slices.tses[row] = it.ts;
-      slices.durs[row] = it.dur;
-      slices.utids[row] = it.utid;
-      slices.ids[row] = it.id;
-
-      slices.flags[row] = 0;
-      if (it.isIncomplete) {
-        slices.flags[row] |= CPU_SLICE_FLAGS_INCOMPLETE;
-      }
-      if (it.isRealtime) {
-        slices.flags[row] |= CPU_SLICE_FLAGS_REALTIME;
-      }
+    const result = await this.pipeline.onUpdate('', CPU_SLICE_ROW, ctx);
+    if (result === 'updated') {
+      this.cacheKey = this.pipeline.getCacheKey();
     }
-    return slices;
   }
 
   async onDestroy() {
     await this.trace.engine.tryQuery(
       `drop table if exists cpu_slice_${this.trackUuid}`,
     );
-    this.fetcher[Symbol.dispose]();
   }
 
   getHeight(): number {
@@ -270,9 +253,9 @@ export class CpuSliceTrack implements TrackRenderer {
     const {ctx, size, timescale} = trackCtx;
 
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const data = this.fetcher.data;
+    const data = this.pipeline?.getActiveBuffer() ?? [];
 
-    if (data === undefined) return; // Can't possibly draw anything.
+    if (data.length === 0) return; // Can't possibly draw anything.
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
@@ -281,8 +264,8 @@ export class CpuSliceTrack implements TrackRenderer {
       this.getHeight(),
       0,
       size.width,
-      timescale.timeToPx(data.start),
-      timescale.timeToPx(data.end),
+      timescale.timeToPx(this.cacheKey.start),
+      timescale.timeToPx(this.cacheKey.end),
     );
 
     this.renderSlices(trackCtx, data);
@@ -290,11 +273,8 @@ export class CpuSliceTrack implements TrackRenderer {
 
   renderSlices(
     {ctx, timescale, size, visibleWindow}: TrackRenderContext,
-    data: Data,
+    data: CpuSliceEntry[],
   ): void {
-    assertTrue(data.startQs.length === data.endQs.length);
-    assertTrue(data.startQs.length === data.utids.length);
-
     const visWindowEndPx = size.width;
 
     ctx.textAlign = 'center';
@@ -302,27 +282,25 @@ export class CpuSliceTrack implements TrackRenderer {
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     const timespan = visibleWindow.toTimeSpan();
-
-    const startTime = timespan.start;
     const endTime = timespan.end;
 
-    const rawStartIdx = data.endQs.findIndex((end) => end >= startTime);
-    const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
+    // Find the end of visible range - binary search for last slice whose start <= endTime.
+    // This allows us to skip iterating over slices that are completely after the visible window.
+    const lastVisibleIdx = searchSorted(data, endTime, (e) => e.startQ);
+    const endIdx = lastVisibleIdx === -1 ? 0 : lastVisibleIdx + 1;
 
-    const [, rawEndIdx] = searchSegment(data.startQs, endTime);
-    const endIdx = rawEndIdx === -1 ? data.startQs.length : rawEndIdx;
-
-    for (let i = startIdx; i < endIdx; i++) {
-      const tStart = Time.fromRaw(data.startQs[i]);
-      let tEnd = Time.fromRaw(data.endQs[i]);
-      const utid = data.utids[i];
+    for (let i = 0; i < endIdx; i++) {
+      const entry = data[i];
+      const tStart = entry.startQ;
+      let tEnd = entry.endQ;
+      const utid = entry.utid;
 
       // If the last slice is incomplete, it should end with the end of the
       // window, else it might spill over the window and the end would not be
       // visible as a zigzag line.
       if (
-        data.ids[i] === data.lastRowId &&
-        data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE
+        entry.id === this.lastRowId &&
+        entry.flags & CPU_SLICE_FLAGS_INCOMPLETE
       ) {
         tEnd = endTime;
       }
@@ -354,7 +332,7 @@ export class CpuSliceTrack implements TrackRenderer {
       }
       ctx.fillStyle = color.cssString;
 
-      if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
+      if (entry.flags & CPU_SLICE_FLAGS_INCOMPLETE) {
         drawIncompleteSlice(
           ctx,
           rectStart,
@@ -372,7 +350,7 @@ export class CpuSliceTrack implements TrackRenderer {
 
       // Stylize real-time threads. We don't do it when zoomed out as the
       // fillRect is expensive.
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
+      if (entry.flags & CPU_SLICE_FLAGS_REALTIME) {
         ctx.fillStyle = getHatchedPattern(ctx);
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
       }
@@ -395,7 +373,7 @@ export class CpuSliceTrack implements TrackRenderer {
         }
       }
 
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
+      if (entry.flags & CPU_SLICE_FLAGS_REALTIME) {
         subTitle = subTitle + ' (RT)';
       }
 
@@ -416,11 +394,12 @@ export class CpuSliceTrack implements TrackRenderer {
     const selection = this.trace.selection.selection;
     if (selection.kind === 'track_event') {
       if (selection.trackUri === this.uri) {
-        const [startIndex, endIndex] = searchEq(data.ids, selection.eventId);
-        if (startIndex !== endIndex) {
-          const tStart = Time.fromRaw(data.startQs[startIndex]);
-          const tEnd = Time.fromRaw(data.endQs[startIndex]);
-          const utid = data.utids[startIndex];
+        // Find selected entry
+        const selectedEntry = data.find((e) => e.id === selection.eventId);
+        if (selectedEntry !== undefined) {
+          const tStart = selectedEntry.startQ;
+          const tEnd = selectedEntry.endQ;
+          const utid = selectedEntry.utid;
           const color = colorForThread(this.threads.get(utid));
           const rectStart = timescale.timeToPx(tStart);
           const rectEnd = timescale.timeToPx(tEnd);
@@ -443,8 +422,7 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
-    if (data === undefined) return;
+    const data = this.pipeline?.getActiveBuffer();
     this.hover = computeHover({x, y}, timescale, data, this.threads);
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.hoveredUtid = this.hover?.utid;
@@ -463,11 +441,11 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   onMouseClick({x, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
-    if (data === undefined) return false;
-    const time = timescale.pxToHpTime(x);
-    const index = search(data.startQs, time.toTime());
-    const id = index === -1 ? undefined : data.ids[index];
+    const data = this.pipeline?.getActiveBuffer();
+    if (data === undefined || data.length === 0) return false;
+    const targetTime = timescale.pxToHpTime(x).toTime();
+    const idx = searchSorted(data, targetTime, (e) => e.startQ);
+    const id = idx === -1 ? undefined : data[idx].id;
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.hover === undefined) return false;
 
@@ -507,8 +485,8 @@ export class CpuSliceTrack implements TrackRenderer {
     thresholdPx: number,
     timescale: TimeScale,
   ): SnapPoint | undefined {
-    const data = this.fetcher.data;
-    if (data === undefined) {
+    const data = this.pipeline?.getActiveBuffer();
+    if (data === undefined || data.length === 0) {
       return undefined;
     }
 
@@ -547,12 +525,12 @@ export class CpuSliceTrack implements TrackRenderer {
     };
 
     // Iterate through all slices in the cached data
-    for (let i = 0; i < data.startQs.length; i++) {
+    for (const entry of data) {
       // Check start boundary
-      checkBoundary(Time.fromRaw(data.tses[i]));
+      checkBoundary(entry.ts);
 
       // Check end boundary
-      checkBoundary(Time.fromRaw(data.tses[i] + data.durs[i]));
+      checkBoundary(Time.add(entry.ts, entry.dur));
     }
 
     return closestSnap;
