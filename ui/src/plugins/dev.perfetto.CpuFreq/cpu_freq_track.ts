@@ -270,7 +270,10 @@ export class CpuFreqTrack implements TrackRenderer {
     ]);
 
     // Only commit if both pipelines have new data ready.
-    if (freqResult.commit !== undefined && idleResult.commit !== undefined) {
+    if (
+      freqResult.status === 'needs-commit' &&
+      idleResult.status === 'needs-commit'
+    ) {
       freqResult.commit();
       idleResult.commit();
       this.cacheKey = this.freqPipeline.getCacheKey();
