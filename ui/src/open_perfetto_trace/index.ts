@@ -16,6 +16,8 @@
 // projects to facilitate the deep linking into perfetto. It allows opening
 // trace files or URL with ui.perfetto.dev, handling all the handshake with it.
 
+import {formatFileSize} from '../base/file_utils';
+
 const PERFETTO_UI_URL = 'https://ui.perfetto.dev';
 
 interface OpenTraceOptions {
@@ -102,7 +104,7 @@ function fetchAndOpenTrace(url: string, opts?: OpenTraceOptions) {
     if (event.lengthComputable) {
       updateProgressDiv(
         {
-          status: `Fetching trace (${Math.round(event.loaded / 1000)} KB)`,
+          status: `Fetching trace (${formatFileSize(event.loaded)})`,
           progress: event.loaded / event.total,
         },
         opts,
