@@ -56,7 +56,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
       }),
     ]),
   );
-  const privacy = new Toggle({
+  const privacyToggle = new Toggle({
     title: 'Remove untyped and sensitive data like URLs from the trace',
     descr:
       'Not recommended unless you intend to share the trace' +
@@ -66,7 +66,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
   const categories = new ChromeCategoriesWidget(
     chromeCategoryGetter,
     groupToggles,
-    privacy,
+    privacyToggle,
   );
 
   const settings = {categories};
@@ -75,7 +75,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
     id: 'chrome_tracing',
     title: 'Chrome browser tracing',
     settings,
-    genConfig: function (tc: TraceConfigBuilder) {
+    genConfig(tc: TraceConfigBuilder) {
       const cats = settings.categories.getIncludedCategories();
       const memoryInfra = cats.has('disabled-by-default-memory-infra');
       const jsonStruct = {
@@ -98,7 +98,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
             }
           : undefined,
       };
-      const privacyFilteringEnabled = privacy.enabled;
+      const privacyFilteringEnabled = privacyToggle.enabled;
       const chromeConfig = {
         privacyFilteringEnabled,
         traceConfig: JSON.stringify(jsonStruct),
@@ -159,7 +159,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
     private groupToggles: Record<string, Toggle>,
-    private privacy: Toggle,
+    private privacyToggle: Toggle,
   ) {
     // Initialize first with the static list of builtin categories (in case
     // something goes wrong with the extension).
@@ -207,29 +207,34 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         }
       }
     }
-    if (this.tagsMap.size > 0) {
+    // Older extensions version do not return tags.
+    if (this.hasTags()) {
       this.activeTab = 'tags';
     }
   }
 
-  getEnabledCategories(): string[] {
+  private hasTags() : Boolean {
+    return this.tagsMap.size > 0;
+  }
+
+  private getEnabledCategories(): string[] {
     return this.options.filter((o) => o.checked).map((o) => o.id);
   }
 
-  setEnabled(cat: string, enabled: boolean) {
+  private setEnabled(cat: string, enabled: boolean) {
     for (const option of this.options) {
       if (option.id !== cat) continue;
       option.checked = enabled;
     }
   }
 
-  getEnabledPresets(): string[] {
+  private getEnabledPresets(): string[] {
     return Object.entries(this.groupToggles)
       .filter(([, toggle]) => toggle.enabled)
       .map(([name]) => name);
   }
 
-  setPresets(presets: string[]) {
+  private setPresets(presets: string[]) {
     for (const [name, toggle] of Object.entries(this.groupToggles)) {
       toggle.setEnabled(presets.includes(name));
     }
@@ -239,18 +244,14 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     return {
       categories: this.getEnabledCategories(),
       presets: this.getEnabledPresets(),
-      privacy: this.privacy.serialize(),
+      privacy: this.privacyToggle.serialize(),
     };
   }
 
   deserialize(state: unknown): void {
-    if (Array.isArray(state) && state.every((x) => typeof x === 'string')) {
+    if (Array.isArray(state)) {
       // Backward compatibility for when state was just a list of categories.
-      this.options.forEach((o) => (o.checked = false));
-      for (const key of state) {
-        const opt = this.options.find((o) => o.id === key);
-        if (opt !== undefined) opt.checked = true;
-      }
+      this.maybeDeserializeCategories(state);
       return;
     }
 
@@ -261,28 +262,31 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         privacy?: boolean;
       };
 
-      if (
-        Array.isArray(categories) &&
-        categories.every((x) => typeof x === 'string')
-      ) {
-        this.options.forEach((o) => (o.checked = false));
-        for (const key of categories) {
-          const opt = this.options.find((o) => o.id === key);
-          if (opt !== undefined) opt.checked = true;
-        }
-      }
-
-      if (
-        Array.isArray(presets) &&
-        presets.every((x) => typeof x === 'string')
-      ) {
-        this.setPresets(presets);
-      }
+      this.maybeDeserializeCategories(categories);
+      this.maybeDeserializePresets(presets);
 
       if (typeof privacy === 'boolean') {
-        this.privacy.deserialize(privacy);
+        this.privacyToggle.deserialize(privacy);
       }
     }
+  }
+
+  private maybeDeserializeCategories(categories: unknown) {
+    if (!Array.isArray(categories)) return;
+    if (!categories.every((x) => typeof x === 'string')) return;
+
+    this.options.forEach((o) => (o.checked = false));
+    for (const key of categories) {
+      const opt = this.options.find((o) => o.id === key);
+      if (opt !== undefined) opt.checked = true;
+    }
+    return true;
+  }
+
+  private maybeDeserializePresets(presets: unknown) {
+    if (!Array.isArray(presets)) return;
+    if (!presets.every((x) => typeof x === 'string')) return;
+    this.setPresets(presets);
   }
 
   render() {
@@ -313,7 +317,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     );
 
     const tabs: TabOption[] = [];
-    if (tagOptions.length > 0) {
+    if (this.hasTags()) {
       tabs.push({key: 'tags', title: 'Tags', leftIcon: 'tag'});
     }
     tabs.push({key: 'presets', title: 'Presets', leftIcon: 'cards_star'});
@@ -355,7 +359,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
             Object.values(this.groupToggles).map((t) => t.render()),
           ),
       ),
-      m('div.chrome-privacy-setting', this.privacy.render()),
+      m('div.chrome-privacy-setting', this.privacyToggle.render()),
       m('h2', m(Icon, {icon: 'list'}), ' Details'),
       m(
         'div.chrome-categories',
