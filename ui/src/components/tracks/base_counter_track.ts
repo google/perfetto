@@ -826,7 +826,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       COUNTER_ROW,
       ctx,
     );
-    if (result === 'updated') {
+    if (result.status === 'updated') {
       this.countersKey = this.pipeline.getCacheKey();
     }
   }
