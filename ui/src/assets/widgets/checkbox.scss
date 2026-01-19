@@ -31,9 +31,6 @@
 // When transitioning from checked to unchecked, the animation plays in reverse,
 // and the border width is set to 0 right at the end in order to make the tick
 // completely invisible again.
-
-$box-label-padding: 0.33em;
-
 .pf-checkbox {
   $tick-anim-time-width: 100ms;
   $tick-anim-time-height: 150ms;
@@ -42,6 +39,7 @@ $box-label-padding: 0.33em;
 
   $tick-height: 0.55em;
   $tick-width: 0.3em;
+  $box-label-padding: 0.33em;
 
   display: inline;
   align-items: baseline;

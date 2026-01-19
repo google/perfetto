@@ -30,6 +30,7 @@ import {
 import {TabOption, TabStrip} from '../../../widgets/tab_strip';
 import {Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
+import {Icon} from '../../../widgets/icon';
 
 type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
 
@@ -153,7 +154,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private tagsMap = new Map<string, MultiSelectOption[]>();
   private fetchedRuntimeCategories = false;
-  private activeTab = 'tags';
+  private activeTab = 'presets';
 
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
@@ -205,6 +206,9 @@ export class ChromeCategoriesWidget implements ProbeSetting {
           this.tagsMap.set(tag, [option]);
         }
       }
+    }
+    if (this.tagsMap.size > 0) {
+      this.activeTab = 'tags';
     }
   }
 
@@ -310,16 +314,9 @@ export class ChromeCategoriesWidget implements ProbeSetting {
 
     const tabs: TabOption[] = [];
     if (tagOptions.length > 0) {
-      tabs.push({key: 'tags', title: 'Tags', leftIcon: "tag"});
+      tabs.push({key: 'tags', title: 'Tags', leftIcon: 'tag'});
     }
-
-    tabs.push({key: 'presets', title: 'Presets', leftIcon: "cards_star"});
-
-    // Ensure the active tab is valid (it might have been set to 'tags' but
-    // then the tags list became empty).
-    if (tagOptions.length === 0 && this.activeTab === 'tags') {
-      this.activeTab = 'presets';
-    }
+    tabs.push({key: 'presets', title: 'Presets', leftIcon: 'cards_star'});
 
     return m(
       'div.chrome-probe-settings',
@@ -337,8 +334,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         onTabChange: (key) => (this.activeTab = key),
       }),
       m(
-        'div',
-        {style: {maxHeight: '250px', overflowY: 'auto'}},
+        'div.chrome-tags-panel',
         this.activeTab === 'tags' &&
           m(MultiSelect, {
             options: tagOptions,
@@ -359,13 +355,19 @@ export class ChromeCategoriesWidget implements ProbeSetting {
             Object.values(this.groupToggles).map((t) => t.render()),
           ),
       ),
-      m('div', {style: {paddingTop: '10px'}}, this.privacy.render()),
-      m('h2', "Details"),
+      m('div.chrome-privacy-setting', this.privacy.render()),
+      m('h2', m(Icon, {icon: 'list'}), ' Details'),
       m(
         'div.chrome-categories',
         m(
           Section,
-          {title: `Additional Categories (${includedCategoriesCount})`},
+          {
+            title: m(
+              'h1',
+              m(Icon, {icon: 'category'}),
+              ` Categories (${includedCategoriesCount})`,
+            ),
+          },
           m(MultiSelect, {
             options: categoriesOptions,
             repeatCheckedItemsAtTop: false,
@@ -377,7 +379,13 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         ),
         m(
           Section,
-          {title: `High Overhead Categories (${includedSlowCategoriesCount})`},
+          {
+            title: m(
+              'h1',
+              m(Icon, {icon: 'stethoscope'}),
+              ` High Overhead Categories (${includedSlowCategoriesCount})`,
+            ),
+          },
           m(MultiSelect, {
             options: slowCategoriesOptions,
             repeatCheckedItemsAtTop: false,
@@ -410,7 +418,7 @@ function defaultAndDisabled(category: string) {
 
 const GROUPS = {
   'Task Scheduling': [
-    'toplevJJJel',
+    'toplevel',
     'toplevel.flow',
     'scheduler',
     'sequence_manager',

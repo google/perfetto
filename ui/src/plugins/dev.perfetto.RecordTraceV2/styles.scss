@@ -365,7 +365,6 @@
   }
 
   .pf-toggle {
-    --indent: calc(30px + #{pf-checkbox.$box-label-padding});
     padding-top: calc(var(--record-section-padding) / 2);
     display: flex;
     flex-direction: column;
@@ -385,7 +384,6 @@
     &__desc {
       color: var(--pf-color-text-muted);
       font-size: var(--pf-font-size-m);
-      padding-left: var(--indent);
     }
 
     > label {
@@ -395,7 +393,7 @@
 
     // The content of the toggle section.
     > div.descr {
-      padding-left: var(--indent);
+      padding-left: 36px;
       font-size: var(--pf-font-size-m);
       color: var(--pf-color-text-muted);
     }
@@ -609,14 +607,45 @@
   }
 
   .chrome-probe-settings {
-    h2 {
-      padding-top: calc(var(--record-section-padding) / 2);
+    > h2 {
       font-size: var(--pf-font-size-l);
     }
 
+    > h2,
+    .chrome-privacy-setting {
+      padding-top: var(--record-section-padding);
+    }
+
+    > h2,
     .chrome-categories {
-      padding-top: calc(var(--record-section-padding) / 2);
       padding-bottom: calc(var(--record-section-padding) / 2);
+    }
+
+    .chrome-categories-presets {
+      font-size: var(--pf-font-size-l);
+    }
+
+    .chrome-tags-panel {
+      height: 250px;
+      display: flex;
+      flex-direction: column;
+
+      > div {
+        overflow-y: auto;
+      }
+
+      > .pf-multiselect-panel {
+        height: 100%;
+        overflow: hidden;
+        padding-top: calc(var(--record-section-padding) / 2);
+
+        .pf-list {
+          flex-grow: 1;
+        }
+      }
+    }
+
+    .chrome-categories {
       display: flex;
       flex-direction: row;
       gap: 8px;
