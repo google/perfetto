@@ -82,6 +82,15 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig, WriteFlushMode){
                                   WRITE_FLUSH_ENABLED) = 3,
 };
 
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig, FFlushMode){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  FFLUSH_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  FFLUSH_DISABLED) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  FFLUSH_ENABLED) = 2,
+};
+
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_TraceFilter,
                         StringFilterPolicy){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
@@ -319,6 +328,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   enum perfetto_protos_TraceConfig_WriteFlushMode,
                   write_flush_mode,
                   44);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  enum perfetto_protos_TraceConfig_FFlushMode,
+                  fflush_post_write,
+                  45);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   VARINT,
                   bool,
