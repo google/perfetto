@@ -46,7 +46,7 @@ const CHECK_INTERVAL = 1000;
 // Time between yields in ms. Use shorter interval when scheduler API is
 // available since it'll yield back to use more immediately if there's no
 // other high-priority work.
-const YIELD_INTERVAL_MS = window.scheduler !== undefined ? 5 : 10;
+const YIELD_INTERVAL_MS = window.scheduler !== undefined ? 4 : 8;
 
 /**
  * A helper class for loading and managing track data with support for:
@@ -171,7 +171,10 @@ export class TrackRenderPipeline<RawRow extends Row, ResultRow, GlobalState> {
     for (const it = result.iter(spec); ; ) {
       for (; it.valid(); it.next()) {
         this.otherBuffer.push(this.onRow(it, state));
-        if (this.otherBuffer.length % CHECK_INTERVAL !== 0) {
+        if (
+          this.otherBuffer.length % CHECK_INTERVAL !== 0 ||
+          performance.now() - lastYield < YIELD_INTERVAL_MS
+        ) {
           continue;
         }
 
@@ -184,10 +187,8 @@ export class TrackRenderPipeline<RawRow extends Row, ResultRow, GlobalState> {
         }
 
         // Yield to the main thread periodically to keep the UI responsive.
-        if (performance.now() - lastYield > YIELD_INTERVAL_MS) {
-          await this.yield();
-          lastYield = performance.now();
-        }
+        await this.yield();
+        lastYield = performance.now();
       }
       if (result.isComplete()) {
         break;
