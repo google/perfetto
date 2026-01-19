@@ -53,7 +53,7 @@ export default class implements PerfettoPlugin {
     try {
       const hasV8Data = await trace.engine.query(
         `INCLUDE PERFETTO MODULE v8.jit;
-           SELECT 1 FROM v8_js_script LIMIT 1`,
+         SELECT 1 FROM v8_js_script LIMIT 1`,
       );
       return hasV8Data.numRows() > 0;
     } catch (_) {
