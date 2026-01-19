@@ -310,10 +310,10 @@ export class ChromeCategoriesWidget implements ProbeSetting {
 
     const tabs: TabOption[] = [];
     if (tagOptions.length > 0) {
-      tabs.push({key: 'tags', title: 'Tags'});
+      tabs.push({key: 'tags', title: 'Tags', leftIcon: "tag"});
     }
 
-    tabs.push({key: 'presets', title: 'Presets'});
+    tabs.push({key: 'presets', title: 'Presets', leftIcon: "cards_star"});
 
     // Ensure the active tab is valid (it might have been set to 'tags' but
     // then the tags list became empty).
@@ -338,7 +338,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       }),
       m(
         'div',
-        {style: {maxHeight: '200px', overflowY: 'auto'}},
+        {style: {maxHeight: '250px', overflowY: 'auto'}},
         this.activeTab === 'tags' &&
           m(MultiSelect, {
             options: tagOptions,
