@@ -30,7 +30,7 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {TabStrip} from '../../widgets/tab_strip';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
-import { formatFileSize } from 'src/base/file_utils';
+import {formatFileSize} from 'src/base/file_utils';
 
 interface V8JsScript {
   v8_js_script_id: number;
