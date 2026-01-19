@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../../assets/widgets/checkbox" as pf-checkbox;
 @import "../../assets/theme";
 
 // The whole record page.
@@ -364,7 +365,7 @@
   }
 
   .pf-toggle {
-    $indent: 35px;
+    --indent: calc(30px + #{pf-checkbox.$box-label-padding});
     padding-top: calc(var(--record-section-padding) / 2);
     display: flex;
     flex-direction: column;
@@ -383,8 +384,8 @@
 
     &__desc {
       color: var(--pf-color-text-muted);
-      font-size: var(--pf-font-size-s);
-      padding-left: $indent;
+      font-size: var(--pf-font-size-m);
+      padding-left: var(--indent);
     }
 
     > label {
@@ -394,8 +395,8 @@
 
     // The content of the toggle section.
     > div.descr {
-      padding-left: $indent;
-      font-size: var(--pf-font-size-s);
+      padding-left: var(--indent);
+      font-size: var(--pf-font-size-m);
       color: var(--pf-color-text-muted);
     }
   } // toggle
