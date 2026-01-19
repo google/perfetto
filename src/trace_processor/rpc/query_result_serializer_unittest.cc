@@ -103,7 +103,7 @@ void TestDeserializer::SerializeAndDeserialize(
   std::vector<uint8_t> buf;
   error.clear();
   for (eof_reached = false; !eof_reached;) {
-    serializer->Serialize(&buf);
+    serializer->Serialize(&buf, 0);
     DeserializeBuffer(buf.data(), buf.size());
     buf.clear();
   }

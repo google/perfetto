@@ -67,7 +67,7 @@ static void BM_QueryResultSerializer_Mixed(benchmark::State& state) {
     serializer.set_batch_size_for_testing(
         static_cast<uint32_t>(state.range(0)),
         static_cast<uint32_t>(state.range(1)));
-    while (serializer.Serialize(&buf)) {
+    while (serializer.Serialize(&buf, 0)) {
     }
     benchmark::DoNotOptimize(buf.data());
     buf.clear();
@@ -88,7 +88,7 @@ static void BM_QueryResultSerializer_Strings(benchmark::State& state) {
     serializer.set_batch_size_for_testing(
         static_cast<uint32_t>(state.range(0)),
         static_cast<uint32_t>(state.range(1)));
-    while (serializer.Serialize(&buf)) {
+    while (serializer.Serialize(&buf, 0)) {
     }
     benchmark::DoNotOptimize(buf.data());
     buf.clear();

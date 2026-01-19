@@ -50,16 +50,18 @@ QueryResultSerializer::QueryResultSerializer(Iterator iter)
 
 QueryResultSerializer::~QueryResultSerializer() = default;
 
-bool QueryResultSerializer::Serialize(std::vector<uint8_t>* buf) {
+bool QueryResultSerializer::Serialize(std::vector<uint8_t>* buf,
+                                      double elapsed_time_ms) {
   const size_t slice = batch_split_threshold_ + 4096;
   protozero::HeapBuffered<protos::pbzero::QueryResult> result(slice, slice);
-  bool has_more = Serialize(result.get());
+  bool has_more = Serialize(result.get(), elapsed_time_ms);
   auto arr = result.SerializeAsArray();
   buf->insert(buf->end(), arr.begin(), arr.end());
   return has_more;
 }
 
-bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res) {
+bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res,
+                                      double elapsed_time_ms) {
   PERFETTO_CHECK(!eof_reached_);
 
   if (!did_write_metadata_) {
@@ -73,6 +75,7 @@ bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res) {
 
   SerializeBatch(res);
   MaybeSerializeError(res);
+  res->set_query_time_ms(elapsed_time_ms);
   return !eof_reached_;
 }
 

@@ -63,11 +63,11 @@ class QueryResultSerializer {
   // Appends the data to the passed protozero message. It returns true if more
   // chunks are available (i.e. it returns NOT(|eof_reached_||)). The caller is
   // supposed to keep calling this function until it returns false.
-  bool Serialize(protos::pbzero::QueryResult*);
+  bool Serialize(protos::pbzero::QueryResult*, double elapsed_time_ms);
 
   // Like the above but stitches everything together in a vector. Incurs in
   // extra copies.
-  bool Serialize(std::vector<uint8_t>*);
+  bool Serialize(std::vector<uint8_t>*, double elapsed_time_ms);
 
   void set_batch_size_for_testing(uint32_t cells_per_batch, uint32_t thres) {
     cells_per_batch_ = cells_per_batch;
