@@ -69,56 +69,6 @@ export const FADE_THIN_SLICES_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
-// Exposed and standalone to allow for testing without making this
-// visible to subclasses.
-function filterVisibleSlices<S extends Slice>(
-  slices: S[],
-  start: time,
-  end: time,
-): S[] {
-  // Here we aim to reduce the number of slices we have to draw
-  // by ignoring those that are not visible. A slice is visible iff:
-  //   slice.endNsQ >= start && slice.startNsQ <= end
-  // It's allowable to include slices which aren't visible but we
-  // must not exclude visible slices.
-  // We could filter this.slices using this condition but since most
-  // often we should have the case where there are:
-  // - First a bunch of non-visible slices to the left of the viewport
-  // - Then a bunch of visible slices within the viewport
-  // - Finally a second bunch of non-visible slices to the right of the
-  //   viewport.
-  // It seems more sensible to identify the left-most and right-most
-  // visible slices then 'slice' to select these slices and everything
-  // between.
-
-  // We do not need to handle non-ending slices (where dur = -1
-  // but the slice is drawn as 'infinite' length) as this is handled
-  // by a special code path. See 'incomplete' in maybeRequestData.
-
-  // While the slices are guaranteed to be ordered by timestamp we must
-  // consider async slices (which are not perfectly nested). This is to
-  // say if we see slice A then B it is guaranteed the A.start <= B.start
-  // but there is no guarantee that (A.end < B.start XOR A.end >= B.end).
-  // Due to this is not possible to use binary search to find the first
-  // visible slice. Consider the following situation:
-  //         start V            V end
-  //     AAA  CCC       DDD   EEEEEEE
-  //      BBBBBBBBBBBB            GGG
-  //                           FFFFFFF
-  // B is visible but A and C are not. In general there could be
-  // arbitrarily many slices between B and D which are not visible.
-
-  // You could binary search to find D (i.e. the first slice which
-  // starts after |start|) then work backwards to find B.
-  // The last visible slice is simpler, since the slices are sorted
-  // by timestamp you can binary search for the last slice such
-  // that slice.start <= end.
-
-  return slices.filter((slice) => slice.startNs <= end && slice.endNs >= start);
-}
-
-export const filterVisibleSlicesForTesting = filterVisibleSlices;
-
 // The minimal set of columns that any table/view must expose to render tracks.
 // Note: this class assumes that, at the SQL level, slices are:
 // - Not temporally overlapping (unless they are nested at inner depth).
@@ -202,6 +152,10 @@ export abstract class BaseSliceTrack<
   // than just remembering it when we see it.
   private selectedSlice?: CastInternal<SliceT>;
 
+  // True if selectedSlice exists but is not in current slices/incomplete data.
+  // Computed once in onUpdate to avoid O(n) checks in render.
+  private selectedSliceNotInData = false;
+
   private extraSqlColumns: string[];
 
   private charWidth = -1;
@@ -211,6 +165,10 @@ export abstract class BaseSliceTrack<
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
   private maxDepth = 0;
+
+  // Visible time bounds, updated each frame for inline visibility checks.
+  private visStart: time = Time.ZERO;
+  private visEnd: time = Time.ZERO;
 
   // Computed layout.
   private computedTrackHeight = 0;
@@ -496,7 +454,12 @@ export abstract class BaseSliceTrack<
       if (state !== undefined) {
         this.maxDepth = Math.max(this.maxDepth, state.maxDataDepth);
         this.renderToOffscreenCanvas(state.byColor, this.slicesKey);
+        // Transfer to ImageBitmap for faster blitting (synchronous).
+        this.offscreenRenderer.finalize();
       }
+      // rowToSliceInternal clears selectedSlice if found in data, so if it
+      // still exists here, it's not in the current slices/incomplete arrays.
+      this.selectedSliceNotInData = this.selectedSlice !== undefined;
     }
   }
 
@@ -580,12 +543,15 @@ export abstract class BaseSliceTrack<
       charWidth = this.charWidth = ctx.measureText('dbpqaouk').width / 8;
     }
 
-    // Filter only the visible slices. |this.slices| will have more slices than
-    // needed because maybeRequestData() over-fetches to handle small pan/zooms.
-    // We don't want to waste time drawing slices that are off screen.
-    const vizSlices = this.getVisibleSlicesInternal(
+    // Set visible bounds for inline visibility checks (no array allocation).
+    // Expand by ±1 bucket to handle quantization edge cases.
+    this.visStart = Time.sub(
       visibleWindow.start.toTime('floor'),
+      this.slicesKey.bucketSize,
+    );
+    this.visEnd = Time.add(
       visibleWindow.end.toTime('ceil'),
+      this.slicesKey.bucketSize,
     );
 
     const selection = this.trace.selection.selection;
@@ -596,6 +562,7 @@ export abstract class BaseSliceTrack<
 
     if (selectedId === undefined) {
       this.selectedSlice = undefined;
+      this.selectedSliceNotInData = false;
     }
     let discoveredSelection: CastInternal<SliceT> | undefined;
 
@@ -612,7 +579,8 @@ export abstract class BaseSliceTrack<
     // beyond the visible portion of the canvas.
     const pxEnd = size.width;
 
-    for (const slice of vizSlices) {
+    // Helper to compute geometry for a slice.
+    const computeGeometry = (slice: CastInternal<SliceT>) => {
       // Compute the basic geometry for any visible slice, even if only
       // partially visible. This might end up with a negative x if the
       // slice starts before the visible time or with a width that overflows
@@ -656,6 +624,19 @@ export abstract class BaseSliceTrack<
       if (selectedId === slice.id) {
         discoveredSelection = slice;
       }
+    };
+
+    for (const slice of this.slices) {
+      if (!this.isVisible(slice)) continue;
+      computeGeometry(slice);
+    }
+    for (const slice of this.incomplete) {
+      computeGeometry(slice);
+    }
+    // The selected slice is always visible (it may be from a previous data
+    // load and not in this.slices).
+    if (this.selectedSliceNotInData) {
+      computeGeometry(assertExists(this.selectedSlice));
     }
 
     // Second pass: Blit offscreen canvas + draw instants/incomplete/highlighted.
@@ -665,7 +646,7 @@ export abstract class BaseSliceTrack<
     this.offscreenRenderer.blit(ctx, timescale, this.slicesKey);
 
     // Draw instants, incomplete, and highlighted slices (not in offscreen).
-    for (const slice of vizSlices) {
+    const drawSpecialSlice = (slice: CastInternal<SliceT>) => {
       const y = this.getSliceY(slice.depth);
       const color = slice.isHighlighted
         ? slice.colorScheme.variant
@@ -688,7 +669,6 @@ export abstract class BaseSliceTrack<
           !CROP_INCOMPLETE_SLICE_FLAG.get(),
         );
       } else if (slice.isHighlighted) {
-        // Redraw highlighted regular slices on top of offscreen canvas.
         ctx.fillStyle = color.cssString;
         const w = Math.max(
           slice.w,
@@ -698,22 +678,32 @@ export abstract class BaseSliceTrack<
         );
         ctx.fillRect(slice.x, y, w, sliceHeight);
       }
+    };
+
+    for (const slice of this.slices) {
+      if (!this.isVisible(slice)) continue;
+      drawSpecialSlice(slice);
+    }
+    for (const slice of this.incomplete) {
+      drawSpecialSlice(slice);
+    }
+    if (this.selectedSliceNotInData) {
+      drawSpecialSlice(assertExists(this.selectedSlice));
     }
 
     // Third pass, draw the titles (e.g., process name for sched slices).
     ctx.textAlign = 'center';
     ctx.font = this.getTitleFont();
     ctx.textBaseline = 'middle';
-    for (const slice of vizSlices) {
+
+    const drawTitle = (slice: CastInternal<SliceT>) => {
       if (
         slice.flags & SLICE_FLAGS_INSTANT ||
         !slice.title ||
         slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX
       ) {
-        continue;
+        return;
       }
-
-      // Change the title color dynamically depending on contrast.
       const textColor = slice.isHighlighted
         ? slice.colorScheme.textVariant
         : slice.colorScheme.textBase;
@@ -724,24 +714,47 @@ export abstract class BaseSliceTrack<
       const yDiv = slice.subTitle ? 3 : 2;
       const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
       ctx.fillText(title, rectXCenter, yMidPoint);
+    };
+
+    for (const slice of this.slices) {
+      if (!this.isVisible(slice)) continue;
+      drawTitle(slice);
+    }
+    for (const slice of this.incomplete) {
+      drawTitle(slice);
+    }
+    if (this.selectedSliceNotInData) {
+      drawTitle(assertExists(this.selectedSlice));
     }
 
     // Fourth pass, draw the subtitles (e.g., thread name for sched slices).
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.font = this.getSubtitleFont();
-    for (const slice of vizSlices) {
+
+    const drawSubtitle = (slice: CastInternal<SliceT>) => {
       if (
         slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX ||
         !slice.subTitle ||
         slice.flags & SLICE_FLAGS_INSTANT
       ) {
-        continue;
+        return;
       }
       const rectXCenter = slice.x + slice.w / 2;
       const subTitle = cropText(slice.subTitle, charWidth, slice.w);
       const y = this.getSliceY(slice.depth);
       const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
       ctx.fillText(subTitle, rectXCenter, yMidPoint);
+    };
+
+    for (const slice of this.slices) {
+      if (!this.isVisible(slice)) continue;
+      drawSubtitle(slice);
+    }
+    for (const slice of this.incomplete) {
+      drawSubtitle(slice);
+    }
+    if (this.selectedSliceNotInData) {
+      drawSubtitle(assertExists(this.selectedSlice));
     }
 
     // Here we need to ensure we never draw a slice that hasn't been
@@ -749,6 +762,7 @@ export abstract class BaseSliceTrack<
     // directly.
     if (discoveredSelection !== undefined) {
       this.selectedSlice = discoveredSelection;
+      this.selectedSliceNotInData = false; // It's now in the data.
 
       // Draw a thicker border around the selected slice (or chevron).
       const slice = discoveredSelection;
@@ -776,6 +790,11 @@ export abstract class BaseSliceTrack<
       timescale.timeToPx(this.slicesKey.start),
       timescale.timeToPx(this.slicesKey.end),
     );
+  }
+
+  // Returns true if the slice overlaps the visible time window.
+  private isVisible(slice: Slice): boolean {
+    return slice.startNs <= this.visEnd && slice.endNs >= this.visStart;
   }
 
   async onDestroy(): Promise<void> {
@@ -912,36 +931,6 @@ export abstract class BaseSliceTrack<
     const args: OnSliceClickArgs<SliceT> = {slice};
     this.onSliceClick(args);
     return true;
-  }
-
-  private getVisibleSlicesInternal(
-    start: time,
-    end: time,
-  ): Array<CastInternal<SliceT>> {
-    // Slice visibility is computed using tsq / endTsq. The means an
-    // event at ts=100n can end up with tsq=90n depending on the bucket
-    // calculation. start and end here are the direct unquantised
-    // boundaries so when start=100n we should see the event at tsq=90n
-    // Ideally we would quantize start and end via the same calculation
-    // we used for slices but since that calculation happens in SQL
-    // this is hard. Instead we increase the range by +1 bucket in each
-    // direction. It's fine to overestimate since false positives
-    // (incorrectly marking a slice as visible) are not a problem it's
-    // only false negatives we have to avoid.
-    start = Time.sub(start, this.slicesKey.bucketSize);
-    end = Time.add(end, this.slicesKey.bucketSize);
-
-    let slices = filterVisibleSlices<CastInternal<SliceT>>(
-      this.slices,
-      start,
-      end,
-    );
-    slices = slices.concat(this.incomplete);
-    // The selected slice is always visible:
-    if (this.selectedSlice && !this.slices.includes(this.selectedSlice)) {
-      slices.push(this.selectedSlice);
-    }
-    return slices;
   }
 
   private updateSliceAndTrackHeight() {

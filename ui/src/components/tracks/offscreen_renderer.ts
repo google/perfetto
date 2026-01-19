@@ -61,6 +61,7 @@ export interface OffscreenRendererConfig {
 export class OffscreenRenderer {
   private canvas?: OffscreenCanvas;
   private ctx?: OffscreenCanvasRenderingContext2D;
+  private bitmap?: ImageBitmap;
   readonly oversampleFactor: number;
 
   constructor(config: OffscreenRendererConfig = {}) {
@@ -158,6 +159,19 @@ export class OffscreenRenderer {
   }
 
   /**
+   * Transfer canvas content to an ImageBitmap for faster blitting.
+   * Call this after rendering is complete. This is synchronous.
+   */
+  finalize(): void {
+    if (this.canvas === undefined) return;
+    this.bitmap?.close();
+    // transferToImageBitmap is synchronous and creates a GPU-optimized bitmap.
+    // It also clears the canvas, but that's fine since we'll re-render before
+    // the next finalize() call.
+    this.bitmap = this.canvas.transferToImageBitmap();
+  }
+
+  /**
    * Blit the offscreen canvas to the main canvas with appropriate transform.
    *
    * @param ctx The main canvas rendering context
@@ -170,7 +184,9 @@ export class OffscreenRenderer {
     timescale: TimeScale,
     cacheKey: CacheKey,
   ): boolean {
-    if (this.canvas === undefined) return false;
+    // Prefer bitmap (faster), fall back to canvas if not yet finalized.
+    const source = this.bitmap ?? this.canvas;
+    if (source === undefined) return false;
 
     const bucketSize = Number(cacheKey.bucketSize);
     const timePerPx = timescale.pxToDuration(1);
@@ -181,12 +197,11 @@ export class OffscreenRenderer {
     // threshold to cross, making different source pixels get sampled.
     const offsetX = Math.round(timescale.timeToPx(cacheKey.start));
 
-    ctx.save();
-    ctx.imageSmoothingQuality = 'high';
-    ctx.translate(offsetX, 0);
-    ctx.scale(scaleX, 1);
-    ctx.drawImage(this.canvas, 0, 0);
-    ctx.restore();
+    // Use 9-argument drawImage to specify destination size directly,
+    // avoiding transform matrix overhead.
+    const destW = source.width * scaleX;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(source, 0, 0, source.width, source.height, offsetX, 0, destW, source.height);
 
     return true;
   }
@@ -203,6 +218,8 @@ export class OffscreenRenderer {
    * Call this when the track is destroyed.
    */
   dispose(): void {
+    this.bitmap?.close();
+    this.bitmap = undefined;
     this.canvas = undefined;
     this.ctx = undefined;
   }
