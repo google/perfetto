@@ -141,5 +141,105 @@ TEST_F(TraceToBundleTest, FailsOnInvalidInputFile) {
   EXPECT_NE(result, 0);
 }
 
+TEST_F(TraceToBundleTest, IncludesDeobfuscationData) {
+  const char* input_trace = "test/data/android_sched_and_ps.pb";
+
+  std::ifstream test_file(input_trace);
+  if (!test_file.good()) {
+    GTEST_SKIP() << "Test trace file not available: " << input_trace;
+  }
+  test_file.close();
+
+  base::TempFile mapping_file = base::TempFile::Create();
+  std::string mapping_content =
+      "com.example.Foo -> a:\n"
+      "    void bar() -> b\n";
+  base::WriteAll(mapping_file.fd(), mapping_content.data(),
+                 mapping_content.size());
+
+  base::TempFile output_file = base::TempFile::Create();
+  std::string output_path = output_file.path();
+
+  BundleContext context;
+  context.no_auto_symbol_paths = true;
+  context.proguard_maps = {{"com.example", mapping_file.path()}};
+
+  int result = TraceToBundle(input_trace, output_path, context);
+  EXPECT_EQ(result, 0);
+  EXPECT_TRUE(TarContainsEntry(output_path, "trace.perfetto"));
+  EXPECT_TRUE(TarContainsEntry(output_path, "deobfuscation.pb"));
+}
+
+TEST_F(TraceToBundleTest, NoDeobfuscationWithoutMaps) {
+  const char* input_trace = "test/data/android_sched_and_ps.pb";
+
+  std::ifstream test_file(input_trace);
+  if (!test_file.good()) {
+    GTEST_SKIP() << "Test trace file not available: " << input_trace;
+  }
+  test_file.close();
+
+  base::TempFile output_file = base::TempFile::Create();
+  std::string output_path = output_file.path();
+
+  BundleContext context;
+  context.no_auto_symbol_paths = true;
+
+  int result = TraceToBundle(input_trace, output_path, context);
+  EXPECT_EQ(result, 0);
+  EXPECT_TRUE(TarContainsEntry(output_path, "trace.perfetto"));
+  EXPECT_FALSE(TarContainsEntry(output_path, "deobfuscation.pb"));
+}
+
+TEST_F(TraceToBundleTest, FailsOnNonexistentProguardMap) {
+  const char* input_trace = "test/data/android_sched_and_ps.pb";
+
+  std::ifstream test_file(input_trace);
+  if (!test_file.good()) {
+    GTEST_SKIP() << "Test trace file not available: " << input_trace;
+  }
+  test_file.close();
+
+  base::TempFile output_file = base::TempFile::Create();
+  std::string output_path = output_file.path();
+
+  BundleContext context;
+  context.no_auto_symbol_paths = true;
+  context.proguard_maps = {{"com.example", "/nonexistent/mapping.txt"}};
+
+  int result = TraceToBundle(input_trace, output_path, context);
+  EXPECT_NE(result, 0);
+}
+
+TEST_F(TraceToBundleTest, HandlesMultipleProguardMaps) {
+  const char* input_trace = "test/data/android_sched_and_ps.pb";
+
+  std::ifstream test_file(input_trace);
+  if (!test_file.good()) {
+    GTEST_SKIP() << "Test trace file not available: " << input_trace;
+  }
+  test_file.close();
+
+  base::TempFile mapping_file1 = base::TempFile::Create();
+  std::string content1 = "com.pkg1.Foo -> a:\n    void bar() -> b\n";
+  base::WriteAll(mapping_file1.fd(), content1.data(), content1.size());
+
+  base::TempFile mapping_file2 = base::TempFile::Create();
+  std::string content2 = "com.pkg2.Baz -> c:\n    int qux() -> d\n";
+  base::WriteAll(mapping_file2.fd(), content2.data(), content2.size());
+
+  base::TempFile output_file = base::TempFile::Create();
+  std::string output_path = output_file.path();
+
+  BundleContext context;
+  context.no_auto_symbol_paths = true;
+  context.proguard_maps = {{"com.pkg1", mapping_file1.path()},
+                           {"com.pkg2", mapping_file2.path()}};
+
+  int result = TraceToBundle(input_trace, output_path, context);
+  EXPECT_EQ(result, 0);
+  EXPECT_TRUE(TarContainsEntry(output_path, "deobfuscation.pb"));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_to_text

@@ -17,10 +17,12 @@
 #include "src/traceconv/trace_to_bundle.h"
 
 #include <string>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/profiling/deobfuscator.h"
 #include "src/trace_processor/util/auto_symbolizer.h"
 #include "src/trace_processor/util/symbol_path_discovery.h"
 #include "src/trace_processor/util/tar_writer.h"
@@ -86,6 +88,45 @@ int TraceToBundle(const std::string& input_file_path,
       PERFETTO_ELOG("Symbolization failed: %s",
                     sym_result.error_details.c_str());
       return 1;
+  }
+
+  // Collect ProGuard maps from explicit context and discovered paths.
+  std::vector<profiling::ProguardMap> proguard_maps;
+  for (const auto& map_spec : context.proguard_maps) {
+    proguard_maps.push_back({map_spec.package, map_spec.path});
+  }
+
+  // Add discovered maps (unless auto-discovery is disabled).
+  if (!context.no_auto_symbol_paths) {
+    auto discovered = trace_processor::util::DiscoverSymbolPaths(
+        {}, context.android_product_out, context.working_dir);
+    for (const auto& path : discovered.proguard_map_paths) {
+      proguard_maps.push_back({"", path});
+    }
+  }
+
+  // Deobfuscate Java stack traces if ProGuard maps are available.
+  if (!proguard_maps.empty()) {
+    std::string deobfuscation_data;
+    bool success = profiling::ReadProguardMapsToDeobfuscationPackets(
+        proguard_maps,
+        [&deobfuscation_data](std::string packet) {
+          deobfuscation_data += packet;
+        });
+
+    if (!success) {
+      PERFETTO_ELOG("Failed to read ProGuard mapping files");
+      return 1;
+    }
+
+    if (!deobfuscation_data.empty()) {
+      auto add_status = tar.AddFile("deobfuscation.pb", deobfuscation_data);
+      if (!add_status.ok()) {
+        PERFETTO_ELOG("Failed to add deobfuscation data to TAR: %s",
+                      add_status.c_message());
+        return 1;
+      }
+    }
   }
 
   return 0;
