@@ -30,6 +30,7 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {TabStrip} from '../../widgets/tab_strip';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
+import { formatFileSize } from 'src/base/file_utils';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -74,19 +75,11 @@ const V8_JS_FUNCTION_SCHEMA: SQLSchemaRegistry = {
   },
 };
 
-const UNIT_SIZE = 1024;
-const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
 function formatByteValue(value: SqlValue): string {
   if (typeof value !== 'bigint') {
     return String(value);
   }
-  let converted = Number(value);
-  let unitIndex = 0;
-  while (converted >= UNIT_SIZE && unitIndex < UNITS.length - 1) {
-    converted /= UNIT_SIZE;
-    unitIndex++;
-  }
-  return `${converted.toFixed(2)} ${UNITS[unitIndex]}`;
+  return formatFileSize(value);
 }
 
 const TAB_SOURCE = 'source';
