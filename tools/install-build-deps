@@ -798,18 +798,6 @@ def CheckPythonVenv():
 
 
 def InstallPythonVenv():
-  # Give actionable instructions to Googlers on how to go/corp-airlock.
-  if shutil.which("gpkg"):
-    DEVNULL = subprocess.DEVNULL
-    res = subprocess.run(["gpkg", "auth"], stderr=DEVNULL, stdout=DEVNULL)
-    if res.returncode != 0:
-      print('Python packages require an update. Please run in a new terminal:')
-      print('gcert; gpkg setup  # See go/corp-airlock')
-      if sys.stdin.isatty:
-        input('Press a key to continue...')
-      else:
-        sys.exit(1)
-
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
   cur_python_interpreter = sys.executable
 
@@ -820,7 +808,19 @@ def InstallPythonVenv():
 
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
-  subprocess.check_call(cmd)
+  if subprocess.call(cmd) != 0:
+    if shutil.which("gpkg"):
+      # Give actionable instructions to Googlers on how to go/corp-airlock.
+      print(
+          '''\033[33m
++---------------------------------------------------------+
+| venv installation failed, likely due to go/corp-airlock |
+| Run `gcert && gpkg setup` and try again                 |
++---------------------------------------------------------+
+\033[0m''',
+          file=sys.stderr)
+    sys.exit(1)
+
   with open(PYTHON_STATUS_FILE, 'w') as f:
     f.write(HashLocalFile(PYTHON_REQUIREMENTS))
 

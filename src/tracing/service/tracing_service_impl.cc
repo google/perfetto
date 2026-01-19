@@ -361,9 +361,11 @@ using StringFilterRule =
 
 std::optional<protozero::StringFilter::SemanticTypeMask>
 ConvertSemanticTypeMask(const StringFilterRule& rule) {
-  // If no semantic types are specified, match all semantic types.
+  // UNSPECIFIED (0) is treated as its own category - it only matches rules
+  // that explicitly include bit 0 in their mask. If no semantic types are
+  // specified, default to matching only UNSPECIFIED (bit 0).
   if (rule.semantic_type().empty()) {
-    return protozero::StringFilter::SemanticTypeMask::All();
+    return protozero::StringFilter::SemanticTypeMask::Unspecified();
   }
 
   protozero::StringFilter::SemanticTypeMask mask;

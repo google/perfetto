@@ -622,8 +622,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       on: `${iiTable.name}(parent_id)`,
     });
 
-    const metrics = metricsFromTableOrSubquery(
-      `(
+    const metrics = metricsFromTableOrSubquery({
+      tableOrSubquery: `(
         select *
         from _viz_slice_ancestor_agg!(
           (
@@ -635,7 +635,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ${iiTable.name}
         )
       )`,
-      [
+      tableMetrics: [
         {
           name: 'Duration',
           unit: 'ns',
@@ -647,9 +647,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           columnName: 'self_count',
         },
       ],
-      'include perfetto module viz.slices;',
-      undefined,
-      [
+      dependencySql: 'include perfetto module viz.slices;',
+      aggregatableProperties: [
         {
           name: 'simple_count',
           displayName: 'Slice Count',
@@ -657,7 +656,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           isVisible: (_) => true,
         },
       ],
-    );
+      nameColumnLabel: 'Slice Name',
+    });
     const store = assertExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(

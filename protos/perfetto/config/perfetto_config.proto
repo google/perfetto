@@ -4933,9 +4933,19 @@ message TraceConfig {
       // Introduced in: Perfetto v54.
       optional string name = 4;
 
-      // The semantic types this rule applies to. If empty, the rule applies
-      // to all string fields regardless of their semantic type. If non-empty,
-      // the rule only applies to fields whose semantic type is in this list.
+      // The semantic types this rule applies to.
+      //
+      // SEMANTIC_TYPE_UNSPECIFIED (0) is treated as its own distinct category:
+      // - If empty, the rule applies only to fields with UNSPECIFIED type.
+      // - If non-empty, the rule applies only to fields whose semantic type
+      //   is explicitly listed. To match UNSPECIFIED fields, you must include
+      //   SEMANTIC_TYPE_UNSPECIFIED in the list.
+      //
+      // Examples:
+      //   semantic_type: []           -> matches only UNSPECIFIED fields
+      //   semantic_type: [ATRACE]     -> matches only ATRACE fields
+      //   semantic_type: [UNSPECIFIED, ATRACE] -> matches both
+      //
       // See /rfcs/0011-subset-string-filter-rules.md for design details.
       // Introduced in: Perfetto v54.
       repeated SemanticType semantic_type = 5;

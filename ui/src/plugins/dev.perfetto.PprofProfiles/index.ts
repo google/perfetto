@@ -123,6 +123,7 @@ export default class implements PerfettoPlugin {
       metrics.push({
         name: it.display_name,
         unit: it.sample_type_unit,
+        nameColumnLabel: 'Symbol',
         dependencySql: 'include perfetto module callstacks.stack_profile',
         statement: `
           WITH profile_samples AS MATERIALIZED (

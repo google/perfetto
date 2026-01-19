@@ -172,8 +172,8 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
     if (utids.length === 0) {
       return undefined;
     }
-    const metrics = metricsFromTableOrSubquery(
-      `
+    const metrics = metricsFromTableOrSubquery({
+      tableOrSubquery: `
       (
         select
           id,
@@ -191,23 +191,26 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         ))
       )
     `,
-      [
+      tableMetrics: [
         {
           name: 'CPU Profile Samples',
           unit: '',
           columnName: 'self_count',
         },
       ],
-      'include perfetto module callstacks.stack_profile',
-      [{name: 'mapping_name', displayName: 'Mapping'}],
-      [
+      dependencySql: 'include perfetto module callstacks.stack_profile',
+      unaggregatableProperties: [
+        {name: 'mapping_name', displayName: 'Mapping'},
+      ],
+      aggregatableProperties: [
         {
           name: 'source_location',
           displayName: 'Source Location',
           mergeAggregation: 'ONE_OR_SUMMARY',
         },
       ],
-    );
+      nameColumnLabel: 'Symbol',
+    });
     const store = assertExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(

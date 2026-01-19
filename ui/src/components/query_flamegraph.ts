@@ -69,6 +69,10 @@ export interface QueryFlamegraphMetric {
   // the user suffixed with this.
   readonly unit: string;
 
+  // Label for the name column in copy stack table and tooltip.
+  // Examples: "Symbol", "Slice", "Class". Defaults to "Name".
+  readonly nameColumnLabel?: string;
+
   // SQL statement which need to be run in preparation for being able to execute
   // `statement`.
   readonly dependencySql?: string;
@@ -116,6 +120,20 @@ export interface QueryFlamegraphMetric {
   readonly optionalMarker?: FlamegraphOptionalMarker;
 }
 
+export interface MetricsFromTableOrSubqueryOptions {
+  readonly tableOrSubquery: string;
+  readonly tableMetrics: ReadonlyArray<{
+    name: string;
+    unit: string;
+    columnName: string;
+  }>;
+  readonly dependencySql?: string;
+  readonly unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>;
+  readonly aggregatableProperties?: ReadonlyArray<AggQueryFlamegraphColumn>;
+  readonly optionalActions?: ReadonlyArray<FlamegraphOptionalAction>;
+  readonly nameColumnLabel?: string;
+}
+
 // Given a table and columns on those table (corresponding to metrics),
 // returns an array of `QueryFlamegraphMetric` structs which can be passed
 // in QueryFlamegraph's attrs.
@@ -124,26 +142,22 @@ export interface QueryFlamegraphMetric {
 // columns specified by `tableMetrics[].name`, `unaggregatableProperties` and
 // `aggregatableProperties`.
 export function metricsFromTableOrSubquery(
-  tableOrSubquery: string,
-  tableMetrics: ReadonlyArray<{name: string; unit: string; columnName: string}>,
-  dependencySql?: string,
-  unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>,
-  aggregatableProperties?: ReadonlyArray<AggQueryFlamegraphColumn>,
-  optionalActions?: ReadonlyArray<FlamegraphOptionalAction>,
+  opts: MetricsFromTableOrSubqueryOptions,
 ): QueryFlamegraphMetric[] {
   const metrics = [];
-  for (const {name, unit, columnName} of tableMetrics) {
+  for (const {name, unit, columnName} of opts.tableMetrics) {
     metrics.push({
       name,
       unit,
-      dependencySql,
+      nameColumnLabel: opts.nameColumnLabel,
+      dependencySql: opts.dependencySql,
       statement: `
         select *, ${columnName} as value
-        from ${tableOrSubquery}
+        from ${opts.tableOrSubquery}
       `,
-      unaggregatableProperties,
-      aggregatableProperties,
-      optionalActions,
+      unaggregatableProperties: opts.unaggregatableProperties,
+      aggregatableProperties: opts.aggregatableProperties,
+      optionalActions: opts.optionalActions,
     });
   }
   return metrics;

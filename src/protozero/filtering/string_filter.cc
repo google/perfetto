@@ -138,9 +138,7 @@ bool StringFilter::MaybeFilterInternal(char* ptr,
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
   for (const Rule& rule : rules_) {
-    // UNSPECIFIED (0) fields always match - we don't know what they contain,
-    // so apply rules conservatively. For other types, check the mask.
-    if (semantic_type != 0 && !rule.semantic_type_mask.IsSet(semantic_type)) {
+    if (!rule.semantic_type_mask.IsSet(semantic_type)) {
       continue;
     }
     switch (rule.policy) {

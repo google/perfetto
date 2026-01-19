@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
+import {formatDuration} from '../../components/time_utils';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {
   CellRenderResult,
@@ -28,12 +30,13 @@ import {
   TrackEventSelection,
   TrackSelection,
 } from '../../public/selection';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Trace} from '../../public/trace';
-import {Spinner} from '../../widgets/spinner';
 import {Tab} from '../../public/tab';
-import {formatDuration} from '../../components/time_utils';
+import {Trace} from '../../public/trace';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Row, SqlValue} from '../../trace_processor/query_result';
+import {MultiSelectDiff, PopupMultiSelect} from '../../widgets/multiselect';
+import {PopupPosition} from '../../widgets/popup';
+import {Spinner} from '../../widgets/spinner';
 
 const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
   v8_rcs: {
@@ -50,32 +53,34 @@ const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
 };
 
 const GROUP_COLORS: {[key: string]: string} = {
-  total: '#BBB',
-  ic: '#3366CC',
-  optimize_maglev_bg: '#962c02',
-  optimize_maglev: '#fc4f26',
-  optimize_bg: '#702000',
-  optimize: '#DC3912',
+  api: '#990099',
+  blink: '#006600',
+  callback: '#109618',
   compile_bg: '#b08000',
   compile: '#FFAA00',
+  gc_bg: '#00597c',
+  gc_custom: '#0099C6',
+  gc: '#00799c',
+  ic: '#3366CC',
+  javascript: '#DD4477',
+  network_data: '#103366',
+  optimize_bg: '#702000',
+  optimize_maglev_bg: '#962c02',
+  optimize_maglev: '#fc4f26',
+  optimize: '#DC3912',
   parse_bg: '#c05000',
   parse: '#FF6600',
-  network_data: '#103366',
-  callback: '#109618',
-  api: '#990099',
-  gc_custom: '#0099C6',
-  gc_bg: '#00597c',
-  gc: '#00799c',
-  javascript: '#DD4477',
   runtime: '#88BB00',
-  blink: '#006600',
+  total: '#BBB',
   unclassified: '#000',
 };
+const GROUP_COLORS_LENGHT = Object.keys(GROUP_COLORS).length;
 
 export class V8RuntimeCallStatsTab implements Tab {
   private previousSelection?: Selection;
   private loading = false;
   private dataSource?: SQLDataSource;
+  private selectedGroups = new Set<string>(Object.keys(GROUP_COLORS));
 
   constructor(private readonly trace: Trace) {}
 
@@ -114,6 +119,7 @@ export class V8RuntimeCallStatsTab implements Tab {
     return m(DataGrid, {
       schema: this.getUiSchema(),
       rootSchema: 'v8_rcs',
+      toolbarItemsLeft: this.renderGroupFilter(),
       data: this.dataSource,
       initialPivot: {
         groupBy: [{field: 'v8_rcs_group', id: 'v8_rcs_group'}],
@@ -211,6 +217,33 @@ export class V8RuntimeCallStatsTab implements Tab {
       {style: {padding: '10px'}},
       'Select an area, a slice, or a track to view specific V8 Runtime Call Stats, or clear selection to view all.',
     );
+  }
+
+  private renderGroupFilter() {
+    const groups = Object.keys(GROUP_COLORS);
+    return m(PopupMultiSelect, {
+      icon: Icons.Filter,
+      label: 'Filter Groups',
+      position: PopupPosition.Top,
+      showNumSelected: true,
+      options: groups.map((group) => ({
+        id: group,
+        name: group,
+        checked: this.selectedGroups.has(group),
+      })),
+      onChange: (diffs: MultiSelectDiff[]) => {
+        for (const {id, checked} of diffs) {
+          if (checked) {
+            this.selectedGroups.add(id);
+          } else {
+            this.selectedGroups.delete(id);
+          }
+        }
+        if (diffs.length && this.previousSelection) {
+          this.loadData(this.previousSelection);
+        }
+      },
+    });
   }
 
   private hasSelectionChanged(selection: Selection): boolean {
@@ -315,6 +348,14 @@ export class V8RuntimeCallStatsTab implements Tab {
       throw new Error(`Unknown selection kind: ${selection.kind}`);
     }
 
+    let groupWhereClause = '1 = 1';
+    if (this.selectedGroups.size !== GROUP_COLORS_LENGHT) {
+      const selectedGroups = Array.from(this.selectedGroups)
+        .map((name) => `'${name}'`)
+        .join(',');
+      groupWhereClause = `v8_rcs_group IN (${selectedGroups})`;
+    }
+
     await this.trace.engine.query(`
       CREATE OR REPLACE PERFETTO VIEW v8_rcs_view AS
       WITH rcs_entries AS (
@@ -388,6 +429,7 @@ export class V8RuntimeCallStatsTab implements Tab {
         v8_rcs_dur * 100.0 / SUM(v8_rcs_dur) OVER () AS v8_rcs_dur_percent,
         v8_rcs_count * 100.0 / SUM(v8_rcs_count) OVER () AS v8_rcs_count_percent
       FROM rcs_aggregated
+      WHERE ${groupWhereClause}
     `);
   }
 }
