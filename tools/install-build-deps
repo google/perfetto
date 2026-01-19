@@ -786,33 +786,14 @@ def CheckPythonVenv():
   return True
 
 
-def FindPython3ForNewVenv(python_interpreter):
-  # If the current interpreter is inside the venv, we can't use it to re-create
-  # the venv (because we are about to delete it).
-  if not os.path.abspath(python_interpreter).startswith(
-      os.path.abspath(PYTHON_VENV_DIR)):
-    return python_interpreter
-  # Find a python interpreter in the PATH that is not inside the venv.
-  for path in os.get_exec_path():
-    path = os.path.abspath(path)
-    if path.startswith(os.path.abspath(PYTHON_VENV_DIR)):
-      continue
-    python_candidate = os.path.join(path, 'python3')
-    if os.path.exists(python_candidate):
-      return python_candidate
-  logging.warning("Could not find alternative python interpreter in PATH")
-  return python_interpreter
-
-
 def InstallPythonVenv():
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
-  python_interpreter = FindPython3ForNewVenv(sys.executable)
+  python_interpreter = 'python3' if sys.platform != "win32" else 'python3.exe'
 
   shutil.rmtree(PYTHON_VENV_DIR, ignore_errors=True)
   cmd = [python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
   logging.info(f'Installing python venv {" ".join(cmd)}')
   subprocess.check_call(cmd)
-
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
   subprocess.check_call(cmd)
