@@ -23,9 +23,19 @@ import {Storage} from './storage';
 
 export const PERFETTO_SETTINGS_STORAGE_KEY = 'perfettoSettings';
 
+function deepFreeze<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') return obj;
+  Object.freeze(obj);
+  Object.values(obj).forEach(deepFreeze);
+  return obj;
+}
+
 // Implement the Setting interface for registered settings
 export class SettingImpl<T> implements Setting<T> {
-  readonly bootValue?: T;
+  // Record what the raw value was at startup. This is used to determine if a
+  // reload is required.
+  readonly bootRawValue: unknown;
+  private cache?: {rawValue: unknown; normalizedValue: T};
 
   constructor(
     private readonly manager: SettingsManagerImpl,
@@ -38,9 +48,7 @@ export class SettingImpl<T> implements Setting<T> {
     public readonly requiresReload: boolean = false,
     public readonly render?: SettingRenderer<T>,
   ) {
-    // Record what the value was at startup. This is used to determine if a
-    // reload is required.
-    this.bootValue = this.get();
+    this.bootRawValue = this.manager.getStore()[this.id];
   }
 
   get isDefault(): boolean {
@@ -49,27 +57,23 @@ export class SettingImpl<T> implements Setting<T> {
   }
 
   get(): T {
-    const storedValue = this.manager.getStoredValue(this.id);
-    const parseResult = this.schema.safeParse(storedValue);
-    return parseResult.success ? parseResult.data : this.defaultValue;
+    const rawValue = this.manager.getStore()[this.id];
+    const cache = this.cache;
+    if (cache !== undefined && cache.rawValue === rawValue) {
+      return cache.normalizedValue;
+    }
+    const parseResult = this.schema.safeParse(rawValue);
+    // Deep freeze the object to prevent accidential mutations - will throw in
+    // if attempted (in strict mode - which is the default for TS).
+    const normalizedValue = deepFreeze(
+      parseResult.success ? parseResult.data : this.defaultValue,
+    );
+    this.cache = {rawValue, normalizedValue};
+    return normalizedValue;
   }
 
   set(newValue: T): void {
-    const parseResult = this.schema.safeParse(newValue);
-    if (!parseResult.success) {
-      console.error(
-        `Invalid value for setting "${this.id}":`,
-        newValue,
-        'Error:',
-        parseResult.error,
-      );
-      return;
-    }
-
-    const validatedValue = parseResult.data;
-    if (this.get() !== validatedValue) {
-      this.manager.updateStoredValue(this.id, validatedValue);
-    }
+    this.manager.updateStoredValue(this.id, newValue);
   }
 
   reset(): void {
@@ -84,7 +88,7 @@ export class SettingImpl<T> implements Setting<T> {
 
 export class SettingsManagerImpl implements SettingsManager {
   private readonly registry = new Map<string, SettingImpl<unknown>>();
-  private currentStoredValues: Record<string, unknown> = {};
+  private currentStoredValues: Readonly<Record<string, unknown>> = {};
   private readonly store: Storage;
 
   constructor(store: Storage) {
@@ -98,14 +102,6 @@ export class SettingsManagerImpl implements SettingsManager {
 
   register<T>(setting: SettingDescriptor<T>, pluginId?: string): Setting<T> {
     // Determine the initial value: stored value if valid, otherwise default.
-    const storedValue = this.currentStoredValues[setting.id];
-    const parseResult = setting.schema.safeParse(storedValue);
-
-    // If the stored value was invalid, update storage with the default.
-    if (!parseResult.success && storedValue !== undefined) {
-      this.currentStoredValues[setting.id] = setting.defaultValue;
-      this.save();
-    }
 
     if (this.registry.has(setting.id)) {
       throw new Error(`Setting with id "${setting.id}" already registered.`);
@@ -147,11 +143,11 @@ export class SettingsManagerImpl implements SettingsManager {
     // Check if any setting that requires reload has changed from its original value
     for (const setting of this.registry.values()) {
       if (setting.requiresReload) {
-        const bootValue = setting.bootValue;
-        const currentValue = setting.get();
-
-        // Different serialization might cause false differences, so use JSON comparison
-        if (JSON.stringify(currentValue) !== JSON.stringify(bootValue)) {
+        const currentRawValue = this.currentStoredValues[setting.id];
+        if (
+          JSON.stringify(currentRawValue) !==
+          JSON.stringify(setting.bootRawValue)
+        ) {
           return true;
         }
       }
@@ -159,19 +155,20 @@ export class SettingsManagerImpl implements SettingsManager {
     return false;
   }
 
-  // Internal method to get stored values
-  getStoredValue(id: string): unknown {
-    return this.currentStoredValues[id];
+  // Internal method to get the store reference (for cache invalidation)
+  getStore(): Readonly<Record<string, unknown>> {
+    return this.currentStoredValues;
   }
 
   // Internal method to update stored values
   updateStoredValue(id: string, value: unknown): void {
-    this.currentStoredValues[id] = value;
+    this.currentStoredValues = {...this.currentStoredValues, [id]: value};
     this.save();
   }
 
   clearStoredValue(id: string): void {
-    delete this.currentStoredValues[id];
+    const {[id]: _, ...rest} = this.currentStoredValues;
+    this.currentStoredValues = rest;
     this.save();
   }
 
@@ -184,17 +181,20 @@ export class SettingsManagerImpl implements SettingsManager {
     }
 
     // Re-validate existing registered settings after load
-    for (const runtime of this.registry.values()) {
-      const setting = runtime;
-      const storedValue = this.currentStoredValues[setting.id];
+    let needsUpdate = false;
+    let updatedValues = this.currentStoredValues;
+    for (const setting of this.registry.values()) {
+      const storedValue = updatedValues[setting.id];
       const parseResult = setting.schema.safeParse(storedValue);
 
       // Ensure storage reflects the potentially corrected value
       if (!parseResult.success && storedValue !== undefined) {
-        this.currentStoredValues[setting.id] = setting.defaultValue;
+        updatedValues = {...updatedValues, [setting.id]: setting.defaultValue};
+        needsUpdate = true;
       }
-
-      // Don't overwrite originalValues here since they'll be set during registration
+    }
+    if (needsUpdate) {
+      this.currentStoredValues = updatedValues;
     }
 
     // Save potentially corrected values back to storage

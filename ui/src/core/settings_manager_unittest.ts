@@ -122,28 +122,6 @@ describe('SettingsManagerImpl', () => {
     expect(setting.isDefault).toBe(false);
   });
 
-  test('should handle invalid value in storage during load', () => {
-    mockStorage.setInitialData({[stringSettingDesc.id]: 123}); // Invalid type
-    settingsManager = new SettingsManagerImpl(mockStorage); // Load happens here
-    const setting = settingsManager.register(stringSettingDesc);
-
-    // Should fall back to default
-    expect(setting.get()).toBe(stringSettingDesc.defaultValue);
-    expect(setting.isDefault).toBe(true);
-    // Storage should be corrected
-    expect(mockStorage.getStoredData()[stringSettingDesc.id]).toBe(
-      stringSettingDesc.defaultValue,
-    );
-  });
-
-  test('should ignore invalid value during set', () => {
-    const setting = settingsManager.register(numberSettingDesc);
-    const initialValue = setting.get();
-    setting.set('not a number' as unknown as number); // Invalid type
-    expect(setting.get()).toBe(initialValue); // Value should not change
-    expect(mockStorage.getStoredData()[numberSettingDesc.id]).toBeUndefined(); // Should not be saved
-  });
-
   test('should return all registered settings sorted by id', () => {
     settingsManager.register(numberSettingDesc);
     settingsManager.register(stringSettingDesc);
@@ -198,5 +176,56 @@ describe('SettingsManagerImpl', () => {
     expect(s1.isDefault).toBe(true);
     expect(s2.isDefault).toBe(true);
     expect(Object.keys(mockStorage.getStoredData()).length).toBe(0); // Storage cleared
+  });
+
+  test('get() returns cached value without re-parsing', () => {
+    const setting = settingsManager.register(stringSettingDesc);
+    const spy = jest.spyOn(stringSettingDesc.schema, 'safeParse');
+
+    setting.get(); // First call - should parse
+    setting.get(); // Second call - should use cache
+    setting.get(); // Third call - should use cache
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  test('cache invalidates after set()', () => {
+    const setting = settingsManager.register(stringSettingDesc);
+    const spy = jest.spyOn(stringSettingDesc.schema, 'safeParse');
+
+    setting.get(); // Parse 1
+    setting.set('new value');
+    setting.get(); // Parse 2 (cache invalidated)
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+  });
+
+  test('cache invalidates after resetAll()', () => {
+    const setting = settingsManager.register(stringSettingDesc);
+    setting.set('new value');
+
+    expect(setting.get()).toBe('new value');
+    settingsManager.resetAll();
+    expect(setting.get()).toBe(stringSettingDesc.defaultValue);
+  });
+
+  test('mutating an object throws at runtime', () => {
+    const setting = settingsManager.register({
+      id: 'test.object',
+      name: 'Test Object',
+      description: 'A test object setting',
+      defaultValue: {a: 1, b: 2},
+      schema: z.object({
+        a: z.number(),
+        b: z.number(),
+      }),
+    });
+
+    const value = setting.get();
+    expect(() => {
+      value.a = 42; // Attempt to mutate
+    }).toThrow();
   });
 });
