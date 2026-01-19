@@ -152,43 +152,54 @@ export class TrackRenderPipeline<RawRow extends Row, ResultRow, GlobalState> {
     ctx: TrackUpdateContext,
   ): Promise<UpdateResult> {
     const rawKey = createCacheKeyFromCtx(ctx);
-
     this.lastRawSql = rawSql;
 
-    if (this.queryMonitor.ifStateChanged() || !rawKey.isCoveredBy(this.key)) {
-      const key = rawKey.normalize();
-      const result = await this.trace.engine.query(
-        this.sqlProvider(rawSql, key),
-      );
-
-      const buffer = this.otherBuffer;
-      buffer.length = 0;
-      const state = this.createState();
-      let lastYield = performance.now();
-      for (let i = 0, it = result.iter(spec); it.valid(); it.next(), ++i) {
-        if (i % CHECK_INTERVAL === 0) {
-          // Yield to the main thread periodically to keep the UI responsive.
-          if (performance.now() - lastYield > YIELD_INTERVAL_MS) {
-            await this.yield();
-            lastYield = performance.now();
-          }
-          // Check if the viewport has changed; if so, abort and schedule a
-          // redraw to trigger a fresh update.
-          const latestKey = createCacheKeyFromCtx(ctx.latestDisplayContext());
-          if (!latestKey.normalize().equals(key)) {
-            this.trace.raf.scheduleCanvasRedraw();
-            return 'aborted';
-          }
-        }
-        buffer.push(this.onRow(it, state));
-      }
-      this.key = key;
-      this.globalState = state;
-      this.activeBufferIdx = this.activeBufferIdx === 0 ? 1 : 0;
-      this.trace.raf.scheduleCanvasRedraw();
-      return 'updated';
+    // Check if we can reuse the existing cached data.
+    if (!this.queryMonitor.ifStateChanged() && rawKey.isCoveredBy(this.key)) {
+      return 'unchanged';
     }
-    return 'unchanged';
+
+    const key = rawKey.normalize();
+    const result = this.trace.engine.queryStreaming(
+      this.sqlProvider(rawSql, key),
+    );
+
+    this.otherBuffer.length = 0;
+
+    const state = this.createState();
+    let lastYield = performance.now();
+    for (const it = result.iter(spec); ; ) {
+      for (; it.valid(); it.next()) {
+        this.otherBuffer.push(this.onRow(it, state));
+        if (this.otherBuffer.length % CHECK_INTERVAL !== 0) {
+          continue;
+        }
+
+        // Check if the viewport has changed; if so, abort and schedule a
+        // redraw to trigger a fresh update.
+        const latestKey = createCacheKeyFromCtx(ctx.latestDisplayContext());
+        if (!latestKey.normalize().equals(key)) {
+          this.trace.raf.scheduleCanvasRedraw();
+          return 'aborted';
+        }
+
+        // Yield to the main thread periodically to keep the UI responsive.
+        if (performance.now() - lastYield > YIELD_INTERVAL_MS) {
+          await this.yield();
+          lastYield = performance.now();
+        }
+      }
+      if (result.isComplete()) {
+        break;
+      }
+      await result.waitMoreRows();
+      it.next(); // Advance to newly arrived data.
+    }
+    this.key = key;
+    this.globalState = state;
+    this.activeBufferIdx = this.activeBufferIdx === 0 ? 1 : 0;
+    this.trace.raf.scheduleCanvasRedraw();
+    return 'updated';
   }
 
   /**
