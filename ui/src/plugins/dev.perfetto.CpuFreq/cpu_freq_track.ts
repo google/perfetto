@@ -261,14 +261,18 @@ export class CpuFreqTrack implements TrackRenderer {
       return;
     }
 
-    // Run both pipelines. They use the same cache key parameters so rows
-    // should align by index.
+    // Run both pipelines with autoCommit=false to ensure they stay in sync.
+    // Only commit both when both successfully update, preventing misaligned
+    // data when one pipeline aborts mid-update.
     const [freqResult, idleResult] = await Promise.all([
-      this.freqPipeline.onUpdate('', FREQ_ROW, ctx),
-      this.idlePipeline.onUpdate('', IDLE_ROW, ctx),
+      this.freqPipeline.onUpdate('', FREQ_ROW, ctx, false),
+      this.idlePipeline.onUpdate('', IDLE_ROW, ctx, false),
     ]);
 
-    if (freqResult === 'updated' || idleResult === 'updated') {
+    // Only commit if both pipelines have new data ready.
+    if (freqResult.commit !== undefined && idleResult.commit !== undefined) {
+      freqResult.commit();
+      idleResult.commit();
       this.cacheKey = this.freqPipeline.getCacheKey();
     }
   }

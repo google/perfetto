@@ -30,15 +30,18 @@ declare const window: Window & {
 /**
  * Result of a TrackRenderPipeline.onUpdate() call.
  *
- * - 'updated': New data was fetched. The caller should read getActiveBuffer()
- *   and getGlobalState() to update its local state.
- * - 'aborted': The operation was aborted because the viewport changed during
- *   processing. The caller should not update its state; a new onUpdate() call
- *   will be triggered automatically.
- * - 'unchanged': The cached data is still valid. The caller can continue using
- *   its existing state.
+ * - status 'updated': New data was fetched. If autoCommit=true, buffers were
+ *   already swapped. If autoCommit=false, call `commit()` to swap buffers.
+ * - status 'aborted': The operation was aborted because the viewport changed
+ *   during processing. The caller should not update its state; a new onUpdate()
+ *   call will be triggered automatically.
+ * - status 'unchanged': The cached data is still valid. The caller can continue
+ *   using its existing state.
  */
-export type UpdateResult = 'updated' | 'aborted' | 'unchanged';
+export type UpdateResult =
+  | {status: 'updated'; commit?: () => void}
+  | {status: 'aborted'}
+  | {status: 'unchanged'};
 
 // Check for yield/abort every N iterations.
 const CHECK_INTERVAL = 1000;
@@ -87,7 +90,7 @@ const YIELD_INTERVAL_MS = window.scheduler !== undefined ? 4 : 8;
  *
  * // In your track's onUpdate():
  * const result = await this.pipeline.onUpdate(sql, rowSpec, ctx);
- * if (result === 'updated') {
+ * if (result.status === 'updated') {
  *   this.data = this.pipeline.getActiveBuffer();
  *   this.cacheKey = this.pipeline.getCacheKey();
  *   this.maxDepth = this.pipeline.getGlobalState()?.maxDepth ?? 0;
@@ -143,6 +146,10 @@ export class TrackRenderPipeline<RawRow extends Row, ResultRow, GlobalState> {
    * @param rawSql The raw SQL source (e.g., from getSqlSource()).
    * @param spec The row specification for iterating query results.
    * @param ctx The track update context with viewport info and abort detection.
+   * @param autoCommit If true (default), automatically swaps buffers when data
+   *   is ready. If false, call commitPendingUpdate() to swap buffers manually.
+   *   This is useful when coordinating multiple pipelines that must stay in
+   *   sync.
    * @returns 'updated' if new data is available, 'aborted' if viewport changed,
    *   'unchanged' if cached data is still valid.
    */
@@ -150,13 +157,14 @@ export class TrackRenderPipeline<RawRow extends Row, ResultRow, GlobalState> {
     rawSql: string,
     spec: RawRow,
     ctx: TrackUpdateContext,
+    autoCommit: boolean = true,
   ): Promise<UpdateResult> {
     const rawKey = createCacheKeyFromCtx(ctx);
     this.lastRawSql = rawSql;
 
     // Check if we can reuse the existing cached data.
     if (!this.queryMonitor.ifStateChanged() && rawKey.isCoveredBy(this.key)) {
-      return 'unchanged';
+      return {status: 'unchanged'};
     }
 
     const key = rawKey.normalize();
@@ -183,7 +191,7 @@ export class TrackRenderPipeline<RawRow extends Row, ResultRow, GlobalState> {
         const latestKey = createCacheKeyFromCtx(ctx.latestDisplayContext());
         if (!latestKey.normalize().equals(key)) {
           this.trace.raf.scheduleCanvasRedraw();
-          return 'aborted';
+          return {status: 'aborted'};
         }
 
         // Yield to the main thread periodically to keep the UI responsive.
@@ -196,11 +204,17 @@ export class TrackRenderPipeline<RawRow extends Row, ResultRow, GlobalState> {
       await result.waitMoreRows();
       it.next(); // Advance to newly arrived data.
     }
-    this.key = key;
-    this.globalState = state;
-    this.activeBufferIdx = this.activeBufferIdx === 0 ? 1 : 0;
-    this.trace.raf.scheduleCanvasRedraw();
-    return 'updated';
+    const commit = () => {
+      this.key = key;
+      this.globalState = state;
+      this.activeBufferIdx = this.activeBufferIdx === 0 ? 1 : 0;
+      this.trace.raf.scheduleCanvasRedraw();
+    };
+    if (autoCommit) {
+      commit();
+      return {status: 'updated'};
+    }
+    return {status: 'updated', commit};
   }
 
   /**
