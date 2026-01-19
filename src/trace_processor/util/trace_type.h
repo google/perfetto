@@ -26,6 +26,7 @@ enum TraceType {
   kAndroidBugreportTraceType,
   kAndroidDumpstateTraceType,
   kAndroidLogcatTraceType,
+  kCollapsedStackTraceType,
   kCtraceTraceType,
   kFuchsiaTraceType,
   kGzipTraceType,

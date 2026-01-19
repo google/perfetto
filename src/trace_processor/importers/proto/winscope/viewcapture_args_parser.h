@@ -19,6 +19,7 @@
 
 #include <optional>
 
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
@@ -44,6 +45,9 @@ class ViewCaptureArgsParser : public ArgsParser {
  private:
   bool TryAddDeinternedString(const Key&, uint64_t);
   std::optional<protozero::ConstChars> TryDeinternString(const Key&, uint64_t);
+
+  template <uint32_t FieldNumber>
+  std::optional<protozero::ConstChars> DeinternString(uint64_t);
 
   template <uint32_t FieldNumber, typename RowRef>
   std::optional<protozero::ConstChars>

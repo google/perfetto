@@ -58,6 +58,7 @@
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
+#include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
@@ -492,6 +493,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       kNinjaLogTraceType);
   context()->reader_registry->RegisterTraceReader<PprofTraceReader>(
       kPprofTraceType);
+  context()->reader_registry->RegisterTraceReader<CollapsedStackTraceReader>(
+      kCollapsedStackTraceType);
   context()
       ->reader_registry->RegisterTraceReader<perf_importer::PerfDataTokenizer>(
           kPerfDataTraceType);

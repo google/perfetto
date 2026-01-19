@@ -114,28 +114,6 @@ export function groupByCategory(stats: StatsSectionRow[]): ErrorCategory[] {
   return Array.from(categoryMap.values());
 }
 
-// Format file size from bytes to human-readable string
-export function formatFileSize(bytes: bigint | number): {
-  formatted: string;
-  exact: string;
-} {
-  const numBytes = Number(bytes);
-  const exact = `${numBytes.toLocaleString()} bytes`;
-
-  let formatted: string;
-  if (numBytes >= 1024 * 1024 * 1024) {
-    formatted = `${(numBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  } else if (numBytes >= 1024 * 1024) {
-    formatted = `${(numBytes / (1024 * 1024)).toFixed(2)} MB`;
-  } else if (numBytes >= 1024) {
-    formatted = `${(numBytes / 1024).toFixed(2)} KB`;
-  } else {
-    formatted = `${numBytes} bytes`;
-  }
-
-  return {formatted, exact};
-}
-
 // Render an error category card
 export function renderErrorCategoryCard(
   category: ErrorCategory,
