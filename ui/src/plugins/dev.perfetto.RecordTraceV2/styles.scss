@@ -364,6 +364,7 @@
   }
 
   .pf-toggle {
+    $indent: 35px;
     padding-top: calc(var(--record-section-padding) / 2);
     display: flex;
     flex-direction: column;
@@ -383,6 +384,7 @@
     &__desc {
       color: var(--pf-color-text-muted);
       font-size: var(--pf-font-size-s);
+      padding-left: $indent;
     }
 
     > label {
@@ -392,7 +394,7 @@
 
     // The content of the toggle section.
     > div.descr {
-      padding-left: 36px;
+      padding-left: $indent;
       font-size: var(--pf-font-size-s);
       color: var(--pf-color-text-muted);
     }
