@@ -82,6 +82,18 @@ function formatByteValue(value: SqlValue): string {
   return formatFileSize(value);
 }
 
+function formatUrlValue(value: SqlValue): string | m.Children {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  if (!value.startsWith('http')) {
+    return String(value);
+  }
+  return m(CopyableLink, {
+    url: String(value),
+  });
+}
+
 const TAB_SOURCE = 'source';
 const TAB_DETAILS = 'details';
 const TAB_FUNCTIONS = 'functions';
@@ -133,7 +145,7 @@ export class V8SourcesTab implements Tab {
     return 'V8 Script Sources';
   }
 
-  private async showSourceForScript(id: number) {
+  private async selectScript(id: number) {
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
        SELECT *, LENGTH(source) AS script_size
@@ -169,7 +181,7 @@ export class V8SourcesTab implements Tab {
     m.redraw();
   }
 
-  filterScript(searchTerm: string) {
+  filterScripts(searchTerm: string) {
     if (!searchTerm) {
       this.filters = [];
     } else {
@@ -205,9 +217,7 @@ export class V8SourcesTab implements Tab {
       }),
       m(TreeNode, {
         left: 'Name',
-        right: this.selectedScriptDetails.name.startsWith('http')
-          ? m(CopyableLink, {url: this.selectedScriptDetails.name})
-          : this.selectedScriptDetails.name,
+        right: formatUrlValue(this.selectedScriptDetails.name),
       }),
       m(TreeNode, {
         left: 'Type',
@@ -283,7 +293,7 @@ export class V8SourcesTab implements Tab {
               {
                 onclick: (e: Event) => {
                   e.preventDefault();
-                  this.showSourceForScript(row.v8_js_script_id as number);
+                  this.selectScript(row.v8_js_script_id as number);
                 },
               },
               String(value),
@@ -292,17 +302,7 @@ export class V8SourcesTab implements Tab {
         },
         name: {
           title: 'Name',
-          cellRenderer: (value: unknown, row: Row) => {
-            if (typeof value !== 'string') {
-              return undefined;
-            }
-            if (!value.startsWith('http')) {
-              return String(value);
-            }
-            return m(CopyableLink, {
-              url: String(row.name),
-            });
-          },
+          cellRenderer: formatUrlValue,
         },
         domain: {
           title: 'Domain',
@@ -337,7 +337,7 @@ export class V8SourcesTab implements Tab {
         m(TextInput, {
           oninput: (e: Event) => {
             const searchTerm = (e.target as HTMLInputElement).value;
-            this.filterScript(searchTerm);
+            this.filterScripts(searchTerm);
           },
           placeholder: 'Search scripts',
           leftIcon: 'search',
