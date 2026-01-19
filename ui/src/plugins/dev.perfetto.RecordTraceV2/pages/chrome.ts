@@ -27,7 +27,7 @@ import {
   MultiSelectDiff,
   MultiSelectOption,
 } from '../../../widgets/multiselect';
-import {Tabs, TabsTab} from '../../../widgets/tabs';
+import {TabOption, TabStrip} from '../../../widgets/tab_strip';
 import {Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
 
@@ -153,6 +153,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private tagsMap = new Map<string, MultiSelectOption[]>();
   private fetchedRuntimeCategories = false;
+  private activeTab = 'tags';
 
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
@@ -307,36 +308,21 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       },
     );
 
-    const tabs: TabsTab[] = [
-      {
-        key: 'tags',
-        title: 'Tags',
-        content: m(MultiSelect, {
-          options: tagOptions,
-          repeatCheckedItemsAtTop: false,
-          fixedSize: false,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            diffs.forEach(({id, checked}) => {
-              const options = this.tagsMap.get(id);
-              if (options) {
-                options.forEach((o) => (o.checked = checked));
-              }
-            });
-          },
-        }),
-      },
-      {
-        key: 'presets',
-        title: 'Presets',
-        content: m(
-          'div',
-          Object.values(this.groupToggles).map((t) => t.render()),
-        ),
-      },
-    ];
+    const tabs: TabOption[] = [];
+    if (tagOptions.length > 0) {
+      tabs.push({key: 'tags', title: 'Tags'});
+    }
+
+    tabs.push({key: 'presets', title: 'Presets'});
+
+    // Ensure the active tab is valid (it might have been set to 'tags' but
+    // then the tags list became empty).
+    if (tagOptions.length === 0 && this.activeTab === 'tags') {
+      this.activeTab = 'presets';
+    }
 
     return m(
-      'div',
+      'div.chrome-probe-settings',
       {
         // This shouldn't be necessary in most cases. It's only needed:
         // 1. The first time the user installs the extension.
@@ -344,8 +330,37 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
-      m(Tabs, {tabs, className: '.chrome-categories-presets'}),
+      m(TabStrip, {
+        tabs,
+        className: 'chrome-categories-presets',
+        currentTabKey: this.activeTab,
+        onTabChange: (key) => (this.activeTab = key),
+      }),
+      m(
+        'div',
+        {style: {maxHeight: '200px', overflowY: 'auto'}},
+        this.activeTab === 'tags' &&
+          m(MultiSelect, {
+            options: tagOptions,
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => {
+                const options = this.tagsMap.get(id);
+                if (options) {
+                  options.forEach((o) => (o.checked = checked));
+                }
+              });
+            },
+          }),
+        this.activeTab === 'presets' &&
+          m(
+            'div',
+            Object.values(this.groupToggles).map((t) => t.render()),
+          ),
+      ),
       m('div', {style: {paddingTop: '10px'}}, this.privacy.render()),
+      m('h2', "Details"),
       m(
         'div.chrome-categories',
         m(
