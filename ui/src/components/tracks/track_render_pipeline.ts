@@ -41,7 +41,7 @@ declare const window: Window & {
  *   caller should call the provided commit() function to swap buffers when ready.
  */
 export type UpdateResult =
-  | {status: 'updated' }
+  | {status: 'updated'}
   | {status: 'aborted'}
   | {status: 'unchanged'}
   | {status: 'needs-commit'; commit: () => void};
