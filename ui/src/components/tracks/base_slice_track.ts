@@ -486,7 +486,7 @@ export abstract class BaseSliceTrack<
       this.oldQuery = query;
     }
     const result = await this.pipeline.onUpdate(query, this.rowSpec, ctx);
-    if (result === 'updated') {
+    if (result.status === 'updated') {
       this.slices = this.pipeline.getActiveBuffer();
       this.slicesKey = this.pipeline.getCacheKey();
       const state = this.pipeline.getGlobalState();

@@ -434,8 +434,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     if (this.pipeline === undefined) return;
 
     const result = await this.pipeline.onUpdate('', GROUP_SUMMARY_ROW, ctx);
-
-    if (result === 'updated') {
+    if (result.status === 'updated') {
       this.cacheKey = this.pipeline.getCacheKey();
       const state = this.pipeline.getGlobalState();
       if (state !== undefined) {
