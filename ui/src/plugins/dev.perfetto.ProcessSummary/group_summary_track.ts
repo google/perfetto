@@ -20,6 +20,7 @@ import {colorForThread, colorForTid} from '../../components/colorizer';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {CacheKey} from '../../components/tracks/timeline_cache';
 import {TrackRenderPipeline} from '../../components/tracks/track_render_pipeline';
+import {OffscreenRenderer} from '../../components/tracks/offscreen_renderer';
 import {TrackRenderer} from '../../public/track';
 import {LONG, NUM, Row} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
@@ -57,18 +58,38 @@ const GROUP_SUMMARY_ROW = {
 };
 type GroupSummaryRow = typeof GROUP_SUMMARY_ROW;
 
+// Cached color scheme for an entry.
+interface CachedColorScheme {
+  pid: bigint | undefined;
+  base: string;
+  disabled: string;
+  variant: string;
+}
+
 // Entry stored in the pipeline buffer.
+// Note: startTime/endTime/y/h match OffscreenRect interface for zero-allocation render.
 interface GroupSummaryEntry {
   count: number;
-  start: time;
-  end: time;
+  startTime: time;
+  endTime: time;
   utid: number;
   lane: number;
+  // Cached values for offscreen rendering and hover.
+  y: number;
+  h: number;
+  pid: bigint | undefined;
+  colorBase: string;
+  colorDisabled: string;
+  colorVariant: string;
 }
 
 // Global state tracked across entries.
 interface GroupSummaryGlobalState {
   maxLanes: number;
+  // Slices grouped by color for efficient batched rendering.
+  byColor: Map<string, GroupSummaryEntry[]>;
+  // Cache color schemes per utid to avoid recomputing colorForThread.
+  colorCache: Map<number, CachedColorScheme>;
 }
 
 export interface Config {
@@ -105,7 +126,7 @@ function computeHover(
 
   // Find entry that matches the lane and contains the time
   for (const entry of data) {
-    if (entry.lane === lane && t >= entry.start && t <= entry.end) {
+    if (entry.lane === lane && t >= entry.startTime && t <= entry.endTime) {
       const pid = threads.get(entry.utid)?.pid;
       return {utid: entry.utid, lane: entry.lane, count: entry.count, pid};
     }
@@ -128,6 +149,9 @@ export class GroupSummaryTrack implements TrackRenderer {
     GroupSummaryEntry,
     GroupSummaryGlobalState
   >;
+
+  // Offscreen renderer for pre-rendered slice fills.
+  private readonly offscreenRenderer = new OffscreenRenderer();
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -188,17 +212,66 @@ export class GroupSummaryTrack implements TrackRenderer {
     this.pipeline = new TrackRenderPipeline(
       this.trace,
       (_rawSql: string, key: CacheKey) => getSql(key),
-      () => ({maxLanes: this.maxLanes}),
-      (row, _state) => {
-        const start = Time.fromRaw(row.ts);
-        const end = Time.add(start, row.dur);
-        return {
+      () => ({
+        maxLanes: this.maxLanes,
+        byColor: new Map<string, GroupSummaryEntry[]>(),
+        colorCache: new Map<number, CachedColorScheme>(),
+      }),
+      (row, state) => {
+        const startTime = Time.fromRaw(row.ts);
+        const endTime = Time.add(startTime, row.dur);
+
+        // Get cached color scheme or compute and cache it.
+        let cached = state.colorCache.get(row.utid);
+        if (cached === undefined) {
+          if (this.mode === 'sched') {
+            const threadInfo = this.threads.get(row.utid);
+            const colorScheme = colorForThread(threadInfo);
+            cached = {
+              pid: threadInfo?.pid,
+              base: colorScheme.base.cssString,
+              disabled: colorScheme.disabled.cssString,
+              variant: colorScheme.variant.cssString,
+            };
+          } else {
+            const colorScheme = colorForTid(this.config.pidForColor);
+            cached = {
+              pid: undefined,
+              base: colorScheme.base.cssString,
+              disabled: colorScheme.disabled.cssString,
+              variant: colorScheme.variant.cssString,
+            };
+          }
+          state.colorCache.set(row.utid, cached);
+        }
+
+        // Pre-compute y/h for offscreen rendering to avoid allocation in render.
+        const laneHeight = Math.floor(RECT_HEIGHT / this.maxLanes);
+        const y = MARGIN_TOP + laneHeight * row.lane + row.lane;
+
+        const entry: GroupSummaryEntry = {
           count: row.count,
-          start,
-          end,
+          startTime,
+          endTime,
           utid: row.utid,
           lane: row.lane,
+          y,
+          h: laneHeight,
+          pid: cached.pid,
+          colorBase: cached.base,
+          colorDisabled: cached.disabled,
+          colorVariant: cached.variant,
         };
+
+        // Group by color for batched rendering.
+        let group = state.byColor.get(cached.base);
+        if (group === undefined) {
+          group = [];
+          state.byColor.set(cached.base, group);
+        }
+        group.push(entry);
+
+        return entry;
       },
     );
   }
@@ -361,8 +434,19 @@ export class GroupSummaryTrack implements TrackRenderer {
     if (this.pipeline === undefined) return;
 
     const result = await this.pipeline.onUpdate('', GROUP_SUMMARY_ROW, ctx);
+
     if (result === 'updated') {
       this.cacheKey = this.pipeline.getCacheKey();
+      const state = this.pipeline.getGlobalState();
+      if (state !== undefined) {
+        this.offscreenRenderer.render(
+          state.byColor,
+          this.cacheKey,
+          TRACK_HEIGHT,
+          // Use pre-computed y/h from entry to avoid allocations.
+          (entry) => entry,
+        );
+      }
     }
   }
 
@@ -370,6 +454,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     await this.trace.engine.tryQuery(`
       drop table process_summary_${this.trackUuid}
     `);
+    this.offscreenRenderer.dispose();
   }
 
   getHeight(): number {
@@ -433,51 +518,49 @@ export class GroupSummaryTrack implements TrackRenderer {
     );
 
     const laneHeight = Math.floor(RECT_HEIGHT / this.maxLanes);
+    const isHovering =
+      this.mode === 'sched' && this.trace.timeline.hoveredUtid !== undefined;
 
+    // Blit offscreen canvas for non-hover case (regular slice fills).
+    // When hovering in sched mode, we need to redraw with modified colors.
+    if (
+      !isHovering &&
+      this.offscreenRenderer.blit(ctx, timescale, this.cacheKey)
+    ) {
+      return; // No need for per-slice rendering when not hovering.
+    }
+
+    // Per-slice rendering: only needed when hovering in sched mode.
     for (const entry of data) {
-      const tStart = entry.start;
-      const tEnd = entry.end;
+      const tStart = entry.startTime;
+      const tEnd = entry.endTime;
 
       // Cull slices that lie completely outside the visible window
       if (!visibleWindow.overlaps(tStart, tEnd)) continue;
-
-      const utid = entry.utid;
-      const lane = entry.lane;
 
       const rectStart = Math.floor(timescale.timeToPx(tStart));
       const rectEnd = Math.floor(timescale.timeToPx(tEnd));
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
-      let colorScheme;
-
+      // Use cached colors from entry.
       if (this.mode === 'sched') {
-        // Scheduling mode: color by thread (utid)
-        const threadInfo = this.threads.get(utid);
-        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-        const pid = (threadInfo ? threadInfo.pid : -1) || -1;
-
-        const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-        const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-        const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-        colorScheme = colorForThread(threadInfo);
+        const isThreadHovered = this.trace.timeline.hoveredUtid === entry.utid;
+        const isProcessHovered = this.trace.timeline.hoveredPid === entry.pid;
 
         if (isHovering && !isThreadHovered) {
           if (!isProcessHovered) {
-            ctx.fillStyle = colorScheme.disabled.cssString;
+            ctx.fillStyle = entry.colorDisabled;
           } else {
-            ctx.fillStyle = colorScheme.variant.cssString;
+            ctx.fillStyle = entry.colorVariant;
           }
         } else {
-          ctx.fillStyle = colorScheme.base.cssString;
+          ctx.fillStyle = entry.colorBase;
         }
       } else {
-        // Slice mode: consistent color based on pidForColor
-        colorScheme = colorForTid(this.config.pidForColor);
-        ctx.fillStyle = colorScheme.base.cssString;
+        ctx.fillStyle = entry.colorBase;
       }
 
-      const y = MARGIN_TOP + laneHeight * lane + lane;
-      ctx.fillRect(rectStart, y, rectWidth, laneHeight);
+      ctx.fillRect(rectStart, entry.y, rectWidth, laneHeight);
     }
   }
 

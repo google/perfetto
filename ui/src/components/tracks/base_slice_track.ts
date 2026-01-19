@@ -39,6 +39,7 @@ import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
 import {TrackRenderPipeline} from './track_render_pipeline';
+import {OffscreenRenderer} from './offscreen_renderer';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -152,12 +153,6 @@ interface SlicePipelineGlobalState<S> {
   byColor: Map<string, S[]>;
 }
 
-// Undersample factor for offscreen canvas rendering.
-// Values < 1 mean fewer pixels per bucket, so we scale UP during blit.
-// This makes the sampling decision once during offscreen render, then just
-// duplicates pixels during blit - reducing shimmer from re-sampling.
-const OFFSCREEN_OVERSAMPLE = 0.5;
-
 // We use this to avoid exposing subclasses to the properties that live on
 // SliceInternal. Within BaseSliceTrack the underlying storage and private
 // methods use CastInternal<S> (i.e. whatever the subclass requests
@@ -230,9 +225,8 @@ export abstract class BaseSliceTrack<
     SlicePipelineGlobalState<CastInternal<SliceT>>
   >;
 
-  // Offscreen canvas for pre-rendered slice fills.
-  private offscreenCanvas?: OffscreenCanvas;
-  private offscreenCtx?: OffscreenCanvasRenderingContext2D;
+  // Offscreen renderer for pre-rendered slice fills.
+  private readonly offscreenRenderer = new OffscreenRenderer();
 
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
@@ -511,41 +505,21 @@ export abstract class BaseSliceTrack<
     byColor: Map<string, CastInternal<SliceT>[]>,
     cacheKey: CacheKey,
   ): void {
-    const bucketSize = Number(cacheKey.bucketSize);
-
-    // Canvas width: OFFSCREEN_OVERSAMPLE pixels per bucket.
-    const canvasWidth =
-      Math.ceil(Number(cacheKey.end - cacheKey.start) / bucketSize) *
-      OFFSCREEN_OVERSAMPLE;
     // Canvas height: current track height + margin for depth growth.
     const canvasHeight = this.getHeight() + 100;
-
-    // Create or resize offscreen canvas.
-    if (
-      this.offscreenCanvas === undefined ||
-      this.offscreenCanvas.width !== canvasWidth ||
-      this.offscreenCanvas.height !== canvasHeight
-    ) {
-      this.offscreenCanvas = new OffscreenCanvas(canvasWidth, canvasHeight);
-      this.offscreenCtx = this.offscreenCanvas.getContext('2d') ?? undefined;
-    }
-
-    const ctx = this.offscreenCtx;
+    const ctx = this.offscreenRenderer.prepareCanvas(cacheKey, canvasHeight);
     if (ctx === undefined) return;
-
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     const sliceHeight = this.sliceLayout.sliceHeight;
 
     // Helper to compute slice x/w in offscreen canvas coordinates.
     const getSliceXW = (slice: CastInternal<SliceT>) => {
-      const x =
-        (Number(slice.startNs - cacheKey.start) / bucketSize) *
-        OFFSCREEN_OVERSAMPLE;
-      const w = Math.max(
-        (Number(slice.durNs) / bucketSize) * OFFSCREEN_OVERSAMPLE,
-        1,
+      const x = this.offscreenRenderer.timeToX(slice.startNs, cacheKey);
+      const endX = this.offscreenRenderer.timeToX(
+        slice.startNs + slice.durNs,
+        cacheKey,
       );
+      const w = Math.max(endX - x, 1);
       return {x, w};
     };
 
@@ -688,24 +662,7 @@ export abstract class BaseSliceTrack<
     //
     // Regular slice fills are pre-rendered to offscreen canvas during data
     // loading, so we just blit with appropriate transform here.
-    if (this.offscreenCanvas) {
-      const offscreen = this.offscreenCanvas;
-      const offscreenKey = this.slicesKey;
-      const bucketSize = Number(offscreenKey.bucketSize);
-      const timePerPx = timescale.pxToDuration(1);
-      const scaleX = bucketSize / timePerPx / OFFSCREEN_OVERSAMPLE;
-
-      // Round offset to integer pixel to ensure consistent nearest-neighbor
-      // sampling during pan. Without this, sub-pixel offsets cause the rounding
-      // threshold to cross, making different source pixels get sampled.
-      const offsetX = Math.round(timescale.timeToPx(offscreenKey.start));
-      ctx.save();
-      ctx.imageSmoothingQuality = 'high';
-      ctx.translate(offsetX, 0);
-      ctx.scale(scaleX, 1);
-      ctx.drawImage(offscreen, 0, 0);
-      ctx.restore();
-    }
+    this.offscreenRenderer.blit(ctx, timescale, this.slicesKey);
 
     // Draw instants, incomplete, and highlighted slices (not in offscreen).
     for (const slice of vizSlices) {
@@ -823,7 +780,7 @@ export abstract class BaseSliceTrack<
 
   async onDestroy(): Promise<void> {
     await this.trash.asyncDispose();
-    this.offscreenCanvas = undefined; // Release canvas memory
+    this.offscreenRenderer.dispose();
   }
 
   renderTooltip() {

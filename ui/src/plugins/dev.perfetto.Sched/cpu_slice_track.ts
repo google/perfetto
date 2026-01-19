@@ -24,6 +24,7 @@ import {colorForThread} from '../../components/colorizer';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {CacheKey} from '../../components/tracks/timeline_cache';
 import {TrackRenderPipeline} from '../../components/tracks/track_render_pipeline';
+import {OffscreenRenderer} from '../../components/tracks/offscreen_renderer';
 import {Point2D} from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {TimeScale} from '../../base/time_scale';
@@ -60,7 +61,35 @@ interface CpuSliceEntry {
   ts: time;
   dur: bigint;
   utid: number;
+  pid: bigint | undefined;
   flags: number;
+  // Cached colors computed during pipeline processing.
+  colorBase: Color;
+  colorDisabled: Color;
+  colorVariant: Color;
+  textBase: Color;
+  textDisabled: Color;
+  textVariant: Color;
+}
+
+// Cached color scheme for a thread.
+interface CachedColorScheme {
+  pid: bigint | undefined;
+  colorBase: Color;
+  colorDisabled: Color;
+  colorVariant: Color;
+  textBase: Color;
+  textDisabled: Color;
+  textVariant: Color;
+}
+
+// Global state tracked across entries for efficient batched rendering.
+interface CpuSliceGlobalState {
+  lastRowId: number;
+  // Slices grouped by color for efficient batched rendering.
+  byColor: Map<string, CpuSliceEntry[]>;
+  // Cache color schemes per utid to avoid recomputing colorForThread.
+  colorCache: Map<number, CachedColorScheme>;
 }
 
 const MARGIN_TOP = 3;
@@ -110,8 +139,11 @@ export class CpuSliceTrack implements TrackRenderer {
   private pipeline?: TrackRenderPipeline<
     Row & CpuSliceRow,
     CpuSliceEntry,
-    {lastRowId: number}
+    CpuSliceGlobalState
   >;
+
+  // Offscreen renderer for pre-rendered slice fills.
+  private readonly offscreenRenderer = new OffscreenRenderer();
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -167,12 +199,34 @@ export class CpuSliceTrack implements TrackRenderer {
         from cpu_slice_${this.trackUuid}(${key.start}, ${key.end}, ${key.bucketSize}) z
         cross join sched s using (id)
       `,
-      () => ({lastRowId: this.lastRowId}),
-      (row, _state) => {
+      () => ({
+        lastRowId: this.lastRowId,
+        byColor: new Map<string, CpuSliceEntry[]>(),
+        colorCache: new Map<number, CachedColorScheme>(),
+      }),
+      (row, state) => {
         let flags = 0;
         if (row.isIncomplete) flags |= CPU_SLICE_FLAGS_INCOMPLETE;
         if (row.isRealtime) flags |= CPU_SLICE_FLAGS_REALTIME;
-        return {
+
+        // Get cached color scheme or compute and cache it.
+        let cached = state.colorCache.get(row.utid);
+        if (cached === undefined) {
+          const threadInfo = this.threads.get(row.utid);
+          const colorScheme = colorForThread(threadInfo);
+          cached = {
+            pid: threadInfo?.pid,
+            colorBase: colorScheme.base,
+            colorDisabled: colorScheme.disabled,
+            colorVariant: colorScheme.variant,
+            textBase: colorScheme.textBase,
+            textDisabled: colorScheme.textDisabled,
+            textVariant: colorScheme.textVariant,
+          };
+          state.colorCache.set(row.utid, cached);
+        }
+
+        const entry: CpuSliceEntry = {
           count: row.count,
           id: row.id,
           startQ: Time.fromRaw(row.tsQ),
@@ -180,8 +234,30 @@ export class CpuSliceTrack implements TrackRenderer {
           ts: Time.fromRaw(row.ts),
           dur: row.dur,
           utid: row.utid,
+          pid: cached.pid,
           flags,
+          // Use cached colors.
+          colorBase: cached.colorBase,
+          colorDisabled: cached.colorDisabled,
+          colorVariant: cached.colorVariant,
+          textBase: cached.textBase,
+          textDisabled: cached.textDisabled,
+          textVariant: cached.textVariant,
         };
+
+        // Skip incomplete slices (drawn directly in render loop).
+        if (!(flags & CPU_SLICE_FLAGS_INCOMPLETE)) {
+          // Group by color for batched rendering.
+          const colorString = cached.colorBase.cssString;
+          let group = state.byColor.get(colorString);
+          if (group === undefined) {
+            group = [];
+            state.byColor.set(colorString, group);
+          }
+          group.push(entry);
+        }
+
+        return entry;
       },
     );
   }
@@ -214,6 +290,20 @@ export class CpuSliceTrack implements TrackRenderer {
     const result = await this.pipeline.onUpdate('', CPU_SLICE_ROW, ctx);
     if (result === 'updated') {
       this.cacheKey = this.pipeline.getCacheKey();
+      const state = this.pipeline.getGlobalState();
+      if (state !== undefined) {
+        this.offscreenRenderer.render(
+          state.byColor,
+          this.cacheKey,
+          TRACK_HEIGHT,
+          (entry) => ({
+            startTime: entry.startQ,
+            endTime: entry.endQ,
+            y: MARGIN_TOP,
+            h: RECT_HEIGHT,
+          }),
+        );
+      }
     }
   }
 
@@ -221,6 +311,7 @@ export class CpuSliceTrack implements TrackRenderer {
     await this.trace.engine.tryQuery(
       `drop table if exists cpu_slice_${this.trackUuid}`,
     );
+    this.offscreenRenderer.dispose();
   }
 
   getHeight(): number {
@@ -282,57 +373,70 @@ export class CpuSliceTrack implements TrackRenderer {
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     const timespan = visibleWindow.toTimeSpan();
+    const startTime = timespan.start;
     const endTime = timespan.end;
 
-    // Find the end of visible range - binary search for last slice whose start <= endTime.
-    // This allows us to skip iterating over slices that are completely after the visible window.
+    // Find the visible range of slices using binary search.
+    // startIdx: first slice whose endQ >= startTime (might overlap visible window)
+    // endIdx: last slice whose startQ <= endTime (might overlap visible window)
+    const rawStartIdx = searchSorted(data, startTime, (e) => e.endQ);
+    const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
+
     const lastVisibleIdx = searchSorted(data, endTime, (e) => e.startQ);
     const endIdx = lastVisibleIdx === -1 ? 0 : lastVisibleIdx + 1;
 
-    for (let i = 0; i < endIdx; i++) {
+    const isHovering = this.trace.timeline.hoveredUtid !== undefined;
+
+    // Blit offscreen canvas for non-hover case (regular slice fills).
+    // When hovering, we need to redraw with modified colors, so skip blit.
+    if (!isHovering) {
+      this.offscreenRenderer.blit(ctx, timescale, this.cacheKey);
+    }
+
+    for (let i = startIdx; i < endIdx; i++) {
       const entry = data[i];
       const tStart = entry.startQ;
       let tEnd = entry.endQ;
-      const utid = entry.utid;
+      const isIncomplete = (entry.flags & CPU_SLICE_FLAGS_INCOMPLETE) !== 0;
 
       // If the last slice is incomplete, it should end with the end of the
       // window, else it might spill over the window and the end would not be
       // visible as a zigzag line.
-      if (
-        entry.id === this.lastRowId &&
-        entry.flags & CPU_SLICE_FLAGS_INCOMPLETE
-      ) {
+      if (entry.id === this.lastRowId && isIncomplete) {
         tEnd = endTime;
       }
       const rectStart = timescale.timeToPx(tStart);
       const rectEnd = timescale.timeToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
-      const threadInfo = this.threads.get(utid);
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
+      // Early out: if not hovering and not incomplete, the blit handles the
+      // fill. If rectWidth < 5, no text/hatch to draw either. Skip entirely.
+      if (!isHovering && !isIncomplete && rectWidth < 5) {
+        continue;
+      }
 
-      const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-      const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-      const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-      const colorScheme = colorForThread(threadInfo);
+      const isThreadHovered = this.trace.timeline.hoveredUtid === entry.utid;
+      const isProcessHovered = this.trace.timeline.hoveredPid === entry.pid;
+
+      // Use colors cached on the entry during pipeline processing.
       let color: Color;
       let textColor: Color;
       if (isHovering && !isThreadHovered) {
         if (!isProcessHovered) {
-          color = colorScheme.disabled;
-          textColor = colorScheme.textDisabled;
+          color = entry.colorDisabled;
+          textColor = entry.textDisabled;
         } else {
-          color = colorScheme.variant;
-          textColor = colorScheme.textVariant;
+          color = entry.colorVariant;
+          textColor = entry.textVariant;
         }
       } else {
-        color = colorScheme.base;
-        textColor = colorScheme.textBase;
+        color = entry.colorBase;
+        textColor = entry.textBase;
       }
-      ctx.fillStyle = color.cssString;
 
-      if (entry.flags & CPU_SLICE_FLAGS_INCOMPLETE) {
+      // Draw slice fill: incomplete slices always drawn, regular slices only
+      // when hovering (since non-hover case uses offscreen canvas blit).
+      if (isIncomplete) {
         drawIncompleteSlice(
           ctx,
           rectStart,
@@ -341,7 +445,9 @@ export class CpuSliceTrack implements TrackRenderer {
           RECT_HEIGHT,
           color,
         );
-      } else {
+      } else if (isHovering) {
+        // When hovering, redraw slices with modified colors.
+        ctx.fillStyle = color.cssString;
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
       }
 
@@ -357,7 +463,8 @@ export class CpuSliceTrack implements TrackRenderer {
 
       // TODO: consider de-duplicating this code with the copied one from
       // chrome_slices/frontend.ts.
-      let title = `[utid:${utid}]`;
+      const threadInfo = this.threads.get(entry.utid);
+      let title = `[utid:${entry.utid}]`;
       let subTitle = '';
       if (threadInfo) {
         if (threadInfo.pid !== undefined && threadInfo.pid !== 0n) {
@@ -399,14 +506,12 @@ export class CpuSliceTrack implements TrackRenderer {
         if (selectedEntry !== undefined) {
           const tStart = selectedEntry.startQ;
           const tEnd = selectedEntry.endQ;
-          const utid = selectedEntry.utid;
-          const color = colorForThread(this.threads.get(utid));
           const rectStart = timescale.timeToPx(tStart);
           const rectEnd = timescale.timeToPx(tEnd);
           const rectWidth = Math.max(1, rectEnd - rectStart);
 
           // Draw a rectangle around the slice that is currently selected.
-          ctx.strokeStyle = color.base.setHSL({l: 30}).cssString;
+          ctx.strokeStyle = selectedEntry.colorBase.setHSL({l: 30}).cssString;
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(
