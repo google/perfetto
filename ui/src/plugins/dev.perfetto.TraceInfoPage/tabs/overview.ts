@@ -28,6 +28,7 @@ import {Trace} from '../../../public/trace';
 import {duration} from '../../../base/time';
 import {formatDuration} from '../../../components/time_utils';
 import type {TabKey} from '../utils';
+import {formatFileSize} from '../../../base/file_utils';
 
 export interface OverviewData {
   // Status counts

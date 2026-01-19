@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 // Format file size from bytes to human-readable string
 export function formatFileSize(bytes: bigint | number): string {
   const numBytes = Number(bytes);
