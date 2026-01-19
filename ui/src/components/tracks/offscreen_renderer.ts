@@ -201,7 +201,17 @@ export class OffscreenRenderer {
     // avoiding transform matrix overhead.
     const destW = source.width * scaleX;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(source, 0, 0, source.width, source.height, offsetX, 0, destW, source.height);
+    ctx.drawImage(
+      source,
+      0,
+      0,
+      source.width,
+      source.height,
+      offsetX,
+      0,
+      destW,
+      source.height,
+    );
 
     return true;
   }
