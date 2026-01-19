@@ -203,14 +203,12 @@ export class TrackRenderPipeline<RawRow extends Row, ResultRow, GlobalState> {
       await result.waitMoreRows();
       it.next(); // Advance to newly arrived data.
     }
-
     const commit = () => {
       this.key = key;
       this.globalState = state;
       this.activeBufferIdx = this.activeBufferIdx === 0 ? 1 : 0;
       this.trace.raf.scheduleCanvasRedraw();
     };
-
     if (autoCommit) {
       commit();
       return {status: 'updated'};
