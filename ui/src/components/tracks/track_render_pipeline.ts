@@ -30,18 +30,21 @@ declare const window: Window & {
 /**
  * Result of a TrackRenderPipeline.onUpdate() call.
  *
- * - status 'updated': New data was fetched. If autoCommit=true, buffers were
- *   already swapped. If autoCommit=false, call `commit()` to swap buffers.
+ * - status 'updated': New data was fetched and commited. Only present when
+ *   autoCommit is true.
  * - status 'aborted': The operation was aborted because the viewport changed
  *   during processing. The caller should not update its state; a new onUpdate()
  *   call will be triggered automatically.
  * - status 'unchanged': The cached data is still valid. The caller can continue
  *   using its existing state.
+ * - status 'needs-commit': New data was fetched but not yet committed. The
+ *   caller should call the provided commit() function to swap buffers when ready.
  */
 export type UpdateResult =
-  | {status: 'updated'; commit?: () => void}
+  | {status: 'updated' }
   | {status: 'aborted'}
-  | {status: 'unchanged'};
+  | {status: 'unchanged'}
+  | {status: 'needs-commit'; commit: () => void};
 
 // Check for yield/abort every N iterations.
 const CHECK_INTERVAL = 1000;
