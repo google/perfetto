@@ -213,7 +213,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     }
   }
 
-  private hasTags(): Boolean {
+  private hasTags(): boolean {
     return this.tagsMap.size > 0;
   }
 
