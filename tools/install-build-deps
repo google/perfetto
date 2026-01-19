@@ -799,6 +799,8 @@ def CheckPythonVenv():
 
 def InstallPythonVenv():
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
+  # Do not use sys.executable since that binary might live in the venv dir
+  # we're about to remove right below.
   python_interpreter = 'python3' if sys.platform != 'win32' else 'python3.exe'
 
   shutil.rmtree(PYTHON_VENV_DIR, ignore_errors=True)
