@@ -793,8 +793,7 @@ def FindPython3ForNewVenv(python_interpreter):
       os.path.abspath(PYTHON_VENV_DIR)):
     return python_interpreter
   # Find a python interpreter in the PATH that is not inside the venv.
-  paths = os.environ.get('PATH', '').split(os.pathsep)
-  for path in paths:
+  for path in os.get_exec_path():
     path = os.path.abspath(path)
     if path.startswith(os.path.abspath(PYTHON_VENV_DIR)):
       continue
