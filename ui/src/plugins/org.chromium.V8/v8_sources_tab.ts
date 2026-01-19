@@ -177,7 +177,9 @@ export class V8SourcesTab implements Tab {
   }
 
   filterScript(searchTerm: string) {
-    if (searchTerm) {
+    if (!searchTerm) {
+      this.filters = [];
+    } else {
       this.filters = [
         {
           field: 'name',
@@ -185,8 +187,6 @@ export class V8SourcesTab implements Tab {
           value: `*${searchTerm}*`,
         },
       ];
-    } else {
-      this.filters = [];
     }
     m.redraw();
   }
