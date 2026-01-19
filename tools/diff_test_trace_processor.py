@@ -87,6 +87,12 @@ def main():
       action='store_true',
       help='Print the slowest tests')
   parser.add_argument(
+      '-j',
+      '--jobs',
+      type=int,
+      default=0,
+      help='Number of parallel jobs (default: 0 = use all CPUs)')
+  parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
@@ -125,7 +131,8 @@ def main():
       winscope_extensions=args.winscope_extensions,
       simpleperf_descriptor=args.simpleperf_descriptor,
       keep_input=args.keep_input,
-      print_slowest_tests=args.print_slowest_tests)
+      print_slowest_tests=args.print_slowest_tests,
+      jobs=args.jobs)
   test_runner = DiffTestsRunner(config)
   results = test_runner.run()
   sys.stderr.write(results.str(args.no_colors))
