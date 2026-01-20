@@ -121,7 +121,8 @@ export class V8RuntimeCallStatsTab implements Tab {
     return m(DataGrid, {
       schema: this.getUiSchema(),
       rootSchema: 'v8_rcs',
-      toolbarItemsLeft: [this.renderGroupFilter(), this.renderExportButton()],
+      toolbarItemsLeft: this.renderGroupFilter(),
+      toolbarItemsRight: this.renderExportButton(),
       data: this.dataSource,
       initialPivot: {
         groupBy: [{field: 'v8_rcs_group', id: 'v8_rcs_group'}],
