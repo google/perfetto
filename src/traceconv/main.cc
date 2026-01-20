@@ -75,7 +75,6 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
 
  text                                 Converts to human-readable text format
    --skip-unknown                     Skip unknown fields when converting to text
-                                      (default: fail on unknown fields)
 
  profile                              Converts profile data to pprof format
                                       (default: auto-detect profile type)
