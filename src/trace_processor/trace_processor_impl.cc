@@ -97,6 +97,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/interval_intersect.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/interval_self_intersect.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.h"
@@ -1340,6 +1341,10 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
   {
     base::Status status = perfetto_sql::RegisterIntervalIntersectFunctions(
+        *engine, storage->mutable_string_pool());
+  }
+  {
+    base::Status status = perfetto_sql::RegisterIntervalSelfIntersectFunctions(
         *engine, storage->mutable_string_pool());
   }
   {
