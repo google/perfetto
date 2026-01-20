@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {download} from '../../base/download_utils';
 import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
 import {formatDuration} from '../../components/time_utils';
@@ -33,7 +34,8 @@ import {
 import {Tab} from '../../public/tab';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Row, SqlValue} from '../../trace_processor/query_result';
+import {NUM, Row, SqlValue, STR} from '../../trace_processor/query_result';
+import {Button} from '../../widgets/button';
 import {MultiSelectDiff, PopupMultiSelect} from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
 import {Spinner} from '../../widgets/spinner';
@@ -119,7 +121,7 @@ export class V8RuntimeCallStatsTab implements Tab {
     return m(DataGrid, {
       schema: this.getUiSchema(),
       rootSchema: 'v8_rcs',
-      toolbarItemsLeft: this.renderGroupFilter(),
+      toolbarItemsLeft: [this.renderGroupFilter(), this.renderExportButton()],
       data: this.dataSource,
       initialPivot: {
         groupBy: [{field: 'v8_rcs_group', id: 'v8_rcs_group'}],
@@ -243,6 +245,48 @@ export class V8RuntimeCallStatsTab implements Tab {
           this.loadData(this.previousSelection);
         }
       },
+    });
+  }
+
+  private renderExportButton() {
+    return m(Button, {
+      icon: Icons.Download,
+      label: 'Export rcs.json',
+      onclick: () => this.downloadRcs(),
+    });
+  }
+
+  private async downloadRcs() {
+    const result = await this.trace.engine.query(
+      `SELECT v8_rcs_name, v8_rcs_count, v8_rcs_dur FROM v8_rcs_view`,
+    );
+    const stats: {[key: string]: object} = {};
+    const it = result.iter({
+      v8_rcs_name: STR,
+      v8_rcs_count: NUM,
+      v8_rcs_dur: NUM,
+    });
+    for (; it.valid(); it.next()) {
+      stats[it.v8_rcs_name] = {
+        count: {
+          average: it.v8_rcs_count,
+          stddev: 0,
+        },
+        duration: {
+          average: it.v8_rcs_dur / 1000000.0,
+          stddev: 0,
+        },
+      };
+    }
+    download({
+      fileName: 'rcs.json',
+      content: JSON.stringify({
+        "default version": {
+            "default page": {
+              stats,
+            },
+        },
+      }, null, 2),
     });
   }
 
