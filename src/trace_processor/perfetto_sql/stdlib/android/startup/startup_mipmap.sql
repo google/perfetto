@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.startup.mipmap;
+INCLUDE PERFETTO MODULE intervals.mipmap;
 
 INCLUDE PERFETTO MODULE android.startup.startups;
 
@@ -25,7 +25,8 @@ INCLUDE PERFETTO MODULE slices.flat_slices;
 
 INCLUDE PERFETTO MODULE sched.states;
 
-CREATE PERFETTO TABLE _unique_startup AS
+-- Create a table with unique startup events, including thread and process information.
+CREATE PERFETTO TABLE _mipmap_unique_startup AS
 WITH
   x AS (
     SELECT
@@ -50,18 +51,21 @@ SELECT
   id AS unique_startup_id
 FROM x;
 
-CREATE PERFETTO TABLE _flat_slice AS
+-- Flatten slices that occur within the unique startups.
+CREATE PERFETTO TABLE _mipmap_flat_slice AS
 SELECT
   _slice_flattened.*
 FROM _slice_flattened
-JOIN _unique_startup
+JOIN _mipmap_unique_startup
   USING (utid);
 
-CREATE VIRTUAL TABLE _flat_slice_thread_states_and_slices_sp USING SPAN_LEFT_JOIN (
+-- Span join flattened slices with thread states to get thread state information for each slice.
+CREATE VIRTUAL TABLE _mipmap_flat_slice_thread_states_and_slices_sp USING SPAN_LEFT_JOIN (
     thread_state PARTITIONED utid,
-    _flat_slice PARTITIONED utid);
+    _mipmap_flat_slice PARTITIONED utid);
 
-CREATE PERFETTO TABLE _flat_slice_thread_states_and_slices AS
+-- Create a table from the span join results.
+CREATE PERFETTO TABLE _mipmap_flat_slice_thread_states_and_slices AS
 SELECT
   row_number() OVER () AS id,
   ts,
@@ -76,9 +80,11 @@ SELECT
   blocked_function,
   coalesce(name, sched_state_to_human_readable_string(state)) AS synth_name,
   irq_context
-FROM _flat_slice_thread_states_and_slices_sp;
+FROM _mipmap_flat_slice_thread_states_and_slices_sp;
 
-CREATE PERFETTO TABLE _startup_slice AS
+-- Intersect the slices with thread states with the unique startup intervals.
+-- This table contains the slices that occurred during each startup.
+CREATE PERFETTO TABLE _mipmap_startup_slice AS
 SELECT
   ii.ts,
   ii.dur,
@@ -92,80 +98,114 @@ SELECT
   slice.io_wait,
   slice.blocked_function,
   slice.irq_context,
+  us.unique_startup_id,
   us.startup_type,
   us.package,
   us.dur AS startup_dur
 FROM _interval_intersect
     !(
       (
-        (SELECT * FROM _flat_slice_thread_states_and_slices WHERE dur > -1), (_unique_startup)),
+        (SELECT * FROM _mipmap_flat_slice_thread_states_and_slices WHERE dur > -1), (_mipmap_unique_startup)),
       (utid)) AS ii
-JOIN _flat_slice_thread_states_and_slices AS slice
+JOIN _mipmap_flat_slice_thread_states_and_slices AS slice
   ON slice.id = ii.id_0
-JOIN _unique_startup AS us
+JOIN _mipmap_unique_startup AS us
   ON us.id = ii.id_1;
 
--- MIPMAP call
+-- ------------------------------------------------------------------
+-- MIPMAP Generation Call
+-- ------------------------------------------------------------------
 
-CREATE PERFETTO TABLE _mm_startup_buckets_1ms AS
+--
+-- Creates 1ms buckets for startup intervals.
+--
+-- This table uses the `_mipmap_buckets_table` macro to generate a series of
+-- 1-ms buckets for each startup. These buckets will be used to
+-- aggregate and summarize the startup activity.
+CREATE PERFETTO TABLE _mipmap_startup_buckets_1ms AS
 SELECT
   *
-FROM _mm_buckets_table!(
-  (SELECT ts, dur FROM _startup_slice),
-  1e6 -- 1ms buckets
+FROM _mipmap_buckets_table!(
+  -- Source table for time range
+  (SELECT ts, dur, unique_startup_id FROM _mipmap_startup_slice),
+  -- Partitioning column
+  unique_startup_id,
+  -- Bucket duration in nanoseconds
+  1e6  -- 1ms buckets
 )
 ORDER BY
   id;
 
-CREATE PERFETTO TABLE _startup_slices_with_ids AS
+--
+-- Prepares startup slices for mipmapping.
+--
+-- This table assigns a unique ID and a `group_hash` to each startup slice. The
+-- `group_hash` is created from various properties of the slice, such as its
+-- name, depth, and thread state. Slices with the same `group_hash` are
+-- considered similar and can be merged during the mipmapping process.
+CREATE PERFETTO TABLE _mipmap_startup_slices_with_ids AS
 SELECT
   row_number() OVER (ORDER BY ts) AS id,
-  coalesce(package, '') || '|' || coalesce(startup_type, '') || '|' || coalesce(name, '') || '|' || coalesce(state, '') || '|' || coalesce(depth, '') || '|' || coalesce(io_wait, '') || '|' || coalesce(blocked_function, '') AS group_hash,
+  hash(
+    coalesce(name, ''),
+    coalesce(state, ''),
+    coalesce(depth, ''),
+    coalesce(io_wait, ''),
+    coalesce(blocked_function, '')
+  ) AS group_hash,
   *
-FROM _startup_slice
+FROM _mipmap_startup_slice
 ORDER BY
   id;
 
+-- Creates a 1ms resolution mipmap of Android startup slices.
 --
--- Startup MIPMAP 1ms: Creates 1ms resolution mipmap of android startup slices.
---
+-- This table uses the `_mipmap_merged` macro to generate a
+-- mipmap of the startup slices. The mipmap provides a summarized view of the
+-- startup, with a resolution of 1 ms. The table contains merged slices
+-- representing the dominant event in each time bucket.
 CREATE PERFETTO TABLE android_startup_mipmap_1ms (
-  -- timestamp of the bucket
+  -- timestamp of the merged slice
   ts TIMESTAMP,
-  -- duration of the bucket
+  -- duration of the merged slice
   dur LONG,
-  -- slice name
-  name STRING,
-  -- thread state
-  state STRING,
-  -- slice depth
-  depth LONG,
-  -- whether the thread was in io_wait
-  io_wait LONG,
-  -- blocked function
-  blocked_function STRING,
+  -- unique startup id
+  unique_startup_id LONG,
   -- package name
   package STRING,
   -- startup type
   startup_type STRING,
-  -- startup duration
-  startup_dur LONG
+  -- original startup duration
+  startup_dur LONG,
+  -- slice name of the dominant event
+  name STRING,
+  -- thread state of the dominant event
+  state STRING,
+  -- slice depth of the dominant event
+  depth LONG,
+  -- whether the thread was in io_wait
+  io_wait LONG,
+  -- blocked function
+  blocked_function STRING
 ) AS
 SELECT
   mm.ts,
   mm.dur,
+  mm.unique_startup_id,
+  s.package,
+  s.startup_type,
+  s.startup_dur,
+  -- properties from the representative slice, must be present in the group_hash
   s.name,
   s.state,
   s.depth,
   s.io_wait,
-  s.blocked_function,
-  s.package,
-  s.startup_type,
-  s.startup_dur
-FROM _mm_merged!(
-  _startup_slices_with_ids,
-  _mm_startup_buckets_1ms,
+  s.blocked_function
+FROM _mipmap_merged!(
+  _mipmap_startup_slices_with_ids,
+  _mipmap_startup_buckets_1ms,
+  unique_startup_id,
   1e6  -- 1ms buckets
 ) AS mm
-JOIN _startup_slices_with_ids AS s
+JOIN _mipmap_startup_slices_with_ids AS s
   USING (id);

@@ -3412,7 +3412,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/android/startup/mipmap.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startup_breakdowns.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startup_events.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startup_mipmap.sql",
@@ -3544,6 +3543,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/intervals/intersect.sql",
+        "src/trace_processor/perfetto_sql/stdlib/intervals/mipmap.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/overlap.sql",
     ],
 )
