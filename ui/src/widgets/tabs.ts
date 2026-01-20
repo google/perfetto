@@ -16,6 +16,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {Gate} from '../base/mithril_utils';
 import {Button} from './button';
+import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
 
 export interface TabsTab {
@@ -26,7 +27,9 @@ export interface TabsTab {
   // Content to display when this tab is active.
   readonly content: m.Children;
   // Whether to show a close button on the tab.
-  readonly closable?: boolean;
+  readonly closeButton?: boolean;
+  // Icon to display on the left side of the tab title.
+  readonly leftIcon?: string | m.Children;
 }
 
 export interface TabsAttrs {
@@ -48,11 +51,24 @@ interface TabHandleAttrs {
   readonly hasCloseButton?: boolean;
   readonly onClose?: () => void;
   readonly onclick?: () => void;
+  readonly leftIcon?: string | m.Children;
 }
 
 class TabHandle implements m.ClassComponent<TabHandleAttrs> {
   view({attrs, children}: m.CVnode<TabHandleAttrs>): m.Children {
-    const {active, hasCloseButton, onClose, onclick} = attrs;
+    const {active, hasCloseButton, onClose, onclick, leftIcon} = attrs;
+
+    const renderLeftIcon = () => {
+      if (leftIcon === undefined) {
+        return undefined;
+      }
+      const style = {alignSelf: 'center'};
+      if (typeof leftIcon === 'string') {
+        return m(Icon, {icon: leftIcon, className: 'pf-tabs__tab-icon', style});
+      }
+      return m('.pf-tabs__tab-icon', {style}, leftIcon);
+    };
+
     return m(
       '.pf-tabs__tab',
       {
@@ -60,6 +76,7 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
         onclick,
         onauxclick: () => onClose?.(),
       },
+      renderLeftIcon(),
       m('.pf-tabs__tab-title', children),
       hasCloseButton &&
         m(Button, {
@@ -81,12 +98,8 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
   view({attrs}: m.CVnode<TabsAttrs>): m.Children {
     const {tabs, activeTabKey, onTabChange, onTabClose, className} = attrs;
 
-    if (tabs.length === 0) {
-      return null;
-    }
-
     // Get active tab key (controlled or uncontrolled)
-    const activeKey = activeTabKey ?? this.internalActiveTab ?? tabs[0].key;
+    const activeKey = activeTabKey ?? this.internalActiveTab ?? tabs[0]?.key;
 
     return m(
       '.pf-tabs',
@@ -98,7 +111,8 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
             TabHandle,
             {
               active: tab.key === activeKey,
-              hasCloseButton: tab.closable,
+              hasCloseButton: tab.closeButton,
+              leftIcon: tab.leftIcon,
               onclick: () => {
                 this.internalActiveTab = tab.key;
                 onTabChange?.(tab.key);

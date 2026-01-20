@@ -799,13 +799,14 @@ def CheckPythonVenv():
 
 def InstallPythonVenv():
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
-  cur_python_interpreter = sys.executable
+  # Do not use sys.executable since that binary might live in the venv dir
+  # we're about to remove right below.
+  python_interpreter = 'python3' if sys.platform != 'win32' else 'python3.exe'
 
   shutil.rmtree(PYTHON_VENV_DIR, ignore_errors=True)
-  cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+  cmd = [python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
   logging.info(f'Installing python venv {" ".join(cmd)}')
   subprocess.check_call(cmd)
-
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
   if subprocess.call(cmd) != 0:

@@ -247,6 +247,7 @@ struct TracingSession {
   enum class FlushStrategy : uint8_t { kDisabled, kOnWrite, kPeriodic };
   FlushStrategy flush_strategy = FlushStrategy::kDisabled;
   uint32_t periodic_flush_ms = 0;
+  bool fflush_post_write = false;
   uint64_t max_file_size_bytes = 0;
   uint64_t bytes_written_into_file = 0;
 

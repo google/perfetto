@@ -102,7 +102,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'spinner', label: 'Spinner', view: renderSpinner},
   {id: 'split-panel', label: 'SplitPanel', view: renderSplitPanel},
   {id: 'switch', label: 'Switch', view: renderSwitch},
-  {id: 'tab-bar', label: 'TabBar', view: renderTabs},
+  {id: 'tabs', label: 'Tabs', view: renderTabs},
   {id: 'tabstrip', label: 'TabStrip', view: renderTabStrip},
   {id: 'taginput', label: 'TagInput', view: renderTagInput},
   {id: 'textinput', label: 'TextInput', view: renderTextInput},

@@ -111,7 +111,8 @@ class DiffTestsRunner:
     test_run_start = datetime.datetime.now()
     completed_tests = 0
 
-    with concurrent.futures.ProcessPoolExecutor() as e:
+    max_workers = self.config.jobs if self.config.jobs > 0 else None
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as e:
       fut = [
           e.submit(self._run_test, test, trace_descriptor_path)
           for test in tests
