@@ -77,14 +77,15 @@ function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
 }
 
 export interface TrackViewAttrs {
-  // Render a lighter version of this track view (for when tracks are offscreen).
-  readonly lite: boolean;
   readonly scrollToOnCreate?: boolean;
   readonly reorderable?: boolean;
   readonly removable?: boolean;
   readonly depth: number;
   readonly stickyTop: number;
   readonly collapsible: boolean;
+  // If set, the track is rendered with absolute positioning at this top value.
+  // Used for virtual scrolling where we skip rendering offscreen tracks.
+  readonly absoluteTop?: number;
   onTrackMouseOver(): void;
   onTrackMouseOut(): void;
 }
@@ -133,23 +134,21 @@ export class TrackView {
 
     const description = renderer?.desc.description;
 
-    const buttons = attrs.lite
-      ? []
-      : [
-          renderer?.track.getTrackShellButtons?.(),
-          description !== undefined &&
-            this.renderHelpButton(
-              typeof description === 'function'
-                ? description()
-                : linkify(description),
-            ),
-          (removable || node.removable) && this.renderCloseButton(),
-          // We don't want summary tracks to be pinned as they rarely have
-          // useful information.
-          !node.isSummary && this.renderPinButton(),
-          this.renderTrackMenuButton(),
-          this.renderAreaSelectionCheckbox(),
-        ];
+    const buttons = [
+      renderer?.track.getTrackShellButtons?.(),
+      description !== undefined &&
+        this.renderHelpButton(
+          typeof description === 'function'
+            ? description()
+            : linkify(description),
+        ),
+      (removable || node.removable) && this.renderCloseButton(),
+      // We don't want summary tracks to be pinned as they rarely have
+      // useful information.
+      !node.isSummary && this.renderPinButton(),
+      this.renderTrackMenuButton(),
+      this.renderAreaSelectionCheckbox(),
+    ];
 
     let scrollIntoView = false;
     const tracks = this.trace.tracks;
@@ -193,8 +192,8 @@ export class TrackView {
         reorderable,
         depth: attrs.depth,
         stickyTop: attrs.stickyTop,
+        absoluteTop: attrs.absoluteTop,
         pluginId: renderer?.desc.pluginId,
-        lite: attrs.lite,
         onCollapsedChanged: () => {
           node.hasChildren && node.toggleCollapsed();
         },
