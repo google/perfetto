@@ -30,7 +30,6 @@ export default defineConfig({
   outputDir: `${outDir}/ui-test-results`,
   fullyParallel: true,
   retries: isCi ? 2 : 0, // Retry only in CI
-  workers: isCi ? 1 : undefined, // No parallelism in CI.
   reporter: [
     [
       'html',
