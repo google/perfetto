@@ -56,6 +56,13 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // Optional subtitle to display underneath the track name.
   readonly subtitle?: string;
 
+  // Optional highlight match info for search. When provided, the matching
+  // portion of the title will be highlighted.
+  readonly highlightMatch?: {start: number; length: number};
+
+  // Whether this track is the current search match (highlighted more strongly).
+  readonly isCurrentSearchMatch?: boolean;
+
   // Show dropdown arrow and make clickable. Defaults to false.
   readonly collapsible?: boolean;
 
@@ -76,6 +83,9 @@ export interface TrackShellAttrs extends HTMLAttrs {
 
   // Issues a scrollTo() on this DOM element at creation time. Default: false.
   readonly scrollToOnCreate?: boolean;
+
+  // Issues a scrollTo() on this DOM element on update. Use for dynamic scrolling.
+  readonly scrollTo?: boolean;
 
   // Style the component differently.
   readonly summary?: boolean;
@@ -174,8 +184,8 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     }
   }
 
-  onupdate({dom}: m.VnodeDOM<TrackShellAttrs, this>) {
-    if (this.scrollIntoView) {
+  onupdate({dom, attrs}: m.VnodeDOM<TrackShellAttrs, this>) {
+    if (this.scrollIntoView || attrs.scrollTo) {
       dom.scrollIntoView({behavior: 'instant', block: 'nearest'});
       this.scrollIntoView = false;
     }
@@ -324,7 +334,11 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
                   icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp,
                 })
               : m('.pf-track__title-spacer'),
-            m(TrackTitle, {title: attrs.title}),
+            m(TrackTitle, {
+              title: attrs.title,
+              highlightMatch: attrs.highlightMatch,
+              isCurrentSearchMatch: attrs.isCurrentSearchMatch,
+            }),
             chips &&
               m(
                 Stack,
@@ -456,10 +470,35 @@ function renderCrashButton(error: Error, pluginId: string | undefined) {
 
 interface TrackTitleAttrs {
   readonly title: string;
+  readonly highlightMatch?: {start: number; length: number};
+  readonly isCurrentSearchMatch?: boolean;
 }
 
 class TrackTitle implements m.ClassComponent<TrackTitleAttrs> {
   view({attrs}: m.Vnode<TrackTitleAttrs>) {
+    const {title, highlightMatch, isCurrentSearchMatch} = attrs;
+
+    // If we have a highlight match, render the title with highlighted portion
+    if (highlightMatch) {
+      const {start, length} = highlightMatch;
+      const before = title.slice(0, start);
+      const match = title.slice(start, start + length);
+      const after = title.slice(start + length);
+
+      return m(
+        '.pf-track__title',
+        {
+          className: classNames(
+            isCurrentSearchMatch && 'pf-track__title--current-match',
+          ),
+        },
+        before,
+        m('mark.pf-track__search-highlight', match),
+        after,
+      );
+    }
+
+    // Default: use MiddleEllipsis for normal rendering
     return m('.pf-track__title', attrs.title);
   }
 }

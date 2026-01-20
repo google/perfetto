@@ -52,6 +52,7 @@ import {SettingDescriptor} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {TraceStream} from '../public/stream';
+import {TrackSearchManager} from './track_search_manager';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -76,6 +77,7 @@ export class TraceImpl implements Trace, Disposable {
   readonly onTraceReady = new EvtSource<void>();
   readonly statusbar = new StatusbarManagerImpl();
   readonly minimap = new MinimapManagerImpl();
+  readonly trackSearch = new TrackSearchManager();
   readonly loadingErrors: string[] = [];
   readonly app: AppImpl;
   readonly store = createStore<Record<string, unknown>>({});
@@ -132,6 +134,9 @@ export class TraceImpl implements Trace, Disposable {
       workspace: this.workspaces.currentWorkspace,
       onResultStep: this.onResultStep.bind(this),
     });
+
+    // Connect track search manager to tracks for scrolling support
+    this.trackSearch.setTrackManager(this.tracks);
 
     // CommandManager is global. Here we intercept the registerCommand() because
     // we want any commands registered via the Trace interface to be

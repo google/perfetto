@@ -27,8 +27,10 @@ import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
+import {HotkeyContext} from '../../widgets/hotkey_context';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {setTrackShellWidth, TRACK_SHELL_WIDTH} from '../css_constants';
+import {TrackSearchPanel} from './track_search_panel';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -62,13 +64,31 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
     return m(
-      '.pf-timeline-page',
+      HotkeyContext,
+      {
+        hotkeys: [
+          {
+            hotkey: 'Mod+F',
+            callback: () => trace.trackSearch.show(),
+          },
+        ],
+        focusable: false, // Global hotkey, works without element focus
+        fillHeight: true,
+      },
       m(
         TabPanel,
         {trace},
         this.renderMinimap(trace),
+        this.renderTrackSearchPanel(trace),
         this.renderTimeline(trace),
       ),
+    );
+  }
+
+  private renderTrackSearchPanel(trace: TraceImpl): m.Children {
+    return (
+      trace.trackSearch.isVisible &&
+      m(TrackSearchPanel, {searchManager: trace.trackSearch})
     );
   }
 

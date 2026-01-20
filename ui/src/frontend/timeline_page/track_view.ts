@@ -170,6 +170,11 @@ export class TrackView {
       });
     }
 
+    // Get search highlight info from the track search manager
+    const trackSearch = this.trace.trackSearch;
+    const highlightMatch = trackSearch.getMatchForTrack(node);
+    const isCurrentSearchMatch = trackSearch.isCurrentMatch(node);
+
     return m(
       TrackShell,
       {
@@ -181,10 +186,13 @@ export class TrackView {
         error: renderer?.getError(),
         chips: renderer?.desc.chips,
         buttons,
-        scrollToOnCreate: scrollToOnCreate || scrollIntoView,
+        scrollToOnCreate: scrollToOnCreate,
+        scrollTo: scrollIntoView,
         collapsible: collapsible && node.hasChildren,
         collapsed: collapsible && node.collapsed,
         highlight: this.isHighlighted(),
+        highlightMatch,
+        isCurrentSearchMatch,
         summary: node.isSummary,
         reorderable,
         depth: attrs.depth,

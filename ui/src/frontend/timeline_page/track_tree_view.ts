@@ -288,6 +288,9 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       .map((track) => renderTrack(track))
       .map(({vnodes}) => vnodes);
 
+    // Update the track search manager with the list of visible tracks
+    trace.trackSearch.setVisibleTracks(renderedTracks.map((tv) => tv.node));
+
     // If there are no truthy vnode values, show "empty state" placeholder.
     if (trackVnodes.every((x) => !Boolean(x))) {
       if (filtersApplied) {

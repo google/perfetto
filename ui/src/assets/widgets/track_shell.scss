@@ -191,6 +191,17 @@
       background: var(--pf-color-background);
       color: var(--pf-color-text);
     }
+
+    &--current-match {
+      font-weight: 500;
+    }
+  }
+
+  &__search-highlight {
+    background-color: var(--pf-color-highlight);
+    color: var(--pf-color-text);
+    border-radius: 2px;
+    padding: 0 2px;
   }
 
   &__chips {
