@@ -209,6 +209,13 @@ export interface BuilderAttrs {
   readonly onRedo?: () => void;
   readonly canUndo?: boolean;
   readonly canRedo?: boolean;
+
+  // Called when the execute function is ready (or cleared).
+  // Allows parent to trigger query execution via keyboard shortcuts (Ctrl+Enter).
+  // Receives undefined when no node is selected.
+  readonly onExecuteReady?: (
+    executeFn: (() => Promise<void>) | undefined,
+  ) => void;
 }
 
 enum SelectedView {
@@ -225,6 +232,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private isQueryRunning: boolean = false;
   private isAnalyzing: boolean = false;
   private previousSelectedNode?: QueryNode;
+  // Stores selected node for keyboard shortcuts. This duplicates attrs.selectedNode
+  // because we need access outside of view() for executeSelectedNode() public method.
+  // Updated in view() to stay synchronized with attrs.
+  private selectedNode?: QueryNode;
   private response?: QueryResponse;
   private dataSource?: DataSource;
   private drawerVisibility = DrawerPanelVisibility.COLLAPSED;
@@ -257,7 +268,24 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const {trace, rootNodes, onNodeSelected, selectedNode, onClearAllNodes} =
       attrs;
 
-    if (selectedNode && selectedNode !== this.previousSelectedNode) {
+    // Store selectedNode for keyboard shortcuts
+    this.selectedNode = selectedNode;
+
+    // Notify parent when execute function changes (when selectedNode changes)
+    if (selectedNode !== this.previousSelectedNode) {
+      if (selectedNode !== undefined) {
+        // Provide execute function bound to the current instance
+        attrs.onExecuteReady?.(() => this.executeSelectedNode());
+      } else {
+        // Clear execute function when no node is selected
+        attrs.onExecuteReady?.(undefined);
+      }
+    }
+
+    if (
+      selectedNode !== undefined &&
+      selectedNode !== this.previousSelectedNode
+    ) {
       this.resetQueryState();
       this.isQueryRunning = false;
       this.isAnalyzing = false;
@@ -283,7 +311,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const sidebarWidth = attrs.sidebarWidth ?? this.DEFAULT_SIDEBAR_WIDTH;
 
     // When transitioning to unselected state with collapsed explorer, reappear at minimum size
-    if (!selectedNode && this.previousSelectedNode && isExplorerCollapsed) {
+    if (
+      selectedNode === undefined &&
+      this.previousSelectedNode !== undefined &&
+      isExplorerCollapsed
+    ) {
       attrs.onExplorerCollapsedChange?.(false);
       attrs.onSidebarWidthChange?.(this.MIN_SIDEBAR_WIDTH);
     }
@@ -397,24 +429,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
             },
             onExecute: async () => {
-              if (!selectedNode.validate()) {
-                console.warn(
-                  `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
-                );
-                return;
-              }
-
-              // Use the centralized service with manual=true.
-              // The service handles both analysis and execution.
-              await this.queryExecutionService.processNode(
-                selectedNode,
-                this.trace.engine,
-                {
-                  manual: true, // User explicitly clicked "Run Query"
-                  hasExistingResult: this.queryExecuted,
-                  ...this.createManualExecutionCallbacks(selectedNode),
-                },
-              );
+              await this.executeSelectedNode();
             },
             onExportToTimeline: () => {
               this.exportToTimeline(selectedNode);
@@ -677,6 +692,37 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         m.redraw();
       },
     };
+  }
+
+  /**
+   * Executes the selected node's query manually.
+   * Public method called when user clicks "Run Query" button or presses Ctrl+Enter
+   * keyboard shortcut (invoked via parent component's keyboard handler).
+   */
+  async executeSelectedNode(): Promise<void> {
+    const selectedNode = this.selectedNode;
+    if (selectedNode === undefined) {
+      return;
+    }
+
+    if (!selectedNode.validate()) {
+      console.warn(
+        `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
+      );
+      return;
+    }
+
+    // Use the centralized service with manual=true.
+    // The service handles both analysis and execution.
+    await this.queryExecutionService.processNode(
+      selectedNode,
+      this.trace.engine,
+      {
+        manual: true, // User explicitly requested execution
+        hasExistingResult: this.queryExecuted,
+        ...this.createManualExecutionCallbacks(selectedNode),
+      },
+    );
   }
 
   private exportToTimeline(node: QueryNode) {
