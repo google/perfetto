@@ -22,7 +22,7 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {
   SqlValue,
   LONG,
-  // NUM_NULL,
+  NUM_NULL,
   STR,
   LONG_NULL,
   QueryResult,
@@ -141,6 +141,10 @@ export interface BreakdownTrackProps {
    * the corresponding slices.
    */
   pivots?: BreakdownTrackSqlInfo;
+  /**
+   * Whether to sort the tracks based on their maximum value.
+   */
+  sortTracks?: boolean;
 }
 
 interface Filter {
@@ -412,14 +416,14 @@ export class BreakdownTracks {
     );
   }
 
-  // private async getCounterTrackSortOrder(filtersClause: string) {
-  //   const aggregationQuery = this.getAggregationQuery(filtersClause);
-  //   const result = await this.props.trace.engine.query(`
-  //     SELECT MAX(value) as max_value FROM (${aggregationQuery})
-  //   `);
-  //   const maxValue = result.firstRow({max_value: NUM_NULL}).max_value;
-  //   return maxValue === null ? 0 : maxValue;
-  // }
+  private async getCounterTrackSortOrder(filtersClause: string) {
+    const aggregationQuery = this.getAggregationQuery(filtersClause);
+    const result = await this.props.trace.engine.query(`
+      SELECT MAX(value) as max_value FROM (${aggregationQuery})
+    `);
+    const maxValue = result.firstRow({max_value: NUM_NULL}).max_value;
+    return maxValue === null ? 0 : maxValue;
+  }
 
   private async createCounterTrackNode(name: string, newFilters: Filter[]) {
     return await this.createTrackNode(
@@ -442,7 +446,7 @@ export class BreakdownTracks {
           },
         });
       },
-      // (filterClause) => this.getCounterTrackSortOrder(filterClause),
+      (filterClause) => this.getCounterTrackSortOrder(filterClause),
     );
   }
 
@@ -463,13 +467,16 @@ export class BreakdownTracks {
       renderer,
     });
 
-    const sortOrder = await getSortOrder?.(filtersClause);
+    let sortOrder: number | undefined;
+    if (this.props.sortTracks) {
+      sortOrder = await getSortOrder?.(filtersClause);
+    }
 
     return new TrackNode({
       name,
       uri,
       sortOrder: sortOrder !== undefined ? -sortOrder : undefined,
-    });
+    }); 
   }
 
   async createTracksIterative() {

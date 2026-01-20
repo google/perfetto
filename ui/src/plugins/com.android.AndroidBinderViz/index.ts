@@ -68,6 +68,7 @@ export default class implements PerfettoPlugin {
       //     },
       //   ],
       // },
+      sortTracks: false,
     });
 
     ctx.defaultWorkspace.addChildInOrder(
