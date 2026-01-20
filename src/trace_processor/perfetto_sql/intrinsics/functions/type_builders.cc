@@ -314,7 +314,10 @@ struct IntervalTreeIntervalsAgg
   struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::PartitionedTable partitions;
     std::vector<SqlValue> tmp_vals;
+    std::vector<SqlValue> tmp_agg_vals;
     uint64_t last_interval_start = 0;
+    uint32_t num_agg_cols = 0;
+    bool cols_initialized = false;
   };
 
   static void Step(sqlite3_context* ctx, int rargc, sqlite3_value** argv) {
@@ -353,7 +356,7 @@ struct IntervalTreeIntervalsAgg
     agg_ctx.last_interval_start = interval.start;
     interval.end = interval.start + static_cast<uint64_t>(dur);
 
-    // Fast path for no partitions.
+    // Fast path for no partitions and no aggregation columns.
     auto& parts = agg_ctx.partitions;
     if (argc == kMinArgCount) {
       auto& part = parts.partitions_map[0];
@@ -368,20 +371,54 @@ struct IntervalTreeIntervalsAgg
       return;
     }
 
-    // On the first |Step()| we need to fetch the names of the partitioned
-    // columns.
-    if (parts.partition_column_names.empty()) {
-      for (uint32_t i = 3; i < argc; i += 2) {
-        parts.partition_column_names.push_back(
-            sqlite::utils::SqliteValueToSqlValue(argv[i]).AsString());
+    // On the first |Step()| we need to figure out column structure.
+    // For interval_self_intersect with aggregation:
+    //   argv[0] = id, argv[1] = ts, argv[2] = dur, argv[3] = agg_value
+    //   argv[4+] = partition columns as name-value pairs
+    // For interval_intersect (no aggregation):
+    //   argv[0] = id, argv[1] = ts, argv[2] = dur
+    //   argv[3+] = partition columns as name-value pairs
+    if (!agg_ctx.cols_initialized) {
+      // Check if we have an aggregation column: argc must be odd (id, ts, dur,
+      // agg_val, then pairs) vs even (id, ts, dur, then pairs)
+      bool has_agg = (argc > kMinArgCount) && ((argc - kMinArgCount) % 2 == 1);
+
+      if (has_agg) {
+        agg_ctx.num_agg_cols = 1;
+        agg_ctx.tmp_agg_vals.resize(1);
+
+        // Partition columns start at index 4 (after agg value)
+        for (uint32_t i = 4; i < argc; i += 2) {
+          parts.partition_column_names.push_back(
+              sqlite::utils::SqliteValueToSqlValue(argv[i]).AsString());
+        }
+      } else {
+        // No aggregation column - partition columns start at index 3
+        agg_ctx.num_agg_cols = 0;
+        for (uint32_t i = 3; i < argc; i += 2) {
+          parts.partition_column_names.push_back(
+              sqlite::utils::SqliteValueToSqlValue(argv[i]).AsString());
+        }
       }
       agg_ctx.tmp_vals.resize(parts.partition_column_names.size());
+      agg_ctx.cols_initialized = true;
+    }
+
+    // Extract aggregation column value if present (at index 3)
+    if (agg_ctx.num_agg_cols > 0) {
+      SqlValue agg_val = sqlite::utils::SqliteValueToSqlValue(argv[3]);
+      agg_ctx.tmp_agg_vals[0] = agg_val;
     }
 
     // Create a partition key and save SqlValues of the partition.
+    // Partition columns start after aggregation column (if present).
     base::MurmurHashCombiner h;
     uint32_t j = 0;
-    for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
+    uint32_t start_idx = agg_ctx.num_agg_cols > 0
+                             ? 5
+                             : 4;  // Start at value of first partition column
+
+    for (uint32_t i = start_idx; i < argc; i += 2) {
       SqlValue new_val = sqlite::utils::SqliteValueToSqlValue(argv[i]);
       // If it's a string, intern it immediately into the StringPool.
       // This ensures the pointer remains valid and we only store unique
@@ -410,6 +447,15 @@ struct IntervalTreeIntervalsAgg
           part->last_interval = interval.end;
         }
       }
+
+      // Store aggregation data if present
+      if (agg_ctx.num_agg_cols > 0) {
+        // Ensure agg_data vector is large enough
+        if (interval.id >= part->agg_data.size()) {
+          part->agg_data.resize(interval.id + 1);
+        }
+        part->agg_data[interval.id] = agg_ctx.tmp_agg_vals;
+      }
       return;
     }
 
@@ -417,6 +463,12 @@ struct IntervalTreeIntervalsAgg
     new_partition.sql_values = agg_ctx.tmp_vals;
     new_partition.last_interval = interval.end;
     new_partition.intervals = {interval};
+
+    // Store aggregation data if present
+    if (agg_ctx.num_agg_cols > 0) {
+      new_partition.agg_data.resize(interval.id + 1);
+      new_partition.agg_data[interval.id] = agg_ctx.tmp_agg_vals;
+    }
 
     parts.partitions_map[key] = std::move(new_partition);
   }

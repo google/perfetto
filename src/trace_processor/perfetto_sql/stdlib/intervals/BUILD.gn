@@ -18,5 +18,6 @@ perfetto_sql_source_set("intervals") {
   sources = [
     "intersect.sql",
     "overlap.sql",
+    "self_intersect.sql",
   ]
 }

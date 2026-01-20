@@ -38,6 +38,12 @@ struct Partition {
   bool is_nonoverlapping = true;
 
   uint64_t last_interval = 0;
+
+  // Aggregation column values indexed by interval ID
+  // Used by interval_self_intersect for computing aggregations
+  // agg_data[interval_id] = vector of aggregation column values for that
+  // interval
+  std::vector<std::vector<SqlValue>> agg_data;
 };
 
 using Partitions =

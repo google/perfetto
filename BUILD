@@ -3144,6 +3144,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/import.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/interval_intersect.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/interval_intersect.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/interval_self_intersect.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/interval_self_intersect.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/math.cc",
@@ -3556,6 +3558,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/intervals/intersect.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/overlap.sql",
+        "src/trace_processor/perfetto_sql/stdlib/intervals/self_intersect.sql",
     ],
 )
 

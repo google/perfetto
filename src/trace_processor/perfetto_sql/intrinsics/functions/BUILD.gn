@@ -40,6 +40,8 @@ source_set("functions") {
     "import.h",
     "interval_intersect.cc",
     "interval_intersect.h",
+    "interval_self_intersect.cc",
+    "interval_self_intersect.h",
     "layout_functions.cc",
     "layout_functions.h",
     "math.cc",

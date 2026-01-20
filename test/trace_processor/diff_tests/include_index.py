@@ -145,6 +145,7 @@ from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.scan_tests import GraphScanTests
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
+from diff_tests.stdlib.intervals.self_intersect_tests import IntervalsSelfIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.linux.memory import Memory
@@ -335,6 +336,7 @@ def fetch_all_diff_tests(
       StdlibIntervals,
       SystemUICujs,
       IntervalsIntersect,
+      IntervalsSelfIntersect,
       Startups,
       Timestamps,
       TracedStats,
