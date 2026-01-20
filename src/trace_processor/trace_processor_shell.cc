@@ -65,15 +65,19 @@
 #include "src/profiling/symbolizer/local_symbolizer.h"
 #include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/profiling/symbolizer/symbolizer.h"
+#include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
+#include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 #include "src/trace_processor/util/sql_modules.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+#include "protos/perfetto/trace_summary/file.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"
@@ -659,6 +663,100 @@ base::Status PrintPerfFile(const std::string& perf_file_path,
   return base::OkStatus();
 }
 
+// Forward declaration.
+TraceSummarySpecBytes::Format GuessSummarySpecFormat(
+    const std::string& path,
+    const std::string& content);
+
+std::string BuildSqlWithModulesAndPreambles(
+    const perfetto_sql::generator::StructuredQueryGenerator& generator,
+    const std::string& main_sql) {
+  std::string full_sql;
+
+  // Include referenced modules.
+  for (const auto& module : generator.ComputeReferencedModules()) {
+    full_sql += "INCLUDE PERFETTO MODULE " + module + ";\n";
+  }
+
+  // Add preambles.
+  for (const auto& preamble : generator.ComputePreambles()) {
+    full_sql += preamble + ";\n";
+  }
+
+  // Add the main query.
+  full_sql += main_sql;
+
+  return full_sql;
+}
+
+base::Status RunStructuredQuery(
+    TraceProcessor* trace_processor,
+    const std::vector<std::string>& structured_query_specs,
+    const std::string& structured_query_id,
+    FILE* output) {
+  perfetto_sql::generator::StructuredQueryGenerator generator;
+  std::vector<std::vector<uint8_t>> synthetic_protos;
+
+  // Load and parse all spec files.
+  for (const auto& spec_path : structured_query_specs) {
+    std::string spec_content;
+    if (!base::ReadFile(spec_path, &spec_content)) {
+      return base::ErrStatus("Unable to read structured query spec file %s",
+                             spec_path.c_str());
+    }
+
+    TraceSummarySpecBytes::Format format =
+        GuessSummarySpecFormat(spec_path, spec_content);
+
+    // Parse the TraceSummarySpec proto (convert textproto to binary if needed).
+    protos::pbzero::TraceSummarySpec::Decoder summary_spec = [&]() {
+      switch (format) {
+        case TraceSummarySpecBytes::Format::kBinaryProto:
+          return protos::pbzero::TraceSummarySpec::Decoder(
+              reinterpret_cast<const uint8_t*>(spec_content.data()),
+              spec_content.size());
+        case TraceSummarySpecBytes::Format::kTextProto:
+          synthetic_protos.emplace_back();
+          auto binary_or = protozero::TextToProto(
+              kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
+              ".perfetto.protos.TraceSummarySpec", "-",
+              std::string_view(spec_content.data(), spec_content.size()));
+          if (!binary_or.ok()) {
+            // We can't return from a lambda, so we'll create an empty decoder
+            // and handle the error outside.
+            return protos::pbzero::TraceSummarySpec::Decoder(nullptr, 0);
+          }
+          synthetic_protos.back() = std::move(*binary_or);
+          return protos::pbzero::TraceSummarySpec::Decoder(
+              synthetic_protos.back().data(), synthetic_protos.back().size());
+      }
+      PERFETTO_FATAL("Unexpected format");
+    }();
+
+    // Add all queries from the spec to the generator.
+    for (auto query_it = summary_spec.query(); query_it; ++query_it) {
+      protozero::ConstBytes query_bytes = *query_it;
+      auto status = generator.AddQuery(query_bytes.data, query_bytes.size);
+      if (!status.ok()) {
+        return base::ErrStatus("Failed to add query from spec '%s': %s",
+                               spec_path.c_str(), status.message().c_str());
+      }
+    }
+  }
+
+  // Generate SQL for the specified query ID.
+  auto sql_result = generator.GenerateById(structured_query_id);
+  if (!sql_result.ok()) {
+    return base::ErrStatus(
+        "Failed to generate SQL for structured query ID '%s': %s",
+        structured_query_id.c_str(), sql_result.status().message().c_str());
+  }
+
+  std::string full_sql =
+      BuildSqlWithModulesAndPreambles(generator, *sql_result);
+  return RunQueriesAndPrintResult(trace_processor, full_sql, output);
+}
+
 class MetricExtension {
  public:
   void SetDiskPath(std::string path) {
@@ -730,6 +828,8 @@ struct CommandLineOptions {
 
   std::string query_file_path;
   std::string query_string;
+  std::vector<std::string> structured_query_specs;
+  std::string structured_query_id;
   std::vector<std::string> sql_package_paths;
   std::vector<std::string> override_sql_package_paths;
 
@@ -806,6 +906,20 @@ PerfettoSQL:
                                       If used with --run-metrics, the query is
                                       executed after the selected metrics and
                                       the metrics output is suppressed.
+ --structured-query-spec SPEC_PATH    Parses the spec at the specified path and
+                                      makes queries available for execution.
+                                      Spec files must be instances of the
+                                      perfetto.protos.TraceSummarySpec proto.
+                                      If the file extension is `.textproto` then
+                                      the spec file will be parsed as a
+                                      textproto. If the file extension is `.pb`
+                                      then it will be parsed as a binary
+                                      protobuf. Otherwise, heuristics will be
+                                      used to determine the format.
+ --structured-query-id ID             Specifies that the structured query with
+                                      the given ID should be executed. The spec
+                                      for the query must exist in one of the
+                                      files passed to --structured-query-spec.
  --add-sql-package PATH[@PACKAGE]     Registers SQL files from a directory as
                                       a package for use with INCLUDE PERFETTO
                                       MODULE statements.
@@ -967,6 +1081,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     OPT_ADD_SQL_PACKAGE,
     OPT_OVERRIDE_SQL_PACKAGE,
+    OPT_STRUCTURED_QUERY_SPEC,
+    OPT_STRUCTURED_QUERY_ID,
 
     OPT_SUMMARY,
     OPT_SUMMARY_METRICS_V2,
@@ -1008,6 +1124,10 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
       {"query-file", required_argument, nullptr, 'q'},
       {"query-string", required_argument, nullptr, 'Q'},
+      {"structured-query-spec", required_argument, nullptr,
+       OPT_STRUCTURED_QUERY_SPEC},
+      {"structured-query-id", required_argument, nullptr,
+       OPT_STRUCTURED_QUERY_ID},
       {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
       {"override-sql-package", required_argument, nullptr,
        OPT_OVERRIDE_SQL_PACKAGE},
@@ -1178,6 +1298,16 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_STRUCTURED_QUERY_SPEC) {
+      command_line_options.structured_query_specs.emplace_back(optarg);
+      continue;
+    }
+
+    if (option == OPT_STRUCTURED_QUERY_ID) {
+      command_line_options.structured_query_id = optarg;
+      continue;
+    }
+
     if (option == OPT_OVERRIDE_STDLIB) {
       command_line_options.override_stdlib_path = optarg;
       continue;
@@ -1243,11 +1373,13 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   }
 
   command_line_options.launch_shell =
-      explicit_interactive || (command_line_options.metric_v1_names.empty() &&
-                               command_line_options.query_file_path.empty() &&
-                               command_line_options.query_string.empty() &&
-                               command_line_options.export_file_path.empty() &&
-                               !command_line_options.summary);
+      explicit_interactive ||
+      (command_line_options.metric_v1_names.empty() &&
+       command_line_options.query_file_path.empty() &&
+       command_line_options.query_string.empty() &&
+       command_line_options.structured_query_id.empty() &&
+       command_line_options.export_file_path.empty() &&
+       !command_line_options.summary);
 
   // Only allow non-interactive queries to emit perf data.
   if (!command_line_options.perf_file_path.empty() &&
@@ -2153,6 +2285,17 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
 
   if (!options.query_string.empty()) {
     base::Status status = RunQueries(tp.get(), options.query_string, true);
+    if (!status.ok()) {
+      // Write metatrace if needed before exiting.
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
+      return status;
+    }
+  }
+
+  if (!options.structured_query_id.empty()) {
+    base::Status status =
+        RunStructuredQuery(tp.get(), options.structured_query_specs,
+                           options.structured_query_id, stdout);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
       RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
