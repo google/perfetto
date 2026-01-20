@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {download} from '../../base/download_utils';
 import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
 import {formatDuration} from '../../components/time_utils';
@@ -41,7 +40,7 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {Button} from '../../widgets/button';
+import {DownloadToFileButton} from '../../widgets/download_to_file_button';
 import {MultiSelectDiff, PopupMultiSelect} from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
 import {Spinner} from '../../widgets/spinner';
@@ -82,7 +81,7 @@ const GROUP_COLORS: {[key: string]: string} = {
   total: '#BBB',
   unclassified: '#000',
 };
-const GROUP_COLORS_LENGHT = Object.keys(GROUP_COLORS).length;
+const GROUP_COLORS_LENGTH = Object.keys(GROUP_COLORS).length;
 
 export class V8RuntimeCallStatsTab implements Tab {
   private previousSelection?: Selection;
@@ -256,113 +255,23 @@ export class V8RuntimeCallStatsTab implements Tab {
   }
 
   private renderExportButton() {
-    return m(Button, {
-      icon: Icons.Download,
-      label: 'Export all rcs.json',
-      onclick: () => this.downloadRcs(),
-    });
-  }
-
-  private async downloadRcs() {
-    const result = await this.trace.engine.query(`
-      SELECT
-        p.upid,
-        args.string_value AS process_label,
-        v.v8_rcs_name,
-        SUM(v.v8_rcs_dur) AS v8_rcs_dur,
-        SUM(v.v8_rcs_count) AS v8_rcs_count
-      FROM v8_rcs_view v
-      JOIN thread_track tt ON v.track_id = tt.id
-      JOIN thread t ON tt.utid = t.utid
-      JOIN process p ON t.upid = p.upid
-      LEFT JOIN args ON p.arg_set_id = args.arg_set_id AND args.key = 'chrome.process_label[0]'
-      GROUP BY p.upid, v.v8_rcs_name
-    `);
-
-    const regex = /https?:\/\/[^\/\s]+/;
-    const pageStats: {
-      [pageName: string]: {[key: string]: {
-        count: {
-          average: number,
-          stddev: number
-        },
-        duration: {
-          average: number,
-          stddev: number
-        }
-      }};
-    } = Object.create(null);
-    const pageNames = new Map<number, string>();
-    const tldCounts = new Map<string, number>();
-
-    const it = result.iter({
-      upid: NUM,
-      process_label: STR_NULL,
-      v8_rcs_name: STR,
-      v8_rcs_count: NUM,
-      v8_rcs_dur: NUM,
-    });
-
-    for (; it.valid(); it.next()) {
-      const upid = it.upid;
-      const processLabel = it.process_label ?? '';
-
-      let pageName = pageNames.get(upid);
-      if (!pageName) {
-        const match = processLabel.match(regex);
-        let tld;
-        if (match) {
-          const rawURL = match[0];
-          tld = new URL(rawURL).hostname;
-        } else {
-          tld = 'unknown';
-        }
-        const count = (tldCounts.get(tld) ?? 0) + 1;
-        tldCounts.set(tld, count);
-        pageName = count == 1 ? tld : `${tld} PID=${upid}`;
-        pageNames.set(upid, pageName);
-      }
-
-      if (!(pageName in pageStats)) {
-        pageStats[pageName] = Object.create(null);
-      }
-
-      pageStats[pageName][it.v8_rcs_name] = {
-        count: {
-          average: it.v8_rcs_count,
-          stddev: 0,
-        },
-        duration: {
-          average: it.v8_rcs_dur / 1000000.0,
-          stddev: 0,
-        },
-      };
+    let selection = 'All';
+    switch (this.previousSelection?.kind) {
+      case 'area':
+        selection = 'Area';
+        break;
+      case 'track_event':
+        selection = 'Slice';
+        break;
+      case 'track':
+        selection = 'Trace';
+        break;
     }
 
-    for (const stats of Object.values(pageStats)) {
-      let totalCount = 0;
-      let totalDuration = 0;
-      for (const rcsEntry of Object.values(stats)) {
-        totalCount += rcsEntry.count.average;
-        totalDuration += rcsEntry.duration.average;
-      }
-      stats['Total'] = {
-          count: {
-            average: totalCount,
-            stddev: 0,
-          },
-          duration: {
-            average: totalDuration,
-            stddev: 0,
-          },
-        };
-    }
-
-    download({
+    return m(DownloadToFileButton, {
       fileName: 'rcs.json',
-      content: JSON.stringify({
-        "default version": pageStats,
-      }, null, 2),
+      label: `Export ${selection} RCS`,
+      content: () => new RcsJsonExporter().export(this.trace),
     });
   }
 
@@ -469,7 +378,7 @@ export class V8RuntimeCallStatsTab implements Tab {
     }
 
     let groupWhereClause = '1 = 1';
-    if (this.selectedGroups.size !== GROUP_COLORS_LENGHT) {
+    if (this.selectedGroups.size !== GROUP_COLORS_LENGTH) {
       const selectedGroups = Array.from(this.selectedGroups)
         .map((name) => `'${name}'`)
         .join(',');
@@ -552,5 +461,117 @@ export class V8RuntimeCallStatsTab implements Tab {
       FROM rcs_aggregated
       WHERE ${groupWhereClause}
     `);
+  }
+}
+
+const RCS_PROCESS_URL_RE = /https?:\/\/[^\/\s]+/;
+
+class RcsJsonExporter {
+  private pageNames = new Map<number, string>();
+  private tldCounts = new Map<string, number>();
+  private pageStats: {
+    [pageName: string]: {
+      [key: string]: {
+        count: {
+          average: number;
+          stddev: number;
+        };
+        duration: {
+          average: number;
+          stddev: number;
+        };
+      };
+    };
+  } = Object.create(null);
+
+  public async export(trace: Trace): Promise<string> {
+    const result = await trace.engine.query(`
+      SELECT
+        p.upid,
+        args.string_value AS process_label,
+        v.v8_rcs_name,
+        SUM(v.v8_rcs_dur) AS v8_rcs_dur,
+        SUM(v.v8_rcs_count) AS v8_rcs_count
+      FROM v8_rcs_view v
+      JOIN thread_track tt ON v.track_id = tt.id
+      JOIN thread t ON tt.utid = t.utid
+      JOIN process p ON t.upid = p.upid
+      LEFT JOIN args ON p.arg_set_id = args.arg_set_id AND args.key = 'chrome.process_label[0]'
+      GROUP BY p.upid, v.v8_rcs_name
+    `);
+
+    const it = result.iter({
+      upid: NUM,
+      process_label: STR_NULL,
+      v8_rcs_name: STR,
+      v8_rcs_count: NUM,
+      v8_rcs_dur: NUM,
+    });
+
+    for (; it.valid(); it.next()) {
+      const pageName = this.getPageName(it.upid, it.process_label ?? '');
+      const pageStats = this.getPageStats(pageName);
+      pageStats[it.v8_rcs_name] = this.newEntry(
+        it.v8_rcs_count,
+        it.v8_rcs_dur / 1_000_000,
+      );
+    }
+
+    for (const pageStats of Object.values(this.pageStats)) {
+      let totalCount = 0;
+      let totalDurationMs = 0;
+      for (const rcsEntry of Object.values(pageStats)) {
+        totalCount += rcsEntry.count.average;
+        totalDurationMs += rcsEntry.duration.average;
+      }
+      pageStats['Total'] = this.newEntry(totalCount, totalDurationMs);
+    }
+
+    return JSON.stringify(
+      {
+        'default version': this.pageStats,
+      },
+      null,
+      2,
+    );
+  }
+
+  getPageName(upid: number, processLabel: string): string {
+    const cachedPageName = this.pageNames.get(upid);
+    if (cachedPageName) return cachedPageName;
+
+    const match = processLabel.match(RCS_PROCESS_URL_RE);
+    let tld;
+    if (match) {
+      const rawURL = match[0];
+      tld = new URL(rawURL).hostname;
+    } else {
+      tld = `PID=${upid}`;
+    }
+    const tldCount = (this.tldCounts.get(tld) ?? 0) + 1;
+    this.tldCounts.set(tld, tldCount);
+    const pageName = tldCount == 1 ? tld : `${tld}-${tldCount}`;
+    this.pageNames.set(upid, pageName);
+    return pageName;
+  }
+
+  getPageStats(pageName: string) {
+    if (pageName in this.pageStats) return this.pageStats[pageName];
+    const newStats = Object.create(null);
+    this.pageStats[pageName] = newStats;
+    return newStats;
+  }
+
+  newEntry(count: number, duration: number) {
+    return {
+      count: {
+        average: count,
+        stddev: 0,
+      },
+      duration: {
+        average: duration,
+        stddev: 0,
+      },
+    };
   }
 }
