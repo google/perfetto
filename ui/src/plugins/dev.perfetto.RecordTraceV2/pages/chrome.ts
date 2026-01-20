@@ -192,7 +192,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   private initializeCategories(descriptor: protos.TrackEventDescriptor) {
     for (const cat of descriptor.availableCategories) {
       const name = cat.name;
-      if (!name) continue;
+      if (typeof name !== 'string' || !name) continue;
       const option: MultiSelectOption = {
         id: name,
         name: name.replace(DISABLED_PREFIX, ''),
