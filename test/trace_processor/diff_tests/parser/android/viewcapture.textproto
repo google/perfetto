@@ -63,6 +63,8 @@ packet {
     viewcapture_window_name { iid: 2 str: "PhoneWindow" }
     viewcapture_view_id { iid: 1 str: "NO_ID" }
     viewcapture_view_id { iid: 2 str: "TEST_VIEW_ID" }
+    viewcapture_content_description { iid: 1 str: "Content Description 1" }
+    viewcapture_text { iid: 1 str: "Text 1" }
   }
   trusted_uid: 10230
   trusted_packet_sequence_id: 2
@@ -87,6 +89,8 @@ packet {
         scale_y: 1.000000
         alpha: 1.000000
         will_not_draw: true
+        content_description_iid: 1
+        text_iid: 1
       }
       views {
         id: 1

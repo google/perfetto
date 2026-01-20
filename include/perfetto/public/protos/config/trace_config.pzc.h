@@ -25,6 +25,7 @@
 
 #include "perfetto/public/pb_macros.h"
 #include "perfetto/public/protos/common/builtin_clock.pzc.h"
+#include "perfetto/public/protos/common/semantic_type.pzc.h"
 
 PERFETTO_PB_MSG_DECL(perfetto_protos_DataSourceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PriorityBoostConfig);
@@ -70,6 +71,26 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig, StatsdLogging){
                                   STATSD_LOGGING_DISABLED) = 2,
 };
 
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig, WriteFlushMode){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  WRITE_FLUSH_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  WRITE_FLUSH_AUTO) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  WRITE_FLUSH_DISABLED) = 2,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  WRITE_FLUSH_ENABLED) = 3,
+};
+
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig, FFlushMode){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  FFLUSH_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  FFLUSH_DISABLED) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig,
+                                  FFLUSH_ENABLED) = 2,
+};
+
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_TraceFilter,
                         StringFilterPolicy){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
@@ -112,6 +133,8 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_BufferConfig,
                                   MODE_UNSPECIFIED) = 0,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
                                   TRACE_BUFFER_V2) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_BufferConfig,
+                                  TRACE_BUFFER_V2_SHADOW_MODE) = 2,
 };
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig);
@@ -302,9 +325,14 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   41);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   VARINT,
-                  bool,
-                  no_flush_before_write_into_file,
-                  42);
+                  enum perfetto_protos_TraceConfig_WriteFlushMode,
+                  write_flush_mode,
+                  44);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  enum perfetto_protos_TraceConfig_FFlushMode,
+                  fflush_post_write,
+                  45);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   VARINT,
                   bool,
@@ -373,6 +401,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
                   perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,
                   string_filter_chain,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
+                  STRING,
+                  const char*,
+                  bytecode_overlay_v54,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter,
+                  MSG,
+                  perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,
+                  string_filter_chain_v54,
+                  5);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_TraceFilter_StringFilterChain);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterChain,
@@ -398,6 +436,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterRule,
                   const char*,
                   atrace_payload_starts_with,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterRule,
+                  STRING,
+                  const char*,
+                  name,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_TraceFilter_StringFilterRule,
+                  VARINT,
+                  enum perfetto_protos_SemanticType,
+                  semantic_type,
+                  5);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_IncidentReportConfig);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_IncidentReportConfig,

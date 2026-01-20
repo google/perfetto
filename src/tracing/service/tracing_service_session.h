@@ -237,6 +237,17 @@ struct TracingSession {
   // OnTraceData().
   base::ScopedFile write_into_file;
   uint32_t write_period_ms = 0;
+
+  // Flush strategy for the tracing session:
+  // * kDisabled: default, no periodic or on-write flushing is performed.
+  // * kOnWrite: Buffers are flushed every time data is written to the output
+  // file.
+  // * kPeriodic: Buffers are flushed periodically based on the value of
+  //              periodic_flush_ms.
+  enum class FlushStrategy : uint8_t { kDisabled, kOnWrite, kPeriodic };
+  FlushStrategy flush_strategy = FlushStrategy::kDisabled;
+  uint32_t periodic_flush_ms = 0;
+  bool fflush_post_write = false;
   uint64_t max_file_size_bytes = 0;
   uint64_t bytes_written_into_file = 0;
 

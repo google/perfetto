@@ -341,6 +341,7 @@ class TracingServiceImpl : public TracingService {
                            PerfettoStatsdAtom atom,
                            const std::string& trigger_name = "");
   void MaybeLogTriggerEvent(const TraceConfig&,
+                            const base::Uuid&,
                             PerfettoTriggerAtom atom,
                             const std::string& trigger_name);
   size_t PurgeExpiredAndCountTriggerInWindow(int64_t now_ns,

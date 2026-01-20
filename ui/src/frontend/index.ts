@@ -173,8 +173,7 @@ function setupContentSecurityPolicy() {
     'connect-src': [
       `'self'`,
       'ws://127.0.0.1:8037', // For the adb websocket server.
-      'https://*.google-analytics.com',
-      'https://*.googleapis.com', // For Google Cloud Storage fetches.
+      'https:', // Allow any HTTPS; service worker firewall adds granular filtering.
       'blob:',
       'data:',
     ].concat(rpcPolicy),
@@ -213,7 +212,7 @@ function main() {
     id: 'timestampFormat',
     name: 'Timestamp format',
     description: 'The format of timestamps throughout Perfetto.',
-    schema: z.nativeEnum(TimestampFormat),
+    schema: z.enum(TimestampFormat),
     defaultValue: TimestampFormat.Timecode,
   });
 
@@ -230,7 +229,7 @@ function main() {
     id: 'durationPrecision',
     name: 'Duration precision',
     description: 'The precision of durations throughout Perfetto.',
-    schema: z.nativeEnum(DurationPrecision),
+    schema: z.enum(DurationPrecision),
     defaultValue: DurationPrecision.Full,
   });
 
@@ -330,7 +329,6 @@ function main() {
   const app = AppImpl.instance;
   tryLoadIsInternalUserScript(app).then(() => {
     app.analytics.initialize(app.isInternalUser);
-    app.notifyOnExtrasLoadingCompleted();
   });
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).

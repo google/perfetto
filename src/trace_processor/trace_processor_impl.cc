@@ -58,6 +58,7 @@
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
+#include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
@@ -253,13 +254,15 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
   const std::string& name = package.name;
   sql_modules::RegisteredPackage new_package;
   for (auto const& module_name_and_sql : package.modules) {
-    if (sql_modules::GetPackageName(module_name_and_sql.first) != name) {
+    const std::string& module_name = module_name_and_sql.first;
+    // Module name must start with package name as prefix (and be longer)
+    if (!sql_modules::IsPackagePrefixOf(name, module_name) ||
+        name == module_name) {
       return base::ErrStatus(
-          "Module name doesn't match the package name. First part of module "
-          "name should be package name. Import key: '%s', package name: '%s'.",
-          module_name_and_sql.first.c_str(), name.c_str());
+          "Module name '%s' must start with package name '%s.' as prefix.",
+          module_name.c_str(), name.c_str());
     }
-    new_package.modules.Insert(module_name_and_sql.first,
+    new_package.modules.Insert(module_name,
                                {module_name_and_sql.second, false});
   }
   return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
@@ -491,6 +494,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       kNinjaLogTraceType);
   context()->reader_registry->RegisterTraceReader<PprofTraceReader>(
       kPprofTraceType);
+  context()->reader_registry->RegisterTraceReader<CollapsedStackTraceReader>(
+      kCollapsedStackTraceType);
   context()
       ->reader_registry->RegisterTraceReader<perf_importer::PerfDataTokenizer>(
           kPerfDataTraceType);
@@ -693,28 +698,51 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
 }
 
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
-  std::string name = sql_package.name;
-  if (engine_->FindPackage(name) && !sql_package.allow_override) {
-    return base::ErrStatus(
-        "Package '%s' is already registered. Choose a different name.\n"
-        "If you want to replace the existing package using trace processor "
-        "shell, you need to pass the --dev flag and use "
-        "--override-sql-package "
-        "to pass the module path.",
-        name.c_str());
-  }
-  ASSIGN_OR_RETURN(auto new_package, ToRegisteredPackage(sql_package));
-  registered_sql_packages_.emplace_back(std::move(sql_package));
-  engine_->RegisterPackage(name, std::move(new_package));
-  return base::OkStatus();
-}
+  const std::string& name = sql_package.name;
 
-base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule module) {
-  SqlPackage package;
-  package.name = std::move(module.name);
-  package.modules = std::move(module.files);
-  package.allow_override = module.allow_module_override;
-  return RegisterSqlPackage(package);
+  // Check for prefix clashes with existing packages
+  std::optional<size_t> same_package_idx;
+  for (size_t i = 0; i < registered_sql_packages_.size(); ++i) {
+    const std::string& existing_name = registered_sql_packages_[i].name;
+    bool is_same_package = (name == existing_name);
+    bool has_prefix_clash =
+        sql_modules::IsPackagePrefixOf(name, existing_name) ||
+        sql_modules::IsPackagePrefixOf(existing_name, name);
+
+    if (is_same_package) {
+      // Same package name: only allow if allow_override is set
+      if (!sql_package.allow_override) {
+        return base::ErrStatus(
+            "Package '%s' is already registered. Choose a different name.\n"
+            "If you want to replace the existing package using trace processor "
+            "shell, you need to pass the --dev flag and use "
+            "--override-sql-package to pass the module path.",
+            name.c_str());
+      }
+      same_package_idx = i;
+    } else if (has_prefix_clash) {
+      // Prefix clash with DIFFERENT package: always fail
+      return base::ErrStatus(
+          "Package '%s' clashes with existing package '%s'. "
+          "Package names cannot be prefixes of each other.",
+          name.c_str(), existing_name.c_str());
+    }
+  }
+
+  ASSIGN_OR_RETURN(auto new_package, ToRegisteredPackage(sql_package));
+
+  // If overriding same package, remove old one first
+  if (same_package_idx.has_value()) {
+    registered_sql_packages_.erase(registered_sql_packages_.begin() +
+                                   static_cast<ptrdiff_t>(*same_package_idx));
+    engine_->ErasePackage(name);
+  }
+
+  // Save the name before moving sql_package
+  std::string pkg_name = name;
+  registered_sql_packages_.emplace_back(std::move(sql_package));
+  engine_->RegisterPackage(pkg_name, std::move(new_package));
+  return base::OkStatus();
 }
 
 // =================================================================

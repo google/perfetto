@@ -106,6 +106,13 @@ std::optional<ConstChars> ViewCaptureArgsParser::TryDeinternString(
     return DeinternString<InternedData::kViewcaptureWindowNameFieldNumber>(
         iid, snapshot_row_, &ViewCaptureRow::set_window_name);
   }
+  if (base::EndsWith(key.key, "content_description_iid")) {
+    return DeinternString<
+        InternedData::kViewcaptureContentDescriptionFieldNumber>(iid);
+  }
+  if (base::EndsWith(key.key, "text_iid")) {
+    return DeinternString<InternedData::kViewcaptureTextFieldNumber>(iid);
+  }
   return std::nullopt;
 }
 
@@ -114,18 +121,23 @@ std::optional<ConstChars> ViewCaptureArgsParser::DeinternString(
     uint64_t iid,
     RowRef* row,
     void (RowRef::*setter)(StringPool::Id)) {
+  auto chars = DeinternString<FieldNumber>(iid);
+  if (chars && row) {
+    base::StringView sv(*chars);
+    (row->*setter)(storage_.mutable_string_pool()->InternString(sv));
+  }
+  return chars;
+}
+
+template <uint32_t FieldNumber>
+std::optional<ConstChars> ViewCaptureArgsParser::DeinternString(uint64_t iid) {
   auto* decoder =
       seq_state()->LookupInternedMessage<FieldNumber, InternedString>(iid);
   if (!decoder) {
     return std::nullopt;
   }
   auto blob = decoder->str();
-  auto chars = ConstChars{reinterpret_cast<const char*>(blob.data), blob.size};
-  if (row) {
-    base::StringView sv(chars);
-    (row->*setter)(storage_.mutable_string_pool()->InternString(sv));
-  }
-  return chars;
+  return ConstChars{reinterpret_cast<const char*>(blob.data), blob.size};
 }
 
 }  // namespace perfetto::trace_processor::winscope

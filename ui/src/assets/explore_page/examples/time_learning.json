@@ -1,0 +1,267 @@
+{
+  "nodes": [
+    {
+      "nodeId": "499",
+      "type": "simple_slices",
+      "state": {},
+      "nextNodes": [
+        "504"
+      ]
+    },
+    {
+      "nodeId": "505",
+      "type": "table",
+      "state": {
+        "sqlTable": "thread_state"
+      },
+      "nextNodes": [
+        "506"
+      ]
+    },
+    {
+      "nodeId": "1064",
+      "type": "interval_intersect",
+      "state": {
+        "intervalNodes": [
+          "1067",
+          "1068"
+        ],
+        "partitionColumns": [
+          "utid"
+        ]
+      },
+      "nextNodes": []
+    },
+    {
+      "nodeId": "1066",
+      "type": "table",
+      "state": {
+        "sqlTable": "thread_state"
+      },
+      "nextNodes": [
+        "1067"
+      ]
+    },
+    {
+      "nodeId": "1068",
+      "type": "simple_slices",
+      "state": {},
+      "nextNodes": [
+        "1064"
+      ]
+    },
+    {
+      "nodeId": "504",
+      "type": "filter",
+      "state": {
+        "primaryInputId": "499",
+        "filters": [
+          {
+            "column": "track_id",
+            "op": "=",
+            "value": "7"
+          }
+        ]
+      },
+      "nextNodes": [
+        "500"
+      ]
+    },
+    {
+      "nodeId": "506",
+      "type": "filter",
+      "state": {
+        "primaryInputId": "505",
+        "filters": [
+          {
+            "column": "cpu",
+            "op": "=",
+            "value": "2"
+          }
+        ]
+      },
+      "nextNodes": [
+        "500"
+      ]
+    },
+    {
+      "nodeId": "1067",
+      "type": "filter",
+      "state": {
+        "primaryInputId": "1066",
+        "filters": [
+          {
+            "column": "cpu",
+            "op": "=",
+            "value": "2"
+          }
+        ]
+      },
+      "nextNodes": [
+        "1064"
+      ]
+    },
+    {
+      "nodeId": "500",
+      "type": "filter_during",
+      "state": {
+        "primaryInputId": "504",
+        "secondaryInputNodeIds": [
+          "506"
+        ],
+        "partitionColumns": []
+      },
+      "nextNodes": [
+        "507"
+      ]
+    },
+    {
+      "nodeId": "507",
+      "type": "aggregation",
+      "state": {
+        "primaryInputId": "500",
+        "groupByColumns": [
+          {
+            "name": "id",
+            "checked": false
+          },
+          {
+            "name": "ts",
+            "checked": false
+          },
+          {
+            "name": "dur",
+            "checked": false
+          },
+          {
+            "name": "name",
+            "checked": true
+          },
+          {
+            "name": "track_id",
+            "checked": false
+          },
+          {
+            "name": "track_name",
+            "checked": false
+          },
+          {
+            "name": "process_name",
+            "checked": false
+          },
+          {
+            "name": "upid",
+            "checked": false
+          },
+          {
+            "name": "pid",
+            "checked": false
+          },
+          {
+            "name": "thread_name",
+            "checked": false
+          },
+          {
+            "name": "utid",
+            "checked": false
+          },
+          {
+            "name": "tid",
+            "checked": false
+          },
+          {
+            "name": "depth",
+            "checked": false
+          },
+          {
+            "name": "parent_id",
+            "checked": false
+          },
+          {
+            "name": "category",
+            "checked": false
+          },
+          {
+            "name": "arg_set_id",
+            "checked": false
+          }
+        ],
+        "aggregations": [
+          {
+            "aggregationOp": "COUNT(*)",
+            "isValid": true
+          },
+          {
+            "column": {
+              "name": "dur",
+              "type": "DURATION",
+              "column": {
+                "name": "dur",
+                "type": {
+                  "kind": "duration"
+                }
+              },
+              "checked": false
+            },
+            "aggregationOp": "SUM",
+            "isValid": true
+          }
+        ]
+      },
+      "nextNodes": []
+    }
+  ],
+  "rootNodeIds": [
+    "499",
+    "505",
+    "1064",
+    "1066",
+    "1068"
+  ],
+  "selectedNodeId": "1064",
+  "nodeLayouts": {
+    "499": {
+      "x": 813.6633079825731,
+      "y": -125.01038581357601
+    },
+    "505": {
+      "x": 616.8687104341459,
+      "y": -125.46555588479072
+    },
+    "1064": {
+      "x": 884.9138294818175,
+      "y": 390.0860732777846
+    },
+    "1066": {
+      "x": 654.7087199652716,
+      "y": 382.8172509203939
+    },
+    "1068": {
+      "x": 518.5442569933468,
+      "y": 512.6979943322589
+    }
+  },
+  "labels": [
+    {
+      "id": "55cac457-94a0-437d-82b0-5945d55da0e5",
+      "x": 700.8856625955984,
+      "y": -201.22748081278775,
+      "width": 317.6078724485142,
+      "text": "Find how long slices from track 7 were running when CPU 2 was active"
+    },
+    {
+      "id": "1b62d3cc-41a7-48c4-91bc-be3dc652bebf",
+      "x": 665.7527227364393,
+      "y": -267.2903304701756,
+      "width": 370.2150472032821,
+      "text": "You can use \"Filter during\" node, to filter the source intervals to the provided time intervals from input."
+    },
+    {
+      "id": "f0f1eaaa-501a-42a1-872b-294a0b703608",
+      "x": 701.0776232628879,
+      "y": 243.4728318342174,
+      "width": 359.7375156378955,
+      "text": "If you want to join two sources on time - as in, fetch the values from two sources when they were running at the same time use \"Interval Intersect\" node"
+    }
+  ]
+}

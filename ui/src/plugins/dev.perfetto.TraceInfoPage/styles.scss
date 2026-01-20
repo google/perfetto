@@ -46,7 +46,7 @@
 
   &__subtitle {
     color: var(--pf-color-text-muted);
-    font-size: 16px;
+    font-size: var(--pf-font-size-l);
     line-height: 1.5;
   }
 
@@ -57,7 +57,7 @@
 
   // Category section headings
   &__category-heading {
-    font-size: 18px;
+    font-size: var(--pf-font-size-xl);
     font-weight: 600;
     margin-top: 24px;
     margin-bottom: 4px;
@@ -67,7 +67,7 @@
   }
 
   &__category-description {
-    font-size: 15px;
+    font-size: var(--pf-font-size-m);
     color: var(--pf-color-text-muted);
     margin-top: 2px;
     margin-bottom: 12px;
@@ -139,7 +139,7 @@
   // Card labels (titles)
   &__status-title,
   &__metric-label {
-    font-size: 12px;
+    font-size: var(--pf-font-size-s);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -159,7 +159,7 @@
   }
 
   &__metric-value {
-    font-size: 18px;
+    font-size: var(--pf-font-size-xl);
     font-weight: 500;
     line-height: 1.4;
     word-break: break-word;
@@ -176,7 +176,7 @@
   }
 
   &__status-link-icon {
-    font-size: 20px;
+    font-size: var(--pf-font-size-xxl);
   }
 
   // Args rendering (import errors detail)
@@ -184,7 +184,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    font-size: 13px;
+    font-size: var(--pf-font-size-s);
   }
 
   &__arg-item {
@@ -208,7 +208,7 @@
 
   // Help icon
   &__help-icon {
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     margin-left: 6px;
     color: var(--pf-color-text-muted);
     opacity: 0.6;
@@ -237,14 +237,14 @@
   }
 
   &__loading-error-number {
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     font-weight: 600;
     color: var(--pf-color-text-muted);
     flex-shrink: 0;
   }
 
   &__loading-error-text {
-    font-size: 13px;
+    font-size: var(--pf-font-size-s);
     line-height: 1.5;
     color: var(--pf-color-text);
     word-break: break-word;
@@ -268,7 +268,7 @@
 
   &__stats-table-cell {
     font-family: var(--pf-font-monospace);
-    font-size: 12px;
+    font-size: var(--pf-font-size-s);
     padding: 5px;
     word-break: break-all;
     white-space: pre-wrap;
@@ -297,7 +297,7 @@
     padding: 0 28px;
 
     .pf-tabs__tab {
-      font-size: 16px;
+      font-size: var(--pf-font-size-l);
       font-weight: 500;
       padding: 14px 18px;
     }
@@ -319,7 +319,7 @@
       padding: 0;
 
       h1 {
-        font-size: 20px;
+        font-size: var(--pf-font-size-xxl);
         font-weight: 600;
         color: var(--pf-color-text);
         letter-spacing: -0.01em;
@@ -328,7 +328,7 @@
     }
 
     .pf-section__subtitle {
-      font-size: 15px;
+      font-size: var(--pf-font-size-m);
       color: var(--pf-color-text-muted);
       line-height: 1.4;
       margin: 0;
@@ -341,10 +341,10 @@
 
   // Override pf-grid styling for larger fonts
   &__tab-content .pf-grid {
-    font-size: 15px;
+    font-size: var(--pf-font-size-m);
 
     .pf-grid-header-cell {
-      font-size: 15px;
+      font-size: var(--pf-font-size-m);
       font-weight: 600;
 
       .pf-grid-header-cell__title-wrapper {
@@ -353,7 +353,7 @@
     }
 
     .pf-grid-cell {
-      font-size: 15px;
+      font-size: var(--pf-font-size-m);
       padding: 10px 12px;
     }
   }
@@ -366,14 +366,14 @@
 
   // Override pf-code-snippet styling
   &__tab-content .pf-code-snippet pre code {
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     line-height: 1.5;
   }
 
   // Generic heading overrides for category sections
   // These are used in utils.ts renderCategorySection
   &__tab-content h3 {
-    font-size: 18px;
+    font-size: var(--pf-font-size-xl);
     font-weight: 600;
     margin-top: 24px;
     margin-bottom: 4px;
@@ -383,7 +383,7 @@
   }
 
   &__tab-content p {
-    font-size: 15px;
+    font-size: var(--pf-font-size-m);
     color: var(--pf-color-text-muted);
     margin-top: 2px;
     margin-bottom: 12px;

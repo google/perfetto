@@ -15,62 +15,85 @@
 import m from 'mithril';
 import {parseAndPrintTree} from '../../../base/perfetto_sql_lang/language';
 import {Editor} from '../../../widgets/editor';
-import {renderWidgetShowcase} from '../widgets_page_utils';
+import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 
-export function renderEditor(): m.Children {
-  return [
-    m(
-      '.pf-widget-intro',
-      m('h1', 'Editor'),
-      m('p', [
-        'A code editor component with syntax highlighting, powered by CodeMirror. ',
-        'Supports basic Perfetto SQL syntax highlighting.',
-      ]),
-    ),
+interface EditorDemoState {
+  text: string;
+}
 
-    renderWidgetShowcase({
-      renderWidget: () =>
-        m(Editor, {
-          language: 'perfetto-sql',
-          fillHeight: true,
-          onUpdate: (text) => {
-            parseAndPrintTree(text);
-          },
-        }),
-    }),
+class EditorDemo implements m.ClassComponent {
+  private state: EditorDemoState = {
+    text: 'SELECT * FROM slice;',
+  };
 
-    m('.pf-widget-doc-section', [
-      m('h2', 'Basic Usage'),
+  view() {
+    return [
       m(
-        'p',
-        m(CodeSnippet, {
-          text: `m(Editor, {
-  language: 'perfetto-sql',  // or 'sql', 'typescript', etc.
+        '.pf-widget-intro',
+        m('h1', 'Editor'),
+        m('p', [
+          'A code editor component with syntax highlighting, powered by CodeMirror. ',
+          'Supports basic Perfetto SQL syntax highlighting.',
+        ]),
+      ),
+      renderWidgetShowcase({
+        renderWidget: ({language, readonly, fillHeight}) =>
+          m(Editor, {
+            key: `${language}-${readonly}`,
+            language: language == 'perfetto-sql' ? 'perfetto-sql' : undefined,
+            fillHeight,
+            readonly,
+            text: this.state.text,
+            onUpdate: (text) => {
+              parseAndPrintTree(text);
+              this.state.text = text;
+            },
+          }),
+        initialOpts: {
+          language: new EnumOption('perfetto-sql', ['perfetto-sql', 'none']),
+          readonly: true,
+          fillHeight: true,
+        },
+      }),
+
+      m('.pf-widget-doc-section', [
+        m('h2', 'Basic Usage'),
+        m(
+          'p',
+          m(CodeSnippet, {
+            text: `m(Editor, {
+  language: 'perfetto-sql',
   fillHeight: true,
+  readonly: false,
   initialText: 'SELECT * FROM slice',
   onUpdate: (text) => {
     // Handle text changes
     console.log('Editor content:', text);
   },
 })`,
-          language: 'typescript',
-        }),
-      ),
-    ]),
+            language: 'typescript',
+          }),
+        ),
+      ]),
 
-    m('.pf-widget-doc-section', [
-      m('h2', 'Key Features'),
-      m('ul', [
-        m('li', [
-          m('strong', 'Syntax Highlighting: '),
-          'Language-specific syntax highlighting for Perfetto SQL',
-        ]),
-        m('li', [
-          m('strong', 'Keyboard Shortcuts: '),
-          'Standard editor shortcuts (Ctrl+Z for undo, Ctrl+F for find, Ctrl+Enter to execute, etc.)',
+      m('.pf-widget-doc-section', [
+        m('h2', 'Key Features'),
+        m('ul', [
+          m('li', [
+            m('strong', 'Syntax Highlighting: '),
+            'Language-specific syntax highlighting for Perfetto SQL',
+          ]),
+          m('li', [
+            m('strong', 'Keyboard Shortcuts: '),
+            'Standard editor shortcuts (Ctrl+Z for undo, Ctrl+F for find, Ctrl+Enter to execute, etc.)',
+          ]),
         ]),
       ]),
-    ]),
-  ];
+    ];
+  }
+}
+
+export function renderEditor(): m.Children {
+  return m(EditorDemo);
 }

@@ -1400,7 +1400,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     const bufferFactor = 0.9; // Use 90% of viewport to leave 10% buffer
     const zoomX = (canvasRect.width * bufferFactor) / boundingWidth;
     const zoomY = (canvasRect.height * bufferFactor) / boundingHeight;
-    const newZoom = Math.max(0.1, Math.min(5.0, Math.min(zoomX, zoomY)));
+    const newZoom = Math.max(0.1, Math.min(1.0, Math.min(zoomX, zoomY)));
 
     // Calculate the scaled bounding box dimensions
     const scaledWidth = boundingWidth * newZoom;

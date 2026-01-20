@@ -63,20 +63,5 @@ export class Toggle implements ProbeSetting {
       }),
       m('.pf-toggle__desc', this.attrs.descr),
     ]);
-    return m(
-      `.toggle${this._enabled ? '.enabled' : ''}${this.attrs.cssClass ?? ''}`,
-      m(
-        'label',
-        m(`input[type=checkbox]`, {
-          checked: this._enabled,
-          oninput: (e: InputEvent) => {
-            this.setEnabled((e.target as HTMLInputElement).checked);
-            this.attrs.onChange?.(this._enabled);
-          },
-        }),
-        m('span', this.attrs.title),
-      ),
-      m('.descr', this.attrs.descr),
-    );
   }
 }

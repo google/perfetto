@@ -53,7 +53,6 @@ import {
   showStateOverwriteWarning,
   showExportWarning,
 } from './query_builder/widgets';
-import {showExamplesModal} from './examples_modal';
 
 registerCoreNodes();
 
@@ -61,7 +60,7 @@ export interface ExplorePageState {
   rootNodes: QueryNode[];
   selectedNode?: QueryNode;
   nodeLayouts: Map<string, {x: number; y: number}>;
-  labels?: Array<{
+  labels: Array<{
     id: string;
     x: number;
     y: number;
@@ -70,6 +69,8 @@ export interface ExplorePageState {
   }>;
   isExplorerCollapsed?: boolean;
   sidebarWidth?: number;
+  loadGeneration?: number; // Incremented each time content is loaded
+  clipboardNode?: QueryNode;
 }
 
 interface ExplorePageAttrs {
@@ -90,7 +91,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
-  private recenterGraph?: () => void;
+  private executeFn?: () => Promise<void>;
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -116,6 +117,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       },
       onInsertModifyColumnsNode: (portIndex: number) => {
         this.handleInsertModifyColumnsNode(attrs, node, portIndex);
+      },
+      onInsertCounterToIntervalsNode: (portIndex: number) => {
+        this.handleInsertCounterToIntervalsNode(attrs, node, portIndex);
       },
     };
   }
@@ -195,6 +199,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           onInsertModifyColumnsNode: (portIndex: number) => {
             if (nodeRef.current !== undefined) {
               this.handleInsertModifyColumnsNode(
+                attrs,
+                nodeRef.current,
+                portIndex,
+              );
+            }
+          },
+          onInsertCounterToIntervalsNode: (portIndex: number) => {
+            if (nodeRef.current !== undefined) {
+              this.handleInsertCounterToIntervalsNode(
                 attrs,
                 nodeRef.current,
                 portIndex,
@@ -396,12 +409,14 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         });
       });
 
+      // Atomically update state with new nodes and incremented loadGeneration
       attrs.onStateUpdate((currentState) => ({
         ...currentState,
         rootNodes: newNodes, // Replace all nodes
         nodeLayouts: newNodeLayouts,
         selectedNode: newNodes[0], // Select the first node (slices)
         labels: [], // Clear labels
+        loadGeneration: (currentState.loadGeneration ?? 0) + 1,
       }));
     }
   }
@@ -428,7 +443,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       }
       const json = await response.text();
       const newState = deserializeState(json, attrs.trace, sqlModules);
-      attrs.onStateUpdate(newState);
+      // Atomically update state with incremented loadGeneration
+      attrs.onStateUpdate((currentState) => ({
+        ...newState,
+        loadGeneration: (currentState.loadGeneration ?? 0) + 1,
+      }));
     } catch (error) {
       console.error('Failed to load base page state:', error);
       // Silently fail - leave the page empty if JSON can't be loaded
@@ -535,6 +554,62 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
+  private async handleInsertCounterToIntervalsNode(
+    attrs: ExplorePageAttrs,
+    targetNode: QueryNode,
+    portIndex: number,
+  ) {
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      console.warn(
+        'Cannot insert counter to intervals node: SQL modules not loaded',
+      );
+      return;
+    }
+
+    // Get the CounterToIntervals descriptor
+    const descriptor = nodeRegistry.get('counter_to_intervals');
+    if (!descriptor) {
+      console.warn(
+        "Cannot insert counter to intervals node: 'counter_to_intervals' node type not found in registry",
+      );
+      return;
+    }
+
+    // Get the current input node at the specified port
+    const inputNode = getInputNodeAtPort(targetNode, portIndex);
+
+    if (!inputNode) {
+      console.warn(`No input node found at port ${portIndex}`);
+      return;
+    }
+
+    // Create the CounterToIntervals node
+    const newNode = descriptor.factory(
+      {
+        sqlModules,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
+
+    // Remove the old connection from inputNode to targetNode
+    removeConnection(inputNode, targetNode);
+
+    // Add connection from inputNode to CounterToIntervals node (sets primaryInput)
+    addConnection(inputNode, newNode);
+
+    // Add connection from CounterToIntervals node to targetNode at the same port
+    addConnection(newNode, targetNode, portIndex);
+
+    // Add the new node to root nodes (so it appears in the graph)
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, newNode],
+      selectedNode: newNode,
+    }));
+  }
+
   /**
    * Cleans up all existing nodes (drops materialized tables) and clears
    * the initialized nodes set. Used when replacing the entire graph state.
@@ -565,6 +640,31 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       rootNodes: [...currentState.rootNodes, node.clone()],
     }));
+  }
+
+  private handleCopy(attrs: ExplorePageAttrs, node: QueryNode): void {
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      clipboardNode: node.clone(),
+    }));
+  }
+
+  private handlePaste(attrs: ExplorePageAttrs): void {
+    const {state, onStateUpdate} = attrs;
+    if (state.clipboardNode === undefined) {
+      return;
+    }
+    onStateUpdate((currentState) => {
+      if (currentState.clipboardNode === undefined) {
+        return currentState;
+      }
+      const newNode = currentState.clipboardNode.clone();
+      return {
+        ...currentState,
+        rootNodes: [...currentState.rootNodes, newNode],
+        selectedNode: newNode,
+      };
+    });
   }
 
   /**
@@ -923,10 +1023,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     await this.cleanupExistingNodes(state.rootNodes);
 
     const newState = deserializeState(json, trace, sqlModules);
-    onStateUpdate(newState);
-    // Request recenter after state update
-    // The actual recentering will happen in the next render cycle via onReady
-    this.recenterGraph?.();
+    // Atomically update state with incremented loadGeneration
+    // This ensures the Graph component sees the generation change in a single render
+    onStateUpdate((currentState) => ({
+      ...newState,
+      loadGeneration: (currentState.loadGeneration ?? 0) + 1,
+    }));
   }
 
   async handleImport(attrs: ExplorePageAttrs) {
@@ -938,9 +1040,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       if (files && files.length > 0) {
         const file = files[0];
 
-        // Show warning modal after file is selected
-        const confirmed = await showStateOverwriteWarning();
-        if (!confirmed) return;
+        // Show warning modal after file is selected (only if canvas has nodes or labels)
+        if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
+          const confirmed = await showStateOverwriteWarning();
+          if (!confirmed) return;
+        }
 
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -959,14 +1063,44 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
   private handleKeyDown(event: KeyboardEvent, attrs: ExplorePageAttrs) {
     const {state} = attrs;
-    if (state.selectedNode) {
-      return;
-    }
+
     // Do not interfere with text inputs
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLTextAreaElement
     ) {
+      return;
+    }
+
+    // Handle Ctrl+Enter to execute selected node
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      if (state.selectedNode !== undefined && this.executeFn !== undefined) {
+        void this.executeFn();
+        event.preventDefault();
+      }
+      return;
+    }
+
+    // Handle copy/paste shortcuts - these work when a node IS selected
+    if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+      if (state.selectedNode !== undefined) {
+        this.handleCopy(attrs, state.selectedNode);
+      }
+      // Always preventDefault to avoid browser copy interfering with the page,
+      // even when no node is selected.
+      event.preventDefault();
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+      this.handlePaste(attrs);
+      event.preventDefault();
+      return;
+    }
+
+    // For other shortcuts, skip if a node is selected to avoid interfering
+    // with node-specific interactions
+    if (state.selectedNode) {
       return;
     }
 
@@ -1016,25 +1150,41 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
-  private async handleLoadExample(attrs: ExplorePageAttrs) {
-    const selectedExample = await showExamplesModal();
-    if (!selectedExample) return;
-
-    // Show warning modal after example is selected
-    const confirmed = await showStateOverwriteWarning();
-    if (!confirmed) return;
+  /**
+   * Centralized method to load JSON from a URL path.
+   * Handles confirmation, fetching, and error handling.
+   */
+  private async loadJsonFromPath(
+    attrs: ExplorePageAttrs,
+    jsonPath: string,
+    errorTitle: string = 'Failed to Load',
+  ): Promise<void> {
+    // Show warning modal before loading (only if canvas has nodes or labels)
+    if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
+      const confirmed = await showStateOverwriteWarning();
+      if (!confirmed) return;
+    }
 
     try {
-      const response = await fetch(assetSrc(selectedExample.jsonPath));
+      const response = await fetch(assetSrc(jsonPath));
       if (!response.ok) {
         throw new Error(
-          `Failed to load example: ${response.status} ${response.statusText}`,
+          `Failed to load: ${response.status} ${response.statusText}`,
         );
       }
       const json = await response.text();
       await this.loadStateFromJson(attrs, json);
     } catch (error) {
-      console.error('Failed to load example:', error);
+      console.error(`Failed to load from ${jsonPath}:`, error);
+      showModal({
+        title: errorTitle,
+        content: () =>
+          m(
+            'div',
+            `An error occurred while loading: ${error instanceof Error ? error.message : String(error)}`,
+          ),
+        buttons: [],
+      });
     }
   }
 
@@ -1150,8 +1300,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         selectedNode: state.selectedNode,
         nodeLayouts: state.nodeLayouts,
         labels: state.labels,
+        loadGeneration: state.loadGeneration,
         isExplorerCollapsed: state.isExplorerCollapsed,
         sidebarWidth: state.sidebarWidth,
+        onExecuteReady: (executeFn) => {
+          this.executeFn = executeFn;
+        },
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
@@ -1218,13 +1372,14 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onImport: () => this.handleImport(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
-        onLoadExample: () => this.handleLoadExample(wrappedAttrs),
         onLoadEmptyTemplate: async () => {
-          // Show warning modal before clearing
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
+          // Show warning modal before clearing (only if canvas has nodes or labels)
+          if (state.rootNodes.length > 0 || state.labels.length > 0) {
+            const confirmed = await showStateOverwriteWarning();
+            if (!confirmed) return;
+          }
 
-          // Clear all nodes for empty graph
+          // Clear all nodes for empty graph and increment loadGeneration
           wrappedAttrs.onStateUpdate((currentState) => {
             return {
               ...currentState,
@@ -1232,49 +1387,18 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
               selectedNode: undefined,
               nodeLayouts: new Map(),
               labels: [],
+              loadGeneration: (currentState.loadGeneration ?? 0) + 1,
             };
           });
         },
-        onLoadLearningTemplate: async () => {
-          // Show warning modal before loading
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
-
-          try {
-            const response = await fetch(
-              assetSrc('assets/explore_page/examples/learning.json'),
-            );
-            if (response.ok) {
-              const json = await response.text();
-              await this.loadStateFromJson(wrappedAttrs, json);
-            } else {
-              showModal({
-                title: 'Failed to Load Template',
-                content: () =>
-                  m(
-                    'div',
-                    `Failed to load the learning template. Server returned status: ${response.status}`,
-                  ),
-                buttons: [],
-              });
-            }
-          } catch (error) {
-            console.error('Failed to load learning example:', error);
-            showModal({
-              title: 'Failed to Load Template',
-              content: () =>
-                m(
-                  'div',
-                  `An error occurred while loading the learning template: ${error instanceof Error ? error.message : String(error)}`,
-                ),
-              buttons: [],
-            });
-          }
-        },
+        onLoadExampleByPath: (jsonPath: string) =>
+          this.loadJsonFromPath(wrappedAttrs, jsonPath, 'Failed to Load'),
         onLoadExploreTemplate: async () => {
-          // Show warning modal before loading
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
+          // Show warning modal before loading (only if canvas has nodes or labels)
+          if (state.rootNodes.length > 0 || state.labels.length > 0) {
+            const confirmed = await showStateOverwriteWarning();
+            if (!confirmed) return;
+          }
 
           await this.createExploreGraph(wrappedAttrs);
         },
@@ -1292,9 +1416,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onRedo: () => this.handleRedo(attrs),
         canUndo: this.historyManager?.canUndo() ?? false,
         canRedo: this.historyManager?.canRedo() ?? false,
-        onRecenterReady: (recenter) => {
-          this.recenterGraph = recenter;
-        },
       }),
     );
   }

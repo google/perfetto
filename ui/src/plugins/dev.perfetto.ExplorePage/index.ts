@@ -75,6 +75,7 @@ export default class implements PerfettoPlugin {
   private state: ExplorePageState = {
     rootNodes: [],
     nodeLayouts: new Map(),
+    labels: [],
   };
 
   // Track whether we've successfully loaded state from local storage
@@ -129,6 +130,9 @@ export default class implements PerfettoPlugin {
     trace.pages.registerPage({
       route: '/explore',
       render: () => {
+        // Ensure SQL modules initialization is triggered (no-op if already started)
+        trace.plugins.getPlugin(SqlModulesPlugin).ensureInitialized();
+
         // Try to load saved state lazily (waits for SQL modules to be ready)
         this.tryLoadState(trace);
 
@@ -146,8 +150,8 @@ export default class implements PerfettoPlugin {
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
-      sortOrder: 21,
-      text: 'Explore',
+      sortOrder: 20,
+      text: 'Data Explorer',
       href: '#!/explore',
       icon: 'data_exploration',
     });

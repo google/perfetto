@@ -40,6 +40,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kZipFile:
       return true;
 
+    case kCollapsedStackTraceType:
     case kNinjaLogTraceType:
     case kSystraceTraceType:
     case kPerfDataTraceType:

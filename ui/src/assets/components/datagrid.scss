@@ -60,6 +60,10 @@
     );
   }
 
+  &__groupby-muted {
+    color: var(--pf-color-text-muted);
+  }
+
   &__table {
     flex: 1;
     overflow: auto;
@@ -77,6 +81,7 @@
   justify-content: space-between;
   gap: 0.1em;
   margin-top: -0.2em;
+  align-items: baseline;
 
   &__symbol {
     margin-right: 0.3em;
@@ -167,7 +172,7 @@
 }
 
 .pf-data-grid__title-separator {
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   color: var(--pf-color-text-muted);
   vertical-align: middle;
   margin: 0 2px;

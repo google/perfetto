@@ -17,7 +17,6 @@
 #include "src/trace_processor/util/trace_type.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -58,12 +57,8 @@ constexpr uint16_t kModuleSymbolsTag =
     protozero::proto_utils::MakeTagLengthDelimited(
         protos::pbzero::TracePacket::kModuleSymbolsFieldNumber);
 
-inline bool isspace(unsigned char c) {
-  return ::isspace(c);
-}
-
 std::string RemoveWhitespace(std::string str) {
-  str.erase(std::remove_if(str.begin(), str.end(), isspace), str.end());
+  str.erase(std::remove_if(str.begin(), str.end(), base::IsSpace), str.end());
   return str;
 }
 
@@ -160,6 +155,97 @@ bool IsPprofProfile(const uint8_t* data, size_t size) {
   return has_core_pprof_field;
 }
 
+// Checks if a line looks like a valid collapsed stack line:
+// frame1;frame2;frame3 count
+bool IsCollapsedStackLine(const char* line_start, size_t line_len) {
+  // Skip leading whitespace
+  size_t start = 0;
+  while (start < line_len && base::IsSpace(line_start[start])) {
+    ++start;
+  }
+  if (start >= line_len || line_start[start] == '#') {
+    return false;  // Empty or comment - not definitive
+  }
+
+  // Trim trailing whitespace
+  size_t end = line_len;
+  while (end > start && base::IsSpace(line_start[end - 1])) {
+    --end;
+  }
+
+  size_t len = end - start;
+  if (len == 0) {
+    return false;
+  }
+
+  const char* line = line_start + start;
+
+  // Find the last space - count should be after it
+  size_t last_space = len;
+  for (size_t i = len; i > 0; --i) {
+    if (line[i - 1] == ' ') {
+      last_space = i - 1;
+      break;
+    }
+  }
+
+  if (last_space == len || last_space == 0) {
+    return false;  // No space found, or space at start
+  }
+
+  // Check that everything after the last space is a digit
+  for (size_t i = last_space + 1; i < len; ++i) {
+    if (!std::isdigit(static_cast<unsigned char>(line[i]))) {
+      return false;
+    }
+  }
+
+  // Check that the stack part contains at least one semicolon
+  bool has_semicolon = false;
+  for (size_t i = 0; i < last_space; ++i) {
+    if (line[i] == ';') {
+      has_semicolon = true;
+      break;
+    }
+  }
+  return has_semicolon;
+}
+
+bool IsCollapsedStackFormat(const uint8_t* data, size_t size) {
+  const char* str = reinterpret_cast<const char*>(data);
+
+  // Look at first few non-empty, non-comment lines
+  size_t valid_lines = 0;
+  size_t pos = 0;
+
+  while (pos < size && valid_lines < 3) {
+    // Find end of line
+    size_t nl = pos;
+    while (nl < size && str[nl] != '\n') {
+      ++nl;
+    }
+
+    size_t line_len = nl - pos;
+
+    // Skip empty/whitespace-only lines and comments for counting
+    size_t start = pos;
+    while (start < nl && base::IsSpace(str[start])) {
+      ++start;
+    }
+
+    if (start < nl && str[start] != '#') {
+      if (!IsCollapsedStackLine(str + pos, line_len)) {
+        return false;
+      }
+      ++valid_lines;
+    }
+
+    pos = (nl < size) ? nl + 1 : size;
+  }
+
+  return valid_lines > 0;
+}
+
 }  // namespace
 
 const char* TraceTypeToString(TraceType trace_type) {
@@ -186,6 +272,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "perf";
     case kPprofTraceType:
       return "pprof";
+    case kCollapsedStackTraceType:
+      return "collapsed_stack";
     case kInstrumentsXmlTraceType:
       return "instruments_xml";
     case kAndroidLogcatTraceType:
@@ -309,6 +397,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (AndroidLogEvent::IsAndroidLogcat(data, size)) {
     return kAndroidLogcatTraceType;
   }
+
+  // Collapsed stack format (flamegraph input format).
+  if (IsCollapsedStackFormat(data, size))
+    return kCollapsedStackTraceType;
 
   // Perf text format.
   if (perf_text_importer::IsPerfTextFormatTrace(data, size))

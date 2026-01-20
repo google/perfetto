@@ -14,11 +14,7 @@
 
 import {assertExists} from '../base/logging';
 import {Registry} from '../base/registry';
-import {
-  MetricVisualisation,
-  PerfettoPlugin,
-  PerfettoPluginStatic,
-} from '../public/plugin';
+import {PerfettoPlugin, PerfettoPluginStatic} from '../public/plugin';
 import {Trace} from '../public/trace';
 import {defaultPlugins} from './default_plugins';
 import {featureFlags} from './feature_flags';
@@ -147,13 +143,6 @@ export class PluginManagerImpl {
         });
       }
     }
-  }
-
-  metricVisualisations(): MetricVisualisation[] {
-    return this.registry.valuesAsArray().flatMap((plugin) => {
-      if (!plugin.active) return [];
-      return plugin.desc.metricVisualisations?.() ?? [];
-    });
   }
 
   getAllPlugins() {
