@@ -116,20 +116,15 @@ static constexpr bool IsLookupKeyAllowed() {
   }
 }
 
-class FlatHashMapV2Base {
- public:
-  // Swiss Table control byte encoding:
-  // - Empty:   0x80 (10000000) - MSB set, easy to detect with sign bit
-  // - Deleted: 0xFE (11111110) - MSB set
-  // - Full:    0x00-0x7F - MSB clear, stores 7-bit H2 hash
-  enum ReservedTags : uint8_t {
-    kFreeSlot = 0x80,  // Empty slot
-    kTombstone = 0xFE  // Deleted slot
-  };
+// Swiss Table control byte encoding:
+// - Empty:   0x80 (10000000) - MSB set, easy to detect with sign bit
+// - Deleted: 0xFE (11111110) - MSB set
+// - Full:    0x00-0x7F - MSB clear, stores 7-bit H2 hash
+static constexpr uint8_t kFreeSlot = 0x80;   // Empty slot
+static constexpr uint8_t kTombstone = 0xFE;  // Deleted slot
 
-  // The default load limit percent before growing the table.
-  static constexpr int kDefaultLoadLimitPct = 75;
-};
+// The default load limit percent before growing the table.
+static constexpr int kDefaultLoadLimitPct = 75;
 
 }  // namespace flat_hash_map_v2_internal
 
@@ -137,8 +132,14 @@ template <typename Key,
           typename Value,
           typename Hasher = base::MurmurHash<Key>,
           typename Eq = flat_hash_map_v2_internal::HashEq<Key>>
-class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
+class FlatHashMapV2 {
  private:
+  // Import constants from internal namespace.
+  static constexpr uint8_t kFreeSlot = flat_hash_map_v2_internal::kFreeSlot;
+  static constexpr uint8_t kTombstone = flat_hash_map_v2_internal::kTombstone;
+  static constexpr int kDefaultLoadLimitPct =
+      flat_hash_map_v2_internal::kDefaultLoadLimitPct;
+
   // Slot structure holds both key and value
   struct Slot {
     Key key;
@@ -148,8 +149,8 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
  public:
   class Iterator {
    public:
-    explicit Iterator(const uint8_t* ctrl, const uint8_t* ctrl_end, Slot* slots)
-        : ctrl_(ctrl), ctrl_end_(ctrl_end), slots_(slots) {
+    explicit Iterator(const uint8_t* ctrl, const uint8_t* ctrl_end, Slot* slot)
+        : ctrl_(ctrl), ctrl_end_(ctrl_end), slot_(slot) {
       FindNextNonFree();
     }
     ~Iterator() = default;
@@ -158,30 +159,31 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
     Iterator(Iterator&&) noexcept = default;
     Iterator& operator=(Iterator&&) noexcept = default;
 
-    Key& key() { return slots_->key; }
-    Value& value() { return slots_->value; }
-    const Key& key() const { return slots_->key; }
-    const Value& value() const { return slots_->value; }
+    const Key& key() { return slot_->key; }
+    Value& value() { return slot_->value; }
+    const Key& key() const { return slot_->key; }
+    const Value& value() const { return slot_->value; }
 
     explicit operator bool() const { return ctrl_ != ctrl_end_; }
     Iterator& operator++() {
       PERFETTO_DCHECK(ctrl_ != ctrl_end_);
       ++ctrl_;
-      ++slots_;
+      ++slot_;
       FindNextNonFree();
       return *this;
     }
 
    private:
     void FindNextNonFree() {
-      for (; ctrl_ != ctrl_end_; ++ctrl_, ++slots_) {
-        if (*ctrl_ != kFreeSlot && *ctrl_ != kTombstone)
+      for (; ctrl_ != ctrl_end_; ++ctrl_, ++slot_) {
+        const uint8_t cur_ctrl = *ctrl_;
+        if (cur_ctrl != kFreeSlot && cur_ctrl != kTombstone)
           return;
       }
     }
     const uint8_t* ctrl_ = nullptr;
     const uint8_t* ctrl_end_ = nullptr;
-    Slot* slots_ = nullptr;
+    Slot* slot_ = nullptr;
   };  // Iterator
 
   explicit FlatHashMapV2(size_t initial_capacity = 0,
@@ -220,7 +222,7 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
   PERFETTO_ALWAYS_INLINE Value* Find(const K& key) const {
     size_t key_hash = Hasher{}(key);
     uint8_t h2 = H2(key_hash);
-    FindResult res = FindInternal<false>(key, key_hash, h2);
+    FindResult res = FindSlotIgnoringTombstones<false>(key, key_hash, h2);
     if (PERFETTO_UNLIKELY(res.needs_insert)) {
       return nullptr;
     }
@@ -231,7 +233,7 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
   bool Erase(const K& key) {
     size_t key_hash = Hasher{}(key);
     uint8_t h2 = H2(key_hash);
-    FindResult res = FindInternal<false>(key, key_hash, h2);
+    FindResult res = FindSlotIgnoringTombstones<false>(key, key_hash, h2);
     if (PERFETTO_UNLIKELY(res.needs_insert)) {
       return false;
     }
@@ -247,31 +249,31 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
   PERFETTO_ALWAYS_INLINE std::pair<Value*, bool> Insert(Key key, Value value) {
     size_t key_hash = Hasher{}(key);
     uint8_t h2 = H2(key_hash);
-    FindResult res = FindInternal<true>(key, key_hash, h2);
-    if (PERFETTO_UNLIKELY(res.needs_insert)) {
-      if (PERFETTO_UNLIKELY(growth_info_.growth_left == 0)) {
-        GrowAndRehash();
-        // After rehash, table has no tombstones. Find an empty slot directly
-        // instead of recursing (which would prevent inlining).
-        res.idx = FindFirstNonFull(key_hash);
-      }
-      PERFETTO_DCHECK(res.idx != kNotFound);
-      size_t insert_idx = res.idx;
-      bool is_freeslot = true;
-      if (PERFETTO_UNLIKELY(growth_info_.has_tombstones)) {
-        insert_idx = FindFirstNonFull(key_hash);
-        is_freeslot = ctrl_[insert_idx] != kTombstone;
-      }
-      new (&slots_[insert_idx].key) Key(std::move(key));
-      new (&slots_[insert_idx].value) Value(std::move(value));
-      SetCtrl(insert_idx, h2);
-      size_++;
-      if (is_freeslot) {
-        growth_info_.growth_left--;
-      }
-      return {&slots_[insert_idx].value, true};
+    FindResult res = FindSlotIgnoringTombstones<true>(key, key_hash, h2);
+    if (PERFETTO_UNLIKELY(!res.needs_insert)) {
+      return {&slots_[res.idx].value, false};
     }
-    return {&slots_[res.idx].value, false};
+    if (PERFETTO_UNLIKELY(growth_info_.growth_left == 0)) {
+      GrowAndRehash();
+      // After rehash, table has no tombstones. Find an empty slot directly
+      // instead of recursing (which would prevent inlining).
+      res.idx = FindFirstEmptyOrTombstone(key_hash);
+    }
+    PERFETTO_DCHECK(res.idx != kNotFound);
+    size_t insert_idx = res.idx;
+    bool is_freeslot = true;
+    if (PERFETTO_UNLIKELY(growth_info_.has_tombstones)) {
+      insert_idx = FindFirstEmptyOrTombstone(key_hash);
+      is_freeslot = ctrl_[insert_idx] != kTombstone;
+    }
+    new (&slots_[insert_idx].key) Key(std::move(key));
+    new (&slots_[insert_idx].value) Value(std::move(value));
+    SetCtrl(insert_idx, h2);
+    size_++;
+    if (is_freeslot) {
+      growth_info_.growth_left--;
+    }
+    return {&slots_[insert_idx].value, true};
   }
 
   Value& operator[](Key key) {
@@ -280,6 +282,7 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
   }
 
   void Clear() {
+    // Avoid trivial heap operations on zero-capacity std::move()-d objects.
     if (PERFETTO_UNLIKELY(capacity_ == 0)) {
       return;
     }
@@ -316,20 +319,28 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
     uint64_t has_tombstones : 1;
   };
 
-  // Not found sentinel for FindInternal (must fit in 63-bit FindResult.idx)
+  // Not found sentinel (must fit in 63-bit FindResult.idx)
   static constexpr size_t kNotFound = std::numeric_limits<size_t>::max() >> 1;
 
-  // Abstraction over group of control bytes.
-  // Provides SIMD-accelerated matching functions or a SWAR fallback.
+  // Abstraction over a group of control bytes that enables batch operations.
+  // On x64, uses SSE to match 16 control bytes in parallel.
+  // On other platforms, uses SWAR (SIMD Within A Register) for 8 bytes.
+  //
+  // Match() returns an iterator over slots whose control byte matches h2.
+  // MatchEmpty() returns an iterator over empty slots (kFreeSlot).
+  // MatchEmptyOrDeleted() returns an iterator over empty or deleted slots.
 #if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
   struct Group {
    public:
     // Group size 16 for x64 SSE
     static constexpr size_t kSize = 16;
 
+    // Iterates over set bits in a match mask. Each set bit indicates a slot
+    // in the group that matched the search criteria. Call Next() to get the
+    // index of each matching slot.
     struct Iterator {
      public:
-      PERFETTO_ALWAYS_INLINE Iterator(uint16_t mask) : mask_(mask) {}
+      PERFETTO_ALWAYS_INLINE explicit Iterator(uint16_t mask) : mask_(mask) {}
       PERFETTO_ALWAYS_INLINE explicit operator bool() const { return mask_; }
 
       PERFETTO_ALWAYS_INLINE size_t Next() {
@@ -348,32 +359,34 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
 
     PERFETTO_ALWAYS_INLINE Iterator Match(uint8_t h2) const {
       auto match = _mm_cmpeq_epi8(ctrl_, _mm_set1_epi8(static_cast<char>(h2)));
-      return {static_cast<uint16_t>(_mm_movemask_epi8(match))};
+      return Iterator(static_cast<uint16_t>(_mm_movemask_epi8(match)));
     }
 
     PERFETTO_ALWAYS_INLINE Iterator MatchEmpty() const {
-      return {static_cast<uint16_t>(
-          _mm_movemask_epi8(_mm_sign_epi8(ctrl_, ctrl_)))};
+      return Iterator(static_cast<uint16_t>(
+          _mm_movemask_epi8(_mm_sign_epi8(ctrl_, ctrl_))));
     }
 
     PERFETTO_ALWAYS_INLINE Iterator MatchEmptyOrDeleted() const {
-      return {static_cast<uint16_t>(_mm_movemask_epi8(ctrl_))};
+      return Iterator(static_cast<uint16_t>(_mm_movemask_epi8(ctrl_)));
     }
 
    private:
     __m128i ctrl_;
   };
 #else
-  // Group size 8: uses single 64-bit word (SWAR)
+  // SWAR fallback: processes 8 control bytes at a time using 64-bit arithmetic.
   struct Group {
    public:
     // Group size 8 for ARM and other platforms
     static constexpr size_t kSize = 8;
 
-    // Iterator for sparse 64-bit mask
+    // Iterates over set bits in a sparse 64-bit mask. Each set MSB indicates
+    // a matching byte in the group. Call Next() to get the index of each
+    // matching slot.
     struct Iterator {
      public:
-      PERFETTO_ALWAYS_INLINE Iterator(uint64_t mask) : mask_(mask) {}
+      PERFETTO_ALWAYS_INLINE explicit Iterator(uint64_t mask) : mask_(mask) {}
       PERFETTO_ALWAYS_INLINE explicit operator bool() const { return mask_; }
       PERFETTO_ALWAYS_INLINE size_t Next() {
         // Count zeros and divide by 8 (shift 3)
@@ -394,17 +407,17 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
 
     PERFETTO_ALWAYS_INLINE Iterator Match(uint8_t h2) const {
       uint64_t x = ctrl_ ^ (kLsbs * h2);
-      return {(x - kLsbs) & ~x & kMsbs};
+      return Iterator((x - kLsbs) & ~x & kMsbs);
     }
 
     PERFETTO_ALWAYS_INLINE Iterator MatchEmpty() const {
       // 0x80 check (Empty)
-      return {(ctrl_ & ~(ctrl_ << 6)) & kMsbs};
+      return Iterator((ctrl_ & ~(ctrl_ << 6)) & kMsbs);
     }
 
     PERFETTO_ALWAYS_INLINE Iterator MatchEmptyOrDeleted() const {
       // 0x80 or 0xFE check (Empty or Deleted)
-      return {(ctrl_ & ~(ctrl_ << 7)) & kMsbs};
+      return Iterator((ctrl_ & ~(ctrl_ << 7)) & kMsbs);
     }
 
    private:
@@ -418,15 +431,29 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
   // The number of cloned control bytes after the main control byte array.
   static constexpr size_t kNumClones = Group::kSize - 1;
 
-  // Returns FindResult with idx and whether the key needs to be inserted.
-  // If key is found: {idx, false} where idx is the slot containing the key.
-  // If key not found and ForInsert=true: {empty_idx, true} for insertion.
-  // If key not found and ForInsert=false: {kNotFound, true} (skips empty idx
-  // calc).
+  // Searches for a key in the table. This function IGNORES tombstones during
+  // the search - it only stops at empty slots (kFreeSlot) or matching keys.
+  //
+  // Why ignore tombstones? In Swiss Tables, tombstones mark deleted entries but
+  // must be skipped during lookup because the key we're searching for may have
+  // been inserted AFTER the tombstone was created (i.e., the key's probe
+  // sequence may have skipped over that tombstone). Only an empty slot
+  // definitively proves the key doesn't exist.
+  //
+  // Returns FindResult with idx and whether the key needs to be inserted:
+  // - If key is found: {idx, false} where idx is the slot containing the key.
+  // - If key not found and ForInsert=true: {empty_idx, true} where empty_idx
+  //   is the index of the first EMPTY slot encountered.
+  // - If key not found and ForInsert=false: {kNotFound, true}.
+  //
+  // IMPORTANT for insertion (ForInsert=true): The returned empty_idx is NOT
+  // necessarily the best slot to insert into! There may be an earlier tombstone
+  // in the probe sequence that should be reused to avoid wasting slots. When
+  // has_tombstones is set, the caller must make a SECOND pass by calling
+  // FindFirstEmptyOrTombstone() to find the actual insertion slot.
   template <bool ForInsert, typename K = Key>
-  PERFETTO_ALWAYS_INLINE FindResult FindInternal(const K& key,
-                                                 size_t key_hash,
-                                                 uint8_t h2) const {
+  PERFETTO_ALWAYS_INLINE FindResult
+  FindSlotIgnoringTombstones(const K& key, size_t key_hash, uint8_t h2) const {
     static_assert(
         flat_hash_map_v2_internal::IsLookupKeyAllowed<K, Key, Hasher>(),
         "Heterogeneous lookup requires Hasher to define is_transparent and "
@@ -439,7 +466,7 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
 
     const size_t cap_mask = capacity_ - 1;
     size_t offset = H1(key_hash) & cap_mask;
-    size_t probe_index = 0;
+    size_t probe_size = 0;
     const uint8_t* ctrl = ctrl_;
 
     // Prefetch control bytes (like Absl's prefetch_heap_block).
@@ -452,10 +479,9 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
 
       Group group(ctrl + offset);
 
-      // Match H2 tags. Use uint16_t to match Absl's BitMask<uint16_t> type.
-      // This avoids zero-extension and enables 16-bit lea/and instead of blsr.
+      // Match H2 tags in this group.
       for (auto it = group.Match(h2); PERFETTO_LIKELY(it);) {
-        // Must mask because offset + CountTrailZeros can exceed capacity when
+        // Must mask because offset + it.Next() can exceed capacity when
         // group straddles the table boundary (using cloned control bytes).
         size_t idx = (offset + it.Next()) & cap_mask;
         if (PERFETTO_LIKELY(Eq{}(slots_[idx].key, key))) {
@@ -463,7 +489,8 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
         }
       }
 
-      // Check for empty slot. If we find one, the key is not present.
+      // Check for empty slot (NOT tombstones). If we find an empty slot, the
+      // key cannot exist in the table (empty slots terminate probe chains).
       if (auto it = group.MatchEmpty(); PERFETTO_LIKELY(it)) {
         if constexpr (ForInsert) {
           size_t empty_idx = (offset + it.Next()) & cap_mask;
@@ -474,31 +501,38 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
       }
 
       // Triangular probing (like Absl): 0, 16, 48, 96, ...
-      probe_index += Group::kSize;
-      offset = (offset + probe_index) & cap_mask;
+      probe_size += Group::kSize;
+      offset = (offset + probe_size) & cap_mask;
 
       // Should never happen with load limit.
-      PERFETTO_DCHECK(probe_index <= capacity_);
+      PERFETTO_DCHECK(probe_size <= capacity_);
     }
   }
 
-  // Find first empty OR deleted slot for insertion.
-  // Called only when has_deleted is set (slow path).
-  size_t FindFirstNonFull(size_t key_hash) const {
+  // Find first empty OR tombstone slot for insertion.
+  // Called when has_tombstones is set to find an earlier tombstone that can
+  // be reused instead of taking a new empty slot.
+  size_t FindFirstEmptyOrTombstone(size_t key_hash) const {
     const size_t cap_mask = capacity_ - 1;
     size_t offset = H1(key_hash) & cap_mask;
-    size_t probe_index = 0;
+    size_t probe_size = 0;
     while (true) {
       Group group(ctrl_ + offset);
       if (auto it = group.MatchEmptyOrDeleted(); PERFETTO_LIKELY(it)) {
         return (offset + it.Next()) & cap_mask;
       }
-      probe_index += Group::kSize;
-      offset = (offset + probe_index) & cap_mask;
+      probe_size += Group::kSize;
+      offset = (offset + probe_size) & cap_mask;
     }
   }
 
   PERFETTO_NO_INLINE void GrowAndRehash() {
+    // Grow factor must be a power of 2 because probing uses bitwise AND
+    // for modulo arithmetic (capacity must remain a power of 2).
+    static constexpr size_t kGrowFactor = 2;
+    static_assert((kGrowFactor & (kGrowFactor - 1)) == 0,
+                  "kGrowFactor must be a power of 2");
+
     PERFETTO_DCHECK(size_ <= capacity_);
 
     size_t old_capacity = capacity_;
@@ -509,7 +543,7 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
 
     // This must be a CHECK (i.e. not just a DCHECK) to prevent UAF attacks on
     // 32-bit archs that try to double the size of the table until wrapping.
-    size_t new_capacity = old_capacity * 2;
+    size_t new_capacity = old_capacity * kGrowFactor;
     PERFETTO_CHECK(new_capacity >= old_capacity);
     Reset(new_capacity, true);
 
@@ -540,6 +574,7 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
     growth_info_.has_tombstones = 0;
 
     if (reallocate) {
+      // See memory layout comment above |storage_|.
       size_t slots_offset =
           base::AlignUp(capacity_ + kNumClones, alignof(Slot));
       storage_.reset(new uint8_t[slots_offset + (capacity_ * sizeof(Slot))]);
@@ -565,12 +600,28 @@ class FlatHashMapV2 : public flat_hash_map_v2_internal::FlatHashMapV2Base {
   PERFETTO_ALWAYS_INLINE void SetCtrl(size_t i, uint8_t h) {
     ctrl_[i] = h;
     // Update clone if this is one of the first kNumClones entries
-    if (i < kNumClones) {
+    if (PERFETTO_UNLIKELY(i < kNumClones)) {
       ctrl_[capacity_ + i] = h;
     }
   }
 
-  // Owns the actual memory: [ctrl[capacity]][clones[15]][slots[capacity]]
+  // Owns the actual memory with the following layout:
+  //
+  // [Control bytes]
+  //   |capacity_| bytes for control bytes.
+  //   kNumClones (15 or 7) bytes for control byte clones (*).
+  //   No alignment required (accessed at arbitrary byte offsets).
+  //
+  // [Padding for Slot alignment]
+  //
+  // [Slots]
+  //   capacity_ * sizeof(Slot): contains key-value pairs.
+  //   Must be aligned to alignof(Slot).
+  //
+  // (*) Control byte clones: The first kNumClones control bytes are duplicated
+  // at the end of the control array. This allows SIMD operations to read a full
+  // group (16 or 8 bytes) starting from any position without bounds checking,
+  // even near the end of the array.
   std::unique_ptr<uint8_t[]> storage_;
 
   size_t capacity_ = 0;
