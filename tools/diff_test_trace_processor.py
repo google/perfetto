@@ -20,7 +20,6 @@ from __future__ import print_function
 import argparse
 import json
 import os
-import signal
 import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,13 +48,13 @@ Alternatively, run this script using the venv python directly:
 ''')
   sys.exit(1)
 
-from python.generators.diff_tests.utils import ctrl_c_handler
+from python.generators.diff_tests.utils import setup_ctrl_c_handler
 from python.generators.diff_tests.runner import DiffTestsRunner
 from python.generators.diff_tests.models import Config
 
 
 def main():
-  signal.signal(signal.SIGINT, ctrl_c_handler)
+  setup_ctrl_c_handler()
   parser = argparse.ArgumentParser()
   parser.add_argument('--test-type', type=str, default='all')
   parser.add_argument('--trace-descriptor', type=str)
