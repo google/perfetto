@@ -91,6 +91,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
+  private executeFn?: () => Promise<void>;
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -1071,6 +1072,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
+    // Handle Ctrl+Enter to execute selected node
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      if (state.selectedNode !== undefined && this.executeFn !== undefined) {
+        void this.executeFn();
+        event.preventDefault();
+      }
+      return;
+    }
+
     // Handle copy/paste shortcuts - these work when a node IS selected
     if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
       if (state.selectedNode !== undefined) {
@@ -1293,6 +1303,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         loadGeneration: state.loadGeneration,
         isExplorerCollapsed: state.isExplorerCollapsed,
         sidebarWidth: state.sidebarWidth,
+        onExecuteReady: (executeFn) => {
+          this.executeFn = executeFn;
+        },
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
