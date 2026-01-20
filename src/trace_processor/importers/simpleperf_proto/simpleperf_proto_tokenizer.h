@@ -38,8 +38,11 @@ class SimpleperfProtoTokenizer : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Validate parsing is complete
+  base::Status OnPushDataToSorter() override;
+
+  // LEGACY: Calls new phase methods for backward compatibility
  private:
   enum class State : uint8_t {
     kExpectingMagic,

@@ -120,7 +120,8 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
 
 // This is called after the last Parse() call. At this point all |jobs_| have
 // been populated.
-base::Status NinjaLogParser::NotifyEndOfFile() {
+base::Status NinjaLogParser::OnPushDataToSorter() {
+  // Phase 1: Sort jobs and write slices directly to storage
   std::sort(jobs_.begin(), jobs_.end(),
             [](const Job& x, const Job& y) { return x.start_ms < y.start_ms; });
 

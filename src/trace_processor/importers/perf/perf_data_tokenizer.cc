@@ -562,12 +562,21 @@ base::Status PerfDataTokenizer::ProcessItraceStartRecord(Record record) {
   return base::OkStatus();
 }
 
-base::Status PerfDataTokenizer::NotifyEndOfFile() {
+base::Status PerfDataTokenizer::OnPushDataToSorter() {
+  // Phase 1: Validate parsing is complete
   if (parsing_state_ != ParsingState::kDone) {
     return base::ErrStatus("Premature end of perf file.");
   }
-  RETURN_IF_ERROR(perf_tracker_.NotifyEndOfFile());
   return base::OkStatus();
+}
+
+void PerfDataTokenizer::OnEventsFullyExtracted() {
+  // Phase 3: Finalize tracker
+  auto status = perf_tracker_.OnEventsFullyExtracted();
+  if (!status.ok()) {
+    PERFETTO_ELOG("Failed to finalize perf tracker: %s",
+                  status.message().c_str());
+  }
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

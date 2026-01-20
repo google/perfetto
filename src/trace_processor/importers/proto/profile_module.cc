@@ -518,7 +518,8 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
   }
 }
 
-void ProfileModule::NotifyEndOfFile() {
+void ProfileModule::OnEventsFullyExtracted() {
+  // Phase 3: Process stack profile mappings
   for (auto it = context_->storage->stack_profile_mapping_table().IterateRows();
        it; ++it) {
     NullTermStringView path = context_->storage->GetString(it.name());

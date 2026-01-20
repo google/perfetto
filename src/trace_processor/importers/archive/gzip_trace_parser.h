@@ -37,8 +37,14 @@ class GzipTraceParser : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
 
+  // NEW: Phase 1 - Validate stream + delegate to inner reader
+  base::Status OnPushDataToSorter() override;
+
+  // NEW: Phase 3 - Delegate to inner reader
+  void OnEventsFullyExtracted() override;
+
+  // LEGACY: Calls new phase methods for backward compatibility
   base::Status ParseUnowned(const uint8_t*, size_t);
 
  private:
