@@ -34,7 +34,13 @@ import {
 import {Tab} from '../../public/tab';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {NUM, Row, SqlValue, STR} from '../../trace_processor/query_result';
+import {
+  NUM,
+  Row,
+  SqlValue,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {Button} from '../../widgets/button';
 import {MultiSelectDiff, PopupMultiSelect} from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
@@ -252,23 +258,60 @@ export class V8RuntimeCallStatsTab implements Tab {
   private renderExportButton() {
     return m(Button, {
       icon: Icons.Download,
-      label: 'Export rcs.json',
+      label: 'Export All rcs.json',
       onclick: () => this.downloadRcs(),
     });
   }
 
   private async downloadRcs() {
-    const result = await this.trace.engine.query(
-      `SELECT v8_rcs_name, v8_rcs_count, v8_rcs_dur FROM v8_rcs_view`,
-    );
-    const rcsData: {[key: string]: object} = {};
+    const result = await this.trace.engine.query(`
+      SELECT
+        p.upid,
+        args.string_value AS process_label,
+        v.v8_rcs_name,
+        SUM(v.v8_rcs_dur) AS v8_rcs_dur,
+        SUM(v.v8_rcs_count) AS v8_rcs_count
+      FROM v8_rcs_view v
+      JOIN thread_track tt ON v.track_id = tt.id
+      JOIN thread t ON tt.utid = t.utid
+      JOIN process p ON t.upid = p.upid
+      LEFT JOIN args ON p.arg_set_id = args.arg_set_id AND args.key = 'chrome.process_label[0]'
+      GROUP BY p.upid, v.v8_rcs_name
+    `);
+
+    const regex = /https?:\/\/([^\/\s]+)/;
+    const pageStats: {
+      [pageName: string]: {[key: string]: object};
+    } = Object.create(null);
+    const pageNames = new Map<number, string>();
+    const urlCounts = new Map<string, number>();
+
     const it = result.iter({
+      upid: NUM,
+      process_label: STR_NULL,
       v8_rcs_name: STR,
       v8_rcs_count: NUM,
       v8_rcs_dur: NUM,
     });
+
     for (; it.valid(); it.next()) {
-      rcsData[it.v8_rcs_name] = {
+      const upid = it.upid;
+      const processLabel = it.process_label || 'Unknown';
+
+      let pageName = pageNames.get(upid);
+      if (!pageName) {
+        const tld = processLabel.match(regex)?.[1] ?? 'Unknown';
+        const count = (urlCounts.get(tld) ?? 0) + 1;
+        urlCounts.set(tld, count);
+        pageName = count == 1 ? tld : `${tld} (${count})`;
+        pageNames.set(upid, pageName);
+      }
+
+      if (!(pageName in pageStats)) {
+        pageStats[pageName] = {};
+      }
+
+      pageStats[pageName][it.v8_rcs_name] = {
         count: {
           average: it.v8_rcs_count,
           stddev: 0,
@@ -279,12 +322,11 @@ export class V8RuntimeCallStatsTab implements Tab {
         },
       };
     }
+
     download({
       fileName: 'rcs.json',
       content: JSON.stringify({
-        "default version": {
-            "default page": rcsData,
-        },
+        "default version": pageStats,
       }, null, 2),
     });
   }
@@ -456,6 +498,7 @@ export class V8RuntimeCallStatsTab implements Tab {
             ELSE 'runtime'
           END AS v8_rcs_group,
           name AS v8_rcs_name,
+          track_id,
           SUM(CASE WHEN suffix = '[1]'
             THEN CAST(int_value * 1000 * ratio AS INT)
             ELSE 0
@@ -465,7 +508,7 @@ export class V8RuntimeCallStatsTab implements Tab {
             ELSE 0
             END) AS v8_rcs_count
         FROM rcs_entries
-        GROUP BY name
+        GROUP BY name, track_id
       )
       SELECT
         *,
