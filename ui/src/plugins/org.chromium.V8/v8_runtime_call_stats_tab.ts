@@ -258,7 +258,7 @@ export class V8RuntimeCallStatsTab implements Tab {
   private renderExportButton() {
     return m(Button, {
       icon: Icons.Download,
-      label: 'Export All rcs.json',
+      label: 'Export all rcs.json',
       onclick: () => this.downloadRcs(),
     });
   }
@@ -279,12 +279,21 @@ export class V8RuntimeCallStatsTab implements Tab {
       GROUP BY p.upid, v.v8_rcs_name
     `);
 
-    const regex = /https?:\/\/([^\/\s]+)/;
+    const regex = /https?:\/\/[^\/\s]+/;
     const pageStats: {
-      [pageName: string]: {[key: string]: object};
+      [pageName: string]: {[key: string]: {
+        count: {
+          average: number,
+          stddev: number
+        },
+        duration: {
+          average: number,
+          stddev: number
+        }
+      }};
     } = Object.create(null);
     const pageNames = new Map<number, string>();
-    const urlCounts = new Map<string, number>();
+    const tldCounts = new Map<string, number>();
 
     const it = result.iter({
       upid: NUM,
@@ -296,19 +305,26 @@ export class V8RuntimeCallStatsTab implements Tab {
 
     for (; it.valid(); it.next()) {
       const upid = it.upid;
-      const processLabel = it.process_label || 'Unknown';
+      const processLabel = it.process_label ?? '';
 
       let pageName = pageNames.get(upid);
       if (!pageName) {
-        const tld = processLabel.match(regex)?.[1] ?? 'Unknown';
-        const count = (urlCounts.get(tld) ?? 0) + 1;
-        urlCounts.set(tld, count);
-        pageName = count == 1 ? tld : `${tld} (${count})`;
+        const match = processLabel.match(regex);
+        let tld;
+        if (match) {
+          const rawURL = match[0];
+          tld = new URL(rawURL).hostname;
+        } else {
+          tld = 'unknown';
+        }
+        const count = (tldCounts.get(tld) ?? 0) + 1;
+        tldCounts.set(tld, count);
+        pageName = count == 1 ? tld : `${tld} PID=${upid}`;
         pageNames.set(upid, pageName);
       }
 
       if (!(pageName in pageStats)) {
-        pageStats[pageName] = {};
+        pageStats[pageName] = Object.create(null);
       }
 
       pageStats[pageName][it.v8_rcs_name] = {
@@ -321,6 +337,25 @@ export class V8RuntimeCallStatsTab implements Tab {
           stddev: 0,
         },
       };
+    }
+
+    for (const stats of Object.values(pageStats)) {
+      let totalCount = 0;
+      let totalDuration = 0;
+      for (const rcsEntry of Object.values(stats)) {
+        totalCount += rcsEntry.count.average;
+        totalDuration += rcsEntry.duration.average;
+      }
+      stats['Total'] = {
+          count: {
+            average: totalCount,
+            stddev: 0,
+          },
+          duration: {
+            average: totalDuration,
+            stddev: 0,
+          },
+        };
     }
 
     download({
