@@ -16,7 +16,8 @@ import m from 'mithril';
 import {TraceImpl} from '../../core/trace_impl';
 import {Button} from '../../widgets/button';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {DrawerPanel, DrawerTab} from '../../widgets/drawer_panel';
+import {DrawerPanel} from '../../widgets/drawer_panel';
+import {Tabs, TabsTab} from '../../widgets/tabs';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from '../css_constants';
 import {CurrentSelectionTab} from './current_selection_tab';
 
@@ -33,7 +34,7 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     const tabMan = attrs.trace.tabs;
 
     // Build tabs array from registered tabs
-    const tabs: DrawerTab[] = [
+    const tabs: TabsTab[] = [
       // Permanent current selection tab
       {
         key: 'current_selection',
@@ -49,17 +50,24 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
       })),
     ];
 
-    return m(DrawerPanel, {
-      className: attrs.className,
-      startingHeight: DEFAULT_DETAILS_CONTENT_HEIGHT,
-      leftHandleContent: this.renderDropdownMenu(attrs.trace),
-      mainContent: children,
+    return m(Tabs, {
       tabs,
       activeTabKey: tabMan.currentTabUri,
       onTabChange: (key) => tabMan.showTab(key),
       onTabClose: (key) => tabMan.hideTab(key),
-      visibility: tabMan.tabPanelVisibility,
-      onVisibilityChange: (v) => tabMan.setTabPanelVisibility(v),
+      render: ({handles, content}) =>
+        m(DrawerPanel, {
+          className: attrs.className,
+          startingHeight: DEFAULT_DETAILS_CONTENT_HEIGHT,
+          handleContent: [
+            this.renderDropdownMenu(attrs.trace),
+            m('.pf-tabs__tabs', handles),
+          ],
+          mainContent: children,
+          drawerContent: m('.pf-tabs__content', content),
+          visibility: tabMan.tabPanelVisibility,
+          onVisibilityChange: (v) => tabMan.setTabPanelVisibility(v),
+        }),
     });
   }
 

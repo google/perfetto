@@ -32,6 +32,13 @@ export interface TabsTab {
   readonly leftIcon?: string | m.Children;
 }
 
+export interface TabsParts {
+  // The tab handle buttons.
+  readonly handles: m.Children;
+  // The tab content panels (with Gate for show/hide).
+  readonly content: m.Children;
+}
+
 export interface TabsAttrs {
   // The tabs to display.
   readonly tabs: TabsTab[];
@@ -42,8 +49,12 @@ export interface TabsAttrs {
   onTabChange?(key: string): void;
   // Called when a tab's close button is clicked.
   onTabClose?(key: string): void;
-  // Additional class name for the container.
+  // Additional class name for the container (only used in default layout).
   readonly className?: string;
+  // Optional custom render function. When provided, Tabs becomes "headless" -
+  // it manages tab state but you control where handles and content are placed.
+  // If not provided, uses the default .pf-tabs layout.
+  render?(parts: TabsParts): m.Children;
 }
 
 interface TabHandleAttrs {
@@ -96,39 +107,46 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
   private internalActiveTab?: string;
 
   view({attrs}: m.CVnode<TabsAttrs>): m.Children {
-    const {tabs, activeTabKey, onTabChange, onTabClose, className} = attrs;
+    const {tabs, activeTabKey, onTabChange, onTabClose, className, render} =
+      attrs;
 
     // Get active tab key (controlled or uncontrolled)
     const activeKey = activeTabKey ?? this.internalActiveTab ?? tabs[0]?.key;
 
+    // Build the tab handles
+    const handles = tabs.map((tab) =>
+      m(
+        TabHandle,
+        {
+          active: tab.key === activeKey,
+          hasCloseButton: tab.closeButton,
+          leftIcon: tab.leftIcon,
+          onclick: () => {
+            this.internalActiveTab = tab.key;
+            onTabChange?.(tab.key);
+          },
+          onClose: () => onTabClose?.(tab.key),
+        },
+        tab.title,
+      ),
+    );
+
+    // Build the tab content
+    const content = tabs.map((tab) =>
+      m(Gate, {key: tab.key, open: tab.key === activeKey}, tab.content),
+    );
+
+    // If custom render provided, let caller control layout
+    if (render) {
+      return render({handles, content});
+    }
+
+    // Default layout
     return m(
       '.pf-tabs',
       {className},
-      m(
-        '.pf-tabs__tabs',
-        tabs.map((tab) =>
-          m(
-            TabHandle,
-            {
-              active: tab.key === activeKey,
-              hasCloseButton: tab.closeButton,
-              leftIcon: tab.leftIcon,
-              onclick: () => {
-                this.internalActiveTab = tab.key;
-                onTabChange?.(tab.key);
-              },
-              onClose: () => onTabClose?.(tab.key),
-            },
-            tab.title,
-          ),
-        ),
-      ),
-      m(
-        '.pf-tabs__content',
-        tabs.map((tab) =>
-          m(Gate, {key: tab.key, open: tab.key === activeKey}, tab.content),
-        ),
-      ),
+      m('.pf-tabs__tabs', handles),
+      m('.pf-tabs__content', content),
     );
   }
 }
