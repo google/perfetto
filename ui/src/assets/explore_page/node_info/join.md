@@ -1,4 +1,4 @@
-# Merge
+# Join
 
 **Purpose:** Join two data sources together based on a condition. Combines rows where the join condition is met, bringing together columns from both sources.
 
