@@ -153,7 +153,11 @@ export function createProfilingTrack(
           nameColumnLabel: 'Symbol',
         });
       // Use provided state or create initial state once
-      let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
+      let state = detailsPanelState;
+      if (state === undefined) {
+        state = Flamegraph.createDefaultState(metrics);
+        onDetailsPanelStateChange(state);
+      }
       return {
         load: async () => {},
         render: () =>
