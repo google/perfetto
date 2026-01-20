@@ -1312,6 +1312,7 @@ perfetto_filegroup(
     srcs = [
         "include/perfetto/public/protos/common/builtin_clock.pzc.h",
         "include/perfetto/public/protos/common/data_source_descriptor.pzc.h",
+        "include/perfetto/public/protos/common/semantic_type.pzc.h",
         "include/perfetto/public/protos/config/data_source_config.pzc.h",
         "include/perfetto/public/protos/config/trace_config.pzc.h",
         "include/perfetto/public/protos/config/track_event/track_event_config.pzc.h",
