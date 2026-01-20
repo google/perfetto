@@ -133,8 +133,8 @@ export function* generateTicks(
   maxMajorTicks: number,
   offset: time = Time.ZERO,
 ): Generator<Tick> {
-  assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
-  assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
+  assertTrue(timeSpan.duration > 0n);
+  assertTrue(maxMajorTicks > 0);
 
   timeSpan = timeSpan.translate(-offset);
   const minStepSize = BigInt(

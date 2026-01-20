@@ -13,6 +13,7 @@
 // limitations under the License.
 
 const {uglify} = require('rollup-plugin-uglify');
+const babel = require('@rollup/plugin-babel');
 const commonjs = require('@rollup/plugin-commonjs');
 const nodeResolve = require('@rollup/plugin-node-resolve');
 const path = require('path');
@@ -152,6 +153,17 @@ function defBundle(tsRoot, bundle, distDir) {
           // https://github.com/immerjs/immer/issues/557
           {test: /process\.env\.NODE_ENV/g, replace: "'production'"},
         ],
+      }),
+
+      // Add descriptive messages to assertion functions.
+      babel.babel({
+        babelHelpers: 'bundled',
+        babelrc: false,
+        configFile: false,
+        plugins: [path.join(__dirname, 'babel-plugin-assert-messages.js')],
+        extensions: ['.js'],
+        include: ['**/*.js'],
+        exclude: ['node_modules/**'],
       }),
 
       // Translate source maps to point back to the .ts sources.
