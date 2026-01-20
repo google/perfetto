@@ -260,14 +260,14 @@ export class V8RuntimeCallStatsTab implements Tab {
     const result = await this.trace.engine.query(
       `SELECT v8_rcs_name, v8_rcs_count, v8_rcs_dur FROM v8_rcs_view`,
     );
-    const stats: {[key: string]: object} = {};
+    const rcsData: {[key: string]: object} = {};
     const it = result.iter({
       v8_rcs_name: STR,
       v8_rcs_count: NUM,
       v8_rcs_dur: NUM,
     });
     for (; it.valid(); it.next()) {
-      stats[it.v8_rcs_name] = {
+      rcsData[it.v8_rcs_name] = {
         count: {
           average: it.v8_rcs_count,
           stddev: 0,
@@ -282,9 +282,7 @@ export class V8RuntimeCallStatsTab implements Tab {
       fileName: 'rcs.json',
       content: JSON.stringify({
         "default version": {
-            "default page": {
-              stats,
-            },
+            "default page": rcsData,
         },
       }, null, 2),
     });
