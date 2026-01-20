@@ -55,6 +55,7 @@ class Config:
   simpleperf_descriptor: str
   keep_input: bool
   print_slowest_tests: bool
+  jobs: int = 0  # Number of parallel jobs. 0 means use all available CPUs.
 
 
 class TestType(Enum):
