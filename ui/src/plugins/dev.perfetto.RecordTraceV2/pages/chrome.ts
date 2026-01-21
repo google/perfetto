@@ -28,14 +28,12 @@ import {
   MultiSelectOption,
   PopupMultiSelect,
 } from '../../../widgets/multiselect';
-import {Tabs, TabsTab} from '../../../widgets/tabs';
 import {Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
 import {PopupPosition} from '../../../widgets/popup';
 import {Icons} from '../../../base/semantic_icons';
 import {Stack} from '../../../widgets/stack';
-import { renderMultiselect } from 'src/plugins/dev.perfetto.WidgetsPage/demos/multiselect_demo';
 
 type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
 
@@ -53,14 +51,7 @@ export function chromeRecordSection(
 }
 
 function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
-  const presetToggles = Object.fromEntries(
-    Object.entries(GROUPS).map(([groupName, categories]) => [
-      groupName,
-      new Toggle({
-        title: `${groupName} (${categories.length} categories)`,
-      }),
-    ]),
-  );
+
   const privacyToggle = new Toggle({
     title: 'Remove untyped and sensitive data like URLs from the trace',
     descr:
@@ -70,7 +61,6 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
 
   const categories = new ChromeCategoriesWidget(
     chromeCategoryGetter,
-    presetToggles,
     privacyToggle,
   );
 
@@ -171,16 +161,22 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
 
 const DISABLED_PREFIX = 'disabled-by-default-';
 
+interface SelectOption {
+  id: string;
+  name?: string;
+}
+
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private tagsMap = new Map<string, MultiSelectOption[]>();
   private enabledTags = new Set<string>();
   private disabledTags = new Set<string>();
+  prviate enabledPresets = new Set<string>();
+
   private fetchedRuntimeCategories = false;
 
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
-    private presetToggles: Record<string, Toggle>,
     private privacyToggle: Toggle,
   ) {
     // Initialize first with the static list of builtin categories (in case
@@ -354,37 +350,11 @@ export class ChromeCategoriesWidget implements ProbeSetting {
 
     const activeCategories = Array.from(this.getAllIncludedCategories()).sort();
 
-    const enabledTagOptions = Array.from(this.tagsMap.entries()).map(
-      ([tag, _]) => {
-        return {
-          id: tag,
-          name: tag,
-          checked: this.enabledTags.has(tag),
-        };
-      },
-    );
-    const disabledTagOptions = Array.from(this.tagsMap.entries()).map(
-      ([tag, _]) => {
-        return {
-          id: tag,
-          name: tag,
-          checked: this.disabledTags.has(tag),
-        };
-      },
-    );
-
-    const tabs: TabsTab[] = [];
-
-    tabs.push({
-      key: 'presets',
-      title: [m(Icon, {icon: 'cards_star'}), ' Presets'],
-      content: m(
-        'div.chrome-tags-panel',
-        m(
-          'div',
-          Object.values(this.presetToggles).map((t) => t.render()),
-        ),
-      ),
+    const tagOptions : SelectOption[] = Array.from(this.tagsMap.keys()).sort().map(
+      (tag) =>  {tag });
+    const presetOptions : SelectOption[] = Object.entries(GROUPS).map(([groupName, categories]) => {
+        id: groupName,
+        name: `${groupName} (${categories.length} categories)`,
     });
 
     return m(
@@ -396,10 +366,20 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
-      renderMultiselect(
+      this.renderMultiselect(
         'Enabled Tags',
-       enabledTagOptions,
-       this.enabledTags,
+        tagOptions,
+        this.enabledTags,
+      ),
+      this.renderMultiselect(
+        'Disabled Tags',
+        tagOptions,
+        this.disabledTags,
+      ),
+      this.renderMultiselect(
+        'Presets',
+        presetOptions,
+        this.enabledPresets,
       ),
       m('div.chrome-privacy-setting', this.privacyToggle.render()),
       m('h2', m(Icon, {icon: 'list'}), ' Details'),
@@ -457,44 +437,56 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     );
   }
 
-  private renderMultiselect(label:string, options: MultiSelectOption[], optionsState : Set<string>) {
+  private renderMultiselect(
+    label: string,
+    options: SelectOption[],
+    optionsState: Set<string>,
+  ) {
+    const multiSelectOptions = Array.from(options).map((selectOption) => {
+      return {
+        id: selectOption.id,
+        name: selectOption.name ?? selectOption.id,
+        checked: optionsState.has(selectOption.id),
+      };
+    });
+
+    return m(
+      'div.chrome-categories-presets',
       m(
-        'div.chrome-categories-presets',
+        'div.chrome-tags-panel',
+        m(PopupMultiSelect, {
+          label: label,
+          icon: Icons.LibraryAddCheck,
+          options: multiSelectOptions,
+          showNumSelected: true,
+          position: PopupPosition.Bottom,
+          onChange: (diffs: MultiSelectDiff[]) => {
+            diffs.forEach(({id, checked}) => {
+              if (checked) {
+                optionsState.add(id);
+              } else {
+                optionsState.delete(id);
+              }
+            });
+          },
+        }),
         m(
-          'div.chrome-tags-panel',
-          m(PopupMultiSelect, {
-            label: label,
-            icon: Icons.LibraryAddCheck,
-            options: options,
-            showNumSelected: true,
-            position: PopupPosition.Bottom,
-            onChange: (diffs: MultiSelectDiff[]) => {
-              diffs.forEach(({id, checked}) => {
-                if (checked) {
-                  optionsState.add(id);
-                } else {
-                  optionsState.delete(id);
-                }
-              });
-            },
-          }),
-          m(
-            Stack,
-            {orientation: 'horizontal'},
-            Array.from(optionsState).map((tag) =>
-              m(Chip, {
-                label: tag,
-                rounded: true,
-                removable: true,
-                onRemove: () => {
-                  this.enabledTags.delete(tag);
-                },
-              }),
-            ),
+          Stack,
+          {orientation: 'horizontal'},
+          Array.from(optionsState).map((tag) =>
+            m(Chip, {
+              label: tag,
+              rounded: true,
+              removable: true,
+              onRemove: () => {
+                optionsState.delete(tag);
+              },
+            }),
           ),
         ),
       ),
-
+    );
+  }
 }
 
 function defaultAndDisabled(category: string) {
