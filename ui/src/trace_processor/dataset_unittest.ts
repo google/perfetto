@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {UnionDataset, SourceDataset} from './dataset';
+import {UnionDataset, SourceDataset, UnionDatasetWithLineage} from './dataset';
 import {
   BLOB,
   BLOB_NULL,
