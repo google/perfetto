@@ -32,7 +32,7 @@ export const CURRENT_SELECTION_TAB_URI = 'current_selection';
 export abstract class TraceTab implements Tab {
   abstract render(): m.Children;
   abstract getTitle(): string;
-  getSelectionURL(_selection: Selection): string {
+  getSelectionURI(_selection: Selection): string {
     return CURRENT_SELECTION_TAB_URI;
   }
 }

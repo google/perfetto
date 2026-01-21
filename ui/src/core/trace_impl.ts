@@ -190,7 +190,7 @@ export class TraceImpl implements Trace, Disposable {
       const currentTabUri = this.tabs.currentTabUri;
       const tab = this.tabs.resolveTab(currentTabUri);
       if (tab && tab.content instanceof TraceTab) {
-        this.tabs.showTab(tab.content.getSelectionURL(selection));
+        this.tabs.showTab(tab.content.getSelectionURI(selection));
       } else {
         this.tabs.showCurrentSelectionTab();
       }

@@ -88,7 +88,7 @@ export class V8RuntimeCallStatsTab extends TraceTab {
     super();
   }
 
-  getSelectionURL(_selection: Selection): string {
+  getSelectionURI(_selection: Selection): string {
     return RCS_TAB_URI;
   }
 
