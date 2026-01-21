@@ -480,7 +480,9 @@ export class SQLDataSource implements DataSource {
       if (colDef && isSQLExpressionDef(colDef) && colDef.parameterized) {
         if (colDef.parameterKeysQuery) {
           const baseTable = schema.table;
-          const baseAlias = `${baseTable}_0`;
+          // Use 'subquery_0' for subqueries (tables starting with '(')
+          const aliasBase = baseTable.startsWith('(') ? 'subquery' : baseTable;
+          const baseAlias = `${aliasBase}_0`;
           const query = colDef.parameterKeysQuery(baseTable, baseAlias);
 
           try {

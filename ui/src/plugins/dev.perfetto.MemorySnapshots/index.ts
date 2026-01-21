@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../components/widgets/datagrid/sql_schema';
+import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
@@ -29,7 +29,7 @@ interface SnapshotInfo {
 }
 
 const UI_SCHEMA: SchemaRegistry = {
-  memory_snapshot: {
+  memory_snapshot_node: {
     path: {
       title: 'Path',
       columnType: 'text',
@@ -42,8 +42,40 @@ const UI_SCHEMA: SchemaRegistry = {
       title: 'Effective Size',
       columnType: 'quantitative',
     },
+    args: {
+      title: 'Args',
+      parameterized: true,
+    },
   },
 };
+
+// SQL schema for memory_snapshot_node with args support
+function createMemorySnapshotSchema(snapshotId: number): SQLSchemaRegistry {
+  return {
+    memory_snapshot_node: {
+      table: `(SELECT * FROM memory_snapshot_node WHERE process_snapshot_id = ${snapshotId})`,
+      columns: {
+        id: {},
+        path: {},
+        size: {},
+        effective_size: {},
+        args: {
+          expression: (alias, key) =>
+            `extract_arg(${alias}.arg_set_id, '${key}')`,
+          parameterized: true,
+          parameterKeysQuery: (baseTable, baseAlias) => `
+            SELECT DISTINCT args.key
+            FROM ${baseTable} AS ${baseAlias}
+            JOIN args ON args.arg_set_id = ${baseAlias}.arg_set_id
+            WHERE args.key IS NOT NULL
+            ORDER BY args.key
+            LIMIT 1000
+          `,
+        },
+      },
+    },
+  };
+}
 
 interface SnapshotTabAttrs {
   trace: Trace;
@@ -60,16 +92,14 @@ class SnapshotTab implements m.ClassComponent<SnapshotTabAttrs> {
     if (!this.dataSource) {
       this.dataSource = new SQLDataSource({
         engine: trace.engine,
-        sqlSchema: createSimpleSchema(
-          `select * from memory_snapshot_node where process_snapshot_id = ${snapshotId}`,
-        ),
-        rootSchemaName: 'query',
+        sqlSchema: createMemorySnapshotSchema(snapshotId),
+        rootSchemaName: 'memory_snapshot_node',
       });
     }
 
     return m(DataGrid, {
       schema: UI_SCHEMA,
-      rootSchema: 'memory_snapshot',
+      rootSchema: 'memory_snapshot_node',
       data: this.dataSource,
       fillHeight: true,
       initialTree: {
