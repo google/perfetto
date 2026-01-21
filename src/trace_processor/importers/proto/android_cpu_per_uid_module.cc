@@ -141,6 +141,8 @@ void AndroidCpuPerUidModule::ParseTracePacketData(
 }
 
 void AndroidCpuPerUidModule::NotifyEndOfFile() {
+  std::vector<tables::AndroidCpuPerUidTrackTable::Row> rows;
+  rows.reserve(cumulative_.size());
   for (auto it = cumulative_.GetIterator(); it; ++it) {
     tables::AndroidCpuPerUidTrackTable::Row row;
     row.uid = it.key() >> 32;
@@ -148,6 +150,13 @@ void AndroidCpuPerUidModule::NotifyEndOfFile() {
     row.total_cpu_millis = static_cast<int64_t>(it.value());
     row.track_id = context_->track_tracker->InternTrack(
         kCpuPerUidBlueprint, tracks::Dimensions(row.uid, row.cluster));
+    rows.push_back(row);
+  }
+
+  std::sort(rows.begin(), rows.end(),
+            [](auto& a, auto& b) { return a.track_id < b.track_id; });
+
+  for (const auto& row : rows) {
     context_->storage->mutable_android_cpu_per_uid_track_table()->Insert(row);
   }
 }
