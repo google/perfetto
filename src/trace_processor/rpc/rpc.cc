@@ -252,12 +252,18 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
                             }
                           });
 
+        const auto start = std::chrono::steady_clock::now();
         auto it = trace_processor_->ExecuteQuery(sql);
+        const auto elapsed_time = std::chrono::steady_clock::now() - start;
+        const double elapsed_time_ms =
+            std::chrono::duration<double, std::milli>(elapsed_time).count();
+
         QueryResultSerializer serializer(std::move(it));
         for (bool has_more = true; has_more;) {
           const auto seq_id = tx_seq_id_++;
           Response resp(seq_id, req_type);
-          has_more = serializer.Serialize(resp->set_query_result());
+          has_more =
+              serializer.Serialize(resp->set_query_result(), elapsed_time_ms);
           const uint32_t resp_size = resp->Finalize();
           if (resp_size < protozero::proto_utils::kMaxMessageLength) {
             // This is the nominal case.
@@ -550,7 +556,8 @@ void Rpc::Query(const uint8_t* args,
   protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
                                                                 kSliceSize);
   for (bool has_more = true; has_more;) {
-    has_more = serializer.Serialize(buffered.get());
+    // TODO put real time in here!
+    has_more = serializer.Serialize(buffered.get(), 0);
     const auto& res = buffered.GetSlices();
     for (uint32_t i = 0; i < res.size(); ++i) {
       auto used = res[i].GetUsedRange();
