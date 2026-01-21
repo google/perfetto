@@ -49,7 +49,7 @@ class IntervalsSelfIntersect(TestSuite):
         SELECT ts, dur, group_id, count
         FROM interval_to_table!(
           interval_intersect!(
-            interval_partition!(intervals, ()),
+            interval_partition!(intervals, (), ()),
             (interval_agg!(count, COUNT))
           ),
           (ts, dur, group_id, count)
@@ -87,7 +87,7 @@ class IntervalsSelfIntersect(TestSuite):
           sum_value AS sum
         FROM interval_to_table!(
           interval_intersect!(
-            interval_partition_with_agg!(intervals, (), (value)),
+            interval_partition!(intervals, (), (value)),
             (interval_agg!(count, COUNT), interval_agg!(value, SUM))
           ),
           (ts, dur, group_id, count, sum_value)
@@ -125,7 +125,7 @@ class IntervalsSelfIntersect(TestSuite):
           max_priority AS max
         FROM interval_to_table!(
           interval_intersect!(
-            interval_partition_with_agg!(intervals, (), (priority)),
+            interval_partition!(intervals, (), (priority)),
             (interval_agg!(count, COUNT), interval_agg!(priority, MAX))
           ),
           (ts, dur, group_id, count, max_priority)
@@ -163,7 +163,7 @@ class IntervalsSelfIntersect(TestSuite):
           min_value AS min
         FROM interval_to_table!(
           interval_intersect!(
-            interval_partition_with_agg!(intervals, (), (value)),
+            interval_partition!(intervals, (), (value)),
             (interval_agg!(count, COUNT), interval_agg!(value, MIN))
           ),
           (ts, dur, group_id, count, min_value)
@@ -200,7 +200,7 @@ class IntervalsSelfIntersect(TestSuite):
         SELECT ts, dur, group_id, count
         FROM interval_to_table!(
           interval_intersect!(
-            interval_partition!(intervals, ()),
+            interval_partition!(intervals, (), ()),
             (interval_agg!(count, COUNT))
           ),
           (ts, dur, group_id, count)
@@ -233,7 +233,7 @@ class IntervalsSelfIntersect(TestSuite):
         SELECT ts, dur, group_id, count, sum_value AS sum
         FROM interval_to_table!(
           interval_intersect!(
-            interval_partition_with_agg!(intervals, (), (value)),
+            interval_partition!(intervals, (), (value)),
             (interval_agg!(count, COUNT), interval_agg!(value, SUM))
           ),
           (ts, dur, group_id, count, sum_value)
@@ -267,7 +267,7 @@ class IntervalsSelfIntersect(TestSuite):
         SELECT ts, dur, group_id, cpu, count, sum_value AS sum
         FROM interval_to_table!(
           interval_intersect!(
-            interval_partition_with_agg!(intervals, (cpu), (value)),
+            interval_partition!(intervals, (cpu), (value)),
             (interval_agg!(count, COUNT), interval_agg!(value, SUM))
           ),
           (ts, dur, group_id, count, sum_value, cpu)
@@ -302,7 +302,7 @@ class IntervalsSelfIntersect(TestSuite):
         SELECT ts, dur, group_id, count, avg_value AS avg
         FROM interval_to_table!(
           interval_intersect!(
-            interval_partition_with_agg!(intervals, (), (value)),
+            interval_partition!(intervals, (), (value)),
             (interval_agg!(count, COUNT), interval_agg!(value, AVG))
           ),
           (ts, dur, group_id, count, avg_value)
@@ -337,7 +337,7 @@ class IntervalsSelfIntersect(TestSuite):
         SELECT ts, dur, group_id
         FROM interval_to_table!(
           interval_intersect!(
-            interval_partition!(intervals, ()),
+            interval_partition!(intervals, (), ()),
             ()
           ),
           (ts, dur, group_id)

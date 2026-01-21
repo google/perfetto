@@ -56,7 +56,8 @@ __intrinsic_interval_agg(__intrinsic_stringify!($col), __intrinsic_stringify!($a
 -- Creates a partitioned interval set from a table.
 CREATE PERFETTO MACRO interval_partition(
   tab TableOrSubquery,
-  partition_cols ColumnNameList
+  partition_cols ColumnNameList,
+  agg_cols ColumnNameList
 )
 RETURNS Expr AS
 (
@@ -65,6 +66,12 @@ RETURNS Expr AS
       input.id,
       input.ts,
       input.dur
+      __intrinsic_token_apply_prefix!(
+        _ii_si_agg,
+        $agg_cols,
+        $agg_cols
+      ),
+      '__PERFETTO_PARTITION_DELIMITER__'
       __intrinsic_token_apply_prefix!(
         _ii_si_agg,
         $partition_cols,
@@ -85,27 +92,7 @@ CREATE PERFETTO MACRO interval_partition_with_agg(
   partition_cols ColumnNameList,
   agg_cols ColumnNameList
 )
-RETURNS Expr AS
-(
-  SELECT
-    __intrinsic_interval_tree_intervals_with_agg(
-      1,  -- agg_col_count: currently only 1 aggregation column supported
-      input.id,
-      input.ts,
-      input.dur
-      __intrinsic_token_apply_prefix!(
-        _ii_si_agg,
-        $agg_cols,
-        $agg_cols
-      )
-      __intrinsic_token_apply_prefix!(
-        _ii_si_agg,
-        $partition_cols,
-        $partition_cols
-      )
-    )
-  FROM (SELECT * FROM $tab ORDER BY ts) input
-);
+RETURNS Expr AS interval_partition!($tab, $partition_cols, $agg_cols);
 
 -- Helper macro to pass aggregations to the intrinsic function
 CREATE PERFETTO MACRO _ii_si_pass_agg(x Expr)

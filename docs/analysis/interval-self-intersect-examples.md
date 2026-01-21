@@ -18,6 +18,7 @@ FROM interval_to_table!(
   interval_intersect!(
     interval_partition!(
       (SELECT id, ts, dur FROM slice WHERE dur > 0),
+      (),
       ()
     ),
     ()  -- Empty aggregation list for raw buckets
@@ -47,6 +48,7 @@ FROM interval_to_table!(
   interval_intersect!(
     interval_partition!(
       (SELECT id, ts, dur FROM slice WHERE dur > 0),
+      (),
       ()
     ),
     (interval_agg!(count, COUNT))
@@ -76,7 +78,7 @@ SELECT
   sum_depth AS total_depth
 FROM interval_to_table!(
   interval_intersect!(
-    interval_partition_with_agg!(
+    interval_partition!(
       (SELECT id, ts, dur, depth FROM slice WHERE dur > 0),
       (),
       (depth)
@@ -111,7 +113,8 @@ FROM interval_to_table!(
   interval_intersect!(
     interval_partition!(
       (SELECT id, ts, dur, upid FROM slice WHERE dur > 0),
-      (upid)
+      (upid),
+      ()
     ),
     (interval_agg!(count, COUNT))
   ),
@@ -140,7 +143,7 @@ SELECT
   avg_depth
 FROM interval_to_table!(
   interval_intersect!(
-    interval_partition_with_agg!(
+    interval_partition!(
       (SELECT id, ts, dur, depth, upid FROM slice WHERE dur > 0),
       (upid),
       (depth)
@@ -172,7 +175,7 @@ SELECT
   sum_priority AS total_priority
 FROM interval_to_table!(
   interval_intersect!(
-    interval_partition_with_agg!(
+    interval_partition!(
       (SELECT id, ts, dur, priority, cpu FROM sched WHERE dur > 0),
       (cpu),
       (priority)
@@ -204,7 +207,7 @@ SELECT
   sum_size / 1024 / 1024 AS total_mb
 FROM interval_to_table!(
   interval_intersect!(
-    interval_partition_with_agg!(
+    interval_partition!(
       (SELECT id, ts, dur, size, upid FROM heap_profile_allocation WHERE dur > 0),
       (upid),
       (size)
@@ -236,7 +239,7 @@ SELECT
   max_size / 1024 / 1024 AS largest_mb
 FROM interval_to_table!(
   interval_intersect!(
-    interval_partition_with_agg!(
+    interval_partition!(
       (SELECT id, ts, dur, size, upid FROM heap_profile_allocation WHERE dur > 0),
       (upid),
       (size)
@@ -279,7 +282,8 @@ FROM interval_to_table!(
         FROM slice
         WHERE name GLOB 'binder*' AND dur > 0
       ),
-      (upid)
+      (upid),
+      ()
     ),
     (interval_agg!(count, COUNT))
   ),
@@ -309,7 +313,7 @@ SELECT
   max_vsync_id
 FROM interval_to_table!(
   interval_intersect!(
-    interval_partition_with_agg!(
+    interval_partition!(
       (
         SELECT
           id,
@@ -351,7 +355,7 @@ SELECT
   sum_bytes / 1024 AS total_kb
 FROM interval_to_table!(
   interval_intersect!(
-    interval_partition_with_agg!(
+    interval_partition!(
       (
         SELECT
           id,
@@ -404,7 +408,7 @@ SELECT
   process.name AS process_name
 FROM interval_to_table!(
   interval_intersect!(
-    interval_partition_with_agg!(
+    interval_partition!(
       (
         SELECT
           intervals.id,
@@ -448,7 +452,8 @@ FROM interval_to_table!(
   interval_intersect!(
     interval_partition!(
       (SELECT id, ts, dur, utid FROM thread_state WHERE dur > 0),
-      (utid)
+      (utid),
+      ()
     ),
     (interval_agg!(count, COUNT))
   ),
@@ -469,13 +474,15 @@ ORDER BY utid, ts;
 -- GOOD: Filter first
 interval_partition!(
   (SELECT id, ts, dur, upid FROM slice WHERE dur > 1000000),  -- Only long slices
-  (upid)
+  (upid),
+  ()
 )
 
 -- BAD: Filter after
 interval_partition!(
   (SELECT id, ts, dur, upid FROM slice),
-  (upid)
+  (upid),
+  ()
 )
 -- Then filtering with WHERE dur > 1000000 is less efficient
 ```
@@ -486,13 +493,15 @@ interval_partition!(
 -- GOOD: Partition by high-cardinality column
 interval_partition!(
   slice_data,
-  (upid)  -- ~100s of processes
+  (upid),  -- ~100s of processes
+  ()
 )
 
 -- LESS EFFICIENT: No partition with many intervals
 interval_partition!(
   slice_data,
-  ()  -- All intervals in one partition
+  (),  -- All intervals in one partition
+  ()
 )
 ```
 
@@ -514,16 +523,11 @@ interval_agg!(depth, AVG)       -- Average value
 
 ### Core Macros
 
-1. **`interval_partition!(table, (partition_cols))`**
+1. **`interval_partition!(table, (partition_cols), (agg_cols))`**
    - Creates a partitioned interval set for count-only or unaggregated queries
-   - Example: `interval_partition!(my_table, (upid))`
-   - Example: `interval_partition!(my_table, ())` for no partitioning
-
-2. **`interval_partition_with_agg!(table, (partition_cols), (agg_cols))`**
-   - Creates a partitioned interval set with aggregation columns
-   - Currently supports exactly 1 aggregation column
-   - Example: `interval_partition_with_agg!(my_table, (upid), (value))`
-   - Example: `interval_partition_with_agg!(my_table, (), (value))`
+   - Example: `interval_partition!(my_table, (upid), ())`
+   - Example: `interval_partition!(my_table, (), ())` for no partitioning
+   - Example: `interval_partition!(my_table, (upid), (value))` for partitioning and aggregation
 
 3. **`interval_agg!(column, AGG_TYPE)`**
    - Creates an aggregation specification
@@ -557,7 +561,7 @@ Aggregation results are automatically named with prefixes:
 
 ### Constraints
 
-- **Maximum 1 aggregation column** per query (for `interval_partition_with_agg!`)
+- **Maximum 1 aggregation column** per query
 - **Maximum 1 partition column** per query
 - Partition column can be omitted: `()`
 - Input table must have: `id, ts, dur` columns

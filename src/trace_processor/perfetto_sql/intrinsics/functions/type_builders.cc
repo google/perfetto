@@ -310,6 +310,8 @@ struct IntervalTreeIntervalsAgg
   static constexpr char kName[] = "__intrinsic_interval_tree_intervals_agg";
   static constexpr int kArgCount = -1;
   static constexpr int kMinArgCount = 3;
+  static constexpr char kPartitionDelimiter[] =
+      "__PERFETTO_PARTITION_DELIMITER__";
 
   struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::PartitionedTable partitions;
@@ -317,6 +319,7 @@ struct IntervalTreeIntervalsAgg
     std::vector<SqlValue> tmp_agg_vals;
     uint64_t last_interval_start = 0;
     uint32_t num_agg_cols = 0;
+    uint32_t partition_col_start_idx = 0;
     bool cols_initialized = false;
   };
 
@@ -372,53 +375,69 @@ struct IntervalTreeIntervalsAgg
     }
 
     // On the first |Step()| we need to figure out column structure.
-    // For interval_self_intersect with aggregation:
-    //   argv[0] = id, argv[1] = ts, argv[2] = dur, argv[3] = agg_value
-    //   argv[4+] = partition columns as name-value pairs
-    // For interval_intersect (no aggregation):
-    //   argv[0] = id, argv[1] = ts, argv[2] = dur
-    //   argv[3+] = partition columns as name-value pairs
+    // Argument layout is:
+    // id, ts, dur, [agg_name, agg_val]*, "DELIMITER", [part_name, part_val]*
+    // OR (legacy/no-delimiter fallback):
+    // id, ts, dur, [part_name, part_val]*
     if (!agg_ctx.cols_initialized) {
-      // Check if we have an aggregation column: argc must be odd (id, ts, dur,
-      // agg_val, then pairs) vs even (id, ts, dur, then pairs)
-      bool has_agg = (argc > kMinArgCount) && ((argc - kMinArgCount) % 2 == 1);
+      int delimiter_idx = -1;
+      for (uint32_t i = kMinArgCount; i < argc; ++i) {
+        if (sqlite::value::Type(argv[i]) == sqlite::Type::kText) {
+          if (strcmp(sqlite::value::Text(argv[i]), kPartitionDelimiter) == 0) {
+            delimiter_idx = static_cast<int>(i);
+            break;
+          }
+        }
+      }
 
-      if (has_agg) {
-        agg_ctx.num_agg_cols = 1;
-        agg_ctx.tmp_agg_vals.resize(1);
-
-        // Partition columns start at index 4 (after agg value)
-        for (uint32_t i = 4; i < argc; i += 2) {
+      if (delimiter_idx != -1) {
+        // We found a delimiter.
+        // Agg columns are from kMinArgCount to delimiter_idx.
+        for (uint32_t i = kMinArgCount; i < static_cast<uint32_t>(delimiter_idx);
+             i += 2) {
+          parts.agg_column_names.push_back(
+              sqlite::utils::SqliteValueToSqlValue(argv[i]).AsString());
+        }
+        agg_ctx.num_agg_cols = static_cast<uint32_t>(parts.agg_column_names.size());
+        
+        // Partition columns start after delimiter.
+        agg_ctx.partition_col_start_idx = static_cast<uint32_t>(delimiter_idx + 1);
+        for (uint32_t i = agg_ctx.partition_col_start_idx; i < argc; i += 2) {
           parts.partition_column_names.push_back(
               sqlite::utils::SqliteValueToSqlValue(argv[i]).AsString());
         }
       } else {
-        // No aggregation column - partition columns start at index 3
+        // Fallback: all arguments are partition columns.
         agg_ctx.num_agg_cols = 0;
-        for (uint32_t i = 3; i < argc; i += 2) {
+        agg_ctx.partition_col_start_idx = kMinArgCount;
+        for (uint32_t i = kMinArgCount; i < argc; i += 2) {
           parts.partition_column_names.push_back(
               sqlite::utils::SqliteValueToSqlValue(argv[i]).AsString());
         }
       }
+
       agg_ctx.tmp_vals.resize(parts.partition_column_names.size());
+      if (agg_ctx.num_agg_cols > 0) {
+        agg_ctx.tmp_agg_vals.resize(agg_ctx.num_agg_cols);
+      }
       agg_ctx.cols_initialized = true;
     }
 
-    // Extract aggregation column value if present (at index 3)
-    if (agg_ctx.num_agg_cols > 0) {
-      SqlValue agg_val = sqlite::utils::SqliteValueToSqlValue(argv[3]);
-      agg_ctx.tmp_agg_vals[0] = agg_val;
+    // Extract aggregation column values if present
+    for (uint32_t i = 0; i < agg_ctx.num_agg_cols; ++i) {
+      // agg_name is at kMinArgCount + i*2
+      // agg_val is at kMinArgCount + i*2 + 1
+      agg_ctx.tmp_agg_vals[i] =
+          sqlite::utils::SqliteValueToSqlValue(argv[kMinArgCount + i * 2 + 1]);
     }
 
     // Create a partition key and save SqlValues of the partition.
-    // Partition columns start after aggregation column (if present).
     base::MurmurHashCombiner h;
     uint32_t j = 0;
-    uint32_t start_idx = agg_ctx.num_agg_cols > 0
-                             ? 5
-                             : 4;  // Start at value of first partition column
-
-    for (uint32_t i = start_idx; i < argc; i += 2) {
+    
+    // Partition values start at partition_col_start_idx + 1 (after name)
+    // and skip every 2 args.
+    for (uint32_t i = agg_ctx.partition_col_start_idx + 1; i < argc; i += 2) {
       SqlValue new_val = sqlite::utils::SqliteValueToSqlValue(argv[i]);
       // If it's a string, intern it immediately into the StringPool.
       // This ensures the pointer remains valid and we only store unique
