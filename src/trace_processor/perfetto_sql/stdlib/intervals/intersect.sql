@@ -156,12 +156,12 @@ RETURNS TableOrSubquery AS
 -- Each table can have different column names.
 --
 -- Example:
---   SELECT * FROM interval_intersect_with_col_names!(
+--   SELECT * FROM _interval_intersect_with_col_names!(
 --     table1, id1, ts1, dur1,
 --     table2, id2, ts2, dur2,
 --     (partition_col)
 --   )
-CREATE PERFETTO MACRO interval_intersect_with_col_names(
+CREATE PERFETTO MACRO _interval_intersect_with_col_names(
   -- First table to intersect.
   tab1 TableOrSubquery,
   -- Name of the id column in tab1.

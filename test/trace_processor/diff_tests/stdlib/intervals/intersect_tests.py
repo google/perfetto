@@ -1291,7 +1291,7 @@ class IntervalsIntersect(TestSuite):
           SELECT * FROM data;
 
         SELECT ts, dur, id_0, id_1
-        FROM interval_intersect_with_col_names!(
+        FROM _interval_intersect_with_col_names!(
           A, row_id, start_ts, duration,
           B, event_id, begin_time, length,
           ()
@@ -1331,7 +1331,7 @@ class IntervalsIntersect(TestSuite):
           SELECT * FROM data;
 
         SELECT ts, dur, category
-        FROM interval_intersect_with_col_names!(
+        FROM _interval_intersect_with_col_names!(
           A, row_id, start_ts, duration,
           B, event_id, begin_time, len,
           (category)
@@ -1370,7 +1370,7 @@ class IntervalsIntersect(TestSuite):
           SELECT * FROM data;
 
         SELECT ts, dur, id_0, id_1
-        FROM interval_intersect_with_col_names!(
+        FROM _interval_intersect_with_col_names!(
           A, row_id, start_time, duration,
           B, event_id, begin_time, len,
           ()
