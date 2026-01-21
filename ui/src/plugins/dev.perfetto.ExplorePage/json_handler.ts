@@ -218,10 +218,16 @@ export function serializeState(state: ExplorePageState): string {
     state.labels,
   );
 
+  // For backward compatibility, save the first selected node ID if any nodes are selected
+  const firstSelectedNodeId =
+    state.selectedNodes.size > 0
+      ? state.selectedNodes.values().next().value
+      : undefined;
+
   const serializedGraph: SerializedGraph = {
     nodes: serializedNodes,
     rootNodeIds: state.rootNodes.map((n) => n.nodeId),
-    selectedNodeId: state.selectedNode?.nodeId,
+    selectedNodeId: firstSelectedNodeId,
     nodeLayouts: Object.fromEntries(normalized.nodeLayouts),
     labels: normalized.labels,
     isExplorerCollapsed: state.isExplorerCollapsed,
@@ -577,6 +583,7 @@ export function deserializeState(
     }
     return rootNode;
   });
+  // For backward compatibility, load selectedNodeId from saved state (if present)
   const selectedNode = serializedGraph.selectedNodeId
     ? nodes.get(serializedGraph.selectedNodeId)
     : undefined;
@@ -595,7 +602,7 @@ export function deserializeState(
 
   return {
     rootNodes,
-    selectedNode,
+    selectedNodes: selectedNode ? new Set([selectedNode.nodeId]) : new Set(),
     nodeLayouts,
     labels,
     isExplorerCollapsed: serializedGraph.isExplorerCollapsed,
