@@ -26,37 +26,30 @@ INCLUDE PERFETTO MODULE slices.flat_slices;
 INCLUDE PERFETTO MODULE sched.states;
 
 -- Create a table with unique startup events, including thread and process information.
-CREATE PERFETTO TABLE _mipmap_unique_startup AS
-WITH
-  x AS (
-    SELECT
-      android_startups.startup_id AS id,
-      android_startups.*,
-      upid,
-      utid
-    FROM android_startups
-    JOIN android_startup_processes
-      USING (startup_id)
-    JOIN thread
-      USING (upid)
-    JOIN android_process_metadata
-      USING (upid)
-    WHERE
-      dur > 0 AND is_main_thread
-    ORDER BY
-      ts
-  )
+CREATE PERFETTO TABLE _mipmap_startup AS
 SELECT
-  *,
-  id AS unique_startup_id
-FROM x;
+  android_startups.startup_id AS id,
+  android_startups.*,
+  upid,
+  utid
+FROM android_startups
+JOIN android_startup_processes
+  USING (startup_id)
+JOIN thread
+  USING (upid)
+JOIN android_process_metadata
+  USING (upid)
+WHERE
+  dur > 0 AND is_main_thread
+ORDER BY
+  ts;
 
--- Flatten slices that occur within the unique startups.
+-- Flatten slices that occur within the startups.
 CREATE PERFETTO TABLE _mipmap_flat_slice AS
 SELECT
   _slice_flattened.*
 FROM _slice_flattened
-JOIN _mipmap_unique_startup
+JOIN _mipmap_startup
   USING (utid);
 
 -- Span join flattened slices with thread states to get thread state information for each slice.
@@ -98,19 +91,19 @@ SELECT
   slice.io_wait,
   slice.blocked_function,
   slice.irq_context,
-  us.unique_startup_id,
-  us.startup_type,
-  us.package,
-  us.dur AS startup_dur
+  startup.startup_id,
+  startup.startup_type,
+  startup.package,
+  startup.dur AS startup_dur
 FROM _interval_intersect
     !(
       (
-        (SELECT * FROM _mipmap_flat_slice_thread_states_and_slices WHERE dur > -1), (_mipmap_unique_startup)),
+        (SELECT * FROM _mipmap_flat_slice_thread_states_and_slices WHERE dur > -1), (_mipmap_startup)),
       (utid)) AS ii
 JOIN _mipmap_flat_slice_thread_states_and_slices AS slice
   ON slice.id = ii.id_0
-JOIN _mipmap_unique_startup AS us
-  ON us.id = ii.id_1;
+JOIN _mipmap_startup AS startup
+  ON startup.id = ii.id_1;
 
 -- ------------------------------------------------------------------
 -- MIPMAP Generation Call
@@ -127,9 +120,9 @@ SELECT
   *
 FROM _mipmap_buckets_table!(
   -- Source table for time range
-  (SELECT ts, dur, unique_startup_id FROM _mipmap_startup_slice),
+  (SELECT ts, dur, startup_id FROM _mipmap_startup_slice),
   -- Partitioning column
-  unique_startup_id,
+  startup_id,
   -- Bucket duration in nanoseconds
   1e6  -- 1ms buckets
 )
@@ -170,7 +163,7 @@ CREATE PERFETTO TABLE android_startup_mipmap_1ms (
   -- duration of the merged slice
   dur LONG,
   -- unique startup id
-  unique_startup_id LONG,
+  startup_id LONG,
   -- package name
   package STRING,
   -- startup type
@@ -191,7 +184,7 @@ CREATE PERFETTO TABLE android_startup_mipmap_1ms (
 SELECT
   mm.ts,
   mm.dur,
-  mm.unique_startup_id,
+  mm.startup_id,
   s.package,
   s.startup_type,
   s.startup_dur,
@@ -204,7 +197,7 @@ SELECT
 FROM _mipmap_merged!(
   _mipmap_startup_slices_with_ids,
   _mipmap_startup_buckets_1ms,
-  unique_startup_id,
+  startup_id,
   1e6  -- 1ms buckets
 ) AS mm
 JOIN _mipmap_startup_slices_with_ids AS s
