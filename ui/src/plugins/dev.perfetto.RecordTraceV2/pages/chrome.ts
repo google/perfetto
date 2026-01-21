@@ -26,11 +26,13 @@ import {
   MultiSelect,
   MultiSelectDiff,
   MultiSelectOption,
+  PopupMultiSelect,
 } from '../../../widgets/multiselect';
 import {Tabs, TabsTab} from '../../../widgets/tabs';
 import {Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
+import { PopupPosition } from '../../../widgets/popup';
 
 type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
 
@@ -76,18 +78,18 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
     title: 'Chrome browser tracing',
     settings,
     genConfig(tc: TraceConfigBuilder) {
-      const cats = settings.categories.getAllIncludedCategories();
-      const memoryInfra = cats.has('disabled-by-default-memory-infra');
-      // Disable all by default => only explicitly enab;e categories.
-      const DISABLED_CATEGORIES = '*';
+      const allIncludedCats = settings.categories.getAllIncludedCategories();
+      const hasMemoryInfra = allIncludedCats.has('disabled-by-default-memory-infra');
+      // Disable all by default => only explicitly enable categories.
+      const DISABLE_ALL_CATEGORIES = '*';
       const jsonStruct = {
         record_mode:
           tc.mode === 'STOP_WHEN_FULL'
             ? 'record-until-full'
             : 'record-continuously',
-        included_categories: [...cats],
-        excluded_categories: [DISABLED_CATEGORIES],
-        memory_dump_config: memoryInfra
+        included_categories: [...allIncludedCats],
+        excluded_categories: [DISABLE_ALL_CATEGORIES],
+        memory_dump_config: hasMemoryInfra
           ? {
               allowed_dump_modes: ['background', 'light', 'detailed'],
               triggers: [
@@ -108,7 +110,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
 
       const trackEvent = tc.addDataSource('track_event');
       const trackEvtCfg = (trackEvent.trackEventConfig ??= {});
-      trackEvtCfg.disabledCategories ??= [DISABLED_CATEGORIES];
+      trackEvtCfg.disabledCategories ??= [DISABLE_ALL_CATEGORIES];
       trackEvtCfg.enabledCategories ??= [];
       trackEvtCfg.enabledCategories.push(...settings.categories.getEnabledCategories());
       trackEvtCfg.enabledCategories.push('__metadata');
@@ -133,7 +135,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         'metadata',
       ).chromeConfig = {privacyFilteringEnabled};
 
-      if (memoryInfra) {
+      if (hasMemoryInfra) {
         tc.addDataSource('org.chromium.memory_instrumentation').chromeConfig =
           chromeConfig;
         tc.addDataSource('org.chromium.native_heap_profiler').chromeConfig =
@@ -141,17 +143,17 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
       }
 
       if (
-        cats.has('disabled-by-default-cpu_profiler') ||
-        cats.has('disabled-by-default-cpu_profiler.debug')
+        allIncludedCats.has('disabled-by-default-cpu_profiler') ||
+        allIncludedCats.has('disabled-by-default-cpu_profiler.debug')
       ) {
         tc.addDataSource('org.chromium.sampler_profiler').chromeConfig = {
           privacyFilteringEnabled,
         };
       }
-      if (cats.has('disabled-by-default-system_metrics')) {
+      if (allIncludedCats.has('disabled-by-default-system_metrics')) {
         tc.addDataSource('org.chromium.system_metrics');
       }
-      if (cats.has('disabled-by-default-histogram_samples')) {
+      if (allIncludedCats.has('disabled-by-default-histogram_samples')) {
         const histogram = tc.addDataSource('org.chromium.histogram_sample');
         const histogramCfg = (histogram.chromiumHistogramSamples ??= {});
         histogramCfg.filterHistogramNames = privacyFilteringEnabled;
@@ -367,10 +369,13 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         title: [m(Icon, {icon: 'tag'}), ' Tags'],
         content: m(
           'div.chrome-tags-panel',
-          m(MultiSelect, {
+          m(PopupMultiSelect, {
+            label: "Enabled Tags",
+            icon: "tag",
             options: tagOptions,
             repeatCheckedItemsAtTop: false,
-            fixedSize: false,
+            showNumSelected: true,
+            position: PopupPosition.Bottom,
             onChange: (diffs: MultiSelectDiff[]) => {
               diffs.forEach(({id, checked}) => {
                 if (checked) {
