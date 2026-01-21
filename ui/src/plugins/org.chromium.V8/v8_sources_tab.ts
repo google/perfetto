@@ -362,16 +362,19 @@ export class V8SourcesTab implements Tab {
                 {
                   key: TAB_SOURCE,
                   title: 'Source',
+                  leftIcon: 'code',
                   content: this.renderSourceTab(),
                 },
                 {
                   key: TAB_FUNCTIONS,
                   title: 'Functions',
+                  leftIcon: 'function',
                   content: this.renderFunctionsTab(),
                 },
                 {
                   key: TAB_DETAILS,
                   title: 'Details',
+                  leftIcon: 'info',
                   content: this.renderDetailsTab(),
                 },
               ],
