@@ -65,19 +65,16 @@
 #include "src/profiling/symbolizer/local_symbolizer.h"
 #include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/profiling/symbolizer/symbolizer.h"
-#include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
-#include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
-#include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
+#include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/sql_modules.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
-#include "protos/perfetto/trace_summary/file.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"
@@ -668,95 +665,6 @@ TraceSummarySpecBytes::Format GuessSummarySpecFormat(
     const std::string& path,
     const std::string& content);
 
-std::string BuildSqlWithModulesAndPreambles(
-    const perfetto_sql::generator::StructuredQueryGenerator& generator,
-    const std::string& main_sql) {
-  std::string full_sql;
-
-  // Include referenced modules.
-  for (const auto& module : generator.ComputeReferencedModules()) {
-    full_sql += "INCLUDE PERFETTO MODULE " + module + ";\n";
-  }
-
-  // Add preambles.
-  for (const auto& preamble : generator.ComputePreambles()) {
-    full_sql += preamble + ";\n";
-  }
-
-  // Add the main query.
-  full_sql += main_sql;
-
-  return full_sql;
-}
-
-base::Status RunStructuredQuery(
-    TraceProcessor* trace_processor,
-    const std::vector<std::string>& structured_query_specs,
-    const std::string& structured_query_id,
-    FILE* output) {
-  perfetto_sql::generator::StructuredQueryGenerator generator;
-  std::vector<std::vector<uint8_t>> synthetic_protos;
-
-  // Load and parse all spec files.
-  for (const auto& spec_path : structured_query_specs) {
-    std::string spec_content;
-    if (!base::ReadFile(spec_path, &spec_content)) {
-      return base::ErrStatus("Unable to read structured query spec file %s",
-                             spec_path.c_str());
-    }
-
-    TraceSummarySpecBytes::Format format =
-        GuessSummarySpecFormat(spec_path, spec_content);
-
-    // Parse the TraceSummarySpec proto (convert textproto to binary if needed).
-    protos::pbzero::TraceSummarySpec::Decoder summary_spec = [&]() {
-      switch (format) {
-        case TraceSummarySpecBytes::Format::kBinaryProto:
-          return protos::pbzero::TraceSummarySpec::Decoder(
-              reinterpret_cast<const uint8_t*>(spec_content.data()),
-              spec_content.size());
-        case TraceSummarySpecBytes::Format::kTextProto:
-          synthetic_protos.emplace_back();
-          auto binary_or = protozero::TextToProto(
-              kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
-              ".perfetto.protos.TraceSummarySpec", "-",
-              std::string_view(spec_content.data(), spec_content.size()));
-          if (!binary_or.ok()) {
-            // We can't return from a lambda, so we'll create an empty decoder
-            // and handle the error outside.
-            return protos::pbzero::TraceSummarySpec::Decoder(nullptr, 0);
-          }
-          synthetic_protos.back() = std::move(*binary_or);
-          return protos::pbzero::TraceSummarySpec::Decoder(
-              synthetic_protos.back().data(), synthetic_protos.back().size());
-      }
-      PERFETTO_FATAL("Unexpected format");
-    }();
-
-    // Add all queries from the spec to the generator.
-    for (auto query_it = summary_spec.query(); query_it; ++query_it) {
-      protozero::ConstBytes query_bytes = *query_it;
-      auto status = generator.AddQuery(query_bytes.data, query_bytes.size);
-      if (!status.ok()) {
-        return base::ErrStatus("Failed to add query from spec '%s': %s",
-                               spec_path.c_str(), status.message().c_str());
-      }
-    }
-  }
-
-  // Generate SQL for the specified query ID.
-  auto sql_result = generator.GenerateById(structured_query_id);
-  if (!sql_result.ok()) {
-    return base::ErrStatus(
-        "Failed to generate SQL for structured query ID '%s': %s",
-        structured_query_id.c_str(), sql_result.status().message().c_str());
-  }
-
-  std::string full_sql =
-      BuildSqlWithModulesAndPreambles(generator, *sql_result);
-  return RunQueriesAndPrintResult(trace_processor, full_sql, output);
-}
-
 class MetricExtension {
  public:
   void SetDiskPath(std::string path) {
@@ -906,20 +814,6 @@ PerfettoSQL:
                                       If used with --run-metrics, the query is
                                       executed after the selected metrics and
                                       the metrics output is suppressed.
- --structured-query-spec SPEC_PATH    Parses the spec at the specified path and
-                                      makes queries available for execution.
-                                      Spec files must be instances of the
-                                      perfetto.protos.TraceSummarySpec proto.
-                                      If the file extension is `.textproto` then
-                                      the spec file will be parsed as a
-                                      textproto. If the file extension is `.pb`
-                                      then it will be parsed as a binary
-                                      protobuf. Otherwise, heuristics will be
-                                      used to determine the format.
- --structured-query-id ID             Specifies that the structured query with
-                                      the given ID should be executed. The spec
-                                      for the query must exist in one of the
-                                      files passed to --structured-query-spec.
  --add-sql-package PATH[@PACKAGE]     Registers SQL files from a directory as
                                       a package for use with INCLUDE PERFETTO
                                       MODULE statements.
@@ -1008,6 +902,20 @@ Advanced:
  --extra-checks                       Enables additional checks which can catch
                                       more SQL errors, but which incur
                                       additional runtime overhead.
+ --structured-query-spec SPEC_PATH    Parses the spec at the specified path and
+                                      makes queries available for execution.
+                                      Spec files must be instances of the
+                                      perfetto.protos.TraceSummarySpec proto.
+                                      If the file extension is `.textproto` then
+                                      the spec file will be parsed as a
+                                      textproto. If the file extension is `.pb`
+                                      then it will be parsed as a binary
+                                      protobuf. Otherwise, heuristics will be
+                                      used to determine the format.
+ --structured-query-id ID             Specifies that the structured query with
+                                      the given ID should be executed. The spec
+                                      for the query must exist in one of the
+                                      files passed to --structured-query-spec.
  -e, --export FILE                    Export the contents of trace processor
                                       into an SQLite database after running any
                                       metrics or queries specified.
@@ -2293,14 +2201,41 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   }
 
   if (!options.structured_query_id.empty()) {
-    base::Status status =
-        RunStructuredQuery(tp.get(), options.structured_query_specs,
-                           options.structured_query_id, stdout);
+    // Load spec files.
+    std::vector<std::string> spec_content;
+    spec_content.reserve(options.structured_query_specs.size());
+    for (const auto& s : options.structured_query_specs) {
+      spec_content.emplace_back();
+      if (!base::ReadFile(s, &spec_content.back())) {
+        return base::ErrStatus("Unable to read structured query spec file %s",
+                               s.c_str());
+      }
+    }
+
+    // Convert to TraceSummarySpecBytes.
+    std::vector<TraceSummarySpecBytes> specs;
+    specs.reserve(options.structured_query_specs.size());
+    for (uint32_t i = 0; i < options.structured_query_specs.size(); ++i) {
+      specs.emplace_back(TraceSummarySpecBytes{
+          reinterpret_cast<const uint8_t*>(spec_content[i].data()),
+          spec_content[i].size(),
+          GuessSummarySpecFormat(options.structured_query_specs[i],
+                                 spec_content[i]),
+      });
+    }
+
+    // Execute the structured query.
+    std::string output;
+    base::Status status = summary::ExecuteStructuredQuery(
+        tp.get(), specs, options.structured_query_id, &output);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
       RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
       return status;
     }
+
+    // Print the result.
+    fprintf(stdout, "%s", output.c_str());
   }
 
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
