@@ -31,7 +31,16 @@ export interface SwitchCase {
 }
 
 /**
- * Represents a computed column definition (expression, SWITCH, or IF).
+ * Represents a function argument binding - maps arg name to column or expression.
+ */
+export interface FunctionArgBinding {
+  argName: string;
+  value: string; // Column name or custom expression
+  isCustomExpression?: boolean; // If true, value is a custom expression, not a column name
+}
+
+/**
+ * Represents a computed column definition (expression, SWITCH, IF, or FUNCTION).
  */
 export interface NewColumn {
   expression: string;
@@ -39,7 +48,7 @@ export interface NewColumn {
   module?: string;
 
   // For switch columns
-  type?: 'switch' | 'if';
+  type?: 'switch' | 'if' | 'function';
   switchOn?: string;
   cases?: SwitchCase[];
   defaultValue?: string;
@@ -48,6 +57,10 @@ export interface NewColumn {
   // For if columns
   clauses?: IfClause[];
   elseValue?: string;
+
+  // For function columns
+  functionName?: string;
+  functionArgs?: FunctionArgBinding[];
 
   // SQL type for preserving type information across serialization
   sqlType?: string;

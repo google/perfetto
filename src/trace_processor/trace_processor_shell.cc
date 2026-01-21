@@ -71,6 +71,7 @@
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/sql_modules.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -659,6 +660,11 @@ base::Status PrintPerfFile(const std::string& perf_file_path,
   return base::OkStatus();
 }
 
+// Forward declaration.
+TraceSummarySpecBytes::Format GuessSummarySpecFormat(
+    const std::string& path,
+    const std::string& content);
+
 class MetricExtension {
  public:
   void SetDiskPath(std::string path) {
@@ -730,6 +736,8 @@ struct CommandLineOptions {
 
   std::string query_file_path;
   std::string query_string;
+  std::vector<std::string> structured_query_specs;
+  std::string structured_query_id;
   std::vector<std::string> sql_package_paths;
   std::vector<std::string> override_sql_package_paths;
 
@@ -926,6 +934,22 @@ Advanced:
                                       with stdlib package names so should be
                                       used with caution.
 
+Structured queries:
+ --structured-query-spec SPEC_PATH    Parses the spec at the specified path and
+                                      makes queries available for execution.
+                                      Spec files must be instances of the
+                                      perfetto.protos.TraceSummarySpec proto.
+                                      If the file extension is `.textproto` then
+                                      the spec file will be parsed as a
+                                      textproto. If the file extension is `.pb`
+                                      then it will be parsed as a binary
+                                      protobuf. Otherwise, heuristics will be
+                                      used to determine the format.
+ --structured-query-id ID             Specifies that the structured query with
+                                      the given ID should be executed. The spec
+                                      for the query must exist in one of the
+                                      files passed to --structured-query-spec.
+
 Metrics (v1):
 
   NOTE: the trace-based metrics system has been "soft" deprecated. Specifically,
@@ -967,6 +991,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     OPT_ADD_SQL_PACKAGE,
     OPT_OVERRIDE_SQL_PACKAGE,
+    OPT_STRUCTURED_QUERY_SPEC,
+    OPT_STRUCTURED_QUERY_ID,
 
     OPT_SUMMARY,
     OPT_SUMMARY_METRICS_V2,
@@ -1008,6 +1034,10 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
       {"query-file", required_argument, nullptr, 'q'},
       {"query-string", required_argument, nullptr, 'Q'},
+      {"structured-query-spec", required_argument, nullptr,
+       OPT_STRUCTURED_QUERY_SPEC},
+      {"structured-query-id", required_argument, nullptr,
+       OPT_STRUCTURED_QUERY_ID},
       {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
       {"override-sql-package", required_argument, nullptr,
        OPT_OVERRIDE_SQL_PACKAGE},
@@ -1178,6 +1208,16 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_STRUCTURED_QUERY_SPEC) {
+      command_line_options.structured_query_specs.emplace_back(optarg);
+      continue;
+    }
+
+    if (option == OPT_STRUCTURED_QUERY_ID) {
+      command_line_options.structured_query_id = optarg;
+      continue;
+    }
+
     if (option == OPT_OVERRIDE_STDLIB) {
       command_line_options.override_stdlib_path = optarg;
       continue;
@@ -1243,11 +1283,13 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   }
 
   command_line_options.launch_shell =
-      explicit_interactive || (command_line_options.metric_v1_names.empty() &&
-                               command_line_options.query_file_path.empty() &&
-                               command_line_options.query_string.empty() &&
-                               command_line_options.export_file_path.empty() &&
-                               !command_line_options.summary);
+      explicit_interactive ||
+      (command_line_options.metric_v1_names.empty() &&
+       command_line_options.query_file_path.empty() &&
+       command_line_options.query_string.empty() &&
+       command_line_options.structured_query_id.empty() &&
+       command_line_options.export_file_path.empty() &&
+       !command_line_options.summary);
 
   // Only allow non-interactive queries to emit perf data.
   if (!command_line_options.perf_file_path.empty() &&
@@ -2158,6 +2200,44 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
       return status;
     }
+  }
+
+  if (!options.structured_query_id.empty()) {
+    // Load spec files.
+    std::vector<std::string> spec_content;
+    spec_content.reserve(options.structured_query_specs.size());
+    for (const auto& s : options.structured_query_specs) {
+      spec_content.emplace_back();
+      if (!base::ReadFile(s, &spec_content.back())) {
+        return base::ErrStatus("Unable to read structured query spec file %s",
+                               s.c_str());
+      }
+    }
+
+    // Convert to TraceSummarySpecBytes.
+    std::vector<TraceSummarySpecBytes> specs;
+    specs.reserve(options.structured_query_specs.size());
+    for (uint32_t i = 0; i < options.structured_query_specs.size(); ++i) {
+      specs.emplace_back(TraceSummarySpecBytes{
+          reinterpret_cast<const uint8_t*>(spec_content[i].data()),
+          spec_content[i].size(),
+          GuessSummarySpecFormat(options.structured_query_specs[i],
+                                 spec_content[i]),
+      });
+    }
+
+    // Execute the structured query.
+    std::string output;
+    base::Status status = summary::ExecuteStructuredQuery(
+        tp.get(), specs, options.structured_query_id, &output);
+    if (!status.ok()) {
+      // Write metatrace if needed before exiting.
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
+      return status;
+    }
+
+    // Print the result.
+    fprintf(stdout, "%s", output.c_str());
   }
 
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;

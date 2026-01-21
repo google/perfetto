@@ -74,6 +74,7 @@ export default class implements PerfettoPlugin {
   // trace.
   private state: ExplorePageState = {
     rootNodes: [],
+    selectedNodes: new Set(),
     nodeLayouts: new Map(),
     labels: [],
   };
@@ -195,7 +196,7 @@ export default class implements PerfettoPlugin {
         this.onStateUpdate((currentState) => ({
           ...currentState,
           rootNodes: [...currentState.rootNodes, newNode],
-          selectedNode: newNode,
+          selectedNodes: new Set([newNode.nodeId]),
         }));
 
         // Navigate to Explore Page

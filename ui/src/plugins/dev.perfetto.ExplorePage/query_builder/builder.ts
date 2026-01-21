@@ -109,6 +109,7 @@ import {Icon} from '../../../widgets/icon';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, Query} from '../query_node';
+import {getPrimarySelectedNode} from '../selection_utils';
 import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
@@ -142,7 +143,7 @@ export interface BuilderAttrs {
   readonly queryExecutionService: QueryExecutionService;
 
   readonly rootNodes: QueryNode[];
-  readonly selectedNode?: QueryNode;
+  readonly selectedNodes: ReadonlySet<string>;
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
   readonly labels: ReadonlyArray<{
     id: string;
@@ -161,6 +162,8 @@ export interface BuilderAttrs {
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
+  readonly onNodeAddToSelection: (node: QueryNode) => void;
+  readonly onNodeRemoveFromSelection: (nodeId: string) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (
     nodeId: string,
@@ -265,8 +268,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
-    const {trace, rootNodes, onNodeSelected, selectedNode, onClearAllNodes} =
-      attrs;
+    const {trace, rootNodes, onNodeSelected, onClearAllNodes} = attrs;
+    const selectedNode = getPrimarySelectedNode(attrs.selectedNodes, rootNodes);
 
     // Store selectedNode for keyboard shortcuts
     this.selectedNode = selectedNode;
@@ -339,63 +342,74 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       }
     };
 
-    const explorer = selectedNode
-      ? m(NodeExplorer, {
-          // The key to force mithril to re-create the component when the
-          // selected node changes, preventing state from leaking between
-          // different nodes.
-          key: selectedNode.nodeId,
-          trace,
-          node: selectedNode,
-          queryExecutionService: this.queryExecutionService,
-          resolveNode: (nodeId: string) => this.resolveNode(nodeId, rootNodes),
-          hasExistingResult: this.queryExecuted,
-          query: this.query, // Pass the query state from Builder (single source of truth)
-          onQueryAnalyzed: this.onNodeQueryAnalyzed,
-          onAnalysisStateChange: (isAnalyzing: boolean) => {
-            this.isAnalyzing = isAnalyzing;
-          },
-          onExecutionStart: () => {
-            this.isQueryRunning = true;
-            this.queryExecuted = false;
-          },
-          onExecutionSuccess: (result) => {
-            this.handleExecutionSuccess(selectedNode, result);
-          },
-          onExecutionError: (error) => {
-            this.handleQueryError(selectedNode, error);
-            this.isQueryRunning = false;
-            m.redraw();
-          },
-          onchange: () => {
-            // When a node's state changes, notify all downstream nodes
-            // to update their columns and UI. This ensures that when e.g.
-            // a column is renamed in ModifyColumnsNode, the AggregationNode
-            // sees the new column name.
-            const downstreamNodes = getAllDownstreamNodes(selectedNode);
-            for (const node of downstreamNodes) {
-              // Skip the node itself (it's included in downstream nodes)
-              if (node.nodeId === selectedNode.nodeId) continue;
-              node.onPrevNodesUpdated?.();
-            }
-            attrs.onNodeStateChange?.();
-          },
-          isCollapsed: isExplorerCollapsed,
-          selectedView: this.selectedView,
-          onViewChange: (view: number) => {
-            this.selectedView = view;
-          },
-        })
-      : m(
+    const hasMultipleNodesSelected = attrs.selectedNodes.size > 1;
+
+    const explorer = hasMultipleNodesSelected
+      ? m(
           '.pf-unselected-explorer',
-          m(NavigationSidePanel, {
-            selectedNode: attrs.selectedNode,
-            onAddSourceNode: attrs.onAddSourceNode,
-            onLoadExampleByPath: attrs.onLoadExampleByPath,
-            onLoadExploreTemplate: attrs.onLoadExploreTemplate,
-            onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
+          m(DataExplorerEmptyState, {
+            icon: 'info',
+            title: `${attrs.selectedNodes.size} nodes selected`,
           }),
-        );
+        )
+      : selectedNode
+        ? m(NodeExplorer, {
+            // The key to force mithril to re-create the component when the
+            // selected node changes, preventing state from leaking between
+            // different nodes.
+            key: selectedNode.nodeId,
+            trace,
+            node: selectedNode,
+            queryExecutionService: this.queryExecutionService,
+            resolveNode: (nodeId: string) =>
+              this.resolveNode(nodeId, rootNodes),
+            hasExistingResult: this.queryExecuted,
+            query: this.query, // Pass the query state from Builder (single source of truth)
+            onQueryAnalyzed: this.onNodeQueryAnalyzed,
+            onAnalysisStateChange: (isAnalyzing: boolean) => {
+              this.isAnalyzing = isAnalyzing;
+            },
+            onExecutionStart: () => {
+              this.isQueryRunning = true;
+              this.queryExecuted = false;
+            },
+            onExecutionSuccess: (result) => {
+              this.handleExecutionSuccess(selectedNode, result);
+            },
+            onExecutionError: (error) => {
+              this.handleQueryError(selectedNode, error);
+              this.isQueryRunning = false;
+              m.redraw();
+            },
+            onchange: () => {
+              // When a node's state changes, notify all downstream nodes
+              // to update their columns and UI. This ensures that when e.g.
+              // a column is renamed in ModifyColumnsNode, the AggregationNode
+              // sees the new column name.
+              const downstreamNodes = getAllDownstreamNodes(selectedNode);
+              for (const node of downstreamNodes) {
+                // Skip the node itself (it's included in downstream nodes)
+                if (node.nodeId === selectedNode.nodeId) continue;
+                node.onPrevNodesUpdated?.();
+              }
+              attrs.onNodeStateChange?.();
+            },
+            isCollapsed: isExplorerCollapsed,
+            selectedView: this.selectedView,
+            onViewChange: (view: number) => {
+              this.selectedView = view;
+            },
+          })
+        : m(
+            '.pf-unselected-explorer',
+            m(NavigationSidePanel, {
+              selectedNode,
+              onAddSourceNode: attrs.onAddSourceNode,
+              onLoadExampleByPath: attrs.onLoadExampleByPath,
+              onLoadExploreTemplate: attrs.onLoadExploreTemplate,
+              onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
+            }),
+          );
 
     return m(DrawerPanel, {
       className: layoutClasses,
@@ -404,48 +418,57 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         this.drawerVisibility = v;
       },
       startingHeight: 300,
-      drawerContent: selectedNode
-        ? m(DataExplorer, {
-            trace: this.trace,
-            query: this.query,
-            node: selectedNode,
-            response: this.response,
-            dataSource: this.dataSource,
-            isQueryRunning: this.isQueryRunning,
-            isAnalyzing: this.isAnalyzing,
-            onchange: () => {
-              attrs.onNodeStateChange?.();
-            },
-            onFilterAdd: (filter, filterOperator) => {
-              attrs.onFilterAdd(selectedNode, filter, filterOperator);
-            },
-            isFullScreen:
-              this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
-            onFullScreenToggle: () => {
-              if (this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN) {
-                this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
-              } else {
-                this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
-              }
-            },
-            onExecute: async () => {
-              await this.executeSelectedNode();
-            },
-            onExportToTimeline: () => {
-              this.exportToTimeline(selectedNode);
-            },
-          })
-        : m(DataExplorerEmptyState, {
+      drawerContent: hasMultipleNodesSelected
+        ? m(DataExplorerEmptyState, {
             icon: 'info',
-            title: 'Select a node to see the data',
-          }),
+            title: `${attrs.selectedNodes.size} nodes selected`,
+          })
+        : selectedNode
+          ? m(DataExplorer, {
+              trace: this.trace,
+              query: this.query,
+              node: selectedNode,
+              response: this.response,
+              dataSource: this.dataSource,
+              isQueryRunning: this.isQueryRunning,
+              isAnalyzing: this.isAnalyzing,
+              onchange: () => {
+                attrs.onNodeStateChange?.();
+              },
+              onFilterAdd: (filter, filterOperator) => {
+                attrs.onFilterAdd(selectedNode, filter, filterOperator);
+              },
+              isFullScreen:
+                this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
+              onFullScreenToggle: () => {
+                if (
+                  this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN
+                ) {
+                  this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
+                } else {
+                  this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
+                }
+              },
+              onExecute: async () => {
+                await this.executeSelectedNode();
+              },
+              onExportToTimeline: () => {
+                this.exportToTimeline(selectedNode);
+              },
+            })
+          : m(DataExplorerEmptyState, {
+              icon: 'info',
+              title: 'Select a node to see the data',
+            }),
       mainContent: [
         m(
           '.pf-qb-node-graph',
           m(Graph, {
             rootNodes,
-            selectedNode,
+            selectedNodes: attrs.selectedNodes,
             onNodeSelected,
+            onNodeAddToSelection: attrs.onNodeAddToSelection,
+            onNodeRemoveFromSelection: attrs.onNodeRemoveFromSelection,
             nodeLayouts: attrs.nodeLayouts,
             labels: attrs.labels,
             loadGeneration: attrs.loadGeneration,
