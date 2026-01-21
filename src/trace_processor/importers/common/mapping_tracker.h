@@ -121,7 +121,7 @@ class MappingTracker {
 
     template <typename H>
     friend H PerfettoHashValue(H h, const NameAndBuildId& o) {
-      return H::Combine(std::move(h), o.name, o.build_id);
+      return H::Combine(std::move(h), std::tie(o.name, o.build_id));
     }
   };
   base::FlatHashMap<NameAndBuildId,

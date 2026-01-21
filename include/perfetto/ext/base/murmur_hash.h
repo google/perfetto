@@ -256,12 +256,13 @@ constexpr bool HasPointerV = (std::is_pointer_v<Args> || ...);
 // Absl-style API (for custom types with PerfettoHashValue):
 //   template <typename H>
 //   friend H PerfettoHashValue(H h, const MyType& value) {
-//     return H::Combine(std::move(h), value.field1, value.field2);
+//     return H::Combine(std::move(h), std::tie(value.field1, value.field2));
 //   }
 //
 // Direct API (for simple hash combining):
 //   MurmurHashCombiner combiner;
-//   combiner.Combine(field1, field2, ...);
+//   combiner.Combine(field1);
+//   combiner.Combine(field2);
 //   return combiner.digest();
 //
 // IMPORTANT: This is NOT a true streaming hash. It is an order-dependent
@@ -273,24 +274,34 @@ class MurmurHashCombiner {
 
   // Static Combine - returns a new hasher with the combined state.
   // This is used by the absl-style PerfettoHashValue API.
-  template <typename... Args>
-  static MurmurHashCombiner Combine(MurmurHashCombiner h, const Args&... args) {
-    h.Combine(args...);
+  template <typename T>
+  static MurmurHashCombiner Combine(MurmurHashCombiner h, const T& arg) {
+    h.Combine(arg);
     return h;
   }
 
-  // Member Combine - combines values into this hasher's state.
-  // This is a convenient API for directly combining multiple values.
-  // The combination is order-dependent.
+  // Static Combine for tuples - allows combining multiple values at once in a
+  // type-safe and explicit way. This is the preferred way to combine multiple
+  // fields in PerfettoHashValue.
   template <typename... Args>
-  void Combine(const Args&... args) {
-    static_assert(!murmur_internal::HasPointerV<Args...>,
+  static MurmurHashCombiner Combine(MurmurHashCombiner h,
+                                    const std::tuple<Args...>& args) {
+    std::apply(
+        [&h](const auto&... inner_args) { (h.Combine(inner_args), ...); },
+        args);
+    return h;
+  }
+
+  // Member Combine - combines a single value into this hasher's state.
+  // The combination is order-dependent.
+  template <typename T>
+  void Combine(const T& value) {
+    static_assert(!std::is_pointer_v<T>,
                   "MurmurHashCombiner::Combine() does not support pointers. "
                   "If you want to hash the contents of a memory range, use a "
                   "single hashable object (e.g., std::string_view). If you "
                   "want to hash a pointer address, cast it to uintptr_t.");
-    // Uses a C++17 fold expression with CombineOne for each argument.
-    (CombineOne(args), ...);
+    CombineOne(value);
   }
 
   // Returns the digest (i.e. current state of the combiner).
@@ -324,8 +335,14 @@ class MurmurHashCombiner {
 // Simple wrapper function around MurmurHashCombiner to improve clarity in
 // callsites to not have to instantiate the class, call Combine() then digest().
 template <typename... Args>
-uint64_t MurmurHashCombine(const Args&... value) {
-  return MurmurHashCombiner::Combine(MurmurHashCombiner{}, value...).digest();
+uint64_t MurmurHashCombine(const Args&... values) {
+  static_assert(!murmur_internal::HasPointerV<Args...>,
+                "MurmurHashCombine() does not support pointers. "
+                "If you want to hash the contents of a memory range, use a "
+                "single hashable object (e.g., std::string_view). If you "
+                "want to hash a pointer address, cast it to uintptr_t.");
+  return MurmurHashCombiner::Combine(MurmurHashCombiner{}, std::tie(values...))
+      .digest();
 }
 
 // Simple wrapper function to compute a hash value for a single value.

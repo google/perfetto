@@ -73,7 +73,7 @@ class StackProfileSequenceState final
 
     template <typename H>
     friend H PerfettoHashValue(H h, const OptionalUniquePidAndIid& o) {
-      return H::Combine(std::move(h), o.iid, o.upid);
+      return H::Combine(std::move(h), std::tie(o.iid, o.upid));
     }
   };
 

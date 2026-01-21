@@ -54,25 +54,21 @@ namespace perfetto::base {
 template <typename H, typename T>
 H PerfettoHashValue(H h, const std::optional<T>& value) {
   if (value.has_value()) {
-    return H::Combine(H::Combine(std::move(h), true), *value);
+    return H::Combine(std::move(h), std::tuple(true, *value));
   }
-  return H::Combine(std::move(h), false, 0);
+  return H::Combine(std::move(h), std::tuple(false, uint64_t(0)));
 }
 
 // Hash function for std::pair - combines hashes of both elements.
 template <typename H, typename T1, typename T2>
 H PerfettoHashValue(H h, const std::pair<T1, T2>& value) {
-  return H::Combine(std::move(h), value.first, value.second);
+  return H::Combine(std::move(h), std::tie(value.first, value.second));
 }
 
 // Hash function for std::tuple - combines hashes of all elements.
 template <typename H, typename... Ts>
 H PerfettoHashValue(H h, const std::tuple<Ts...>& value) {
-  return std::apply(
-      [&h](const auto&... elements) {
-        return H::Combine(std::move(h), elements...);
-      },
-      value);
+  return H::Combine(std::move(h), value);
 }
 
 // Hash function for pointers - hashes the pointer value as an integer.

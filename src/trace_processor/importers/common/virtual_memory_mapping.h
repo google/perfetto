@@ -133,7 +133,7 @@ class VirtualMemoryMapping {
 
     template <typename H>
     friend H PerfettoHashValue(H h, const FrameKey& k) {
-      return H::Combine(std::move(h), k.rel_pc, k.name_id);
+      return H::Combine(std::move(h), std::tie(k.rel_pc, k.name_id));
     }
   };
   base::FlatHashMap<FrameKey, FrameId, base::MurmurHash<FrameKey>>
@@ -196,8 +196,9 @@ class DummyMemoryMapping : public VirtualMemoryMapping {
 
     template <typename H>
     friend H PerfettoHashValue(H h, const DummyFrameKey& k) {
-      return H::Combine(std::move(h), k.function_name_id, k.source_file_id,
-                        k.line_number);
+      return H::Combine(
+          std::move(h),
+          std::tie(k.function_name_id, k.source_file_id, k.line_number));
     }
   };
   base::FlatHashMap<DummyFrameKey, FrameId, base::MurmurHash<DummyFrameKey>>

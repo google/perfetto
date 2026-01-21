@@ -114,7 +114,7 @@ struct SimpleperfMetaInfo {
     }
     template <typename H>
     friend H PerfettoHashValue(H h, const EventTypeAndConfig& o) {
-      return H::Combine(std::move(h), o.type, o.config);
+      return H::Combine(std::move(h), std::tie(o.type, o.config));
     }
   };
   using EventName = std::string;

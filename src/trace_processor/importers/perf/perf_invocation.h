@@ -100,7 +100,7 @@ class PerfInvocation : public RefCounted {
 
     template <typename H>
     friend H PerfettoHashValue(H h, const BuildIdMapKey& k) {
-      return H::Combine(std::move(h), k.pid, k.filename);
+      return H::Combine(std::move(h), std::tie(k.pid, k.filename));
     }
   };
 
