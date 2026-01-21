@@ -99,7 +99,7 @@ function downloadTrace(trace: TraceImpl) {
   const filePickerAcceptTypes = [
     {
       description: 'Perfetto trace',
-      accept: {'*/*': ['.pftrace']},
+      accept: {'*/*': ['.pftrace', '..gz']},
     },
   ];
   if (src.type === 'URL') {
