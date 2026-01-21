@@ -170,7 +170,16 @@ export interface TreeGroupingWithExpandedPaths extends TreeGroupingBase {
   readonly expandedPaths?: PathSet;
 }
 
-export type TreeGrouping = TreeGroupingWithExpandedPaths | TreeGroupingBase;
+// Blacklist mode: All paths are expanded except those in collapsedPaths.
+// Empty PathSet = all expanded (used by "Expand All")
+export interface TreeGroupingWithCollapsedPaths extends TreeGroupingBase {
+  readonly collapsedPaths: PathSet;
+}
+
+export type TreeGrouping =
+  | TreeGroupingWithExpandedPaths
+  | TreeGroupingWithCollapsedPaths
+  | TreeGroupingBase;
 
 export interface Model {
   readonly columns: readonly Column[];

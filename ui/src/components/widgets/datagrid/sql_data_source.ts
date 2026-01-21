@@ -100,6 +100,19 @@ interface DistinctValuesCache {
   values: ReadonlyArray<SqlValue>;
 }
 
+// Cache entry for tree metadata (has_children computation)
+// This is cached separately because it only depends on base data + filters,
+// NOT on expansion state. So we can reuse it across expand/collapse operations.
+interface TreeMetadataCache {
+  // Cache key based on: base table, filters, tree field, delimiter
+  cacheKey: string;
+  // Name of the temp table storing has_children paths
+  tempTableName: string;
+}
+
+// Counter for generating unique temp table names
+let treeMetadataTempTableCounter = 0;
+
 /**
  * SQL data source for DataGrid.
  *
@@ -151,6 +164,9 @@ export class SQLDataSource implements DataSource {
   private aggregatesCache?: AggregatesCache;
   private distinctValuesCache = new Map<string, DistinctValuesCache>();
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
+  private treeMetadataCache?: TreeMetadataCache;
+  // Current tree metadata temp table name (for sync access during query building)
+  private currentTreeMetadataTable?: string;
 
   // Current results
   private cachedResult?: DataSourceRows;
@@ -210,6 +226,9 @@ export class SQLDataSource implements DataSource {
       this.isLoadingFlag = true;
 
       try {
+        // Ensure tree metadata table is ready if in tree mode
+        await this.maybeRefreshTreeMetadata(model);
+
         // Resolve row count
         const rowCount = await this.resolveRowCount(model);
 
@@ -787,6 +806,150 @@ ${joinClauses}`;
   }
 
   /**
+   * Checks if tree mode is active and refreshes the tree metadata table if needed.
+   * Called from notify() before building queries.
+   */
+  private async maybeRefreshTreeMetadata(
+    model: DataSourceModel,
+  ): Promise<void> {
+    const {filters = [], pivot, tree} = model;
+
+    // Check for tree mode in flat mode
+    if (tree) {
+      const resolver = new SQLSchemaResolver(
+        this.sqlSchema,
+        this.rootSchemaName,
+      );
+      this.currentTreeMetadataTable = await this.ensureTreeMetadataTable(
+        resolver,
+        filters,
+        tree.field,
+        tree.delimiter ?? '/',
+      );
+      return;
+    }
+
+    // Check for tree mode in pivot mode
+    if (pivot && !pivot.drillDown && pivot.groupBy.length === 1) {
+      const groupByCol = pivot.groupBy[0];
+      if (groupByCol.tree) {
+        const resolver = new SQLSchemaResolver(
+          this.sqlSchema,
+          this.rootSchemaName,
+        );
+        this.currentTreeMetadataTable = await this.ensureTreeMetadataTable(
+          resolver,
+          filters,
+          groupByCol.field,
+          groupByCol.tree.delimiter ?? '/',
+        );
+        return;
+      }
+    }
+
+    // Not in tree mode - clear the cached table name
+    this.currentTreeMetadataTable = undefined;
+  }
+
+  /**
+   * Ensures the tree metadata temp table exists and is up-to-date.
+   * Returns the temp table name to use in queries.
+   *
+   * The tree metadata table contains paths that have children, computed once
+   * and cached until filters or tree config changes. This avoids recomputing
+   * the expensive LEAD window function on every expand/collapse.
+   */
+  private async ensureTreeMetadataTable(
+    resolver: SQLSchemaResolver,
+    filters: ReadonlyArray<Filter>,
+    treeField: string,
+    delimiter: string,
+  ): Promise<string> {
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+
+    // Build cache key from factors that affect which paths have children
+    const filterKey = filters
+      .map((f) => `${f.field}:${f.op}:${'value' in f ? f.value : ''}`)
+      .join('|');
+    const cacheKey = `${baseTable}:${treeField}:${delimiter}:${filterKey}`;
+
+    // Check if cache is valid
+    if (this.treeMetadataCache?.cacheKey === cacheKey) {
+      return this.treeMetadataCache.tempTableName;
+    }
+
+    // Generate unique temp table name
+    const tempTableName = `__tree_meta_${treeMetadataTempTableCounter++}__`;
+
+    // Resolve the path column expression
+    const pathExpr = resolver.resolveColumnPath(treeField);
+    if (!pathExpr) {
+      throw new Error(`Could not resolve tree field: ${treeField}`);
+    }
+
+    // Build filter clause
+    let filterClause = '';
+    if (filters.length > 0) {
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+      filterClause = `WHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    const joinClauses = resolver.buildJoinClauses();
+
+    // Create temp table with has_children paths
+    // Uses LEAD window function: a path has children if the next path (sorted)
+    // starts with it + delimiter and has level = current level + 1
+    const createQuery = `
+CREATE TEMP TABLE ${tempTableName} AS
+WITH __source__ AS (
+  SELECT ${pathExpr} AS __tree_path__
+  FROM ${baseTable} AS ${baseAlias}
+  ${joinClauses}
+  ${filterClause}
+),
+__tree__ AS (
+  SELECT
+    __tree_path__,
+    length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
+  FROM __source__
+)
+SELECT DISTINCT __tree_path__
+FROM (
+  SELECT
+    __tree_path__,
+    "__level__",
+    LEAD(__tree_path__) OVER (ORDER BY __tree_path__) AS __next_path__,
+    LEAD("__level__") OVER (ORDER BY __tree_path__) AS __next_level__
+  FROM __tree__
+)
+WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
+  AND __next_level__ = "__level__" + 1`;
+
+    // Drop old temp table if it exists (from previous cache)
+    if (this.treeMetadataCache?.tempTableName) {
+      try {
+        await this.engine.query(
+          `DROP TABLE IF EXISTS ${this.treeMetadataCache.tempTableName}`,
+        );
+      } catch {
+        // Ignore errors dropping old table
+      }
+    }
+
+    // Create the new temp table
+    await this.engine.query(this.wrapQueryWithPrelude(createQuery));
+
+    // Update cache
+    this.treeMetadataCache = {cacheKey, tempTableName};
+
+    return tempTableName;
+  }
+
+  /**
    * Builds a tree pivot query for hierarchical path data.
    *
    * Tree mode treats the groupBy column value as a slash-separated path
@@ -796,7 +959,7 @@ ${joinClauses}`;
    * The query:
    * 1. Wraps source data in a CTE with tree metadata (__level__, __tree_parent__)
    * 2. Filters to show roots (no parent) OR children of expanded paths
-   * 3. Adds __tree_has_children__ via EXISTS subquery for chevron display
+   * 3. Joins with cached __has_children__ temp table for chevron display
    * 4. Computes aggregates at each visible tree node
    */
   private buildTreePivotQuery(
@@ -956,9 +1119,10 @@ ${joinClauses}`;
     const expansionFilter = expansionConditions.join('\n   OR ');
 
     // Build the complete query with CTEs
-    // Uses LEAD window function to efficiently compute has_children:
-    // When paths are sorted, if a path has children, the first child is immediately
-    // after it (since 'parent/child' sorts right after 'parent').
+    // The __has_children__ data comes from a cached temp table (created in maybeRefreshTreeMetadata)
+    // to avoid recomputing the expensive LEAD window function on every expand/collapse.
+    const hasChildrenTable =
+      this.currentTreeMetadataTable ?? '__has_children__';
     const query = `WITH __source__ AS (
   SELECT ${cteSelectClauses.join(', ')}
   FROM ${baseTable} AS ${baseAlias}
@@ -969,22 +1133,6 @@ __tree__ AS (
     -- Level = count of delimiters in path
     length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
   FROM __source__
-),
-__has_children__ AS (
-  -- Pre-compute which paths have children using LEAD window function.
-  -- A path has children if the next path (in sorted order) starts with path + delimiter
-  -- and has level = current level + 1.
-  SELECT DISTINCT __tree_path__
-  FROM (
-    SELECT
-      __tree_path__,
-      "__level__",
-      LEAD(__tree_path__) OVER (ORDER BY __tree_path__) AS __next_path__,
-      LEAD("__level__") OVER (ORDER BY __tree_path__) AS __next_level__
-    FROM __tree__
-  )
-  WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
-    AND __next_level__ = "__level__" + 1
 )
 SELECT
   t.__tree_path__ AS ${pathAlias},
@@ -992,7 +1140,7 @@ SELECT
   ${aggregateExprs.join(',\n  ')}${dependencyExprs.length > 0 ? ',\n  ' + dependencyExprs.join(',\n  ') : ''},
   (h.__tree_path__ IS NOT NULL) AS __tree_has_children__
 FROM __tree__ t
-LEFT JOIN __has_children__ h ON h.__tree_path__ = t.__tree_path__
+LEFT JOIN ${hasChildrenTable} h ON h.__tree_path__ = t.__tree_path__
 WHERE ${expansionFilter}
 GROUP BY t.__tree_path__${options.includeOrderBy ? '\nORDER BY t.__tree_path__' : ''}`;
 
@@ -1063,52 +1211,88 @@ GROUP BY t.__tree_path__${options.includeOrderBy ? '\nORDER BY t.__tree_path__' 
       filterClause = `\nWHERE ${whereConditions.join(' AND ')}`;
     }
 
-    // Get expanded paths from tree state, grouped by level
-    const expandedPathsByLevel = new Map<number, string[]>();
-    if ('expandedPaths' in tree && tree.expandedPaths) {
-      for (const path of tree.expandedPaths) {
-        // Each path is a single-element array containing the string path
+    // Build the expansion filter based on whitelist (expandedPaths) or blacklist (collapsedPaths) mode
+    let expansionFilter: string;
+
+    if ('collapsedPaths' in tree) {
+      // Blacklist mode: all expanded except collapsed paths
+      // A row is visible if its parent is not collapsed
+      // This is done by excluding rows whose path starts with a collapsed path + delimiter
+      const collapsedPathsByLevel = new Map<number, string[]>();
+      for (const path of tree.collapsedPaths) {
         if (path.length === 1 && typeof path[0] === 'string') {
           const pathStr = path[0];
           const level =
             pathStr.length - pathStr.replaceAll(delimiter, '').length;
-          if (!expandedPathsByLevel.has(level)) {
-            expandedPathsByLevel.set(level, []);
+          if (!collapsedPathsByLevel.has(level)) {
+            collapsedPathsByLevel.set(level, []);
           }
-          expandedPathsByLevel.get(level)!.push(pathStr);
+          collapsedPathsByLevel.get(level)!.push(pathStr);
         }
       }
-    }
 
-    // Build the expansion filter using GLOB prefix matching
-    // Note: Use t. prefix since this is used after LEFT JOIN with __has_children__
-    const expansionConditions: string[] = ['t."__level__" = 0'];
-    for (const [parentLevel, paths] of expandedPathsByLevel) {
-      const childLevel = parentLevel + 1;
-      const globConditions = paths
-        .map((p) => `t.__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
-        .join(' OR ');
-      expansionConditions.push(
-        `(t."__level__" = ${childLevel} AND (${globConditions}))`,
-      );
+      if (collapsedPathsByLevel.size === 0) {
+        // No collapsed paths - show all rows
+        expansionFilter = '1=1';
+      } else {
+        // Exclude children of collapsed paths
+        const exclusionConditions: string[] = [];
+        for (const [_, paths] of collapsedPathsByLevel) {
+          for (const p of paths) {
+            exclusionConditions.push(
+              `t.__tree_path__ NOT GLOB ${sqlValue(p + delimiter + '*')}`,
+            );
+          }
+        }
+        expansionFilter = exclusionConditions.join('\n   AND ');
+      }
+    } else {
+      // Whitelist mode: only expanded paths are visible
+      const expandedPathsByLevel = new Map<number, string[]>();
+      if ('expandedPaths' in tree && tree.expandedPaths) {
+        for (const path of tree.expandedPaths) {
+          if (path.length === 1 && typeof path[0] === 'string') {
+            const pathStr = path[0];
+            const level =
+              pathStr.length - pathStr.replaceAll(delimiter, '').length;
+            if (!expandedPathsByLevel.has(level)) {
+              expandedPathsByLevel.set(level, []);
+            }
+            expandedPathsByLevel.get(level)!.push(pathStr);
+          }
+        }
+      }
+
+      // Build the expansion filter using GLOB prefix matching
+      // Note: Use t. prefix since this is used after LEFT JOIN with __has_children__
+      const expansionConditions: string[] = ['t."__level__" = 0'];
+      for (const [parentLevel, paths] of expandedPathsByLevel) {
+        const childLevel = parentLevel + 1;
+        const globConditions = paths
+          .map((p) => `t.__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
+          .join(' OR ');
+        expansionConditions.push(
+          `(t."__level__" = ${childLevel} AND (${globConditions}))`,
+        );
+      }
+      expansionFilter = expansionConditions.join('\n   OR ');
     }
-    const expansionFilter = expansionConditions.join('\n   OR ');
 
     // Find the tree field column for output alias
     const treeColumn = columns?.find((c) => c.field === treeField);
     const pathAlias = treeColumn ? toAlias(treeColumn.id) : toAlias(treeField);
 
-    // Build column expressions for final SELECT
-    // Use MIN() as aggregation since we GROUP BY path to eliminate duplicates
+    // Build column expressions for final SELECT (raw values, no aggregation)
     const otherColumnExprs = columns
       ?.filter((c) => c.field !== treeField)
-      .map((c) => `MIN(${toAlias(c.id)}) AS ${toAlias(c.id)}`)
+      .map((c) => `t.${toAlias(c.id)}`)
       .join(',\n  ');
 
     // Build the complete query
-    // Uses LEAD window function to efficiently compute has_children:
-    // When paths are sorted, if a path has children, the first child is immediately
-    // after it (since 'parent/child' sorts right after 'parent').
+    // The __has_children__ data comes from a cached temp table (created in maybeRefreshTreeMetadata)
+    // to avoid recomputing the expensive LEAD window function on every expand/collapse.
+    const hasChildrenTable =
+      this.currentTreeMetadataTable ?? '__has_children__';
     const query = `WITH __source__ AS (
   SELECT ${selectExprs.join(', ')}
   FROM ${baseTable} AS ${baseAlias}
@@ -1118,32 +1302,15 @@ __tree__ AS (
   SELECT *,
     length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
   FROM __source__
-),
-__has_children__ AS (
-  -- Pre-compute which paths have children using LEAD window function.
-  -- A path has children if the next path (in sorted order) starts with path + delimiter
-  -- and has level = current level + 1.
-  SELECT DISTINCT __tree_path__
-  FROM (
-    SELECT
-      __tree_path__,
-      "__level__",
-      LEAD(__tree_path__) OVER (ORDER BY __tree_path__) AS __next_path__,
-      LEAD("__level__") OVER (ORDER BY __tree_path__) AS __next_level__
-    FROM __tree__
-  )
-  WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
-    AND __next_level__ = "__level__" + 1
 )
 SELECT
   t.__tree_path__ AS ${pathAlias},
-  MIN(t."__level__") AS "__level__",
+  t."__level__",
   ${otherColumnExprs || 'NULL AS __placeholder__'},
   (h.__tree_path__ IS NOT NULL) AS __tree_has_children__
 FROM __tree__ t
-LEFT JOIN __has_children__ h ON h.__tree_path__ = t.__tree_path__
-WHERE ${expansionFilter}
-GROUP BY t.__tree_path__${options.includeOrderBy ? '\nORDER BY t.__tree_path__' : ''}`;
+LEFT JOIN ${hasChildrenTable} h ON h.__tree_path__ = t.__tree_path__
+WHERE ${expansionFilter}${options.includeOrderBy ? '\nORDER BY t.__tree_path__' : ''}`;
 
     return query;
   }

@@ -570,6 +570,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 },
               }),
             ],
+          // Show expand/collapse buttons for tree mode (non-pivot)
+          this.tree && [
+            m(Button, {
+              icon: 'unfold_more',
+              tooltip: 'Expand all',
+              onclick: () => this.expandAllTree(attrs),
+            }),
+            m(Button, {
+              icon: 'unfold_less',
+              tooltip: 'Collapse all',
+              onclick: () => this.collapseAllTree(attrs),
+            }),
+          ],
         ],
         rightItems: [
           toolbarItemsRight,
@@ -1196,6 +1209,36 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   /**
+   * Expands all tree nodes by switching to blacklist mode with empty set.
+   */
+  private expandAllTree(attrs: DataGridAttrs): void {
+    if (!this.tree) return;
+    const {field, delimiter} = this.tree;
+    const newTree: TreeGrouping = {
+      field,
+      delimiter,
+      collapsedPaths: new PathSet(),
+    };
+    this.tree = newTree;
+    attrs.onTreeChanged?.(newTree);
+  }
+
+  /**
+   * Collapses all tree nodes by switching to whitelist mode with empty set.
+   */
+  private collapseAllTree(attrs: DataGridAttrs): void {
+    if (!this.tree) return;
+    const {field, delimiter} = this.tree;
+    const newTree: TreeGrouping = {
+      field,
+      delimiter,
+      expandedPaths: new PathSet(),
+    };
+    this.tree = newTree;
+    attrs.onTreeChanged?.(newTree);
+  }
+
+  /**
    * Enables flat mode - shows only leaf-level rows without hierarchical grouping.
    */
   private enableFlatMode(attrs: DataGridAttrs): void {
@@ -1468,10 +1511,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    */
   private isTreePathExpanded(path: string): boolean {
     if (!this.tree) return false;
-    if (!('expandedPaths' in this.tree) || !this.tree.expandedPaths) {
-      return false;
+    // Blacklist mode: expanded unless in collapsedPaths
+    if ('collapsedPaths' in this.tree) {
+      return !this.tree.collapsedPaths.has([path]);
     }
-    return this.tree.expandedPaths.has([path]);
+    // Whitelist mode: expanded only if in expandedPaths
+    if ('expandedPaths' in this.tree && this.tree.expandedPaths) {
+      return this.tree.expandedPaths.has([path]);
+    }
+    return false;
   }
 
   /**
@@ -1480,24 +1528,35 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private toggleTreeExpansion(path: string, attrs: DataGridAttrs): void {
     if (!this.tree) return;
 
-    const currentExpanded =
-      'expandedPaths' in this.tree && this.tree.expandedPaths
-        ? this.tree.expandedPaths
-        : new PathSet();
-
-    const newExpanded = new PathSet(currentExpanded);
+    const {field, delimiter} = this.tree;
     const pathArray = [path] as const;
 
-    if (newExpanded.has(pathArray)) {
-      newExpanded.delete(pathArray);
-    } else {
-      newExpanded.add(pathArray);
-    }
+    let newTree: TreeGrouping;
 
-    const newTree: TreeGrouping = {
-      ...this.tree,
-      expandedPaths: newExpanded,
-    };
+    if ('collapsedPaths' in this.tree) {
+      // Blacklist mode: toggle in collapsedPaths
+      const newCollapsed = new PathSet(this.tree.collapsedPaths);
+      if (newCollapsed.has(pathArray)) {
+        newCollapsed.delete(pathArray);
+      } else {
+        newCollapsed.add(pathArray);
+      }
+      newTree = {field, delimiter, collapsedPaths: newCollapsed};
+    } else {
+      // Whitelist mode: toggle in expandedPaths
+      const currentExpanded =
+        'expandedPaths' in this.tree && this.tree.expandedPaths
+          ? this.tree.expandedPaths
+          : new PathSet();
+
+      const newExpanded = new PathSet(currentExpanded);
+      if (newExpanded.has(pathArray)) {
+        newExpanded.delete(pathArray);
+      } else {
+        newExpanded.add(pathArray);
+      }
+      newTree = {field, delimiter, expandedPaths: newExpanded};
+    }
 
     this.tree = newTree;
     attrs.onTreeChanged?.(newTree);

@@ -20,6 +20,13 @@ import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema'
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {DetailsShell} from '../../widgets/details_shell';
+import {Select} from '../../widgets/select';
+import {NUM, STR_NULL} from '../../trace_processor/query_result';
+
+interface SnapshotInfo {
+  id: number;
+  name: string;
+}
 
 const UI_SCHEMA: SchemaRegistry = {
   memory_snapshot: {
@@ -38,18 +45,101 @@ const UI_SCHEMA: SchemaRegistry = {
   },
 };
 
-class MemorySnapshotsTab implements m.ClassComponent<{trace: Trace}> {
+interface SnapshotTabAttrs {
+  trace: Trace;
+  snapshotId: number;
+}
+
+class SnapshotTab implements m.ClassComponent<SnapshotTabAttrs> {
   private dataSource?: SQLDataSource;
 
-  view({attrs}: m.CVnode<{trace: Trace}>) {
-    const {trace} = attrs;
+  view({attrs}: m.CVnode<SnapshotTabAttrs>) {
+    const {trace, snapshotId} = attrs;
 
     // Create data source lazily
     if (!this.dataSource) {
       this.dataSource = new SQLDataSource({
         engine: trace.engine,
-        sqlSchema: createSimpleSchema('memory_snapshot_node'),
+        sqlSchema: createSimpleSchema(
+          `select * from memory_snapshot_node where process_snapshot_id = ${snapshotId}`,
+        ),
         rootSchemaName: 'query',
+      });
+    }
+
+    return m(DataGrid, {
+      schema: UI_SCHEMA,
+      rootSchema: 'memory_snapshot',
+      data: this.dataSource,
+      fillHeight: true,
+      initialTree: {
+        field: 'path',
+        delimiter: '/',
+      },
+      initialColumns: [
+        {id: 'path', field: 'path'},
+        {id: 'size', field: 'size'},
+        {id: 'effective_size', field: 'effective_size'},
+      ],
+    });
+  }
+}
+
+class MemorySnapshotsTab implements m.ClassComponent<{trace: Trace}> {
+  private snapshots?: SnapshotInfo[];
+  private selectedSnapshotId?: number;
+
+  async loadSnapshots(trace: Trace) {
+    // Query snapshot IDs with process names
+    const result = await trace.engine.query(`
+      SELECT
+        pms.id AS process_snapshot_id,
+        p.name AS process_name
+      FROM process_memory_snapshot pms
+      LEFT JOIN process p ON pms.upid = p.id
+      WHERE pms.id IN (SELECT DISTINCT process_snapshot_id FROM memory_snapshot_node)
+      ORDER BY pms.id
+    `);
+    this.snapshots = [];
+    for (
+      const it = result.iter({
+        process_snapshot_id: NUM,
+        process_name: STR_NULL,
+      });
+      it.valid();
+      it.next()
+    ) {
+      const id = it.process_snapshot_id;
+      const processName = it.process_name ?? 'Unknown';
+      this.snapshots.push({
+        id,
+        name: `${processName} (${id})`,
+      });
+    }
+    // Select first snapshot by default
+    if (this.snapshots.length > 0) {
+      this.selectedSnapshotId = this.snapshots[0].id;
+    }
+  }
+
+  view({attrs}: m.CVnode<{trace: Trace}>) {
+    const {trace} = attrs;
+
+    // Load snapshots if not yet loaded
+    if (this.snapshots === undefined) {
+      this.loadSnapshots(trace);
+      return m(DetailsShell, {
+        title: 'Memory Snapshots',
+        description: 'Loading...',
+        fillHeight: true,
+      });
+    }
+
+    if (this.snapshots.length === 0) {
+      return m(DetailsShell, {
+        title: 'Memory Snapshots',
+        description: 'No memory snapshots found',
+        fillHeight: true,
       });
     }
 
@@ -57,26 +147,27 @@ class MemorySnapshotsTab implements m.ClassComponent<{trace: Trace}> {
       DetailsShell,
       {
         title: 'Memory Snapshots',
-        description: 'Hierarchical view of memory snapshot nodes',
+        description: m(
+          Select,
+          {
+            value: String(this.selectedSnapshotId),
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              this.selectedSnapshotId = Number(target.value);
+            },
+          },
+          this.snapshots.map((snapshot) =>
+            m('option', {value: String(snapshot.id)}, snapshot.name),
+          ),
+        ),
         fillHeight: true,
       },
-      m(DataGrid, {
-        schema: UI_SCHEMA,
-        rootSchema: 'memory_snapshot',
-        data: this.dataSource,
-        fillHeight: true,
-        // Use tree mode for hierarchical display without aggregation
-        initialTree: {
-          field: 'path',
-          delimiter: '/',
-        },
-        // Display columns: path (as tree), size, and effective_size
-        initialColumns: [
-          {id: 'path', field: 'path'},
-          {id: 'size', field: 'size'},
-          {id: 'effective_size', field: 'effective_size'},
-        ],
-      }),
+      this.selectedSnapshotId !== undefined &&
+        m(SnapshotTab, {
+          key: this.selectedSnapshotId,
+          trace,
+          snapshotId: this.selectedSnapshotId,
+        }),
     );
   }
 }
