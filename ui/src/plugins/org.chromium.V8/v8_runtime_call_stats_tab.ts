@@ -55,7 +55,6 @@ const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
 };
 
 const GROUP_COLORS: {[key: string]: string} = {
-  // ... (omitting for brevity in thought, but I must include it in the tool call)
   api: '#990099',
   blink: '#006600',
   callback: '#109618',
