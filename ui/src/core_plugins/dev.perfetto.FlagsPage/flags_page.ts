@@ -210,6 +210,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
           m(TextInput, {
             placeholder: 'Search...',
             value: this.filterText,
+            autofocus: true,
             leftIcon: 'search',
             oninput: (e: Event) => {
               const target = e.target as HTMLInputElement;

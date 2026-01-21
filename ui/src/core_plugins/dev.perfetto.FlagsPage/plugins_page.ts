@@ -186,6 +186,7 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
             placeholder: 'Search...',
             value: this.filterText,
             leftIcon: 'search',
+            autofocus: true,
             oninput: (e: Event) => {
               const target = e.target as HTMLInputElement;
               this.filterText = target.value;

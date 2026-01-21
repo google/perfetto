@@ -112,6 +112,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
           m(TextInput, {
             placeholder: 'Search...',
             value: this.filterText,
+            autofocus: true,
             leftIcon: 'search',
             oninput: (e: Event) => {
               const target = e.target as HTMLInputElement;
