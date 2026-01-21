@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 
 #include <sqlite3.h>
+#include <algorithm>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -29,8 +30,11 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -484,18 +488,18 @@ int DataframeModule::Column(sqlite3_vtab_cursor* cur,
 }
 
 struct RowidCallback : dataframe::CellCallback {
-  void OnCell(int64_t v) { *rowid = v; }
-  PERFETTO_NORETURN void OnCell(double) {
+  void OnCell(int64_t v) const { *rowid = v; }
+  PERFETTO_NORETURN static void OnCell(double) {
     PERFETTO_FATAL("Unexpected type for rowid");
   }
-  PERFETTO_NORETURN void OnCell(NullTermStringView) {
+  PERFETTO_NORETURN static void OnCell(NullTermStringView) {
     PERFETTO_FATAL("Unexpected type for rowid");
   }
-  PERFETTO_NORETURN void OnCell(std::nullptr_t) {
+  PERFETTO_NORETURN static void OnCell(std::nullptr_t) {
     PERFETTO_FATAL("Unexpected type for rowid");
   }
-  void OnCell(uint32_t v) { *rowid = static_cast<sqlite_int64>(v); }
-  void OnCell(int32_t v) { *rowid = static_cast<sqlite_int64>(v); }
+  void OnCell(uint32_t v) const { *rowid = static_cast<sqlite_int64>(v); }
+  void OnCell(int32_t v) const { *rowid = static_cast<sqlite_int64>(v); }
   sqlite_int64* rowid;
 };
 

@@ -408,6 +408,8 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenize_internal",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+        ":src_trace_processor_perfetto_sql_tree_tree",
+        ":src_trace_processor_plugins_plugins",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
@@ -610,6 +612,8 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenize_internal",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+        ":src_trace_processor_perfetto_sql_tree_tree",
+        ":src_trace_processor_plugins_plugins",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_stdiod",
@@ -3709,6 +3713,24 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/std/trees:trees
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/filter.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/from_table.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/invert.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/merge.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/propagate.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/to_table.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/std:std
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_std_std",
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/time:time
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_time_time",
@@ -3751,6 +3773,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_viz_viz",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph.sql",
+        "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph2.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/threads.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/track_event_callstacks.sql",
@@ -3830,6 +3853,8 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_slices_slices",
         ":src_trace_processor_perfetto_sql_stdlib_stack_trace_stack_trace",
         ":src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
+        ":src_trace_processor_perfetto_sql_stdlib_std_std",
+        ":src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
         ":src_trace_processor_perfetto_sql_stdlib_traced_traced",
         ":src_trace_processor_perfetto_sql_stdlib_v8_v8",
@@ -3858,6 +3883,27 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.cc",
         "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/tree:tree
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_tree_tree",
+    srcs = [
+        "src/trace_processor/perfetto_sql/tree/tree.h",
+        "src/trace_processor/perfetto_sql/tree/tree_algorithms.cc",
+        "src/trace_processor/perfetto_sql/tree/tree_algorithms.h",
+        "src/trace_processor/perfetto_sql/tree/tree_plugin.cc",
+        "src/trace_processor/perfetto_sql/tree/tree_plugin.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins:plugins
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_plugins",
+    srcs = [
+        "src/trace_processor/plugins/plugin_context.cc",
+        "src/trace_processor/plugins/plugin_context.h",
     ],
 )
 
@@ -8080,6 +8126,8 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenize_internal",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+        ":src_trace_processor_perfetto_sql_tree_tree",
+        ":src_trace_processor_plugins_plugins",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",
@@ -8311,6 +8359,8 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenize_internal",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+        ":src_trace_processor_perfetto_sql_tree_tree",
+        ":src_trace_processor_plugins_plugins",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",

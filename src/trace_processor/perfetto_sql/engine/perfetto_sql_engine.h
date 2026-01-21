@@ -29,7 +29,6 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
@@ -158,9 +157,9 @@ class PerfettoSqlEngine {
   //                  same set of arguments.
   // Arguments for RegisterFunction with custom function names.
   struct RegisterFunctionArgs {
-    RegisterFunctionArgs(const char* _name = nullptr,
-                         bool _deterministic = true,
-                         std::optional<int> _argc = std::nullopt)
+    explicit RegisterFunctionArgs(const char* _name = nullptr,
+                                  bool _deterministic = true,
+                                  std::optional<int> _argc = std::nullopt)
         : name(_name), deterministic(_deterministic), argc(_argc) {}
     const char* name = nullptr;  // If nullptr, uses Function::kName
     bool deterministic = true;
@@ -169,12 +168,13 @@ class PerfettoSqlEngine {
   };
 
   template <typename Function>
-  base::Status RegisterFunction(typename Function::UserData* ctx,
-                                const RegisterFunctionArgs& args = {});
+  base::Status RegisterFunction(
+      typename Function::UserData* ctx,
+      const RegisterFunctionArgs& args = RegisterFunctionArgs());
   template <typename Function>
   base::Status RegisterFunction(
       std::unique_ptr<typename Function::UserData> ctx,
-      const RegisterFunctionArgs& args = {});
+      const RegisterFunctionArgs& args = RegisterFunctionArgs());
 
   // Registers a trace processor C++ aggregate function to be runnable from SQL.
   //

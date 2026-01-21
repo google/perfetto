@@ -20,6 +20,8 @@
 #include <sqlite3.h>  // IWYU pragma: export
 #include <memory>
 
+#define PERFETTO_TEMPLATED_USED [[maybe_unused]]  // IWYU pragma: export
+
 namespace perfetto::trace_processor::sqlite {
 
 // Prototype for a function which can be registered with SQLite.

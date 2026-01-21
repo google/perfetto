@@ -195,10 +195,13 @@ if (enable_perfetto_trace_processor_sqlite) {
       "metrics",
       "perfetto_sql/engine",
       "perfetto_sql/generator",
+      "perfetto_sql/graph",
       "perfetto_sql/intrinsics/functions",
       "perfetto_sql/intrinsics/operators",
       "perfetto_sql/intrinsics/table_functions",
       "perfetto_sql/stdlib",
+      "perfetto_sql/tree",
+      "plugins",
       "sqlite",
       "storage",
       "tables",
@@ -377,6 +380,7 @@ perfetto_unittest_source_set("unittests") {
       "perfetto_sql/parser:unittests",
       "perfetto_sql/preprocessor:unittests",
       "perfetto_sql/tokenizer:unittests",
+      "perfetto_sql/tree:unittests",
       "sqlite:unittests",
     ]
   }

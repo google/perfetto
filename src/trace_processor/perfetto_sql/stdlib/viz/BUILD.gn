@@ -17,9 +17,13 @@ import("../../../../../gn/perfetto_sql.gni")
 perfetto_sql_source_set("viz") {
   sources = [
     "flamegraph.sql",
+    "flamegraph2.sql",
     "slices.sql",
     "threads.sql",
     "track_event_callstacks.sql",
   ]
-  deps = [ "summary" ]
+  deps = [
+    "../std/trees",
+    "summary",
+  ]
 }

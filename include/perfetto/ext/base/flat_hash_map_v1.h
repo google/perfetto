@@ -196,6 +196,16 @@ class FlatHashMapV1 : protected FlatHashMapV1Base {
   FlatHashMapV1(const FlatHashMapV1&) = delete;
   FlatHashMapV1& operator=(const FlatHashMapV1&) = delete;
 
+  // Explicit copy function since copy constructor is deleted.
+  // Returns a new map with the same contents.
+  FlatHashMapV1 Copy() const {
+    FlatHashMapV1 copy(capacity_, load_limit_percent_);
+    for (auto it = GetIterator(); it; ++it) {
+      copy.Insert(it.key(), it.value());
+    }
+    return copy;
+  }
+
   std::pair<Value*, bool> Insert(Key key, Value value) {
     const size_t key_hash = Hasher{}(key);
     const uint8_t tag = HashToTag(key_hash);
