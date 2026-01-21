@@ -902,20 +902,6 @@ Advanced:
  --extra-checks                       Enables additional checks which can catch
                                       more SQL errors, but which incur
                                       additional runtime overhead.
- --structured-query-spec SPEC_PATH    Parses the spec at the specified path and
-                                      makes queries available for execution.
-                                      Spec files must be instances of the
-                                      perfetto.protos.TraceSummarySpec proto.
-                                      If the file extension is `.textproto` then
-                                      the spec file will be parsed as a
-                                      textproto. If the file extension is `.pb`
-                                      then it will be parsed as a binary
-                                      protobuf. Otherwise, heuristics will be
-                                      used to determine the format.
- --structured-query-id ID             Specifies that the structured query with
-                                      the given ID should be executed. The spec
-                                      for the query must exist in one of the
-                                      files passed to --structured-query-spec.
  -e, --export FILE                    Export the contents of trace processor
                                       into an SQLite database after running any
                                       metrics or queries specified.
@@ -947,6 +933,22 @@ Advanced:
                                       packages already existing and clashing
                                       with stdlib package names so should be
                                       used with caution.
+
+Structured queries:
+ --structured-query-spec SPEC_PATH    Parses the spec at the specified path and
+                                      makes queries available for execution.
+                                      Spec files must be instances of the
+                                      perfetto.protos.TraceSummarySpec proto.
+                                      If the file extension is `.textproto` then
+                                      the spec file will be parsed as a
+                                      textproto. If the file extension is `.pb`
+                                      then it will be parsed as a binary
+                                      protobuf. Otherwise, heuristics will be
+                                      used to determine the format.
+ --structured-query-id ID             Specifies that the structured query with
+                                      the given ID should be executed. The spec
+                                      for the query must exist in one of the
+                                      files passed to --structured-query-spec.
 
 Metrics (v1):
 
