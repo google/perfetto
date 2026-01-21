@@ -21,7 +21,6 @@
 
   &__tabs {
     display: flex;
-    background-color: var(--pf-color-background-secondary);
     border-bottom: 1px solid var(--pf-color-border);
     padding-inline: 3px;
     align-items: flex-end;
@@ -46,6 +45,7 @@
     border-style: solid;
     border-color: var(--pf-color-border-secondary);
     border-width: 1px 1px 0 1px;
+    color: var(--pf-color-text-muted);
 
     &:not(:first-child) {
       margin-left: -1px;
@@ -53,6 +53,7 @@
 
     &:hover {
       background: color_hover(transparent);
+      color: var(--pf-color-text);
     }
 
     &--active {
@@ -60,6 +61,7 @@
       background-color: var(--pf-color-background);
       border-color: var(--pf-color-border);
       z-index: 1;
+      color: var(--pf-color-text);
 
       // Don't change background on hover for active tab
       &:hover {
