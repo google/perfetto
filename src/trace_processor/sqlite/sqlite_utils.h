@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstring>
 #include <functional>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <utility>
@@ -33,6 +34,8 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 
 // Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
 #define SQLITE_RETURN_IF_ERROR(vtab, expr)                                  \
@@ -125,6 +128,113 @@ inline void SetError(sqlite3_context* ctx,
                      const base::Status& status) {
   SetError(ctx, base::ErrStatus("%s: %s", function_name.c_str(),
                                 status.c_message()));
+}
+
+// Returns the human-readable name for a SQLite type.
+inline const char* SqliteTypeName(sqlite::Type type) {
+  switch (type) {
+    case sqlite::Type::kInteger:
+      return "integer";
+    case sqlite::Type::kFloat:
+      return "float";
+    case sqlite::Type::kText:
+      return "string";
+    case sqlite::Type::kBlob:
+      return "blob";
+    case sqlite::Type::kNull:
+      return "null";
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+// Validates that a SQLite value has the expected type.
+// Returns an error status if the type doesn't match.
+inline base::Status ExpectArgType(sqlite3_value* value,
+                                  sqlite::Type expected,
+                                  const char* func_name,
+                                  const char* arg_name) {
+  if (sqlite::value::Type(value) != expected) {
+    return base::ErrStatus("%s: %s must be %s", func_name, arg_name,
+                           SqliteTypeName(expected));
+  }
+  return base::OkStatus();
+}
+
+// Validates that argc >= expected. Use for functions with optional args.
+inline base::Status CheckArgCountAtLeast(const char* func_name,
+                                         int argc,
+                                         int expected) {
+  if (argc < expected) {
+    return base::ErrStatus("%s: expected at least %d args, got %d", func_name,
+                           expected, argc);
+  }
+  return base::OkStatus();
+}
+
+// Specification for a single argument: its expected type and name.
+// For pointer types, set pointer_type to the expected pointer type string.
+struct ArgSpec {
+  sqlite::Type type;
+  const char* name;
+  const char* pointer_type = nullptr;  // If set, validates as pointer type
+
+  // Constructor for basic types.
+  ArgSpec(sqlite::Type t, const char* n) : type(t), name(n) {}
+
+  // Constructor for pointer types (type is ignored, pointer_type is checked).
+  ArgSpec(const char* n, const char* ptr_type)
+      : type(sqlite::Type::kNull), name(n), pointer_type(ptr_type) {}
+};
+
+// Validates argument types for the given specs.
+// Only checks the first specs.size() arguments.
+inline base::Status CheckArgTypes(const char* func_name,
+                                  sqlite3_value** argv,
+                                  std::initializer_list<ArgSpec> specs) {
+  int i = 0;
+  for (const auto& spec : specs) {
+    if (spec.pointer_type) {
+      // Validate pointer type
+      if (!sqlite3_value_pointer(argv[i], spec.pointer_type)) {
+        return base::ErrStatus("%s: %s must be %s", func_name, spec.name,
+                               spec.pointer_type);
+      }
+    } else {
+      // Validate basic type
+      if (sqlite::value::Type(argv[i]) != spec.type) {
+        return base::ErrStatus("%s: %s must be %s", func_name, spec.name,
+                               SqliteTypeName(spec.type));
+      }
+    }
+    ++i;
+  }
+  return base::OkStatus();
+}
+
+// Validates argument count (exact) and types in one call.
+// Usage: CheckExactArgTypes(kName, argc, argv, {{kText, "col"}, {kText, "op"}})
+inline base::Status CheckExactArgTypes(const char* func_name,
+                                       int argc,
+                                       sqlite3_value** argv,
+                                       std::initializer_list<ArgSpec> specs) {
+  if (static_cast<size_t>(argc) != specs.size()) {
+    return base::ErrStatus("%s: expected %zu args, got %d", func_name,
+                           specs.size(), argc);
+  }
+  return CheckArgTypes(func_name, argv, specs);
+}
+
+// Extracts a pointer argument with error handling.
+// Returns an error status if the pointer is null.
+template <typename T>
+base::StatusOr<T*> ExpectPointer(sqlite3_value* value,
+                                 const char* ptr_type,
+                                 const char* func_name) {
+  auto* ptr = sqlite::value::Pointer<T>(value, ptr_type);
+  if (!ptr) {
+    return base::ErrStatus("%s: expected %s", func_name, ptr_type);
+  }
+  return ptr;
 }
 
 // Return NULL from a SQLite function implementation. This is more efficient

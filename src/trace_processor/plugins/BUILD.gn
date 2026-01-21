@@ -1,4 +1,4 @@
-# Copyright (C) 2022 The Android Open Source Project
+# Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,37 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
-import("../../../../gn/perfetto_sql.gni")
+import("../../../gn/perfetto.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-perfetto_amalgamated_sql_header("stdlib") {
-  deps = [
-    "android",
-    "appleos",
-    "callstacks",
-    "chrome:chrome_sql",
-    "counters",
-    "export",
-    "graphs",
-    "intervals",
-    "linux",
-    "pixel",
-    "pkvm",
-    "prelude",
-    "sched",
-    "slices",
-    "stack_trace",
-    "stacks",
-    "std",
-    "time",
-    "traced",
-    "v8",
-    "viz",
-    "wattson",
+source_set("plugins") {
+  sources = [
+    "plugin_context.cc",
+    "plugin_context.h",
   ]
-  generated_header = "stdlib.h"
-  namespace = "stdlib"
-  generate_docs = true
+  deps = [
+    "../../../gn:default_deps",
+    "../../../gn:sqlite",
+    "../../base",
+    "../perfetto_sql/engine",
+    "../sqlite",
+  ]
 }

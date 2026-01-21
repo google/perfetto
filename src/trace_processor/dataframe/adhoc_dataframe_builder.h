@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -33,6 +34,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/variant.h"
@@ -209,6 +211,107 @@ class AdhocDataframeBuilder {
       EnsureNullOverlayExists(state);
     }
     state.null_overlay->push_back_multiple(false, count);
+  }
+
+  // Pushes consecutive integers 0, 1, 2, ..., count-1 to a column.
+  void PushIotaUnchecked(uint32_t col, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) {
+      PushNonNullUnchecked(col, static_cast<int64_t>(i));
+    }
+  }
+
+  // Pushes all values from a span directly to a column (no null handling).
+  void PushSpanUnchecked(uint32_t col, base::Span<const int64_t> values) {
+    for (int64_t val : values) {
+      PushNonNullUnchecked(col, val);
+    }
+  }
+
+  // Pushes int64 values from a span, treating `sentinel` as null.
+  void PushSpanWithSentinelUnchecked(uint32_t col,
+                                     base::Span<const int64_t> values,
+                                     int64_t sentinel) {
+    for (int64_t val : values) {
+      if (val == sentinel) {
+        PushNull(col);
+      } else {
+        PushNonNullUnchecked(col, val);
+      }
+    }
+  }
+
+  // Pushes uint32 values from a span as int64 (no null handling).
+  void PushSpanAsInt64Unchecked(uint32_t col,
+                                base::Span<const uint32_t> values) {
+    for (uint32_t val : values) {
+      PushNonNullUnchecked(col, static_cast<int64_t>(val));
+    }
+  }
+
+  // Pushes uint32 values from a span as int64, treating `sentinel` as null.
+  void PushSpanAsInt64WithSentinelUnchecked(uint32_t col,
+                                            base::Span<const uint32_t> values,
+                                            uint32_t sentinel) {
+    for (uint32_t val : values) {
+      if (val == sentinel) {
+        PushNull(col);
+      } else {
+        PushNonNullUnchecked(col, static_cast<int64_t>(val));
+      }
+    }
+  }
+
+  // Pushes gathered values: for each i, pushes src[indices[i]] (no null
+  // handling).
+  void PushGatheredUnchecked(uint32_t col,
+                             base::Span<const int64_t> src,
+                             base::Span<const uint32_t> indices) {
+    for (uint32_t idx : indices) {
+      PushNonNullUnchecked(col, src[idx]);
+    }
+  }
+
+  // Pushes gathered int64 values with sentinel-based null handling.
+  void PushGatheredWithSentinelUnchecked(uint32_t col,
+                                         base::Span<const int64_t> src,
+                                         base::Span<const uint32_t> indices,
+                                         int64_t sentinel) {
+    for (size_t i = 0; i < indices.size(); ++i) {
+      int64_t val = src[indices[i]];
+      if (val == sentinel) {
+        PushNull(col);
+      } else {
+        PushNonNullUnchecked(col, val);
+      }
+    }
+  }
+
+  // Pushes gathered double values with NaN as null.
+  void PushGatheredWithSentinelUnchecked(uint32_t col,
+                                         base::Span<const double> src,
+                                         base::Span<const uint32_t> indices) {
+    for (size_t i = 0; i < indices.size(); ++i) {
+      double val = src[indices[i]];
+      if (std::isnan(val)) {
+        PushNull(col);
+      } else {
+        PushNonNullUnchecked(col, val);
+      }
+    }
+  }
+
+  // Pushes gathered string IDs with Null() as sentinel.
+  void PushGatheredWithSentinelUnchecked(uint32_t col,
+                                         base::Span<const StringPool::Id> src,
+                                         base::Span<const uint32_t> indices) {
+    for (size_t i = 0; i < indices.size(); ++i) {
+      StringPool::Id val = src[indices[i]];
+      if (val == StringPool::Id::Null()) {
+        PushNull(col);
+      } else {
+        PushNonNullUnchecked(col, val);
+      }
+    }
   }
 
   // Finalizes the builder and attempts to construct the Dataframe.
