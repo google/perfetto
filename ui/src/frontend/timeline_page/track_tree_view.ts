@@ -305,9 +305,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           depth,
           collapsible: !filtersApplied,
           // Only use absolute positioning for root-level tracks
-          absoluteTop: useVirtualScrolling && isRootLevel
-            ? trackAbsoluteTop
-            : undefined,
+          absoluteTop:
+            useVirtualScrolling && isRootLevel ? trackAbsoluteTop : undefined,
           onTrackMouseOver: () => {
             this.hoveredTrackNode = node;
           },
@@ -474,7 +473,9 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     // to the track's known vertical position instead of relying on DOM.
     const scrollToId = this.trace.tracks.scrollToTrackNodeId;
     if (scrollToId !== undefined) {
-      const trackView = this.renderedTracks.find((tv) => tv.node.id === scrollToId);
+      const trackView = this.renderedTracks.find(
+        (tv) => tv.node.id === scrollToId,
+      );
       if (trackView) {
         const scrollContainer = findRef(dom, SCROLL_CONTAINER_REF);
         if (scrollContainer) {

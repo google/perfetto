@@ -26,7 +26,9 @@ export interface TrackSearchPanelAttrs {
  * A search panel for searching tracks by name.
  * Displayed at the top of the timeline when active.
  */
-export class TrackSearchPanel implements m.ClassComponent<TrackSearchPanelAttrs> {
+export class TrackSearchPanel
+  implements m.ClassComponent<TrackSearchPanelAttrs>
+{
   view({attrs}: m.Vnode<TrackSearchPanelAttrs>): m.Children {
     const {searchManager} = attrs;
 
