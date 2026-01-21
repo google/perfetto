@@ -38,7 +38,7 @@ run-integrationtests
 To rebaseline screenshots after a UI change
 
 ```bash
-ui/run-integrationtests --rebaseline --workers=1
+ui/run-integrationtests --rebaseline
 
 tools/test_data upload
 

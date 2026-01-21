@@ -99,7 +99,7 @@ export class SortNode implements QueryNode {
       .join(', ');
 
     return {
-      content: m('div', label),
+      content: m('div', `Sort by ${label}`),
     };
   }
 

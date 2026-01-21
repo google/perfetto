@@ -438,28 +438,43 @@ export class AddColumnsNode implements QueryNode {
 
     // Add joined columns
     if (hasConnectedNode && hasSelectedColumns) {
+      items.push(m('div', 'Add columns from input node:'));
+      const columns = [];
       for (const col of this.state.selectedColumns ?? []) {
         const alias = this.state.columnAliases?.get(col);
         const displayName = alias || col;
-        items.push(m('div', [ColumnName(displayName), ': column from input']));
+        columns.push(displayName);
       }
+      items.push(
+        m('div', [
+          ...columns.flatMap((c, i) =>
+            i === 0 ? [ColumnName(c)] : [', ', ColumnName(c)],
+          ),
+        ]),
+      );
     }
 
     // Add computed columns
-    for (const col of this.state.computedColumns ?? []) {
-      const name = col.name || '(unnamed)';
-      let description = '';
-
-      if (col.type === 'switch') {
-        description = `SWITCH ON ${col.switchOn || '(not set)'}`;
-      } else if (col.type === 'if') {
-        const firstCondition = col.clauses?.[0]?.if || '(empty)';
-        description = `if ${firstCondition}`;
-      } else {
-        description = col.expression || '(empty)';
+    if (hasComputedColumns) {
+      if (hasConnectedNode && hasSelectedColumns) {
+        items.push(m('.pf-section-spacer'));
       }
+      items.push(m('div', 'Add computed columns:'));
+      for (const col of this.state.computedColumns ?? []) {
+        const name = col.name || '(unnamed)';
+        let description = '';
 
-      items.push(m('div', [ColumnName(name), `: ${description}`]));
+        if (col.type === 'switch') {
+          description = `SWITCH ON ${col.switchOn || '(not set)'}`;
+        } else if (col.type === 'if') {
+          const firstCondition = col.clauses?.[0]?.if || '(empty)';
+          description = `if ${firstCondition}`;
+        } else {
+          description = col.expression || '(empty)';
+        }
+
+        items.push(m('div', [ColumnName(name), `: ${description}`]));
+      }
     }
 
     return {

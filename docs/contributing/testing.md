@@ -138,7 +138,7 @@ googlers have access to, googlers can install gcloud
 [here](https://g3doc.corp.google.com/cloud/sdk/g3doc/index.md#installing-and-using-the-cloud-sdk)).
 
 ```
-ui/run-integrationtests --rebaseline --workers=1
+ui/run-integrationtests --rebaseline
 tools/test_data upload
 ```
 
