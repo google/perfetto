@@ -46,6 +46,28 @@ RETURNS TableOrSubquery AS
   FROM (SELECT * FROM $tab ORDER BY ts) input
 );
 
+CREATE PERFETTO MACRO _interval_agg_with_col_names(
+  tab TableOrSubquery,
+  agg_columns ColumnNameList,
+  id_col ColumnName,
+  ts_col ColumnName,
+  dur_col ColumnName
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT __intrinsic_interval_tree_intervals_agg(
+    input.$id_col,
+    input.$ts_col,
+    input.$dur_col
+    __intrinsic_token_apply_prefix!(
+      _ii_df_agg,
+      $agg_columns,
+      $agg_columns
+    )
+  )
+  FROM (SELECT * FROM $tab ORDER BY $ts_col) input
+);
+
 CREATE PERFETTO MACRO _interval_intersect(
   tabs _TableNameList,
   agg_columns ColumnNameList
@@ -97,6 +119,21 @@ RETURNS TableOrSubquery AS
     )
 );
 
+-- Helper macro to rename columns to standard names
+CREATE PERFETTO MACRO _interval_rename_cols(
+  tab TableOrSubquery,
+  agg_columns ColumnNameList,
+  id_col ColumnName,
+  ts_col ColumnName,
+  dur_col ColumnName
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT $id_col AS id, $ts_col AS ts, $dur_col AS dur
+  __intrinsic_token_apply_prefix!(_ii_df_select, $agg_columns, $agg_columns)
+  FROM $tab
+);
+
 CREATE PERFETTO MACRO _interval_intersect_single(
   ts Expr,
   dur Expr,
@@ -111,6 +148,47 @@ RETURNS TableOrSubquery AS
   FROM _interval_intersect!(
     ($t, (SELECT 0 AS id, $ts AS ts, $dur AS dur)),
     ()
+  )
+);
+
+-- Intersects two tables of intervals, allowing custom column names for id, ts, and dur.
+--
+-- Each table can have different column names.
+--
+-- Example:
+--   SELECT * FROM interval_intersect_with_col_names!(
+--     table1, id1, ts1, dur1,
+--     table2, id2, ts2, dur2,
+--     (partition_col)
+--   )
+CREATE PERFETTO MACRO interval_intersect_with_col_names(
+  -- First table to intersect.
+  tab1 TableOrSubquery,
+  -- Name of the id column in tab1.
+  id_col1 ColumnName,
+  -- Name of the timestamp column in tab1.
+  ts_col1 ColumnName,
+  -- Name of the duration column in tab1.
+  dur_col1 ColumnName,
+  -- Second table to intersect.
+  tab2 TableOrSubquery,
+  -- Name of the id column in tab2.
+  id_col2 ColumnName,
+  -- Name of the timestamp column in tab2.
+  ts_col2 ColumnName,
+  -- Name of the duration column in tab2.
+  dur_col2 ColumnName,
+  -- List of partition columns (can be empty with ()).
+  agg_columns ColumnNameList
+)
+RETURNS TableOrSubquery AS
+(
+  _interval_intersect!(
+    (
+      _interval_rename_cols!($tab1, $agg_columns, $id_col1, $ts_col1, $dur_col1),
+      _interval_rename_cols!($tab2, $agg_columns, $id_col2, $ts_col2, $dur_col2)
+    ),
+    $agg_columns
   )
 );
 
