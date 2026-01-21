@@ -335,30 +335,34 @@ struct TreeData {
 //
 // Null values use sentinel: kNullInt64 for int64, kNullUint32 for uint32.
 //
-// Data is wrapped in shared_ptr for cheap copying when adding lazy operations.
+// Tree with unique ownership - consumed by operations.
 struct Tree {
   static constexpr const char* kPointerType = "TREE";
 
-  // Shared data storage (cheap to copy via shared_ptr).
-  std::shared_ptr<TreeData> data;
+  // Unique data storage - stolen by operations.
+  std::unique_ptr<TreeData> data;
 
   // Pending operations to apply at emit time.
   std::vector<TreeOp> pending_ops;
 
   Tree() = default;
-  Tree(std::shared_ptr<TreeData> d, std::vector<TreeOp> ops)
+  Tree(std::unique_ptr<TreeData> d, std::vector<TreeOp> ops)
       : data(std::move(d)), pending_ops(std::move(ops)) {}
 
-  // Create a copy sharing the same data (for adding lazy operations).
-  std::unique_ptr<Tree> Copy() const {
-    return std::make_unique<Tree>(data, pending_ops);
+  // Check if this tree has been consumed.
+  bool IsConsumed() const { return data == nullptr; }
+
+  // Steal data and pending_ops, leaving this tree consumed.
+  // Returns a new Tree owning the stolen data.
+  std::unique_ptr<Tree> Steal() {
+    return std::make_unique<Tree>(std::move(data), std::move(pending_ops));
   }
 
-  // Create a copy and add an operation in one step.
-  std::unique_ptr<Tree> CopyAndAddOp(TreeOp op) const {
-    auto copy = Copy();
-    copy->pending_ops.push_back(std::move(op));
-    return copy;
+  // Steal and add an operation in one step.
+  std::unique_ptr<Tree> StealAndAddOp(TreeOp op) {
+    auto stolen = Steal();
+    stolen->pending_ops.push_back(std::move(op));
+    return stolen;
   }
 
   // Column names for structural columns in output.

@@ -62,15 +62,21 @@ inline base::StatusOr<const PassthroughColumn*> FindColumnOrError(
 // Push a SQLite value to a passthrough column.
 // Initializes the column type on first non-null value.
 // Returns false on type mismatch or unsupported blob type.
+// If initial_capacity > 0, reserves that capacity when initializing the vector.
 inline bool PushSqliteValueToColumn(PassthroughColumn& col,
                                     sqlite3_value* value,
-                                    StringPool* pool) {
+                                    StringPool* pool,
+                                    uint32_t initial_capacity) {
   switch (sqlite::value::Type(value)) {
     case sqlite::Type::kNull:
       // For null, push a sentinel value based on type.
       // If type not set yet, default to int64.
       if (std::holds_alternative<std::monostate>(col.data)) {
-        col.data = std::vector<int64_t>();
+        std::vector<int64_t> v;
+        if (initial_capacity > 0) {
+          v.reserve(initial_capacity);
+        }
+        col.data = std::move(v);
       }
       if (col.IsInt64()) {
         col.AsInt64().push_back(kNullInt64);
@@ -83,7 +89,11 @@ inline bool PushSqliteValueToColumn(PassthroughColumn& col,
     case sqlite::Type::kInteger: {
       int64_t val = sqlite::value::Int64(value);
       if (std::holds_alternative<std::monostate>(col.data)) {
-        col.data = std::vector<int64_t>();
+        std::vector<int64_t> v;
+        if (initial_capacity > 0) {
+          v.reserve(initial_capacity);
+        }
+        col.data = std::move(v);
       }
       if (PERFETTO_UNLIKELY(!col.IsInt64())) {
         return false;
@@ -94,7 +104,11 @@ inline bool PushSqliteValueToColumn(PassthroughColumn& col,
     case sqlite::Type::kFloat: {
       double val = sqlite::value::Double(value);
       if (std::holds_alternative<std::monostate>(col.data)) {
-        col.data = std::vector<double>();
+        std::vector<double> v;
+        if (initial_capacity > 0) {
+          v.reserve(initial_capacity);
+        }
+        col.data = std::move(v);
       }
       if (PERFETTO_UNLIKELY(!col.IsDouble())) {
         return false;
@@ -105,7 +119,11 @@ inline bool PushSqliteValueToColumn(PassthroughColumn& col,
     case sqlite::Type::kText: {
       const char* text = sqlite::value::Text(value);
       if (std::holds_alternative<std::monostate>(col.data)) {
-        col.data = std::vector<StringPool::Id>();
+        std::vector<StringPool::Id> v;
+        if (initial_capacity > 0) {
+          v.reserve(initial_capacity);
+        }
+        col.data = std::move(v);
       }
       if (PERFETTO_UNLIKELY(!col.IsString())) {
         return false;
@@ -174,6 +192,7 @@ std::vector<T> GatherValues(const std::vector<T>& src,
                             const std::vector<uint32_t>& source_indices) {
   std::vector<T> result(source_indices.size());
   for (uint32_t i = 0; i < source_indices.size(); ++i) {
+    PERFETTO_DCHECK(source_indices[i] < src.size());
     result[i] = src[source_indices[i]];
   }
   return result;

@@ -42,19 +42,45 @@ using plugins::tree::PassthroughColumn;
 using plugins::tree::Tree;
 using plugins::tree::TreeData;
 
-std::vector<std::vector<uint32_t>> BuildAdjacencyList(
-    const GraphEdgeData& edges,
-    uint32_t num_nodes) {
-  std::vector<std::vector<uint32_t>> adj(num_nodes);
+// Import CsrVector from tree namespace.
+using plugins::tree::CsrVector;
+
+CsrVector<uint32_t> BuildAdjacencyList(const GraphEdgeData& edges,
+                                       uint32_t num_nodes) {
   const uint32_t num_edges =
       static_cast<uint32_t>(edges.source_node_indices.size());
+
+  // First pass: count outgoing edges per node.
+  std::vector<uint32_t> counts(num_nodes, 0);
   for (uint32_t i = 0; i < num_edges; ++i) {
     uint32_t src = edges.source_node_indices[i];
     uint32_t dst = edges.dest_node_indices[i];
     if (src < num_nodes && dst < num_nodes) {
-      adj[src].push_back(dst);
+      counts[src]++;
     }
   }
+
+  // Build CSR offsets from counts.
+  CsrVector<uint32_t> adj;
+  adj.offsets.resize(num_nodes + 1);
+  adj.offsets[0] = 0;
+  for (uint32_t i = 0; i < num_nodes; ++i) {
+    adj.offsets[i + 1] = adj.offsets[i] + counts[i];
+  }
+
+  // Allocate data and fill (reuse counts as write cursors).
+  adj.data.resize(adj.offsets[num_nodes]);
+  std::fill(counts.begin(), counts.end(), 0);
+  for (uint32_t i = 0; i < num_edges; ++i) {
+    uint32_t src = edges.source_node_indices[i];
+    uint32_t dst = edges.dest_node_indices[i];
+    if (src < num_nodes && dst < num_nodes) {
+      uint32_t pos = adj.offsets[src] + counts[src];
+      adj.data[pos] = dst;
+      counts[src]++;
+    }
+  }
+
   return adj;
 }
 
@@ -111,7 +137,7 @@ base::StatusOr<GraphFilterResult> FilterEdges(const GraphEdgeData& edges,
 }
 
 base::StatusOr<GraphToTreeResult> GraphToTree(
-    const GraphNodeData& nodes,
+    GraphNodeData nodes,
     const GraphEdgeData& edges,
     const std::vector<uint32_t>& root_node_indices,
     GraphTraversalMode mode) {
@@ -148,7 +174,8 @@ base::StatusOr<GraphToTreeResult> GraphToTree(
       uint32_t curr = queue.front();
       queue.pop();
 
-      for (uint32_t neighbor : adj[curr]) {
+      auto neighbors = adj[curr];
+      for (uint32_t neighbor : neighbors) {
         if (!visited[neighbor]) {
           visited[neighbor] = true;
           parent[neighbor] = curr;
@@ -174,8 +201,9 @@ base::StatusOr<GraphToTreeResult> GraphToTree(
       stack.pop();
 
       // Process children in reverse order so they're visited in forward order.
-      for (auto it = adj[curr].rbegin(); it != adj[curr].rend(); ++it) {
-        uint32_t neighbor = *it;
+      auto neighbors = adj[curr];
+      for (size_t i = neighbors.size(); i > 0; --i) {
+        uint32_t neighbor = neighbors[i - 1];
         if (!visited[neighbor]) {
           visited[neighbor] = true;
           parent[neighbor] = curr;
@@ -190,7 +218,10 @@ base::StatusOr<GraphToTreeResult> GraphToTree(
   const uint32_t tree_size = static_cast<uint32_t>(traversal_order.size());
 
   auto tree = std::make_unique<Tree>();
-  tree->data = std::make_shared<TreeData>();
+  tree->data = std::make_unique<TreeData>();
+
+  // Reserve space for passthrough columns (2 built-in + node columns).
+  tree->data->passthrough_columns.reserve(2 + nodes.passthrough_columns.size());
 
   // Map from original node index to tree index.
   std::vector<uint32_t> node_to_tree(num_nodes, kNullUint32);
@@ -219,26 +250,28 @@ base::StatusOr<GraphToTreeResult> GraphToTree(
   }
 
   // Add original_id and original_parent_id columns.
-  std::vector<int64_t> id_values(tree_size);
+  // These columns have size num_nodes and use source_indices indirection
+  // like other passthrough columns. This ensures consistent indexing.
+  //
+  // original_id: node_ids[source_indices[tree_idx]] gives the original ID.
+  // original_parent_id: for each node, store the parent's original ID.
+  std::vector<int64_t> all_parent_ids(num_nodes, kNullInt64);
   for (uint32_t tree_idx = 0; tree_idx < tree_size; ++tree_idx) {
-    id_values[tree_idx] = nodes.node_ids[traversal_order[tree_idx]];
+    uint32_t node_idx = traversal_order[tree_idx];
+    uint32_t parent_node_idx = parent[node_idx];
+    all_parent_ids[node_idx] = parent_node_idx == kNullUint32
+                                   ? kNullInt64
+                                   : nodes.node_ids[parent_node_idx];
   }
+
   tree->data->passthrough_columns.emplace_back(Tree::kOriginalIdCol,
-                                               std::move(id_values));
-
-  std::vector<int64_t> parent_id_values(tree_size);
-  for (uint32_t tree_idx = 0; tree_idx < tree_size; ++tree_idx) {
-    uint32_t parent_node_idx = parent[traversal_order[tree_idx]];
-    parent_id_values[tree_idx] = parent_node_idx == kNullUint32
-                                     ? kNullInt64
-                                     : nodes.node_ids[parent_node_idx];
-  }
+                                               std::move(nodes.node_ids));
   tree->data->passthrough_columns.emplace_back(Tree::kOriginalParentIdCol,
-                                               std::move(parent_id_values));
+                                               std::move(all_parent_ids));
 
-  // Copy node passthrough columns.
-  for (const auto& col : nodes.passthrough_columns) {
-    tree->data->passthrough_columns.push_back(col);
+  // Reference node passthrough columns (they use source_indices indirection).
+  for (auto& col : nodes.passthrough_columns) {
+    tree->data->passthrough_columns.push_back(std::move(col));
   }
 
   return GraphToTreeResult(std::move(tree));

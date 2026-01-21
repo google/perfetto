@@ -30,6 +30,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
@@ -254,29 +255,6 @@ static void BuildMergedSourcesCsr(const std::vector<uint32_t>& old_to_new,
   }
 }
 
-// Compute a composite hash for a row given multiple key columns.
-// Combines parent_group with hashes of all key values.
-static uint64_t ComputeCompositeKeyHash(
-    uint32_t parent_group,
-    uint32_t row_idx,
-    const std::vector<const PassthroughColumn*>& key_columns) {
-  // Start with parent group
-  uint64_t hash = static_cast<uint64_t>(parent_group);
-
-  for (const auto* col : key_columns) {
-    // Mix in the hash of this column's value
-    uint64_t val_hash = 0;
-    if (col->IsInt64()) {
-      val_hash = static_cast<uint64_t>(col->AsInt64()[row_idx]);
-    } else if (col->IsString()) {
-      val_hash = static_cast<uint64_t>(col->AsString()[row_idx].raw_id());
-    }
-    // Simple hash combining (FNV-like)
-    hash = hash * 0x100000001b3ull ^ val_hash;
-  }
-  return hash;
-}
-
 // Check if two rows have equal keys across all columns.
 static bool KeysEqual(uint32_t row_a,
                       uint32_t row_b,
@@ -302,37 +280,80 @@ struct GroupInfo {
   uint32_t representative_row;
 };
 
+// Identity hasher for pre-computed hashes.
+struct IdentityHash {
+  size_t operator()(uint64_t h) const { return static_cast<size_t>(h); }
+};
+
 // Process one BFS level using GLOBAL mode: merge all nodes with same
-// (parent_group, composite_key) using a hashmap.
+// (parent_group, composite_key). Pre-computes hashes upfront.
 static void MergeLevelGlobal(
     const std::vector<uint32_t>& level,
     const std::vector<const PassthroughColumn*>& key_columns,
     std::function<uint32_t(uint32_t)> get_parent_group,
-    base::FlatHashMapV2<uint64_t, GroupInfo>& group_map,
+    base::FlatHashMapV2<uint64_t, GroupInfo, IdentityHash>& group_map,
     MergeSiblingsResult& result) {
-  for (uint32_t old_idx : level) {
-    uint32_t parent_group = get_parent_group(old_idx);
-    uint64_t hash = ComputeCompositeKeyHash(parent_group, old_idx, key_columns);
+  if (level.empty()) {
+    return;
+  }
 
-    if (auto* existing = group_map.Find(hash)) {
-      // Hash collision check: verify keys actually match using the
-      // representative row stored in the group info.
-      if (KeysEqual(old_idx, existing->representative_row, key_columns)) {
-        result.old_to_new[old_idx] = existing->group_idx;
-      } else {
-        // Hash collision with different keys - create new group
-        uint32_t new_idx =
-            static_cast<uint32_t>(result.new_parent_indices.size());
-        result.old_to_new[old_idx] = new_idx;
-        result.new_parent_indices.push_back(parent_group);
-        // Note: We don't update group_map since hash collision occurred
+  group_map.Clear();
+
+  // Pre-compute hashes for all nodes in level.
+  std::vector<uint64_t> hashes(level.size());
+  if (key_columns.size() == 1 && key_columns[0]->IsInt64()) {
+    // Fast path: single int64 column.
+    const auto& col = key_columns[0]->AsInt64();
+    for (size_t i = 0; i < level.size(); ++i) {
+      uint32_t idx = level[i];
+      base::MurmurHashCombiner h;
+      h.Combine(get_parent_group(idx));
+      h.Combine(col[idx]);
+      hashes[i] = h.digest();
+    }
+  } else if (key_columns.size() == 1 && key_columns[0]->IsString()) {
+    // Fast path: single string column.
+    const auto& col = key_columns[0]->AsString();
+    for (size_t i = 0; i < level.size(); ++i) {
+      uint32_t idx = level[i];
+      base::MurmurHashCombiner h;
+      h.Combine(get_parent_group(idx));
+      h.Combine(col[idx].raw_id());
+      hashes[i] = h.digest();
+    }
+  } else {
+    // General case: multiple columns.
+    for (size_t i = 0; i < level.size(); ++i) {
+      uint32_t idx = level[i];
+      base::MurmurHashCombiner h;
+      h.Combine(get_parent_group(idx));
+      for (const auto* col : key_columns) {
+        if (col->IsInt64()) {
+          h.Combine(col->AsInt64()[idx]);
+        } else if (col->IsString()) {
+          h.Combine(col->AsString()[idx].raw_id());
+        }
       }
+      hashes[i] = h.digest();
+    }
+  }
+
+  // Insert into hashmap using pre-computed hashes.
+  for (size_t i = 0; i < level.size(); ++i) {
+    uint32_t idx = level[i];
+    uint64_t hash = hashes[i];
+
+    auto* existing = group_map.Find(hash);
+    if (existing && KeysEqual(idx, existing->representative_row, key_columns) &&
+        get_parent_group(idx) == get_parent_group(existing->representative_row)) {
+      // Merge with existing group.
+      result.old_to_new[idx] = existing->group_idx;
     } else {
-      uint32_t new_idx =
-          static_cast<uint32_t>(result.new_parent_indices.size());
-      result.old_to_new[old_idx] = new_idx;
-      result.new_parent_indices.push_back(parent_group);
-      group_map[hash] = GroupInfo{new_idx, old_idx};
+      // Create new group.
+      uint32_t new_idx = static_cast<uint32_t>(result.new_parent_indices.size());
+      result.new_parent_indices.push_back(get_parent_group(idx));
+      result.old_to_new[idx] = new_idx;
+      group_map[hash] = {new_idx, idx};
     }
   }
 }
@@ -413,8 +434,8 @@ base::StatusOr<MergeSiblingsResult> MergeSiblings(
     }
   }
 
-  // For GLOBAL mode: persistent map across all levels
-  base::FlatHashMapV2<uint64_t, GroupInfo> group_map;
+  // For GLOBAL mode: persistent map across all levels (with identity hasher).
+  base::FlatHashMapV2<uint64_t, GroupInfo, IdentityHash> group_map;
 
   // Process level by level (BFS)
   while (!current_level.empty()) {

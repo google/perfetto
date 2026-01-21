@@ -29,6 +29,7 @@
 namespace perfetto::trace_processor::plugins::graph {
 
 // Import types from tree namespace that are shared
+using plugins::tree::kNullUint32;
 using plugins::tree::PassthroughColumn;
 
 // Operation: filter edges where a boolean column is true.
@@ -57,6 +58,33 @@ struct GraphEdgeData {
 };
 
 // Inner data storage for node table.
+// Maps node IDs to indices. Uses dense vector for compact ID ranges,
+// falls back to hashmap for sparse IDs.
+struct NodeIdIndex {
+  // For dense IDs: direct lookup via (id - min_id).
+  std::vector<uint32_t> dense;
+  int64_t min_id = 0;
+
+  // For sparse IDs: hashmap lookup.
+  base::FlatHashMapV2<int64_t, uint32_t> sparse;
+
+  bool is_dense() const { return !dense.empty(); }
+
+  PERFETTO_ALWAYS_INLINE uint32_t* Find(int64_t id) {
+    if (is_dense()) {
+      size_t idx = static_cast<size_t>(id - min_id);
+      PERFETTO_DCHECK(idx < dense.size());
+      uint32_t& val = dense[idx];
+      return val == kNullUint32 ? nullptr : &val;
+    }
+    return sparse.Find(id);
+  }
+
+  const uint32_t* Find(int64_t id) const {
+    return const_cast<NodeIdIndex*>(this)->Find(id);
+  }
+};
+
 struct GraphNodeData {
   static constexpr const char* kPointerType = "GRAPH_NODES";
   // Original node IDs from input.
@@ -70,7 +98,7 @@ struct GraphNodeData {
   std::vector<PassthroughColumn> passthrough_columns;
 
   // Map from original node ID to internal index.
-  base::FlatHashMapV2<int64_t, uint32_t> id_to_index;
+  NodeIdIndex id_to_index;
 };
 
 // Inner data storage for Graph, wrapped in shared_ptr for cheap copying.

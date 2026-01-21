@@ -18,10 +18,7 @@ import {AsyncDisposableStack} from '../base/disposable_stack';
 import {assertExists} from '../base/logging';
 import {uuidv4Sql} from '../base/uuid';
 import {Engine} from '../trace_processor/engine';
-import {
-  createPerfettoIndex,
-  createPerfettoTable,
-} from '../trace_processor/sql_utils';
+import {createPerfettoTable} from '../trace_processor/sql_utils';
 import {
   NUM,
   NUM_NULL,
@@ -34,12 +31,10 @@ import {
   FlamegraphPropertyDefinition,
   FlamegraphQueryData,
   FlamegraphState,
-  FlamegraphView,
   FlamegraphOptionalAction,
   FlamegraphOptionalMarker,
 } from '../widgets/flamegraph';
 import {Trace} from '../public/trace';
-import {sqliteString} from '../base/string_utils';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';
 
@@ -271,239 +266,229 @@ async function computeFlamegraphTree(
   }: QueryFlamegraphMetric,
   {filters, view}: FlamegraphState,
 ): Promise<FlamegraphQueryData> {
-  const showStack = filters
-    .filter((x) => x.kind === 'SHOW_STACK')
-    .map((x) => x.filter);
-  const hideStack = filters
-    .filter((x) => x.kind === 'HIDE_STACK')
-    .map((x) => x.filter);
-  const showFromFrame = filters
-    .filter((x) => x.kind === 'SHOW_FROM_FRAME')
-    .map((x) => x.filter);
-  const hideFrame = filters
-    .filter((x) => x.kind === 'HIDE_FRAME')
-    .map((x) => x.filter);
-
-  // Pivot also essentially acts as a "show stack" filter so treat it like one.
-  const showStackAndPivot = [...showStack];
-  if (view.kind === 'PIVOT') {
-    showStackAndPivot.push(view.pivot);
-  }
+  // TODO(flamegraph2): Add filtering support using tree_delete_node!
+  void filters;
 
   const agg = aggregatableProperties ?? [];
   const aggCols = agg.map((x) => x.name);
   const unagg = unaggregatableProperties ?? [];
   const unaggCols = unagg.map((x) => x.name);
 
-  const matchingColumns = ['name', ...unaggCols];
-  const matchExpr = (x: string) =>
-    matchingColumns.map(
-      (c) =>
-        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
-    );
-
-  const showStackFilter =
-    showStackAndPivot.length === 0
-      ? '0'
-      : showStackAndPivot
-          .map((x, i) => `((${matchExpr(x).join(' OR ')}) << ${i})`)
-          .join(' | ');
-  const showStackBits = (1 << showStackAndPivot.length) - 1;
-
-  const hideStackFilter =
-    hideStack.length === 0
-      ? 'false'
-      : hideStack
-          .map((x) => matchExpr(x))
-          .flat()
-          .join(' OR ');
-
-  const showFromFrameFilter =
-    showFromFrame.length === 0
-      ? '0'
-      : showFromFrame
-          .map((x, i) => `((${matchExpr(x).join(' OR ')}) << ${i})`)
-          .join(' | ');
-  const showFromFrameBits = (1 << showFromFrame.length) - 1;
-
-  const hideFrameFilter =
-    hideFrame.length === 0
-      ? 'false'
-      : hideFrame
-          .map((x) => matchExpr(x))
-          .flat()
-          .join(' OR ');
-
-  const pivotFilter = getPivotFilter(view, matchExpr);
-
   const nodeActions = optionalNodeActions ?? [];
   const rootActions = optionalRootActions ?? [];
 
-  const groupingColumns = `(${(unaggCols.length === 0 ? ['groupingColumn'] : unaggCols).join()})`;
-  const groupedColumns = `(${(aggCols.length === 0 ? ['groupedColumn'] : aggCols).join()})`;
+  // Build the list of all user columns for tree operations
+  const allUserCols = ['name', 'value', ...unaggCols, ...aggCols];
+
+  // Build aggregation expressions for tree_merge_siblings
+  // name is the key, value is always summed, other columns need their aggregation type
+  const aggExprs = ['tree_agg!(value, SUM)'];
+  for (const a of agg) {
+    switch (a.mergeAggregation) {
+      case 'SUM':
+        aggExprs.push(`tree_agg!(${a.name}, SUM)`);
+        break;
+      case 'ONE_OR_SUMMARY':
+      case 'CONCAT_WITH_COMMA':
+        // For these, we use ANY since tree algebra doesn't have these modes
+        aggExprs.push(`tree_agg!(${a.name}, ANY)`);
+        break;
+    }
+  }
+  // Add ANY aggregation for unaggregatable columns to pass them through
+  for (const u of unaggCols) {
+    aggExprs.push(`tree_agg!(${u}, ANY)`);
+  }
 
   if (dependencySql !== undefined) {
     await engine.query(dependencySql);
   }
-  await engine.query(`include perfetto module viz.flamegraph;`);
+  await engine.query(`include perfetto module viz.flamegraph2;`);
+  await engine.query(`include perfetto module std.trees.from_table;`);
+  await engine.query(`include perfetto module std.trees.merge;`);
+  await engine.query(`include perfetto module std.trees.invert;`);
+  await engine.query(`include perfetto module std.trees.propagate;`);
+  await engine.query(`include perfetto module std.trees.to_table;`);
 
   const uuid = uuidv4Sql();
   await using disposable = new AsyncDisposableStack();
 
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_materialized_statement_${uuid}`,
-      as: statement,
-    }),
-  );
-  disposable.use(
-    await createPerfettoIndex({
-      engine,
-      name: `_flamegraph_materialized_statement_${uuid}_index`,
-      on: `_flamegraph_materialized_statement_${uuid}(parentId)`,
-    }),
-  );
-
-  // TODO(lalitm): this doesn't need to be called unless we have
-  // a non-empty set of filters.
+  // Create source table from metric statement
   disposable.use(
     await createPerfettoTable({
       engine,
       name: `_flamegraph_source_${uuid}`,
       as: `
-        select *
-        from _viz_flamegraph_prepare_filter!(
-          (
-            select
-              s.id,
-              s.parentId,
-              s.name,
-              s.value,
-              ${(unaggCols.length === 0
-                ? [`'' as groupingColumn`]
-                : unaggCols.map((x) => `s.${x}`)
-              ).join()},
-              ${(aggCols.length === 0
-                ? [`'' as groupedColumn`]
-                : aggCols.map((x) => `s.${x}`)
-              ).join()}
-            from _flamegraph_materialized_statement_${uuid} s
+        SELECT
+          id,
+          parentId AS parent_id,
+          name,
+          value
+          ${unaggCols.length === 0 ? '' : ', ' + unaggCols.join(', ')}
+          ${aggCols.length === 0 ? '' : ', ' + aggCols.join(', ')}
+        FROM (${statement})
+      `,
+    }),
+  );
+
+  // Build the tree operations based on view type
+  // For top-down: merge siblings, then propagate cumulative values
+  // For bottom-up: invert tree, then merge, then propagate
+  const isBottomUp = view.kind === 'BOTTOM_UP';
+
+  // Build merge key - includes name and all unaggregatable columns
+  const mergeKeyColumns =
+    unaggCols.length === 0 ? 'name' : ['name', ...unaggCols].join(', ');
+  const mergeKeyExpr =
+    unaggCols.length === 0
+      ? 'tree_key!(name)'
+      : `tree_keys!((${mergeKeyColumns}))`;
+
+  const userColumnsExpr = `(${allUserCols.join(', ')})`;
+
+  // Build the tree expression based on view type
+  let treeExpr: string;
+  if (isBottomUp) {
+    // Bottom-up: invert first, then merge
+    treeExpr = `
+      tree_propagate_up!(
+        tree_invert!(
+          tree_from_table!(
+            _flamegraph_source_${uuid},
+            id,
+            parent_id,
+            ${userColumnsExpr}
           ),
-          (${showStackFilter}),
-          (${hideStackFilter}),
-          (${showFromFrameFilter}),
-          (${hideFrameFilter}),
-          (${pivotFilter}),
-          ${1 << showStackAndPivot.length},
-          ${groupingColumns}
-        )
-      `,
-    }),
-  );
-  // TODO(lalitm): this doesn't need to be called unless we have
-  // a non-empty set of filters.
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_filtered_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_filter_frames!(
-          _flamegraph_source_${uuid},
-          ${showFromFrameBits}
-        )
-      `,
-    }),
-  );
-  disposable.use(
-    await createPerfettoIndex({
-      engine,
-      name: `_flamegraph_filtered_${uuid}_index`,
-      on: `_flamegraph_filtered_${uuid}(parentId)`,
-    }),
-  );
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_accumulated_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_accumulate!(
-          _flamegraph_filtered_${uuid},
-          ${showStackBits}
-        )
-      `,
-    }),
-  );
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_hash_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_downwards_hash!(
-          _flamegraph_source_${uuid},
-          _flamegraph_filtered_${uuid},
-          _flamegraph_accumulated_${uuid},
-          ${groupingColumns},
-          ${groupedColumns},
-          ${view.kind === 'BOTTOM_UP' ? 'FALSE' : 'TRUE'}
-        )
-        union all
-        select *
-        from _viz_flamegraph_upwards_hash!(
-          _flamegraph_source_${uuid},
-          _flamegraph_filtered_${uuid},
-          _flamegraph_accumulated_${uuid},
-          ${groupingColumns},
-          ${groupedColumns}
-        )
-        order by hash
-      `,
-    }),
-  );
+          ${mergeKeyExpr},
+          tree_order!(value),
+          ${aggExprs.join(', ')}
+        ),
+        tree_propagate_spec!(cumulative_value, value, SUM)
+      )
+    `;
+  } else {
+    // Top-down: merge siblings, then propagate
+    treeExpr = `
+      tree_propagate_up!(
+        tree_merge_siblings!(
+          tree_from_table!(
+            _flamegraph_source_${uuid},
+            id,
+            parent_id,
+            ${userColumnsExpr}
+          ),
+          tree_merge_mode!(GLOBAL),
+          ${mergeKeyExpr},
+          tree_order!(value),
+          ${aggExprs.join(', ')}
+        ),
+        tree_propagate_spec!(cumulative_value, value, SUM)
+      )
+    `;
+  }
+
+  // Create the merged tree table
+  const outputCols = [...allUserCols, 'cumulative_value'];
   disposable.use(
     await createPerfettoTable({
       engine,
       name: `_flamegraph_merged_${uuid}`,
       as: `
-        select *
-        from _viz_flamegraph_merge_hashes!(
-          _flamegraph_hash_${uuid},
-          ${groupingColumns},
-          ${computeGroupedAggExprs(agg)}
+        SELECT
+          __node_id AS id,
+          __parent_id AS parent_id,
+          __depth AS depth,
+          ${outputCols.join(', ')}
+        FROM tree_to_table!(
+          ${treeExpr},
+          (${outputCols.join(', ')})
         )
+        WHERE cumulative_value > 0
       `,
     }),
   );
-  disposable.use(
-    await createPerfettoIndex({
-      engine,
-      name: `_flamegraph_merged_${uuid}_index`,
-      on: `_flamegraph_merged_${uuid}(parentId)`,
-    }),
-  );
+
+  // Compute local layout (xStart, xEnd relative to parent)
   disposable.use(
     await createPerfettoTable({
       engine,
       name: `_flamegraph_layout_${uuid}`,
       as: `
-        select *
-        from _viz_flamegraph_local_layout!(
-          _flamegraph_merged_${uuid}
-        );
+        SELECT
+          id,
+          COALESCE(
+            SUM(cumulative_value) OVER (
+              PARTITION BY parent_id
+              ORDER BY cumulative_value DESC
+              ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+            ),
+            0
+          ) AS xStart,
+          SUM(cumulative_value) OVER (
+            PARTITION BY parent_id
+            ORDER BY cumulative_value DESC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+          ) AS xEnd
+        FROM _flamegraph_merged_${uuid}
       `,
     }),
   );
+
+  // Compute global layout by accumulating parent offsets
+  // This uses a recursive CTE to propagate xStart offsets down the tree
   const res = await engine.query(`
-    select *
-    from _viz_flamegraph_global_layout!(
-      _flamegraph_merged_${uuid},
-      _flamegraph_layout_${uuid},
-      ${groupingColumns},
-      ${groupedColumns}
+    WITH RECURSIVE
+    global_layout AS (
+      -- Base case: root nodes (parent_id IS NULL)
+      SELECT
+        m.id,
+        m.parent_id,
+        IIF(m.depth < 0, m.depth, m.depth + 1) AS depth,
+        m.name,
+        ${unaggCols.length > 0 ? unaggCols.map((c) => `m.${c}`).join(', ') + ',' : ''}
+        ${aggCols.length > 0 ? aggCols.map((c) => `m.${c}`).join(', ') + ',' : ''}
+        m.value AS selfValue,
+        m.cumulative_value AS cumulativeValue,
+        NULL AS parentCumulativeValue,
+        l.xStart,
+        l.xEnd
+      FROM _flamegraph_merged_${uuid} m
+      JOIN _flamegraph_layout_${uuid} l ON m.id = l.id
+      WHERE m.parent_id IS NULL
+
+      UNION ALL
+
+      -- Recursive case: children
+      SELECT
+        m.id,
+        m.parent_id,
+        IIF(m.depth < 0, m.depth, m.depth + 1) AS depth,
+        m.name,
+        ${unaggCols.length > 0 ? unaggCols.map((c) => `m.${c}`).join(', ') + ',' : ''}
+        ${aggCols.length > 0 ? aggCols.map((c) => `m.${c}`).join(', ') + ',' : ''}
+        m.value AS selfValue,
+        m.cumulative_value AS cumulativeValue,
+        g.cumulativeValue AS parentCumulativeValue,
+        g.xStart + l.xStart AS xStart,
+        g.xStart + l.xEnd AS xEnd
+      FROM _flamegraph_merged_${uuid} m
+      JOIN _flamegraph_layout_${uuid} l ON m.id = l.id
+      JOIN global_layout g ON m.parent_id = g.id
     )
+    SELECT
+      id,
+      IFNULL(parent_id, -1) AS parentId,
+      depth,
+      IIF(name = '', 'unknown', name) AS name,
+      ${unaggCols.length > 0 ? unaggCols.join(', ') + ',' : ''}
+      ${aggCols.length > 0 ? aggCols.join(', ') + ',' : ''}
+      selfValue,
+      cumulativeValue,
+      parentCumulativeValue,
+      xStart,
+      xEnd
+    FROM global_layout
+    ORDER BY ABS(depth), xStart
   `);
 
   const it = res.iter({
@@ -599,51 +584,3 @@ async function computeFlamegraphTree(
   };
 }
 
-function makeSqlFilter(x: string) {
-  const hasStart = x.startsWith('^');
-  const hasEnd = x.endsWith('$');
-  const pattern = x.slice(hasStart ? 1 : 0, hasEnd ? -1 : undefined);
-
-  if (hasStart && hasEnd) {
-    return pattern; // Exact match
-  } else if (hasStart) {
-    return `${pattern}%`; // Starts with
-  } else if (hasEnd) {
-    return `%${pattern}`; // Ends with
-  } else {
-    return `%${pattern}%`; // Contains
-  }
-}
-
-function getPivotFilter(
-  view: FlamegraphView,
-  makeFilterExpr: (x: string) => string[],
-) {
-  if (view.kind === 'PIVOT') {
-    return makeFilterExpr(view.pivot).join(' OR ');
-  }
-  if (view.kind === 'BOTTOM_UP') {
-    return 'value > 0';
-  }
-  return '0';
-}
-
-function computeGroupedAggExprs(agg: ReadonlyArray<AggQueryFlamegraphColumn>) {
-  const aggFor = (x: AggQueryFlamegraphColumn) => {
-    switch (x.mergeAggregation) {
-      case 'ONE_OR_SUMMARY':
-        return `
-          ${x.name} || IIF(
-            COUNT(DISTINCT ${x.name}) = 1,
-            '',
-            ' ' || ' and ' || cast_string!(COUNT(DISTINCT ${x.name})) || ' others'
-          ) AS ${x.name}
-        `;
-      case 'SUM':
-        return `SUM(${x.name}) AS ${x.name}`;
-      case 'CONCAT_WITH_COMMA':
-        return `GROUP_CONCAT(${x.name}, ',') AS ${x.name}`;
-    }
-  };
-  return `(${agg.length === 0 ? 'groupedColumn' : agg.map((x) => aggFor(x)).join(',')})`;
-}

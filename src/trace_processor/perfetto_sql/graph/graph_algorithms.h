@@ -77,16 +77,15 @@ struct GraphToTreeResult {
 //
 // Returns a Tree with the traversal result.
 base::StatusOr<GraphToTreeResult> GraphToTree(
-    const GraphNodeData& nodes,
+    GraphNodeData nodes,
     const GraphEdgeData& edges,
     const std::vector<uint32_t>& root_node_indices,
     GraphTraversalMode mode);
 
 // Builds adjacency list from edge data for efficient traversal.
-// Returns vector where adj[i] contains indices of nodes reachable from node i.
-std::vector<std::vector<uint32_t>> BuildAdjacencyList(
-    const GraphEdgeData& edges,
-    uint32_t num_nodes);
+// Returns CSR where adj[i] contains indices of nodes reachable from node i.
+plugins::tree::CsrVector<uint32_t> BuildAdjacencyList(const GraphEdgeData& edges,
+                                                      uint32_t num_nodes);
 
 }  // namespace perfetto::trace_processor::plugins::graph
 

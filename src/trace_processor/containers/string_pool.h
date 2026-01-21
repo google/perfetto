@@ -400,11 +400,9 @@ class StringPool {
   uint32_t block_index_ PERFETTO_GUARDED_BY(mutex_) = 0;
 
   // Maps hashes of strings to the Id in the string pool.
-  base::FlatHashMap<StringHash,
+  base::FlatHashMapV2<StringHash,
                     Id,
-                    base::AlreadyHashed<StringHash>,
-                    base::LinearProbe,
-                    /*AppendOnly=*/true>
+                    base::AlreadyHashed<StringHash>>
       string_index_ PERFETTO_GUARDED_BY(mutex_){/*initial_capacity=*/4096u};
 };
 

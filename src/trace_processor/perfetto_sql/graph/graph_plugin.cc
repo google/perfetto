@@ -16,9 +16,11 @@
 
 #include "src/trace_processor/perfetto_sql/graph/graph_plugin.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -29,6 +31,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/dataframe/dataframe.h"
@@ -68,7 +71,8 @@ struct GraphNodesAggContext {
   StringPool* pool = nullptr;
   std::vector<int64_t> node_ids;
   std::vector<PassthroughColumn> passthrough_columns;
-  base::FlatHashMapV2<int64_t, uint32_t> id_to_index;
+  int64_t min_id = std::numeric_limits<int64_t>::max();
+  int64_t max_id = std::numeric_limits<int64_t>::min();
   bool first_row = true;
 };
 
@@ -92,12 +96,13 @@ struct GraphNodesAgg : public sqlite::AggregateFunction<GraphNodesAgg> {
     auto& agg_ctx = sqlite::AggregateContext<
         GraphNodesAggContext>::GetOrCreateContextForStep(ctx);
 
+    constexpr uint32_t kInitialCapacity = 64 * 1024;
+
     if (agg_ctx.first_row) {
       agg_ctx.pool = GetUserData(ctx);
       agg_ctx.first_row = false;
 
       // Reserve capacity to reduce reallocations.
-      constexpr uint32_t kInitialCapacity = 64 * 1024;
       agg_ctx.node_ids.reserve(kInitialCapacity);
 
       // Initialize passthrough columns.
@@ -107,8 +112,7 @@ struct GraphNodesAgg : public sqlite::AggregateFunction<GraphNodesAgg> {
         SQLITE_RETURN_IF_ERROR(
             ctx, sqlite::utils::ExpectArgType(argv[i], sqlite::Type::kText,
                                               kName, "column_name"));
-        agg_ctx.passthrough_columns.emplace_back(sqlite::value::Text(argv[i]),
-                                                 kInitialCapacity);
+        agg_ctx.passthrough_columns.emplace_back(sqlite::value::Text(argv[i]));
       }
     }
 
@@ -118,15 +122,9 @@ struct GraphNodesAgg : public sqlite::AggregateFunction<GraphNodesAgg> {
                                           kName, "id"));
     int64_t node_id = sqlite::value::Int64(argv[0]);
 
-    // Check for duplicate node.
-    if (agg_ctx.id_to_index.Find(node_id)) {
-      return sqlite::utils::SetError(
-          ctx, base::ErrStatus(
-                   "__intrinsic_graph_nodes_agg: duplicate node_id: %" PRId64,
-                   node_id));
-    }
-    auto node_idx = static_cast<uint32_t>(agg_ctx.node_ids.size());
-    agg_ctx.id_to_index[node_id] = node_idx;
+    // Track min/max for dense ID optimization.
+    agg_ctx.min_id = std::min(agg_ctx.min_id, node_id);
+    agg_ctx.max_id = std::max(agg_ctx.max_id, node_id);
     agg_ctx.node_ids.push_back(node_id);
 
     // Add column values.
@@ -139,7 +137,8 @@ struct GraphNodesAgg : public sqlite::AggregateFunction<GraphNodesAgg> {
       auto& col = agg_ctx.passthrough_columns[col_idx];
 
       if (PERFETTO_UNLIKELY(
-              !PushSqliteValueToColumn(col, argv[i], agg_ctx.pool))) {
+              !PushSqliteValueToColumn(col, argv[i], agg_ctx.pool,
+                                       kInitialCapacity))) {
         return sqlite::utils::SetError(
             ctx, "__intrinsic_graph_nodes_agg: type mismatch or blob value");
       }
@@ -155,12 +154,47 @@ struct GraphNodesAgg : public sqlite::AggregateFunction<GraphNodesAgg> {
     }
 
     auto* agg = agg_ctx.get();
+    const auto num_nodes = static_cast<uint32_t>(agg->node_ids.size());
+
+    // Build id_to_index map. Use dense vector if IDs are compact.
+    const int64_t range = agg->max_id - agg->min_id + 1;
+    const bool use_dense = range > 0 &&
+                           static_cast<uint64_t>(range) / num_nodes < 4 &&
+                           static_cast<uint64_t>(range) < 16 * 1024 * 1024;
 
     // Build GraphNodeData.
     auto nodes = std::make_unique<GraphNodeData>();
-    const auto num_nodes = static_cast<uint32_t>(agg->node_ids.size());
+
+    if (use_dense) {
+      // Use vector as direct-index map for dense IDs.
+      nodes->id_to_index.min_id = agg->min_id;
+      nodes->id_to_index.dense.resize(static_cast<size_t>(range), kNullUint32);
+      for (uint32_t i = 0; i < num_nodes; ++i) {
+        size_t idx = static_cast<size_t>(agg->node_ids[i] - agg->min_id);
+        if (PERFETTO_UNLIKELY(nodes->id_to_index.dense[idx] != kNullUint32)) {
+          return sqlite::utils::SetError(
+              ctx,
+              base::ErrStatus(
+                  "__intrinsic_graph_nodes_agg: duplicate node_id: %" PRId64,
+                  agg->node_ids[i]));
+        }
+        nodes->id_to_index.dense[idx] = i;
+      }
+    } else {
+      // Use hashmap for sparse IDs.
+      for (uint32_t i = 0; i < num_nodes; ++i) {
+        auto res = nodes->id_to_index.sparse.Insert(agg->node_ids[i], i);
+        if (PERFETTO_UNLIKELY(!res.second)) {
+          return sqlite::utils::SetError(
+              ctx,
+              base::ErrStatus(
+                  "__intrinsic_graph_nodes_agg: duplicate node_id: %" PRId64,
+                  agg->node_ids[i]));
+        }
+      }
+    }
+
     nodes->node_ids = std::move(agg->node_ids);
-    nodes->id_to_index = std::move(agg->id_to_index);
     nodes->passthrough_columns = std::move(agg->passthrough_columns);
     nodes->source_indices.resize(num_nodes);
     for (uint32_t i = 0; i < num_nodes; ++i) {
@@ -205,11 +239,19 @@ struct GraphEdgesAgg : public sqlite::AggregateFunction<GraphEdgesAgg> {
     auto& agg_ctx = sqlite::AggregateContext<
         GraphEdgesAggContext>::GetOrCreateContextForStep(ctx);
 
+    constexpr uint32_t kInitialCapacity = 64 * 1024;
+
     if (agg_ctx.first_row) {
       agg_ctx.pool = GetUserData(ctx);
       agg_ctx.first_row = false;
 
+      // Reserve capacity to reduce reallocations.
+      agg_ctx.source_ids.reserve(kInitialCapacity);
+      agg_ctx.dest_ids.reserve(kInitialCapacity);
+
       // Initialize passthrough columns.
+      const uint32_t num_cols = static_cast<uint32_t>((argc - 2) / 2);
+      agg_ctx.passthrough_columns.reserve(num_cols);
       for (int i = 2; i < argc; i += 2) {
         SQLITE_RETURN_IF_ERROR(
             ctx, sqlite::utils::ExpectArgType(argv[i], sqlite::Type::kText,
@@ -243,7 +285,8 @@ struct GraphEdgesAgg : public sqlite::AggregateFunction<GraphEdgesAgg> {
       auto& col = agg_ctx.passthrough_columns[col_idx];
 
       if (PERFETTO_UNLIKELY(
-              !PushSqliteValueToColumn(col, argv[i], agg_ctx.pool))) {
+              !PushSqliteValueToColumn(col, argv[i], agg_ctx.pool,
+                                       kInitialCapacity))) {
         return sqlite::utils::SetError(
             ctx, "__intrinsic_graph_edges_agg: type mismatch or blob value");
       }
@@ -469,7 +512,7 @@ struct GraphToTree_Fn : public sqlite::Function<GraphToTree_Fn> {
           ctx, "__intrinsic_graph_to_tree: mode must be BFS or DFS");
     }
 
-    const GraphData& data = *graph->data;
+    GraphData& data = *graph->data;
 
     // Apply pending filter operations to edges.
     GraphEdgeData working_edges = data.edges;
@@ -491,10 +534,10 @@ struct GraphToTree_Fn : public sqlite::Function<GraphToTree_Fn> {
       }
     }
 
-    // Run graph to tree conversion.
+    // Run graph to tree conversion (moves nodes, invalidating graph).
     SQLITE_ASSIGN_OR_RETURN(
         ctx, auto result,
-        GraphToTree(data.nodes, working_edges, root_indices, mode));
+        GraphToTree(std::move(data.nodes), working_edges, root_indices, mode));
     return UniquePtrResult(ctx, std::move(result.tree));
   }
 };

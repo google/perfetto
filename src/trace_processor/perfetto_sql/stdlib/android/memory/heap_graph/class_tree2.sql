@@ -34,6 +34,10 @@ INCLUDE PERFETTO MODULE std.trees.to_table;
 -- Then:
 -- 1. Collapse parent-child chains with the same type_id (like path hashing)
 -- 2. Merge siblings with the same name
+--
+-- Simplified output - only essential columns for now.
+-- TODO: Add back root_type, heap_type, graph_sample_ts, upid once tree algebra
+-- supports more columns properly.
 CREATE PERFETTO TABLE _heap_graph_class_tree2 AS
 SELECT
   __node_id AS id,
@@ -50,17 +54,22 @@ FROM tree_to_table!(
               ref.owner_id AS source_id,
               ref.owned_id AS dest_id
             FROM heap_graph_reference ref
+            WHERE ref.owned_id IS NOT NULL
+              AND ref.field_name != 'java.lang.ref.Reference.referent'
+            UNION ALL
+            SELECT
+              ref.owner_id AS source_id,
+              ref.owned_id AS dest_id
+            FROM heap_graph_reference ref
             JOIN heap_graph_object o ON ref.owner_id = o.id
             JOIN heap_graph_class c ON o.type_id = c.id
             WHERE ref.owned_id IS NOT NULL
-              AND (
-                ref.field_name != 'java.lang.ref.Reference.referent'
-                OR c.kind NOT IN (
-                  'KIND_FINALIZER_REFERENCE',
-                  'KIND_PHANTOM_REFERENCE',
-                  'KIND_SOFT_REFERENCE',
-                  'KIND_WEAK_REFERENCE'
-                )
+              AND ref.field_name = 'java.lang.ref.Reference.referent'
+              AND c.kind NOT IN (
+                'KIND_FINALIZER_REFERENCE',
+                'KIND_PHANTOM_REFERENCE',
+                'KIND_SOFT_REFERENCE',
+                'KIND_WEAK_REFERENCE'
               )
           ),
           (
@@ -68,8 +77,6 @@ FROM tree_to_table!(
               o.id,
               o.type_id,
               HASH(
-                o.upid,
-                o.graph_sample_ts,
                 o.type_id,
                 COALESCE(o.root_type, ''),
                 COALESCE(o.heap_type, '')

@@ -987,6 +987,7 @@ HEAP_GRAPH_REFERENCE_TABLE = Table(
         C(
             'owned_id',
             CppOptional(CppTableId(HEAP_GRAPH_OBJECT_TABLE)),
+            flags=ColumnFlag.DENSE,
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),

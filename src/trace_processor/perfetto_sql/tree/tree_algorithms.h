@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_TREE_TREE_ALGORITHMS_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_TREE_TREE_ALGORITHMS_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -121,22 +122,67 @@ double ApplyAggregation(const std::vector<double>& values,
 // Aggregates a column of values according to merge sources.
 // For each output row, collects values from source rows and applies
 // aggregation.
+//
+// Optimized for the common case (kAny) with direct indexed writes.
 template <typename T>
 std::vector<T> AggregateColumn(const std::vector<T>& src_values,
                                const CsrVector<uint32_t>& merged_sources,
                                TreeAggType agg_type) {
-  std::vector<T> result;
-  result.reserve(merged_sources.size());
-  for (auto sources : merged_sources) {
-    if (agg_type == TreeAggType::kAny || sources.size() == 1) {
-      result.push_back(src_values[sources[0]]);
+  const uint32_t n = merged_sources.size();
+  std::vector<T> result(n);
+
+  // Fast path for kAny: simple gather using CSR first elements.
+  // This is vectorizable by the compiler.
+  if (agg_type == TreeAggType::kAny) {
+    const uint32_t* offsets = merged_sources.offsets.data();
+    const uint32_t* data = merged_sources.data.data();
+    const T* src = src_values.data();
+    T* dst = result.data();
+    for (uint32_t i = 0; i < n; ++i) {
+      dst[i] = src[data[offsets[i]]];
+    }
+    return result;
+  }
+
+  // General case: apply aggregation per row.
+  const uint32_t* offsets = merged_sources.offsets.data();
+  const uint32_t* data = merged_sources.data.data();
+  const T* src = src_values.data();
+
+  for (uint32_t i = 0; i < n; ++i) {
+    uint32_t start = offsets[i];
+    uint32_t end = offsets[i + 1];
+    uint32_t count = end - start;
+
+    if (count == 1) {
+      result[i] = src[data[start]];
     } else {
-      std::vector<T> vals;
-      vals.reserve(sources.size());
-      for (uint32_t src : sources) {
-        vals.push_back(src_values[src]);
+      // Aggregate inline without temporary vector allocation.
+      T agg_val = src[data[start]];
+      for (uint32_t j = start + 1; j < end; ++j) {
+        T val = src[data[j]];
+        switch (agg_type) {
+          case TreeAggType::kMin:
+            agg_val = std::min(agg_val, val);
+            break;
+          case TreeAggType::kMax:
+            agg_val = std::max(agg_val, val);
+            break;
+          case TreeAggType::kSum:
+            agg_val = agg_val + val;
+            break;
+          case TreeAggType::kCount:
+            // Count is handled separately
+            break;
+          case TreeAggType::kAny:
+            // Already handled in fast path
+            break;
+        }
       }
-      result.push_back(ApplyAggregation<T>(vals, agg_type));
+      if (agg_type == TreeAggType::kCount) {
+        agg_val = static_cast<T>(count);
+      }
+      result[i] = agg_val;
     }
   }
   return result;

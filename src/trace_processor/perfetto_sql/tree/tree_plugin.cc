@@ -115,6 +115,8 @@ std::vector<PassthroughColumn> AggregatePassthroughColumns(
   std::vector<PassthroughColumn> result;
   result.reserve(materialized.size());
 
+  const uint32_t n = merged_sources.size();
+
   for (const auto& col : materialized) {
     TreeAggType agg_type = FindAggType(col.name, agg_specs);
     if (col.IsInt64()) {
@@ -124,11 +126,14 @@ std::vector<PassthroughColumn> AggregatePassthroughColumns(
       result.emplace_back(
           col.name, AggregateColumn(col.AsDouble(), merged_sources, agg_type));
     } else if (col.IsString()) {
-      // Strings use ANY (take first)
-      std::vector<StringPool::Id> agg_result;
-      agg_result.reserve(merged_sources.size());
-      for (auto merged_source : merged_sources) {
-        agg_result.push_back(col.AsString()[merged_source[0]]);
+      // Strings use ANY (take first) - optimized gather loop.
+      std::vector<StringPool::Id> agg_result(n);
+      const uint32_t* offsets = merged_sources.offsets.data();
+      const uint32_t* data = merged_sources.data.data();
+      const StringPool::Id* src = col.AsString().data();
+      StringPool::Id* dst = agg_result.data();
+      for (uint32_t i = 0; i < n; ++i) {
+        dst[i] = src[data[offsets[i]]];
       }
       result.emplace_back(col.name, std::move(agg_result));
     }
@@ -325,7 +330,7 @@ struct TreeDeleteNode : public sqlite::Function<TreeDeleteNode> {
                             ExpectPointer<Tree>(argv[0], kName));
     SQLITE_ASSIGN_OR_RETURN(ctx, auto* spec,
                             ExpectPointer<TreeDeleteSpec>(argv[1], kName));
-    return UniquePtrResult(ctx, tree->CopyAndAddOp(TreeDeleteNodeOp(*spec)));
+    return UniquePtrResult(ctx, tree->StealAndAddOp(TreeDeleteNodeOp(*spec)));
   }
 };
 
@@ -345,7 +350,7 @@ struct TreePropagateUp : public sqlite::Function<TreePropagateUp> {
                             ExpectPointer<Tree>(argv[0], kName));
     SQLITE_ASSIGN_OR_RETURN(ctx, auto* spec,
                             ExpectPointer<TreePropagateSpec>(argv[1], kName));
-    return UniquePtrResult(ctx, tree->CopyAndAddOp(TreePropagateUpOp(*spec)));
+    return UniquePtrResult(ctx, tree->StealAndAddOp(TreePropagateUpOp(*spec)));
   }
 };
 
@@ -365,7 +370,7 @@ struct TreePropagateDown : public sqlite::Function<TreePropagateDown> {
                             ExpectPointer<Tree>(argv[0], kName));
     SQLITE_ASSIGN_OR_RETURN(ctx, auto* spec,
                             ExpectPointer<TreePropagateSpec>(argv[1], kName));
-    return UniquePtrResult(ctx, tree->CopyAndAddOp(TreePropagateDownOp(*spec)));
+    return UniquePtrResult(ctx, tree->StealAndAddOp(TreePropagateDownOp(*spec)));
   }
 };
 
@@ -400,7 +405,7 @@ struct TreeInvert : public sqlite::Function<TreeInvert> {
       aggs.push_back(*agg);
     }
     return UniquePtrResult(
-        ctx, tree->CopyAndAddOp(TreeInvertOp(keys->column_names[0],
+        ctx, tree->StealAndAddOp(TreeInvertOp(keys->column_names[0],
                                              order->column_name, std::move(aggs))));
   }
 };
@@ -442,12 +447,20 @@ struct TreeFromParentAgg : public sqlite::AggregateFunction<TreeFromParentAgg> {
     auto& agg_ctx = sqlite::AggregateContext<
         TreeFromParentAggContext>::GetOrCreateContextForStep(ctx);
 
+    constexpr uint32_t kInitialCapacity = 64 * 1024;
+
     // First row: initialize passthrough columns if there are user columns
     if (agg_ctx.node_ids.empty() && argc > 2) {
       agg_ctx.pool = GetUserData(ctx);
 
+      // Reserve capacity to reduce reallocations.
+      agg_ctx.node_ids.reserve(kInitialCapacity);
+      agg_ctx.parent_ids.reserve(kInitialCapacity);
+
       // Initialize passthrough columns with names (types will be set on first
       // value)
+      const uint32_t num_cols = static_cast<uint32_t>((argc - 2) / 2);
+      agg_ctx.passthrough_columns.reserve(num_cols);
       for (int i = 2; i < argc; i += 2) {
         SQLITE_RETURN_IF_ERROR(
             ctx, sqlite::utils::ExpectArgType(argv[i], sqlite::Type::kText,
@@ -497,7 +510,8 @@ struct TreeFromParentAgg : public sqlite::AggregateFunction<TreeFromParentAgg> {
       }
       auto& col = agg_ctx.passthrough_columns[col_idx];
       if (PERFETTO_UNLIKELY(
-              !PushSqliteValueToColumn(col, argv[i], agg_ctx.pool))) {
+              !PushSqliteValueToColumn(col, argv[i], agg_ctx.pool,
+                                       kInitialCapacity))) {
         return sqlite::utils::SetError(
             ctx,
             "__intrinsic_tree_from_parent_agg: type mismatch or blob value");
@@ -517,7 +531,7 @@ struct TreeFromParentAgg : public sqlite::AggregateFunction<TreeFromParentAgg> {
 
     // Build the Tree
     auto tree = std::make_unique<Tree>();
-    tree->data = std::make_shared<TreeData>();
+    tree->data = std::make_unique<TreeData>();
 
     // Compute parent_indices from parent_ids
     tree->data->parent_indices.resize(n);
@@ -582,7 +596,7 @@ struct TreeMergeSiblings : public sqlite::Function<TreeMergeSiblings> {
                               ExpectPointer<TreeAggSpec>(argv[i], kName));
       aggs.push_back(*agg);
     }
-    return UniquePtrResult(ctx, tree->CopyAndAddOp(TreeMergeSiblingsOp(
+    return UniquePtrResult(ctx, tree->StealAndAddOp(TreeMergeSiblingsOp(
                                     strategy->mode, keys->column_names,
                                     order->column_name, std::move(aggs))));
   }
@@ -618,7 +632,7 @@ struct TreeCollapse : public sqlite::Function<TreeCollapse> {
     }
     return UniquePtrResult(
         ctx,
-        tree->CopyAndAddOp(TreeCollapseOp(keys->column_names[0], std::move(aggs))));
+        tree->StealAndAddOp(TreeCollapseOp(keys->column_names[0], std::move(aggs))));
   }
 };
 
@@ -842,41 +856,39 @@ struct TreeEmit : public sqlite::Function<TreeEmit> {
                                     kName, argc, argv, {PointerArg<Tree>()}));
     auto* tree = GetPointer<Tree>(argv[0]);
 
+    if (tree->IsConsumed()) {
+      return sqlite::utils::SetError(
+          ctx, "tree_emit: tree has already been consumed by another operation");
+    }
+
     StringPool* pool = GetUserData(ctx);
 
-    // Get mutable access to tree data (copy-on-write if shared)
-    std::shared_ptr<TreeData> data_ptr = tree->data;
-    if (data_ptr.use_count() > 1) {
-      data_ptr = std::make_shared<TreeData>(*data_ptr);
-    }
+    // Steal the data - tree is now consumed
+    TreeData& data = *tree->data;
 
     // Execute pending operations in place
     for (const auto& op_variant : tree->pending_ops) {
       if (const auto* merge_op =
               std::get_if<TreeMergeSiblingsOp>(&op_variant)) {
-        SQLITE_RETURN_IF_ERROR(ctx, ExecuteMerge(*data_ptr, *merge_op, pool));
+        SQLITE_RETURN_IF_ERROR(ctx, ExecuteMerge(data, *merge_op, pool));
       } else if (const auto* delete_op =
                      std::get_if<TreeDeleteNodeOp>(&op_variant)) {
-        SQLITE_RETURN_IF_ERROR(ctx, ExecuteDelete(*data_ptr, *delete_op, pool));
+        SQLITE_RETURN_IF_ERROR(ctx, ExecuteDelete(data, *delete_op, pool));
       } else if (const auto* propagate_up_op =
                      std::get_if<TreePropagateUpOp>(&op_variant)) {
-        SQLITE_RETURN_IF_ERROR(ctx,
-                               ExecutePropagateUp(*data_ptr, *propagate_up_op));
+        SQLITE_RETURN_IF_ERROR(ctx, ExecutePropagateUp(data, *propagate_up_op));
       } else if (const auto* propagate_down_op =
                      std::get_if<TreePropagateDownOp>(&op_variant)) {
-        SQLITE_RETURN_IF_ERROR(
-            ctx, ExecutePropagateDown(*data_ptr, *propagate_down_op));
+        SQLITE_RETURN_IF_ERROR(ctx,
+                               ExecutePropagateDown(data, *propagate_down_op));
       } else if (const auto* invert_op =
                      std::get_if<TreeInvertOp>(&op_variant)) {
-        SQLITE_RETURN_IF_ERROR(ctx, ExecuteInvert(*data_ptr, *invert_op, pool));
+        SQLITE_RETURN_IF_ERROR(ctx, ExecuteInvert(data, *invert_op, pool));
       } else if (const auto* collapse_op =
                      std::get_if<TreeCollapseOp>(&op_variant)) {
-        SQLITE_RETURN_IF_ERROR(ctx,
-                               ExecuteCollapse(*data_ptr, *collapse_op, pool));
+        SQLITE_RETURN_IF_ERROR(ctx, ExecuteCollapse(data, *collapse_op, pool));
       }
     }
-
-    const auto& data = *data_ptr;
 
     // Compute depths from parent_indices
     std::vector<uint32_t> depths = ComputeDepths(data.parent_indices);
