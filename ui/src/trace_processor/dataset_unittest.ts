@@ -622,3 +622,55 @@ test('union type widening', () => {
     baz: UNKNOWN,
   });
 });
+
+test('union dataset keeps datasets with different joins separate', () => {
+  const datasetA = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    joins: {
+      thread: {from: 'thread USING (utid)'},
+    },
+  });
+
+  const datasetB = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    // No joins
+  });
+
+  const union = UnionDataset.create([datasetA, datasetB]);
+  const sql = union.query();
+
+  // Should contain UNION ALL because they cannot be merged
+  expect(sql).toContain('UNION ALL');
+
+  // One part should have the join
+  expect(sql).toMatch(/JOIN thread/);
+});
+
+test('union dataset merges datasets with same joins', () => {
+  const datasetA = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    joins: {
+      thread: {from: 'thread USING (utid)'},
+    },
+    filter: {col: 'id', eq: 1},
+  });
+
+  const datasetB = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    joins: {
+      thread: {from: 'thread USING (utid)'},
+    },
+    filter: {col: 'id', eq: 2},
+  });
+
+  const union = UnionDataset.create([datasetA, datasetB]);
+  const sql = union.query();
+
+  // Should NOT contain UNION ALL, they should merge
+  expect(sql).not.toContain('UNION ALL');
+  expect(sql).toContain('WHERE id IN (1, 2)');
+});
