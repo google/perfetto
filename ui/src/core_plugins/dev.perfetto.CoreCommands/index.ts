@@ -46,7 +46,7 @@ import {showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
 import {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
-import {CURRENT_SELECTION_TAB_URI} from 'src/public/tab';
+import {CURRENT_SELECTION_TAB_URI} from '../../public/tab';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 

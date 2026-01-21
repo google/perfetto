@@ -19,7 +19,7 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {DrawerPanel, DrawerTab} from '../../widgets/drawer_panel';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from '../css_constants';
 import {CurrentSelectionTab} from './current_selection_tab';
-import {CURRENT_SELECTION_TAB_URI} from 'src/public/tab';
+import {CURRENT_SELECTION_TAB_URI} from '../../public/tab';
 
 export interface TabPanelAttrs {
   readonly trace: TraceImpl;
