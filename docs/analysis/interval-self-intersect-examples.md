@@ -2,9 +2,35 @@
 
 Practical examples demonstrating interval self-intersection with various partition strategies.
 
-**Note**: The current implementation supports **1 aggregation column** and **at most 1 partition column** for optimal performance.
+## Example 1: Raw Intersection Buckets (No Aggregation)
 
-## Example 1: All Slices (No Partition) - Count Only
+Get raw intersection buckets without any aggregation - just the time ranges and group IDs:
+
+```sql
+INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+-- Get raw intersection structure without aggregation
+SELECT
+  ts,
+  dur,
+  group_id
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition!(
+      (SELECT id, ts, dur FROM slice WHERE dur > 0),
+      ()
+    ),
+    ()  -- Empty aggregation list for raw buckets
+  ),
+  (ts, dur, group_id)
+)
+ORDER BY ts
+LIMIT 20;
+```
+
+**Use case**: Get the raw intersection structure for further processing or when you don't need aggregations.
+
+## Example 2: All Slices (No Partition) - Count Only
 
 Find all overlapping slices across the entire trace:
 
@@ -17,9 +43,15 @@ SELECT
   dur,
   group_id,
   count AS overlapping_slices
-FROM _interval_self_intersect(
-  (SELECT id, ts, dur FROM slice WHERE dur > 0),
-  ()
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition!(
+      (SELECT id, ts, dur FROM slice WHERE dur > 0),
+      ()
+    ),
+    (interval_agg!(count, COUNT))
+  ),
+  (ts, dur, group_id, count)
 )
 WHERE count > 1  -- Only show overlapping regions
 ORDER BY count DESC, dur DESC
@@ -28,7 +60,7 @@ LIMIT 20;
 
 **Use case**: Find the most congested time periods in your trace.
 
-## Example 1b: All Slices with Sum Aggregation
+## Example 2: All Slices with Sum Aggregation
 
 Sum the depth values of overlapping slices:
 
@@ -41,20 +73,26 @@ SELECT
   dur,
   group_id,
   count AS overlapping_slices,
-  sum AS total_depth
-FROM _interval_self_intersect_sum(
-  (SELECT id, ts, dur, depth FROM slice WHERE dur > 0),
-  (),
-  depth
+  sum_depth AS total_depth
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition_with_agg!(
+      (SELECT id, ts, dur, depth FROM slice WHERE dur > 0),
+      (),
+      (depth)
+    ),
+    (interval_agg!(count, COUNT), interval_agg!(depth, SUM))
+  ),
+  (ts, dur, group_id, count, sum_depth)
 )
 WHERE count > 1
-ORDER BY sum DESC, count DESC
+ORDER BY sum_depth DESC, count DESC
 LIMIT 20;
 ```
 
 **Use case**: Find the most congested time periods weighted by depth.
 
-## Example 2: Self-Intersect Per Process (upid) - Count Only
+## Example 3: Self-Intersect Per Process (upid) - Count Only
 
 Analyze slice overlaps within each process:
 
@@ -69,9 +107,15 @@ SELECT
   dur,
   group_id,
   count AS concurrent_slices
-FROM _interval_self_intersect(
-  (SELECT id, ts, dur, upid FROM slice WHERE dur > 0),
-  (upid)
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition!(
+      (SELECT id, ts, dur, upid FROM slice WHERE dur > 0),
+      (upid)
+    ),
+    (interval_agg!(count, COUNT))
+  ),
+  (ts, dur, group_id, count, upid)
 )
 JOIN process USING (upid)
 WHERE count > 2  -- More than 2 concurrent slices
@@ -80,7 +124,7 @@ ORDER BY upid, count DESC, dur DESC;
 
 **Use case**: Identify processes with high concurrency/parallelism.
 
-## Example 2b: Self-Intersect Per Process with Average Depth
+## Example 4: Self-Intersect Per Process with Average Depth
 
 ```sql
 INCLUDE PERFETTO MODULE intervals.self_intersect;
@@ -93,85 +137,24 @@ SELECT
   dur,
   group_id,
   count AS concurrent_slices,
-  avg AS avg_depth
-FROM _interval_self_intersect_avg(
-  (SELECT id, ts, dur, depth, upid FROM slice WHERE dur > 0),
-  (upid),
-  depth
+  avg_depth
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition_with_agg!(
+      (SELECT id, ts, dur, depth, upid FROM slice WHERE dur > 0),
+      (upid),
+      (depth)
+    ),
+    (interval_agg!(count, COUNT), interval_agg!(depth, AVG))
+  ),
+  (ts, dur, group_id, count, avg_depth, upid)
 )
 JOIN process USING (upid)
 WHERE count > 2
-ORDER BY upid, avg DESC, count DESC;
+ORDER BY upid, avg_depth DESC, count DESC;
 ```
 
 **Use case**: Identify processes with high concurrency weighted by depth.
-
-## Example 3: Self-Intersect Per Package with Max Depth
-
-Analyze overlaps grouped by Android package:
-
-```sql
-INCLUDE PERFETTO MODULE intervals.self_intersect;
-
--- Get package name for each process
-CREATE PERFETTO TABLE slice_with_package AS
-SELECT
-  slice.id,
-  slice.ts,
-  slice.dur,
-  package_list.package_name,
-  slice.depth
-FROM slice
-JOIN thread USING (utid)
-JOIN process USING (upid)
-JOIN package_list ON process.uid = package_list.uid
-WHERE slice.dur > 0;
-
--- Self-intersect by package with max depth
-SELECT
-  package_name,
-  ts,
-  dur,
-  count AS concurrent_slices,
-  max AS max_depth
-FROM _interval_self_intersect_max(
-  slice_with_package,
-  (package_name),
-  depth
-)
-WHERE count > 3
-ORDER BY package_name, max DESC, count DESC
-LIMIT 50;
-```
-
-**Use case**: Analyze concurrency patterns per Android app with peak depth.
-
-## Example 4: Self-Intersect Per Thread (utid)
-
-Analyze overlaps per thread:
-
-```sql
-INCLUDE PERFETTO MODULE intervals.self_intersect;
-
--- Analyze overlaps per thread
-SELECT
-  utid,
-  thread.name AS thread_name,
-  ts,
-  dur,
-  count AS overlapping_slices
-FROM _interval_self_intersect(
-  (SELECT id, ts, dur, utid FROM slice WHERE dur > 0),
-  (utid)
-)
-JOIN thread USING (utid)
-WHERE count > 1
-ORDER BY utid, count DESC, ts;
-```
-
-**Use case**: Find threads with overlapping slices (usually indicates async operations).
-
-**Note**: Multi-level partitioning (e.g., upid AND utid) is not supported in the current implementation. Use a single partition column or create a composite key.
 
 ## Example 5: CPU Scheduling Self-Intersect with Sum Priority
 
@@ -186,11 +169,17 @@ SELECT
   ts,
   dur,
   count AS concurrent_threads,
-  sum AS total_priority
-FROM _interval_self_intersect_sum(
-  (SELECT id, ts, dur, priority, cpu FROM sched WHERE dur > 0),
-  (cpu),
-  priority
+  sum_priority AS total_priority
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition_with_agg!(
+      (SELECT id, ts, dur, priority, cpu FROM sched WHERE dur > 0),
+      (cpu),
+      (priority)
+    ),
+    (interval_agg!(count, COUNT), interval_agg!(priority, SUM))
+  ),
+  (ts, dur, group_id, count, sum_priority, cpu)
 )
 WHERE count > 1  -- This would indicate a bug!
 ORDER BY cpu, ts;
@@ -212,11 +201,17 @@ SELECT
   ts,
   dur,
   count AS concurrent_allocations,
-  sum / 1024 / 1024 AS total_mb
-FROM _interval_self_intersect_sum(
-  (SELECT id, ts, dur, size, upid FROM heap_profile_allocation WHERE dur > 0),
-  (upid),
-  size
+  sum_size / 1024 / 1024 AS total_mb
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition_with_agg!(
+      (SELECT id, ts, dur, size, upid FROM heap_profile_allocation WHERE dur > 0),
+      (upid),
+      (size)
+    ),
+    (interval_agg!(count, COUNT), interval_agg!(size, SUM))
+  ),
+  (ts, dur, group_id, count, sum_size, upid)
 )
 JOIN process USING (upid)
 WHERE count >= 5  -- High concurrency
@@ -226,7 +221,7 @@ LIMIT 30;
 
 **Use case**: Identify memory pressure hotspots by total allocation size.
 
-## Example 6b: Memory Allocation Pressure - Largest Allocation
+## Example 7: Memory Allocation Pressure - Largest Allocation
 
 ```sql
 INCLUDE PERFETTO MODULE intervals.self_intersect;
@@ -238,11 +233,17 @@ SELECT
   ts,
   dur,
   count AS concurrent_allocations,
-  max / 1024 / 1024 AS largest_mb
-FROM _interval_self_intersect_max(
-  (SELECT id, ts, dur, size, upid FROM heap_profile_allocation WHERE dur > 0),
-  (upid),
-  size
+  max_size / 1024 / 1024 AS largest_mb
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition_with_agg!(
+      (SELECT id, ts, dur, size, upid FROM heap_profile_allocation WHERE dur > 0),
+      (upid),
+      (size)
+    ),
+    (interval_agg!(count, COUNT), interval_agg!(size, MAX))
+  ),
+  (ts, dur, group_id, count, max_size, upid)
 )
 JOIN process USING (upid)
 WHERE count >= 5
@@ -252,7 +253,7 @@ LIMIT 30;
 
 **Use case**: Identify memory pressure hotspots by largest allocation.
 
-## Example 7: Binder Transaction Overlaps - Count Only
+## Example 8: Binder Transaction Overlaps - Count Only
 
 Analyze concurrent binder transactions:
 
@@ -266,17 +267,23 @@ SELECT
   ts,
   dur,
   count AS concurrent_binder_calls
-FROM _interval_self_intersect(
-  (
-    SELECT
-      id,
-      ts,
-      dur,
-      upid
-    FROM slice
-    WHERE name GLOB 'binder*' AND dur > 0
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition!(
+      (
+        SELECT
+          id,
+          ts,
+          dur,
+          upid
+        FROM slice
+        WHERE name GLOB 'binder*' AND dur > 0
+      ),
+      (upid)
+    ),
+    (interval_agg!(count, COUNT))
   ),
-  (upid)
+  (ts, dur, group_id, count, upid)
 )
 JOIN process USING (upid)
 WHERE count > 2
@@ -285,7 +292,7 @@ ORDER BY count DESC, dur DESC;
 
 **Use case**: Identify binder bottlenecks and concurrent IPC patterns.
 
-## Example 8: Frame Rendering Overlaps with Max Vsync ID
+## Example 9: Frame Rendering Overlaps with Max Vsync ID
 
 Analyze overlapping frame rendering work:
 
@@ -299,20 +306,26 @@ SELECT
   ts,
   dur,
   count AS concurrent_frames,
-  max AS max_vsync_id
-FROM _interval_self_intersect_max(
-  (
-    SELECT
-      id,
-      ts,
-      dur,
-      CAST(EXTRACT_ARG(arg_set_id, 'vsync_id') AS DOUBLE) AS vsync_id,
-      upid
-    FROM slice
-    WHERE name = 'Choreographer#doFrame' AND dur > 0
+  max_vsync_id
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition_with_agg!(
+      (
+        SELECT
+          id,
+          ts,
+          dur,
+          CAST(EXTRACT_ARG(arg_set_id, 'vsync_id') AS DOUBLE) AS vsync_id,
+          upid
+        FROM slice
+        WHERE name = 'Choreographer#doFrame' AND dur > 0
+      ),
+      (upid),
+      (vsync_id)
+    ),
+    (interval_agg!(count, COUNT), interval_agg!(vsync_id, MAX))
   ),
-  (upid),
-  vsync_id
+  (ts, dur, group_id, count, max_vsync_id, upid)
 )
 JOIN process USING (upid)
 WHERE count > 1  -- Overlapping frames
@@ -321,7 +334,7 @@ ORDER BY count DESC;
 
 **Use case**: Detect frame pacing issues and concurrent frame rendering.
 
-## Example 9: Network Request Concurrency - Total Bytes
+## Example 10: Network Request Concurrency - Total Bytes
 
 Analyze concurrent network requests:
 
@@ -335,20 +348,26 @@ SELECT
   ts,
   dur,
   count AS concurrent_requests,
-  sum / 1024 AS total_kb
-FROM _interval_self_intersect_sum(
-  (
-    SELECT
-      id,
-      ts,
-      dur,
-      CAST(EXTRACT_ARG(arg_set_id, 'bytes') AS DOUBLE) AS bytes,
-      upid
-    FROM slice
-    WHERE name GLOB 'http*' AND dur > 0
+  sum_bytes / 1024 AS total_kb
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition_with_agg!(
+      (
+        SELECT
+          id,
+          ts,
+          dur,
+          CAST(EXTRACT_ARG(arg_set_id, 'bytes') AS DOUBLE) AS bytes,
+          upid
+        FROM slice
+        WHERE name GLOB 'http*' AND dur > 0
+      ),
+      (upid),
+      (bytes)
+    ),
+    (interval_agg!(count, COUNT), interval_agg!(bytes, SUM))
   ),
-  (upid),
-  bytes
+  (ts, dur, group_id, count, sum_bytes, upid)
 )
 JOIN process USING (upid)
 WHERE count >= 3
@@ -357,7 +376,61 @@ ORDER BY concurrent_requests DESC, total_kb DESC;
 
 **Use case**: Understand network concurrency patterns by total bandwidth.
 
-## Example 10: Thread State Self-Intersect - Validation
+## Example 11: Maximum RSS Memory Across All Processes
+
+Find time periods with the highest anonymous RSS memory usage across all processes:
+
+```sql
+INCLUDE PERFETTO MODULE intervals.self_intersect;
+INCLUDE PERFETTO MODULE counters.intervals;
+
+-- Convert RSS anon counters to intervals and find max across all processes
+WITH rss_counters AS (
+  SELECT
+    c.id,
+    c.ts,
+    c.track_id,
+    c.value
+  FROM counter c
+  JOIN process_counter_track t ON c.track_id = t.id
+  WHERE t.name = 'mem.rss.anon'
+)
+SELECT
+  ts,
+  dur,
+  group_id,
+  max_value / 1024 / 1024 AS max_rss_mb,
+  upid,
+  process.name AS process_name
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition_with_agg!(
+      (
+        SELECT
+          intervals.id,
+          intervals.ts,
+          intervals.dur,
+          intervals.value,
+          t.upid
+        FROM counter_leading_intervals!(rss_counters) intervals
+        JOIN process_counter_track t ON intervals.id = t.id
+        WHERE intervals.dur > 0
+      ),
+      (upid),
+      (value)
+    ),
+    (interval_agg!(value, MAX))
+  ),
+  (ts, dur, group_id, max_value, upid)
+)
+JOIN process USING (upid)
+ORDER BY max_rss_mb DESC
+LIMIT 20;
+```
+
+**Use case**: Identify time periods and processes with peak anonymous RSS memory usage.
+
+## Example 12: Thread State Self-Intersect - Validation
 
 Analyze overlapping thread states (useful for detecting trace issues):
 
@@ -371,9 +444,15 @@ SELECT
   ts,
   dur,
   count AS overlapping_states
-FROM _interval_self_intersect(
-  (SELECT id, ts, dur, utid FROM thread_state WHERE dur > 0),
-  (utid)
+FROM interval_to_table!(
+  interval_intersect!(
+    interval_partition!(
+      (SELECT id, ts, dur, utid FROM thread_state WHERE dur > 0),
+      (utid)
+    ),
+    (interval_agg!(count, COUNT))
+  ),
+  (ts, dur, group_id, count, utid)
 )
 JOIN thread USING (utid)
 WHERE count > 1  -- This indicates a trace problem
@@ -388,83 +467,97 @@ ORDER BY utid, ts;
 
 ```sql
 -- GOOD: Filter first
-FROM _interval_self_intersect(
+interval_partition!(
   (SELECT id, ts, dur, upid FROM slice WHERE dur > 1000000),  -- Only long slices
   (upid)
 )
 
 -- BAD: Filter after
-FROM _interval_self_intersect(
+interval_partition!(
   (SELECT id, ts, dur, upid FROM slice),
   (upid)
 )
-WHERE dur > 1000000  -- Filtering after is less efficient
+-- Then filtering with WHERE dur > 1000000 is less efficient
 ```
 
 ### 2. Use Appropriate Partitions
 
 ```sql
 -- GOOD: Partition by high-cardinality column
-FROM _interval_self_intersect(
+interval_partition!(
   slice_data,
   (upid)  -- ~100s of processes
 )
 
 -- LESS EFFICIENT: No partition with many intervals
-FROM _interval_self_intersect(
+interval_partition!(
   slice_data,
   ()  -- All intervals in one partition
 )
 ```
 
-### 3. Choose the Right Aggregation Function
+### 3. Choose the Right Aggregation Functions
 
 ```sql
--- Use specific functions for what you need:
-_interval_self_intersect(...)           -- Count only (fastest)
-_interval_self_intersect_sum(..., col)  -- Count + sum
-_interval_self_intersect_max(..., col)  -- Count + max
-_interval_self_intersect_min(..., col)  -- Count + min
-_interval_self_intersect_avg(..., col)  -- Count + avg
-```
+-- Use specific aggregations for what you need:
+interval_agg!(count, COUNT)     -- Count only
+interval_agg!(value, SUM)       -- Sum of values
+interval_agg!(priority, MAX)    -- Maximum value
+interval_agg!(size, MIN)        -- Minimum value
+interval_agg!(depth, AVG)       -- Average value
 
-### 4. Column Order Matters
-
-```sql
--- CORRECT: Aggregation column before partition column
-SELECT id, ts, dur, value, upid FROM table
-
--- For _interval_self_intersect_sum(data, (upid), value)
--- The 'value' column must come before 'upid' in the SELECT
+-- You can combine multiple aggregations:
+(interval_agg!(count, COUNT), interval_agg!(value, SUM), interval_agg!(priority, MAX))
 ```
 
 ## API Summary
 
-### Available Functions
+### Core Macros
 
-1. **`_interval_self_intersect(table, (partition_col))`**
-   - Returns: `ts, dur, group_id, count, partition_col`
-   - Use: Count overlapping intervals only
+1. **`interval_partition!(table, (partition_cols))`**
+   - Creates a partitioned interval set for count-only or unaggregated queries
+   - Example: `interval_partition!(my_table, (upid))`
+   - Example: `interval_partition!(my_table, ())` for no partitioning
 
-2. **`_interval_self_intersect_sum(table, (partition_col), agg_col)`**
-   - Returns: `ts, dur, group_id, count, sum, partition_col`
-   - Use: Count + sum of aggregation column
+2. **`interval_partition_with_agg!(table, (partition_cols), (agg_cols))`**
+   - Creates a partitioned interval set with aggregation columns
+   - Currently supports exactly 1 aggregation column
+   - Example: `interval_partition_with_agg!(my_table, (upid), (value))`
+   - Example: `interval_partition_with_agg!(my_table, (), (value))`
 
-3. **`_interval_self_intersect_max(table, (partition_col), agg_col)`**
-   - Returns: `ts, dur, group_id, count, max, partition_col`
-   - Use: Count + maximum of aggregation column
+3. **`interval_agg!(column, AGG_TYPE)`**
+   - Creates an aggregation specification
+   - Supported types: COUNT, SUM, MIN, MAX, AVG
+   - Example: `interval_agg!(value, SUM)` produces `sum_value` column
+   - Example: `interval_agg!(priority, MAX)` produces `max_priority` column
 
-4. **`_interval_self_intersect_min(table, (partition_col), agg_col)`**
-   - Returns: `ts, dur, group_id, count, min, partition_col`
-   - Use: Count + minimum of aggregation column
+4. **`interval_intersect!(partitions, (agg_specs))`**
+   - Computes self-intersections with specified aggregations
+   - Example: `interval_intersect!(parts, (interval_agg!(count, COUNT)))`
+   - Example: `interval_intersect!(parts, (interval_agg!(count, COUNT), interval_agg!(value, SUM)))`
+   - Example: `interval_intersect!(parts, ())` for unaggregated raw buckets
 
-5. **`_interval_self_intersect_avg(table, (partition_col), agg_col)`**
-   - Returns: `ts, dur, group_id, count, avg, partition_col`
-   - Use: Count + average of aggregation column
+5. **`interval_to_table!(partitions, (output_columns))`**
+   - Converts partitioned intervals back to a table
+   - Always includes: `ts, dur, group_id`
+   - Add aggregation columns based on interval_agg! specs
+   - Add partition columns at the end
+   - Example: `interval_to_table!(result, (ts, dur, group_id))` for unaggregated
+   - Example: `interval_to_table!(result, (ts, dur, group_id, count, upid))`
+   - Example: `interval_to_table!(result, (ts, dur, group_id, count, sum_value, upid))`
+
+### Output Column Naming
+
+Aggregation results are automatically named with prefixes:
+- `COUNT` → `count`
+- `SUM` → `sum_<column_name>`
+- `MIN` → `min_<column_name>`
+- `MAX` → `max_<column_name>`
+- `AVG` → `avg_<column_name>`
 
 ### Constraints
 
-- **Maximum 1 aggregation column** per query
+- **Maximum 1 aggregation column** per query (for `interval_partition_with_agg!`)
 - **Maximum 1 partition column** per query
 - Partition column can be omitted: `()`
 - Input table must have: `id, ts, dur` columns
@@ -475,7 +568,7 @@ SELECT id, ts, dur, value, upid FROM table
 | Feature | Self-Intersect | Span Join |
 |---------|---------------|-----------|
 | **Use Case** | Overlaps within ONE table | Overlaps between TWO tables |
-| **Performance** | O(n log n) with bitsets | O(n log n) |
+| **Performance** | O(n log n) sweep line | O(n log n) |
 | **Aggregations** | Built-in (count, sum, etc.) | Manual via GROUP BY |
 | **Partitioning** | 1 column max | Via PARTITIONED keyword |
 | **Output** | Buckets with group_id | Intersected intervals |
@@ -484,7 +577,6 @@ SELECT id, ts, dur, value, upid FROM table
 - Analyzing concurrency within a single dataset
 - Need aggregations across overlapping intervals
 - Want to identify time periods by overlap count
-- Working with dense interval IDs (< 100k)
 
 **When to use Span Join**:
 - Correlating two different interval sets

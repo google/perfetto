@@ -609,6 +609,172 @@ struct SymbolizeAgg
 };
 #endif
 
+// New aggregate function with explicit aggregation column count
+// Format: __intrinsic_interval_tree_intervals_with_agg(agg_col_count, id, ts,
+// dur, agg_val, part_name, part_val, ...)
+struct IntervalTreeIntervalsWithAggAgg
+    : public sqlite::AggregateFunction<perfetto_sql::PartitionedTable> {
+  static constexpr char kName[] =
+      "__intrinsic_interval_tree_intervals_with_agg";
+  static constexpr int kArgCount = -1;
+  static constexpr int kMinArgCount = 5;  // agg_col_count, id, ts, dur, agg_val
+
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
+    perfetto_sql::PartitionedTable partitions;
+    std::vector<SqlValue> tmp_vals;
+    std::vector<SqlValue> tmp_agg_vals;
+    uint64_t last_interval_start = 0;
+    uint32_t num_agg_cols = 0;
+    bool cols_initialized = false;
+  };
+
+  static void Step(sqlite3_context* ctx, int rargc, sqlite3_value** argv) {
+    auto argc = static_cast<uint32_t>(rargc);
+    if (argc < kMinArgCount) {
+      return sqlite::result::Error(
+          ctx,
+          "interval_tree_intervals_with_agg: Expected at least 5 arguments");
+    }
+
+    auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
+
+    // First argument is the aggregation column count
+    if (!agg_ctx.cols_initialized) {
+      agg_ctx.num_agg_cols =
+          static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
+      if (agg_ctx.num_agg_cols > 1) {
+        return sqlite::result::Error(ctx,
+                                     "interval_tree_intervals_with_agg: Only 1 "
+                                     "aggregation column supported");
+      }
+      agg_ctx.tmp_agg_vals.resize(agg_ctx.num_agg_cols);
+
+      // Extract partition column names (everything after id, ts, dur, agg
+      // name-value pairs) Format: agg_count, id, ts, dur, agg_name, agg_val,
+      // part_name, part_val, ... Each agg column takes 2 slots (name + value),
+      // so:
+      // - agg columns start at index 4
+      // - partition columns start at index 4 + (num_agg_cols * 2)
+      uint32_t part_start_idx = 4 + (agg_ctx.num_agg_cols * 2);
+      auto& parts = agg_ctx.partitions;
+      for (uint32_t i = part_start_idx; i < argc; i += 2) {
+        parts.partition_column_names.push_back(
+            sqlite::utils::SqliteValueToSqlValue(argv[i]).AsString());
+      }
+      agg_ctx.tmp_vals.resize(parts.partition_column_names.size());
+      agg_ctx.cols_initialized = true;
+    }
+
+    // Fetch and validate the interval (argv[1] = id, argv[2] = ts, argv[3] =
+    // dur)
+    Interval interval;
+    interval.id = static_cast<uint32_t>(sqlite::value::Int64(argv[1]));
+    interval.start = static_cast<uint64_t>(sqlite::value::Int64(argv[2]));
+
+    if (interval.start < agg_ctx.last_interval_start) {
+      if (sqlite::value::Int64(argv[2]) < 0) {
+        return sqlite::result::Error(
+            ctx, "Interval intersect only accepts positive `ts` values.");
+      }
+      base::StackString<1024> err_msg(
+          "Interval intersect requires intervals to be sorted by ts. "
+          "Current interval(id %u) start %" PRId64
+          " is less than the last interval start %" PRIu64 ".",
+          interval.id, sqlite::value::Int64(argv[2]),
+          agg_ctx.last_interval_start);
+      return sqlite::result::Error(ctx, err_msg.c_str());
+    }
+
+    int64_t dur = sqlite::value::Int64(argv[3]);
+    if (dur < 0) {
+      return sqlite::result::Error(
+          ctx,
+          "Interval intersect only works on intervals with "
+          "non negative duration.");
+    }
+
+    agg_ctx.last_interval_start = interval.start;
+    interval.end = interval.start + static_cast<uint64_t>(dur);
+
+    // Extract aggregation column value (at index 5, after agg_name at index 4)
+    if (agg_ctx.num_agg_cols > 0) {
+      SqlValue agg_val = sqlite::utils::SqliteValueToSqlValue(argv[5]);
+      agg_ctx.tmp_agg_vals[0] = agg_val;
+    }
+
+    // Create partition key from partition column values
+    auto& parts = agg_ctx.partitions;
+    base::MurmurHashCombiner h;
+    // Partition values start after: agg_count, id, ts, dur, agg_name, agg_val,
+    // part_name So first partition value is at: 4 + (num_agg_cols * 2) + 1
+    uint32_t part_value_start = 4 + (agg_ctx.num_agg_cols * 2) + 1;
+
+    for (uint32_t i = 0; i < parts.partition_column_names.size(); ++i) {
+      uint32_t value_idx = part_value_start + (i * 2);
+      SqlValue new_val = sqlite::utils::SqliteValueToSqlValue(argv[value_idx]);
+
+      // Intern strings
+      if (new_val.type == SqlValue::kString) {
+        StringPool* pool = GetUserData(ctx)->pool;
+        new_val.string_value =
+            pool->Get(pool->InternString(new_val.AsString())).c_str();
+      }
+      agg_ctx.tmp_vals[i] = new_val;
+      HashSqlValue(h, new_val);
+    }
+
+    uint64_t key = h.digest();
+    auto* part = parts.partitions_map.Find(key);
+
+    // Add interval to existing partition
+    if (part) {
+      part->intervals.push_back(interval);
+      if (part->is_nonoverlapping) {
+        if (interval.start < part->last_interval) {
+          part->is_nonoverlapping = false;
+        } else {
+          part->last_interval = interval.end;
+        }
+      }
+
+      // Store aggregation data
+      if (agg_ctx.num_agg_cols > 0) {
+        if (interval.id >= part->agg_data.size()) {
+          part->agg_data.resize(interval.id + 1);
+        }
+        part->agg_data[interval.id] = agg_ctx.tmp_agg_vals;
+      }
+      return;
+    }
+
+    // Create new partition
+    perfetto_sql::Partition new_partition;
+    new_partition.sql_values = agg_ctx.tmp_vals;
+    new_partition.last_interval = interval.end;
+    new_partition.intervals = {interval};
+
+    // Store aggregation data
+    if (agg_ctx.num_agg_cols > 0) {
+      new_partition.agg_data.resize(interval.id + 1);
+      new_partition.agg_data[interval.id] = agg_ctx.tmp_agg_vals;
+    }
+
+    parts.partitions_map[key] = std::move(new_partition);
+  }
+
+  static void Final(sqlite3_context* ctx) {
+    auto raw_agg_ctx = AggCtx::GetContextOrNullForFinal(ctx);
+    if (!raw_agg_ctx) {
+      return sqlite::result::Null(ctx);
+    }
+    return sqlite::result::UniquePointer(
+        ctx,
+        std::make_unique<perfetto_sql::PartitionedTable>(
+            std::move(raw_agg_ctx.get()->partitions)),
+        perfetto_sql::PartitionedTable::kName);
+  }
+};
+
 }  // namespace
 
 base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine,
@@ -621,6 +787,9 @@ base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine,
       perfetto_sql::PartitionedTable::UserData{pool};
   RETURN_IF_ERROR(engine.RegisterAggregateFunction<IntervalTreeIntervalsAgg>(
       &interval_tree_user_data));
+  RETURN_IF_ERROR(
+      engine.RegisterAggregateFunction<IntervalTreeIntervalsWithAggAgg>(
+          &interval_tree_user_data));
   RETURN_IF_ERROR(
       engine.RegisterAggregateFunction<CounterPerTrackAgg>(nullptr));
 

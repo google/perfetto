@@ -47,7 +47,13 @@ class IntervalsSelfIntersect(TestSuite):
           SELECT * FROM data;
 
         SELECT ts, dur, group_id, count
-        FROM _interval_self_intersect!(intervals, ())
+        FROM interval_to_table!(
+          interval_intersect!(
+            interval_partition!(intervals, ()),
+            (interval_agg!(count, COUNT))
+          ),
+          (ts, dur, group_id, count)
+        )
         ORDER BY ts;
         """,
         out=Csv("""
@@ -78,8 +84,14 @@ class IntervalsSelfIntersect(TestSuite):
           dur,
           group_id,
           count,
-          sum
-        FROM _interval_self_intersect_sum!(intervals, (), value)
+          sum_value AS sum
+        FROM interval_to_table!(
+          interval_intersect!(
+            interval_partition_with_agg!(intervals, (), (value)),
+            (interval_agg!(count, COUNT), interval_agg!(value, SUM))
+          ),
+          (ts, dur, group_id, count, sum_value)
+        )
         ORDER BY ts;
         """,
         out=Csv("""
@@ -110,8 +122,14 @@ class IntervalsSelfIntersect(TestSuite):
           dur,
           group_id,
           count,
-          max
-        FROM _interval_self_intersect_max!(intervals, (), priority)
+          max_priority AS max
+        FROM interval_to_table!(
+          interval_intersect!(
+            interval_partition_with_agg!(intervals, (), (priority)),
+            (interval_agg!(count, COUNT), interval_agg!(priority, MAX))
+          ),
+          (ts, dur, group_id, count, max_priority)
+        )
         ORDER BY ts;
         """,
         out=Csv("""
@@ -142,8 +160,14 @@ class IntervalsSelfIntersect(TestSuite):
           dur,
           group_id,
           count,
-          min
-        FROM _interval_self_intersect_min!(intervals, (), value)
+          min_value AS min
+        FROM interval_to_table!(
+          interval_intersect!(
+            interval_partition_with_agg!(intervals, (), (value)),
+            (interval_agg!(count, COUNT), interval_agg!(value, MIN))
+          ),
+          (ts, dur, group_id, count, min_value)
+        )
         ORDER BY ts;
         """,
         out=Csv("""
@@ -174,7 +198,13 @@ class IntervalsSelfIntersect(TestSuite):
           SELECT * FROM data;
 
         SELECT ts, dur, group_id, count
-        FROM _interval_self_intersect!(intervals, ())
+        FROM interval_to_table!(
+          interval_intersect!(
+            interval_partition!(intervals, ()),
+            (interval_agg!(count, COUNT))
+          ),
+          (ts, dur, group_id, count)
+        )
         ORDER BY ts;
         """,
         out=Csv("""
@@ -187,7 +217,7 @@ class IntervalsSelfIntersect(TestSuite):
   def test_self_intersect_all_overlap(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
-        # All three intervals overlap in [2,3)
+        # All three intervals overlap in [2,5)
         query="""
         INCLUDE PERFETTO MODULE intervals.self_intersect;
 
@@ -200,8 +230,14 @@ class IntervalsSelfIntersect(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT ts, dur, group_id, count, sum
-        FROM _interval_self_intersect_sum!(intervals, (), value)
+        SELECT ts, dur, group_id, count, sum_value AS sum
+        FROM interval_to_table!(
+          interval_intersect!(
+            interval_partition_with_agg!(intervals, (), (value)),
+            (interval_agg!(count, COUNT), interval_agg!(value, SUM))
+          ),
+          (ts, dur, group_id, count, sum_value)
+        )
         ORDER BY ts;
         """,
         out=Csv("""
@@ -209,6 +245,7 @@ class IntervalsSelfIntersect(TestSuite):
         0,1,0,1,100.000000
         1,1,1,2,300.000000
         2,3,2,3,600.000000
+        5,0,3,2,300.000000
         """))
 
   def test_self_intersect_with_partitions(self):
@@ -227,8 +264,14 @@ class IntervalsSelfIntersect(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT ts, dur, group_id, cpu, count, sum
-        FROM _interval_self_intersect_sum!(intervals, (cpu), value)
+        SELECT ts, dur, group_id, cpu, count, sum_value AS sum
+        FROM interval_to_table!(
+          interval_intersect!(
+            interval_partition_with_agg!(intervals, (cpu), (value)),
+            (interval_agg!(count, COUNT), interval_agg!(value, SUM))
+          ),
+          (ts, dur, group_id, count, sum_value, cpu)
+        )
         ORDER BY cpu, ts;
         """,
         out=Csv("""
@@ -256,15 +299,55 @@ class IntervalsSelfIntersect(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT ts, dur, count, avg
-        FROM _interval_self_intersect_avg!(intervals, (), value)
+        SELECT ts, dur, group_id, count, avg_value AS avg
+        FROM interval_to_table!(
+          interval_intersect!(
+            interval_partition_with_agg!(intervals, (), (value)),
+            (interval_agg!(count, COUNT), interval_agg!(value, AVG))
+          ),
+          (ts, dur, group_id, count, avg_value)
+        )
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","count","avg"
-        0,1,1,10.000000
-        1,1,2,15.000000
-        2,1,3,20.000000
-        3,1,2,25.000000
-        4,1,1,30.000000
+        "ts","dur","group_id","count","avg"
+        0,1,0,1,10.000000
+        1,1,1,2,15.000000
+        2,1,2,3,20.000000
+        3,1,3,2,25.000000
+        4,1,4,1,30.000000
+        """))
+
+  def test_self_intersect_no_aggregation(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        # Test unaggregated mode - just raw intersection buckets
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        CREATE PERFETTO TABLE intervals AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 0, 4),
+            (1, 2, 4),
+            (2, 4, 3)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, group_id
+        FROM interval_to_table!(
+          interval_intersect!(
+            interval_partition!(intervals, ()),
+            ()
+          ),
+          (ts, dur, group_id)
+        )
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","group_id"
+        0,2,0
+        2,2,1
+        4,2,2
+        6,1,3
         """))

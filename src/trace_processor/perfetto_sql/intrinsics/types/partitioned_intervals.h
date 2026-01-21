@@ -58,6 +58,7 @@ struct PartitionedTable {
 
   Partitions partitions_map;
   std::vector<std::string> partition_column_names;
+  std::vector<std::string> agg_column_names;
 };
 
 }  // namespace perfetto::trace_processor::perfetto_sql
