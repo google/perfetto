@@ -609,15 +609,12 @@
   .chrome-probe-settings {
     > h2 {
       font-size: var(--pf-font-size-l);
-    }
-
-    > h2,
-    .chrome-privacy-setting {
       padding-top: var(--record-section-padding);
     }
 
     > h2,
-    .chrome-categories {
+    .chrome-categories,
+    .chrome-privacy-setting {
       padding-bottom: calc(var(--record-section-padding) / 2);
     }
 
@@ -627,22 +624,29 @@
     }
 
     .chrome-tags-panel {
-      height: 250px;
-      display: flex;
-      flex-direction: column;
+      padding-bottom: calc(var(--record-section-padding) / 2);
 
       > div {
         overflow-y: auto;
+      }
+
+      > .pf-button {
+        font-size: var(--pf-font-size-l);
+        padding-left: 0;
       }
 
       > .pf-multiselect-panel {
         height: 100%;
         overflow: hidden;
         padding-top: calc(var(--record-section-padding) / 2);
+      }
+    }
 
-        .pf-list {
-          flex-grow: 1;
-        }
+    .chrome-tags-panel-chips {
+      padding-left: 22px;
+      .pf-chip {
+        margin-top: calc(var(--record-section-padding) / 4);
+        margin-right: calc(var(--record-section-padding) / 4);
       }
     }
 
