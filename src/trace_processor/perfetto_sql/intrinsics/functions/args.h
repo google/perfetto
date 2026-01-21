@@ -18,7 +18,7 @@
 #include <optional>
 
 #include "perfetto/ext/base/dynamic_string_writer.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/storage/trace_storage.h"

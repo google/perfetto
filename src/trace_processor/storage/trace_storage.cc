@@ -25,8 +25,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/tables/all_tables_fwd.h"
 #include "src/trace_processor/tables/android_tables_py.h"   // IWYU pragma: keep
 #include "src/trace_processor/tables/counter_tables_py.h"   // IWYU pragma: keep
