@@ -67,7 +67,11 @@ class TraceGenerator:
           os.path.join(root_dir, 'test'), env['PYTHONPATH'])
     else:
       env['PYTHONPATH'] = os.path.join(root_dir, 'test')
-    subprocess.check_call(python_cmd, env=env, stdout=out_stream)
+    # Use start_new_session to put trace generation in a separate process group.
+    # This prevents SIGINT from Ctrl+C reaching these processes and causing
+    # protobuf to crash mid-operation.
+    subprocess.check_call(
+        python_cmd, env=env, stdout=out_stream, start_new_session=True)
 
   def serialize_simpleperf_proto_trace(self, simpleperf_trace: SimpleperfProto,
                                        out_stream: IO[bytes]):
