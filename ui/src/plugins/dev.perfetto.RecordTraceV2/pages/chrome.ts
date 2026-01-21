@@ -27,7 +27,7 @@ import {
   MultiSelectDiff,
   MultiSelectOption,
 } from '../../../widgets/multiselect';
-import {TabOption, TabStrip} from '../../../widgets/tab_strip';
+import {Tabs, TabsTab} from '../../../widgets/tabs';
 import {Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
@@ -48,7 +48,7 @@ export function chromeRecordSection(
 }
 
 function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
-  const groupToggles = Object.fromEntries(
+  const presetToggles = Object.fromEntries(
     Object.entries(GROUPS).map(([groupName, categories]) => [
       groupName,
       new Toggle({
@@ -65,7 +65,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
 
   const categories = new ChromeCategoriesWidget(
     chromeCategoryGetter,
-    groupToggles,
+    presetToggles,
     privacyToggle,
   );
 
@@ -76,15 +76,17 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
     title: 'Chrome browser tracing',
     settings,
     genConfig(tc: TraceConfigBuilder) {
-      const cats = settings.categories.getIncludedCategories();
+      const cats = settings.categories.getAllIncludedCategories();
       const memoryInfra = cats.has('disabled-by-default-memory-infra');
+      // Disable all by default => only explicitly enab;e categories.
+      const DISABLED_CATEGORIES = '*';
       const jsonStruct = {
         record_mode:
           tc.mode === 'STOP_WHEN_FULL'
             ? 'record-until-full'
             : 'record-continuously',
         included_categories: [...cats],
-        excluded_categories: ['*'], // Only include categories explicitly
+        excluded_categories: [DISABLED_CATEGORIES],
         memory_dump_config: memoryInfra
           ? {
               allowed_dump_modes: ['background', 'light', 'detailed'],
@@ -106,10 +108,20 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
 
       const trackEvent = tc.addDataSource('track_event');
       const trackEvtCfg = (trackEvent.trackEventConfig ??= {});
-      trackEvtCfg.disabledCategories ??= ['*'];
+      trackEvtCfg.disabledCategories ??= [DISABLED_CATEGORIES];
       trackEvtCfg.enabledCategories ??= [];
-      trackEvtCfg.enabledCategories.push(...cats);
+      trackEvtCfg.enabledCategories.push(...settings.categories.getEnabledCategories());
       trackEvtCfg.enabledCategories.push('__metadata');
+      const enabledTags = settings.categories.getEnabledTags();
+      if (enabledTags.length > 0) {
+        trackEvtCfg.enabledTags ??= [];
+        trackEvtCfg.enabledTags.push(...enabledTags);
+      }
+      const disabledTags = settings.categories.getDisabledTags();
+      if (disabledTags.length > 0) {
+        trackEvtCfg.enabledTags ??= [];
+        trackEvtCfg.enabledTags.push(...disabledTags);
+      }
       trackEvtCfg.enableThreadTimeSampling = true;
       trackEvtCfg.timestampUnitMultiplier = 1000;
       trackEvtCfg.filterDynamicEventNames = privacyFilteringEnabled;
@@ -153,12 +165,14 @@ const DISABLED_PREFIX = 'disabled-by-default-';
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private tagsMap = new Map<string, MultiSelectOption[]>();
+  private enabledTags = new Set<string>();
+  private disabledTags = new Set<string>();
   private fetchedRuntimeCategories = false;
   private activeTab = 'presets';
 
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
-    private groupToggles: Record<string, Toggle>,
+    private presetToggles: Record<string, Toggle>,
     private privacyToggle: Toggle,
   ) {
     // Initialize first with the static list of builtin categories (in case
@@ -170,15 +184,35 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     );
   }
 
-  public getIncludedCategories(): Set<string> {
+  public getAllIncludedCategories(): Set<string> {
     const cats = new Set<string>();
     this.getEnabledCategories().forEach((c) => cats.add(c));
-    for (const [group, groupCats] of Object.entries(GROUPS)) {
-      if ((this.groupToggles[group] as Toggle).enabled) {
-        groupCats.forEach((c) => cats.add(c));
+    for (const tag of this.enabledTags) {
+      const options = this.tagsMap.get(tag);
+      if (options) {
+        options.forEach((o) => cats.add(o.id));
       }
     }
     return cats;
+  }
+
+  public getEnabledTags(): string[] {
+    return Array.from(this.enabledTags);
+  }
+
+  public getDisabledTags(): string[] {
+    return Array.from(this.disabledTags);
+  }
+
+  public getEnabledCategories(): string[] {
+    const cats = new Set<string>();
+    this.getManuallyEnabledCategories().forEach((c) => cats.add(c));
+    for (const [group, groupCats] of Object.entries(GROUPS)) {
+      if ((this.presetToggles[group] as Toggle).enabled) {
+        groupCats.forEach((c) => cats.add(c));
+      }
+    }
+    return Array.from(cats);
   }
 
   private async fetchRuntimeCategoriesIfNeeded() {
@@ -217,7 +251,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     return this.tagsMap.size > 0;
   }
 
-  private getEnabledCategories(): string[] {
+  private getManuallyEnabledCategories(): string[] {
     return this.options.filter((o) => o.checked).map((o) => o.id);
   }
 
@@ -229,21 +263,22 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   private getEnabledPresets(): string[] {
-    return Object.entries(this.groupToggles)
+    return Object.entries(this.presetToggles)
       .filter(([, toggle]) => toggle.enabled)
       .map(([name]) => name);
   }
 
   private setPresets(presets: string[]) {
-    for (const [name, toggle] of Object.entries(this.groupToggles)) {
+    for (const [name, toggle] of Object.entries(this.presetToggles)) {
       toggle.setEnabled(presets.includes(name));
     }
   }
 
   serialize() {
     return {
-      categories: this.getEnabledCategories(),
+      categories: this.getManuallyEnabledCategories(),
       presets: this.getEnabledPresets(),
+      tags: this.getEnabledTags(),
       privacy: this.privacyToggle.serialize(),
     };
   }
@@ -256,14 +291,16 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     }
 
     if (typeof state === 'object' && state !== null) {
-      const {categories, presets, privacy} = state as {
+      const {categories, presets, tags, privacy} = state as {
         categories?: string[];
         presets?: string[];
+        tags?: string[];
         privacy?: boolean;
       };
 
       this.maybeDeserializeCategories(categories);
       this.maybeDeserializePresets(presets);
+      this.maybeDeserializeTags(tags);
 
       if (typeof privacy === 'boolean') {
         this.privacyToggle.deserialize(privacy);
@@ -289,6 +326,13 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     this.setPresets(presets);
   }
 
+  private maybeDeserializeTags(tags: unknown) {
+    if (!Array.isArray(tags)) return;
+    if (!tags.every((x) => typeof x === 'string')) return;
+    this.enabledTags.clear();
+    tags.forEach((tag) => this.enabledTags.add(tag));
+  }
+
   render() {
     const categoriesOptions: MultiSelectOption[] = [];
     const slowCategoriesOptions: MultiSelectOption[] = [];
@@ -304,23 +348,53 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       }
     }
 
-    const activeCategories = Array.from(this.getIncludedCategories()).sort();
+    const activeCategories = Array.from(this.getAllIncludedCategories()).sort();
 
     const tagOptions = Array.from(this.tagsMap.entries()).map(
-      ([tag, options]) => {
+      ([tag, _]) => {
         return {
           id: tag,
           name: tag,
-          checked: options.every((o) => o.checked),
+          checked: this.enabledTags.has(tag),
         };
       },
     );
 
-    const tabs: TabOption[] = [];
+    const tabs: TabsTab[] = [];
     if (this.hasTags()) {
-      tabs.push({key: 'tags', title: 'Tags', leftIcon: 'tag'});
+      tabs.push({
+        key: 'tags',
+        title: [m(Icon, {icon: 'tag'}), ' Tags'],
+        content: m(
+          'div.chrome-tags-panel',
+          m(MultiSelect, {
+            options: tagOptions,
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => {
+                if (checked) {
+                  this.enabledTags.add(id);
+                } else {
+                  this.enabledTags.delete(id);
+                }
+              });
+            },
+          }),
+        ),
+      });
     }
-    tabs.push({key: 'presets', title: 'Presets', leftIcon: 'cards_star'});
+    tabs.push({
+      key: 'presets',
+      title: [m(Icon, {icon: 'cards_star'}), ' Presets'],
+      content: m(
+        'div.chrome-tags-panel',
+        m(
+          'div',
+          Object.values(this.presetToggles).map((t) => t.render()),
+        ),
+      ),
+    });
 
     return m(
       'div.chrome-probe-settings',
@@ -331,34 +405,12 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
-      m(TabStrip, {
+      m(Tabs, {
         tabs,
         className: 'chrome-categories-presets',
-        currentTabKey: this.activeTab,
+        activeTabKey: this.activeTab,
         onTabChange: (key) => (this.activeTab = key),
       }),
-      m(
-        'div.chrome-tags-panel',
-        this.activeTab === 'tags' &&
-          m(MultiSelect, {
-            options: tagOptions,
-            repeatCheckedItemsAtTop: false,
-            fixedSize: false,
-            onChange: (diffs: MultiSelectDiff[]) => {
-              diffs.forEach(({id, checked}) => {
-                const options = this.tagsMap.get(id);
-                if (options) {
-                  options.forEach((o) => (o.checked = checked));
-                }
-              });
-            },
-          }),
-        this.activeTab === 'presets' &&
-          m(
-            'div',
-            Object.values(this.groupToggles).map((t) => t.render()),
-          ),
-      ),
       m('div.chrome-privacy-setting', this.privacyToggle.render()),
       m('h2', m(Icon, {icon: 'list'}), ' Details'),
       m(
