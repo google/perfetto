@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import {DetailsPanel} from '../public/details_panel';
-import {TabDescriptor, TabManager} from '../public/tab';
+import {
+  CURRENT_SELECTION_TAB_URI,
+  TabDescriptor,
+  TabManager,
+} from '../public/tab';
 import {DrawerPanelVisibility, toggleVisibility} from '../widgets/drawer_panel';
 
 export interface ResolvedTab {
@@ -33,7 +37,7 @@ export class TabManagerImpl implements TabManager, Disposable {
   private _detailsPanelRegistry = new Set<DetailsPanel>();
   private _instantiatedTabs = new Map<string, TabDescriptor>();
   private _openTabs: string[] = []; // URIs of the tabs open.
-  private _currentTab: string = 'current_selection';
+  private _currentTab: string = CURRENT_SELECTION_TAB_URI;
   private _tabPanelVisibility = DrawerPanelVisibility.COLLAPSED;
   private _tabPanelVisibilityChanged = false;
 
@@ -64,12 +68,12 @@ export class TabManagerImpl implements TabManager, Disposable {
   }
 
   showCurrentSelectionTab(): void {
-    this.showTab('current_selection');
+    this.showTab(CURRENT_SELECTION_TAB_URI);
   }
 
   showTab(uri: string): void {
     // Add tab, unless we're talking about the special current_selection tab
-    if (uri !== 'current_selection') {
+    if (uri !== CURRENT_SELECTION_TAB_URI) {
       // Add tab to tab list if not already
       if (!this._openTabs.some((x) => x === uri)) {
         this._openTabs.push(uri);
@@ -104,7 +108,7 @@ export class TabManagerImpl implements TabManager, Disposable {
       if (currentTabIdx !== -1) {
         if (this._openTabs.length === 0) {
           // No more tabs, use current selection
-          this._currentTab = 'current_selection';
+          this._currentTab = CURRENT_SELECTION_TAB_URI;
         } else if (currentTabIdx < this._openTabs.length - 1) {
           // Pick the tab to the right
           this._currentTab = this._openTabs[currentTabIdx];

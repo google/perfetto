@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Selection} from './selection';
 
 export interface TabManager {
   registerTab(tab: TabDescriptor): void;
@@ -26,10 +27,20 @@ export interface Tab {
   getTitle(): string;
 }
 
+export const CURRENT_SELECTION_TAB_URI = 'current_selection';
+
+export abstract class TraceTab implements Tab {
+  abstract render(): m.Children;
+  abstract getTitle(): string;
+  getSelectionURL(_selection: Selection): string {
+    return CURRENT_SELECTION_TAB_URI;
+  }
+}
+
 export interface TabDescriptor {
   uri: string; // TODO(stevegolton): Maybe optional for ephemeral tabs.
   content: Tab;
   isEphemeral?: boolean; // Defaults false
-  onHide?(): void;
   onShow?(): void;
+  onHide?(): void;
 }

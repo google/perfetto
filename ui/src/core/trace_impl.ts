@@ -30,6 +30,7 @@ import {TrackManagerImpl} from './track_manager';
 import {WorkspaceManagerImpl} from './workspace_manager';
 import {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
+import {TraceTab} from '../public/tab';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
 import {FlowManager} from './flow_manager';
@@ -179,12 +180,20 @@ export class TraceImpl implements Trace, Disposable {
   // This method wires up changes to selection to side effects on search and
   // tabs. This is to avoid entangling too many dependencies between managers.
   private onSelectionChange(selection: Selection, opts: SelectionOpts) {
-    const {clearSearch = true, switchToCurrentSelectionTab = true} = opts;
+    const {clearSearch = true, switchToCurrentSelectionTab = false} = opts;
     if (clearSearch) {
       this.search.reset();
     }
     if (switchToCurrentSelectionTab && selection.kind !== 'empty') {
       this.tabs.showCurrentSelectionTab();
+    } else {
+      const currentTabUri = this.tabs.currentTabUri;
+      const tab = this.tabs.resolveTab(currentTabUri);
+      if (tab && tab.content instanceof TraceTab) {
+        this.tabs.showTab(tab.content.getSelectionURL(selection));
+      } else {
+        this.tabs.showCurrentSelectionTab();
+      }
     }
 
     this.flows.updateFlows(selection);

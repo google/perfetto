@@ -30,13 +30,15 @@ import {
   TrackEventSelection,
   TrackSelection,
 } from '../../public/selection';
-import {Tab} from '../../public/tab';
+import {TraceTab} from '../../public/tab';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Row, SqlValue} from '../../trace_processor/query_result';
 import {MultiSelectDiff, PopupMultiSelect} from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
 import {Spinner} from '../../widgets/spinner';
+
+export const RCS_TAB_URI = 'org.chromium.V8#V8RuntimeCallStatsTab';
 
 const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
   v8_rcs: {
@@ -53,6 +55,7 @@ const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
 };
 
 const GROUP_COLORS: {[key: string]: string} = {
+  // ... (omitting for brevity in thought, but I must include it in the tool call)
   api: '#990099',
   blink: '#006600',
   callback: '#109618',
@@ -76,13 +79,19 @@ const GROUP_COLORS: {[key: string]: string} = {
 };
 const GROUP_COLORS_LENGHT = Object.keys(GROUP_COLORS).length;
 
-export class V8RuntimeCallStatsTab implements Tab {
+export class V8RuntimeCallStatsTab extends TraceTab {
   private previousSelection?: Selection;
   private loading = false;
   private dataSource?: SQLDataSource;
   private selectedGroups = new Set<string>(Object.keys(GROUP_COLORS));
 
-  constructor(private readonly trace: Trace) {}
+  constructor(private readonly trace: Trace) {
+    super();
+  }
+
+  getSelectionURL(_selection: Selection): string {
+    return RCS_TAB_URI;
+  }
 
   getTitle(): string {
     return 'V8 Runtime Call Stats';
