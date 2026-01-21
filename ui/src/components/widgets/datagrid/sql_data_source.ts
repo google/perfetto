@@ -1085,20 +1085,43 @@ WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
       }
     }
 
-    // Get expanded paths from pivot state, grouped by level for efficient filtering
-    const expandedPathsByLevel = new Map<number, string[]>();
+    // Get expanded paths from pivot state
+    // A path is "fully expanded" only if ALL its ancestors are also expanded
+    const allExpandedPaths = new Set<string>();
     if ('expandedGroups' in pivot && pivot.expandedGroups) {
       for (const path of pivot.expandedGroups) {
-        // Each path is a single-element array containing the string path
         if (path.length === 1 && typeof path[0] === 'string') {
-          const pathStr = path[0];
-          // Calculate the level of this expanded path (count delimiters)
-          const level =
-            pathStr.length - pathStr.replaceAll(delimiter, '').length;
-          if (!expandedPathsByLevel.has(level)) {
-            expandedPathsByLevel.set(level, []);
+          allExpandedPaths.add(path[0]);
+        }
+      }
+    }
+
+    // Compute fully expanded paths (where all ancestors are also expanded)
+    const fullyExpandedPaths: string[] = [];
+    for (const pathStr of allExpandedPaths) {
+      const level =
+        pathStr.length - pathStr.replaceAll(delimiter, '').length;
+
+      if (level === 0) {
+        // Level 0 paths have no ancestors - always fully expanded
+        fullyExpandedPaths.push(pathStr);
+      } else {
+        // Check if all ancestors are expanded
+        const parts = pathStr.split(delimiter);
+        let ancestorPath = '';
+        let allAncestorsExpanded = true;
+
+        for (let i = 0; i < parts.length - 1; i++) {
+          ancestorPath =
+            i === 0 ? parts[0] : ancestorPath + delimiter + parts[i];
+          if (!allExpandedPaths.has(ancestorPath)) {
+            allAncestorsExpanded = false;
+            break;
           }
-          expandedPathsByLevel.get(level)!.push(pathStr);
+        }
+
+        if (allAncestorsExpanded) {
+          fullyExpandedPaths.push(pathStr);
         }
       }
     }
@@ -1106,16 +1129,15 @@ WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
     // Build the expansion filter using GLOB prefix matching
     // A row is visible if:
     // 1. It's a root (level = 0), OR
-    // 2. Its parent path is expanded (path GLOB 'parent/*' AND level = parent_level + 1)
+    // 2. Its parent path is fully expanded (all ancestors expanded too)
     // Note: Use t. prefix since this is used after LEFT JOIN with __has_children__
     const expansionConditions: string[] = ['t."__level__" = 0'];
-    for (const [parentLevel, paths] of expandedPathsByLevel) {
-      const childLevel = parentLevel + 1;
-      const globConditions = paths
-        .map((p) => `t.__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
-        .join(' OR ');
+    for (const pathStr of fullyExpandedPaths) {
+      const pathLevel =
+        pathStr.length - pathStr.replaceAll(delimiter, '').length;
+      const childLevel = pathLevel + 1;
       expansionConditions.push(
-        `(t."__level__" = ${childLevel} AND (${globConditions}))`,
+        `(t."__level__" = ${childLevel} AND t.__tree_path__ GLOB ${sqlValue(pathStr + delimiter + '*')})`,
       );
     }
     const expansionFilter = expansionConditions.join('\n   OR ');
@@ -1250,17 +1272,42 @@ GROUP BY t.__tree_path__${options.includeOrderBy ? '\nORDER BY t.__tree_path__' 
       }
     } else {
       // Whitelist mode: only expanded paths are visible
-      const expandedPathsByLevel = new Map<number, string[]>();
+      // A path is "fully expanded" only if ALL its ancestors are also expanded
+      const allExpandedPaths = new Set<string>();
       if ('expandedPaths' in tree && tree.expandedPaths) {
         for (const path of tree.expandedPaths) {
           if (path.length === 1 && typeof path[0] === 'string') {
-            const pathStr = path[0];
-            const level =
-              pathStr.length - pathStr.replaceAll(delimiter, '').length;
-            if (!expandedPathsByLevel.has(level)) {
-              expandedPathsByLevel.set(level, []);
+            allExpandedPaths.add(path[0]);
+          }
+        }
+      }
+
+      // Compute fully expanded paths (where all ancestors are also expanded)
+      const fullyExpandedPaths: string[] = [];
+      for (const pathStr of allExpandedPaths) {
+        const level =
+          pathStr.length - pathStr.replaceAll(delimiter, '').length;
+
+        if (level === 0) {
+          // Level 0 paths have no ancestors - always fully expanded
+          fullyExpandedPaths.push(pathStr);
+        } else {
+          // Check if all ancestors are expanded
+          const parts = pathStr.split(delimiter);
+          let ancestorPath = '';
+          let allAncestorsExpanded = true;
+
+          for (let i = 0; i < parts.length - 1; i++) {
+            ancestorPath =
+              i === 0 ? parts[0] : ancestorPath + delimiter + parts[i];
+            if (!allExpandedPaths.has(ancestorPath)) {
+              allAncestorsExpanded = false;
+              break;
             }
-            expandedPathsByLevel.get(level)!.push(pathStr);
+          }
+
+          if (allAncestorsExpanded) {
+            fullyExpandedPaths.push(pathStr);
           }
         }
       }
@@ -1268,13 +1315,12 @@ GROUP BY t.__tree_path__${options.includeOrderBy ? '\nORDER BY t.__tree_path__' 
       // Build the expansion filter using GLOB prefix matching
       // Note: Use t. prefix since this is used after LEFT JOIN with __has_children__
       const expansionConditions: string[] = ['t."__level__" = 0'];
-      for (const [parentLevel, paths] of expandedPathsByLevel) {
-        const childLevel = parentLevel + 1;
-        const globConditions = paths
-          .map((p) => `t.__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
-          .join(' OR ');
+      for (const pathStr of fullyExpandedPaths) {
+        const pathLevel =
+          pathStr.length - pathStr.replaceAll(delimiter, '').length;
+        const childLevel = pathLevel + 1;
         expansionConditions.push(
-          `(t."__level__" = ${childLevel} AND (${globConditions}))`,
+          `(t."__level__" = ${childLevel} AND t.__tree_path__ GLOB ${sqlValue(pathStr + delimiter + '*')})`,
         );
       }
       expansionFilter = expansionConditions.join('\n   OR ');
