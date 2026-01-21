@@ -46,6 +46,7 @@ import {showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
 import {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
+import {SerializedAppState} from '../../core/state_serialization_schema';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 
@@ -851,6 +852,28 @@ export default class CoreCommands implements PerfettoPlugin {
         if (state.ok) {
           deserializeAppStatePhase1(state.value, ctx);
           deserializeAppStatePhase2(state.value, ctx);
+        }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ClearState',
+      name: 'Clear UI state',
+      callback: () => {
+        const state = parseAppState({
+          notes: [],
+          pinnedTracks: [],
+          selection: [],
+          store: [],
+          version: 1,
+        } satisfies SerializedAppState);
+        if (state.ok) {
+          deserializeAppStatePhase1(state.value, ctx);
+          deserializeAppStatePhase2(state.value, ctx);
+        } else {
+          throw new Error('Failed to parse default state', {
+            cause: state.error,
+          });
         }
       },
     });

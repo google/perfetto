@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
-import {createStore, Migrate, Store} from '../base/store';
+import {createStore, Store} from '../base/store';
+import {z} from 'zod';
 import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
@@ -321,8 +322,8 @@ export class TraceImpl implements Trace, Disposable {
     return this.app.perfDebugging;
   }
 
-  mountStore<T>(id: string, migrate: Migrate<T>): Store<T> {
-    return this.store.createSubStore([id], migrate);
+  mountStore<S extends z.ZodType>(id: string, schema: S): Store<z.output<S>> {
+    return this.store.createSubStore([id], schema);
   }
 }
 

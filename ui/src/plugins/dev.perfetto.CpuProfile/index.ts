@@ -48,14 +48,10 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
 
   private store?: Store<CpuProfilePluginState>;
 
-  private migrateCpuProfilePluginState(init: unknown): CpuProfilePluginState {
-    const result = CPU_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore(CpuProfilePlugin.id, (init) =>
-      this.migrateCpuProfilePluginState(init),
+    this.store = ctx.mountStore(
+      CpuProfilePlugin.id,
+      CPU_PROFILE_PLUGIN_STATE_SCHEMA,
     );
     const result = await ctx.engine.query(`
       with thread_cpu_sample as (

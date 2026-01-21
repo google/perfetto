@@ -74,14 +74,10 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   private parentTrackNodes = new Map<string, TrackNode>();
   private store?: Store<TrackEventPluginState>;
 
-  private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
-    const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore(TrackEventPlugin.id, (init) =>
-      this.migrateTrackEventPluginState(init),
+    this.store = ctx.mountStore(
+      TrackEventPlugin.id,
+      TRACK_EVENT_PLUGIN_STATE_SCHEMA,
     );
 
     await ctx.engine.query(`include perfetto module viz.summary.track_event;`);

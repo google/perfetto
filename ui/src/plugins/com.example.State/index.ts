@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
 import {createStore, Store} from '../../base/store';
-import {exists} from '../../base/utils';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 
-interface State {
-  counter: number;
-}
+const StateSchema = z.object({
+  counter: z.number().default(0),
+});
+
+type State = z.infer<typeof StateSchema>;
 
 // This example plugin shows using state that is persisted in the
 // permalink.
@@ -28,23 +30,8 @@ export default class implements PerfettoPlugin {
   static readonly id = 'com.example.State';
   private store: Store<State> = createStore({counter: 0});
 
-  private migrate(initialState: unknown): State {
-    if (
-      exists(initialState) &&
-      typeof initialState === 'object' &&
-      'counter' in initialState &&
-      typeof initialState.counter === 'number'
-    ) {
-      return {counter: initialState.counter};
-    } else {
-      return {counter: 0};
-    }
-  }
-
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore('com.example.SkeletonStore', (init: unknown) =>
-      this.migrate(init),
-    );
+    this.store = ctx.mountStore('com.example.SkeletonStore', StateSchema);
 
     ctx.commands.registerCommand({
       id: 'com.example.ShowCounter',

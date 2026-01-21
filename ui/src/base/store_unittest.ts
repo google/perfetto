@@ -13,40 +13,20 @@
 // limitations under the License.
 
 import {Draft} from 'immer';
+import {z} from 'zod';
 import {createStore} from './store';
-import {exists} from './utils';
 
-interface Bar {
-  value: number;
-}
+// Zod schemas for test types
+const BarSchema = z.object({
+  value: z.number().default(456),
+});
 
-interface Foo {
-  counter: number;
-  nested: Bar;
-}
+const FooSchema = z.object({
+  counter: z.number().default(123),
+  nested: BarSchema.prefault({}),
+});
 
-function migrateFoo(init: unknown): Foo {
-  const migrated: Foo = {
-    counter: 123,
-    nested: {
-      value: 456,
-    },
-  };
-  if (exists(init) && typeof init === 'object') {
-    if ('counter' in init && typeof init.counter === 'number') {
-      migrated.counter = init.counter;
-    }
-    if ('nested' in init && typeof init.nested === 'object' && init.nested) {
-      if ('value' in init.nested && typeof init.nested.value === 'number') {
-        migrated.nested.value = init.nested.value;
-      }
-    }
-  }
-
-  console.log('migrating', init);
-
-  return migrated;
-}
+type Foo = z.output<typeof FooSchema>;
 
 interface State {
   foo: Foo;
@@ -124,7 +104,7 @@ describe('root store', () => {
 describe('sub-store', () => {
   test('edit', () => {
     const store = createStore(initialState);
-    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
+    const subStore = store.createSubStore(['foo'], FooSchema);
 
     subStore.edit((draft) => {
       draft.counter += 1;
@@ -149,7 +129,7 @@ describe('sub-store', () => {
 
   test('edit from root store', () => {
     const store = createStore(initialState);
-    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
+    const subStore = store.createSubStore(['foo'], FooSchema);
 
     store.edit((draft) => {
       draft.foo.counter += 1;
@@ -165,11 +145,8 @@ describe('sub-store', () => {
 
   it('can create more substores and edit', () => {
     const store = createStore(initialState);
-    const fooState = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
-    const nestedStore = fooState.createSubStore<Bar>(
-      ['nested'],
-      (x) => x as Bar,
-    );
+    const fooState = store.createSubStore(['foo'], FooSchema);
+    const nestedStore = fooState.createSubStore(['nested'], BarSchema);
 
     nestedStore.edit((draft) => {
       draft.value += 1;
@@ -180,35 +157,40 @@ describe('sub-store', () => {
     });
   });
 
-  it('handles reading when path doesn\t exist in root store', () => {
+  it('handles reading when path does not exist in root store', () => {
     const store = createStore(initialState);
 
     // This target node is missing - baz doesn't exist in State
-    const subStore = store.createSubStore<Foo>(['baz'], (x) => x as Foo);
-    expect(subStore.state).toBe(undefined);
-  });
-
-  it("handles edit when path doesn't exist in root store", () => {
-    const store = createStore(initialState);
-    const value: Foo = {
+    // With Zod schemas, missing paths get default values from the schema
+    const subStore = store.createSubStore(['baz'], FooSchema);
+    expect(subStore.state).toEqual({
       counter: 123,
       nested: {
         value: 456,
       },
-    };
+    });
+  });
+
+  it("handles edit when path doesn't exist in root store", () => {
+    const store = createStore(initialState);
 
     // This target node is missing - baz doesn't exist in State
-    const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
+    // With Zod schemas, we get defaults and can edit them
+    const subStore = store.createSubStore(['baz', 'quux'], FooSchema);
 
-    // Edits should work just fine, but the root store will not be modified.
+    // Edits should work just fine, but the root store will not be modified
+    // because the intermediate path doesn't exist.
     subStore.edit((draft) => {
       draft.counter += 1;
     });
+
+    // The substore's cached state is updated
+    expect(subStore.state.counter).toBe(124);
   });
 
   it('immutable [in]equality works', () => {
     const store = createStore(initialState);
-    const subStore = store.createSubStore<Foo>(['foo'], migrateFoo);
+    const subStore = store.createSubStore(['foo'], FooSchema);
     const before = subStore.state;
 
     subStore.edit((draft) => {
@@ -224,14 +206,9 @@ describe('sub-store', () => {
     expect(before.nested).toBe(after.nested);
   });
 
-  // This test depends on the migrate function - if it attempts to preserve
-  // equality then we might have a chance, but our migrate function here does
-  // not, and I'm not sure we can expect people do provide one that does.
-  // TODO(stevegolton): See if we can get this working, regardless of migrate
-  // function implementation.
-  it.skip('unrelated state refs are still equal when modified from root store', () => {
+  it('unrelated state refs are still equal when modified from root store', () => {
     const store = createStore(initialState);
-    const subStore = store.createSubStore<Foo>(['foo'], migrateFoo);
+    const subStore = store.createSubStore(['foo'], FooSchema);
     const before = subStore.state;
 
     // Check that unrelated state is still the same even though subtree is
@@ -240,6 +217,7 @@ describe('sub-store', () => {
       draft.foo.counter = 1234;
     });
 
+    // With Zod schema parsing and immer, structural sharing is preserved
     expect(before.nested).toBe(subStore.state.nested);
     expect(subStore.state.counter).toBe(1234);
   });
@@ -248,15 +226,15 @@ describe('sub-store', () => {
     interface RootState {
       dict: {[key: string]: unknown};
     }
-    interface ProxyState {
-      bar: string;
-    }
+
+    const ProxyStateSchema = z.object({
+      bar: z.string().default('bar'),
+    });
 
     const store = createStore<RootState>({dict: {}});
-    const migrate = (init: unknown) => (init ?? {bar: 'bar'}) as ProxyState;
-    const subStore = store.createSubStore(['dict', 'foo'], migrate);
+    const subStore = store.createSubStore(['dict', 'foo'], ProxyStateSchema);
 
-    // Check initial migration works, yet underlying store is untouched
+    // Check initial default values work, yet underlying store is untouched
     expect(subStore.state.bar).toBe('bar');
     expect(store.state.dict['foo']).toBe(undefined);
 
@@ -265,7 +243,9 @@ describe('sub-store', () => {
       draft.bar = 'baz';
     });
     expect(subStore.state.bar).toBe('baz');
-    expect((store.state.dict['foo'] as ProxyState).bar).toBe('baz');
+    expect(
+      (store.state.dict['foo'] as z.output<typeof ProxyStateSchema>).bar,
+    ).toBe('baz');
   });
 
   test('chained substores', () => {
@@ -273,28 +253,83 @@ describe('sub-store', () => {
       dict: {[key: string]: unknown};
     }
 
-    interface FooState {
-      bar: {
-        baz: string;
-      };
-    }
+    const BarStateSchema = z.object({
+      baz: z.string().default('abc'),
+    });
+
+    const FooStateSchema = z.object({
+      bar: BarStateSchema.prefault({}),
+    });
 
     const store = createStore<State>({dict: {}});
 
-    const DEFAULT_FOO_STATE: FooState = {bar: {baz: 'abc'}};
-    const fooStore = store.createSubStore(
-      ['dict', 'foo'],
-      (init) => init ?? DEFAULT_FOO_STATE,
-    );
+    const fooStore = store.createSubStore(['dict', 'foo'], FooStateSchema);
 
-    const subFooStore = fooStore.createSubStore(
-      ['bar'],
-      (x) => x as FooState['bar'],
-    );
+    const subFooStore = fooStore.createSubStore(['bar'], BarStateSchema);
 
     // Since the entry for 'foo' will be undefined in the dict, we expect the
-    // migrate function on fooStore to return DEFAULT_FOO_STATE, and thus the
-    // state of the subFooStore will be DEFAULT_FOO_STATE.bar.
+    // schema defaults to be applied, and thus the state of the subFooStore
+    // will be the default bar state.
     expect(subFooStore.state).toEqual({baz: 'abc'});
+  });
+
+  test('schema provides defaults for missing fields', () => {
+    interface RootState {
+      plugins: {[key: string]: unknown};
+    }
+
+    const PluginStateSchema = z.object({
+      count: z.number().default(0),
+      name: z.string().default('default'),
+      enabled: z.boolean().default(true),
+    });
+
+    const store = createStore<RootState>({plugins: {}});
+    const pluginStore = store.createSubStore(
+      ['plugins', 'myPlugin'],
+      PluginStateSchema,
+    );
+
+    // All defaults should be applied
+    expect(pluginStore.state).toEqual({
+      count: 0,
+      name: 'default',
+      enabled: true,
+    });
+
+    // Partial updates preserve other defaults
+    pluginStore.edit((draft) => {
+      draft.count = 5;
+    });
+
+    expect(pluginStore.state).toEqual({
+      count: 5,
+      name: 'default',
+      enabled: true,
+    });
+  });
+
+  test('schema coerces and validates partial data', () => {
+    interface RootState {
+      data: unknown;
+    }
+
+    const DataSchema = z.object({
+      value: z.number().default(100),
+      label: z.string().default('untitled'),
+    });
+
+    // Simulate loading from permalink with only partial data
+    const store = createStore<RootState>({
+      data: {value: 42}, // label is missing
+    });
+
+    const dataStore = store.createSubStore(['data'], DataSchema);
+
+    // value should be preserved, label should get default
+    expect(dataStore.state).toEqual({
+      value: 42,
+      label: 'untitled',
+    });
   });
 });

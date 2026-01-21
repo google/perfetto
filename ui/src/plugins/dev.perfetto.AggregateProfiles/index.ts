@@ -19,7 +19,10 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {AggregateProfilesPage} from './aggregate_profiles_page';
-import {AggregateProfilesPageState, AGGREGATE_PROFILES_PAGE_STATE_SCHEMA} from './types';
+import {
+  AggregateProfilesPageState,
+  AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
+} from './types';
 import {Store} from '../../base/store';
 import {assertExists} from '../../base/logging';
 
@@ -27,14 +30,10 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AggregateProfiles';
   private store?: Store<AggregateProfilesPageState>;
 
-  private migratePageState(init: unknown): AggregateProfilesPageState {
-    const result = AGGREGATE_PROFILES_PAGE_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
-
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore('dev.perfetto.AggregateProfiles', (init) =>
-      this.migratePageState(init),
+    this.store = trace.mountStore(
+      'dev.perfetto.PprofProfiles',
+      AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
     );
     const profiles = await this.getProfiles(trace);
     if (profiles.length === 0) {

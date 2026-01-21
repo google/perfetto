@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {produce, Draft} from 'immer';
+import {z} from 'zod';
 import {getPath, Path, setPath} from './object_utils';
 
-export type Migrate<T> = (init: unknown) => T;
 export type Edit<T> = (draft: Draft<T>) => void;
 
 /**
@@ -31,7 +31,9 @@ export function createStore<T>(initialState: T): Store<T> {
 
 export interface Store<T> {
   /**
-   * Access the immutable state of this store.
+   * Access the immutable state of this store. The state is parsed through the
+   * schema on each access (with caching), so default values are automatically
+   * applied and invalid data is coerced or replaced with defaults.
    */
   get state(): T;
 
@@ -46,14 +48,15 @@ export interface Store<T> {
    * Create a sub-store from a subtree of the state from this store.
    *
    * The returned store looks and feels like a regular store but acts only on a
-   * specific subtree of its parent store. Reads are writes are channelled
-   * through to the parent store via the |migrate| function.
+   * specific subtree of its parent store. Reads and writes are channelled
+   * through to the parent store, with the Zod schema validating and providing
+   * defaults on each read.
    *
-   * |migrate| is called the first time we access our sub-store's state and
-   * whenever the subtree changes in the root store.
-   * This migrate function takes the state of the subtree from the sub-store's
-   * parent store which has unknown type and is responsible for returning a
-   * value whose type matches that of the sub-store's state.
+   * The schema is used to:
+   * - Validate incoming state from the parent store
+   * - Provide default values for missing fields (via z.default())
+   * - Coerce values when possible (e.g., string to number)
+   * - Fall back to a fully default state if validation fails entirely
    *
    * Sub-stores may be created over the top of subtrees which are not yet fully
    * defined. The state is written to the parent store on first edit. The
@@ -61,35 +64,26 @@ export interface Store<T> {
    * again at some point in the future, and so is robust to unpredictable
    * changes to the root store.
    *
-   * @template U The type of the sub-store's state.
+   * @template S The Zod schema type.
    * @param path The path to the subtree this sub-store is based on.
+   * @param schema A Zod schema that defines the shape of the state, including
+   * any default values. Use z.default() on fields to handle missing data.
    * @example
-   * // Given a store whose state takes the form:
-   * {
-   *   foo: {
-   *     bar: [ {baz: 123}, {baz: 42} ],
-   *   },
-   * }
+   * const MyStateSchema = z.object({
+   *   count: z.number().default(0),
+   *   name: z.string().default(''),
+   * });
    *
-   * // A sub-store crated on path: ['foo','bar', 1] would only see the state:
-   * {
-   *   baz: 42,
-   * }
-   * @param migrate A function used to migrate from the parent store's subtree
-   * to the sub-store's state.
-   * @example
-   * interface RootState {dict: {[key: string]: unknown}};
-   * interface SubState {foo: string};
-   *
-   * const store = createStore({dict: {}});
-   * const migrate = (init: unknown) => (init ?? {foo: 'bar'}) as SubState;
-   * const subStore = store.createSubStore(store, ['dict', 'foo'], migrate);
-   * // |dict['foo']| will be created the first time we edit our sub-store.
-   * Warning: Migration functions should properly validate the incoming state.
-   * Blindly using type assertions can lead to instability.
-   * @returns {Store<U>} The newly created sub-store.
+   * const store = createStore<Record<string, unknown>>({});
+   * const subStore = store.createSubStore(['myPlugin'], MyStateSchema);
+   * // subStore.state is typed as {count: number, name: string}
+   * // Missing fields get their default values automatically
+   * @returns {Store<z.output<S>>} The newly created sub-store.
    */
-  createSubStore<U>(path: Path, migrate: Migrate<U>): Store<U>;
+  createSubStore<S extends z.ZodType>(
+    path: Path,
+    schema: S,
+  ): Store<z.output<S>>;
 }
 
 /**
@@ -125,8 +119,17 @@ class RootStore<T> implements Store<T> {
     this.internalState = newState;
   }
 
-  createSubStore<U>(path: Path, migrate: Migrate<U>): Store<U> {
-    return new SubStore(this, path, migrate);
+  createSubStore<S extends z.ZodType>(
+    path: Path,
+    schema: S,
+  ): Store<z.output<S>> {
+    // Cast needed because ZodType<T> uses T for output, but z.output<S>
+    // extracts it differently. The runtime behavior is correct.
+    return new SubStore<z.output<S>, T>(
+      this,
+      path,
+      schema as z.ZodType<z.output<S>>,
+    );
   }
 }
 
@@ -136,38 +139,72 @@ class RootStore<T> implements Store<T> {
  *
  * This particular implementation of a sub-tree implements a write-through cache
  * style implementation. The sub-store's state is cached internally and all
- * edits are written through to the parent store as with a best-effort approach.
+ * edits are written through to the parent store with a best-effort approach.
  * If the subtree does not exist in the parent store, an error is printed to
  * the console but the operation is still treated as a success.
+ *
+ * State is parsed through the Zod schema on each read, with caching to avoid
+ * redundant parsing when the parent state hasn't changed. This means:
+ * - Default values are applied automatically for missing fields
+ * - Invalid data is coerced when possible, or falls back to defaults
+ * - Schema changes (e.g., adding a new field with .default()) apply immediately
  *
  * @template T The type of the sub-store's state.
  * @template ParentT The type of the parent store's state.
  */
 class SubStore<T, ParentT> implements Store<T> {
-  private parentState: unknown;
-  private cachedState: T;
+  private cachedParentState: unknown;
+  private cachedParsedState: T;
 
   constructor(
     private readonly parentStore: Store<ParentT>,
     private readonly path: Path,
-    private readonly migrate: (init: unknown) => T,
+    private readonly schema: z.ZodType<T>,
   ) {
-    this.parentState = getPath<unknown>(this.parentStore.state, this.path);
+    this.cachedParentState = getPath<unknown>(
+      this.parentStore.state,
+      this.path,
+    );
+    this.cachedParsedState = produce(
+      this.parse(this.cachedParentState),
+      () => {},
+    );
+  }
 
-    // Run initial state through immer to take advantage of auto-freezing
-    this.cachedState = produce(migrate(this.parentState), () => {});
+  /**
+   * Parse raw state through the schema, falling back to defaults on failure.
+   */
+  private parse(raw: unknown): T {
+    const result = this.schema.safeParse(raw ?? {});
+    if (result.success) {
+      return result.data;
+    }
+    // Schema validation failed entirely - fall back to parsing empty object
+    // which will use all default values from the schema
+    console.warn(
+      `Store state at path [${this.path.join(', ')}] failed validation, using defaults:`,
+      result.error.format(),
+    );
+    const fallback = this.schema.safeParse({});
+    if (fallback.success) {
+      return fallback.data;
+    }
+    // This shouldn't happen if the schema has proper defaults, but if it does,
+    // we have no choice but to throw
+    throw new Error(
+      `Store schema at path [${this.path.join(', ')}] has no valid default state`,
+    );
   }
 
   get state(): T {
     const parentState = getPath<unknown>(this.parentStore.state, this.path);
-    if (this.parentState === parentState) {
-      return this.cachedState;
-    } else {
-      this.parentState = parentState;
-      return (this.cachedState = produce(this.cachedState, () => {
-        return this.migrate(parentState);
-      }));
+    if (this.cachedParentState === parentState) {
+      return this.cachedParsedState;
     }
+    // Parent state changed - re-parse through schema
+    this.cachedParentState = parentState;
+    this.cachedParsedState = produce(this.parse(parentState), () => {});
+    return this.cachedParsedState;
   }
 
   edit(edit: Edit<T> | Edit<T>[]): void {
@@ -179,11 +216,16 @@ class SubStore<T, ParentT> implements Store<T> {
   }
 
   private applyEdits(edits: Edit<T>[]): void {
+    // Start from current parsed state (with defaults applied)
     const newState = edits.reduce((state, edit) => {
       return produce(state, edit);
-    }, this.cachedState);
+    }, this.state);
 
-    this.parentState = newState;
+    // Update cache
+    this.cachedParentState = newState;
+    this.cachedParsedState = newState;
+
+    // Write through to parent
     try {
       this.parentStore.edit((draft) => {
         setPath(draft, this.path, newState);
@@ -195,14 +237,16 @@ class SubStore<T, ParentT> implements Store<T> {
         throw error;
       }
     }
-
-    this.cachedState = newState;
   }
 
-  createSubStore<SubtreeState>(
+  createSubStore<S extends z.ZodType>(
     path: Path,
-    migrate: Migrate<SubtreeState>,
-  ): Store<SubtreeState> {
-    return new SubStore(this, path, migrate);
+    schema: S,
+  ): Store<z.output<S>> {
+    return new SubStore<z.output<S>, T>(
+      this,
+      path,
+      schema as z.ZodType<z.output<S>>,
+    );
   }
 }

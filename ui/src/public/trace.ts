@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Migrate, Store} from '../base/store';
+import {Store} from '../base/store';
+import {z} from 'zod';
 import {TraceInfo} from './trace_info';
 import {Engine} from '../trace_processor/engine';
 import {App} from './app';
@@ -66,7 +67,10 @@ export interface Trace extends App {
   scrollTo(args: ScrollToArgs): void;
 
   // Create a store mounted over the top of this plugin's persistent state.
-  mountStore<T>(id: string, migrate: Migrate<T>): Store<T>;
+  // The schema defines the shape of the state and provides default values.
+  // State is parsed through the schema on each read, so defaults are applied
+  // automatically and schema changes take effect immediately.
+  mountStore<S extends z.ZodType>(id: string, schema: S): Store<z.output<S>>;
 
   // Returns the blob of the current trace file.
   // If the trace is opened from a file or postmessage, the blob is returned
