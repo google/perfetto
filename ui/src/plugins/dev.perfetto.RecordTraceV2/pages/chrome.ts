@@ -32,7 +32,10 @@ import {Tabs, TabsTab} from '../../../widgets/tabs';
 import {Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
-import { PopupPosition } from '../../../widgets/popup';
+import {PopupPosition} from '../../../widgets/popup';
+import {Icons} from '../../../base/semantic_icons';
+import {Stack} from '../../../widgets/stack';
+import { renderMultiselect } from 'src/plugins/dev.perfetto.WidgetsPage/demos/multiselect_demo';
 
 type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
 
@@ -79,7 +82,9 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
     settings,
     genConfig(tc: TraceConfigBuilder) {
       const allIncludedCats = settings.categories.getAllIncludedCategories();
-      const hasMemoryInfra = allIncludedCats.has('disabled-by-default-memory-infra');
+      const hasMemoryInfra = allIncludedCats.has(
+        'disabled-by-default-memory-infra',
+      );
       // Disable all by default => only explicitly enable categories.
       const DISABLE_ALL_CATEGORIES = '*';
       const jsonStruct = {
@@ -112,7 +117,9 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
       const trackEvtCfg = (trackEvent.trackEventConfig ??= {});
       trackEvtCfg.disabledCategories ??= [DISABLE_ALL_CATEGORIES];
       trackEvtCfg.enabledCategories ??= [];
-      trackEvtCfg.enabledCategories.push(...settings.categories.getEnabledCategories());
+      trackEvtCfg.enabledCategories.push(
+        ...settings.categories.getEnabledCategories(),
+      );
       trackEvtCfg.enabledCategories.push('__metadata');
       const enabledTags = settings.categories.getEnabledTags();
       if (enabledTags.length > 0) {
@@ -170,7 +177,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   private enabledTags = new Set<string>();
   private disabledTags = new Set<string>();
   private fetchedRuntimeCategories = false;
-  private activeTab = 'presets';
 
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
@@ -242,10 +248,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
           this.tagsMap.set(tag, [option]);
         }
       }
-    }
-    // Older extensions version do not return tags.
-    if (this.hasTags()) {
-      this.activeTab = 'tags';
     }
   }
 
@@ -352,7 +354,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
 
     const activeCategories = Array.from(this.getAllIncludedCategories()).sort();
 
-    const tagOptions = Array.from(this.tagsMap.entries()).map(
+    const enabledTagOptions = Array.from(this.tagsMap.entries()).map(
       ([tag, _]) => {
         return {
           id: tag,
@@ -361,34 +363,18 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         };
       },
     );
+    const disabledTagOptions = Array.from(this.tagsMap.entries()).map(
+      ([tag, _]) => {
+        return {
+          id: tag,
+          name: tag,
+          checked: this.disabledTags.has(tag),
+        };
+      },
+    );
 
     const tabs: TabsTab[] = [];
-    if (this.hasTags()) {
-      tabs.push({
-        key: 'tags',
-        title: [m(Icon, {icon: 'tag'}), ' Tags'],
-        content: m(
-          'div.chrome-tags-panel',
-          m(PopupMultiSelect, {
-            label: "Enabled Tags",
-            icon: "tag",
-            options: tagOptions,
-            repeatCheckedItemsAtTop: false,
-            showNumSelected: true,
-            position: PopupPosition.Bottom,
-            onChange: (diffs: MultiSelectDiff[]) => {
-              diffs.forEach(({id, checked}) => {
-                if (checked) {
-                  this.enabledTags.add(id);
-                } else {
-                  this.enabledTags.delete(id);
-                }
-              });
-            },
-          }),
-        ),
-      });
-    }
+
     tabs.push({
       key: 'presets',
       title: [m(Icon, {icon: 'cards_star'}), ' Presets'],
@@ -410,12 +396,11 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
-      m(Tabs, {
-        tabs,
-        className: 'chrome-categories-presets',
-        activeTabKey: this.activeTab,
-        onTabChange: (key) => (this.activeTab = key),
-      }),
+      renderMultiselect(
+        'Enabled Tags',
+       enabledTagOptions,
+       this.enabledTags,
+      ),
       m('div.chrome-privacy-setting', this.privacyToggle.render()),
       m('h2', m(Icon, {icon: 'list'}), ' Details'),
       m(
@@ -471,6 +456,45 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       ),
     );
   }
+
+  private renderMultiselect(label:string, options: MultiSelectOption[], optionsState : Set<string>) {
+      m(
+        'div.chrome-categories-presets',
+        m(
+          'div.chrome-tags-panel',
+          m(PopupMultiSelect, {
+            label: label,
+            icon: Icons.LibraryAddCheck,
+            options: options,
+            showNumSelected: true,
+            position: PopupPosition.Bottom,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => {
+                if (checked) {
+                  optionsState.add(id);
+                } else {
+                  optionsState.delete(id);
+                }
+              });
+            },
+          }),
+          m(
+            Stack,
+            {orientation: 'horizontal'},
+            Array.from(optionsState).map((tag) =>
+              m(Chip, {
+                label: tag,
+                rounded: true,
+                removable: true,
+                onRemove: () => {
+                  this.enabledTags.delete(tag);
+                },
+              }),
+            ),
+          ),
+        ),
+      ),
+
 }
 
 function defaultAndDisabled(category: string) {
