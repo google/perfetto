@@ -224,9 +224,9 @@ AS
 (
   WITH
     _all_endpoints AS (
-      SELECT ts FROM $intervals
+      SELECT id, ts, TRUE as is_start FROM $intervals
       UNION
-      SELECT ts + dur FROM $intervals
+      SELECT id, ts + dur AS ts, FALSE as is_start FROM $intervals
     ),
     _atomic_segments AS (
       SELECT
@@ -263,15 +263,12 @@ AS
   -- We join back to _atomic_segments to get the 'next' duration
   -- to match the original implementation's quirk.
   SELECT
-    res.ts + res.dur AS ts,
-    grid.dur AS dur,
-    res.group_id + 1 AS group_id,
-    res.original_id AS id,
+    e.ts AS ts,
+    a.dur AS dur,
+    a.id AS group_id,
+    e.id AS id,
     TRUE AS interval_ends_at_ts
-  FROM _ii res
-  JOIN _original_ends orig
-    ON res.original_id = orig.id
-    AND (res.ts + res.dur) = orig.end_ts
-  LEFT JOIN _atomic_segments grid
-    ON grid.ts = (res.ts + res.dur)
+  FROM _all_endpoints e
+  JOIN _atomic_segments a ON a.ts = e.ts
+  WHERE e.is_start = FALSE
 );
