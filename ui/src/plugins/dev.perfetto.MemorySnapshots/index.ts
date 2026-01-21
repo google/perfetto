@@ -42,6 +42,10 @@ const UI_SCHEMA: SchemaRegistry = {
       title: 'Effective Size',
       columnType: 'quantitative',
     },
+    all_args: {
+      title: 'All Args',
+      columnType: 'text',
+    },
     args: {
       title: 'Args',
       parameterized: true,
@@ -59,6 +63,10 @@ function createMemorySnapshotSchema(snapshotId: number): SQLSchemaRegistry {
         path: {},
         size: {},
         effective_size: {},
+        all_args: {
+          expression: (alias) =>
+            `__intrinsic_arg_set_to_json(${alias}.arg_set_id)`,
+        },
         args: {
           expression: (alias, key) =>
             `extract_arg(${alias}.arg_set_id, '${key}')`,
