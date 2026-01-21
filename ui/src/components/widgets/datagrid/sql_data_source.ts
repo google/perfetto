@@ -942,22 +942,23 @@ ${joinClauses}`;
     // A row is visible if:
     // 1. It's a root (level = 0), OR
     // 2. Its parent path is expanded (path GLOB 'parent/*' AND level = parent_level + 1)
-    const expansionConditions: string[] = ['"__level__" = 0'];
+    // Note: Use t. prefix since this is used after LEFT JOIN with __has_children__
+    const expansionConditions: string[] = ['t."__level__" = 0'];
     for (const [parentLevel, paths] of expandedPathsByLevel) {
       const childLevel = parentLevel + 1;
       const globConditions = paths
-        .map((p) => `__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
+        .map((p) => `t.__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
         .join(' OR ');
       expansionConditions.push(
-        `("__level__" = ${childLevel} AND (${globConditions}))`,
+        `(t."__level__" = ${childLevel} AND (${globConditions}))`,
       );
     }
     const expansionFilter = expansionConditions.join('\n   OR ');
 
     // Build the complete query with CTEs
-    // Uses GLOB prefix matching instead of __tree_parent__ to:
-    // 1. Filter visible rows (roots + direct children of expanded paths)
-    // 2. Check for children (any path that starts with current path + delimiter)
+    // Uses LEAD window function to efficiently compute has_children:
+    // When paths are sorted, if a path has children, the first child is immediately
+    // after it (since 'parent/child' sorts right after 'parent').
     const query = `WITH __source__ AS (
   SELECT ${cteSelectClauses.join(', ')}
   FROM ${baseTable} AS ${baseAlias}
@@ -968,19 +969,32 @@ __tree__ AS (
     -- Level = count of delimiters in path
     length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
   FROM __source__
+),
+__has_children__ AS (
+  -- Pre-compute which paths have children using LEAD window function.
+  -- A path has children if the next path (in sorted order) starts with path + delimiter
+  -- and has level = current level + 1.
+  SELECT DISTINCT __tree_path__
+  FROM (
+    SELECT
+      __tree_path__,
+      "__level__",
+      LEAD(__tree_path__) OVER (ORDER BY __tree_path__) AS __next_path__,
+      LEAD("__level__") OVER (ORDER BY __tree_path__) AS __next_level__
+    FROM __tree__
+  )
+  WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
+    AND __next_level__ = "__level__" + 1
 )
 SELECT
-  __tree_path__ AS ${pathAlias},
-  "__level__",
+  t.__tree_path__ AS ${pathAlias},
+  t."__level__",
   ${aggregateExprs.join(',\n  ')}${dependencyExprs.length > 0 ? ',\n  ' + dependencyExprs.join(',\n  ') : ''},
-  EXISTS(
-    SELECT 1 FROM __tree__ c
-    WHERE c.__tree_path__ GLOB t.__tree_path__ || '${delimiter}*'
-      AND c."__level__" = t."__level__" + 1
-  ) AS __tree_has_children__
+  (h.__tree_path__ IS NOT NULL) AS __tree_has_children__
 FROM __tree__ t
+LEFT JOIN __has_children__ h ON h.__tree_path__ = t.__tree_path__
 WHERE ${expansionFilter}
-GROUP BY __tree_path__${options.includeOrderBy ? '\nORDER BY __tree_path__' : ''}`;
+GROUP BY t.__tree_path__${options.includeOrderBy ? '\nORDER BY t.__tree_path__' : ''}`;
 
     return query;
   }
@@ -1067,14 +1081,15 @@ GROUP BY __tree_path__${options.includeOrderBy ? '\nORDER BY __tree_path__' : ''
     }
 
     // Build the expansion filter using GLOB prefix matching
-    const expansionConditions: string[] = ['"__level__" = 0'];
+    // Note: Use t. prefix since this is used after LEFT JOIN with __has_children__
+    const expansionConditions: string[] = ['t."__level__" = 0'];
     for (const [parentLevel, paths] of expandedPathsByLevel) {
       const childLevel = parentLevel + 1;
       const globConditions = paths
-        .map((p) => `__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
+        .map((p) => `t.__tree_path__ GLOB ${sqlValue(p + delimiter + '*')}`)
         .join(' OR ');
       expansionConditions.push(
-        `("__level__" = ${childLevel} AND (${globConditions}))`,
+        `(t."__level__" = ${childLevel} AND (${globConditions}))`,
       );
     }
     const expansionFilter = expansionConditions.join('\n   OR ');
@@ -1091,6 +1106,9 @@ GROUP BY __tree_path__${options.includeOrderBy ? '\nORDER BY __tree_path__' : ''
       .join(',\n  ');
 
     // Build the complete query
+    // Uses LEAD window function to efficiently compute has_children:
+    // When paths are sorted, if a path has children, the first child is immediately
+    // after it (since 'parent/child' sorts right after 'parent').
     const query = `WITH __source__ AS (
   SELECT ${selectExprs.join(', ')}
   FROM ${baseTable} AS ${baseAlias}
@@ -1100,19 +1118,32 @@ __tree__ AS (
   SELECT *,
     length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
   FROM __source__
+),
+__has_children__ AS (
+  -- Pre-compute which paths have children using LEAD window function.
+  -- A path has children if the next path (in sorted order) starts with path + delimiter
+  -- and has level = current level + 1.
+  SELECT DISTINCT __tree_path__
+  FROM (
+    SELECT
+      __tree_path__,
+      "__level__",
+      LEAD(__tree_path__) OVER (ORDER BY __tree_path__) AS __next_path__,
+      LEAD("__level__") OVER (ORDER BY __tree_path__) AS __next_level__
+    FROM __tree__
+  )
+  WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
+    AND __next_level__ = "__level__" + 1
 )
 SELECT
-  __tree_path__ AS ${pathAlias},
-  MIN("__level__") AS "__level__",
+  t.__tree_path__ AS ${pathAlias},
+  MIN(t."__level__") AS "__level__",
   ${otherColumnExprs || 'NULL AS __placeholder__'},
-  EXISTS(
-    SELECT 1 FROM __tree__ c
-    WHERE c.__tree_path__ GLOB t.__tree_path__ || '${delimiter}*'
-      AND c."__level__" = t."__level__" + 1
-  ) AS __tree_has_children__
+  (h.__tree_path__ IS NOT NULL) AS __tree_has_children__
 FROM __tree__ t
+LEFT JOIN __has_children__ h ON h.__tree_path__ = t.__tree_path__
 WHERE ${expansionFilter}
-GROUP BY __tree_path__${options.includeOrderBy ? '\nORDER BY __tree_path__' : ''}`;
+GROUP BY t.__tree_path__${options.includeOrderBy ? '\nORDER BY t.__tree_path__' : ''}`;
 
     return query;
   }
