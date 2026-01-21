@@ -23,7 +23,6 @@ import {
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackRenderContext} from '../public/track';
 import {TrackNode} from '../public/workspace';
-import {TraceImpl} from './trace_impl';
 
 export interface TrackWithFSM {
   readonly track: TrackRenderer;
@@ -33,18 +32,46 @@ export interface TrackWithFSM {
 }
 
 export class TrackFilterState {
-  public nameFilter: string = '';
-  public criteriaFilters = new Map<string, string[]>();
+  private _nameFilter: string = '';
+  private _criteriaFilters = new Map<string, string[]>();
+  public version: number = 0;
+
+  get nameFilter(): string {
+    return this._nameFilter;
+  }
+
+  set nameFilter(value: string) {
+    if (this._nameFilter !== value) {
+      this._nameFilter = value;
+      this.version++;
+    }
+  }
+
+  get criteriaFilters(): Map<string, string[]> {
+    return this._criteriaFilters;
+  }
+
+  setCriteriaFilter(name: string, values: string[]) {
+    this._criteriaFilters.set(name, values);
+    this.version++;
+  }
+
+  deleteCriteriaFilter(name: string) {
+    if (this._criteriaFilters.delete(name)) {
+      this.version++;
+    }
+  }
 
   // Clear all filters.
   clearAll() {
-    this.nameFilter = '';
-    this.criteriaFilters.clear();
+    this._nameFilter = '';
+    this._criteriaFilters.clear();
+    this.version++;
   }
 
   // Returns true if any filters are set.
   areFiltersSet() {
-    return this.nameFilter !== '' || this.criteriaFilters.size > 0;
+    return this._nameFilter !== '' || this._criteriaFilters.size > 0;
   }
 }
 
@@ -242,11 +269,10 @@ class TrackFSMImpl implements TrackWithFSM {
 
 // Returns true if a track matches the configured track filters.
 export function trackMatchesFilter(
-  trace: TraceImpl,
   track: TrackNode,
+  filters: TrackFilterState,
+  criteria: ReadonlyArray<TrackFilterCriteria>,
 ): boolean {
-  const filters = trace.tracks.filters;
-
   // Check the name filter.
   if (filters.nameFilter !== '') {
     // Split terms on commas and remove the whitespace.
@@ -268,9 +294,7 @@ export function trackMatchesFilter(
 
   // Check all the criteria filters.
   for (const [criteriaName, values] of filters.criteriaFilters) {
-    const criteriaFilter = trace.tracks.trackFilterCriteria.find(
-      (c) => c.name === criteriaName,
-    );
+    const criteriaFilter = criteria.find((c) => c.name === criteriaName);
 
     if (!criteriaFilter) {
       continue;

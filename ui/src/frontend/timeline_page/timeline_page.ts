@@ -25,7 +25,6 @@ import {TabPanel} from './tab_panel';
 import {TimelineHeader} from './timeline_header';
 import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
-import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
 import {HotkeyContext} from '../../widgets/hotkey_context';
 import {ResizeHandle} from '../../widgets/resize_handle';
@@ -136,7 +135,8 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
               rootNode: trace.currentWorkspace.tracks,
               canReorderNodes: trace.currentWorkspace.userEditable,
               canRemoveNodes: trace.currentWorkspace.userEditable,
-              trackFilter: (track) => trackMatchesFilter(trace, track),
+              filterCriteria: trace.tracks.filters,
+              filtersApplied: trace.tracks.filters.areFiltersSet(),
             }),
           ],
         ),

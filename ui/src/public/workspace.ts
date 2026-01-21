@@ -114,6 +114,10 @@ export class TrackNode {
   // track from the workspace.
   public removable: boolean;
 
+  // This is a counter that is incremented whenever this node or any of its
+  // children changes. This allows for efficient caching of the tree structure.
+  public version = 0;
+
   protected _collapsed = true;
   protected _children: Array<TrackNode> = [];
   protected readonly tracksById = new Map<string, TrackNode>();
@@ -259,6 +263,7 @@ export class TrackNode {
     if (this._collapsed) {
       this._collapsed = false;
       this._onExpand?.();
+      this.invalidate();
     }
   }
 
@@ -267,7 +272,10 @@ export class TrackNode {
    * rendered.
    */
   collapse(): void {
-    this._collapsed = true;
+    if (!this._collapsed) {
+      this._collapsed = true;
+      this.invalidate();
+    }
   }
 
   /**
@@ -279,6 +287,12 @@ export class TrackNode {
     if (wasCollapsed && !this._collapsed) {
       this._onExpand?.();
     }
+    this.invalidate();
+  }
+
+  private invalidate() {
+    this.version++;
+    this.parent?.invalidate();
   }
 
   /**
@@ -358,6 +372,7 @@ export class TrackNode {
     const result = this.adopt(child);
     if (!result.ok) return result;
     this._children.push(child);
+    this.invalidate();
     return result;
   }
 
@@ -370,6 +385,7 @@ export class TrackNode {
     const result = this.adopt(child);
     if (!result.ok) return result;
     this._children.unshift(child);
+    this.invalidate();
     return result;
   }
 
@@ -391,6 +407,7 @@ export class TrackNode {
 
     const indexOfReference = this.children.indexOf(referenceNode);
     this._children.splice(indexOfReference, 0, child);
+    this.invalidate();
 
     return okResult();
   }
@@ -413,6 +430,7 @@ export class TrackNode {
 
     const indexOfReference = this.children.indexOf(referenceNode);
     this._children.splice(indexOfReference + 1, 0, child);
+    this.invalidate();
 
     return okResult();
   }
@@ -427,6 +445,7 @@ export class TrackNode {
     child._parent = undefined;
     this.removeFromIndex(child);
     this.propagateRemoval(child);
+    this.invalidate();
   }
 
   /**
@@ -461,6 +480,7 @@ export class TrackNode {
   clear(): void {
     this._children = [];
     this.tracksById.clear();
+    this.invalidate();
   }
 
   /**

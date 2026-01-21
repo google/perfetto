@@ -781,7 +781,11 @@ export default class CoreCommands implements PerfettoPlugin {
         // Copies all filtered tracks as a flat list to a new workspace. This
         // means parents are not included.
         const tracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          trackMatchesFilter(ctx, track),
+          trackMatchesFilter(
+            track,
+            ctx.tracks.filters,
+            ctx.tracks.trackFilterCriteria,
+          ),
         );
 
         if (!tracks.length) {

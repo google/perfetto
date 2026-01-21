@@ -257,8 +257,9 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
                     );
                     if (criteriaFilters) {
                       criteriaFilters.push(id);
+                      trackFilters.version++; // Manually increment since we're mutating the array.
                     } else {
-                      trackFilters.criteriaFilters.set(filter.name, [id]);
+                      trackFilters.setCriteriaFilter(filter.name, [id]);
                     }
                   } else {
                     // Remove the filter option from the criteria.
@@ -269,9 +270,9 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
                     if (!filterOptions) continue;
                     const newOptions = filterOptions.filter((f) => f !== id);
                     if (newOptions.length === 0) {
-                      trackFilters.criteriaFilters.delete(filter.name);
+                      trackFilters.deleteCriteriaFilter(filter.name);
                     } else {
-                      trackFilters.criteriaFilters.set(filter.name, newOptions);
+                      trackFilters.setCriteriaFilter(filter.name, newOptions);
                     }
                   }
                 }
