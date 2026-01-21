@@ -393,9 +393,10 @@ const BT_BYTES_DATASET = new SourceDataset({
       select
           ts,
           dur,
-          uid % 100000 as uid,
+          uid,
           sum(tx_bytes) as tx_bytes,
-          sum(rx_bytes) as rx_bytes
+          sum(rx_bytes) as rx_bytes,
+          package_lookup(uid) AS package_name
       from step2
       where tx_bytes >=0 and rx_bytes >=0
       group by 1,2,3
@@ -405,7 +406,7 @@ const BT_BYTES_DATASET = new SourceDataset({
           ts,
           dur,
           format("%s: TX %d bytes / RX %d bytes", package_name, tx_bytes, rx_bytes) as name
-      from add_package_name!(step3)
+      from step3
   `,
   schema: {
     ts: LONG,
