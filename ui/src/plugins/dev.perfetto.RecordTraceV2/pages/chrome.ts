@@ -212,7 +212,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     const cats = new Set<string>();
     this.getManuallyEnabledCategories().forEach((c) => cats.add(c));
     for (const [group, groupCats] of Object.entries(GROUPS)) {
-      if ((this.presetToggles[group] as Toggle).enabled) {
+      if (this.enabledPresets.has(group)) {
         groupCats.forEach((c) => cats.add(c));
       }
     }
@@ -263,15 +263,11 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   private getEnabledPresets(): string[] {
-    return Object.entries(this.presetToggles)
-      .filter(([, toggle]) => toggle.enabled)
-      .map(([name]) => name);
+    return Array.from(this.enabledPresets);
   }
 
   private setPresets(presets: string[]) {
-    for (const [name, toggle] of Object.entries(this.presetToggles)) {
-      toggle.setEnabled(presets.includes(name));
-    }
+    this.enabledPresets = new Set(presets);
   }
 
   serialize() {
