@@ -116,7 +116,7 @@ class V8Tracker {
 
     template <typename H>
     friend H PerfettoHashValue(H h, const IsolateKey& v) {
-      return H::Combine(std::move(h), v.upid, v.isolate_id);
+      return H::Combine(std::move(h), std::tie(v.upid, v.isolate_id));
     }
 
     UniquePid upid;

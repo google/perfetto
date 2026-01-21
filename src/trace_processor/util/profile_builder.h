@@ -136,8 +136,8 @@ class GProfileBuilder {
 
     template <typename H>
     friend H PerfettoHashValue(H hasher, const AnnotatedFrameId& id) {
-      return H::Combine(std::move(hasher), id.frame_id,
-                        static_cast<int>(id.annotation));
+      return H::Combine(std::move(hasher),
+                        std::tie(id.frame_id, id.annotation));
     }
   };
 
@@ -166,10 +166,12 @@ class GProfileBuilder {
 
     template <typename H>
     friend H PerfettoHashValue(H hasher, const Location& loc) {
-      hasher = H::Combine(std::move(hasher), loc.mapping_id, loc.rel_pc,
-                          loc.lines.size());
+      hasher =
+          H::Combine(std::move(hasher), std::tie(loc.mapping_id, loc.rel_pc));
+      hasher = H::Combine(std::move(hasher), loc.lines.size());
       for (const auto& line : loc.lines) {
-        hasher = H::Combine(std::move(hasher), line.function_id, line.line);
+        hasher = H::Combine(std::move(hasher),
+                            std::tie(line.function_id, line.line));
       }
       return hasher;
     }
@@ -192,8 +194,9 @@ class GProfileBuilder {
 
     template <typename H>
     friend H PerfettoHashValue(H hasher, const MappingKey& mapping) {
-      return H::Combine(std::move(hasher), mapping.size, mapping.file_offset,
-                        mapping.build_id_or_filename);
+      return H::Combine(std::move(hasher),
+                        std::tie(mapping.size, mapping.file_offset,
+                                 mapping.build_id_or_filename));
     }
 
     uint64_t size;
@@ -246,8 +249,8 @@ class GProfileBuilder {
 
     template <typename H>
     friend H PerfettoHashValue(H hasher, const Function& func) {
-      return H::Combine(std::move(hasher), func.name, func.system_name,
-                        func.filename);
+      return H::Combine(std::move(hasher),
+                        std::tie(func.name, func.system_name, func.filename));
     }
   };
 
@@ -373,7 +376,8 @@ class GProfileBuilder {
 
     template <typename H>
     friend H PerfettoHashValue(H hasher, const MaybeAnnotatedCallsiteId& id) {
-      return H::Combine(std::move(hasher), id.callsite_id, id.annotate);
+      return H::Combine(std::move(hasher),
+                        std::tie(id.callsite_id, id.annotate));
     }
   };
   std::unordered_map<MaybeAnnotatedCallsiteId,

@@ -29,5 +29,36 @@ TEST(MurmurHashTest, StringView) {
             murmur_internal::MurmurHashBytes(b.data(), b.size()));
 }
 
+TEST(MurmurHashTest, Combine) {
+  EXPECT_NE(MurmurHashCombine(1, 2), MurmurHashCombine(2, 1));
+  EXPECT_NE(MurmurHashCombine(1, 2), MurmurHashCombine(1));
+  EXPECT_EQ(MurmurHashCombine(1, 2, 3), MurmurHashCombine(1, std::tuple(2, 3)));
+}
+
+TEST(MurmurHashTest, Combiner) {
+  MurmurHashCombiner combiner;
+  combiner.Combine(1u);
+  combiner.Combine(2u);
+  uint64_t hash1 = combiner.digest();
+
+  EXPECT_EQ(hash1, MurmurHashCombine(1u, 2u));
+}
+
+struct CustomType {
+  int a;
+  int b;
+  template <typename H>
+  friend H PerfettoHashValue(H h, const CustomType& v) {
+    return H::Combine(std::move(h), std::tie(v.a, v.b));
+  }
+};
+
+TEST(MurmurHashTest, CustomType) {
+  CustomType v1{1, 2};
+  CustomType v2{2, 1};
+  EXPECT_NE(MurmurHashValue(v1), MurmurHashValue(v2));
+  EXPECT_EQ(MurmurHashValue(v1), MurmurHashCombine(1, 2));
+}
+
 }  // namespace
 }  // namespace perfetto::base

@@ -111,7 +111,8 @@ class ProfilePacketSequenceState final
     }
     template <typename H>
     friend H PerfettoHashValue(H h, const SourceAllocationIndex& o) {
-      return H::Combine(std::move(h), o.upid, o.src_callstack_id, o.heap_name);
+      return H::Combine(std::move(h),
+                        std::tie(o.upid, o.src_callstack_id, o.heap_name));
     }
   };
 

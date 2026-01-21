@@ -114,7 +114,7 @@ class AddressRange {
 
   template <typename H>
   friend H PerfettoHashValue(H h, const AddressRange& range) {
-    return H::Combine(std::move(h), range.start_, range.end_);
+    return H::Combine(std::move(h), std::tie(range.start_, range.end_));
   }
 
  private:

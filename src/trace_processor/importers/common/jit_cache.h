@@ -105,7 +105,7 @@ class JitCache {
 
     template <typename H>
     friend H PerfettoHashValue(H h, const FrameKey& k) {
-      return H::Combine(std::move(h), k.mapping_id, k.rel_pc);
+      return H::Combine(std::move(h), std::tie(k.mapping_id, k.rel_pc));
     }
   };
 

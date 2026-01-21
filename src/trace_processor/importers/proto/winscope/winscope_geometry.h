@@ -59,7 +59,8 @@ class Rect {
 
   template <typename H>
   friend H PerfettoHashValue(H hasher, const Rect& rect) {
-    return H::Combine(std::move(hasher), rect.x, rect.y, rect.w, rect.h);
+    return H::Combine(std::move(hasher),
+                      std::tie(rect.x, rect.y, rect.w, rect.h));
   }
 
   bool IsAlmostEqual(const Rect& other) const;
@@ -88,7 +89,8 @@ class TransformMatrix {
 
   template <typename H>
   friend H PerfettoHashValue(H h, const TransformMatrix& m) {
-    return H::Combine(std::move(h), m.dsdx, m.dtdx, m.tx, m.dsdy, m.dtdy, m.ty);
+    return H::Combine(std::move(h),
+                      std::tie(m.dsdx, m.dtdx, m.tx, m.dsdy, m.dtdy, m.ty));
   }
 
   Point TransformPoint(Point point) const;
