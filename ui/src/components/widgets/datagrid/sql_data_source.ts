@@ -1099,8 +1099,7 @@ WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
     // Compute fully expanded paths (where all ancestors are also expanded)
     const fullyExpandedPaths: string[] = [];
     for (const pathStr of allExpandedPaths) {
-      const level =
-        pathStr.length - pathStr.replaceAll(delimiter, '').length;
+      const level = pathStr.length - pathStr.replaceAll(delimiter, '').length;
 
       if (level === 0) {
         // Level 0 paths have no ancestors - always fully expanded
@@ -1285,8 +1284,7 @@ GROUP BY t.__tree_path__${options.includeOrderBy ? '\nORDER BY t.__tree_path__' 
       // Compute fully expanded paths (where all ancestors are also expanded)
       const fullyExpandedPaths: string[] = [];
       for (const pathStr of allExpandedPaths) {
-        const level =
-          pathStr.length - pathStr.replaceAll(delimiter, '').length;
+        const level = pathStr.length - pathStr.replaceAll(delimiter, '').length;
 
         if (level === 0) {
           // Level 0 paths have no ancestors - always fully expanded
