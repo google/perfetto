@@ -554,13 +554,7 @@ export class SQLDataSource implements DataSource {
 
     // For pivot mode without drill-down, we build aggregates differently
     if (pivot && !pivot.drillDown) {
-      return this.buildPivotQuery(
-        resolver,
-        filters,
-        pivot,
-        options,
-        columns,
-      );
+      return this.buildPivotQuery(resolver, filters, pivot, options, columns);
     }
 
     // ID-based tree mode: uses __intrinsic_tree virtual table

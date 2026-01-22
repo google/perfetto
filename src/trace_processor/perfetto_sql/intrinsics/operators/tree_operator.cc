@@ -204,8 +204,7 @@ void FlattenTree(TreeNode* node,
   // In allowlist mode: nodes are expanded if their ID is in expansion_ids.
   // In denylist mode: nodes are expanded unless their ID is in expansion_ids.
   // Nodes without a valid ID are never expanded.
-  bool in_list =
-      node->id.has_value() && (expansion_ids.count(*node->id) > 0);
+  bool in_list = node->id.has_value() && (expansion_ids.count(*node->id) > 0);
   bool is_expanded = denylist_mode ? !in_list : in_list;
   node->expanded = is_expanded;
 
@@ -352,7 +351,8 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
   std::vector<std::unique_ptr<TreeNode>> all_nodes;
 
   // Helper lambda to process a single row from the statement.
-  // ExecuteUntilLastStatement steps once, so the first row is already available.
+  // ExecuteUntilLastStatement steps once, so the first row is already
+  // available.
   auto process_row = [&]() {
     auto node = std::make_unique<TreeNode>();
 

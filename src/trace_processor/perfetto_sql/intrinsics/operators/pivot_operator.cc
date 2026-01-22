@@ -644,7 +644,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   // Map of expanded/collapsed node IDs and mode
   base::FlatHashMap<int64_t, bool> expansion_ids;
   bool denylist_mode = false;  // false = allowlist (expanded_ids), true =
-                                // denylist (collapsed_ids)
+                               // denylist (collapsed_ids)
 
   // Parse idxStr to determine which arguments are present and their argv index.
   // Each char in idxStr is either '-' (not present) or '0'-'6' (argv index).
