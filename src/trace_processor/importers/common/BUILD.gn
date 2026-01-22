@@ -98,7 +98,7 @@ source_set("common") {
     "../../../base",
     "../../../protozero",
     "../../containers",
-    "../../dataframe",
+    "../../core/dataframe",
     "../../sorter",
     "../../sorter",
     "../../storage",

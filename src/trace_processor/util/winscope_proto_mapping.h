@@ -24,7 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
