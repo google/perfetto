@@ -104,7 +104,7 @@ export default class AndroidAnr implements PerfettoPlugin {
     const anrTrack = new TrackNode({
       name: 'Android ANRs',
       uri: ANR_TRACK_URI,
-      sortOrder: -5,
+      sortOrder: -6,
     });
     ctx.defaultWorkspace.addChildInOrder(anrTrack);
 
@@ -177,38 +177,42 @@ export default class AndroidAnr implements PerfettoPlugin {
 
     // Construct the track URI. Typically, thread tracks use the format /slice_{track_id}.
     const mainThreadTrackUri = `/slice_${anrInfo.mainThreadTrackId}`;
+    console.log('Scrolling to main thread track URI:', mainThreadTrackUri);
+
     const startTime = Time.fromRaw(BigInt(anrInfo.ts));
     const endTime = Time.fromRaw(BigInt(anrInfo.ts + anrInfo.dur));
 
-    setTimeout(() => {
-      ctx.scrollTo({
-        track: {
-          uri: mainThreadTrackUri,
-          expandGroup: true,
-        },
-        time:
-          anrInfo.dur > 0n
-            ? {
-                start: startTime,
-                end: endTime,
-                behavior: {viewPercentage: 0.8},
-              }
-            : {
-                start: startTime,
-                behavior: 'focus',
-              },
-      });
-      // 3. Select the area on the main thread track
-      ctx.selection.selectArea(
-        {
-          start: startTime,
-          end: endTime,
-          trackUris: [mainThreadTrackUri],
-        },
-        {
-          switchToCurrentSelectionTab: true,
-        },
-      );
-    }, 500);
+    const uiTrack = ctx.currentWorkspace.getTrackByUri(mainThreadTrackUri);
+    console.log('Is Track ', `${mainThreadTrackUri}' in Workspace?`, uiTrack ? 'YES' : 'NO'); // Likely prints "NO"
+
+    ctx.scrollTo({
+      track: {
+        uri: mainThreadTrackUri,
+        expandGroup: true,
+      },
+      time:
+        anrInfo.dur > 0n
+          ? {
+              start: startTime,
+              end: endTime,
+              behavior: {viewPercentage: 0.8},
+            }
+          : {
+              start: startTime,
+              behavior: 'focus',
+            },
+    });
+
+    // 3. Select the area on the main thread track
+    ctx.selection.selectArea(
+      {
+        start: startTime,
+        end: endTime,
+        trackUris: [mainThreadTrackUri],
+      },
+      {
+        switchToCurrentSelectionTab: true,
+      },
+    );
   }
 }
