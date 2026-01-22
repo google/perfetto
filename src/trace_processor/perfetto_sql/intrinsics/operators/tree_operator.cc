@@ -41,7 +41,7 @@
 // OUTPUT COLUMNS:
 //   - All columns from the source table (in original order)
 //   - __depth__: Tree depth (0 for root-level nodes)
-//   - __tree_has_children__: 1 if node has children, 0 otherwise
+//   - __has_children__: 1 if node has children, 0 otherwise
 //   - __child_count__: Number of direct children
 //
 // BEHAVIOR:
@@ -105,7 +105,7 @@ std::string BuildSchemaString(const std::vector<std::string>& column_names,
 
   // Metadata columns
   schema += ",__depth__ INTEGER";
-  schema += ",__tree_has_children__ INTEGER";
+  schema += ",__has_children__ INTEGER";
   schema += ",__child_count__ INTEGER";
 
   // Hidden columns for query parameters
@@ -805,7 +805,7 @@ int TreeOperatorModule::Column(sqlite3_vtab_cursor* cursor,
   // Column layout:
   // [0..num_source_cols-1]: source table columns
   // [num_source_cols+0]: __depth__
-  // [num_source_cols+1]: __tree_has_children__
+  // [num_source_cols+1]: __has_children__
   // [num_source_cols+2]: __child_count__
   // [after metadata]: hidden columns
 

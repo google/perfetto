@@ -1430,7 +1430,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           if (isIdTreeColumn) {
             // ID-based tree mode
             const treeDepth = Number(row['__depth__'] ?? 0);
-            const hasChildren = Boolean(row['__tree_has_children__']);
+            const hasChildren = Boolean(row['__has_children__']);
 
             indent = treeDepth;
 

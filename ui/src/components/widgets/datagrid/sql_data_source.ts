@@ -742,8 +742,8 @@ ${joinClauses}`;
     // Add metadata columns
     selectClauses.push('__id__');
     selectClauses.push('__parent_id__');
-    selectClauses.push('__depth__ AS "__level__"'); // Alias for consistency with rollup
-    selectClauses.push('__has_children__ AS __tree_has_children__');
+    selectClauses.push('__depth__');
+    selectClauses.push('__has_children__');
     selectClauses.push('__child_count__');
 
     // Add aggregate columns with proper aliases
