@@ -44,6 +44,7 @@ export interface ModifyColumnsSerializedState {
     type: string;
     checked: boolean;
     alias?: string;
+    typeUserModified?: boolean;
   }[];
   comment?: string;
 }
@@ -90,7 +91,8 @@ export class ModifyColumnsNode implements QueryNode {
 
     const newSelectedColumns = newColumnInfoList(sourceCols);
 
-    // Preserve checked status, aliases, and types for columns that still exist.
+    // Preserve checked status and aliases for columns that still exist.
+    // Types are only preserved if the user explicitly modified them.
     for (const oldCol of this.state.selectedColumns) {
       const newCol = newSelectedColumns.find(
         (c) => c.column.name === oldCol.column.name,
@@ -98,11 +100,15 @@ export class ModifyColumnsNode implements QueryNode {
       if (newCol) {
         newCol.checked = oldCol.checked;
         newCol.alias = oldCol.alias;
-        newCol.type = oldCol.type;
-        newCol.column = {
-          ...newCol.column,
-          type: oldCol.column.type,
-        };
+        // Only preserve type if user explicitly modified it
+        if (oldCol.typeUserModified) {
+          newCol.type = oldCol.type;
+          newCol.column = {
+            ...newCol.column,
+            type: oldCol.column.type,
+          };
+          newCol.typeUserModified = true;
+        }
       }
     }
 
@@ -125,6 +131,7 @@ export class ModifyColumnsNode implements QueryNode {
         checked: c.checked,
         column: {name: c.name},
         alias: c.alias,
+        typeUserModified: c.typeUserModified,
       })),
     };
   }
@@ -359,6 +366,8 @@ export class ModifyColumnsNode implements QueryNode {
           ...newSelectedColumns[index].column,
           type: parsedType.ok ? parsedType.value : col.column.type,
         },
+        // Mark as user-modified so it's preserved when upstream changes
+        typeUserModified: true,
       };
       this.state.selectedColumns = newSelectedColumns;
       this.state.onchange?.();
@@ -447,6 +456,7 @@ export class ModifyColumnsNode implements QueryNode {
         type: c.type,
         checked: c.checked,
         alias: c.alias,
+        typeUserModified: c.typeUserModified,
       })),
     };
   }
