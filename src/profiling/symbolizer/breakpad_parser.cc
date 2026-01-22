@@ -32,6 +32,11 @@ bool SymbolComparator(const uint64_t i, const BreakpadParser::Symbol& sym) {
   return i < sym.start_address;
 }
 
+bool LineRecordComparator(const uint64_t i,
+                          const BreakpadParser::LineRecord& line_record) {
+  return i < line_record.start_address;
+}
+
 std::optional<std::string> GetFileContents(const std::string& file_path) {
   std::string file_contents;
   base::ScopedFile fd = base::OpenFile(file_path, O_RDONLY);
@@ -112,6 +117,18 @@ bool BreakpadParser::ParseFromString(const std::string& file_contents) {
       PERFETTO_ELOG("%s", parse_record_status.message().c_str());
       return false;
     }
+
+    parse_record_status = ParseFileRecord(lines.cur_token());
+    if (!parse_record_status.ok()) {
+      PERFETTO_ELOG("%s", parse_record_status.message().c_str());
+      return false;
+    }
+
+    parse_record_status = ParseLineRecord(lines.cur_token());
+    if (!parse_record_status.ok()) {
+      PERFETTO_ELOG("%s", parse_record_status.message().c_str());
+      return false;
+    }
   }
 
   return true;
@@ -156,6 +173,30 @@ std::optional<std::string> BreakpadParser::GetPublicSymbol(
   // 0xffff to do the sanity check.
   if (address >= it->start_address && address < it->start_address + 0xFFFF) {
     return it->symbol_name;
+  }
+  return std::nullopt;
+}
+
+std::optional<std::tuple<std::string, size_t>>
+BreakpadParser::GetSourceLocation(uint64_t address) const {
+  // Returns an iterator pointing to the first element where the line record's
+  // start address is greater than |address|.
+  auto it = std::upper_bound(line_records_.begin(), line_records_.end(),
+                             address, &LineRecordComparator);
+  // If the first line record's address is greater than |address| then |address|
+  // is too low to appear in |line_records_|.
+  if (it == line_records_.begin()) {
+    return std::nullopt;
+  }
+  it--;
+  // Check to see if the address is in the line record's range.
+  if (address >= it->start_address && address < it->start_address + it->size) {
+    auto file_it = source_files_.find(it->file_number);
+    if (file_it == source_files_.end()) {
+      // Shouldn't happen normally, but if it does just handle it gracefully.
+      return std::nullopt;
+    }
+    return std::make_tuple(file_it->second, it->line);
   }
   return std::nullopt;
 }
@@ -250,6 +291,100 @@ base::Status BreakpadParser::ParseIfRecord(base::StringView current_line,
   new_symbol.symbol_name = func_name_writer.GetStringView().ToStdString();
 
   StoreSymbol(new_symbol, type);
+
+  return base::OkStatus();
+}
+
+base::Status BreakpadParser::ParseFileRecord(base::StringView current_line) {
+  // File record has the following format:
+  // FILE number name
+  base::StringSplitter words(current_line.ToStdString(), ' ');
+
+  // Check to see if the first word indicates a FILE record.
+  if (!words.Next() || strcmp(words.cur_token(), "FILE") != 0) {
+    return base::OkStatus();
+  }
+
+  // Get the file number.
+  if (!words.Next()) {
+    return base::Status("FILE record is incomplete");
+  }
+
+  std::optional<size_t> optional_file_number =
+      base::CStringToUInt32(words.cur_token());
+  if (!optional_file_number) {
+    return base::Status("File number should be integer");
+  }
+
+  // Get the file name.
+  if (!words.Next()) {
+    return base::Status("FILE record is incomplete");
+  }
+
+  source_files_[*optional_file_number] = words.cur_token();
+
+  return base::OkStatus();
+}
+
+base::Status BreakpadParser::ParseLineRecord(base::StringView current_line) {
+  // Line record has the following format:
+  // address size line filenum
+  base::StringSplitter words(current_line.ToStdString(), ' ');
+
+  // If the record starts with an upper-case letter it's not a line record,
+  // as it's the only record type without a designated label name.
+  if (!words.Next() ||
+      (words.cur_token()[0] >= 'A' && words.cur_token()[0] <= 'Z')) {
+    return base::OkStatus();
+  }
+
+  LineRecord line_record;
+
+  // Get the start address.
+  std::optional<uint64_t> optional_address =
+      base::CStringToUInt64(words.cur_token(), 16);
+  if (!optional_address) {
+    return base::Status("Address should be hexadecimal.");
+  }
+  line_record.start_address = *optional_address;
+
+  // Get the size.
+  if (!words.Next()) {
+    return base::Status("Line record is incomplete");
+  }
+
+  std::optional<size_t> optional_size =
+      base::CStringToUInt32(words.cur_token(), 16);
+  if (!optional_size) {
+    return base::Status("Size should be hexadecimal.");
+  }
+  line_record.size = *optional_size;
+
+  // Get the line number.
+  if (!words.Next()) {
+    return base::Status("Line record is incomplete");
+  }
+
+  std::optional<uint32_t> optional_line =
+      base::CStringToUInt32(words.cur_token());
+  if (!optional_line) {
+    return base::Status("Line number should be an integer.");
+  }
+  line_record.line = *optional_line;
+
+  // Get the file number.
+  if (!words.Next()) {
+    return base::Status("Line record is incomplete");
+  }
+
+  std::optional<uint32_t> optional_file_number =
+      base::CStringToUInt32(words.cur_token());
+  if (!optional_file_number) {
+    return base::Status("File number should be an integer.");
+  }
+  line_record.file_number = *optional_file_number;
+
+  line_records_.emplace_back(std::move(line_record));
 
   return base::OkStatus();
 }
