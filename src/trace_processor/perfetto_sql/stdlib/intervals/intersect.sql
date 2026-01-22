@@ -217,82 +217,58 @@ RETURNS TableOrSubquery AS
 -- is the size of the output.
 CREATE PERFETTO MACRO interval_self_intersect(
   -- Table or subquery containing interval data.
-  intervals TableOrSubquery)
+  intervals TableOrSubquery
+)
 RETURNS TableOrSubquery
 AS
 (
-  WITH RECURSIVE
-    _end_points AS (
+  WITH
+    _all_endpoints AS (
+      SELECT id, ts, TRUE as is_start FROM $intervals
+      UNION
+      SELECT id, ts + dur AS ts, FALSE as is_start FROM $intervals
+    ),
+    _atomic_segments AS (
       SELECT
+        ROW_NUMBER() OVER (ORDER BY ts) AS id,
         ts,
-        id,
-        TRUE AS is_start
-      FROM $intervals
-      UNION ALL
-      SELECT
-        ts + dur AS ts,
-        id,
-        FALSE AS is_start
-      FROM $intervals
+        IFNULL(LEAD(ts) OVER (ORDER BY ts) - ts, 0) AS dur
+      FROM _all_endpoints
+      GROUP BY ts
     ),
-    _with_next_ts AS (
+    _ii AS (
       SELECT
-        *,
-        LEAD(ts, 1, NULL) OVER (ORDER BY ts) AS next_ts
-      FROM _end_points
-      ORDER BY ts
+        ii.ts,
+        ii.dur,
+        ii.id_0 AS group_id,
+        ii.id_1 AS original_id
+      FROM _interval_intersect!((_atomic_segments, $intervals), ()) ii
     ),
-    _group_by_ts AS (
-       SELECT
-         ts,
-         MAX(next_ts) AS next_group_ts,
-         ROW_NUMBER() OVER (ORDER BY ts) AS group_id
-       FROM _with_next_ts
-       GROUP BY ts
-    ),
-    _end_points_w_group_info AS (
-      SELECT *
-      FROM _with_next_ts
-      JOIN _group_by_ts USING (ts)
-    ),
-    -- Algorithm: Consider endpoints from left to right (increasing group_id).
-    -- As we scan, we keep a set of open intervals:
-    --    + if a new interval opens at ts, add it to the set
-    --    + if a current interval closes at ts, remove it from the set
-    -- At each timestamp (start or end), we record this set of open intervals
-    scan(group_id, ts, dur, id) AS (
-      -- Base case: we open intervals
-      SELECT
-        group_id,
-        ts,
-        IFNULL(next_group_ts - ts, 0) AS dur,
-        id
-      FROM _end_points_w_group_info
-      WHERE is_start = 1
-      UNION ALL
-      -- Recursive: look at intervals from previous sequence number
-      -- and keep all that remain open
-      SELECT
-        cur.group_id,
-        cur.ts,
-        IFNULL(next_group_ts - cur.ts, 0) AS dur,
-        prev.id
-      FROM
-        _end_points_w_group_info cur
-      JOIN
-        scan prev ON (cur.group_id = prev.group_id + 1)
-      WHERE
-        prev.id <> cur.id
-      -- this order by makes the join more efficient
-      ORDER BY group_id ASC
-  )
-  SELECT ts, dur, group_id, id, FALSE AS interval_ends_at_ts FROM scan
-  UNION ALL
+    _original_ends AS (
+      SELECT id, ts + dur AS end_ts FROM $intervals
+    )
+  -- Part A: Standard segments
   SELECT
     ts,
-    IFNULL(next_ts - ts, 0) AS dur,
+    dur,
     group_id,
-    id,
+    original_id AS id,
+    FALSE AS interval_ends_at_ts
+  FROM _ii
+  WHERE dur > 0
+
+  UNION ALL
+
+  -- Part B: End markers.
+  -- We join back to _atomic_segments to get the 'next' duration
+  -- to match the original implementation's quirk.
+  SELECT
+    e.ts AS ts,
+    a.dur AS dur,
+    a.id AS group_id,
+    e.id AS id,
     TRUE AS interval_ends_at_ts
-  FROM _end_points_w_group_info WHERE is_start = 0
+  FROM _all_endpoints e
+  JOIN _atomic_segments a ON a.ts = e.ts
+  WHERE e.is_start = FALSE
 );
