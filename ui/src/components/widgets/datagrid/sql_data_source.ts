@@ -300,8 +300,10 @@ export class SQLDataSource implements DataSource {
 
     // Virtual tables handle pagination internally - pass it to buildQuery
     // This is more efficient as the virtual table can skip rows without building them
+    // Note: Only tree mode (collapsibleGroups=true) uses intrinsic_pivot; flat mode uses GROUP BY
     const usesVirtualTable =
-      (pivot !== undefined && !pivot.drillDown) || idBasedTree !== undefined;
+      (pivot !== undefined && !pivot.drillDown && pivot.collapsibleGroups) ||
+      idBasedTree !== undefined;
 
     // Build query with ORDER BY and optionally pagination (for virtual tables)
     const rowsQuery = this.buildQuery(model, {
@@ -554,7 +556,13 @@ export class SQLDataSource implements DataSource {
 
     // For pivot mode without drill-down, we build aggregates differently
     if (pivot && !pivot.drillDown) {
-      return this.buildPivotQuery(resolver, filters, pivot, options, columns);
+      // Flat mode (no collapsible groups) uses simple GROUP BY
+      // Tree mode (collapsible groups) uses the intrinsic pivot virtual table
+      if (pivot.collapsibleGroups) {
+        return this.buildPivotQuery(resolver, filters, pivot, options, columns);
+      } else {
+        return this.buildFlatPivotQuery(resolver, filters, pivot, options);
+      }
     }
 
     // ID-based tree mode: uses __intrinsic_tree virtual table
@@ -675,6 +683,92 @@ ${joinClauses}`;
       options,
       dependencyColumns,
     );
+  }
+
+  /**
+   * Builds a flat pivot query using simple GROUP BY (no tree structure).
+   * Used when collapsibleGroups is false - just aggregation without hierarchy.
+   */
+  private buildFlatPivotQuery(
+    resolver: SQLSchemaResolver,
+    filters: ReadonlyArray<Filter>,
+    pivot: Pivot,
+    options: {includeOrderBy: boolean; pagination?: Pagination},
+  ): string {
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+
+    // Build SELECT clause with groupBy columns and aggregates
+    const selectClauses: string[] = [];
+    const groupByClauses: string[] = [];
+
+    // Add groupBy columns
+    for (const col of pivot.groupBy) {
+      const sqlExpr = resolver.resolveColumnPath(col.field);
+      if (sqlExpr) {
+        const alias = toAlias(col.id);
+        selectClauses.push(`${sqlExpr} AS ${alias}`);
+        groupByClauses.push(sqlExpr);
+      }
+    }
+
+    // Add aggregate columns
+    const aggregates = pivot.aggregates ?? [];
+    for (const agg of aggregates) {
+      const alias = toAlias(agg.id);
+      if (agg.function === 'COUNT') {
+        selectClauses.push(`COUNT(*) AS ${alias}`);
+      } else {
+        const sqlExpr = resolver.resolveColumnPath(agg.field);
+        if (sqlExpr) {
+          selectClauses.push(`${agg.function}(${sqlExpr}) AS ${alias}`);
+        }
+      }
+    }
+
+    // Resolve filter paths to ensure JOINs are added
+    for (const filter of filters) {
+      resolver.resolveColumnPath(filter.field);
+    }
+
+    const joinClauses = resolver.buildJoinClauses();
+
+    // Build WHERE clause from filters
+    const whereConditions = filters
+      .map((f) => {
+        const sqlExpr = resolver.resolveColumnPath(f.field);
+        return sqlExpr ? filterToSql(f, sqlExpr) : null;
+      })
+      .filter((c): c is string => c !== null);
+
+    let query = `
+SELECT ${selectClauses.join(',\n       ')}
+FROM ${baseTable} AS ${baseAlias}
+${joinClauses}`;
+
+    if (whereConditions.length > 0) {
+      query += `\nWHERE ${whereConditions.join('\n  AND ')}`;
+    }
+
+    if (groupByClauses.length > 0) {
+      query += `\nGROUP BY ${groupByClauses.join(', ')}`;
+    }
+
+    // Add ORDER BY if requested
+    if (options.includeOrderBy) {
+      const sortedColumn = this.findSortedColumn(undefined, pivot);
+      if (sortedColumn) {
+        // Find the alias for this column
+        const groupByCol = pivot.groupBy.find((g) => g.id === sortedColumn.id);
+        const aggCol = aggregates.find((a) => a.id === sortedColumn.id);
+        const alias = toAlias(sortedColumn.id);
+        if (groupByCol || aggCol) {
+          query += `\nORDER BY ${alias} ${sortedColumn.direction}`;
+        }
+      }
+    }
+
+    return query;
   }
 
   /**
@@ -898,7 +992,9 @@ WHERE ${expansionConstraint}
   ): Promise<void> {
     const {filters = [], pivot} = model;
 
-    if (pivot && !pivot.drillDown) {
+    // Only create virtual table for tree mode (collapsibleGroups=true)
+    // Flat mode uses simple GROUP BY and doesn't need the virtual table
+    if (pivot && !pivot.drillDown && pivot.collapsibleGroups) {
       const resolver = new SQLSchemaResolver(
         this.sqlSchema,
         this.rootSchemaName,
