@@ -84,9 +84,3 @@ export interface DataSourceRows {
   // The actual row data for this batch
   readonly rows: readonly Row[];
 }
-
-// Reserved column name for rollup level indicator in multi-level pivot tables.
-// The value indicates the depth of the row:
-// - Level 0: Only first groupBy column has value (most aggregated)
-// - Level N-1: All groupBy columns have values (leaf level)
-export const ROLLUP_LEVEL_COLUMN = '__level__';

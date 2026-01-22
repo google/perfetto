@@ -30,7 +30,6 @@
 //   SELECT * FROM my_tree
 //   WHERE __expanded_ids__ = '1,2,3'   -- Comma-separated node IDs to expand
 //     AND __sort__ = 'name ASC'        -- Optional: sort by column
-//     AND __depth_limit__ = 5          -- Optional: max depth to show
 //     AND __offset__ = 0               -- Optional: pagination offset
 //     AND __limit__ = 100;             -- Optional: pagination limit
 //
@@ -113,7 +112,6 @@ std::string BuildSchemaString(const std::vector<std::string>& column_names,
   schema += ",__expanded_ids__ TEXT HIDDEN";
   schema += ",__collapsed_ids__ TEXT HIDDEN";
   schema += ",__sort__ TEXT HIDDEN";
-  schema += ",__depth_limit__ INTEGER HIDDEN";
   schema += ",__offset__ INTEGER HIDDEN";
   schema += ",__limit__ INTEGER HIDDEN";
   schema += ",__rebuild__ INTEGER HIDDEN";
@@ -198,7 +196,6 @@ void SortTree(std::vector<std::unique_ptr<TreeNode>>& nodes,
 void FlattenTree(TreeNode* node,
                  const std::unordered_set<int64_t>& expansion_ids,
                  bool blacklist_mode,
-                 int depth_limit,
                  std::vector<TreeNode*>* out) {
   if (!node) {
     return;
@@ -215,12 +212,9 @@ void FlattenTree(TreeNode* node,
   // Add children to output if this node is expanded
   if (is_expanded) {
     for (auto& child : node->children) {
-      if (child->depth <= depth_limit) {
-        out->push_back(child.get());
-        // Recursively add grandchildren
-        FlattenTree(child.get(), expansion_ids, blacklist_mode, depth_limit,
-                    out);
-      }
+      out->push_back(child.get());
+      // Recursively add grandchildren
+      FlattenTree(child.get(), expansion_ids, blacklist_mode, out);
     }
   }
 }
@@ -229,13 +223,10 @@ void FlattenTree(TreeNode* node,
 void FlattenRoots(std::vector<std::unique_ptr<TreeNode>>& roots,
                   const std::unordered_set<int64_t>& expansion_ids,
                   bool blacklist_mode,
-                  int depth_limit,
                   std::vector<TreeNode*>* out) {
   for (auto& root : roots) {
-    if (root->depth <= depth_limit) {
-      out->push_back(root.get());
-      FlattenTree(root.get(), expansion_ids, blacklist_mode, depth_limit, out);
-    }
+    out->push_back(root.get());
+    FlattenTree(root.get(), expansion_ids, blacklist_mode, out);
   }
 }
 
@@ -590,16 +581,15 @@ int TreeOperatorModule::BestIndex(sqlite3_vtab* vtab,
   int expanded_col = hidden_start + kExpandedIds;
   int collapsed_col = hidden_start + kCollapsedIds;
   int sort_col = hidden_start + kSortSpec;
-  int depth_col = hidden_start + kDepthLimit;
   int offset_col = hidden_start + kOffset;
   int limit_col = hidden_start + kLimit;
   int rebuild_col = hidden_start + kRebuild;
 
   // Build idxStr to encode argv index for each constraint type.
-  // Format: 7 characters (expanded, collapsed, sort, depth, offset, limit,
-  // rebuild). Each char is '0'-'6' indicating the argv index, or '-' if not
+  // Format: 6 characters (expanded, collapsed, sort, offset, limit,
+  // rebuild). Each char is '0'-'5' indicating the argv index, or '-' if not
   // present.
-  char idx_flags[8] = "-------";
+  char idx_flags[7] = "------";
 
   int argv_index = 1;  // argvIndex is 1-based in SQLite
   for (int i = 0; i < info->nConstraint; i++) {
@@ -623,20 +613,16 @@ int TreeOperatorModule::BestIndex(sqlite3_vtab* vtab,
       idx_flags[2] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == depth_col) {
+    } else if (col == offset_col) {
       idx_flags[3] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == offset_col) {
+    } else if (col == limit_col) {
       idx_flags[4] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == limit_col) {
-      idx_flags[5] = static_cast<char>('0' + argv_index - 1);
-      info->aConstraintUsage[i].argvIndex = argv_index++;
-      info->aConstraintUsage[i].omit = true;
     } else if (col == rebuild_col) {
-      idx_flags[6] = static_cast<char>('0' + argv_index - 1);
+      idx_flags[5] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     }
@@ -673,14 +659,13 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   c->offset = 0;
   c->limit = std::numeric_limits<int>::max();
   c->rows_returned = 0;
-  c->depth_limit = std::numeric_limits<int>::max();
 
   // Set of expanded/collapsed node IDs and mode
   std::unordered_set<int64_t> expansion_ids;
   bool blacklist_mode = false;
 
   // Parse idxStr to determine which arguments are present
-  std::string flags = idxStr ? idxStr : "-------";
+  std::string flags = idxStr ? idxStr : "------";
 
   std::string sort_spec_str;
   bool needs_rebuild = false;
@@ -739,23 +724,18 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     }
   }
 
-  // Process __depth_limit__ (flag position 3)
+  // Process __offset__ (flag position 3)
   if (sqlite3_value* val = get_argv(3)) {
-    c->depth_limit = sqlite3_value_int(val);
-  }
-
-  // Process __offset__ (flag position 4)
-  if (sqlite3_value* val = get_argv(4)) {
     c->offset = sqlite3_value_int(val);
   }
 
-  // Process __limit__ (flag position 5)
-  if (sqlite3_value* val = get_argv(5)) {
+  // Process __limit__ (flag position 4)
+  if (sqlite3_value* val = get_argv(4)) {
     c->limit = sqlite3_value_int(val);
   }
 
-  // Process __rebuild__ (flag position 6)
-  if (sqlite3_value* val = get_argv(6)) {
+  // Process __rebuild__ (flag position 5)
+  if (sqlite3_value* val = get_argv(5)) {
     needs_rebuild = sqlite3_value_int(val) != 0;
   }
 
@@ -780,8 +760,7 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Flatten the tree based on expansion state
   t->flat.clear();
-  FlattenRoots(t->roots, expansion_ids, blacklist_mode, c->depth_limit,
-               &t->flat);
+  FlattenRoots(t->roots, expansion_ids, blacklist_mode, &t->flat);
 
   // Apply offset
   c->row_index = c->offset;

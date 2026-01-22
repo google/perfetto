@@ -42,7 +42,7 @@ import {
 import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
-import {DataSource, ROLLUP_LEVEL_COLUMN} from './data_source';
+import {DataSource} from './data_source';
 import {
   SchemaRegistry,
   getColumnInfo,
@@ -1793,10 +1793,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
         const cells: m.Children[] = [];
 
-        // For multi-level pivots, get the rollup level from __level__ column
+        // For multi-level pivots, get the rollup level from __depth__ column
         // Level indicates how many groupBy columns have real values (0 to N-1)
         const rowLevel = isMultiLevel
-          ? Number(row[ROLLUP_LEVEL_COLUMN] ?? numGroupBy - 1)
+          ? Number(row['__depth__'] ?? numGroupBy - 1)
           : numGroupBy - 1;
 
         // Render groupBy columns

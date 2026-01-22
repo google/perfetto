@@ -84,7 +84,6 @@ struct TreeSortSpec {
 //   SELECT * FROM my_tree
 //   WHERE __expanded_ids__ = '1,2,3'   -- comma-separated node IDs to expand
 //     AND __sort__ = 'name DESC'       -- sort by column name
-//     AND __depth_limit__ = 3          -- max depth to show
 //     AND __offset__ = 0               -- pagination offset
 //     AND __limit__ = 100;             -- pagination limit
 //
@@ -117,12 +116,11 @@ struct TreeOperatorModule : sqlite::Module<TreeOperatorModule> {
     kExpandedIds = 0,   // Comma-separated expanded node IDs (whitelist mode)
     kCollapsedIds = 1,  // Comma-separated collapsed node IDs (blacklist mode)
     kSortSpec = 2,      // Sort specification
-    kDepthLimit = 3,    // Maximum depth to show
-    kOffset = 4,        // Pagination offset
-    kLimit = 5,         // Pagination limit
-    kRebuild = 6,       // Trigger cache rebuild
+    kOffset = 3,        // Pagination offset
+    kLimit = 4,         // Pagination limit
+    kRebuild = 5,       // Trigger cache rebuild
   };
-  static constexpr int kHiddenColCount = 7;
+  static constexpr int kHiddenColCount = 6;
 
   struct Context {
     explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
@@ -167,9 +165,6 @@ struct TreeOperatorModule : sqlite::Module<TreeOperatorModule> {
     int offset = 0;
     int limit = std::numeric_limits<int>::max();
     int rows_returned = 0;
-
-    // Depth limit for query
-    int depth_limit = std::numeric_limits<int>::max();
   };
 
   static constexpr auto kType = kCreateOnly;

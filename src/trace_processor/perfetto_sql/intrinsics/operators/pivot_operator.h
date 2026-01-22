@@ -75,7 +75,6 @@ struct PivotSortSpec {
 //   SELECT * FROM my_pivot
 //   WHERE __expanded_ids__ = '1,2,3'   -- comma-separated node IDs to expand
 //     AND __sort__ = 'agg_0 DESC'      -- sort by aggregate or 'name'
-//     AND __depth_limit__ = 3          -- max depth to show
 //     AND __offset__ = 0               -- pagination offset
 //     AND __limit__ = 100;             -- pagination limit
 //
@@ -108,10 +107,9 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
     kExpandedIds = 1,   // Comma-separated expanded node IDs (whitelist mode)
     kCollapsedIds = 2,  // Comma-separated collapsed node IDs (blacklist mode)
     kSortSpec = 3,      // Sort specification
-    kDepthLimit = 4,    // Maximum depth to show
-    kOffset = 5,        // Pagination offset
-    kLimit = 6,         // Pagination limit
-    kRebuild = 7,       // Trigger cache rebuild
+    kOffset = 4,        // Pagination offset
+    kLimit = 5,         // Pagination limit
+    kRebuild = 6,       // Trigger cache rebuild
   };
 
   struct Context {
@@ -153,9 +151,6 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
     int offset = 0;
     int limit = std::numeric_limits<int>::max();
     int rows_returned = 0;
-
-    // Depth limit for query
-    int depth_limit = std::numeric_limits<int>::max();
   };
 
   static constexpr auto kType = kCreateOnly;

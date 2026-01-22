@@ -14,6 +14,47 @@
  * limitations under the License.
  */
 
+// __intrinsic_pivot virtual table for hierarchical pivot/grouping.
+//
+// This operator performs ROLLUP-style aggregation with expand/collapse support,
+// building a tree where each level groups by a different hierarchy column.
+//
+// CREATION:
+//   CREATE VIRTUAL TABLE my_pivot USING __intrinsic_pivot(
+//       'source_table_or_subquery',           -- Table name or (SELECT ...)
+//       'col1, col2, col3',                   -- Hierarchy columns (group by)
+//       'SUM(value), COUNT(*), AVG(price)'   -- Aggregation expressions
+//   );
+//
+// QUERYING (whitelist mode - only specified IDs expanded):
+//   SELECT * FROM my_pivot
+//   WHERE __expanded_ids__ = '1,2,3'   -- Comma-separated node IDs to expand
+//     AND __sort__ = 'agg_0 DESC'      -- Optional: sort by aggregate or 'name'
+//     AND __offset__ = 0               -- Optional: pagination offset
+//     AND __limit__ = 100;             -- Optional: pagination limit
+//
+// QUERYING (blacklist mode - all expanded except specified IDs):
+//   SELECT * FROM my_pivot
+//   WHERE __collapsed_ids__ = '4,5'    -- Nodes to keep collapsed
+//     AND __sort__ = 'agg_1 ASC';
+//
+// OUTPUT COLUMNS:
+//   - Hierarchy columns (with NULLs like ROLLUP - deeper levels have earlier
+//     columns NULL)
+//   - __id__: Unique node identifier
+//   - __parent_id__: Parent node ID (NULL for root)
+//   - __depth__: Tree depth (0 for root, 1 for first group level, etc.)
+//   - __has_children__: 1 if node has children, 0 otherwise
+//   - __child_count__: Number of direct children
+//   - agg_0, agg_1, ...: Aggregated values for each aggregation expression
+//
+// BEHAVIOR:
+//   - Root node (depth 0) contains grand totals across all data
+//   - Each level groups by cumulative hierarchy columns (level 1 by col1,
+//     level 2 by col1+col2, etc.)
+//   - Tree is built once at CREATE time and cached
+//   - Use __rebuild__ = 1 to force rebuild after data changes
+
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/pivot_operator.h"
 
 #include <sqlite3.h>
@@ -86,7 +127,6 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   schema +=
       ",__collapsed_ids__ TEXT HIDDEN";  // Blacklist mode (expand all except)
   schema += ",__sort__ TEXT HIDDEN";
-  schema += ",__depth_limit__ INTEGER HIDDEN";
   schema += ",__offset__ INTEGER HIDDEN";
   schema += ",__limit__ INTEGER HIDDEN";
   schema += ",__rebuild__ INTEGER HIDDEN";
@@ -186,7 +226,6 @@ void SortTree(PivotNode* node, const PivotSortSpec& spec) {
 void FlattenTree(PivotNode* node,
                  const base::FlatHashMap<int64_t, bool>& expansion_ids,
                  bool blacklist_mode,
-                 int depth_limit,
                  std::vector<PivotNode*>* out) {
   if (!node) {
     return;
@@ -202,12 +241,9 @@ void FlattenTree(PivotNode* node,
   // Add children to output if this node is expanded
   if (is_expanded) {
     for (auto& child : node->children) {
-      if (child->level <= depth_limit) {
-        out->push_back(child.get());
-        // Recursively add grandchildren if child is also expanded
-        FlattenTree(child.get(), expansion_ids, blacklist_mode, depth_limit,
-                    out);
-      }
+      out->push_back(child.get());
+      // Recursively add grandchildren if child is also expanded
+      FlattenTree(child.get(), expansion_ids, blacklist_mode, out);
     }
   }
 }
@@ -521,17 +557,16 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
   int expanded_col = hidden_start + kExpandedIds;
   int collapsed_col = hidden_start + kCollapsedIds;
   int sort_col = hidden_start + kSortSpec;
-  int depth_col = hidden_start + kDepthLimit;
   int offset_col = hidden_start + kOffset;
   int limit_col = hidden_start + kLimit;
   int rebuild_col = hidden_start + kRebuild;
 
   // Build idxStr to encode argv index for each constraint type.
-  // Format: 8 characters, one per constraint type (aggs, expanded, collapsed,
-  // sort, depth, offset, limit, rebuild). Each char is '0'-'7' indicating the
+  // Format: 7 characters, one per constraint type (aggs, expanded, collapsed,
+  // sort, offset, limit, rebuild). Each char is '0'-'6' indicating the
   // argv index, or '-' if not present.
   // This allows Filter() to know exactly which argv slot each value is in.
-  char idx_flags[9] = "--------";
+  char idx_flags[8] = "-------";
 
   int argv_index = 1;  // argvIndex is 1-based in SQLite
   for (int i = 0; i < info->nConstraint; i++) {
@@ -559,20 +594,16 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
       idx_flags[3] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == depth_col) {
+    } else if (col == offset_col) {
       idx_flags[4] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == offset_col) {
+    } else if (col == limit_col) {
       idx_flags[5] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == limit_col) {
-      idx_flags[6] = static_cast<char>('0' + argv_index - 1);
-      info->aConstraintUsage[i].argvIndex = argv_index++;
-      info->aConstraintUsage[i].omit = true;
     } else if (col == rebuild_col) {
-      idx_flags[7] = static_cast<char>('0' + argv_index - 1);
+      idx_flags[6] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     }
@@ -609,7 +640,6 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   c->offset = 0;
   c->limit = std::numeric_limits<int>::max();
   c->rows_returned = 0;
-  c->depth_limit = std::numeric_limits<int>::max();
 
   // Map of expanded/collapsed node IDs and mode
   base::FlatHashMap<int64_t, bool> expansion_ids;
@@ -617,8 +647,8 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
                                 // blacklist (collapsed_ids)
 
   // Parse idxStr to determine which arguments are present and their argv index.
-  // Each char in idxStr is either '-' (not present) or '0'-'7' (argv index).
-  std::string flags = idxStr ? idxStr : "--------";
+  // Each char in idxStr is either '-' (not present) or '0'-'6' (argv index).
+  std::string flags = idxStr ? idxStr : "-------";
 
   std::string sort_spec_str;
   bool needs_rebuild = false;
@@ -681,23 +711,18 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     }
   }
 
-  // Process __depth__ (flag position 4)
+  // Process __offset__ (flag position 4)
   if (sqlite3_value* val = get_argv(4)) {
-    c->depth_limit = sqlite3_value_int(val);
-  }
-
-  // Process __offset__ (flag position 5)
-  if (sqlite3_value* val = get_argv(5)) {
     c->offset = sqlite3_value_int(val);
   }
 
-  // Process __limit__ (flag position 6)
-  if (sqlite3_value* val = get_argv(6)) {
+  // Process __limit__ (flag position 5)
+  if (sqlite3_value* val = get_argv(5)) {
     c->limit = sqlite3_value_int(val);
   }
 
-  // Process __rebuild__ (flag position 7)
-  if (sqlite3_value* val = get_argv(7)) {
+  // Process __rebuild__ (flag position 6)
+  if (sqlite3_value* val = get_argv(6)) {
     needs_rebuild = sqlite3_value_int(val) != 0;
   }
 
@@ -726,8 +751,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Flatten the tree based on expansion state
   t->flat.clear();
-  FlattenTree(t->root.get(), expansion_ids, blacklist_mode, c->depth_limit,
-              &t->flat);
+  FlattenTree(t->root.get(), expansion_ids, blacklist_mode, &t->flat);
 
   // Apply offset
   c->row_index = c->offset;
