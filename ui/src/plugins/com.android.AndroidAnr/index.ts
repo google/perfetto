@@ -172,50 +172,42 @@ export default class AndroidAnr implements PerfettoPlugin {
       trackNode.pin();
     }
 
-    // 2. Scroll the main thread track and focus into view
-
     // Construct the track URI. Typically, thread tracks use the format /slice_{track_id}.
     const mainThreadTrackUri = `/slice_${anrInfo.mainThreadTrackId}`;
-    console.log('Scrolling to main thread track URI:', mainThreadTrackUri);
-
     const startTime = Time.fromRaw(BigInt(anrInfo.ts));
     const endTime = Time.fromRaw(BigInt(anrInfo.ts + anrInfo.dur));
 
-    const uiTrack = ctx.currentWorkspace.getTrackByUri(mainThreadTrackUri);
-    console.log(
-      'Is Track ',
-      `${mainThreadTrackUri}' in Workspace?`,
-      uiTrack ? 'YES' : 'NO',
-    ); // Likely prints "NO"
+    ctx.onTraceReady.addListener(async () => {
+      // 2. Scroll to the main thread track and focus into view
+      ctx.scrollTo({
+        track: {
+          uri: mainThreadTrackUri,
+          expandGroup: true,
+        },
+        time:
+          anrInfo.dur > 0n
+            ? {
+                start: startTime,
+                end: endTime,
+                behavior: {viewPercentage: 0.8},
+              }
+            : {
+                start: startTime,
+                behavior: 'focus',
+              },
+      });
 
-    ctx.scrollTo({
-      track: {
-        uri: mainThreadTrackUri,
-        expandGroup: true,
-      },
-      time:
-        anrInfo.dur > 0n
-          ? {
-              start: startTime,
-              end: endTime,
-              behavior: {viewPercentage: 0.8},
-            }
-          : {
-              start: startTime,
-              behavior: 'focus',
-            },
+      // 3. Select the area on the main thread track
+      ctx.selection.selectArea(
+        {
+          start: startTime,
+          end: endTime,
+          trackUris: [mainThreadTrackUri],
+        },
+        {
+          switchToCurrentSelectionTab: true,
+        },
+      );
     });
-
-    // 3. Select the area on the main thread track
-    ctx.selection.selectArea(
-      {
-        start: startTime,
-        end: endTime,
-        trackUris: [mainThreadTrackUri],
-      },
-      {
-        switchToCurrentSelectionTab: true,
-      },
-    );
   }
 }
