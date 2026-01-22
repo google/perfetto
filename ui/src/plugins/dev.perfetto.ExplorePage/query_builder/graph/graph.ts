@@ -97,11 +97,13 @@ function shouldShowTopPort(node: QueryNode): boolean {
 
 export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
-  readonly selectedNode?: QueryNode;
+  readonly selectedNodes: ReadonlySet<string>;
   readonly nodeLayouts: LayoutMap;
   readonly labels: ReadonlyArray<TextLabelData>;
   readonly loadGeneration?: number;
   readonly onNodeSelected: (node: QueryNode) => void;
+  readonly onNodeAddToSelection: (node: QueryNode) => void;
+  readonly onNodeRemoveFromSelection: (nodeId: string) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: Position) => void;
   readonly onLabelsChange?: (labels: TextLabelData[]) => void;
@@ -778,7 +780,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 
   view({attrs}: m.CVnode<GraphAttrs>) {
-    const {rootNodes, selectedNode} = attrs;
+    const {rootNodes} = attrs;
 
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
@@ -836,9 +838,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         m(NodeGraph, {
           nodes,
           connections,
-          selectedNodeIds: new Set(
-            selectedNode?.nodeId ? [selectedNode.nodeId] : [],
-          ),
+          selectedNodeIds: attrs.selectedNodes,
           hideControls: true,
           fillHeight: true,
           onReady: (api: NodeGraphApi) => {
@@ -850,12 +850,21 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
               this.recenterRequired = false;
             }
           },
-          multiselect: false,
+          multiselect: true,
           onNodeSelect: (nodeId: string) => {
             const qnode = findQueryNode(nodeId, rootNodes);
             if (qnode) {
               attrs.onNodeSelected(qnode);
             }
+          },
+          onNodeAddToSelection: (nodeId: string) => {
+            const qnode = findQueryNode(nodeId, rootNodes);
+            if (qnode) {
+              attrs.onNodeAddToSelection(qnode);
+            }
+          },
+          onNodeRemoveFromSelection: (nodeId: string) => {
+            attrs.onNodeRemoveFromSelection(nodeId);
           },
           onSelectionClear: () => {
             attrs.onDeselect();

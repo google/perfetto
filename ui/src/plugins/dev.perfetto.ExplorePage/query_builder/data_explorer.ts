@@ -20,6 +20,7 @@ import {
   ColumnSchema,
   SchemaRegistry,
 } from '../../../components/widgets/datagrid/datagrid_schema';
+import {Column} from '../../../components/widgets/datagrid/model';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
@@ -77,6 +78,7 @@ export interface DataExplorerAttrs {
     filter: UIFilter | UIFilter[],
     filterOperator?: 'AND' | 'OR',
   ) => void;
+  readonly onColumnAdd?: (column: Column) => void;
 }
 
 // Create cell renderer for timestamp columns
@@ -341,7 +343,15 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
 
       // Build schema directly
       const columnSchema: ColumnSchema = {};
-      for (const c of attrs.response.columns) {
+      const schema: SchemaRegistry = {data: columnSchema};
+
+      // Get sqlModules from node state (if available)
+      const {sqlModules} = attrs.node.state;
+
+      // Capture columns for use in closures
+      const responseColumns = attrs.response.columns;
+
+      for (const c of responseColumns) {
         let cellRenderer: CellRenderer | undefined;
         let columnType: ColumnType | undefined;
 
@@ -365,7 +375,98 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
 
         columnSchema[c] = {cellRenderer, columnType};
       }
-      const schema: SchemaRegistry = {data: columnSchema};
+
+      // Build menu items for joinid columns (add columns from related tables)
+      // Get existing column names from the node's schema for filtering
+      const existingColumnNames = new Set(
+        attrs.node.finalCols.map((col) => col.name),
+      );
+
+      const buildJoinidMenuItems = (): m.Children => {
+        if (sqlModules === undefined) return undefined;
+
+        // Group joinid columns by target table name
+        const tableToJoinidColumns = new Map<
+          string,
+          Array<{joinidColumn: string; targetTable: string}>
+        >();
+
+        for (const c of responseColumns) {
+          const columnInfo = getColumnInfo(attrs.node, c);
+          if (columnInfo?.column.type?.kind === 'joinid') {
+            const targetTableName = columnInfo.column.type.source.table;
+            if (!tableToJoinidColumns.has(targetTableName)) {
+              tableToJoinidColumns.set(targetTableName, []);
+            }
+            tableToJoinidColumns.get(targetTableName)!.push({
+              joinidColumn: c,
+              targetTable: targetTableName,
+            });
+          }
+        }
+
+        const tableSubmenus: m.Children[] = [];
+
+        // Build submenus for each target table
+        for (const [tableName, joinidColumns] of tableToJoinidColumns) {
+          const targetTable = sqlModules.getTable(tableName);
+          if (targetTable === undefined) continue;
+
+          // Helper to build column menu items for a specific joinid column
+          const buildColumnItems = (joinidColumn: string): m.Children[] => {
+            return targetTable.columns.map((col) => {
+              const field = `${joinidColumn}.${col.name}`;
+              const isDisabled = existingColumnNames.has(col.name);
+              return m(MenuItem, {
+                label: col.name,
+                disabled: isDisabled,
+                onclick: isDisabled
+                  ? undefined
+                  : () => {
+                      attrs.onColumnAdd?.({
+                        id: field,
+                        field,
+                      });
+                    },
+              });
+            });
+          };
+
+          if (joinidColumns.length === 1) {
+            // Single joinid column - show columns directly under "From {table}"
+            tableSubmenus.push(
+              m(
+                MenuItem,
+                {label: `From ${tableName}`},
+                buildColumnItems(joinidColumns[0].joinidColumn),
+              ),
+            );
+          } else {
+            // Multiple joinid columns - show "via [column]" submenus under "From {table}"
+            const viaSubmenus = joinidColumns.map(({joinidColumn}) =>
+              m(
+                MenuItem,
+                {label: `via ${joinidColumn}`},
+                buildColumnItems(joinidColumn),
+              ),
+            );
+            tableSubmenus.push(
+              m(MenuItem, {label: `From ${tableName}`}, viaSubmenus),
+            );
+          }
+        }
+
+        // Wrap all table submenus under a single "Add columns" menu item
+        if (tableSubmenus.length === 0) {
+          return undefined;
+        }
+
+        return m(
+          MenuItem,
+          {label: 'Add column', icon: Icons.AddColumnRight},
+          tableSubmenus,
+        );
+      };
 
       return [
         warning,
@@ -380,6 +481,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           data: attrs.dataSource,
           enablePivotControls: false,
           structuredQueryCompatMode: true,
+          canAddColumns: false,
+          canRemoveColumns: false,
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty
           // array.
@@ -417,6 +520,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             }
             attrs.onchange?.();
           },
+          addColumnMenuItems: buildJoinidMenuItems,
         }),
       ];
     }

@@ -218,7 +218,7 @@ export class ModifyColumnsNode implements QueryNode {
     const hasAlias = this.state.selectedColumns.some((c) => c.alias);
     if (!hasUnselected && !hasAlias) {
       return {
-        content: NodeDetailsMessage('Select all'),
+        content: NodeDetailsMessage('Select all columns'),
       };
     }
 
