@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ArrowConnection, ArrowVisualiser} from './arrow_visualiser';
+import {Dataset} from '../../../trace_processor/dataset';
+import {RELATION_SCHEMA} from '../relation_finding_strategy';
 import {time, Time} from '../../../base/time';
 import {TimeScale} from '../../../base/time_scale';
 import {Trace} from '../../../public/trace';
 import {TrackBounds} from '../../../public/track';
-import {Dataset} from '../../../trace_processor/dataset';
-import {RELATION_SCHEMA} from '../relation_finding_strategy';
-import {ArrowConnection, ArrowVisualiser} from './arrow_visualiser';
 
 function getTrackUriForTrackId(trace: Trace, trackId: number): string {
   const track = trace.tracks.findTrack((t) =>
