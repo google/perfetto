@@ -1667,6 +1667,22 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             return;
           }
 
+          const {onNodeSelect, selectedNodeIds} = vnode.attrs;
+
+          // When multiple nodes are selected, disable all dragging.
+          // Only allow selection change and focus.
+          if (selectedNodeIds !== undefined && selectedNodeIds.size > 1) {
+            // If clicking an unselected node, select just that node
+            if (!selectedNodeIds.has(id) && onNodeSelect !== undefined) {
+              onNodeSelect(id);
+            }
+            // Focus the canvas for keyboard events (Delete, etc.)
+            if (canvasElement) {
+              canvasElement.focus();
+            }
+            return;
+          }
+
           // Check if this is a chained node (not root)
           if (isDockedChild && rootNode) {
             // Don't undock immediately - wait for drag threshold
@@ -1705,8 +1721,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             currentDragPosition = {x: node.x, y: node.y};
           }
 
-          const {onNodeSelect} = vnode.attrs;
-          if (onNodeSelect !== undefined) {
+          // Only change selection if the clicked node is not already selected
+          // This prevents unnecessary selection changes when starting to drag
+          if (!selectedNodeIds?.has(id) && onNodeSelect !== undefined) {
             onNodeSelect(id);
           }
 

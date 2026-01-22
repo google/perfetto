@@ -86,6 +86,8 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
     jank_reasons.emplace_back("Non Animating");
   if (jank_type & FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
     jank_reasons.emplace_back("Display not ON");
+  if (jank_type & FrameTimelineEvent::JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS)
+    jank_reasons.emplace_back("ModeChange in progress");
 
   std::string jank_str(
       std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),

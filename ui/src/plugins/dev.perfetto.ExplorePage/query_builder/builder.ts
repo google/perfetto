@@ -109,6 +109,7 @@ import {Icon} from '../../../widgets/icon';
 import {Trace} from '../../../public/trace';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, Query} from '../query_node';
+import {getPrimarySelectedNode} from '../selection_utils';
 import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph/graph';
@@ -142,7 +143,7 @@ export interface BuilderAttrs {
   readonly queryExecutionService: QueryExecutionService;
 
   readonly rootNodes: QueryNode[];
-  readonly selectedNode?: QueryNode;
+  readonly selectedNodes: ReadonlySet<string>;
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
   readonly labels: ReadonlyArray<{
     id: string;
@@ -161,6 +162,8 @@ export interface BuilderAttrs {
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
+  readonly onNodeAddToSelection: (node: QueryNode) => void;
+  readonly onNodeRemoveFromSelection: (nodeId: string) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (
     nodeId: string,
@@ -209,6 +212,13 @@ export interface BuilderAttrs {
   readonly onRedo?: () => void;
   readonly canUndo?: boolean;
   readonly canRedo?: boolean;
+
+  // Called when the execute function is ready (or cleared).
+  // Allows parent to trigger query execution via keyboard shortcuts (Ctrl+Enter).
+  // Receives undefined when no node is selected.
+  readonly onExecuteReady?: (
+    executeFn: (() => Promise<void>) | undefined,
+  ) => void;
 }
 
 enum SelectedView {
@@ -225,6 +235,10 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private isQueryRunning: boolean = false;
   private isAnalyzing: boolean = false;
   private previousSelectedNode?: QueryNode;
+  // Stores selected node for keyboard shortcuts. This duplicates attrs.selectedNode
+  // because we need access outside of view() for executeSelectedNode() public method.
+  // Updated in view() to stay synchronized with attrs.
+  private selectedNode?: QueryNode;
   private response?: QueryResponse;
   private dataSource?: DataSource;
   private drawerVisibility = DrawerPanelVisibility.COLLAPSED;
@@ -254,10 +268,27 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
-    const {trace, rootNodes, onNodeSelected, selectedNode, onClearAllNodes} =
-      attrs;
+    const {trace, rootNodes, onNodeSelected, onClearAllNodes} = attrs;
+    const selectedNode = getPrimarySelectedNode(attrs.selectedNodes, rootNodes);
 
-    if (selectedNode && selectedNode !== this.previousSelectedNode) {
+    // Store selectedNode for keyboard shortcuts
+    this.selectedNode = selectedNode;
+
+    // Notify parent when execute function changes (when selectedNode changes)
+    if (selectedNode !== this.previousSelectedNode) {
+      if (selectedNode !== undefined) {
+        // Provide execute function bound to the current instance
+        attrs.onExecuteReady?.(() => this.executeSelectedNode());
+      } else {
+        // Clear execute function when no node is selected
+        attrs.onExecuteReady?.(undefined);
+      }
+    }
+
+    if (
+      selectedNode !== undefined &&
+      selectedNode !== this.previousSelectedNode
+    ) {
       this.resetQueryState();
       this.isQueryRunning = false;
       this.isAnalyzing = false;
@@ -283,7 +314,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const sidebarWidth = attrs.sidebarWidth ?? this.DEFAULT_SIDEBAR_WIDTH;
 
     // When transitioning to unselected state with collapsed explorer, reappear at minimum size
-    if (!selectedNode && this.previousSelectedNode && isExplorerCollapsed) {
+    if (
+      selectedNode === undefined &&
+      this.previousSelectedNode !== undefined &&
+      isExplorerCollapsed
+    ) {
       attrs.onExplorerCollapsedChange?.(false);
       attrs.onSidebarWidthChange?.(this.MIN_SIDEBAR_WIDTH);
     }
@@ -307,63 +342,74 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       }
     };
 
-    const explorer = selectedNode
-      ? m(NodeExplorer, {
-          // The key to force mithril to re-create the component when the
-          // selected node changes, preventing state from leaking between
-          // different nodes.
-          key: selectedNode.nodeId,
-          trace,
-          node: selectedNode,
-          queryExecutionService: this.queryExecutionService,
-          resolveNode: (nodeId: string) => this.resolveNode(nodeId, rootNodes),
-          hasExistingResult: this.queryExecuted,
-          query: this.query, // Pass the query state from Builder (single source of truth)
-          onQueryAnalyzed: this.onNodeQueryAnalyzed,
-          onAnalysisStateChange: (isAnalyzing: boolean) => {
-            this.isAnalyzing = isAnalyzing;
-          },
-          onExecutionStart: () => {
-            this.isQueryRunning = true;
-            this.queryExecuted = false;
-          },
-          onExecutionSuccess: (result) => {
-            this.handleExecutionSuccess(selectedNode, result);
-          },
-          onExecutionError: (error) => {
-            this.handleQueryError(selectedNode, error);
-            this.isQueryRunning = false;
-            m.redraw();
-          },
-          onchange: () => {
-            // When a node's state changes, notify all downstream nodes
-            // to update their columns and UI. This ensures that when e.g.
-            // a column is renamed in ModifyColumnsNode, the AggregationNode
-            // sees the new column name.
-            const downstreamNodes = getAllDownstreamNodes(selectedNode);
-            for (const node of downstreamNodes) {
-              // Skip the node itself (it's included in downstream nodes)
-              if (node.nodeId === selectedNode.nodeId) continue;
-              node.onPrevNodesUpdated?.();
-            }
-            attrs.onNodeStateChange?.();
-          },
-          isCollapsed: isExplorerCollapsed,
-          selectedView: this.selectedView,
-          onViewChange: (view: number) => {
-            this.selectedView = view;
-          },
-        })
-      : m(
+    const hasMultipleNodesSelected = attrs.selectedNodes.size > 1;
+
+    const explorer = hasMultipleNodesSelected
+      ? m(
           '.pf-unselected-explorer',
-          m(NavigationSidePanel, {
-            selectedNode: attrs.selectedNode,
-            onAddSourceNode: attrs.onAddSourceNode,
-            onLoadExampleByPath: attrs.onLoadExampleByPath,
-            onLoadExploreTemplate: attrs.onLoadExploreTemplate,
-            onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
+          m(DataExplorerEmptyState, {
+            icon: 'info',
+            title: `${attrs.selectedNodes.size} nodes selected`,
           }),
-        );
+        )
+      : selectedNode
+        ? m(NodeExplorer, {
+            // The key to force mithril to re-create the component when the
+            // selected node changes, preventing state from leaking between
+            // different nodes.
+            key: selectedNode.nodeId,
+            trace,
+            node: selectedNode,
+            queryExecutionService: this.queryExecutionService,
+            resolveNode: (nodeId: string) =>
+              this.resolveNode(nodeId, rootNodes),
+            hasExistingResult: this.queryExecuted,
+            query: this.query, // Pass the query state from Builder (single source of truth)
+            onQueryAnalyzed: this.onNodeQueryAnalyzed,
+            onAnalysisStateChange: (isAnalyzing: boolean) => {
+              this.isAnalyzing = isAnalyzing;
+            },
+            onExecutionStart: () => {
+              this.isQueryRunning = true;
+              this.queryExecuted = false;
+            },
+            onExecutionSuccess: (result) => {
+              this.handleExecutionSuccess(selectedNode, result);
+            },
+            onExecutionError: (error) => {
+              this.handleQueryError(selectedNode, error);
+              this.isQueryRunning = false;
+              m.redraw();
+            },
+            onchange: () => {
+              // When a node's state changes, notify all downstream nodes
+              // to update their columns and UI. This ensures that when e.g.
+              // a column is renamed in ModifyColumnsNode, the AggregationNode
+              // sees the new column name.
+              const downstreamNodes = getAllDownstreamNodes(selectedNode);
+              for (const node of downstreamNodes) {
+                // Skip the node itself (it's included in downstream nodes)
+                if (node.nodeId === selectedNode.nodeId) continue;
+                node.onPrevNodesUpdated?.();
+              }
+              attrs.onNodeStateChange?.();
+            },
+            isCollapsed: isExplorerCollapsed,
+            selectedView: this.selectedView,
+            onViewChange: (view: number) => {
+              this.selectedView = view;
+            },
+          })
+        : m(
+            '.pf-unselected-explorer',
+            m(NavigationSidePanel, {
+              selectedNode,
+              onAddSourceNode: attrs.onAddSourceNode,
+              onLoadExampleByPath: attrs.onLoadExampleByPath,
+              onLoadExploreTemplate: attrs.onLoadExploreTemplate,
+              onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
+            }),
+          );
 
     return m(DrawerPanel, {
       className: layoutClasses,
@@ -372,65 +418,57 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         this.drawerVisibility = v;
       },
       startingHeight: 300,
-      drawerContent: selectedNode
-        ? m(DataExplorer, {
-            trace: this.trace,
-            query: this.query,
-            node: selectedNode,
-            response: this.response,
-            dataSource: this.dataSource,
-            isQueryRunning: this.isQueryRunning,
-            isAnalyzing: this.isAnalyzing,
-            onchange: () => {
-              attrs.onNodeStateChange?.();
-            },
-            onFilterAdd: (filter, filterOperator) => {
-              attrs.onFilterAdd(selectedNode, filter, filterOperator);
-            },
-            isFullScreen:
-              this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
-            onFullScreenToggle: () => {
-              if (this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN) {
-                this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
-              } else {
-                this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
-              }
-            },
-            onExecute: async () => {
-              if (!selectedNode.validate()) {
-                console.warn(
-                  `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
-                );
-                return;
-              }
-
-              // Use the centralized service with manual=true.
-              // The service handles both analysis and execution.
-              await this.queryExecutionService.processNode(
-                selectedNode,
-                this.trace.engine,
-                {
-                  manual: true, // User explicitly clicked "Run Query"
-                  hasExistingResult: this.queryExecuted,
-                  ...this.createManualExecutionCallbacks(selectedNode),
-                },
-              );
-            },
-            onExportToTimeline: () => {
-              this.exportToTimeline(selectedNode);
-            },
-          })
-        : m(DataExplorerEmptyState, {
+      drawerContent: hasMultipleNodesSelected
+        ? m(DataExplorerEmptyState, {
             icon: 'info',
-            title: 'Select a node to see the data',
-          }),
+            title: `${attrs.selectedNodes.size} nodes selected`,
+          })
+        : selectedNode
+          ? m(DataExplorer, {
+              trace: this.trace,
+              query: this.query,
+              node: selectedNode,
+              response: this.response,
+              dataSource: this.dataSource,
+              isQueryRunning: this.isQueryRunning,
+              isAnalyzing: this.isAnalyzing,
+              onchange: () => {
+                attrs.onNodeStateChange?.();
+              },
+              onFilterAdd: (filter, filterOperator) => {
+                attrs.onFilterAdd(selectedNode, filter, filterOperator);
+              },
+              isFullScreen:
+                this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
+              onFullScreenToggle: () => {
+                if (
+                  this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN
+                ) {
+                  this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
+                } else {
+                  this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
+                }
+              },
+              onExecute: async () => {
+                await this.executeSelectedNode();
+              },
+              onExportToTimeline: () => {
+                this.exportToTimeline(selectedNode);
+              },
+            })
+          : m(DataExplorerEmptyState, {
+              icon: 'info',
+              title: 'Select a node to see the data',
+            }),
       mainContent: [
         m(
           '.pf-qb-node-graph',
           m(Graph, {
             rootNodes,
-            selectedNode,
+            selectedNodes: attrs.selectedNodes,
             onNodeSelected,
+            onNodeAddToSelection: attrs.onNodeAddToSelection,
+            onNodeRemoveFromSelection: attrs.onNodeRemoveFromSelection,
             nodeLayouts: attrs.nodeLayouts,
             labels: attrs.labels,
             loadGeneration: attrs.loadGeneration,
@@ -677,6 +715,37 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         m.redraw();
       },
     };
+  }
+
+  /**
+   * Executes the selected node's query manually.
+   * Public method called when user clicks "Run Query" button or presses Ctrl+Enter
+   * keyboard shortcut (invoked via parent component's keyboard handler).
+   */
+  async executeSelectedNode(): Promise<void> {
+    const selectedNode = this.selectedNode;
+    if (selectedNode === undefined) {
+      return;
+    }
+
+    if (!selectedNode.validate()) {
+      console.warn(
+        `Cannot execute query: node ${selectedNode.nodeId} failed validation`,
+      );
+      return;
+    }
+
+    // Use the centralized service with manual=true.
+    // The service handles both analysis and execution.
+    await this.queryExecutionService.processNode(
+      selectedNode,
+      this.trace.engine,
+      {
+        manual: true, // User explicitly requested execution
+        hasExistingResult: this.queryExecuted,
+        ...this.createManualExecutionCallbacks(selectedNode),
+      },
+    );
   }
 
   private exportToTimeline(node: QueryNode) {

@@ -202,6 +202,7 @@ class TableCard
               className: classNames('pf-no-data-chip'),
             }),
           table.importance &&
+            table.importance !== 'mid' &&
             m(Chip, {
               label: getImportanceLabel(table.importance),
               compact: true,

@@ -1,7 +1,7 @@
 wattson_app_startup_threads {
   metric_version: 4
   power_model_version: 1
-  is_crude_estimate: false
+  is_crude_estimate: 0
   period_info {
     period_id: 1
     task_info {

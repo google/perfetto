@@ -326,7 +326,7 @@ base::Status WriteDimension(
             dimension_value.type);
       }
       const char* dimension_str = dimension_value.string_value;
-      hasher->Combine(dimension_str);
+      hasher->Combine(base::StringView(dimension_str));
       dimension->set_string_value(dimension_str);
       break;
     }
@@ -387,7 +387,7 @@ base::Status WriteDimension(
         dimension->set_double_value(dim_value);
       } else if (dimension_value.type == SqlValue::kString) {
         const char* dimension_str = dimension_value.string_value;
-        hasher->Combine(dimension_str);
+        hasher->Combine(base::StringView(dimension_str));
         dimension->set_string_value(dimension_str);
       } else if (dimension_value.type == SqlValue::kBytes) {
         return base::ErrStatus(
@@ -1040,6 +1040,117 @@ base::Status Summarize(TraceProcessor* processor,
     PERFETTO_CHECK(it.Status().ok());
   }
   return status;
+}
+
+base::Status ExecuteStructuredQuery(
+    TraceProcessor* processor,
+    const std::vector<TraceSummarySpecBytes>& specs,
+    const std::string& query_id,
+    std::string* output) {
+  StructuredQueryGenerator generator;
+  std::vector<std::vector<uint8_t>> synthetic_protos;
+  std::vector<TraceSummarySpec::Decoder> spec_decoders;
+
+  // Parse all spec protos (convert textproto to binary if needed).
+  for (uint32_t i = 0; i < specs.size(); ++i) {
+    switch (specs[i].format) {
+      case TraceSummarySpecBytes::Format::kBinaryProto:
+        spec_decoders.emplace_back(specs[i].ptr, specs[i].size);
+        break;
+      case TraceSummarySpecBytes::Format::kTextProto:
+        synthetic_protos.emplace_back();
+        ASSIGN_OR_RETURN(
+            synthetic_protos.back(),
+            protozero::TextToProto(
+                kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
+                ".perfetto.protos.TraceSummarySpec", "-",
+                std::string_view(reinterpret_cast<const char*>(specs[i].ptr),
+                                 specs[i].size)));
+        spec_decoders.emplace_back(synthetic_protos.back().data(),
+                                   synthetic_protos.back().size());
+        break;
+    }
+  }
+
+  // Extract queries from all specs.
+  for (const auto& spec : spec_decoders) {
+    for (auto query_it = spec.query(); query_it; ++query_it) {
+      protozero::ConstBytes query_bytes = *query_it;
+      auto status = generator.AddQuery(query_bytes.data, query_bytes.size);
+      if (!status.ok()) {
+        return base::ErrStatus("Failed to add query from spec: %s",
+                               status.message().c_str());
+      }
+    }
+  }
+
+  // Generate SQL for the specified query ID.
+  auto sql_result = generator.GenerateById(query_id);
+  if (!sql_result.ok()) {
+    return base::ErrStatus(
+        "Failed to generate SQL for structured query ID '%s': %s",
+        query_id.c_str(), sql_result.status().message().c_str());
+  }
+
+  // Execute preambles first.
+  for (const auto& preamble : generator.ComputePreambles()) {
+    auto it = processor->ExecuteQuery(preamble);
+    if (it.Next()) {
+      return base::ErrStatus(
+          "Preamble query returned results. Preambles must not return. Only "
+          "the last statement of the `sql` field can return results.");
+    }
+    PERFETTO_CHECK(!it.Next());
+    RETURN_IF_ERROR(it.Status());
+  }
+
+  // Include referenced modules.
+  for (const auto& module : generator.ComputeReferencedModules()) {
+    auto it = processor->ExecuteQuery("INCLUDE PERFETTO MODULE " + module);
+    PERFETTO_CHECK(!it.Next());
+    RETURN_IF_ERROR(it.Status());
+  }
+
+  // Execute the main query.
+  auto it = processor->ExecuteQuery(*sql_result);
+  RETURN_IF_ERROR(it.Status());
+
+  // Convert result to CSV.
+  *output = "";
+
+  // Write header.
+  uint32_t column_count = it.ColumnCount();
+  for (uint32_t i = 0; i < column_count; ++i) {
+    if (i > 0) {
+      *output += ",";
+    }
+    *output += "\"" + it.GetColumnName(i) + "\"";
+  }
+  *output += "\n";
+
+  // Write rows.
+  while (it.Next()) {
+    for (uint32_t i = 0; i < column_count; ++i) {
+      if (i > 0) {
+        *output += ",";
+      }
+      SqlValue value = it.Get(i);
+      if (value.is_null()) {
+        *output += "[NULL]";
+      } else if (value.type == SqlValue::kLong) {
+        *output += std::to_string(value.AsLong());
+      } else if (value.type == SqlValue::kDouble) {
+        *output += std::to_string(value.AsDouble());
+      } else if (value.type == SqlValue::kString) {
+        *output += value.AsString();
+      } else if (value.type == SqlValue::kBytes) {
+        *output += "<bytes>";
+      }
+    }
+    *output += "\n";
+  }
+
+  return it.Status();
 }
 
 }  // namespace perfetto::trace_processor::summary

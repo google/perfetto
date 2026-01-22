@@ -113,15 +113,64 @@ export function createProfilingTrack(
     sliceName: () => config.sliceName,
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
+      // Create flamegraph, metrics, and initial state once per panel, not on every render
+      const flamegraph = new QueryFlamegraph(trace);
+      const ts = Time.fromRaw(row.ts);
+      const metrics: ReadonlyArray<QueryFlamegraphMetric> =
+        metricsFromTableOrSubquery({
+          tableOrSubquery: `
+            (
+              select
+                id,
+                parent_id as parentId,
+                name,
+                mapping_name,
+                source_file || ':' || line_number as source_location,
+                self_count
+              from _callstacks_for_callsites!((
+                ${config.callsiteQuery(ts)}
+              ))
+            )
+          `,
+          tableMetrics: [
+            {
+              name: config.metricName,
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          dependencySql: `include perfetto module ${config.sqlModule}`,
+          unaggregatableProperties: [
+            {name: 'mapping_name', displayName: 'Mapping'},
+          ],
+          aggregatableProperties: [
+            {
+              name: 'source_location',
+              displayName: 'Source Location',
+              mergeAggregation: 'ONE_OR_SUMMARY',
+            },
+          ],
+          nameColumnLabel: 'Symbol',
+        });
+      // Use provided state or create initial state once
+      let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
+      if (detailsPanelState === undefined) {
+        onDetailsPanelStateChange(state);
+      }
       return {
         load: async () => {},
         render: () =>
           renderProfilingDetailsPanel(
             trace,
-            Time.fromRaw(row.ts),
+            ts,
             config,
-            detailsPanelState,
-            onDetailsPanelStateChange,
+            state,
+            (newState) => {
+              state = newState;
+              onDetailsPanelStateChange(newState);
+            },
+            flamegraph,
+            metrics,
           ),
         // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
         // We moved serialization from being attached to selections to instead being
@@ -142,46 +191,11 @@ function renderProfilingDetailsPanel(
   trace: Trace,
   ts: time,
   config: ProfilingTrackConfig,
-  detailsPanelState: FlamegraphState | undefined,
-  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  state: FlamegraphState,
+  onStateChange: (state: FlamegraphState) => void,
+  flamegraph: QueryFlamegraph,
+  metrics: ReadonlyArray<QueryFlamegraphMetric>,
 ): m.Children {
-  const flamegraph = new QueryFlamegraph(trace);
-  const metrics: ReadonlyArray<QueryFlamegraphMetric> =
-    metricsFromTableOrSubquery(
-      `
-        (
-          select
-            id,
-            parent_id as parentId,
-            name,
-            mapping_name,
-            source_file || ':' || line_number as source_location,
-            self_count
-          from _callstacks_for_callsites!((
-            ${config.callsiteQuery(ts)}
-          ))
-        )
-      `,
-      [
-        {
-          name: config.metricName,
-          unit: '',
-          columnName: 'self_count',
-        },
-      ],
-      `include perfetto module ${config.sqlModule}`,
-      [{name: 'mapping_name', displayName: 'Mapping'}],
-      [
-        {
-          name: 'source_location',
-          displayName: 'Source Location',
-          mergeAggregation: 'ONE_OR_SUMMARY',
-        },
-      ],
-    );
-
-  const state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
-
   return m(
     '.pf-flamegraph-profile',
     m(
@@ -194,7 +208,7 @@ function renderProfilingDetailsPanel(
       flamegraph.render({
         metrics,
         state,
-        onStateChange: onDetailsPanelStateChange,
+        onStateChange,
       }),
     ),
   );

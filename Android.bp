@@ -2765,6 +2765,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -14460,6 +14461,14 @@ filegroup {
     name: "perfetto_src_trace_processor_importers_art_method_art_method_event",
 }
 
+// GN: //src/trace_processor/importers/collapsed_stack:collapsed_stack
+filegroup {
+    name: "perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
+    srcs: [
+        "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.cc",
+    ],
+}
+
 // GN: //src/trace_processor/importers/common:common
 filegroup {
     name: "perfetto_src_trace_processor_importers_common_common",
@@ -16107,6 +16116,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -18376,6 +18386,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -19248,6 +19259,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -19746,6 +19758,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",

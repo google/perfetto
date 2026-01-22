@@ -14,7 +14,9 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchSegment} from '../../base/binary_search';
+import {Point2D} from '../../base/geom';
 import {assertTrue} from '../../base/logging';
+import {Monitor} from '../../base/monitor';
 import {duration, time, Time} from '../../base/time';
 import {colorForCpu} from '../../components/colorizer';
 import m from 'mithril';
@@ -25,6 +27,7 @@ import {TrackRenderer} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
+import {TimeScale} from '../../base/time_scale';
 import {
   createPerfettoTable,
   createView,
@@ -52,16 +55,46 @@ interface Config {
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 20;
 
+interface CpuFreqHover {
+  ts: time;
+  tsEnd?: time;
+  value: number;
+  idle: number;
+}
+
+function computeHover(
+  pos: Point2D | undefined,
+  timescale: TimeScale,
+  data: Data,
+): CpuFreqHover | undefined {
+  if (pos === undefined) return undefined;
+
+  const time = timescale.pxToHpTime(pos.x);
+  const [left, right] = searchSegment(data.timestamps, time.toTime());
+  if (left === -1) return undefined;
+
+  return {
+    ts: Time.fromRaw(data.timestamps[left]),
+    tsEnd: right === -1 ? undefined : Time.fromRaw(data.timestamps[right]),
+    value: data.lastFreqKHz[left],
+    idle: data.lastIdleValues[left],
+  };
+}
+
 export class CpuFreqTrack implements TrackRenderer {
-  private hoveredValue: number | undefined = undefined;
-  private hoveredTs: time | undefined = undefined;
-  private hoveredTsEnd: time | undefined = undefined;
-  private hoveredIdle: number | undefined = undefined;
+  private hover?: CpuFreqHover;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private trackUuid = uuidv4Sql();
 
   private trash!: AsyncDisposableStack;
+
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly hoverMonitor = new Monitor([
+    () => this.hover?.ts,
+    () => this.hover?.value,
+    () => this.hover?.idle,
+  ]);
 
   constructor(
     private readonly config: Config,
@@ -239,16 +272,16 @@ export class CpuFreqTrack implements TrackRenderer {
   }
 
   renderTooltip(): m.Children {
-    if (this.hoveredValue === undefined || this.hoveredTs === undefined) {
+    if (this.hover === undefined) {
       return undefined;
     }
 
-    let text = `${this.hoveredValue.toLocaleString()}kHz`;
+    let text = `${this.hover.value.toLocaleString()}kHz`;
 
     // Display idle value if current hover is idle.
-    if (this.hoveredIdle !== undefined && this.hoveredIdle !== -1) {
+    if (this.hover.idle !== -1) {
       // Display the idle value +1 to be consistent with catapult.
-      text += ` (Idle: ${(this.hoveredIdle + 1).toLocaleString()})`;
+      text += ` (Idle: ${(this.hover.idle + 1).toLocaleString()})`;
     }
 
     return text;
@@ -377,16 +410,16 @@ export class CpuFreqTrack implements TrackRenderer {
 
     ctx.font = '10px Roboto Condensed';
 
-    if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
+    if (this.hover !== undefined) {
       ctx.fillStyle = color.setHSL({s: 45, l: 75}).cssString;
       ctx.strokeStyle = color.setHSL({s: 45, l: 45}).cssString;
 
-      const xStart = Math.floor(timescale.timeToPx(this.hoveredTs));
+      const xStart = Math.floor(timescale.timeToPx(this.hover.ts));
       const xEnd =
-        this.hoveredTsEnd === undefined
+        this.hover.tsEnd === undefined
           ? endPx
-          : Math.floor(timescale.timeToPx(this.hoveredTsEnd));
-      const y = zeroY - Math.round((this.hoveredValue / yMax) * RECT_HEIGHT);
+          : Math.floor(timescale.timeToPx(this.hover.tsEnd));
+      const y = zeroY - Math.round((this.hover.value / yMax) * RECT_HEIGHT);
 
       // Highlight line.
       ctx.beginPath();
@@ -431,28 +464,19 @@ export class CpuFreqTrack implements TrackRenderer {
     );
   }
 
-  onMouseMove({x, timescale}: TrackMouseEvent) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
     if (data === undefined) return;
-    const time = timescale.pxToHpTime(x);
-
-    const [left, right] = searchSegment(data.timestamps, time.toTime());
-
-    this.hoveredTs =
-      left === -1 ? undefined : Time.fromRaw(data.timestamps[left]);
-    this.hoveredTsEnd =
-      right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
-    this.hoveredValue = left === -1 ? undefined : data.lastFreqKHz[left];
-    this.hoveredIdle = left === -1 ? undefined : data.lastIdleValues[left];
-
-    // Trigger redraw to update tooltip
-    m.redraw();
+    this.hover = computeHover({x, y}, timescale, data);
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   onMouseOut() {
-    this.hoveredValue = undefined;
-    this.hoveredTs = undefined;
-    this.hoveredTsEnd = undefined;
-    this.hoveredIdle = undefined;
+    this.hover = undefined;
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 }

@@ -57,11 +57,21 @@ export default class implements PerfettoPlugin {
       (x) => x as FtraceFilter,
     );
 
+    const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
+
+    let hasExpandedOnce = false;
+
     const cpus = await getFtraceCpus(ctx);
     const group = new TrackNode({
       name: 'Ftrace Events',
       sortOrder: -5,
       isSummary: true,
+      onExpand: () => {
+        if (!hasExpandedOnce) {
+          hasExpandedOnce = true;
+          ctx.tabs.showTab(ftraceTabUri);
+        }
+      },
     });
 
     for (const cpu of cpus) {
@@ -91,8 +101,6 @@ export default class implements PerfettoPlugin {
       state: 'blank',
       counters: [],
     };
-
-    const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
 
     ctx.tabs.registerTab({
       uri: ftraceTabUri,

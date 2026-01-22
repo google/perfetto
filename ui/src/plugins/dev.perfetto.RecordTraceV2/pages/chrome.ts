@@ -27,6 +27,7 @@ import {
   MultiSelectDiff,
   MultiSelectOption,
 } from '../../../widgets/multiselect';
+import {Chip} from '../../../widgets/chip';
 import {Result} from '../../../base/result';
 
 type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
@@ -46,10 +47,10 @@ export function chromeRecordSection(
 
 function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
   const groupToggles = Object.fromEntries(
-    Object.keys(GROUPS).map((groupName) => [
+    Object.entries(GROUPS).map(([groupName, categories]) => [
       groupName,
       new Toggle({
-        title: groupName,
+        title: `${groupName} (${categories.length} categories)`,
       }),
     ]),
   );
@@ -61,20 +62,14 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         'Not recommended unless you intend to share the trace' +
         ' with third-parties.',
     }),
-    categories: new ChromeCategoriesWidget(chromeCategoryGetter),
+    categories: new ChromeCategoriesWidget(chromeCategoryGetter, groupToggles),
   };
   return {
     id: 'chrome_tracing',
     title: 'Chrome browser tracing',
     settings,
     genConfig: function (tc: TraceConfigBuilder) {
-      const cats = new Set<string>();
-      settings.categories.getEnabledCategories().forEach((c) => cats.add(c));
-      for (const [group, groupCats] of Object.entries(GROUPS)) {
-        if ((groupToggles[group] as Toggle).enabled) {
-          groupCats.forEach((c) => cats.add(c));
-        }
-      }
+      const cats = settings.categories.getIncludedCategories();
       const memoryInfra = cats.has('disabled-by-default-memory-infra');
       const jsonStruct = {
         record_mode:
@@ -146,13 +141,16 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
   };
 }
 
-const DISAB_PREFIX = 'disabled-by-default-';
+const DISABLED_PREFIX = 'disabled-by-default-';
 
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private fetchedRuntimeCategories = false;
 
-  constructor(private chromeCategoryGetter: ChromeCatFunction) {
+  constructor(
+    private chromeCategoryGetter: ChromeCatFunction,
+    private groupToggles: Record<string, Toggle>,
+  ) {
     // Initialize first with the static list of builtin categories (in case
     // something goes wrong with the extension).
     this.initializeCategories(
@@ -160,6 +158,17 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         availableCategories: BUILTIN_CATEGORIES.map((cat) => ({name: cat})),
       }),
     );
+  }
+
+  public getIncludedCategories(): Set<string> {
+    const cats = new Set<string>();
+    this.getEnabledCategories().forEach((c) => cats.add(c));
+    for (const [group, groupCats] of Object.entries(GROUPS)) {
+      if ((this.groupToggles[group] as Toggle).enabled) {
+        groupCats.forEach((c) => cats.add(c));
+      }
+    }
+    return cats;
   }
 
   private async fetchRuntimeCategoriesIfNeeded() {
@@ -183,7 +192,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       )
       .map((cat) => ({
         id: cat.name,
-        name: cat.name.replace(DISAB_PREFIX, ''),
+        name: cat.name.replace(DISABLED_PREFIX, ''),
         checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
       }))
       .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
@@ -215,8 +224,23 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   render() {
+    const categoriesOptions: MultiSelectOption[] = [];
+    const slowCategoriesOptions: MultiSelectOption[] = [];
+    let includedCategoriesCount = 0;
+    let includedSlowCategoriesCount = 0;
+    for (const option of this.options) {
+      if (option.id.startsWith(DISABLED_PREFIX)) {
+        slowCategoriesOptions.push(option);
+        if (option.checked) includedSlowCategoriesCount++;
+      } else {
+        categoriesOptions.push(option);
+        if (option.checked) includedCategoriesCount++;
+      }
+    }
+
+    const activeCategories = Array.from(this.getIncludedCategories()).sort();
     return m(
-      'div.chrome-categories',
+      'div',
       {
         // This shouldn't be necessary in most cases. It's only needed:
         // 1. The first time the user installs the extension.
@@ -225,28 +249,43 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
       m(
-        Section,
-        {title: 'Additional Categories'},
-        m(MultiSelect, {
-          options: this.options.filter((o) => !o.id.startsWith(DISAB_PREFIX)),
-          repeatCheckedItemsAtTop: false,
-          fixedSize: false,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
-          },
-        }),
+        'div.chrome-categories',
+        m(
+          Section,
+          {title: `Additional Categories (${includedCategoriesCount})`},
+          m(MultiSelect, {
+            options: categoriesOptions,
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
+            },
+          }),
+        ),
+        m(
+          Section,
+          {title: `High Overhead Categories (${includedSlowCategoriesCount})`},
+          m(MultiSelect, {
+            options: slowCategoriesOptions,
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
+            },
+          }),
+        ),
       ),
       m(
         Section,
-        {title: 'High Overhead Categories'},
-        m(MultiSelect, {
-          options: this.options.filter((o) => o.id.startsWith(DISAB_PREFIX)),
-          repeatCheckedItemsAtTop: false,
-          fixedSize: false,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
-          },
-        }),
+        {title: `All Active Categories (${activeCategories.length})`},
+        m(
+          'details',
+          m('summary', 'Show all included categories'),
+          m(
+            'div',
+            activeCategories.map((cat) => m(Chip, {label: cat})),
+          ),
+        ),
       ),
     );
   }
@@ -258,7 +297,7 @@ function defaultAndDisabled(category: string) {
 
 const GROUPS = {
   'Task Scheduling': [
-    'toplevJJJel',
+    'toplevel',
     'toplevel.flow',
     'scheduler',
     'sequence_manager',

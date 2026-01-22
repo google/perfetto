@@ -361,9 +361,11 @@ using StringFilterRule =
 
 std::optional<protozero::StringFilter::SemanticTypeMask>
 ConvertSemanticTypeMask(const StringFilterRule& rule) {
-  // If no semantic types are specified, match all semantic types.
+  // UNSPECIFIED (0) is treated as its own category - it only matches rules
+  // that explicitly include bit 0 in their mask. If no semantic types are
+  // specified, default to matching only UNSPECIFIED (bit 0).
   if (rule.semantic_type().empty()) {
-    return protozero::StringFilter::SemanticTypeMask::All();
+    return protozero::StringFilter::SemanticTypeMask::Unspecified();
   }
 
   protozero::StringFilter::SemanticTypeMask mask;
@@ -1205,6 +1207,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     tracing_session->write_period_ms = write_period_ms;
     tracing_session->max_file_size_bytes = cfg.max_file_size_bytes();
     tracing_session->bytes_written_into_file = 0;
+    tracing_session->fflush_post_write =
+        cfg.fflush_post_write() == TraceConfig::FFLUSH_ENABLED;
   }
 
   if (cfg.compression_type() == TraceConfig::COMPRESSION_TYPE_DEFLATE) {
@@ -2637,6 +2641,11 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
           if (tracing_session->state == TracingSession::STARTED)
             DisableTracing(tsid);
           return;
+        }
+
+        if (tracing_session->fflush_post_write) {
+          // Ensure all data was written to the file.
+          base::FlushFile(tracing_session->write_into_file.get());
         }
 
         weak_runner_.PostDelayedTask(

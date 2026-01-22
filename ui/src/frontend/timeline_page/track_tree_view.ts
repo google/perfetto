@@ -81,7 +81,7 @@ const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   name: 'Virtual track scrolling',
   description: `[Experimental] Use virtual scrolling in the timeline view to
     improve performance on large traces.`,
-  defaultValue: false,
+  defaultValue: true,
 });
 
 // Snap-to-boundaries feature constants
@@ -174,15 +174,22 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       node: TrackNode,
       depth = 0,
       stickyTop = 0,
-    ): m.Children => {
+    ): {vnodes: m.Children; isVisible: boolean} => {
       // Skip nodes that don't match the filter and have no matching children.
-      if (!filterMatches(node)) return undefined;
+      if (!filterMatches(node)) return {vnodes: false, isVisible: false};
 
       if (node.headless) {
         // Headless nodes are invisible, just render children.
-        return node.children.map((track) => {
-          return renderTrack(track, depth, stickyTop);
-        });
+        const childNodes: m.Children = [];
+        let atLeastOneChildVisible = false;
+        for (const child of node.children) {
+          const {vnodes, isVisible} = renderTrack(child, depth, stickyTop);
+          childNodes.push(vnodes);
+          if (isVisible) {
+            atLeastOneChildVisible = true;
+          }
+        }
+        return {vnodes: childNodes, isVisible: atLeastOneChildVisible};
       }
 
       const trackView = new TrackView(trace, node, top);
@@ -196,28 +203,36 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         ? stickyTop + trackView.height
         : stickyTop;
 
-      const children =
-        (node.expanded || filtersApplied) &&
-        node.hasChildren &&
-        node.children.map((track) =>
-          renderTrack(track, depth + 1, childStickyTop),
-        );
+      const childNodes: m.Children = [];
+      let atLeastOneChildVisible = false;
+      if ((node.expanded || filtersApplied) && node.hasChildren) {
+        for (const child of node.children) {
+          const {vnodes, isVisible} = renderTrack(
+            child,
+            depth + 1,
+            childStickyTop,
+          );
+          childNodes.push(vnodes);
+          if (isVisible) {
+            atLeastOneChildVisible = true;
+          }
+        }
+      }
 
-      const isTrackOnScreen = (() => {
-        if (VIRTUAL_TRACK_SCROLLING.get()) {
-          return this.canvasRect?.overlaps({
+      const isTrackOnScreen = VIRTUAL_TRACK_SCROLLING.get()
+        ? this.canvasRect?.overlaps({
             left: 0,
             right: 1,
-            ...trackView.verticalBounds,
-          });
-        } else {
-          return true;
-        }
-      })();
+            top: trackView.verticalBounds.top,
+            bottom: trackView.verticalBounds.bottom,
+          })
+        : true;
 
-      return trackView.renderDOM(
+      const isVisible = isTrackOnScreen || atLeastOneChildVisible;
+
+      const vnodes = trackView.renderDOM(
         {
-          lite: !Boolean(isTrackOnScreen),
+          lite: !Boolean(isVisible),
           scrollToOnCreate: scrollToNewTracks,
           reorderable: canReorderNodes,
           removable: canRemoveNodes,
@@ -231,11 +246,15 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             this.hoveredTrackNode = undefined;
           },
         },
-        children,
+        childNodes,
       );
+
+      return {vnodes, isVisible};
     };
 
-    const trackVnodes = rootNode.children.map((track) => renderTrack(track));
+    const trackVnodes = rootNode.children
+      .map((track) => renderTrack(track))
+      .map(({vnodes}) => vnodes);
 
     // If there are no truthy vnode values, show "empty state" placeholder.
     if (trackVnodes.every((x) => !Boolean(x))) {

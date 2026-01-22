@@ -16,14 +16,14 @@ import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
 import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {z} from 'zod';
 
-export const PPROF_PAGE_STATE_SCHEMA = z.object({
+export const AGGREGATE_PROFILES_PAGE_STATE_SCHEMA = z.object({
   flamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
   selectedProfileId: z.string().optional(),
 });
 
-export type PprofPageState = z.infer<typeof PPROF_PAGE_STATE_SCHEMA>;
+export type AggregateProfilesPageState = z.infer<typeof AGGREGATE_PROFILES_PAGE_STATE_SCHEMA>;
 
-export interface PprofProfile {
+export interface AggregateProfile {
   readonly id: string;
   readonly displayName: string;
   readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;

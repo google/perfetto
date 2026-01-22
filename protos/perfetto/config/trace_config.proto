@@ -666,9 +666,19 @@ message TraceConfig {
       // Introduced in: Perfetto v54.
       optional string name = 4;
 
-      // The semantic types this rule applies to. If empty, the rule applies
-      // to all string fields regardless of their semantic type. If non-empty,
-      // the rule only applies to fields whose semantic type is in this list.
+      // The semantic types this rule applies to.
+      //
+      // SEMANTIC_TYPE_UNSPECIFIED (0) is treated as its own distinct category:
+      // - If empty, the rule applies only to fields with UNSPECIFIED type.
+      // - If non-empty, the rule applies only to fields whose semantic type
+      //   is explicitly listed. To match UNSPECIFIED fields, you must include
+      //   SEMANTIC_TYPE_UNSPECIFIED in the list.
+      //
+      // Examples:
+      //   semantic_type: []           -> matches only UNSPECIFIED fields
+      //   semantic_type: [ATRACE]     -> matches only ATRACE fields
+      //   semantic_type: [UNSPECIFIED, ATRACE] -> matches both
+      //
       // See /rfcs/0011-subset-string-filter-rules.md for design details.
       // Introduced in: Perfetto v54.
       repeated SemanticType semantic_type = 5;
@@ -892,6 +902,29 @@ message TraceConfig {
   // Introduced in: perfetto v54.
   // Supported on: Android 26Q1+.
   optional WriteFlushMode write_flush_mode = 44;
+
+  enum FFlushMode {
+    // Default: same as FFLUSH_DISABLED.
+    FFLUSH_UNSPECIFIED = 0;
+
+    // Do not explicitly sync the file to storage after each write pass.
+    FFLUSH_DISABLED = 1;
+
+    // Explicitly sync the file to storage (via fdatasync) after each periodic
+    // write pass. Increases data durability at the cost of higher disk I/O
+    // overhead.
+    FFLUSH_ENABLED = 2;
+  }
+
+  // Whether to sync the output file to storage after each periodic write pass.
+  // Only applicable when |write_into_file| is true.
+  //
+  // By default, no fflush is invoked. FFLUSH_ENABLED must be set to explicitly
+  // sync to storage on every write.
+  //
+  // Introduced in: perfetto v54.
+  // Supported on: Android 26Q1+.
+  optional FFlushMode fflush_post_write = 45;
 
   // When true, data sources in remote producers (machines connected via
   // traced_relay) will be matched by default. When false (the default), data

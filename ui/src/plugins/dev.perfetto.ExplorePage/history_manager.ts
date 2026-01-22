@@ -30,12 +30,12 @@ export class HistoryManager {
     private sqlModules: SqlModules,
   ) {}
 
-  // Serialize only the meaningful parts (exclude nodeLayouts and selectedNode)
+  // Serialize only the meaningful parts (exclude nodeLayouts and selection)
   private serializeForComparison(state: ExplorePageState): string {
     const stateWithoutLayoutAndSelection = {
       ...state,
       nodeLayouts: new Map(), // Exclude layout from comparison
-      selectedNode: undefined, // Exclude selected node from comparison
+      selectedNodes: new Set<string>(), // Exclude selected nodes from comparison
     };
     return serializeState(stateWithoutLayoutAndSelection);
   }
