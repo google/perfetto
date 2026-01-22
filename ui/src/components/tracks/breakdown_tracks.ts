@@ -476,7 +476,7 @@ export class BreakdownTracks {
       name,
       uri,
       sortOrder: sortOrder !== undefined ? -sortOrder : undefined,
-    }); 
+    });
   }
 
   async createTracksIterative() {
