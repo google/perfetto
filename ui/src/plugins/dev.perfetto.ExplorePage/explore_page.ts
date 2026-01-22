@@ -27,7 +27,9 @@ import {
 } from './query_node';
 import {UIFilter} from './query_builder/operations/filter';
 import {FilterNode} from './query_builder/nodes/filter_node';
+import {AddColumnsNode} from './query_builder/nodes/add_columns_node';
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
+import {Column} from '../../components/widgets/datagrid/model';
 import {Trace} from '../../public/trace';
 
 import {exportStateAsJson, deserializeState} from './json_handler';
@@ -36,6 +38,7 @@ import {nodeRegistry, PreCreateState} from './query_builder/node_registry';
 import {QueryExecutionService} from './query_builder/query_execution_service';
 import {CleanupManager} from './query_builder/cleanup_manager';
 import {HistoryManager} from './history_manager';
+import {getPrimarySelectedNode} from './selection_utils';
 import {
   getAllNodes,
   insertNodeBetween,
@@ -56,9 +59,24 @@ import {
 
 registerCoreNodes();
 
+// Clipboard entry stores a cloned node with its relative position for paste
+interface ClipboardEntry {
+  node: QueryNode;
+  relativeX: number; // Position relative to the first node (only used if not docked)
+  relativeY: number;
+  isDocked: boolean; // True if node was docked (no explicit layout position)
+}
+
+// Clipboard connection stores connections between clipboard nodes (by index)
+interface ClipboardConnection {
+  fromIndex: number;
+  toIndex: number;
+  portIndex?: number;
+}
+
 export interface ExplorePageState {
   rootNodes: QueryNode[];
-  selectedNode?: QueryNode;
+  selectedNodes: ReadonlySet<string>; // Set of selected node IDs for multi-selection
   nodeLayouts: Map<string, {x: number; y: number}>;
   labels: Array<{
     id: string;
@@ -70,7 +88,9 @@ export interface ExplorePageState {
   isExplorerCollapsed?: boolean;
   sidebarWidth?: number;
   loadGeneration?: number; // Incremented each time content is loaded
-  clipboardNode?: QueryNode;
+  // Clipboard for multi-node copy/paste
+  clipboardNodes?: ClipboardEntry[];
+  clipboardConnections?: ClipboardConnection[];
 }
 
 interface ExplorePageAttrs {
@@ -91,18 +111,41 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private cleanupManager?: CleanupManager;
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
+  private executeFn?: () => Promise<void>;
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
-      selectedNode: node,
+      selectedNodes: new Set([node.nodeId]),
     }));
+  }
+
+  private addNodeToSelection(attrs: ExplorePageAttrs, node: QueryNode) {
+    attrs.onStateUpdate((currentState) => {
+      const newSelectedNodes = new Set(currentState.selectedNodes);
+      newSelectedNodes.add(node.nodeId);
+      return {
+        ...currentState,
+        selectedNodes: newSelectedNodes,
+      };
+    });
+  }
+
+  private removeNodeFromSelection(attrs: ExplorePageAttrs, nodeId: string) {
+    attrs.onStateUpdate((currentState) => {
+      const newSelectedNodes = new Set(currentState.selectedNodes);
+      newSelectedNodes.delete(nodeId);
+      return {
+        ...currentState,
+        selectedNodes: newSelectedNodes,
+      };
+    });
   }
 
   private deselectNode(attrs: ExplorePageAttrs) {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
-      selectedNode: undefined,
+      selectedNodes: new Set(),
     }));
   }
 
@@ -232,7 +275,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
         onStateUpdate((currentState) => ({
           ...currentState,
-          selectedNode: newNode,
+          selectedNodes: new Set([newNode.nodeId]),
         }));
       } else {
         // For multi-source nodes: just connect and add to root nodes
@@ -268,7 +311,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             ...currentState,
             rootNodes: [...currentState.rootNodes, newNode],
             nodeLayouts: updatedLayouts,
-            selectedNode: newNode,
+            selectedNodes: new Set([newNode.nodeId]),
           };
         });
       }
@@ -334,10 +377,11 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
+    const lastNode = newNodes[newNodes.length - 1];
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
       rootNodes: [...currentState.rootNodes, ...newNodes],
-      selectedNode: newNodes[newNodes.length - 1], // Select the last node
+      selectedNodes: new Set([lastNode.nodeId]),
     }));
   }
 
@@ -348,7 +392,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const newNodes: QueryNode[] = [];
 
     // Create slices source node
-    const slicesNode = new SlicesSourceNode({});
+    const slicesNode = new SlicesSourceNode({sqlModules, trace: attrs.trace});
     newNodes.push(slicesNode);
 
     // Get high-frequency tables with data
@@ -413,7 +457,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         ...currentState,
         rootNodes: newNodes, // Replace all nodes
         nodeLayouts: newNodeLayouts,
-        selectedNode: newNodes[0], // Select the first node (slices)
+        selectedNodes: new Set([newNodes[0].nodeId]),
         labels: [], // Clear labels
         loadGeneration: (currentState.loadGeneration ?? 0) + 1,
       }));
@@ -549,7 +593,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
       rootNodes: [...currentState.rootNodes, newNode],
-      selectedNode: newNode,
+      selectedNodes: new Set([newNode.nodeId]),
     }));
   }
 
@@ -605,7 +649,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
       rootNodes: [...currentState.rootNodes, newNode],
-      selectedNode: newNode,
+      selectedNodes: new Set([newNode.nodeId]),
     }));
   }
 
@@ -627,7 +671,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
       rootNodes: [],
-      selectedNode: undefined,
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     }));
@@ -641,27 +685,140 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
-  private handleCopy(attrs: ExplorePageAttrs, node: QueryNode): void {
+  private handleCopy(attrs: ExplorePageAttrs): void {
+    const {state} = attrs;
+    const selectedNodeIds = state.selectedNodes;
+
+    if (selectedNodeIds.size === 0) {
+      return;
+    }
+
+    const allNodes = getAllNodes(state.rootNodes);
+    const selectedNodes = allNodes.filter((n) => selectedNodeIds.has(n.nodeId));
+
+    if (selectedNodes.length === 0) {
+      return;
+    }
+
+    // Get positions for relative layout calculation
+    const positions = selectedNodes.map((node) => {
+      const layout = state.nodeLayouts.get(node.nodeId);
+      return {
+        node,
+        x: layout?.x ?? 0,
+        y: layout?.y ?? 0,
+      };
+    });
+
+    // Find the top-left corner as reference point
+    const minX = Math.min(...positions.map((p) => p.x));
+    const minY = Math.min(...positions.map((p) => p.y));
+
+    // Create clipboard entries with cloned nodes and relative positions
+    // Track whether each node is docked (no explicit layout) or undocked
+    const nodeIdToIndex = new Map<string, number>();
+    const clipboardNodes: ClipboardEntry[] = positions.map((p, index) => {
+      nodeIdToIndex.set(p.node.nodeId, index);
+      const hasLayout = state.nodeLayouts.has(p.node.nodeId);
+      return {
+        node: p.node.clone(),
+        relativeX: p.x - minX,
+        relativeY: p.y - minY,
+        isDocked: !hasLayout,
+      };
+    });
+
+    // Capture connections between selected nodes
+    const clipboardConnections: ClipboardConnection[] = [];
+    for (const node of selectedNodes) {
+      const toIndex = nodeIdToIndex.get(node.nodeId);
+      if (toIndex === undefined) continue;
+
+      // Check primaryInput
+      if (node.primaryInput && selectedNodeIds.has(node.primaryInput.nodeId)) {
+        const fromIndex = nodeIdToIndex.get(node.primaryInput.nodeId);
+        if (fromIndex !== undefined) {
+          clipboardConnections.push({fromIndex, toIndex});
+        }
+      }
+
+      // Check secondaryInputs
+      if (node.secondaryInputs) {
+        for (const [portIndex, inputNode] of node.secondaryInputs.connections) {
+          if (selectedNodeIds.has(inputNode.nodeId)) {
+            const fromIndex = nodeIdToIndex.get(inputNode.nodeId);
+            if (fromIndex !== undefined) {
+              clipboardConnections.push({fromIndex, toIndex, portIndex});
+            }
+          }
+        }
+      }
+    }
+
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
-      clipboardNode: node.clone(),
+      clipboardNodes,
+      clipboardConnections,
     }));
   }
 
   private handlePaste(attrs: ExplorePageAttrs): void {
     const {state, onStateUpdate} = attrs;
-    if (state.clipboardNode === undefined) {
+    if (
+      state.clipboardNodes === undefined ||
+      state.clipboardNodes.length === 0
+    ) {
       return;
     }
+
     onStateUpdate((currentState) => {
-      if (currentState.clipboardNode === undefined) {
+      if (
+        currentState.clipboardNodes === undefined ||
+        currentState.clipboardNodes.length === 0
+      ) {
         return currentState;
       }
-      const newNode = currentState.clipboardNode.clone();
+
+      // Clone nodes again for this paste operation (allows multiple pastes)
+      const newNodes = currentState.clipboardNodes.map((entry) =>
+        entry.node.clone(),
+      );
+
+      // Calculate paste offset (place slightly offset from original)
+      const pasteOffsetX = 50;
+      const pasteOffsetY = 50;
+
+      // Update layouts for new nodes - only add layouts for undocked nodes
+      // Docked nodes will remain docked (attached to their parent)
+      const updatedLayouts = new Map(currentState.nodeLayouts);
+      currentState.clipboardNodes.forEach((entry, index) => {
+        if (!entry.isDocked) {
+          updatedLayouts.set(newNodes[index].nodeId, {
+            x: entry.relativeX + pasteOffsetX,
+            y: entry.relativeY + pasteOffsetY,
+          });
+        }
+      });
+
+      // Restore connections between pasted nodes
+      if (currentState.clipboardConnections) {
+        for (const conn of currentState.clipboardConnections) {
+          const fromNode = newNodes[conn.fromIndex] as QueryNode | undefined;
+          const toNode = newNodes[conn.toIndex] as QueryNode | undefined;
+          if (fromNode !== undefined && toNode !== undefined) {
+            addConnection(fromNode, toNode, conn.portIndex);
+          }
+        }
+      }
+
+      // Select all newly pasted nodes
+      const newSelectedNodes = new Set(newNodes.map((n) => n.nodeId));
+
       return {
         ...currentState,
-        rootNodes: [...currentState.rootNodes, newNode],
-        selectedNode: newNode,
+        rootNodes: [...currentState.rootNodes, ...newNodes],
+        selectedNodes: newSelectedNodes,
+        nodeLayouts: updatedLayouts,
       };
     });
   }
@@ -714,7 +871,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       );
       attrs.onStateUpdate((currentState) => ({
         ...currentState,
-        selectedNode: existingFilterNode,
+        selectedNodes: new Set([existingFilterNode.nodeId]),
       }));
       return;
     }
@@ -740,7 +897,224 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     // Single state update records the entire operation (node + filters)
     attrs.onStateUpdate((currentState) => ({
       ...currentState,
-      selectedNode: newFilterNode,
+      selectedNodes: new Set([newFilterNode.nodeId]),
+    }));
+  }
+
+  /**
+   * Parses a column field to extract joinid information.
+   * Returns undefined if the field is not a joinid column reference.
+   */
+  private parseJoinidColumnField(
+    field: string,
+    sourceNode: QueryNode,
+  ):
+    | {
+        joinidColumnName: string;
+        targetColumnName: string;
+        targetTable: string;
+        targetJoinColumn: string;
+      }
+    | undefined {
+    // Parse the field to extract joinid column name and target column
+    // Expected format: "joinidColumnName.targetColumnName"
+    const dotIndex = field.indexOf('.');
+    if (dotIndex === -1) {
+      return undefined;
+    }
+
+    const joinidColumnName = field.substring(0, dotIndex);
+    const targetColumnName = field.substring(dotIndex + 1);
+
+    // Find the joinid column in the source node's finalCols
+    const joinidColumnInfo = sourceNode.finalCols.find(
+      (col) => col.name === joinidColumnName,
+    );
+
+    if (
+      joinidColumnInfo === undefined ||
+      joinidColumnInfo.column.type?.kind !== 'joinid'
+    ) {
+      return undefined;
+    }
+
+    return {
+      joinidColumnName,
+      targetColumnName,
+      targetTable: joinidColumnInfo.column.type.source.table,
+      targetJoinColumn: joinidColumnInfo.column.type.source.column,
+    };
+  }
+
+  /**
+   * Finds an AddColumnsNode that matches the given join configuration.
+   * Checks both the source node itself and its immediate child.
+   */
+  private findMatchingAddColumnsNode(
+    sourceNode: QueryNode,
+    joinidColumnName: string,
+    targetJoinColumn: string,
+  ): AddColumnsNode | undefined {
+    // Check if the source node is already an AddColumnsNode with the same join
+    if (sourceNode.type === NodeType.kAddColumns) {
+      const addColumnsNode = sourceNode as AddColumnsNode;
+      if (
+        addColumnsNode.state.leftColumn === joinidColumnName &&
+        addColumnsNode.state.rightColumn === targetJoinColumn
+      ) {
+        return addColumnsNode;
+      }
+    }
+
+    // Check if the source node has exactly one child that's an AddColumnsNode with same join
+    if (
+      sourceNode.nextNodes.length === 1 &&
+      sourceNode.nextNodes[0].type === NodeType.kAddColumns
+    ) {
+      const existingAddColumnsNode = sourceNode.nextNodes[0] as AddColumnsNode;
+      if (
+        existingAddColumnsNode.state.leftColumn === joinidColumnName &&
+        existingAddColumnsNode.state.rightColumn === targetJoinColumn
+      ) {
+        return existingAddColumnsNode;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Handles adding a column from a joinid table by creating an AddColumnsNode.
+   * The column field is expected to be in the format "joinidColumn.targetColumnName"
+   * where joinidColumn is a column with joinid type in the source node.
+   */
+  handleColumnAdd(
+    attrs: ExplorePageAttrs,
+    sourceNode: QueryNode,
+    column: Column,
+  ) {
+    const parsed = this.parseJoinidColumnField(column.field, sourceNode);
+    if (parsed === undefined) {
+      // Not a joinid column reference - nothing to do
+      return;
+    }
+
+    const {joinidColumnName, targetColumnName, targetTable, targetJoinColumn} =
+      parsed;
+
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    if (sqlModules === undefined) {
+      console.warn('Cannot add column: SQL modules not loaded yet');
+      return;
+    }
+
+    // Check if this column name already exists in the source node's schema
+    const existingColumnNames = new Set(
+      sourceNode.finalCols.map((col) => col.name),
+    );
+    if (existingColumnNames.has(targetColumnName)) {
+      console.warn(
+        `Cannot add column: "${targetColumnName}" already exists in the schema`,
+      );
+      return;
+    }
+
+    // Try to find an existing AddColumnsNode with the same join configuration
+    const existingNode = this.findMatchingAddColumnsNode(
+      sourceNode,
+      joinidColumnName,
+      targetJoinColumn,
+    );
+
+    if (existingNode !== undefined) {
+      // Check if the column is already added
+      if (existingNode.state.selectedColumns?.includes(targetColumnName)) {
+        console.warn(
+          `Cannot add column: "${targetColumnName}" is already added`,
+        );
+        return;
+      }
+
+      // Add the column to the existing AddColumnsNode
+      existingNode.state.selectedColumns = [
+        ...(existingNode.state.selectedColumns ?? []),
+        targetColumnName,
+      ];
+      existingNode.state.onchange?.();
+      if (existingNode !== sourceNode) {
+        attrs.onStateUpdate((currentState) => ({
+          ...currentState,
+          selectedNodes: new Set([existingNode.nodeId]),
+        }));
+      }
+      return;
+    }
+
+    // Create a new AddColumnsNode with the join configuration
+    // Note: selectedColumns is set after connecting the table node because
+    // onPrevNodesUpdated() resets selectedColumns when rightNode is not connected
+    const newAddColumnsNode = new AddColumnsNode({
+      leftColumn: joinidColumnName,
+      rightColumn: targetJoinColumn,
+      isGuidedConnection: true,
+      sqlModules,
+      trace: attrs.trace,
+    });
+
+    // Set actions now that the node is created
+    newAddColumnsNode.state.actions = this.createNodeActions(
+      attrs,
+      newAddColumnsNode,
+    );
+
+    // Mark as initialized
+    this.initializedNodes.add(newAddColumnsNode.nodeId);
+
+    // Insert between source node and its children
+    insertNodeBetween(
+      sourceNode,
+      newAddColumnsNode,
+      addConnection,
+      removeConnection,
+    );
+
+    // Now create and connect the table source node
+    const descriptor = nodeRegistry.get('table');
+    if (descriptor === undefined) {
+      console.warn("Cannot add table: 'table' node type not found in registry");
+      return;
+    }
+
+    const sqlTable = sqlModules
+      .listTables()
+      .find((t) => t.name === targetTable);
+    if (sqlTable === undefined) {
+      console.warn(`Table ${targetTable} not found in SQL modules`);
+      return;
+    }
+
+    // Create the table node with the specific table
+    const tableNode = descriptor.factory(
+      {
+        sqlTable,
+        sqlModules,
+        trace: attrs.trace,
+      },
+      {allNodes: attrs.state.rootNodes},
+    );
+
+    // Connect table node to AddColumnsNode's secondary input (port 0)
+    addConnection(tableNode, newAddColumnsNode, 0);
+
+    // Now that rightNode is connected, set the selected column
+    // (must be done after connection because onPrevNodesUpdated resets it otherwise)
+    newAddColumnsNode.state.selectedColumns = [targetColumnName];
+
+    // Update state with both new nodes
+    attrs.onStateUpdate((currentState) => ({
+      ...currentState,
+      rootNodes: [...currentState.rootNodes, tableNode],
+      selectedNodes: new Set([newAddColumnsNode.nodeId]),
     }));
   }
 
@@ -931,11 +1305,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     // Now that we've transferred the layout to children/orphans, clean it up
     updatedNodeLayouts.delete(node.nodeId);
 
-    // STEP 6: Update selection if deleted node was selected
-    const newSelectedNode =
-      state.selectedNode === node ? undefined : state.selectedNode;
-
-    // STEP 7: Trigger validation on affected children
+    // STEP 6: Trigger validation on affected children
     // Children need to re-validate because their inputs have changed
     // (either reconnected to a different parent or lost their parent entirely)
     for (const {child} of childConnections) {
@@ -947,13 +1317,177 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       notifyNextNodes(inputNode);
     }
 
-    // STEP 8: Commit state changes
-    onStateUpdate((currentState) => ({
-      ...currentState,
-      rootNodes: newRootNodes,
-      selectedNode: newSelectedNode,
-      nodeLayouts: updatedNodeLayouts,
-    }));
+    // STEP 7: Commit state changes
+    onStateUpdate((currentState) => {
+      // Update selection based on current state (not stale state)
+      // This is important for multi-node deletion where state changes between deletions
+      const newSelectedNodes = new Set(currentState.selectedNodes);
+      newSelectedNodes.delete(node.nodeId);
+
+      return {
+        ...currentState,
+        rootNodes: newRootNodes,
+        selectedNodes: newSelectedNodes,
+        nodeLayouts: updatedNodeLayouts,
+      };
+    });
+  }
+
+  /**
+   * Delete all currently selected nodes.
+   * Batches all deletions into a single state update to create one undo point.
+   */
+  async handleDeleteSelectedNodes(attrs: ExplorePageAttrs): Promise<void> {
+    const {state, onStateUpdate} = attrs;
+    const selectedNodeIds = new Set(state.selectedNodes);
+
+    if (selectedNodeIds.size === 0) {
+      return;
+    }
+
+    // Get all nodes to delete
+    const allNodes = getAllNodes(state.rootNodes);
+    const nodesToDelete = allNodes.filter((n) => selectedNodeIds.has(n.nodeId));
+
+    if (nodesToDelete.length === 0) {
+      return;
+    }
+
+    // STEP 1: Clean up resources for all nodes (async operations)
+    if (this.cleanupManager !== undefined) {
+      for (const node of nodesToDelete) {
+        try {
+          await this.cleanupManager.cleanupNode(node);
+        } catch (error) {
+          console.error('Failed to cleanup node resources:', error);
+        }
+      }
+    }
+
+    // STEP 2: Capture graph info and perform all deletions in a single state update
+    onStateUpdate((currentState) => {
+      const nodesToDeleteSet = new Set(nodesToDelete);
+      const updatedNodeLayouts = new Map(currentState.nodeLayouts);
+      const newRootNodesSet = new Set(currentState.rootNodes);
+      const affectedChildren: QueryNode[] = [];
+      const orphanedInputs: QueryNode[] = [];
+
+      // Process each node deletion
+      for (const node of nodesToDelete) {
+        // Capture info before disconnection
+        const primaryParent = this.getPrimaryParent(node);
+        const childConnections = captureAllChildConnections(node);
+        const allInputs = getAllInputNodes(node);
+
+        // Disconnect from graph
+        this.disconnectNodeFromGraph(node);
+
+        // Remove from root nodes
+        newRootNodesSet.delete(node);
+
+        // Remove layout
+        const deletedNodeLayout = updatedNodeLayouts.get(node.nodeId);
+        updatedNodeLayouts.delete(node.nodeId);
+
+        // Reconnect primary parent to children (if parent is not also being deleted)
+        if (
+          primaryParent !== undefined &&
+          !nodesToDeleteSet.has(primaryParent)
+        ) {
+          let layoutOffsetCount = 0;
+          for (const {child, portIndex} of childConnections) {
+            // Skip if child is also being deleted
+            if (nodesToDeleteSet.has(child)) {
+              continue;
+            }
+
+            // Only reconnect primary connections
+            if (portIndex === undefined) {
+              if (!primaryParent.nextNodes.includes(child)) {
+                addConnection(primaryParent, child, portIndex);
+                affectedChildren.push(child);
+
+                // Transfer layout if child was docked
+                const childHasNoLayout = !updatedNodeLayouts.has(child.nodeId);
+                if (childHasNoLayout && deletedNodeLayout !== undefined) {
+                  const offsetX = layoutOffsetCount * 30;
+                  const offsetY = layoutOffsetCount * 30;
+                  updatedNodeLayouts.set(child.nodeId, {
+                    x: deletedNodeLayout.x + offsetX,
+                    y: deletedNodeLayout.y + offsetY,
+                  });
+                  layoutOffsetCount++;
+                }
+              }
+            }
+          }
+        }
+
+        // Handle orphaned children (no parent or parent was deleted)
+        if (
+          primaryParent === undefined ||
+          nodesToDeleteSet.has(primaryParent)
+        ) {
+          let layoutOffsetCount = 0;
+          for (const {child, portIndex} of childConnections) {
+            // Skip if child is also being deleted
+            if (nodesToDeleteSet.has(child)) {
+              continue;
+            }
+
+            // Only orphan primary connections
+            if (portIndex === undefined) {
+              newRootNodesSet.add(child);
+              affectedChildren.push(child);
+
+              // Transfer layout
+              const childHasNoLayout = !updatedNodeLayouts.has(child.nodeId);
+              if (childHasNoLayout && deletedNodeLayout !== undefined) {
+                const offsetX = layoutOffsetCount * 30;
+                const offsetY = layoutOffsetCount * 30;
+                updatedNodeLayouts.set(child.nodeId, {
+                  x: deletedNodeLayout.x + offsetX,
+                  y: deletedNodeLayout.y + offsetY,
+                });
+                layoutOffsetCount++;
+              }
+            }
+          }
+        }
+
+        // Handle orphaned input providers
+        for (const inputNode of allInputs) {
+          // Skip if input is also being deleted
+          if (nodesToDeleteSet.has(inputNode)) {
+            continue;
+          }
+
+          const wasNotRoot = !currentState.rootNodes.includes(inputNode);
+          const hasNoConsumers = inputNode.nextNodes.length === 0;
+
+          if (wasNotRoot && hasNoConsumers) {
+            newRootNodesSet.add(inputNode);
+            orphanedInputs.push(inputNode);
+          }
+        }
+      }
+
+      // Trigger validation on affected nodes
+      for (const child of affectedChildren) {
+        child.onPrevNodesUpdated?.();
+      }
+      for (const inputNode of orphanedInputs) {
+        notifyNextNodes(inputNode);
+      }
+
+      // Clear selection
+      return {
+        ...currentState,
+        rootNodes: Array.from(newRootNodesSet),
+        selectedNodes: new Set<string>(),
+        nodeLayouts: updatedNodeLayouts,
+      };
+    });
   }
 
   handleConnectionRemove(
@@ -1071,10 +1605,23 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
-    // Handle copy/paste shortcuts - these work when a node IS selected
+    // Handle Ctrl+Enter to execute selected node
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      const selectedNode = getPrimarySelectedNode(
+        state.selectedNodes,
+        state.rootNodes,
+      );
+      if (selectedNode !== undefined && this.executeFn !== undefined) {
+        void this.executeFn();
+        event.preventDefault();
+      }
+      return;
+    }
+
+    // Handle copy/paste shortcuts - these work when nodes are selected
     if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
-      if (state.selectedNode !== undefined) {
-        this.handleCopy(attrs, state.selectedNode);
+      if (state.selectedNodes.size > 0) {
+        this.handleCopy(attrs);
       }
       // Always preventDefault to avoid browser copy interfering with the page,
       // even when no node is selected.
@@ -1088,9 +1635,18 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
+    // Handle delete key - delete all selected nodes
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      if (state.selectedNodes.size > 0) {
+        this.handleDeleteSelectedNodes(attrs);
+        event.preventDefault();
+      }
+      return;
+    }
+
     // For other shortcuts, skip if a node is selected to avoid interfering
     // with node-specific interactions
-    if (state.selectedNode) {
+    if (state.selectedNodes.size > 0) {
       return;
     }
 
@@ -1287,17 +1843,20 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         sqlModules,
         queryExecutionService: this.queryExecutionService,
         rootNodes: state.rootNodes,
-        selectedNode: state.selectedNode,
+        selectedNodes: state.selectedNodes,
         nodeLayouts: state.nodeLayouts,
         labels: state.labels,
         loadGeneration: state.loadGeneration,
         isExplorerCollapsed: state.isExplorerCollapsed,
         sidebarWidth: state.sidebarWidth,
+        onExecuteReady: (executeFn) => {
+          this.executeFn = executeFn;
+        },
         onRootNodeCreated: (node) => {
           wrappedAttrs.onStateUpdate((currentState) => ({
             ...currentState,
             rootNodes: [...currentState.rootNodes, node],
-            selectedNode: node,
+            selectedNodes: new Set([node.nodeId]),
           }));
         },
         onExplorerCollapsedChange: (collapsed) => {
@@ -1314,6 +1873,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onNodeSelected: (node) => {
           if (node) this.selectNode(wrappedAttrs, node);
+        },
+        onNodeAddToSelection: (node) => {
+          this.addNodeToSelection(wrappedAttrs, node);
+        },
+        onNodeRemoveFromSelection: (nodeId) => {
+          this.removeNodeFromSelection(wrappedAttrs, nodeId);
         },
         onDeselect: () => this.deselectNode(wrappedAttrs),
         onNodeLayoutChange: (nodeId, layout) => {
@@ -1340,13 +1905,21 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onClearAllNodes: () => this.handleClearAllNodes(wrappedAttrs),
         onDuplicateNode: () => {
-          if (state.selectedNode) {
-            this.handleDuplicateNode(wrappedAttrs, state.selectedNode);
+          const selectedNode = getPrimarySelectedNode(
+            state.selectedNodes,
+            state.rootNodes,
+          );
+          if (selectedNode) {
+            this.handleDuplicateNode(wrappedAttrs, selectedNode);
           }
         },
         onDeleteNode: () => {
-          if (state.selectedNode) {
-            this.handleDeleteNode(wrappedAttrs, state.selectedNode);
+          const selectedNode = getPrimarySelectedNode(
+            state.selectedNodes,
+            state.rootNodes,
+          );
+          if (selectedNode) {
+            this.handleDeleteNode(wrappedAttrs, selectedNode);
           }
         },
         onConnectionRemove: (fromNode, toNode, isSecondaryInput) => {
@@ -1371,7 +1944,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             return {
               ...currentState,
               rootNodes: [],
-              selectedNode: undefined,
+              selectedNodes: new Set(),
               nodeLayouts: new Map(),
               labels: [],
               loadGeneration: (currentState.loadGeneration ?? 0) + 1,
@@ -1391,6 +1964,9 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         },
         onFilterAdd: (node, filter, filterOperator) => {
           this.handleFilterAdd(wrappedAttrs, node, filter, filterOperator);
+        },
+        onColumnAdd: (node, column) => {
+          this.handleColumnAdd(wrappedAttrs, node, column);
         },
         onNodeStateChange: () => {
           // Trigger a state update when node properties change (e.g., selecting group by columns)

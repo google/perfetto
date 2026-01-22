@@ -129,7 +129,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     const leftTabs: TabsTab[] = editorTabs.map((tab) => ({
       key: tab.id,
       title: tab.title,
-      closable: editorTabs.length > 1,
+      leftIcon: 'code',
+      closeButton: editorTabs.length > 1,
       content: this.renderEditorTabContent(attrs, tab),
     }));
 
@@ -162,6 +163,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         {
           key: 'history',
           title: 'History',
+          leftIcon: 'history',
           content: m(QueryHistoryComponent, {
             className: 'pf-query-page__history',
             trace: attrs.trace,
@@ -180,6 +182,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         {
           key: 'tables',
           title: 'Tables',
+          leftIcon: 'table_chart',
           content: this.renderTablesTab(attrs),
         },
       ],

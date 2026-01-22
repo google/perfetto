@@ -5170,6 +5170,29 @@ message TraceConfig {
   // Supported on: Android 26Q1+.
   optional WriteFlushMode write_flush_mode = 44;
 
+  enum FFlushMode {
+    // Default: same as FFLUSH_DISABLED.
+    FFLUSH_UNSPECIFIED = 0;
+
+    // Do not explicitly sync the file to storage after each write pass.
+    FFLUSH_DISABLED = 1;
+
+    // Explicitly sync the file to storage (via fdatasync) after each periodic
+    // write pass. Increases data durability at the cost of higher disk I/O
+    // overhead.
+    FFLUSH_ENABLED = 2;
+  }
+
+  // Whether to sync the output file to storage after each periodic write pass.
+  // Only applicable when |write_into_file| is true.
+  //
+  // By default, no fflush is invoked. FFLUSH_ENABLED must be set to explicitly
+  // sync to storage on every write.
+  //
+  // Introduced in: perfetto v54.
+  // Supported on: Android 26Q1+.
+  optional FFlushMode fflush_post_write = 45;
+
   // When true, data sources in remote producers (machines connected via
   // traced_relay) will be matched by default. When false (the default), data
   // sources only match the host machine. In either case, an explicit
@@ -15570,6 +15593,8 @@ message InternedData {
   repeated InternedString viewcapture_window_name = 39;
   repeated InternedString viewcapture_view_id = 40;
   repeated InternedString viewcapture_class_name = 41;
+  repeated InternedString viewcapture_content_description = 45;
+  repeated InternedString viewcapture_text = 46;
 
   // Interned context for android.app_wakelocks.
   repeated AppWakelockInfo app_wakelock_info = 42;

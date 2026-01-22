@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {colorCompare} from '../../base/color';
+import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
 import {assertExists} from '../../base/logging';
@@ -197,6 +198,9 @@ export abstract class BaseSliceTrack<
 
   private charWidth = -1;
   protected hoveredSlice?: SliceT;
+
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
   private maxDataDepth = 0;
 
@@ -848,31 +852,27 @@ export abstract class BaseSliceTrack<
     return undefined;
   }
 
-  onMouseMove(event: TrackMouseEvent): void {
-    this.updateHoveredSlice(this.findSlice(event));
-
-    // Maybe do this in the caller?
-    this.trace.raf.scheduleFullRedraw();
+  onMouseMove(e: TrackMouseEvent): void {
+    const prevHoveredSlice = this.hoveredSlice;
+    this.hoveredSlice = this.findSlice(e);
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
+      if (this.hoveredSlice === undefined) {
+        this.onSliceOut({slice: assertExists(prevHoveredSlice)});
+      } else {
+        this.onSliceOver({slice: this.hoveredSlice});
+      }
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   onMouseOut(): void {
-    this.updateHoveredSlice(undefined);
-  }
-
-  private updateHoveredSlice(slice?: SliceT): void {
-    const lastHoveredSlice = this.hoveredSlice;
-    this.hoveredSlice = slice;
-
-    // Only notify the Impl if the hovered slice changes:
-    if (slice === lastHoveredSlice) return;
-
-    if (this.hoveredSlice === undefined) {
+    const prevHoveredSlice = this.hoveredSlice;
+    this.hoveredSlice = undefined;
+    if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceId = undefined;
-      this.onSliceOut({slice: assertExists(lastHoveredSlice)});
-    } else {
-      const args: OnSliceOverArgs<SliceT> = {slice: this.hoveredSlice};
-      this.trace.timeline.highlightedSliceId = this.hoveredSlice.id;
-      this.onSliceOver(args);
+      this.onSliceOut({slice: assertExists(prevHoveredSlice)});
+      this.trace.raf.scheduleFullRedraw();
     }
   }
 

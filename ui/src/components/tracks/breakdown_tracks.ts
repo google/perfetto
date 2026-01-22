@@ -25,6 +25,7 @@ import {
   NUM_NULL,
   STR,
   LONG_NULL,
+  QueryResult,
 } from '../../trace_processor/query_result';
 import {TrackRenderer} from '../../public/track';
 
@@ -140,6 +141,10 @@ export interface BreakdownTrackProps {
    * the corresponding slices.
    */
   pivots?: BreakdownTrackSqlInfo;
+  /**
+   * Whether to sort the tracks based on their maximum value.
+   */
+  sortTracks?: boolean;
 }
 
 interface Filter {
@@ -258,114 +263,132 @@ export class BreakdownTracks {
       [],
     );
 
-    this.createBreakdownHierarchy(
-      [],
+    const aggColNames = this.props.aggregation.columns;
+    const sliceColNames = this.props.slice?.columns ?? [];
+    const pivotColNames = this.props.pivots?.columns ?? [];
+
+    const allColNames = [];
+    allColNames.push(...aggColNames);
+    allColNames.push(...sliceColNames);
+    allColNames.push(...pivotColNames);
+
+    const query = `
+      SELECT ${allColNames.join(', ')}
+      FROM ${this.props.aggregation.tableName}
+      ${this.sliceJoinClause ?? ''}
+      ${this.pivotJoinClause ?? ''}
+      GROUP BY ${allColNames.join(', ')}
+    `;
+    const res = await this.props.trace.engine.query(query);
+
+    await this.createBreakdownHierarchy(
       rootTrackNode,
-      this.props.aggregation,
-      0,
-      BreakdownTrackType.AGGREGATION,
+      res,
+      aggColNames,
+      sliceColNames,
+      pivotColNames,
     );
 
     return rootTrackNode;
   }
 
   private async createBreakdownHierarchy(
-    filters: Filter[],
-    parent: TrackNode,
-    sqlInfo: BreakdownTrackSqlInfo,
-    colIndex: number,
-    trackType: BreakdownTrackType,
+    rootNode: TrackNode,
+    queryResult: QueryResult,
+    aggColumns: string[],
+    sliceColumns: string[],
+    pivotColumns: string[],
   ) {
-    const {columns} = sqlInfo;
-    if (colIndex === columns.length) {
-      return;
+    const cache: Map<string, Map<string, TrackNode>> = new Map();
+    if (rootNode.uri) {
+      cache.set(rootNode.uri, new Map<string, TrackNode>());
     }
 
-    const currColName = columns[colIndex];
-    const joinClause = this.getTrackSpecificJoinClause(trackType);
+    const iter = queryResult.iter({});
+    for (; iter.valid(); iter.next()) {
+      let state: {currentNode: TrackNode; currentFilters: Filter[]} = {
+        currentNode: rootNode,
+        currentFilters: [],
+      };
 
-    const query = `
-      ${this.modulesClause}
+      state = await this.processRowForColumns(
+        iter,
+        state,
+        aggColumns,
+        cache,
+        (name, filters) => this.createCounterTrackNode(name, filters),
+      );
 
-      SELECT DISTINCT ${currColName}
-      FROM ${this.props.aggregation.tableName}
-      ${joinClause !== undefined ? joinClause : ''}
-      ${filters.length > 0 ? `WHERE ${buildFilterSqlClause(filters)}` : ''}
-    `;
-
-    const res = await this.props.trace.engine.query(query);
-
-    for (const iter = res.iter({}); iter.valid(); iter.next()) {
-      const colRaw = iter.get(currColName);
-      const colValue = colRaw === null ? 'NULL' : colRaw.toString();
-      const name = colValue;
-
-      const newFilters = [
-        ...filters,
-        {
-          columnName: currColName,
-          value: colValue,
-        },
-      ];
-
-      let currNode;
-      let nextTrackType = trackType;
-      let nextColIndex = colIndex + 1;
-      let nextSqlInfo = sqlInfo;
-
-      switch (trackType) {
-        case BreakdownTrackType.AGGREGATION:
-          currNode = await this.createCounterTrackNode(name, newFilters);
-          if (this.props.slice && colIndex === columns.length - 1) {
-            nextTrackType = BreakdownTrackType.SLICE;
-            nextColIndex = 0;
-            nextSqlInfo = this.props.slice;
-          }
-          break;
-        case BreakdownTrackType.SLICE:
-          currNode = await this.createSliceTrackNode(
+      state = await this.processRowForColumns(
+        iter,
+        state,
+        sliceColumns,
+        cache,
+        (name, filters, colIndex) =>
+          this.createSliceTrackNode(
             name,
-            newFilters,
+            filters,
             colIndex,
-            sqlInfo,
-            trackType,
-          );
-          if (this.props.pivots && colIndex === columns.length - 1) {
-            nextTrackType = BreakdownTrackType.PIVOT;
-            nextColIndex = 0;
-            nextSqlInfo = this.props.pivots;
-          }
-          break;
-        default:
-          currNode = await this.createSliceTrackNode(
-            name,
-            newFilters,
-            colIndex,
-            sqlInfo,
-            trackType,
-          );
-      }
+            this.props.slice!,
+            BreakdownTrackType.SLICE,
+          ),
+      );
 
-      parent.addChildInOrder(currNode);
-      this.createBreakdownHierarchy(
-        newFilters,
-        currNode,
-        nextSqlInfo,
-        nextColIndex,
-        nextTrackType,
+      state = await this.processRowForColumns(
+        iter,
+        state,
+        pivotColumns,
+        cache,
+        (name, filters, colIndex) =>
+          this.createSliceTrackNode(
+            name,
+            filters,
+            colIndex,
+            this.props.pivots!,
+            BreakdownTrackType.PIVOT,
+          ),
       );
     }
   }
 
-  private getTrackSpecificJoinClause(trackType: BreakdownTrackType) {
-    switch (trackType) {
-      case BreakdownTrackType.SLICE:
-        return this.sliceJoinClause;
-      case BreakdownTrackType.PIVOT:
-        return this.pivotJoinClause;
-      default:
-        return undefined;
+  private async processRowForColumns(
+    iter: {get: (col: string) => SqlValue},
+    {
+      currentNode,
+      currentFilters,
+    }: {currentNode: TrackNode; currentFilters: Filter[]},
+    columns: string[],
+    cache: Map<string, Map<string, TrackNode>>,
+    createNode: (
+      name: string,
+      filters: Filter[],
+      colIndex: number,
+    ) => Promise<TrackNode>,
+  ): Promise<{currentNode: TrackNode; currentFilters: Filter[]}> {
+    for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+      let children = cache.get(currentNode.uri!);
+      if (!children) {
+        children = new Map<string, TrackNode>();
+        cache.set(currentNode.uri!, children);
+      }
+      const colName = columns[colIndex];
+      const colResRaw = iter.get(colName);
+      const childName = colResRaw === null ? 'NULL' : colResRaw.toString();
+
+      currentFilters.push({
+        columnName: colName,
+        value: childName,
+      });
+
+      let childNode = children.get(childName);
+      if (!childNode) {
+        childNode = await createNode(childName, currentFilters, colIndex);
+        currentNode.addChildInOrder(childNode);
+        children.set(childName, childNode);
+      }
+      currentNode = childNode;
     }
+    return {currentNode, currentFilters};
   }
 
   private async createSliceTrackNode(
@@ -386,8 +409,8 @@ export class BreakdownTracks {
     return await this.createTrackNode(
       title,
       newFilters,
-      (uri: string, filtersClause: string) => {
-        return SliceTrack.createMaterialized({
+      async (uri: string, filtersClause: string) => {
+        return SliceTrack.create({
           trace: this.props.trace,
           uri,
           dataset: new SourceDataset({
@@ -428,6 +451,7 @@ export class BreakdownTracks {
         return createQueryCounterTrack({
           trace: this.props.trace,
           uri,
+          materialize: false,
           data: {
             sqlSource: `
               SELECT ts, value FROM
@@ -461,7 +485,10 @@ export class BreakdownTracks {
       renderer,
     });
 
-    const sortOrder = await getSortOrder?.(filtersClause);
+    let sortOrder: number | undefined;
+    if (this.props.sortTracks) {
+      sortOrder = await getSortOrder?.(filtersClause);
+    }
 
     return new TrackNode({
       name,

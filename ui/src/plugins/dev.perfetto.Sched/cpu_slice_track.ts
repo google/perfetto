@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
+import {Monitor} from '../../base/monitor';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
@@ -34,7 +35,6 @@ import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {TrackEventDetails} from '../../public/selection';
 import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
-import {exists} from '../../base/utils';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
 
@@ -58,14 +58,49 @@ const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 const CPU_SLICE_FLAGS_INCOMPLETE = 1;
 const CPU_SLICE_FLAGS_REALTIME = 2;
 
+interface CpuSliceHover {
+  utid: number;
+  count: number;
+  pid?: bigint;
+}
+
+function computeHover(
+  pos: Point2D | undefined,
+  timescale: TimeScale,
+  data: Data,
+  threads: ThreadMap,
+): CpuSliceHover | undefined {
+  if (pos === undefined) return undefined;
+
+  const {x, y} = pos;
+  if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) return undefined;
+
+  const t = timescale.pxToHpTime(x);
+  for (let i = 0; i < data.startQs.length; i++) {
+    const tStart = Time.fromRaw(data.startQs[i]);
+    const tEnd = Time.fromRaw(data.endQs[i]);
+    if (t.containedWithin(tStart, tEnd)) {
+      const utid = data.utids[i];
+      const count = data.counts[i];
+      const pid = threads.get(utid)?.pid;
+      return {utid, count, pid};
+    }
+  }
+  return undefined;
+}
+
 export class CpuSliceTrack implements TrackRenderer {
-  private mousePos?: Point2D;
-  private utidHoveredInThisTrack?: number;
-  private countHoveredInThisTrack?: number;
+  private hover?: CpuSliceHover;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private lastRowId = -1;
   private trackUuid = uuidv4Sql();
+
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly hoverMonitor = new Monitor([
+    () => this.hover?.utid,
+    () => this.hover?.count,
+  ]);
 
   readonly rootTableName = 'sched_slice';
 
@@ -210,21 +245,18 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   renderTooltip(): m.Children {
-    if (
-      this.utidHoveredInThisTrack === undefined ||
-      this.mousePos === undefined
-    ) {
+    if (this.hover === undefined) {
       return undefined;
     }
 
-    const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
+    const hoveredThread = this.threads.get(this.hover.utid);
     if (!hoveredThread) {
       return undefined;
     }
 
     const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
 
-    const count = assertExists(this.countHoveredInThisTrack);
+    const count = this.hover.count;
     const countDiv = count > 1 && m('div', `and ${count - 1} other events`);
     if (hoveredThread.pid !== undefined) {
       const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
@@ -412,48 +444,22 @@ export class CpuSliceTrack implements TrackRenderer {
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
-    this.mousePos = {x, y};
     if (data === undefined) return;
-    if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
-      this.utidHoveredInThisTrack = undefined;
-      this.countHoveredInThisTrack = undefined;
-      this.trace.timeline.hoveredUtid = undefined;
-      this.trace.timeline.hoveredPid = undefined;
-      return;
+    this.hover = computeHover({x, y}, timescale, data, this.threads);
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.timeline.hoveredUtid = this.hover?.utid;
+      this.trace.timeline.hoveredPid = this.hover?.pid;
+      this.trace.raf.scheduleFullRedraw();
     }
-    const t = timescale.pxToHpTime(x);
-    let hoveredUtid = undefined;
-    let hoveredCount = undefined;
-
-    for (let i = 0; i < data.startQs.length; i++) {
-      const tStart = Time.fromRaw(data.startQs[i]);
-      const tEnd = Time.fromRaw(data.endQs[i]);
-      const count = data.counts[i];
-      const utid = data.utids[i];
-      if (t.gte(tStart) && t.lt(tEnd)) {
-        hoveredUtid = utid;
-        hoveredCount = count;
-        break;
-      }
-    }
-    this.utidHoveredInThisTrack = hoveredUtid;
-    this.countHoveredInThisTrack = hoveredCount;
-    const threadInfo = exists(hoveredUtid)
-      ? this.threads.get(hoveredUtid)
-      : undefined;
-    this.trace.timeline.hoveredUtid = hoveredUtid;
-    this.trace.timeline.hoveredPid = threadInfo?.pid;
-
-    // Trigger redraw to update tooltip
-    m.redraw();
   }
 
   onMouseOut() {
-    this.utidHoveredInThisTrack = -1;
-    this.countHoveredInThisTrack = -1;
-    this.trace.timeline.hoveredUtid = undefined;
-    this.trace.timeline.hoveredPid = undefined;
-    this.mousePos = undefined;
+    this.hover = undefined;
+    if (this.hoverMonitor.ifStateChanged()) {
+      this.trace.timeline.hoveredUtid = undefined;
+      this.trace.timeline.hoveredPid = undefined;
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 
   onMouseClick({x, timescale}: TrackMouseEvent) {
@@ -463,7 +469,7 @@ export class CpuSliceTrack implements TrackRenderer {
     const index = search(data.startQs, time.toTime());
     const id = index === -1 ? undefined : data.ids[index];
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (!id || this.utidHoveredInThisTrack === -1) return false;
+    if (!id || this.hover === undefined) return false;
 
     this.trace.selection.selectTrackEvent(this.uri, id);
     return true;

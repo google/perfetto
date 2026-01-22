@@ -38,7 +38,8 @@ uint64_t ComputePacketHash(
     const TraceBuffer::PacketSequenceProperties& seq_props) {
   base::MurmurHashCombiner hasher;
   for (const Slice& slice : packet.slices()) {
-    hasher.Combine(reinterpret_cast<const char*>(slice.start), slice.size);
+    hasher.Combine(std::string_view(reinterpret_cast<const char*>(slice.start),
+                                    slice.size));
   }
   hasher.Combine(seq_props.producer_id_trusted);
   hasher.Combine(seq_props.writer_id);
