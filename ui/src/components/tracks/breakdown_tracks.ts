@@ -238,141 +238,6 @@ export class BreakdownTracks {
       .join('\n');
   }
 
-  async createTracks() {
-    if (this.modulesClause !== '') {
-      await this.props.trace.engine.query(this.modulesClause);
-    }
-
-    if (this.props.aggregationType !== BreakdownTrackAggType.COUNT) {
-      await this.props.trace.engine.query(`
-        CREATE OR REPLACE PERFETTO FUNCTION _ui_dev_perfetto_breakdown_tracks_is_spans_overlapping(
-          ts1 LONG,
-          ts_end1 LONG,
-          ts2 LONG,
-          ts_end2 LONG)
-        RETURNS BOOL
-        AS
-        SELECT (IIF($ts1 < $ts2, $ts2, $ts1) < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2));
-
-        ${this.getIntervals()}
-      `);
-    }
-
-    const rootTrackNode = await this.createCounterTrackNode(
-      `${this.props.trackTitle}`,
-      [],
-    );
-
-    await this.createBreakdownHierarchy(
-      [],
-      rootTrackNode,
-      this.props.aggregation,
-      0,
-      BreakdownTrackType.AGGREGATION,
-    );
-
-    return rootTrackNode;
-  }
-
-  private async createBreakdownHierarchy(
-    filters: Filter[],
-    parent: TrackNode,
-    sqlInfo: BreakdownTrackSqlInfo,
-    colIndex: number,
-    trackType: BreakdownTrackType,
-  ) {
-    const {columns} = sqlInfo;
-    if (colIndex === columns.length) {
-      return;
-    }
-
-    const currColName = columns[colIndex];
-    const joinClause = this.getTrackSpecificJoinClause(trackType);
-
-    const query = `
-      ${this.modulesClause}
-
-      SELECT DISTINCT ${currColName}
-      FROM ${this.props.aggregation.tableName}
-      ${joinClause !== undefined ? joinClause : ''}
-      ${filters.length > 0 ? `WHERE ${buildFilterSqlClause(filters)}` : ''}
-    `;
-
-    const res = await this.props.trace.engine.query(query);
-
-    for (const iter = res.iter({}); iter.valid(); iter.next()) {
-      const colRaw = iter.get(currColName);
-      const colValue = colRaw === null ? 'NULL' : colRaw.toString();
-      const name = colValue;
-
-      const newFilters = [
-        ...filters,
-        {
-          columnName: currColName,
-          value: colValue,
-        },
-      ];
-
-      let currNode;
-      let nextTrackType = trackType;
-      let nextColIndex = colIndex + 1;
-      let nextSqlInfo = sqlInfo;
-
-      switch (trackType) {
-        case BreakdownTrackType.AGGREGATION:
-          currNode = await this.createCounterTrackNode(name, newFilters);
-          if (this.props.slice && colIndex === columns.length - 1) {
-            nextTrackType = BreakdownTrackType.SLICE;
-            nextColIndex = 0;
-            nextSqlInfo = this.props.slice;
-          }
-          break;
-        case BreakdownTrackType.SLICE:
-          currNode = await this.createSliceTrackNode(
-            name,
-            newFilters,
-            colIndex,
-            sqlInfo,
-            trackType,
-          );
-          if (this.props.pivots && colIndex === columns.length - 1) {
-            nextTrackType = BreakdownTrackType.PIVOT;
-            nextColIndex = 0;
-            nextSqlInfo = this.props.pivots;
-          }
-          break;
-        default:
-          currNode = await this.createSliceTrackNode(
-            name,
-            newFilters,
-            colIndex,
-            sqlInfo,
-            trackType,
-          );
-      }
-
-      parent.addChildInOrder(currNode);
-      await this.createBreakdownHierarchy(
-        newFilters,
-        currNode,
-        nextSqlInfo,
-        nextColIndex,
-        nextTrackType,
-      );
-    }
-  }
-
-  private getTrackSpecificJoinClause(trackType: BreakdownTrackType) {
-    switch (trackType) {
-      case BreakdownTrackType.SLICE:
-        return this.sliceJoinClause;
-      case BreakdownTrackType.PIVOT:
-        return this.pivotJoinClause;
-      default:
-        return undefined;
-    }
-  }
-
   private async createSliceTrackNode(
     title: string,
     newFilters: Filter[],
@@ -479,7 +344,7 @@ export class BreakdownTracks {
     });
   }
 
-  async createTracksIterative() {
+  async createTracks() {
     if (this.modulesClause !== '') {
       await this.props.trace.engine.query(this.modulesClause);
     }
@@ -522,7 +387,7 @@ export class BreakdownTracks {
     `;
     const res = await this.props.trace.engine.query(query);
 
-    await this.createBreakdownHierarchyIterative(
+    await this.createBreakdownHierarchy(
       rootTrackNode,
       res,
       aggColNames,
@@ -573,7 +438,7 @@ export class BreakdownTracks {
     return {currentNode, currentFilters};
   }
 
-  private async createBreakdownHierarchyIterative(
+  private async createBreakdownHierarchy(
     rootNode: TrackNode,
     queryResult: QueryResult,
     aggColumns: string[],
