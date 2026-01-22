@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m, {Children} from 'mithril';
-import {Tab} from '../../public/tab';
-import {Trace} from '../../public/trace';
-import {SelectionOpts} from '../../public/selection';
+import {Dataset} from '../../trace_processor/dataset';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
-import {Section} from '../../widgets/section';
 import {MenuItem} from '../../widgets/menu';
 import {RelatedEvent} from '.';
-import {Dataset} from '../../trace_processor/dataset';
-import {Time} from '../../base/time';
 import {RELATION_SCHEMA} from './relation_finding_strategy';
+import {Section} from '../../widgets/section';
+import {SelectionOpts} from '../../public/selection';
+import {Tab} from '../../public/tab';
+import {Time} from '../../base/time';
+import {Trace} from '../../public/trace';
+import m, {Children} from 'mithril';
 
 export abstract class RelatedEventsTabBase implements Tab {
   private static readonly title = 'Related Events';

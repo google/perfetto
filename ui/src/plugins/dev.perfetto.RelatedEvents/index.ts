@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time} from '../../base/time';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
 import {Dataset} from '../../trace_processor/dataset';
+import {PerfettoPlugin} from '../../public/plugin';
 import {RelatedEventsTabBase} from './related_events_tab';
 import {RelationFindingStrategy} from './relation_finding_strategy';
+import {time} from '../../base/time';
+import {Trace} from '../../public/trace';
 
 export interface RelatedEvent {
   id: number;
