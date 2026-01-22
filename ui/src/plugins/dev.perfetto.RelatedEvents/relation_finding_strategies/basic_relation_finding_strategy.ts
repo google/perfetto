@@ -1,0 +1,154 @@
+import {Trace} from '../../../public/trace';
+import {
+  Dataset,
+  SourceDataset,
+  UnionDatasetWithLineage,
+} from '../../../trace_processor/dataset';
+import {LONG, NUM, STR, STR_NULL} from '../../../trace_processor/query_result';
+import {
+  EventContext,
+  RelationFindingStrategy,
+  RelationRule,
+} from '../relation_finding_strategy';
+import {Time, time, duration} from '../../../base/time';
+
+interface DetailedEventInfo {
+  eventName: string;
+  eventTs: time;
+  eventDur: duration;
+  trackId: number;
+  eventArgs: Map<string, string>;
+}
+
+const EVENT_DETAILS_SCHEMA = {
+  id: NUM,
+  name: STR,
+  ts: LONG,
+  dur: LONG,
+  track_id: NUM,
+  arg_set_id: NUM,
+};
+
+export class BasicRelationFindingStrategy implements RelationFindingStrategy {
+  constructor(private rules: RelationRule[]) {}
+
+  async findRelatedEvents(trace: Trace): Promise<Dataset | undefined> {
+    const selection = trace.selection.selection;
+    if (selection.kind !== 'track_event') {
+      return undefined;
+    }
+
+    const initialEventId = Number(selection.eventId);
+    if (isNaN(initialEventId)) {
+      return undefined;
+    }
+
+    const initialTrack = trace.tracks.getTrack(selection.trackUri);
+    if (!initialTrack) {
+      return undefined;
+    }
+
+    const initialDataset = initialTrack.renderer.getDataset?.();
+    if (!initialDataset) return undefined;
+
+    const detailsMap = await this.getEventDetails(
+      trace,
+      initialEventId,
+      initialDataset,
+    );
+    const initialEventDetails = detailsMap.get(initialEventId);
+
+    if (!initialEventDetails) {
+      return undefined;
+    }
+
+    const context: EventContext = {
+      sliceId: initialEventId,
+      name: initialEventDetails.eventName,
+      args: initialEventDetails.eventArgs,
+    };
+
+    const relatedDatasets: Dataset[] = this.rules.flatMap((rule) =>
+      rule.getRelatedEventsAsDataset(context),
+    );
+    if (relatedDatasets.length === 0) return undefined;
+
+    // Add the initial event itself to the result, but filtered to the specific ID
+    if (initialDataset instanceof SourceDataset) {
+      relatedDatasets.push(
+        new SourceDataset({
+          ...initialDataset,
+          filter: {col: 'id', eq: initialEventId},
+        }),
+      );
+    }
+
+    const unionDataset = UnionDatasetWithLineage.create(relatedDatasets);
+    // We filter to keep only the directly related events + the source event (if we wanted strict single level, this is it)
+    // However, the tab expects a dataset that produces related events.
+    // The datasets returned by rules are "SourceDataset" which are SQL queries.
+    // Unioning them creates a dataset that queries all of them.
+
+    return unionDataset;
+  }
+
+  private async getEventDetails(
+    trace: Trace,
+    sliceId: number,
+    dataset: Dataset,
+  ): Promise<Map<number, DetailedEventInfo>> {
+    const trackBaseQuery = dataset.query(EVENT_DETAILS_SCHEMA);
+    const sql = `
+        SELECT
+            b.id,
+            b.name,
+            b.ts, 
+            b.dur,
+            b.track_id,
+            args.key AS arg_key, 
+            args.display_value AS arg_value
+        FROM (${trackBaseQuery}) b
+        LEFT JOIN args ON b.arg_set_id = args.arg_set_id
+        WHERE b.id = ${sliceId}
+        `;
+
+    try {
+      const result = await trace.engine.query(sql);
+      if (result.numRows() === 0) return new Map();
+
+      const it = result.iter({
+        id: NUM,
+        name: STR,
+        ts: LONG,
+        dur: LONG,
+        track_id: NUM,
+        arg_key: STR_NULL,
+        arg_value: STR_NULL,
+      });
+      const eventsMap = new Map<number, DetailedEventInfo>();
+
+      while (it.valid()) {
+        const id = it.id;
+        let info = eventsMap.get(id);
+        if (!info) {
+          info = {
+            eventName: it.name,
+            eventTs: Time.fromRaw(it.ts),
+            eventDur: Time.fromRaw(it.dur),
+            trackId: it.track_id,
+            eventArgs: new Map<string, string>(),
+          };
+          eventsMap.set(id, info);
+        }
+
+        if (it.arg_key && it.arg_value) {
+          info.eventArgs.set(it.arg_key, it.arg_value);
+        }
+        it.next();
+      }
+      return eventsMap;
+    } catch (e) {
+      return new Map();
+    }
+  }
+}
