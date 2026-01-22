@@ -17,7 +17,6 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_MURMUR_HASH_H_
 #define INCLUDE_PERFETTO_EXT_BASE_MURMUR_HASH_H_
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -26,6 +25,19 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+
+// We need <cmath> only for std::isnan here. But cmath is a quite heavy
+// header AND is not frequently used, so its include cost is generally
+// NOT amortized. OTOH this header is very frequently used.
+// The code below avoids pulling cmath in many translation units, reducing
+// compilation time. Under the hoods std::isnan uses __builtin_isnan if
+// available.
+#if defined(__has_builtin) && __has_builtin(__builtin_isnan)
+#define PERFETTO_IS_NAN(x) __builtin_isnan(x)
+#else
+#include <cmath>
+#define PERFETTO_IS_NAN(x) std::isnan(x)
+#endif
 
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
@@ -158,7 +170,7 @@ Int NormalizeFloatToInt(Float value) {
   if (PERFETTO_UNLIKELY(value == 0.0)) {
     // Turn negative zero into positive zero
     value = 0.0;
-  } else if (PERFETTO_UNLIKELY(std::isnan(value))) {
+  } else if (PERFETTO_UNLIKELY(PERFETTO_IS_NAN(value))) {
     // Turn arbtirary NaN representations to a consistent NaN repr.
     value = std::numeric_limits<Float>::quiet_NaN();
   }
