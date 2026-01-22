@@ -323,7 +323,11 @@ THREAD_TABLE = Table(
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
-        C('is_idle', CppUint32()),
+        C(
+            'is_idle',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
         C(
             'machine_id',
             CppOptional(CppTableId(MACHINE_TABLE)),
