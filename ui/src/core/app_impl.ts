@@ -29,6 +29,7 @@ import {AnalyticsInternal, initAnalytics} from './analytics_impl';
 import {CommandInvocation, CommandManagerImpl, Macro} from './command_manager';
 import {featureFlags} from './feature_flags';
 import {loadTrace} from './load_trace';
+import {LanguageModelManagerImpl} from './language_model_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {PageManagerImpl} from './page_manager';
 import {PerfManager} from './perf_manager';
@@ -57,6 +58,7 @@ export interface AppInitArgs {
   readonly analyticsSetting: Setting<boolean>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
   readonly enforceStartupCommandAllowlistSetting: Setting<boolean>;
+  readonly preferredLanguageModelProviderSetting: Setting<string>;
 }
 
 /**
@@ -76,6 +78,7 @@ export class AppImpl implements App {
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
+  readonly languageModels = new LanguageModelManagerImpl();
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
@@ -149,6 +152,9 @@ export class AppImpl implements App {
       this.testingMode,
       this.embeddedMode,
       initArgs.analyticsSetting.get(),
+    );
+    this.languageModels.setPreferredProviderSetting(
+      initArgs.preferredLanguageModelProviderSetting,
     );
   }
 

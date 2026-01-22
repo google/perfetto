@@ -59,6 +59,7 @@ export const defaultPlugins = [
   'dev.perfetto.FlowEventsPanel',
   'dev.perfetto.Frames',
   'dev.perfetto.Ftrace',
+  'com.google.GeminiNano',
   'dev.perfetto.GlobalGroups',
   'dev.perfetto.GpuFreq',
   'dev.perfetto.HeapProfile',

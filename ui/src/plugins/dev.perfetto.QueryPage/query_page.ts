@@ -44,6 +44,10 @@ import {PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {TableList} from './table_list';
+import {
+  NaturalLanguageInput,
+  lmSettingsStorage,
+} from './natural_language_input';
 import {Icon} from '../../widgets/icon';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
@@ -96,6 +100,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   // Track previous query results to detect changes
   private prevQueryResults = new Map<string, QueryResponse | undefined>();
+
+  // Track whether the natural language input is expanded
+  private isNaturalLanguageInputExpanded = false;
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     const {editorTabs, activeTabId} = attrs;
@@ -209,6 +216,20 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     const dataSource = this.dataSources.get(tab.id);
 
     const editorPanel = m('.pf-query-page__editor-panel', [
+      this.isNaturalLanguageInputExpanded &&
+        m(NaturalLanguageInput, {
+          trace,
+          onSqlGenerated: (sql: string) => {
+            attrs.onEditorContentUpdate?.(tab.id, sql);
+          },
+          selectedTables: lmSettingsStorage.getSelectedTables(),
+          onSelectedTablesChange: (tables: Set<string>) => {
+            lmSettingsStorage.setSelectedTables(tables);
+          },
+          onClose: () => {
+            this.isNaturalLanguageInputExpanded = false;
+          },
+        }),
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
           m(Button, {
@@ -241,6 +262,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
                 window.open('http://go/perfetto-sql-agent', '_blank');
               },
             }),
+          !trace.isInternalUser && this.renderGenerateQueryButton(trace),
           m(CopyToClipboardButton, {
             textToCopy: tab.editorText,
             tooltip: 'Copy query to clipboard',
@@ -476,5 +498,34 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   private hidePerfettoSqlAgentBanner() {
     localStorage.setItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY, 'true');
+  }
+
+  private renderGenerateQueryButton(trace: Trace): m.Children {
+    const providers = trace.languageModels.getProviders();
+
+    if (providers.length === 0) {
+      // No language model providers registered - show informative button
+      return m(Button, {
+        icon: 'wand_stars',
+        title:
+          'No language model plugins enabled. Enable a plugin like ' +
+          'com.google.GeminiNano in Settings > Plugins ' +
+          'to use AI-powered query generation.',
+        label: 'Generate query using natural language',
+        disabled: true,
+      });
+    }
+
+    // Providers available - show normal toggle button
+    return m(Button, {
+      icon: 'wand_stars',
+      title: 'Generate query from natural language with AI',
+      label: 'Generate query using natural language',
+      active: this.isNaturalLanguageInputExpanded,
+      onclick: () => {
+        this.isNaturalLanguageInputExpanded =
+          !this.isNaturalLanguageInputExpanded;
+      },
+    });
   }
 }

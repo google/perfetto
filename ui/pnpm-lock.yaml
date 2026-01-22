@@ -56,6 +56,9 @@ dependencies:
   '@types/d3':
     specifier: ^7.4.3
     version: 7.4.3
+  '@types/dom-chromium-ai':
+    specifier: ^0.0.13
+    version: 0.0.13
   '@types/filesystem':
     specifier: ^0.0.36
     version: 0.0.36
@@ -1970,6 +1973,10 @@ packages:
       '@types/d3-timer': 3.0.2
       '@types/d3-transition': 3.0.9
       '@types/d3-zoom': 3.0.8
+    dev: false
+
+  /@types/dom-chromium-ai@0.0.13:
+    resolution: {integrity: sha512-m+CAxlofdsZpP3QVhY9Ys4yUMyRRDfs5kmx+DYywKhNpn9Q6Nt8Gtn3/ayK/rjiHJRY8QJwiNHD6LG55JWibdA==}
     dev: false
 
   /@types/eslint@8.56.10:

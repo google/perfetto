@@ -82,6 +82,13 @@ export function initializeAppImplForTesting(): AppImpl {
         schema: z.boolean(),
         defaultValue: true,
       }),
+      preferredLanguageModelProviderSetting: settingsManager.register({
+        id: 'preferredLanguageModelProvider',
+        name: 'Preferred Language Model Provider',
+        description: '',
+        schema: z.string(),
+        defaultValue: 'gemini-nano',
+      }),
     });
   }
   return AppImpl.instance;

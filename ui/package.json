@@ -24,6 +24,7 @@
     "@types/chrome": "0.0.268",
     "@types/color-convert": "^2.0.3",
     "@types/d3": "^7.4.3",
+    "@types/dom-chromium-ai": "^0.0.13",
     "@types/filesystem": "^0.0.36",
     "@types/mithril": "^2.2.6",
     "@types/node": "^20.14.9",

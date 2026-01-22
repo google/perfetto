@@ -71,6 +71,7 @@ import {
 } from '../core/command_manager';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {sleepMs} from '../base/utils';
+import {Select} from '../widgets/select';
 
 // =============================================================================
 // UI INITIALIZATION STAGES
@@ -294,6 +295,63 @@ function main() {
     defaultValue: true,
   });
 
+  const preferredLanguageModelProviderSetting = settingsManager.register({
+    id: 'preferredLanguageModelProvider',
+    name: 'Preferred Language Model Provider',
+    description: `
+      The preferred language model provider for AI-powered features like
+      natural language query generation. Select from available providers
+      registered by enabled language model plugins (e.g., com.google.GeminiNano).
+    `,
+    schema: z.string(),
+    defaultValue: 'gemini-nano',
+    render: (setting) => {
+      // Get available providers from the language model manager
+      // Note: AppImpl may not be initialized yet when this first runs,
+      // so we need to handle that case gracefully
+      let providers: Array<{id: string; name: string}> = [];
+      try {
+        const app = AppImpl.instance;
+        providers = app.languageModels.getProviders().map((p) => ({
+          id: p.info.id,
+          name: p.info.name,
+        }));
+      } catch {
+        // AppImpl not initialized yet
+      }
+
+      const currentValue = setting.get() as string;
+
+      // If no providers available, show a message
+      if (providers.length === 0) {
+        return m('span.pf-settings-page__no-providers', [
+          m('em', 'No language model plugins enabled'),
+        ]);
+      }
+
+      return m(
+        Select,
+        {
+          value: currentValue,
+          onchange: (e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            setting.set(target.value);
+          },
+        },
+        providers.map((provider) =>
+          m(
+            'option',
+            {
+              value: provider.id,
+              selected: currentValue === provider.id,
+            },
+            provider.name,
+          ),
+        ),
+      );
+    },
+  });
+
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
@@ -303,6 +361,7 @@ function main() {
     analyticsSetting,
     startupCommandsSetting,
     enforceStartupCommandAllowlistSetting,
+    preferredLanguageModelProviderSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time

@@ -24,6 +24,7 @@ import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
 import {SettingsManager} from './settings';
 import {TraceStream} from './stream';
+import {LanguageModelManager} from './language_model';
 
 /**
  * The API endpoint to interact programmatically with the UI before a trace has
@@ -38,6 +39,7 @@ export interface App {
   readonly pages: PageManager;
   readonly featureFlags: FeatureFlagManager;
   readonly settings: SettingsManager;
+  readonly languageModels: LanguageModelManager;
 
   /**
    * The parsed querystring passed when starting the app, before any navigation
