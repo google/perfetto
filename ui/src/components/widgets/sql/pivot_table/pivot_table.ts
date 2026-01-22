@@ -30,8 +30,6 @@ import {
   GridCell,
   GridColumn,
   GridHeaderCell,
-  renderSortMenuItems,
-  SortDirection,
 } from '../../../../widgets/grid';
 
 export interface PivotTableAttrs {
@@ -64,9 +62,8 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             GridHeaderCell,
             {
               sort: sorted,
-              onSort: (direction: SortDirection) =>
-                state.sortByPivot(pivot, direction),
-              menuItems: this.renderPivotColumnMenu(attrs, pivot, index),
+              onSort: (direction) => state.sortByPivot(pivot, direction),
+              menuItems: this.renderPivotColumnMenu(attrs, index),
             },
             pivotId(pivot),
           ),
@@ -83,8 +80,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             GridHeaderCell,
             {
               sort: state.isSortedByAggregation(agg),
-              onSort: (direction: SortDirection) =>
-                state.sortByAggregation(agg, direction),
+              onSort: (direction) => state.sortByAggregation(agg, direction),
               menuItems: this.renderAggregationColumnMenu(attrs, agg, index),
             },
             aggregationId(agg),
@@ -246,23 +242,11 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     ];
   }
 
-  renderPivotColumnMenu(
-    attrs: PivotTableAttrs,
-    pivot: TableColumn,
-    index: number,
-  ): m.Children {
+  renderPivotColumnMenu(attrs: PivotTableAttrs, index: number): m.Children {
     const state = attrs.state;
-    const sorted = state.isSortedByPivot(pivot);
     const menuItems: m.Children = [];
 
     menuItems.push(
-      // Sort by pivot.
-      renderSortMenuItems(sorted, (direction) =>
-        state.sortByPivot(pivot, direction),
-      ),
-
-      m(MenuDivider),
-
       m(
         MenuItem,
         {
@@ -307,15 +291,9 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     index: number,
   ): m.Children {
     const state = attrs.state;
-    const sorted = state.isSortedByAggregation(agg);
     const menuItems: m.Children = [];
 
     menuItems.push(
-      // Sort by aggregation.
-      renderSortMenuItems(sorted, (direction) =>
-        state.sortByAggregation(agg, direction),
-      ),
-
       // Change aggregation operation, add the same aggregation again, and remove
       // aggregation are not available for the count aggregation.
       agg.op !== 'count' && [
