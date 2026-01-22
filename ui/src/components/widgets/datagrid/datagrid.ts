@@ -569,6 +569,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 },
               }),
             ],
+          this.idBasedTree && [
+            m(Button, {
+              icon: 'unfold_more',
+              tooltip: 'Expand all groups',
+              onclick: () => this.expandAll(attrs),
+            }),
+            m(Button, {
+              icon: 'unfold_less',
+              tooltip: 'Collapse all groups',
+              onclick: () => this.collapseAll(attrs),
+            }),
+          ],
         ],
         rightItems: [
           toolbarItemsRight,
@@ -1143,15 +1155,27 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Empty collapsedIds = all nodes expanded (nothing is collapsed).
    */
   private expandAll(attrs: DataGridAttrs): void {
-    if (!this.pivot) return;
-    // Switch to blacklist mode with empty set - all nodes expanded
-    const newPivot: Pivot = {
-      ...this.pivot,
-      expandedIds: undefined,
-      collapsedIds: new Set<bigint>(),
-    };
-    this.pivot = newPivot;
-    attrs.onPivotChanged?.(newPivot);
+    if (this.pivot) {
+      // Switch to blacklist mode with empty set - all nodes expanded
+      const newPivot: Pivot = {
+        ...this.pivot,
+        expandedIds: undefined,
+        collapsedIds: new Set<bigint>(),
+      };
+      this.pivot = newPivot;
+      attrs.onPivotChanged?.(newPivot);
+    }
+
+    if (this.idBasedTree) {
+      // Switch to blacklist mode with empty set - all nodes expanded
+      const newTree: IdBasedTree = {
+        ...this.idBasedTree,
+        expandedIds: undefined,
+        collapsedIds: new Set<bigint>(),
+      };
+      this.idBasedTree = newTree;
+      attrs.onIdBasedTreeChanged?.(newTree);
+    }
   }
 
   /**
@@ -1159,15 +1183,27 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Empty expandedIds = all nodes collapsed (nothing is expanded).
    */
   private collapseAll(attrs: DataGridAttrs): void {
-    if (!this.pivot) return;
-    // Switch to whitelist mode with empty set - all nodes collapsed
-    const newPivot: Pivot = {
-      ...this.pivot,
-      expandedIds: new Set<bigint>(),
-      collapsedIds: undefined,
-    };
-    this.pivot = newPivot;
-    attrs.onPivotChanged?.(newPivot);
+    if (this.pivot) {
+      // Switch to blacklist mode with empty set - all nodes expanded
+      const newPivot: Pivot = {
+        ...this.pivot,
+        expandedIds: new Set<bigint>(),
+        collapsedIds: undefined,
+      };
+      this.pivot = newPivot;
+      attrs.onPivotChanged?.(newPivot);
+    }
+
+    if (this.idBasedTree) {
+      // Switch to blacklist mode with empty set - all nodes expanded
+      const newTree: IdBasedTree = {
+        ...this.idBasedTree,
+        expandedIds: new Set<bigint>(),
+        collapsedIds: undefined,
+      };
+      this.idBasedTree = newTree;
+      attrs.onIdBasedTreeChanged?.(newTree);
+    }
   }
 
   /**
@@ -1460,7 +1496,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     let newTree: IdBasedTree;
 
-    if ('collapsedIds' in this.idBasedTree) {
+    if (this.idBasedTree.collapsedIds) {
       // Blacklist mode: toggle in collapsedIds
       const newCollapsed = new Set(this.idBasedTree.collapsedIds);
       if (newCollapsed.has(nodeId)) {
