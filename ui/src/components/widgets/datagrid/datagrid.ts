@@ -924,27 +924,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       afterIndex !== undefined ? afterIndex + 1 : newGroupBy.length;
     newGroupBy.splice(insertIndex, 0, {id: shortUuid(), field});
 
-    // Initialize to collapsed (empty expandedGroups) when becoming multi-level
-    // and no expansion state is set yet.
-    const hasExpansionState =
-      ('expandedGroups' in this.pivot && this.pivot.expandedGroups) ||
-      ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups);
-
-    let newPivot: Pivot;
-    if (newGroupBy.length > 1 && !Boolean(hasExpansionState)) {
-      // Becoming multi-level with no expansion state - default to all collapsed
-      newPivot = {
-        ...this.pivot,
-        groupBy: newGroupBy,
-        expandedGroups: new PathSet(),
-      };
-    } else {
-      // Keep existing expansion state
-      newPivot = {
-        ...this.pivot,
-        groupBy: newGroupBy,
-      };
-    }
+    // Just update the groupBy - expansion state (expandedIds) is preserved
+    const newPivot: Pivot = {
+      ...this.pivot,
+      groupBy: newGroupBy,
+    };
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -1115,95 +1099,53 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   /**
-   * Checks if a group path is currently expanded.
+   * Checks if a group node is currently expanded using its ID.
    */
-  private isGroupExpanded(path: readonly SqlValue[]): boolean {
+  private isGroupExpanded(nodeId: bigint): boolean {
     if (!this.pivot) return false;
-    if ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups) {
-      // Blacklist mode: expanded unless in collapsedGroups
-      return !this.pivot.collapsedGroups.has(path);
-    }
-    if ('expandedGroups' in this.pivot && this.pivot.expandedGroups) {
-      // Whitelist mode: expanded only if in expandedGroups
-      return this.pivot.expandedGroups.has(path);
-    }
-    // No expansion state = all collapsed (default)
-    return false;
+    // ID-based expansion: check if nodeId is in expandedIds
+    return this.pivot.expandedIds?.has(nodeId) ?? false;
   }
 
   /**
-   * Toggles the expansion state of a group identified by its path.
+   * Toggles the expansion state of a group identified by its node ID.
    * Used for collapsible rollup rows in multi-level pivot tables.
-   * @param path Array of groupBy values from level 0 to the group being toggled
+   * @param nodeId The __id__ value of the node to toggle
    */
-  private toggleExpansion(
-    path: readonly SqlValue[],
-    attrs: DataGridAttrs,
-  ): void {
+  private toggleExpansion(nodeId: bigint, attrs: DataGridAttrs): void {
     if (!this.pivot) return;
 
-    let newPivot: Pivot;
-
-    if ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups) {
-      // Blacklist mode: toggle in collapsedGroups
-      const newCollapsed = new PathSet(this.pivot.collapsedGroups);
-      if (newCollapsed.has(path)) {
-        newCollapsed.delete(path);
-      } else {
-        newCollapsed.add(path);
-      }
-      newPivot = {...this.pivot, collapsedGroups: newCollapsed};
+    // ID-based expansion: toggle nodeId in expandedIds
+    const currentExpanded = this.pivot.expandedIds ?? new Set<bigint>();
+    const newExpanded = new Set(currentExpanded);
+    if (newExpanded.has(nodeId)) {
+      newExpanded.delete(nodeId);
     } else {
-      // Whitelist mode: toggle in expandedGroups
-      const expandedGroups =
-        'expandedGroups' in this.pivot ? this.pivot.expandedGroups : undefined;
-      const newExpanded = new PathSet(expandedGroups);
-      if (newExpanded.has(path)) {
-        newExpanded.delete(path);
-      } else {
-        newExpanded.add(path);
-      }
-      newPivot = {...this.pivot, expandedGroups: newExpanded};
+      newExpanded.add(nodeId);
     }
 
+    const newPivot: Pivot = {...this.pivot, expandedIds: newExpanded};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
 
   /**
-   * Expands all groups by switching to blacklist mode with empty set.
+   * Expands all groups.
+   * TODO: Not yet implemented for ID-based expansion - would require knowing all node IDs.
    */
-  private expandAll(attrs: DataGridAttrs): void {
-    if (!this.pivot) return;
-    // Remove expandedGroups and set collapsedGroups to empty (all expanded)
-    const {
-      expandedGroups: _,
-      collapsedGroups: __,
-      ...rest
-    } = this.pivot as Pivot & {
-      expandedGroups?: PathSet;
-      collapsedGroups?: PathSet;
-    };
-    const newPivot: Pivot = {...rest, collapsedGroups: new PathSet()};
-    this.pivot = newPivot;
-    attrs.onPivotChanged?.(newPivot);
+  private expandAll(_attrs: DataGridAttrs): void {
+    // Stubbed out for now - ID-based expansion requires knowing all node IDs
+    // which we don't have access to here without querying the virtual table.
+    console.warn('expandAll not yet implemented for ID-based pivot expansion');
   }
 
   /**
-   * Collapses all groups by switching to whitelist mode with empty set.
+   * Collapses all groups by clearing the expandedIds set.
    */
   private collapseAll(attrs: DataGridAttrs): void {
     if (!this.pivot) return;
-    // Remove collapsedGroups and set expandedGroups to empty (all collapsed)
-    const {
-      expandedGroups: _,
-      collapsedGroups: __,
-      ...rest
-    } = this.pivot as Pivot & {
-      expandedGroups?: PathSet;
-      collapsedGroups?: PathSet;
-    };
-    const newPivot: Pivot = {...rest, expandedGroups: new PathSet()};
+    // Set expandedIds to empty (all collapsed)
+    const newPivot: Pivot = {...this.pivot, expandedIds: new Set<bigint>()};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -1879,10 +1821,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             indent = treeLevel;
 
             if (hasChildren) {
-              // Check if this path is expanded
-              const isExpanded = this.isGroupExpanded([pathValue]);
+              // Use the node's __id__ for expansion state
+              const nodeId = row['__id__'] as bigint;
+              const isExpanded = this.isGroupExpanded(nodeId);
               chevron = isExpanded ? 'expanded' : 'collapsed';
-              onChevronClick = () => this.toggleExpansion([pathValue], attrs);
+              onChevronClick = () => this.toggleExpansion(nodeId, attrs);
             } else {
               // Leaf node - show placeholder for alignment
               chevron = 'leaf';
@@ -1893,14 +1836,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             const isSummaryRow = rowLevel === i;
 
             if (isSummaryRow && i < numGroupBy - 1) {
-              // Build the path from level 0 to this level (inclusive)
-              const path = pivot.groupBy
-                .slice(0, i + 1)
-                .map((col) => row[col.id]);
+              // Use the node's __id__ for expansion state
+              const nodeId = row['__id__'] as bigint;
               // This is a summary row at this level - show expand/collapse chevron
-              const isExpanded = this.isGroupExpanded(path);
+              const isExpanded = this.isGroupExpanded(nodeId);
               chevron = isExpanded ? 'expanded' : 'collapsed';
-              onChevronClick = () => this.toggleExpansion(path, attrs);
+              onChevronClick = () => this.toggleExpansion(nodeId, attrs);
             } else if (i < rowLevel) {
               // This column has a value but is not the summary level - it's a leaf cell
               // in a higher-level column, show with indent

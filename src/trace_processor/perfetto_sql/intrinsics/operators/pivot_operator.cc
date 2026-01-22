@@ -225,10 +225,18 @@ PivotSortSpec ParseSortSpec(const std::string& sort_str) {
   // Try to extract aggregate index from "agg_N" pattern
   size_t agg_pos = lower.find("agg_");
   if (agg_pos != std::string::npos) {
-    std::optional<int32_t> idx =
-        base::StringToInt32(lower.substr(agg_pos + 4, 2));
-    if (idx) {
-      spec.agg_index = *idx;
+    // Extract only the digits after "agg_"
+    size_t start = agg_pos + 4;
+    size_t end = start;
+    while (end < lower.size() && lower[end] >= '0' && lower[end] <= '9') {
+      end++;
+    }
+    if (end > start) {
+      std::optional<int32_t> idx =
+          base::StringToInt32(lower.substr(start, end - start));
+      if (idx) {
+        spec.agg_index = *idx;
+      }
     }
   }
 
@@ -458,6 +466,7 @@ int PivotOperatorModule::Create(sqlite3* db,
   default_sort.agg_index = 0;
   default_sort.descending = true;
   SortTree(res->root.get(), default_sort);
+  res->current_sort_spec = "agg_0 DESC";
 
   *vtab = res.release();
   return SQLITE_OK;
@@ -499,11 +508,14 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
   int limit_col = hidden_start + kLimit;
   int rebuild_col = hidden_start + kRebuild;
 
-  // Build idxStr to indicate which hidden columns have constraints
-  // Format: "aesodlr" where each char indicates presence of that constraint
+  // Build idxStr to encode argv index for each constraint type.
+  // Format: 7 characters, one per constraint type (aggs, expanded, sort,
+  // offset, depth, limit, rebuild). Each char is '0'-'6' indicating the
+  // argv index, or '-' if not present.
+  // This allows Filter() to know exactly which argv slot each value is in.
   char idx_flags[8] = "-------";
 
-  int argv_index = 1;
+  int argv_index = 1;  // argvIndex is 1-based in SQLite
   for (int i = 0; i < info->nConstraint; i++) {
     if (!info->aConstraint[i].usable) {
       continue;
@@ -514,31 +526,31 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
 
     int col = info->aConstraint[i].iColumn;
     if (col == aggs_col) {
-      idx_flags[0] = 'a';
+      idx_flags[0] = static_cast<char>('0' + argv_index - 1);  // Store 0-based
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     } else if (col == expanded_col) {
-      idx_flags[1] = 'e';
+      idx_flags[1] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     } else if (col == sort_col) {
-      idx_flags[2] = 's';
+      idx_flags[2] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     } else if (col == offset_col) {
-      idx_flags[3] = 'o';
+      idx_flags[3] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     } else if (col == depth_col) {
-      idx_flags[4] = 'd';
+      idx_flags[4] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     } else if (col == limit_col) {
-      idx_flags[5] = 'l';
+      idx_flags[5] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     } else if (col == rebuild_col) {
-      idx_flags[6] = 'r';
+      idx_flags[6] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     }
@@ -580,66 +592,72 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   // Map of expanded node IDs
   base::FlatHashMap<int64_t, bool> expanded_ids;
 
-  // Parse idxStr to determine which arguments are present
+  // Parse idxStr to determine which arguments are present and their argv index.
+  // Each char in idxStr is either '-' (not present) or '0'-'6' (argv index).
   std::string flags = idxStr ? idxStr : "-------";
-  int arg_idx = 0;
 
   std::string sort_spec_str;
-  bool needs_resort = false;
   bool needs_rebuild = false;
 
-  for (size_t i = 0; i < flags.size() && arg_idx < argc; i++) {
-    if (flags[i] == '-') {
-      continue;
+  // Helper to get argv value for a flag position, or nullptr if not present
+  auto get_argv = [&](size_t flag_pos) -> sqlite3_value* {
+    if (flag_pos >= flags.size() || flags[flag_pos] == '-') {
+      return nullptr;
     }
+    int argv_idx = flags[flag_pos] - '0';
+    if (argv_idx < 0 || argv_idx >= argc) {
+      return nullptr;
+    }
+    return argv[argv_idx];
+  };
 
-    sqlite3_value* val = argv[arg_idx++];
+  // Process __aggs__ (flag position 0)
+  // Currently unused, but could parse to select specific aggregates
 
-    switch (i) {
-      case 0:  // __aggs__
-        // Currently we use pre-computed aggregates, but could parse this
-        // to select specific aggregates
-        break;
-
-      case 1: {  // __expanded_ids__
-        const char* ids_str =
-            reinterpret_cast<const char*>(sqlite3_value_text(val));
-        if (ids_str) {
-          for (base::StringSplitter sp(ids_str, ','); sp.Next();) {
-            std::string id_str = base::TrimWhitespace(sp.cur_token());
-            if (!id_str.empty()) {
-              std::optional<int64_t> id = base::StringToInt64(id_str);
-              if (id) {
-                expanded_ids.Insert(*id, true);
-              }
-            }
+  // Process __expanded_ids__ (flag position 1)
+  if (sqlite3_value* val = get_argv(1)) {
+    const char* ids_str =
+        reinterpret_cast<const char*>(sqlite3_value_text(val));
+    if (ids_str) {
+      for (base::StringSplitter sp(ids_str, ','); sp.Next();) {
+        std::string id_str = base::TrimWhitespace(sp.cur_token());
+        if (!id_str.empty()) {
+          std::optional<int64_t> id = base::StringToInt64(id_str);
+          if (id) {
+            expanded_ids.Insert(*id, true);
           }
         }
-        break;
       }
-
-      case 2:  // __sort__
-        sort_spec_str =
-            reinterpret_cast<const char*>(sqlite3_value_text(val));
-        needs_resort = !sort_spec_str.empty();
-        break;
-
-      case 3:  // __offset__
-        c->offset = sqlite3_value_int(val);
-        break;
-
-      case 4:  // __depth__
-        c->depth_limit = sqlite3_value_int(val);
-        break;
-
-      case 5:  // __limit__
-        c->limit = sqlite3_value_int(val);
-        break;
-
-      case 6:  // __rebuild__
-        needs_rebuild = sqlite3_value_int(val) != 0;
-        break;
     }
+  }
+
+  // Process __sort__ (flag position 2)
+  if (sqlite3_value* val = get_argv(2)) {
+    const char* sort_str =
+        reinterpret_cast<const char*>(sqlite3_value_text(val));
+    if (sort_str) {
+      sort_spec_str = sort_str;
+    }
+  }
+
+  // Process __offset__ (flag position 3)
+  if (sqlite3_value* val = get_argv(3)) {
+    c->offset = sqlite3_value_int(val);
+  }
+
+  // Process __depth__ (flag position 4)
+  if (sqlite3_value* val = get_argv(4)) {
+    c->depth_limit = sqlite3_value_int(val);
+  }
+
+  // Process __limit__ (flag position 5)
+  if (sqlite3_value* val = get_argv(5)) {
+    c->limit = sqlite3_value_int(val);
+  }
+
+  // Process __rebuild__ (flag position 6)
+  if (sqlite3_value* val = get_argv(6)) {
+    needs_rebuild = sqlite3_value_int(val) != 0;
   }
 
   // Rebuild tree if requested
@@ -651,13 +669,18 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     if (!status.ok()) {
       return sqlite::utils::SetError(t, status);
     }
-    needs_resort = true;  // Force resort after rebuild
+    t->current_sort_spec.clear();  // Force resort after rebuild
   }
 
-  // Resort if needed
-  if (needs_resort) {
+  // Resort if sort spec changed or if we haven't sorted yet
+  // Default to "agg_0 DESC" if no sort spec provided
+  if (sort_spec_str.empty()) {
+    sort_spec_str = "agg_0 DESC";
+  }
+  if (sort_spec_str != t->current_sort_spec) {
     PivotSortSpec spec = ParseSortSpec(sort_spec_str);
     SortTree(t->root.get(), spec);
+    t->current_sort_spec = sort_spec_str;
   }
 
   // Flatten the tree based on expanded IDs

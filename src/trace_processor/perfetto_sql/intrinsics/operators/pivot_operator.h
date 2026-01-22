@@ -129,6 +129,9 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
     std::vector<PivotNode*> flat;
     bool flat_dirty = true;
 
+    // Current sort specification (to avoid redundant re-sorts)
+    std::string current_sort_spec;
+
     // Number of aggregate columns in output
     size_t agg_col_count = 0;
 

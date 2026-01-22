@@ -16,8 +16,7 @@ import {SqlValue} from '../../../trace_processor/query_result';
 
 /**
  * A Set-like collection for storing paths of SqlValue arrays.
- * Uses string serialization internally for efficient lookup while preserving
- * the original SqlValue types for SQL generation.
+ * Used for tree grouping expansion state (path-based).
  */
 export class PathSet implements Iterable<readonly SqlValue[]> {
   private readonly map = new Map<string, readonly SqlValue[]>();
@@ -132,27 +131,13 @@ interface PivotBase {
   readonly collapsibleGroups?: boolean;
 }
 
-// Group expansion state for multi-level pivots.
-// Each path is an array of groupBy values from level 0 to the expanded level.
-// For example, with groupBy: [{field: 'process'}, {field: 'thread'}]:
-// - ['processA'] means processA is expanded/collapsed (affecting its threads)
-
-// Whitelist mode: Only groups in expandedGroups are expanded.
-// Empty PathSet = all groups collapsed (default when entering multi-level)
-export interface PivotWithExpandedGroups extends PivotBase {
-  readonly expandedGroups?: PathSet;
+// ID-based expansion mode: Uses numeric node IDs from __intrinsic_pivot virtual table.
+// The virtual table maintains the tree structure and handles ROLLUP-style aggregation.
+// expandedIds contains the __id__ values of expanded nodes.
+// Empty Set = only root children visible (all collapsed).
+export interface Pivot extends PivotBase {
+  readonly expandedIds?: ReadonlySet<bigint>;
 }
-
-// Blacklist mode: All groups expanded EXCEPT those in collapsedGroups.
-// Empty PathSet = all groups expanded (used by "Expand All")
-export interface PivotWithCollapsedGroups extends PivotBase {
-  readonly collapsedGroups?: PathSet;
-}
-
-export type Pivot =
-  | PivotWithExpandedGroups
-  | PivotWithCollapsedGroups
-  | PivotBase;
 
 // Tree grouping configuration for displaying hierarchical data in flat mode.
 // Unlike pivot mode, tree grouping displays raw column values without aggregation.

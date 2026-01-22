@@ -23,26 +23,13 @@ import {
   DataSourceRows,
   Pagination,
 } from './data_source';
-import {
-  Column,
-  Filter,
-  PathSet,
-  Pivot,
-  AggregateColumn,
-  TreeGrouping,
-} from './model';
+import {Column, Filter, Pivot, TreeGrouping} from './model';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
   SQLSchemaResolver,
 } from './sql_schema';
-import {
-  filterToSql,
-  sqlPathsIn,
-  sqlPathsNotIn,
-  sqlValue,
-  toAlias,
-} from './sql_utils';
+import {filterToSql, sqlValue, toAlias} from './sql_utils';
 
 /**
  * Configuration for SQLDataSource.
@@ -113,6 +100,19 @@ interface TreeMetadataCache {
 // Counter for generating unique temp table names
 let treeMetadataTempTableCounter = 0;
 
+// Cache entry for intrinsic pivot virtual table
+// This caches the virtual table creation so we don't recreate it on every query.
+// The table needs to be recreated when filters change (different base data).
+interface IntrinsicPivotCache {
+  // Cache key based on: base table, filters, groupBy cols, aggregates
+  cacheKey: string;
+  // Name of the virtual table
+  tableName: string;
+}
+
+// Counter for generating unique intrinsic pivot table names
+let intrinsicPivotTableCounter = 0;
+
 /**
  * SQL data source for DataGrid.
  *
@@ -167,6 +167,8 @@ export class SQLDataSource implements DataSource {
   private treeMetadataCache?: TreeMetadataCache;
   // Current tree metadata temp table name (for sync access during query building)
   private currentTreeMetadataTable?: string;
+  // Cache for intrinsic pivot virtual table
+  private intrinsicPivotCache?: IntrinsicPivotCache;
 
   // Current results
   private cachedResult?: DataSourceRows;
@@ -228,6 +230,9 @@ export class SQLDataSource implements DataSource {
       try {
         // Ensure tree metadata table is ready if in tree mode
         await this.maybeRefreshTreeMetadata(model);
+
+        // Ensure intrinsic pivot table is ready if using ID-based expansion
+        await this.maybeRefreshIntrinsicPivot(model);
 
         // Resolve row count
         const rowCount = await this.resolveRowCount(model);
@@ -644,8 +649,8 @@ ${joinClauses}`;
   }
 
   /**
-   * Builds a pivot query with GROUP BY and aggregations.
-   * For multiple groupBy columns, generates rollup queries using UNION ALL.
+   * Builds a pivot query using the __intrinsic_pivot virtual table.
+   * All pivot modes now use ID-based expansion via the virtual table.
    */
   private buildPivotQuery(
     resolver: SQLSchemaResolver,
@@ -654,157 +659,13 @@ ${joinClauses}`;
     options: {includeOrderBy: boolean},
     dependencyColumns?: ReadonlyArray<Column>,
   ): string {
-    // For tree mode (single groupBy with tree config), use tree pivot query
-    if (pivot.groupBy.length === 1 && pivot.groupBy[0].tree) {
-      return this.buildTreePivotQuery(
-        resolver,
-        filters,
-        pivot,
-        options,
-        dependencyColumns,
-      );
-    }
-
-    // For multiple groupBy columns, use rollup query generation
-    if (pivot.groupBy.length > 1) {
-      return this.buildRollupPivotQuery(
-        resolver,
-        filters,
-        pivot,
-        options,
-        dependencyColumns,
-      );
-    }
-
-    // Single groupBy column - use simple pivot query
-    return this.buildSimplePivotQuery(
+    return this.buildIntrinsicPivotQuery(
       resolver,
       filters,
       pivot,
       options,
       dependencyColumns,
     );
-  }
-
-  /**
-   * Builds a simple pivot query for single groupBy column.
-   */
-  private buildSimplePivotQuery(
-    resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<Filter>,
-    pivot: Pivot,
-    options: {includeOrderBy: boolean},
-    dependencyColumns?: ReadonlyArray<Column>,
-  ): string {
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
-
-    // Resolve groupBy columns
-    const groupByExprs: string[] = [];
-    const groupByAliases: string[] = [];
-    const groupByFields: string[] = [];
-
-    for (const col of pivot.groupBy) {
-      const {id, field} = col;
-      groupByFields.push(field);
-      const sqlExpr = resolver.resolveColumnPath(field);
-      if (sqlExpr) {
-        const alias = toAlias(id);
-        groupByExprs.push(`${sqlExpr} AS ${alias}`);
-        groupByAliases.push(alias);
-      }
-    }
-
-    // Build aggregate expressions from pivot.aggregates
-    const aggregates = pivot.aggregates ?? [];
-    const aggregateExprs = aggregates.map((agg) => {
-      const alias = toAlias(agg.id);
-      if (agg.function === 'COUNT') {
-        return `COUNT(*) AS ${alias}`;
-      }
-      const field = 'field' in agg ? agg.field : null;
-      if (!field) {
-        return `NULL AS ${alias}`;
-      }
-      const colExpr = resolver.resolveColumnPath(field);
-      if (!colExpr) {
-        return `NULL AS ${alias}`;
-      }
-      if (agg.function === 'ANY') {
-        return `MIN(${colExpr}) AS ${alias}`;
-      }
-      return `${agg.function}(${colExpr}) AS ${alias}`;
-    });
-
-    // Build dependency column expressions (columns needed for rendering but not
-    // part of groupBy or aggregates). Use ANY (MIN) to get a representative value.
-    const dependencyExprs: string[] = [];
-    if (dependencyColumns) {
-      // Get all fields already in groupBy or aggregates
-      const existingFields = new Set([
-        ...groupByFields,
-        ...aggregates
-          .filter((a) => 'field' in a)
-          .map((a) => (a as {field: string}).field),
-      ]);
-
-      for (const col of dependencyColumns) {
-        if (!existingFields.has(col.field)) {
-          const sqlExpr = resolver.resolveColumnPath(col.field);
-          if (sqlExpr) {
-            // Use column ID as alias to support duplicate columns
-            const alias = toAlias(col.id);
-            // Use MIN as a proxy for ANY to get a value from the group
-            dependencyExprs.push(`MIN(${sqlExpr}) AS ${alias}`);
-          }
-        }
-      }
-    }
-
-    const selectClauses = [
-      ...groupByExprs,
-      ...aggregateExprs,
-      ...dependencyExprs,
-    ];
-    const joinClauses = resolver.buildJoinClauses();
-
-    let query = `
-SELECT ${selectClauses.join(',\n       ')}
-FROM ${baseTable} AS ${baseAlias}
-${joinClauses}`;
-
-    // Add WHERE clause for filters
-    if (filters.length > 0) {
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        if (!sqlExpr) {
-          return filterToSql(filter, filter.field);
-        }
-        return filterToSql(filter, sqlExpr);
-      });
-      query += `\nWHERE ${whereConditions.join(' AND ')}`;
-    }
-
-    // Add GROUP BY
-    if (groupByAliases.length > 0) {
-      const groupByOrigExprs = groupByFields.map(
-        (field) => resolver.resolveColumnPath(field) ?? field,
-      );
-      query += `\nGROUP BY ${groupByOrigExprs.join(', ')}`;
-    }
-
-    // Add ORDER BY if requested
-    if (options.includeOrderBy) {
-      const sortedColumn = this.findSortedColumn(undefined, pivot);
-      if (sortedColumn) {
-        const {id, direction} = sortedColumn;
-        // Use the column ID as the alias for ORDER BY
-        const alias = toAlias(id);
-        query += `\nORDER BY ${alias} ${direction.toUpperCase()}`;
-      }
-    }
-
-    return query;
   }
 
   /**
@@ -952,228 +813,9 @@ WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
   }
 
   /**
-   * Builds a tree pivot query for hierarchical path data.
-   *
-   * Tree mode treats the groupBy column value as a slash-separated path
-   * (e.g., "blink_gc/main/allocated_objects") and displays rows hierarchically
-   * with expand/collapse support.
-   *
-   * The query:
-   * 1. Wraps source data in a CTE with tree metadata (__level__, __tree_parent__)
-   * 2. Filters to show roots (no parent) OR children of expanded paths
-   * 3. Joins with cached __has_children__ temp table for chevron display
-   * 4. Computes aggregates at each visible tree node
-   */
-  private buildTreePivotQuery(
-    resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<Filter>,
-    pivot: Pivot,
-    options: {includeOrderBy: boolean},
-    dependencyColumns?: ReadonlyArray<Column>,
-  ): string {
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
-
-    const groupByCol = pivot.groupBy[0];
-    const treeConfig = groupByCol.tree!;
-    const delimiter = treeConfig.delimiter ?? '/';
-    const pathField = groupByCol.field;
-    const pathAlias = toAlias(groupByCol.id);
-
-    // Resolve the path column expression
-    const pathExpr = resolver.resolveColumnPath(pathField);
-    if (!pathExpr) {
-      // Fallback to simple pivot if path column not found
-      return this.buildSimplePivotQuery(
-        resolver,
-        filters,
-        pivot,
-        options,
-        dependencyColumns,
-      );
-    }
-
-    // Collect aggregate source fields
-    const aggregates = pivot.aggregates ?? [];
-    const aggregateSourceFields: Array<{field: string; alias: string}> = [];
-    for (const agg of aggregates) {
-      if ('field' in agg && agg.field) {
-        const alias = toAlias(agg.field);
-        const sqlExpr = resolver.resolveColumnPath(agg.field);
-        if (sqlExpr) {
-          aggregateSourceFields.push({field: agg.field, alias});
-        }
-      }
-    }
-
-    // Build the source CTE with all needed columns
-    const cteSelectClauses: string[] = [];
-    const addedFields = new Set<string>();
-
-    // Add path column
-    cteSelectClauses.push(`${pathExpr} AS __tree_path__`);
-    addedFields.add(pathField);
-
-    // Add aggregate source columns
-    for (const {field, alias} of aggregateSourceFields) {
-      if (!addedFields.has(field)) {
-        const sqlExpr = resolver.resolveColumnPath(field);
-        if (sqlExpr) {
-          cteSelectClauses.push(`${sqlExpr} AS ${alias}`);
-          addedFields.add(field);
-        }
-      }
-    }
-
-    // Add dependency columns
-    if (dependencyColumns) {
-      for (const col of dependencyColumns) {
-        if (!addedFields.has(col.field)) {
-          const sqlExpr = resolver.resolveColumnPath(col.field);
-          if (sqlExpr) {
-            const alias = toAlias(col.field);
-            cteSelectClauses.push(`${sqlExpr} AS ${alias}`);
-            addedFields.add(col.field);
-          }
-        }
-      }
-    }
-
-    const joinClauses = resolver.buildJoinClauses();
-
-    // Build WHERE clause for filters
-    let filterClause = '';
-    if (filters.length > 0) {
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        return filterToSql(filter, sqlExpr ?? filter.field);
-      });
-      filterClause = `\nWHERE ${whereConditions.join(' AND ')}`;
-    }
-
-    // Build aggregate expressions for the final SELECT
-    const aggregateExprs = aggregates.map((agg) => {
-      const outputAlias = toAlias(agg.id);
-      if (agg.function === 'COUNT') {
-        return `COUNT(*) AS ${outputAlias}`;
-      }
-      if ('field' in agg && agg.field) {
-        const sourceAlias = toAlias(agg.field);
-        if (agg.function === 'ANY') {
-          return `MIN(${sourceAlias}) AS ${outputAlias}`;
-        }
-        return `${agg.function}(${sourceAlias}) AS ${outputAlias}`;
-      }
-      return `NULL AS ${outputAlias}`;
-    });
-
-    // Build dependency expressions (using MIN as ANY proxy)
-    const dependencyExprs: string[] = [];
-    if (dependencyColumns) {
-      const existingFields = new Set([
-        pathField,
-        ...aggregates
-          .filter((a) => 'field' in a)
-          .map((a) => (a as {field: string}).field),
-      ]);
-
-      for (const col of dependencyColumns) {
-        if (!existingFields.has(col.field)) {
-          const alias = toAlias(col.field);
-          dependencyExprs.push(`MIN(${alias}) AS ${alias}`);
-        }
-      }
-    }
-
-    // Get expanded paths from pivot state
-    // A path is "fully expanded" only if ALL its ancestors are also expanded
-    const allExpandedPaths = new Set<string>();
-    if ('expandedGroups' in pivot && pivot.expandedGroups) {
-      for (const path of pivot.expandedGroups) {
-        if (path.length === 1 && typeof path[0] === 'string') {
-          allExpandedPaths.add(path[0]);
-        }
-      }
-    }
-
-    // Compute fully expanded paths (where all ancestors are also expanded)
-    const fullyExpandedPaths: string[] = [];
-    for (const pathStr of allExpandedPaths) {
-      const level = pathStr.length - pathStr.replaceAll(delimiter, '').length;
-
-      if (level === 0) {
-        // Level 0 paths have no ancestors - always fully expanded
-        fullyExpandedPaths.push(pathStr);
-      } else {
-        // Check if all ancestors are expanded
-        const parts = pathStr.split(delimiter);
-        let ancestorPath = '';
-        let allAncestorsExpanded = true;
-
-        for (let i = 0; i < parts.length - 1; i++) {
-          ancestorPath =
-            i === 0 ? parts[0] : ancestorPath + delimiter + parts[i];
-          if (!allExpandedPaths.has(ancestorPath)) {
-            allAncestorsExpanded = false;
-            break;
-          }
-        }
-
-        if (allAncestorsExpanded) {
-          fullyExpandedPaths.push(pathStr);
-        }
-      }
-    }
-
-    // Build the expansion filter using GLOB prefix matching
-    // A row is visible if:
-    // 1. It's a root (level = 0), OR
-    // 2. Its parent path is fully expanded (all ancestors expanded too)
-    // Note: Use t. prefix since this is used after LEFT JOIN with __has_children__
-    const expansionConditions: string[] = ['t."__level__" = 0'];
-    for (const pathStr of fullyExpandedPaths) {
-      const pathLevel =
-        pathStr.length - pathStr.replaceAll(delimiter, '').length;
-      const childLevel = pathLevel + 1;
-      expansionConditions.push(
-        `(t."__level__" = ${childLevel} AND t.__tree_path__ GLOB ${sqlValue(pathStr + delimiter + '*')})`,
-      );
-    }
-    const expansionFilter = expansionConditions.join('\n   OR ');
-
-    // Build the complete query with CTEs
-    // The __has_children__ data comes from a cached temp table (created in maybeRefreshTreeMetadata)
-    // to avoid recomputing the expensive LEAD window function on every expand/collapse.
-    const hasChildrenTable =
-      this.currentTreeMetadataTable ?? '__has_children__';
-    const query = `WITH __source__ AS (
-  SELECT ${cteSelectClauses.join(', ')}
-  FROM ${baseTable} AS ${baseAlias}
-  ${joinClauses}${filterClause}
-),
-__tree__ AS (
-  SELECT *,
-    -- Level = count of delimiters in path
-    length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
-  FROM __source__
-)
-SELECT
-  t.__tree_path__ AS ${pathAlias},
-  t."__level__",
-  ${aggregateExprs.join(',\n  ')}${dependencyExprs.length > 0 ? ',\n  ' + dependencyExprs.join(',\n  ') : ''},
-  (h.__tree_path__ IS NOT NULL) AS __tree_has_children__
-FROM __tree__ t
-LEFT JOIN ${hasChildrenTable} h ON h.__tree_path__ = t.__tree_path__
-WHERE ${expansionFilter}
-GROUP BY t.__tree_path__${options.includeOrderBy ? '\nORDER BY t.__tree_path__' : ''}`;
-
-    return query;
-  }
-
-  /**
    * Builds a tree query for flat mode with hierarchical display.
    *
-   * Unlike buildTreePivotQuery (which uses aggregation), this displays raw
+   * This displays raw
    * column values with tree filtering based on expansion state.
    * No GROUP BY, no aggregates - just filtering rows by what's expanded.
    */
@@ -1422,275 +1064,78 @@ ${joinClauses}`;
   }
 
   /**
-   * Builds a rollup pivot query for multiple groupBy columns using UNION ALL.
+   * Builds a query using the __intrinsic_pivot virtual table.
    *
-   * For N groupBy columns, generates N SELECT statements:
-   * - Level 0: GROUP BY first column only (columns 1..N-1 are rollups)
-   * - Level 1: GROUP BY first 2 columns (columns 2..N-1 are rollups)
-   * - ...
-   * - Level N-1: GROUP BY all columns
+   * This approach is more efficient than buildRollupPivotQuery because:
+   * 1. The virtual table maintains the tree structure internally
+   * 2. Expansion state is passed as a simple comma-separated ID list
+   * 3. No complex UNION ALL or window functions needed
    *
-   * Each level includes __<field>_is_rollup columns (0 or 1) to indicate
-   * whether a column value is a rollup aggregate or an actual value.
-   *
-   * Levels beyond 0 are filtered by expandedGroups to only show children
-   * of expanded parent groups.
+   * The virtual table must be created/recreated when filters change.
+   * This is handled by ensureIntrinsicPivotTable() called from notify().
    */
-  private buildRollupPivotQuery(
-    resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<Filter>,
+  private buildIntrinsicPivotQuery(
+    _resolver: SQLSchemaResolver,
+    _filters: ReadonlyArray<Filter>,
     pivot: Pivot,
     options: {includeOrderBy: boolean},
     dependencyColumns?: ReadonlyArray<Column>,
   ): string {
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
+    // Get the virtual table name (should be set by ensureIntrinsicPivotTable)
+    const tableName =
+      this.intrinsicPivotCache?.tableName ?? '__intrinsic_pivot_default__';
 
-    // Collect groupBy info
-    // We track both field (for CTE source column) and id (for output alias)
-    const groupByInfo: Array<{field: string; id: string; sqlExpr: string}> = [];
+    // Build expanded IDs string
+    // Default to empty set (all collapsed) if expandedIds not provided
+    const expandedIdsStr = pivot.expandedIds
+      ? Array.from(pivot.expandedIds).join(',')
+      : '';
 
-    for (const col of pivot.groupBy) {
-      const sqlExpr = resolver.resolveColumnPath(col.field);
-      if (sqlExpr) {
-        groupByInfo.push({field: col.field, id: col.id, sqlExpr});
-      }
-    }
-
-    const groupByFields = groupByInfo.map((g) => g.field);
-    const groupByAliases = groupByInfo.map((g) => toAlias(g.id)); // Use id as alias everywhere
-    const groupByExprs = groupByInfo.map((g) => g.sqlExpr);
-
-    // Collect aggregate source fields
-    const aggregates = pivot.aggregates ?? [];
-    const aggregateSourceFields: Array<{field: string; alias: string}> = [];
-    for (const agg of aggregates) {
-      if ('field' in agg && agg.field) {
-        const alias = toAlias(agg.field);
-        const sqlExpr = resolver.resolveColumnPath(agg.field);
-        if (sqlExpr) {
-          aggregateSourceFields.push({field: agg.field, alias});
-        }
-      }
-    }
-
-    // Build the CTE that contains all source data with JOINs applied
-    const cteSelectClauses: string[] = [];
-    const addedFields = new Set<string>();
-
-    // Add groupBy columns to CTE
-    for (let i = 0; i < groupByFields.length; i++) {
-      cteSelectClauses.push(`${groupByExprs[i]} AS ${groupByAliases[i]}`);
-      addedFields.add(groupByFields[i]);
-    }
-
-    // Add aggregate source columns to CTE (deduplicated)
-    for (const {field, alias} of aggregateSourceFields) {
-      if (!addedFields.has(field)) {
-        const sqlExpr = resolver.resolveColumnPath(field);
-        if (sqlExpr) {
-          cteSelectClauses.push(`${sqlExpr} AS ${alias}`);
-          addedFields.add(field);
-        }
-      }
-    }
-
-    // Add dependency columns to CTE (columns needed for rendering but not in
-    // groupBy or aggregates)
-    if (dependencyColumns) {
-      for (const col of dependencyColumns) {
-        if (!addedFields.has(col.field)) {
-          const sqlExpr = resolver.resolveColumnPath(col.field);
-          if (sqlExpr) {
-            const alias = toAlias(col.field);
-            cteSelectClauses.push(`${sqlExpr} AS ${alias}`);
-            addedFields.add(col.field);
-          }
-        }
-      }
-    }
-
-    // If no explicit columns, select all
-    if (cteSelectClauses.length === 0) {
-      cteSelectClauses.push(`${baseAlias}.*`);
-    }
-
-    const joinClauses = resolver.buildJoinClauses();
-
-    let cteQuery = `SELECT ${cteSelectClauses.join(', ')}
-FROM ${baseTable} AS ${baseAlias}
-${joinClauses}`;
-
-    // Add WHERE clause for filters
-    if (filters.length > 0) {
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        if (!sqlExpr) {
-          return filterToSql(filter, filter.field);
-        }
-        return filterToSql(filter, sqlExpr);
-      });
-      cteQuery += `\nWHERE ${whereConditions.join(' AND ')}`;
-    }
-
-    // Build UNION ALL for each rollup level
-    const unionQueries: string[] = [];
-    const numLevels = groupByFields.length;
-
-    // When flattenGroups is true, only generate the leaf level (no rollup rows)
-    const startLevel = pivot.collapsibleGroups ? 0 : numLevels - 1;
-
-    for (let level = startLevel; level < numLevels; level++) {
-      const levelQuery = this.buildRollupLevelQuery(
-        level,
-        groupByFields,
-        groupByAliases,
-        aggregates,
-        pivot,
-        dependencyColumns,
-      );
-      unionQueries.push(levelQuery);
-    }
-
-    // Check if we're sorting by an aggregate
+    // Build sort spec string
     const sortedColumn = this.findSortedColumn(undefined, pivot);
-    const sortedAggregate =
-      sortedColumn && aggregates.find((a) => a.id === sortedColumn.id);
-
-    // Build the full query with CTE
-    let query = `WITH __data__ AS (
-${cteQuery}
-), __union__ AS (
-${unionQueries.join('\nUNION ALL\n')}
-)`;
-
-    // In flat mode, use simple query without window functions for sorting.
-    // In hierarchical mode, add window functions to propagate parent aggregate
-    // values down to children for proper hierarchical sorting.
-    if (sortedAggregate && options.includeOrderBy && pivot.collapsibleGroups) {
-      const aggAlias = toAlias(sortedAggregate.id);
-      const sortKeyExprs: string[] = [];
-
-      // For each level except the last, create a sort key that captures
-      // the aggregate value at that level
-      for (let level = 0; level < groupByAliases.length - 1; level++) {
-        // Partition by columns 0..level, get the aggregate where __level__ = level
-        const partitionCols = groupByAliases.slice(0, level + 1).join(', ');
-        sortKeyExprs.push(
-          `FIRST_VALUE(${aggAlias}) OVER (PARTITION BY ${partitionCols} ORDER BY "__level__") AS "__sort_${level}__"`,
-        );
-      }
-
-      query += `
-SELECT *, ${sortKeyExprs.join(', ')}
-FROM __union__`;
-    } else {
-      query += `
-SELECT * FROM __union__`;
-    }
-
-    // Add ORDER BY if requested
-    if (options.includeOrderBy) {
-      const orderByClauses = pivot.collapsibleGroups
-        ? this.buildRollupOrderBy(
-            pivot,
-            groupByFields,
-            groupByAliases,
-            sortedAggregate,
-          )
-        : this.buildFlatOrderBy(pivot, groupByAliases, sortedAggregate);
-      if (orderByClauses.length > 0) {
-        query += `\nORDER BY ${orderByClauses.join(', ')}`;
-      }
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds simple ORDER BY clauses for flat mode (no hierarchical sorting).
-   * Just orders by the sorted column directly.
-   */
-  private buildFlatOrderBy(
-    pivot: Pivot,
-    groupByAliases: string[],
-    sortedAggregate?: AggregateColumn,
-  ): string[] {
-    const sortedColumn = this.findSortedColumn(undefined, pivot);
-    const direction = sortedColumn?.direction ?? 'ASC';
-
-    if (sortedAggregate) {
-      // Sort by the aggregate directly
-      const aggAlias = toAlias(sortedAggregate.id);
-      return [`${aggAlias} ${direction}`];
-    } else if (sortedColumn) {
-      // Sort by the sorted groupBy column
-      const alias = toAlias(sortedColumn.id);
-      return [`${alias} ${direction}`];
-    } else {
-      // Default: sort by groupBy columns in order
-      return groupByAliases.map((alias) => `${alias} ASC`);
-    }
-  }
-
-  /**
-   * Builds a single rollup level SELECT query.
-   *
-   * The level indicates how many groupBy columns have real values:
-   * - Level 0: Only first groupBy column has value, rest are NULL (most aggregated)
-   * - Level N-1: All groupBy columns have values (leaf level)
-   *
-   * Each row includes a __level__ column to indicate its rollup depth.
-   */
-  private buildRollupLevelQuery(
-    level: number,
-    groupByFields: string[],
-    groupByAliases: string[],
-    aggregates: readonly AggregateColumn[],
-    pivot: Pivot,
-    dependencyColumns?: ReadonlyArray<Column>,
-  ): string {
-    const selectClauses: string[] = [];
-    const numGroupBy = groupByFields.length;
-
-    // Add __level__ column to indicate rollup depth
-    selectClauses.push(`${level} AS "__level__"`);
-
-    // Add groupBy columns - real value if i <= level, NULL otherwise
-    for (let i = 0; i < numGroupBy; i++) {
-      const alias = groupByAliases[i];
-      const isRollup = i > level;
-
-      if (isRollup) {
-        selectClauses.push(`NULL AS ${alias}`);
+    let sortSpec = 'agg_0 DESC'; // Default
+    if (sortedColumn) {
+      const aggregates = pivot.aggregates ?? [];
+      const aggIndex = aggregates.findIndex((a) => a.id === sortedColumn.id);
+      if (aggIndex >= 0) {
+        sortSpec = `agg_${aggIndex} ${sortedColumn.direction}`;
       } else {
-        selectClauses.push(alias);
+        // Sorting by groupBy column - use 'name'
+        sortSpec = `name ${sortedColumn.direction}`;
       }
     }
 
-    // Add aggregate expressions
-    // Note: In the CTE, source fields are aliased by field name (e.g., "dur")
-    // But the output alias should be the aggregate's id (e.g., "dur_sum")
-    for (const agg of aggregates) {
-      const outputAlias = toAlias(agg.id);
-      if (agg.function === 'COUNT') {
-        selectClauses.push(`COUNT(*) AS ${outputAlias}`);
-      } else if ('field' in agg && agg.field) {
-        const sourceAlias = toAlias(agg.field);
-        if (agg.function === 'ANY') {
-          selectClauses.push(`MIN(${sourceAlias}) AS ${outputAlias}`);
-        } else {
-          selectClauses.push(
-            `${agg.function}(${sourceAlias}) AS ${outputAlias}`,
-          );
-        }
-      }
+    // Build the SELECT clause with column aliases
+    // Map virtual table columns to the expected output aliases
+    const selectClauses: string[] = [];
+
+    // Add groupBy columns with their proper aliases
+    for (let i = 0; i < pivot.groupBy.length; i++) {
+      const col = pivot.groupBy[i];
+      const alias = toAlias(col.id);
+      // Virtual table uses the original column names for hierarchy cols
+      selectClauses.push(`${col.field} AS ${alias}`);
     }
 
-    // Add dependency columns (using MIN as ANY proxy)
+    // Add metadata columns
+    selectClauses.push('__id__');
+    selectClauses.push('__parent_id__');
+    selectClauses.push('__depth__ AS "__level__"'); // Alias for consistency with rollup
+    selectClauses.push('__has_children__ AS __tree_has_children__');
+    selectClauses.push('__child_count__');
+
+    // Add aggregate columns with proper aliases
+    const aggregates = pivot.aggregates ?? [];
+    for (let i = 0; i < aggregates.length; i++) {
+      const agg = aggregates[i];
+      const alias = toAlias(agg.id);
+      selectClauses.push(`agg_${i} AS ${alias}`);
+    }
+
+    // Add dependency columns (they won't be in the pivot output, so use NULL)
     if (dependencyColumns) {
       const existingFields = new Set([
-        ...groupByFields,
+        ...pivot.groupBy.map((g) => g.field),
         ...aggregates
           .filter((a) => 'field' in a)
           .map((a) => (a as {field: string}).field),
@@ -1698,161 +1143,140 @@ SELECT * FROM __union__`;
 
       for (const col of dependencyColumns) {
         if (!existingFields.has(col.field)) {
-          const alias = toAlias(col.field);
-          selectClauses.push(`MIN(${alias}) AS ${alias}`);
+          const alias = toAlias(col.id);
+          selectClauses.push(`NULL AS ${alias}`);
         }
       }
     }
 
-    let query = `SELECT ${selectClauses.join(', ')}\nFROM __data__`;
+    // Build the query
+    let query = `SELECT ${selectClauses.join(',\n       ')}
+FROM ${tableName}
+WHERE __expanded_ids__ = '${expandedIdsStr}'
+  AND __sort__ = '${sortSpec}'`;
 
-    // Add WHERE clause for group expansion filter (levels > 0)
-    // For a row at level N, ALL ancestor paths must be expanded (not collapsed).
-    // Skip expansion filtering in flat mode - show all leaf rows.
-    if (level > 0 && pivot.collapsibleGroups) {
-      if ('collapsedGroups' in pivot && pivot.collapsedGroups) {
-        // Blacklist mode: Show all rows EXCEPT those whose parent is collapsed
-        // A row at level N is hidden if any of its ancestor paths are in collapsedGroups
-        const collapsedGroups = pivot.collapsedGroups;
-        if (collapsedGroups.size > 0) {
-          // Collect collapsed paths that would hide rows at this level.
-          // A collapsed path of length L hides all rows at levels > L.
-          // For level N, we need to exclude rows whose ancestor at any level < N
-          // is collapsed. A path of length L is an ancestor of level N if L < N.
-          const collapsedParentPaths: SqlValue[][] = [];
-          for (const path of collapsedGroups) {
-            if (path.length <= level) {
-              // This collapsed path affects rows at this level
-              // (path.length == level means direct parent is collapsed)
-              collapsedParentPaths.push([...path]);
-            }
-          }
-
-          if (collapsedParentPaths.length > 0) {
-            // Build NOT IN clause for each prefix length
-            // Group collapsed paths by their length
-            const pathsByLength = new Map<number, SqlValue[][]>();
-            for (const path of collapsedParentPaths) {
-              const len = path.length;
-              if (!pathsByLength.has(len)) {
-                pathsByLength.set(len, []);
-              }
-              pathsByLength.get(len)!.push(path);
-            }
-
-            // Build WHERE clause: exclude rows whose ancestor is collapsed
-            // Use sqlPathsNotIn to properly handle NULL values
-            const notInClauses: string[] = [];
-            for (const [len, paths] of pathsByLength) {
-              const cols = groupByAliases.slice(0, len);
-              notInClauses.push(sqlPathsNotIn(cols, paths));
-            }
-            query += `\nWHERE ${notInClauses.join(' AND ')}`;
-          }
-          // If no collapsed paths affect this level, no WHERE clause needed (show all)
-        }
-        // If collapsedGroups is empty, no WHERE clause needed (show all)
-      } else {
-        // Whitelist mode (or no expansion state): Only show rows whose parent
-        // path is in expandedGroups. If expandedGroups is undefined/empty,
-        // default to all collapsed.
-        const expandedGroups =
-          'expandedGroups' in pivot && pivot.expandedGroups
-            ? pivot.expandedGroups
-            : new PathSet();
-
-        // Collect paths of length `level` whose all ancestor prefixes are also expanded
-        const validParentPaths: SqlValue[][] = [];
-        for (const path of expandedGroups) {
-          if (path.length === level) {
-            // Check that all ancestor prefixes are also expanded
-            let allAncestorsExpanded = true;
-            for (let prefixLen = 1; prefixLen < level; prefixLen++) {
-              const prefix = path.slice(0, prefixLen);
-              if (!expandedGroups.has(prefix)) {
-                allAncestorsExpanded = false;
-                break;
-              }
-            }
-            if (allAncestorsExpanded) {
-              validParentPaths.push([...path]);
-            }
-          }
-        }
-
-        if (validParentPaths.length > 0) {
-          // Build tuple comparison using sqlPathsIn to handle NULLs properly
-          const cols = groupByAliases.slice(0, level);
-          query += `\nWHERE ${sqlPathsIn(cols, validParentPaths)}`;
-        } else {
-          // No valid expanded paths at this level, so nothing to show
-          query += `\nWHERE FALSE`;
-        }
-      }
-    }
-
-    // Add GROUP BY for columns at this level
-    if (level >= 0) {
-      const groupByClause = groupByAliases.slice(0, level + 1).join(', ');
-      if (groupByClause) {
-        query += `\nGROUP BY ${groupByClause}`;
-      }
+    // Add ORDER BY if requested (virtual table handles sorting, but we need
+    // to maintain proper tree ordering which the table provides)
+    if (options.includeOrderBy) {
+      // The virtual table returns rows in tree order, but we can add
+      // explicit ordering for the UI
+      query += '\nORDER BY rowid'; // Preserve tree order from virtual table
     }
 
     return query;
   }
 
   /**
-   * Builds ORDER BY clauses for rollup query.
+   * Ensures the intrinsic pivot virtual table exists and is up-to-date.
+   * Called from maybeRefreshIntrinsicPivot() before building queries.
    *
-   * When sorting by an aggregate, we use __sort_N__ columns (computed via
-   * window functions) to sort parent groups by their aggregate value while
-   * keeping children under their parent.
-   *
-   * Example with groupBy [process, thread] sorted by SUM(dur) DESC:
-   * ORDER BY __sort_0__ DESC, process NULLS FIRST, sum_dur DESC, thread NULLS FIRST
-   *
-   * This sorts processes by their total duration, keeps rollup rows before
-   * children, and sorts threads within each process by their duration.
+   * The virtual table needs to be recreated when:
+   * - Filters change (different base data)
+   * - GroupBy columns change
+   * - Aggregate expressions change
    */
-  private buildRollupOrderBy(
+  private async ensureIntrinsicPivotTable(
+    resolver: SQLSchemaResolver,
+    filters: ReadonlyArray<Filter>,
     pivot: Pivot,
-    groupByFields: string[],
-    groupByAliases: string[],
-    sortedAggregate?: AggregateColumn,
-  ): string[] {
-    const orderByClauses: string[] = [];
-    const sortedColumn = this.findSortedColumn(undefined, pivot);
-    const direction = sortedColumn?.direction ?? 'ASC';
+  ): Promise<string> {
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
 
-    if (sortedAggregate) {
-      // When sorting by aggregate, use the __sort_N__ keys to sort parent groups
-      // Pattern: __sort_0__, groupBy[0] NULLS FIRST, __sort_1__, groupBy[1] NULLS FIRST, ...
-      // The __sort_N__ key contains the aggregate value at level N, propagated to children
-      // NULLS FIRST ensures rollup rows come before their children
-      const aggAlias = toAlias(sortedAggregate.id);
-      for (let i = 0; i < groupByAliases.length; i++) {
-        // Add sort key for this level to sort groups by aggregate
-        if (i < groupByAliases.length - 1) {
-          orderByClauses.push(`"__sort_${i}__" ${direction}`);
-        } else {
-          // For the last level, use the aggregate directly
-          orderByClauses.push(`${aggAlias} ${direction}`);
-        }
-        // Add groupBy column with NULLS FIRST to keep rollup before children
-        orderByClauses.push(`${groupByAliases[i]} NULLS FIRST`);
+    // Build cache key from factors that affect the tree structure
+    const filterKey = filters
+      .map((f) => `${f.field}:${f.op}:${'value' in f ? f.value : ''}`)
+      .join('|');
+    const groupByKey = pivot.groupBy.map((g) => g.field).join(',');
+    const aggKey = (pivot.aggregates ?? [])
+      .map((a) => {
+        if (a.function === 'COUNT') return 'COUNT(*)';
+        return `${a.function}(${'field' in a ? a.field : ''})`;
+      })
+      .join(',');
+    const cacheKey = `${baseTable}:${filterKey}:${groupByKey}:${aggKey}`;
+
+    // Check if cache is valid
+    if (this.intrinsicPivotCache?.cacheKey === cacheKey) {
+      return this.intrinsicPivotCache.tableName;
+    }
+
+    // Generate unique table name
+    const tableName = `__pivot_${intrinsicPivotTableCounter++}__`;
+
+    // Build the base table expression (with filters as subquery if needed)
+    let sourceTable = baseTable;
+    if (filters.length > 0) {
+      // Resolve filter column paths
+      for (const filter of filters) {
+        resolver.resolveColumnPath(filter.field);
       }
-    } else {
-      // When not sorting by aggregate, just use hierarchical ordering
-      for (let i = 0; i < groupByFields.length; i++) {
-        const col = pivot.groupBy[i];
-        const alias = groupByAliases[i];
-        const colDirection = col.sort ?? 'ASC';
-        orderByClauses.push(`${alias} ${colDirection} NULLS FIRST`);
+      const joinClauses = resolver.buildJoinClauses();
+
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+
+      sourceTable = `(SELECT ${baseAlias}.* FROM ${baseTable} AS ${baseAlias} ${joinClauses} WHERE ${whereConditions.join(' AND ')})`;
+    }
+
+    // Build hierarchy columns string
+    const hierarchyCols = pivot.groupBy.map((g) => g.field).join(', ');
+
+    // Build aggregation expressions string
+    const aggExprs = (pivot.aggregates ?? [])
+      .map((a) => {
+        if (a.function === 'COUNT') return 'COUNT(*)';
+        const field = 'field' in a ? a.field : '';
+        if (a.function === 'ANY') return `MIN(${field})`; // ANY -> MIN
+        return `${a.function}(${field})`;
+      })
+      .join(', ');
+
+    // Drop old table if it exists
+    if (this.intrinsicPivotCache?.tableName) {
+      try {
+        await this.engine.query(
+          `DROP TABLE IF EXISTS ${this.intrinsicPivotCache.tableName}`,
+        );
+      } catch {
+        // Ignore errors dropping old table
       }
     }
 
-    return orderByClauses;
+    // Create the virtual table
+    // Use double quotes for sourceTable to avoid issues with single-quoted filter values
+    const createQuery = `CREATE VIRTUAL TABLE ${tableName} USING __intrinsic_pivot(
+  "${sourceTable.replace(/"/g, '""')}",
+  '${hierarchyCols}',
+  '${aggExprs}'
+)`;
+
+    await this.engine.query(this.wrapQueryWithPrelude(createQuery));
+
+    // Update cache
+    this.intrinsicPivotCache = {cacheKey, tableName};
+
+    return tableName;
+  }
+
+  /**
+   * Checks if pivot mode is active and refreshes the virtual table if needed.
+   * Called from notify() before building queries.
+   */
+  private async maybeRefreshIntrinsicPivot(
+    model: DataSourceModel,
+  ): Promise<void> {
+    const {filters = [], pivot} = model;
+
+    if (pivot && !pivot.drillDown) {
+      const resolver = new SQLSchemaResolver(
+        this.sqlSchema,
+        this.rootSchemaName,
+      );
+      await this.ensureIntrinsicPivotTable(resolver, filters, pivot);
+    }
   }
 
   /**
