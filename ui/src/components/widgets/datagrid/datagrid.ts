@@ -1100,10 +1100,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   /**
    * Checks if a group node is currently expanded using its ID.
+   * Handles both whitelist (expandedIds) and blacklist (collapsedIds) modes.
    */
   private isGroupExpanded(nodeId: bigint): boolean {
     if (!this.pivot) return false;
-    // ID-based expansion: check if nodeId is in expandedIds
+    // Blacklist mode: expanded unless in collapsedIds
+    if (this.pivot.collapsedIds !== undefined) {
+      return !this.pivot.collapsedIds.has(nodeId);
+    }
+    // Whitelist mode: expanded only if in expandedIds
     return this.pivot.expandedIds?.has(nodeId) ?? false;
   }
 
@@ -1115,37 +1120,66 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private toggleExpansion(nodeId: bigint, attrs: DataGridAttrs): void {
     if (!this.pivot) return;
 
-    // ID-based expansion: toggle nodeId in expandedIds
-    const currentExpanded = this.pivot.expandedIds ?? new Set<bigint>();
-    const newExpanded = new Set(currentExpanded);
-    if (newExpanded.has(nodeId)) {
-      newExpanded.delete(nodeId);
+    // Handle both whitelist (expandedIds) and blacklist (collapsedIds) modes
+    if (this.pivot.collapsedIds !== undefined) {
+      // Blacklist mode: toggle in collapsedIds
+      // In list = collapsed, not in list = expanded
+      const currentCollapsed = this.pivot.collapsedIds;
+      const newCollapsed = new Set(currentCollapsed);
+      if (newCollapsed.has(nodeId)) {
+        // Currently collapsed, expand it by removing from list
+        newCollapsed.delete(nodeId);
+      } else {
+        // Currently expanded, collapse it by adding to list
+        newCollapsed.add(nodeId);
+      }
+      const newPivot: Pivot = {...this.pivot, collapsedIds: newCollapsed};
+      this.pivot = newPivot;
+      attrs.onPivotChanged?.(newPivot);
     } else {
-      newExpanded.add(nodeId);
+      // Whitelist mode: toggle in expandedIds
+      // In list = expanded, not in list = collapsed
+      const currentExpanded = this.pivot.expandedIds ?? new Set<bigint>();
+      const newExpanded = new Set(currentExpanded);
+      if (newExpanded.has(nodeId)) {
+        newExpanded.delete(nodeId);
+      } else {
+        newExpanded.add(nodeId);
+      }
+      const newPivot: Pivot = {...this.pivot, expandedIds: newExpanded};
+      this.pivot = newPivot;
+      attrs.onPivotChanged?.(newPivot);
     }
+  }
 
-    const newPivot: Pivot = {...this.pivot, expandedIds: newExpanded};
+  /**
+   * Expands all groups by switching to blacklist mode with empty collapsedIds.
+   * Empty collapsedIds = all nodes expanded (nothing is collapsed).
+   */
+  private expandAll(attrs: DataGridAttrs): void {
+    if (!this.pivot) return;
+    // Switch to blacklist mode with empty set - all nodes expanded
+    const newPivot: Pivot = {
+      ...this.pivot,
+      expandedIds: undefined,
+      collapsedIds: new Set<bigint>(),
+    };
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
 
   /**
-   * Expands all groups.
-   * TODO: Not yet implemented for ID-based expansion - would require knowing all node IDs.
-   */
-  private expandAll(_attrs: DataGridAttrs): void {
-    // Stubbed out for now - ID-based expansion requires knowing all node IDs
-    // which we don't have access to here without querying the virtual table.
-    console.warn('expandAll not yet implemented for ID-based pivot expansion');
-  }
-
-  /**
-   * Collapses all groups by clearing the expandedIds set.
+   * Collapses all groups by switching to whitelist mode with empty expandedIds.
+   * Empty expandedIds = all nodes collapsed (nothing is expanded).
    */
   private collapseAll(attrs: DataGridAttrs): void {
     if (!this.pivot) return;
-    // Set expandedIds to empty (all collapsed)
-    const newPivot: Pivot = {...this.pivot, expandedIds: new Set<bigint>()};
+    // Switch to whitelist mode with empty set - all nodes collapsed
+    const newPivot: Pivot = {
+      ...this.pivot,
+      expandedIds: new Set<bigint>(),
+      collapsedIds: undefined,
+    };
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }

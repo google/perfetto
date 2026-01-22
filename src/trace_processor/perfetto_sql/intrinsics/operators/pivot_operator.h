@@ -71,13 +71,18 @@ struct PivotSortSpec {
 //       'SUM(value), COUNT(*), AVG(price)'    -- aggregation expressions
 //   );
 //
-// Query:
+// Query (whitelist mode - only specified IDs expanded):
 //   SELECT * FROM my_pivot
 //   WHERE __expanded_ids__ = '1,2,3'   -- comma-separated node IDs to expand
 //     AND __sort__ = 'agg_0 DESC'      -- sort by aggregate or 'name'
 //     AND __depth_limit__ = 3          -- max depth to show
 //     AND __offset__ = 0               -- pagination offset
 //     AND __limit__ = 100;             -- pagination limit
+//
+// Query (blacklist mode - all expanded except specified IDs):
+//   SELECT * FROM my_pivot
+//   WHERE __collapsed_ids__ = '4,5'    -- comma-separated node IDs to collapse
+//     AND __sort__ = 'agg_0 DESC';
 struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
   // Column layout (indices computed at runtime based on hierarchy_cols.size()):
   // [0..num_hier-1]         : hierarchy columns (with NULLs like ROLLUP)
@@ -100,12 +105,13 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
   // Hidden columns for query parameters (after aggregate columns)
   enum HiddenColumn {
     kAggsSpec = 0,       // Aggregate specification (e.g., "SUM(col1), COUNT(*)")
-    kExpandedIds = 1,    // Comma-separated expanded node IDs
-    kSortSpec = 2,       // Sort specification
-    kDepthLimit = 3,     // Maximum depth to show
-    kOffset = 4,         // Pagination offset
-    kLimit = 5,          // Pagination limit
-    kRebuild = 6,        // Trigger cache rebuild
+    kExpandedIds = 1,    // Comma-separated expanded node IDs (whitelist mode)
+    kCollapsedIds = 2,   // Comma-separated collapsed node IDs (blacklist mode)
+    kSortSpec = 3,       // Sort specification
+    kDepthLimit = 4,     // Maximum depth to show
+    kOffset = 5,         // Pagination offset
+    kLimit = 6,          // Pagination limit
+    kRebuild = 7,        // Trigger cache rebuild
   };
 
   struct Context {

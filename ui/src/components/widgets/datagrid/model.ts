@@ -133,10 +133,19 @@ interface PivotBase {
 
 // ID-based expansion mode: Uses numeric node IDs from __intrinsic_pivot virtual table.
 // The virtual table maintains the tree structure and handles ROLLUP-style aggregation.
-// expandedIds contains the __id__ values of expanded nodes.
-// Empty Set = only root children visible (all collapsed).
+//
+// Two mutually exclusive modes:
+// 1. Whitelist (expandedIds): Only specified nodes are expanded.
+//    Empty Set = only root children visible (all collapsed).
+// 2. Blacklist (collapsedIds): All nodes expanded EXCEPT those specified.
+//    Empty Set = all nodes expanded.
+//
+// If both are set, collapsedIds takes precedence.
 export interface Pivot extends PivotBase {
+  // Whitelist mode: only these node IDs are expanded
   readonly expandedIds?: ReadonlySet<bigint>;
+  // Blacklist mode: all nodes expanded except these IDs
+  readonly collapsedIds?: ReadonlySet<bigint>;
 }
 
 // Tree grouping configuration for displaying hierarchical data in flat mode.

@@ -1085,11 +1085,19 @@ ${joinClauses}`;
     const tableName =
       this.intrinsicPivotCache?.tableName ?? '__intrinsic_pivot_default__';
 
-    // Build expanded IDs string
-    // Default to empty set (all collapsed) if expandedIds not provided
-    const expandedIdsStr = pivot.expandedIds
-      ? Array.from(pivot.expandedIds).join(',')
-      : '';
+    // Build expansion constraint - collapsedIds takes precedence if both set
+    // collapsedIds = blacklist mode (all expanded except listed)
+    // expandedIds = whitelist mode (only listed are expanded)
+    let expansionConstraint: string;
+    if (pivot.collapsedIds !== undefined) {
+      const collapsedIdsStr = Array.from(pivot.collapsedIds).join(',');
+      expansionConstraint = `__collapsed_ids__ = '${collapsedIdsStr}'`;
+    } else {
+      const expandedIdsStr = pivot.expandedIds
+        ? Array.from(pivot.expandedIds).join(',')
+        : '';
+      expansionConstraint = `__expanded_ids__ = '${expandedIdsStr}'`;
+    }
 
     // Build sort spec string
     const sortedColumn = this.findSortedColumn(undefined, pivot);
@@ -1152,7 +1160,7 @@ ${joinClauses}`;
     // Build the query
     let query = `SELECT ${selectClauses.join(',\n       ')}
 FROM ${tableName}
-WHERE __expanded_ids__ = '${expandedIdsStr}'
+WHERE ${expansionConstraint}
   AND __sort__ = '${sortSpec}'`;
 
     // Add ORDER BY if requested (virtual table handles sorting, but we need

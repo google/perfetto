@@ -83,6 +83,7 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   // Add hidden columns for query parameters
   schema += ",__aggs__ TEXT HIDDEN";
   schema += ",__expanded_ids__ TEXT HIDDEN";
+  schema += ",__collapsed_ids__ TEXT HIDDEN";  // Blacklist mode (expand all except)
   schema += ",__sort__ TEXT HIDDEN";
   schema += ",__depth_limit__ INTEGER HIDDEN";
   schema += ",__offset__ INTEGER HIDDEN";
@@ -182,7 +183,8 @@ void SortTree(PivotNode* node, const PivotSortSpec& spec) {
 // Only shows children of nodes that are expanded (or root's children always).
 // All nodes are collapsed by default - only expanded IDs show their children.
 void FlattenTree(PivotNode* node,
-                 const base::FlatHashMap<int64_t, bool>& expanded_ids,
+                 const base::FlatHashMap<int64_t, bool>& expansion_ids,
+                 bool blacklist_mode,
                  int depth_limit,
                  std::vector<PivotNode*>* out) {
   if (!node) {
@@ -190,9 +192,11 @@ void FlattenTree(PivotNode* node,
   }
 
   // Root (level -1) is always "expanded" to show top-level nodes.
-  // Other nodes are expanded only if their ID is in expanded_ids.
+  // In whitelist mode: nodes are expanded if their ID is in expansion_ids.
+  // In blacklist mode: nodes are expanded unless their ID is in expansion_ids.
+  bool in_list = (expansion_ids.Find(node->id) != nullptr);
   bool is_expanded = (node->level < 0) ||
-                     (expanded_ids.Find(node->id) != nullptr);
+                     (blacklist_mode ? !in_list : in_list);
   node->expanded = is_expanded;
 
   // Add children to output if this node is expanded
@@ -201,7 +205,8 @@ void FlattenTree(PivotNode* node,
       if (child->level <= depth_limit) {
         out->push_back(child.get());
         // Recursively add grandchildren if child is also expanded
-        FlattenTree(child.get(), expanded_ids, depth_limit, out);
+        FlattenTree(child.get(), expansion_ids, blacklist_mode, depth_limit,
+                    out);
       }
     }
   }
@@ -444,10 +449,10 @@ int PivotOperatorModule::Create(sqlite3* db,
   res->hierarchy_cols = std::move(hierarchy_cols);
   res->aggregations = std::move(aggregations);
   res->agg_col_count = res->aggregations.size();
-  // Column layout: hierarchy cols + 5 metadata + agg cols + 7 hidden
+  // Column layout: hierarchy cols + 5 metadata + agg cols + 8 hidden
   size_t num_hier = res->hierarchy_cols.size();
   res->total_col_count = static_cast<int>(
-      num_hier + kMetadataColCount + res->agg_col_count + 7);
+      num_hier + kMetadataColCount + res->agg_col_count + 8);
 
   // Create root node
   res->root = std::make_unique<PivotNode>();
@@ -502,6 +507,7 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
                      static_cast<int>(t->agg_col_count);
   int aggs_col = hidden_start + kAggsSpec;
   int expanded_col = hidden_start + kExpandedIds;
+  int collapsed_col = hidden_start + kCollapsedIds;
   int sort_col = hidden_start + kSortSpec;
   int depth_col = hidden_start + kDepthLimit;
   int offset_col = hidden_start + kOffset;
@@ -509,11 +515,11 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
   int rebuild_col = hidden_start + kRebuild;
 
   // Build idxStr to encode argv index for each constraint type.
-  // Format: 7 characters, one per constraint type (aggs, expanded, sort,
-  // offset, depth, limit, rebuild). Each char is '0'-'6' indicating the
+  // Format: 8 characters, one per constraint type (aggs, expanded, collapsed,
+  // sort, depth, offset, limit, rebuild). Each char is '0'-'7' indicating the
   // argv index, or '-' if not present.
   // This allows Filter() to know exactly which argv slot each value is in.
-  char idx_flags[8] = "-------";
+  char idx_flags[9] = "--------";
 
   int argv_index = 1;  // argvIndex is 1-based in SQLite
   for (int i = 0; i < info->nConstraint; i++) {
@@ -533,11 +539,11 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
       idx_flags[1] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == sort_col) {
+    } else if (col == collapsed_col) {
       idx_flags[2] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == offset_col) {
+    } else if (col == sort_col) {
       idx_flags[3] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
@@ -545,12 +551,16 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
       idx_flags[4] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == limit_col) {
+    } else if (col == offset_col) {
       idx_flags[5] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
-    } else if (col == rebuild_col) {
+    } else if (col == limit_col) {
       idx_flags[6] = static_cast<char>('0' + argv_index - 1);
+      info->aConstraintUsage[i].argvIndex = argv_index++;
+      info->aConstraintUsage[i].omit = true;
+    } else if (col == rebuild_col) {
+      idx_flags[7] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     }
@@ -589,12 +599,13 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   c->rows_returned = 0;
   c->depth_limit = std::numeric_limits<int>::max();
 
-  // Map of expanded node IDs
-  base::FlatHashMap<int64_t, bool> expanded_ids;
+  // Map of expanded/collapsed node IDs and mode
+  base::FlatHashMap<int64_t, bool> expansion_ids;
+  bool blacklist_mode = false;  // false = whitelist (expanded_ids), true = blacklist (collapsed_ids)
 
   // Parse idxStr to determine which arguments are present and their argv index.
-  // Each char in idxStr is either '-' (not present) or '0'-'6' (argv index).
-  std::string flags = idxStr ? idxStr : "-------";
+  // Each char in idxStr is either '-' (not present) or '0'-'7' (argv index).
+  std::string flags = idxStr ? idxStr : "--------";
 
   std::string sort_spec_str;
   bool needs_rebuild = false;
@@ -611,28 +622,44 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     return argv[argv_idx];
   };
 
-  // Process __aggs__ (flag position 0)
-  // Currently unused, but could parse to select specific aggregates
-
-  // Process __expanded_ids__ (flag position 1)
-  if (sqlite3_value* val = get_argv(1)) {
-    const char* ids_str =
-        reinterpret_cast<const char*>(sqlite3_value_text(val));
+  // Helper to parse comma-separated IDs
+  auto parse_ids = [&](const char* ids_str) {
     if (ids_str) {
       for (base::StringSplitter sp(ids_str, ','); sp.Next();) {
         std::string id_str = base::TrimWhitespace(sp.cur_token());
         if (!id_str.empty()) {
           std::optional<int64_t> id = base::StringToInt64(id_str);
           if (id) {
-            expanded_ids.Insert(*id, true);
+            expansion_ids.Insert(*id, true);
           }
         }
       }
     }
+  };
+
+  // Process __aggs__ (flag position 0)
+  // Currently unused, but could parse to select specific aggregates
+
+  // Process __expanded_ids__ (flag position 1) - whitelist mode
+  if (sqlite3_value* val = get_argv(1)) {
+    const char* ids_str =
+        reinterpret_cast<const char*>(sqlite3_value_text(val));
+    parse_ids(ids_str);
+    blacklist_mode = false;
   }
 
-  // Process __sort__ (flag position 2)
+  // Process __collapsed_ids__ (flag position 2) - blacklist mode (expand all except)
+  // Note: If both expanded_ids and collapsed_ids are provided, collapsed_ids wins
   if (sqlite3_value* val = get_argv(2)) {
+    const char* ids_str =
+        reinterpret_cast<const char*>(sqlite3_value_text(val));
+    expansion_ids.Clear();
+    parse_ids(ids_str);
+    blacklist_mode = true;
+  }
+
+  // Process __sort__ (flag position 3)
+  if (sqlite3_value* val = get_argv(3)) {
     const char* sort_str =
         reinterpret_cast<const char*>(sqlite3_value_text(val));
     if (sort_str) {
@@ -640,23 +667,23 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     }
   }
 
-  // Process __offset__ (flag position 3)
-  if (sqlite3_value* val = get_argv(3)) {
-    c->offset = sqlite3_value_int(val);
-  }
-
   // Process __depth__ (flag position 4)
   if (sqlite3_value* val = get_argv(4)) {
     c->depth_limit = sqlite3_value_int(val);
   }
 
-  // Process __limit__ (flag position 5)
+  // Process __offset__ (flag position 5)
   if (sqlite3_value* val = get_argv(5)) {
+    c->offset = sqlite3_value_int(val);
+  }
+
+  // Process __limit__ (flag position 6)
+  if (sqlite3_value* val = get_argv(6)) {
     c->limit = sqlite3_value_int(val);
   }
 
-  // Process __rebuild__ (flag position 6)
-  if (sqlite3_value* val = get_argv(6)) {
+  // Process __rebuild__ (flag position 7)
+  if (sqlite3_value* val = get_argv(7)) {
     needs_rebuild = sqlite3_value_int(val) != 0;
   }
 
@@ -683,9 +710,10 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     t->current_sort_spec = sort_spec_str;
   }
 
-  // Flatten the tree based on expanded IDs
+  // Flatten the tree based on expansion state
   t->flat.clear();
-  FlattenTree(t->root.get(), expanded_ids, c->depth_limit, &t->flat);
+  FlattenTree(t->root.get(), expansion_ids, blacklist_mode, c->depth_limit,
+              &t->flat);
 
   // Apply offset
   c->row_index = c->offset;
