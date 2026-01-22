@@ -44,8 +44,8 @@ import {TagInput} from '../../widgets/tag_input';
 import {Store} from '../../base/store';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
+import {SerialQueryExecutor, QuerySlot} from '../../base/query_slot';
 import {stringifyJsonWithBigints} from '../../base/json_utils';
-import {AsyncLimiter} from '../../base/async_limiter';
 
 const ROW_H = 24;
 
@@ -87,70 +87,13 @@ interface LogEntries {
   readonly totalEvents: number; // Count of the total number of events within this window
 }
 
-class QueryChannel {
-  private readonly limiter = new AsyncLimiter();
-  private previousKey?: string;
-  private cache = new Map<string, unknown>();
-
-  // TODO handle errors
-  useQuery<T>(
-    key: string,
-    runQuery: () => Promise<T>,
-  ): {data?: T; isPending: boolean} {
-    if (this.previousKey !== key) {
-      this.limiter.schedule(async () => {
-        console.log('Running query for key:', key);
-        const result = await runQuery();
-        this.cache.set(key, result);
-      });
-      this.previousKey = key;
-      return {isPending: true};
-    } else {
-      return {data: this.cache.get(key) as T, isPending: false};
-    }
-  }
-}
-
-class LazyQueryChannel {
-  private readonly limiter = new AsyncLimiter();
-  private previousKey?: string;
-  private cache?: unknown;
-
-  // TODO handle errors
-  useQuery<T>({
-    key,
-    run,
-    enabled = true,
-  }: {
-    key: string;
-    enabled?: boolean;
-    run: () => Promise<T>;
-  }): {
-    data?: T;
-    isPending: boolean;
-  } {
-    if (!enabled) {
-      return {data: this.cache as T, isPending: false};
-    }
-    if (this.previousKey !== key) {
-      this.limiter.schedule(async () => {
-        console.log('Running query for key:', key);
-        const result = await run();
-        this.cache = result;
-      });
-      this.previousKey = key;
-      return {isPending: true, data: this.cache as T};
-    } else {
-      // TODO - isPending here is wrong...
-      return {isPending: false, data: this.cache as T};
-    }
-  }
-}
+const serialize = stringifyJsonWithBigints;
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly trace: Trace;
-  private readonly viewQueryChannel = new QueryChannel();
-  private readonly entriesQueryChannel = new LazyQueryChannel();
+  private readonly executor = new SerialQueryExecutor();
+  private readonly viewQuery = new QuerySlot<boolean>(this.executor);
+  private readonly entriesQuery = new QuerySlot<LogEntries>(this.executor);
   private pagination: Pagination = {
     offset: 0,
     count: 0,
@@ -162,37 +105,34 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
   view({attrs}: m.CVnode<LogPanelAttrs>) {
     const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
-    const filterStoreState = attrs.filterStore.state;
+    const filters = attrs.filterStore.state;
     const pagination = this.pagination;
     const engine = attrs.trace.engine;
 
-    const viewKey =
-      'view' +
-      stringifyJsonWithBigints({
-        filterStoreState,
-      });
-
-    const entriesKey =
-      'entries' +
-      stringifyJsonWithBigints({
-        visibleSpan,
-        pagination,
-      });
-
-    const {data: isViewReady} = this.viewQueryChannel.useQuery(
-      viewKey,
-      async () => {
-        await updateLogView(engine, filterStoreState);
+    // Query 1: Create the filtered_logs table (no staleOn = always-fresh)
+    const viewResult = this.viewQuery.use({
+      key: {filters},
+      queryFn: async () => {
+        await updateLogView(engine, filters);
         return true;
       },
+    });
+    console.log('viewQuery', serialize({filters}), viewResult);
+
+    // Query 2: Read from the table (staleOn=['pagination'] for smooth scrolling)
+    const entriesResult = this.entriesQuery.use({
+      key: {filters, visibleSpan, pagination},
+      staleOn: ['pagination', 'visibleSpan'],
+      queryFn: () => updateLogEntries(engine, visibleSpan, pagination),
+      dependsOn: viewResult.data,
+    });
+    console.log(
+      'entriesResult',
+      serialize({filters, visibleSpan, pagination}),
+      entriesResult,
     );
 
-    const {data: entries} = this.entriesQueryChannel.useQuery({
-      key: viewKey + entriesKey,
-      run: async () => await updateLogEntries(engine, visibleSpan, pagination),
-      enabled: !!isViewReady,
-    });
-
+    const entries = entriesResult.data;
     const totalEvents = entries?.totalEvents ?? 0;
 
     return m(
