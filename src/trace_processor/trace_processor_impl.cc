@@ -109,6 +109,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/pivot_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
@@ -1372,6 +1373,9 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   engine->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine.get()));
+  engine->RegisterVirtualTableModule<PivotOperatorModule>(
+      "__intrinsic_pivot",
+      std::make_unique<PivotOperatorModule::Context>(engine.get()));
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   engine->RegisterVirtualTableModule<etm::EtmDecodeChunkVtable>(
       "__intrinsic_etm_decode_chunk", storage);
