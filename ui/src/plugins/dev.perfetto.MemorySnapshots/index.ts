@@ -55,9 +55,19 @@ const UI_SCHEMA: SchemaRegistry = {
 
 // SQL schema for memory_snapshot_node with args support
 function createMemorySnapshotSchema(snapshotId: number): SQLSchemaRegistry {
+  const query = `(
+    SELECT
+      SUBSTR(path, LENGTH(RTRIM(path, REPLACE(path, '/', ''))) + 1) AS path,
+      id,
+      parent_node_id,
+      size,
+      effective_size
+    FROM memory_snapshot_node
+    WHERE process_snapshot_id = ${snapshotId}
+  )`;
   return {
     memory_snapshot_node: {
-      table: `(SELECT * FROM memory_snapshot_node WHERE process_snapshot_id = ${snapshotId})`,
+      table: query,
       columns: {
         id: {},
         parent_node_id: {},
