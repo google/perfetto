@@ -83,7 +83,8 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   // Add hidden columns for query parameters
   schema += ",__aggs__ TEXT HIDDEN";
   schema += ",__expanded_ids__ TEXT HIDDEN";
-  schema += ",__collapsed_ids__ TEXT HIDDEN";  // Blacklist mode (expand all except)
+  schema +=
+      ",__collapsed_ids__ TEXT HIDDEN";  // Blacklist mode (expand all except)
   schema += ",__sort__ TEXT HIDDEN";
   schema += ",__depth_limit__ INTEGER HIDDEN";
   schema += ",__offset__ INTEGER HIDDEN";
@@ -95,8 +96,8 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
 }
 
 // Finds or creates a node at the given path in the tree.
-// num_hier is the total number of hierarchy columns for setting up hierarchy_values.
-// next_id is incremented for each new node created.
+// num_hier is the total number of hierarchy columns for setting up
+// hierarchy_values. next_id is incremented for each new node created.
 PivotNode* FindOrCreateNode(PivotNode* root,
                             const std::vector<std::string>& segments,
                             int level,
@@ -129,7 +130,8 @@ PivotNode* FindOrCreateNode(PivotNode* root,
       // Store hierarchy values (values up to level i, rest empty for NULL)
       node->hierarchy_values.resize(num_hier);
       for (int j = 0; j <= i && j < static_cast<int>(segments.size()); j++) {
-        node->hierarchy_values[static_cast<size_t>(j)] = segments[static_cast<size_t>(j)];
+        node->hierarchy_values[static_cast<size_t>(j)] =
+            segments[static_cast<size_t>(j)];
       }
 
       found = node.get();
@@ -162,8 +164,7 @@ void SortTree(PivotNode* node, const PivotSortSpec& spec) {
                 // Sort by name (hierarchy value at node's level)
                 std::string name_a = GetNodeName(a.get());
                 std::string name_b = GetNodeName(b.get());
-                return spec.descending ? (name_a > name_b)
-                                       : (name_a < name_b);
+                return spec.descending ? (name_a > name_b) : (name_a < name_b);
               }
               size_t idx = static_cast<size_t>(spec.agg_index);
               if (idx >= a->aggs.size() || idx >= b->aggs.size()) {
@@ -195,8 +196,7 @@ void FlattenTree(PivotNode* node,
   // In whitelist mode: nodes are expanded if their ID is in expansion_ids.
   // In blacklist mode: nodes are expanded unless their ID is in expansion_ids.
   bool in_list = (expansion_ids.Find(node->id) != nullptr);
-  bool is_expanded = (node->level < 0) ||
-                     (blacklist_mode ? !in_list : in_list);
+  bool is_expanded = (node->level < 0) || (blacklist_mode ? !in_list : in_list);
   node->expanded = is_expanded;
 
   // Add children to output if this node is expanded
@@ -249,7 +249,8 @@ PivotSortSpec ParseSortSpec(const std::string& sort_str) {
 }
 
 // Builds the tree from the base table.
-// aggregations contains full aggregation expressions like "SUM(col)", "COUNT(*)", etc.
+// aggregations contains full aggregation expressions like "SUM(col)",
+// "COUNT(*)", etc.
 base::Status BuildTree(PerfettoSqlEngine* engine,
                        const std::string& base_table,
                        const std::vector<std::string>& hierarchy_cols,
@@ -307,7 +308,8 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
   }
 
   // Execute the query
-  auto result = engine->ExecuteUntilLastStatement(SqlSource::FromTraceProcessorImplementation(query));
+  auto result = engine->ExecuteUntilLastStatement(
+      SqlSource::FromTraceProcessorImplementation(query));
   if (!result.ok()) {
     return result.status();
   }
@@ -334,9 +336,8 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
       if (sqlite3_column_type(stmt.sqlite_stmt(), static_cast<int>(i)) !=
           SQLITE_NULL) {
         level = static_cast<int>(i);
-        const char* val =
-            reinterpret_cast<const char*>(sqlite3_column_text(
-                stmt.sqlite_stmt(), static_cast<int>(i)));
+        const char* val = reinterpret_cast<const char*>(
+            sqlite3_column_text(stmt.sqlite_stmt(), static_cast<int>(i)));
         segments.push_back(val ? val : "");
       } else {
         break;
@@ -356,7 +357,8 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
       root->aggs = std::move(aggs);
     } else {
       // Find or create node and store aggregates
-      PivotNode* node = FindOrCreateNode(root, segments, level, num_hier, &next_id);
+      PivotNode* node =
+          FindOrCreateNode(root, segments, level, num_hier, &next_id);
       if (node) {
         node->aggs = std::move(aggs);
         (*total_nodes)++;
@@ -431,8 +433,7 @@ int PivotOperatorModule::Create(sqlite3* db,
   }
 
   if (aggregations.size() > kMaxAggCols) {
-    *pzErr = sqlite3_mprintf("Maximum %zu aggregations supported",
-                             kMaxAggCols);
+    *pzErr = sqlite3_mprintf("Maximum %zu aggregations supported", kMaxAggCols);
     return SQLITE_ERROR;
   }
 
@@ -451,16 +452,16 @@ int PivotOperatorModule::Create(sqlite3* db,
   res->agg_col_count = res->aggregations.size();
   // Column layout: hierarchy cols + 5 metadata + agg cols + 8 hidden
   size_t num_hier = res->hierarchy_cols.size();
-  res->total_col_count = static_cast<int>(
-      num_hier + kMetadataColCount + res->agg_col_count + 8);
+  res->total_col_count =
+      static_cast<int>(num_hier + kMetadataColCount + res->agg_col_count + 8);
 
   // Create root node
   res->root = std::make_unique<PivotNode>();
 
   // Build the tree from base table
-  base::Status status = BuildTree(ctx->engine, res->base_table,
-                                  res->hierarchy_cols, res->aggregations,
-                                  res->root.get(), &res->total_nodes);
+  base::Status status =
+      BuildTree(ctx->engine, res->base_table, res->hierarchy_cols,
+                res->aggregations, res->root.get(), &res->total_nodes);
   if (!status.ok()) {
     *pzErr = sqlite3_mprintf("%s", status.c_message());
     return SQLITE_ERROR;
@@ -503,8 +504,8 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
   // Calculate the column indices for hidden columns
   // Layout: hierarchy cols + metadata cols + aggregate cols + hidden cols
   int num_hier = static_cast<int>(t->hierarchy_cols.size());
-  int hidden_start = num_hier + kMetadataColCount +
-                     static_cast<int>(t->agg_col_count);
+  int hidden_start =
+      num_hier + kMetadataColCount + static_cast<int>(t->agg_col_count);
   int aggs_col = hidden_start + kAggsSpec;
   int expanded_col = hidden_start + kExpandedIds;
   int collapsed_col = hidden_start + kCollapsedIds;
@@ -601,7 +602,8 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Map of expanded/collapsed node IDs and mode
   base::FlatHashMap<int64_t, bool> expansion_ids;
-  bool blacklist_mode = false;  // false = whitelist (expanded_ids), true = blacklist (collapsed_ids)
+  bool blacklist_mode = false;  // false = whitelist (expanded_ids), true =
+                                // blacklist (collapsed_ids)
 
   // Parse idxStr to determine which arguments are present and their argv index.
   // Each char in idxStr is either '-' (not present) or '0'-'7' (argv index).
@@ -648,8 +650,9 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     blacklist_mode = false;
   }
 
-  // Process __collapsed_ids__ (flag position 2) - blacklist mode (expand all except)
-  // Note: If both expanded_ids and collapsed_ids are provided, collapsed_ids wins
+  // Process __collapsed_ids__ (flag position 2) - blacklist mode (expand all
+  // except) Note: If both expanded_ids and collapsed_ids are provided,
+  // collapsed_ids wins
   if (sqlite3_value* val = get_argv(2)) {
     const char* ids_str =
         reinterpret_cast<const char*>(sqlite3_value_text(val));
@@ -690,9 +693,9 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   // Rebuild tree if requested
   if (needs_rebuild) {
     t->root = std::make_unique<PivotNode>();
-    base::Status status = BuildTree(t->engine, t->base_table, t->hierarchy_cols,
-                                    t->aggregations, t->root.get(),
-                                    &t->total_nodes);
+    base::Status status =
+        BuildTree(t->engine, t->base_table, t->hierarchy_cols, t->aggregations,
+                  t->root.get(), &t->total_nodes);
     if (!status.ok()) {
       return sqlite::utils::SetError(t, status);
     }
@@ -809,7 +812,8 @@ int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::Rowid(sqlite3_vtab_cursor* cursor, sqlite_int64* rowid) {
+int PivotOperatorModule::Rowid(sqlite3_vtab_cursor* cursor,
+                               sqlite_int64* rowid) {
   auto* c = GetCursor(cursor);
   *rowid = c->row_index;
   return SQLITE_OK;

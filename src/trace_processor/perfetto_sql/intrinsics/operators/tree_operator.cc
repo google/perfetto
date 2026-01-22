@@ -43,9 +43,8 @@ namespace {
 
 // Remove surrounding quotes from a string if present.
 std::string RemoveQuotes(const std::string& s) {
-  if (s.size() >= 2 &&
-      ((s.front() == '\'' && s.back() == '\'') ||
-       (s.front() == '"' && s.back() == '"'))) {
+  if (s.size() >= 2 && ((s.front() == '\'' && s.back() == '\'') ||
+                        (s.front() == '"' && s.back() == '"'))) {
     return s.substr(1, s.size() - 2);
   }
   return s;
@@ -244,9 +243,9 @@ base::Status GetSourceSchema(PerfettoSqlEngine* engine,
 
   // Check if it's a subquery (starts with '(' or 'SELECT')
   std::string trimmed = base::TrimWhitespace(source_table);
-  bool is_subquery = !trimmed.empty() &&
-                     (trimmed[0] == '(' ||
-                      base::ToLower(trimmed).find("select") == 0);
+  bool is_subquery =
+      !trimmed.empty() &&
+      (trimmed[0] == '(' || base::ToLower(trimmed).find("select") == 0);
 
   if (is_subquery) {
     // For subqueries, wrap in SELECT * FROM (...) to get column names
@@ -276,10 +275,10 @@ base::Status GetSourceSchema(PerfettoSqlEngine* engine,
   } else {
     // PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
     while (stmt.Step()) {
-      const char* name =
-          reinterpret_cast<const char*>(sqlite3_column_text(stmt.sqlite_stmt(), 1));
-      const char* type =
-          reinterpret_cast<const char*>(sqlite3_column_text(stmt.sqlite_stmt(), 2));
+      const char* name = reinterpret_cast<const char*>(
+          sqlite3_column_text(stmt.sqlite_stmt(), 1));
+      const char* type = reinterpret_cast<const char*>(
+          sqlite3_column_text(stmt.sqlite_stmt(), 2));
       column_names->push_back(name ? name : "");
       column_types->push_back(type ? type : "");
     }
@@ -463,9 +462,8 @@ int TreeOperatorModule::Create(sqlite3* db,
     return SQLITE_ERROR;
   }
   if (parent_id_col_index < 0) {
-    *pzErr = sqlite3_mprintf(
-        "Parent ID column '%s' not found in source table",
-        parent_id_column.c_str());
+    *pzErr = sqlite3_mprintf("Parent ID column '%s' not found in source table",
+                             parent_id_column.c_str());
     return SQLITE_ERROR;
   }
 
@@ -806,7 +804,8 @@ int TreeOperatorModule::Column(sqlite3_vtab_cursor* cursor,
   return SQLITE_OK;
 }
 
-int TreeOperatorModule::Rowid(sqlite3_vtab_cursor* cursor, sqlite_int64* rowid) {
+int TreeOperatorModule::Rowid(sqlite3_vtab_cursor* cursor,
+                              sqlite_int64* rowid) {
   auto* c = GetCursor(cursor);
   *rowid = c->row_index;
   return SQLITE_OK;

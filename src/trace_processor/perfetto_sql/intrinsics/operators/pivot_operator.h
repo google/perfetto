@@ -104,14 +104,14 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
 
   // Hidden columns for query parameters (after aggregate columns)
   enum HiddenColumn {
-    kAggsSpec = 0,       // Aggregate specification (e.g., "SUM(col1), COUNT(*)")
-    kExpandedIds = 1,    // Comma-separated expanded node IDs (whitelist mode)
-    kCollapsedIds = 2,   // Comma-separated collapsed node IDs (blacklist mode)
-    kSortSpec = 3,       // Sort specification
-    kDepthLimit = 4,     // Maximum depth to show
-    kOffset = 5,         // Pagination offset
-    kLimit = 6,          // Pagination limit
-    kRebuild = 7,        // Trigger cache rebuild
+    kAggsSpec = 0,      // Aggregate specification (e.g., "SUM(col1), COUNT(*)")
+    kExpandedIds = 1,   // Comma-separated expanded node IDs (whitelist mode)
+    kCollapsedIds = 2,  // Comma-separated collapsed node IDs (blacklist mode)
+    kSortSpec = 3,      // Sort specification
+    kDepthLimit = 4,    // Maximum depth to show
+    kOffset = 5,        // Pagination offset
+    kLimit = 6,         // Pagination limit
+    kRebuild = 7,       // Trigger cache rebuild
   };
 
   struct Context {
