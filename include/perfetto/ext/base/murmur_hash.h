@@ -26,22 +26,22 @@
 #include <type_traits>
 #include <utility>
 
+#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/public/compiler.h"
+
 // We need <cmath> only for std::isnan here. But cmath is a quite heavy
 // header AND is not frequently used, so its include cost is generally
 // NOT amortized. OTOH this header is very frequently used.
 // The code below avoids pulling cmath in many translation units, reducing
 // compilation time. Under the hoods std::isnan uses __builtin_isnan if
 // available.
-#if defined(__has_builtin) && __has_builtin(__builtin_isnan)
+#if PERFETTO_HAS_BUILTIN(__builtin_isnan)
 #define PERFETTO_IS_NAN(x) __builtin_isnan(x)
 #else
 #include <cmath>
 #define PERFETTO_IS_NAN(x) std::isnan(x)
 #endif
-
-#include "perfetto/ext/base/hash.h"
-#include "perfetto/ext/base/string_view.h"
-#include "perfetto/public/compiler.h"
 
 // This file provides an implementation of the 64-bit MurmurHash2 algorithm,
 // also known as MurmurHash64A. This algorithm, created by Austin Appleby, is a
