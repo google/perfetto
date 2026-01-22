@@ -42,7 +42,7 @@ struct PivotNode {
   // Values up to and including 'level' are set, rest are empty (NULL)
   std::vector<std::string> hierarchy_values;
 
-  // Aggregate values, one per measure column
+  // Aggregate values, one per aggregation expression
   std::vector<double> aggs;
 
   // Tree structure
@@ -67,8 +67,8 @@ struct PivotSortSpec {
 // Usage:
 //   CREATE VIRTUAL TABLE my_pivot USING __intrinsic_pivot(
 //       'base_table',
-//       'col1, col2, col3',    -- hierarchy columns
-//       'measure1, measure2'   -- measure columns
+//       'col1, col2, col3',                    -- hierarchy columns
+//       'SUM(value), COUNT(*), AVG(price)'    -- aggregation expressions
 //   );
 //
 // Query:
@@ -119,7 +119,7 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
     // Configuration from CREATE TABLE
     std::string base_table;
     std::vector<std::string> hierarchy_cols;
-    std::vector<std::string> measure_cols;
+    std::vector<std::string> aggregations;  // e.g., "SUM(col)", "COUNT(*)"
 
     // Cached tree structure
     std::unique_ptr<PivotNode> root;

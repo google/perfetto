@@ -207,9 +207,8 @@ void FlattenTree(PivotNode* node,
   }
 }
 
-// Parses a sort specification string like "SUM(col1) DESC".
-PivotSortSpec ParseSortSpec(const std::string& sort_str,
-                            const std::vector<std::string>& /*measure_cols*/) {
+// Parses a sort specification string like "agg_0 DESC".
+PivotSortSpec ParseSortSpec(const std::string& sort_str) {
   PivotSortSpec spec;
   spec.agg_index = 0;  // Default: sort by first aggregate
   spec.descending = true;
@@ -237,10 +236,11 @@ PivotSortSpec ParseSortSpec(const std::string& sort_str,
 }
 
 // Builds the tree from the base table.
+// aggregations contains full aggregation expressions like "SUM(col)", "COUNT(*)", etc.
 base::Status BuildTree(PerfettoSqlEngine* engine,
                        const std::string& base_table,
                        const std::vector<std::string>& hierarchy_cols,
-                       const std::vector<std::string>& measure_cols,
+                       const std::vector<std::string>& aggregations,
                        PivotNode* root,
                        int* total_nodes) {
   // Build the aggregation query using UNION ALL (SQLite doesn't support ROLLUP)
@@ -248,6 +248,7 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
   std::string query;
 
   size_t num_hier = hierarchy_cols.size();
+  size_t num_aggs = aggregations.size();
 
   // Grand total query (level -1): all hierarchy cols are NULL
   query += "SELECT ";
@@ -257,8 +258,8 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
     }
     query += "NULL AS " + hierarchy_cols[i];
   }
-  for (const auto& measure : measure_cols) {
-    query += ", SUM(" + measure + ") AS sum_" + measure;
+  for (size_t i = 0; i < num_aggs; i++) {
+    query += ", " + aggregations[i] + " AS agg_" + std::to_string(i);
   }
   query += " FROM " + base_table;
 
@@ -278,9 +279,9 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
       }
     }
 
-    // Aggregates
-    for (const auto& measure : measure_cols) {
-      query += ", SUM(" + measure + ") AS sum_" + measure;
+    // Aggregates - use expressions directly
+    for (size_t i = 0; i < num_aggs; i++) {
+      query += ", " + aggregations[i] + " AS agg_" + std::to_string(i);
     }
 
     query += " FROM " + base_table + " GROUP BY ";
@@ -299,7 +300,6 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
   }
 
   auto& stmt = result->stmt;
-  size_t num_aggs = measure_cols.size();
 
   // Initialize root node (ID 0, level -1)
   root->id = 0;
@@ -371,12 +371,12 @@ int PivotOperatorModule::Create(sqlite3* db,
   // argv[2] = table name
   // argv[3] = base table
   // argv[4] = hierarchy columns
-  // argv[5] = measure columns
+  // argv[5] = aggregation expressions (e.g., "SUM(col1), COUNT(*), AVG(col2)")
 
   if (argc < 6) {
     *pzErr = sqlite3_mprintf(
         "__intrinsic_pivot requires 3 arguments: base_table, hierarchy_cols, "
-        "measure_cols");
+        "aggregations");
     return SQLITE_ERROR;
   }
 
@@ -397,34 +397,34 @@ int PivotOperatorModule::Create(sqlite3* db,
     hierarchy_str = hierarchy_str.substr(1, hierarchy_str.size() - 2);
   }
 
-  std::string measure_str = argv[5];
-  if (measure_str.size() >= 2 &&
-      ((measure_str.front() == '\'' && measure_str.back() == '\'') ||
-       (measure_str.front() == '"' && measure_str.back() == '"'))) {
-    measure_str = measure_str.substr(1, measure_str.size() - 2);
+  std::string agg_str = argv[5];
+  if (agg_str.size() >= 2 &&
+      ((agg_str.front() == '\'' && agg_str.back() == '\'') ||
+       (agg_str.front() == '"' && agg_str.back() == '"'))) {
+    agg_str = agg_str.substr(1, agg_str.size() - 2);
   }
 
   std::vector<std::string> hierarchy_cols = ParseColumnList(hierarchy_str);
-  std::vector<std::string> measure_cols = ParseColumnList(measure_str);
+  std::vector<std::string> aggregations = ParseColumnList(agg_str);
 
   if (hierarchy_cols.empty()) {
     *pzErr = sqlite3_mprintf("At least one hierarchy column is required");
     return SQLITE_ERROR;
   }
 
-  if (measure_cols.empty()) {
-    *pzErr = sqlite3_mprintf("At least one measure column is required");
+  if (aggregations.empty()) {
+    *pzErr = sqlite3_mprintf("At least one aggregation is required");
     return SQLITE_ERROR;
   }
 
-  if (measure_cols.size() > kMaxAggCols) {
-    *pzErr = sqlite3_mprintf("Maximum %zu measure columns supported",
+  if (aggregations.size() > kMaxAggCols) {
+    *pzErr = sqlite3_mprintf("Maximum %zu aggregations supported",
                              kMaxAggCols);
     return SQLITE_ERROR;
   }
 
   // Build and declare schema
-  std::string schema = BuildSchemaString(hierarchy_cols, measure_cols.size());
+  std::string schema = BuildSchemaString(hierarchy_cols, aggregations.size());
   if (int ret = sqlite3_declare_vtab(db, schema.c_str()); ret != SQLITE_OK) {
     return ret;
   }
@@ -434,8 +434,8 @@ int PivotOperatorModule::Create(sqlite3* db,
   res->engine = ctx->engine;
   res->base_table = std::move(base_table);
   res->hierarchy_cols = std::move(hierarchy_cols);
-  res->measure_cols = std::move(measure_cols);
-  res->agg_col_count = res->measure_cols.size();
+  res->aggregations = std::move(aggregations);
+  res->agg_col_count = res->aggregations.size();
   // Column layout: hierarchy cols + 5 metadata + agg cols + 7 hidden
   size_t num_hier = res->hierarchy_cols.size();
   res->total_col_count = static_cast<int>(
@@ -446,7 +446,7 @@ int PivotOperatorModule::Create(sqlite3* db,
 
   // Build the tree from base table
   base::Status status = BuildTree(ctx->engine, res->base_table,
-                                  res->hierarchy_cols, res->measure_cols,
+                                  res->hierarchy_cols, res->aggregations,
                                   res->root.get(), &res->total_nodes);
   if (!status.ok()) {
     *pzErr = sqlite3_mprintf("%s", status.c_message());
@@ -646,7 +646,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   if (needs_rebuild) {
     t->root = std::make_unique<PivotNode>();
     base::Status status = BuildTree(t->engine, t->base_table, t->hierarchy_cols,
-                                    t->measure_cols, t->root.get(),
+                                    t->aggregations, t->root.get(),
                                     &t->total_nodes);
     if (!status.ok()) {
       return sqlite::utils::SetError(t, status);
@@ -656,7 +656,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Resort if needed
   if (needs_resort) {
-    PivotSortSpec spec = ParseSortSpec(sort_spec_str, t->measure_cols);
+    PivotSortSpec spec = ParseSortSpec(sort_spec_str);
     SortTree(t->root.get(), spec);
   }
 
