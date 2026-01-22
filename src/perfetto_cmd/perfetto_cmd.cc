@@ -317,6 +317,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
         TraceConfig test_config;
         ConfigOptions opts;
         opts.time = "2s";
+        opts.categories.reserve(4);
         opts.categories.emplace_back("sched/sched_switch");
         opts.categories.emplace_back("power/cpu_idle");
         opts.categories.emplace_back("power/cpu_frequency");
