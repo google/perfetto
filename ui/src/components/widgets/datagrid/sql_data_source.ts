@@ -246,7 +246,11 @@ export class SQLDataSource implements DataSource {
         queryFn: () => this.fetchAggregates(model),
       });
     } else {
-      this.aggregatesResult = {data: undefined, isPending: false, isFresh: true};
+      this.aggregatesResult = {
+        data: undefined,
+        isPending: false,
+        isFresh: true,
+      };
     }
 
     // Distinct values and parameter keys use the old caching approach

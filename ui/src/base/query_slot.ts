@@ -12,6 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/**
+ * QuerySlot: Declarative async data fetching for synchronous render cycles.
+ *
+ * ## Why it exists
+ *
+ * UI components (Mithril views, canvas tracks) render synchronously but need
+ * async data from SQL queries. QuerySlot bridges this gap:
+ * - Call `use()` every render cycle with the current parameters
+ * - Get back whatever data is available (cached, stale, or undefined)
+ * - New queries are scheduled automatically when parameters change
+ * - Serial execution prevents race conditions with shared resources (temp tables)
+ *
+ * ## Usage
+ *
+ * ```typescript
+ * class MyPanel implements m.ClassComponent<Attrs> {
+ *   private readonly executor = new SerialQueryExecutor();
+ *   private readonly dataSlot = new QuerySlot<MyData>(this.executor);
+ *
+ *   view({attrs}: m.CVnode<Attrs>) {
+ *     const result = this.dataSlot.use({
+ *       key: {filters: attrs.filters, pagination: this.pagination},
+ *       queryFn: () => fetchData(attrs.filters, this.pagination),
+ *       staleOn: ['pagination'],  // Show stale data during pagination changes
+ *     });
+ *
+ *     return m('div', result.data ? renderData(result.data) : 'Loading...');
+ *   }
+ * }
+ * ```
+ *
+ * ## Key concepts
+ *
+ * - **key**: Object identifying the query. Changes trigger re-fetch.
+ * - **staleOn**: Key fields that allow showing previous data while fetching.
+ *   E.g., `staleOn: ['pagination']` shows old data during scroll for smoothness,
+ *   but `filters` changing would show loading state.
+ * - **dependsOn**: Truthy value required before query runs. Use for dependencies
+ *   like `dependsOn: tableResult.data` to wait for a temp table to be created.
+ *
+ * ## Behavior
+ *
+ * - Queries within an executor run serially (no interleaving)
+ * - Only the latest pending query per slot is kept (intermediates dropped)
+ * - Each slot has a single-entry cache (most recent result)
+ */
+
 import m from 'mithril';
 import {stringifyJsonWithBigints} from './json_utils';
 
