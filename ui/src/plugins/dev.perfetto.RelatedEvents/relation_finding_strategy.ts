@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
 import {Dataset, DatasetSchema} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
 
 // ---------------------------------------------------
 // Strategy interface

@@ -1,16 +1,16 @@
-import {Trace} from '../../../public/trace';
 import {
   Dataset,
   SourceDataset,
   UnionDatasetWithLineage,
 } from '../../../trace_processor/dataset';
-import {LONG, NUM, STR, STR_NULL} from '../../../trace_processor/query_result';
 import {
   EventContext,
   RelationFindingStrategy,
   RelationRule,
 } from '../relation_finding_strategy';
+import {LONG, NUM, STR, STR_NULL} from '../../../trace_processor/query_result';
 import {Time, time, duration} from '../../../base/time';
+import {Trace} from '../../../public/trace';
 
 interface DetailedEventInfo {
   eventName: string;
