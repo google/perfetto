@@ -304,7 +304,7 @@ function flamegraphMetrics(
           name: 'Object Size',
           unit: 'B',
           dependencySql:
-            'include perfetto module android.memory.heap_graph.class_tree;',
+            'include perfetto module android.memory.heap_graph.class_tree2;',
           statement: `
             select
               id,
@@ -313,47 +313,8 @@ function flamegraphMetrics(
               root_type,
               heap_type,
               self_size as value,
-              self_count,
               path_hash_stable
-            from _heap_graph_class_tree
-            where graph_sample_ts = ${ts} and upid = ${upid}
-          `,
-          unaggregatableProperties: [
-            {name: 'root_type', displayName: 'Root Type'},
-            {name: 'heap_type', displayName: 'Heap Type'},
-          ],
-          aggregatableProperties: [
-            {
-              name: 'self_count',
-              displayName: 'Self Count',
-              mergeAggregation: 'SUM',
-            },
-            {
-              name: 'path_hash_stable',
-              displayName: 'Path Hash',
-              mergeAggregation: 'CONCAT_WITH_COMMA',
-              isVisible: (_) => false,
-            },
-          ],
-          optionalNodeActions: getHeapGraphNodeOptionalActions(trace, false),
-          optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
-        },
-        {
-          name: 'Object Count',
-          unit: '',
-          dependencySql:
-            'include perfetto module android.memory.heap_graph.class_tree;',
-          statement: `
-            select
-              id,
-              parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
-              root_type,
-              heap_type,
-              self_size,
-              self_count as value,
-              path_hash_stable
-            from _heap_graph_class_tree
+            from _heap_graph_class_tree2
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
@@ -371,6 +332,8 @@ function flamegraphMetrics(
           optionalNodeActions: getHeapGraphNodeOptionalActions(trace, false),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
         },
+        // NOTE: Object Count metric removed - class_tree2 doesn't support
+        // self_count aggregation (tree_merge_siblings! only allows one agg).
         {
           name: 'Dominated Object Size',
           unit: 'B',

@@ -85,6 +85,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
+#include "src/trace_processor/perfetto_sql/graph/graph_plugin.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
@@ -124,6 +125,8 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
+#include "src/trace_processor/perfetto_sql/tree/tree_plugin.h"
+#include "src/trace_processor/plugins/plugin_context.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -131,7 +134,6 @@
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -159,7 +161,6 @@
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-#include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
@@ -178,10 +179,10 @@ namespace perfetto::trace_processor {
 namespace {
 
 template <typename SqlFunction, typename Ptr = typename SqlFunction::UserData*>
-void RegisterFunction(
-    PerfettoSqlEngine* engine,
-    Ptr context = nullptr,
-    const PerfettoSqlEngine::RegisterFunctionArgs& args = {}) {
+void RegisterFunction(PerfettoSqlEngine* engine,
+                      Ptr context = nullptr,
+                      const PerfettoSqlEngine::RegisterFunctionArgs& args =
+                          PerfettoSqlEngine::RegisterFunctionArgs()) {
   auto status = engine->RegisterFunction<SqlFunction>(std::move(context), args);
   if (!status.ok()) {
     const char* name = args.name ? args.name : SqlFunction::kName;
@@ -1407,6 +1408,26 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       storage->mutable_string_pool());
   engine->RegisterAggregateFunction<StructuralTreePartition>(
       storage->mutable_string_pool());
+
+  // Tree algebra plugin.
+  {
+    plugins::PluginContext plugin_ctx(engine.get(),
+                                      storage->mutable_string_pool());
+    auto status = plugins::tree::TreePlugin::Register(plugin_ctx);
+    if (!status.ok()) {
+      PERFETTO_FATAL("Failed to register tree plugin: %s", status.c_message());
+    }
+  }
+
+  // Graph algebra plugin.
+  {
+    plugins::PluginContext plugin_ctx(engine.get(),
+                                      storage->mutable_string_pool());
+    auto status = plugins::graph::GraphPlugin::Register(plugin_ctx);
+    if (!status.ok()) {
+      PERFETTO_FATAL("Failed to register graph plugin: %s", status.c_message());
+    }
+  }
 
   // Metrics.
   {
