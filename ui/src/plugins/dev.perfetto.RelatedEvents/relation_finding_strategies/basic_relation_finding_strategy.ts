@@ -71,23 +71,17 @@ export class BasicRelationFindingStrategy implements RelationFindingStrategy {
     const relatedDatasets: Dataset[] = this.rules.flatMap((rule) =>
       rule.getRelatedEventsAsDataset(context),
     );
-    if (relatedDatasets.length === 0) return undefined;
 
-    // Add the initial event itself to the result, but filtered to the specific ID
-    if (initialDataset instanceof SourceDataset) {
-      relatedDatasets.push(
+    relatedDatasets.push(
         new SourceDataset({
           ...initialDataset,
           filter: {col: 'id', eq: initialEventId},
         }),
       );
-    }
+
+    if (relatedDatasets.length === 0) return undefined;
 
     const unionDataset = UnionDatasetWithLineage.create(relatedDatasets);
-    // We filter to keep only the directly related events + the source event (if we wanted strict single level, this is it)
-    // However, the tab expects a dataset that produces related events.
-    // The datasets returned by rules are "SourceDataset" which are SQL queries.
-    // Unioning them creates a dataset that queries all of them.
 
     return unionDataset;
   }
