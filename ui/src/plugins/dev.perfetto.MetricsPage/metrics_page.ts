@@ -22,12 +22,128 @@ import {assertExists, assertUnreachable} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Editor} from '../../widgets/editor';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {CodeSnippet} from '../../widgets/code_snippet';
+import {Callout} from '../../widgets/callout';
 
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
+
+type V2Mode = 'metric-spec' | 'full-trace-summary';
+
+const METRIC_SPEC_EXAMPLE = `id: "memory_per_process"
+dimensions: "process_name"
+value: "avg_rss_and_swap"
+query: {
+  table: {
+    table_name: "memory_rss_and_swap_per_process"
+    module_name: "linux.memory.process"
+  }
+  group_by: {
+    column_names: "process_name"
+    aggregates: {
+      column_name: "rss_and_swap"
+      op: DURATION_WEIGHTED_MEAN
+      result_column_name: "avg_rss_and_swap"
+    }
+  }
+}`;
+
+const FULL_TRACE_SUMMARY_EXAMPLE = `# Memory per process using stdlib table
+metric_spec: {
+  id: "memory_per_process"
+  dimensions: "process_name"
+  value: "avg_rss"
+  unit: BYTES
+  query: {
+    table: {
+      table_name: "memory_rss_and_swap_per_process"
+      column_names: "process_name"
+      column_names: "rss_and_swap"
+    }
+    referenced_modules: "linux.memory.process"
+    group_by: {
+      column_names: "process_name"
+      aggregates: {
+        column_name: "rss_and_swap"
+        op: DURATION_WEIGHTED_MEAN
+        result_column_name: "avg_rss"
+      }
+    }
+    limit: 5
+  }
+}
+
+# Slice stats for Choreographer slices only
+metric_spec: {
+  id: "choreographer_stats"
+  dimensions: "slice_name"
+  value: "total_dur"
+  unit: TIME_NANOS
+  query: {
+    simple_slices: {
+      slice_name_glob: "Choreographer*"
+    }
+    group_by: {
+      column_names: "slice_name"
+      aggregates: {
+        column_name: "dur"
+        op: SUM
+        result_column_name: "total_dur"
+      }
+    }
+  }
+}
+
+# Template for system_server slices
+metric_template_spec: {
+  id_prefix: "system_server"
+  dimensions: "slice_name"
+  value_columns: "total_dur"
+  value_columns: "slice_count"
+  query: {
+    simple_slices: {
+      process_name_glob: "system_server"
+    }
+    group_by: {
+      column_names: "slice_name"
+      aggregates: {
+        column_name: "dur"
+        op: SUM
+        result_column_name: "total_dur"
+      }
+      aggregates: {
+        column_name: "id"
+        op: COUNT
+        result_column_name: "slice_count"
+      }
+    }
+    limit: 10
+  }
+}`;
+
+function getExampleForMode(mode: V2Mode): string {
+  switch (mode) {
+    case 'metric-spec':
+      return METRIC_SPEC_EXAMPLE;
+    case 'full-trace-summary':
+      return FULL_TRACE_SUMMARY_EXAMPLE;
+    default:
+      assertUnreachable(mode);
+  }
+}
+
+function getDescriptionForMode(mode: V2Mode): string {
+  switch (mode) {
+    case 'metric-spec':
+      return 'Provide metric v2 spec in prototext format';
+    case 'full-trace-summary':
+      return 'Provide complete trace summary spec (can include multiple metric_spec, query, and metric_template_spec)';
+    default:
+      assertUnreachable(mode);
+  }
+}
 
 async function getMetrics(engine: Engine): Promise<string[]> {
   const metrics: string[] = [];
@@ -53,16 +169,32 @@ async function getMetricV1(
 
 async function getMetricV2(
   engine: Engine,
-  metric: string,
+  mode: V2Mode,
+  input: string,
   format: Format,
 ): Promise<string> {
+  let summarySpec: string;
+
+  switch (mode) {
+    case 'metric-spec':
+      // Wrap input with metric_spec
+      summarySpec = `metric_spec: {${input}}`;
+      break;
+    case 'full-trace-summary':
+      // Pass through complete TraceSummarySpec as-is
+      summarySpec = input;
+      break;
+    default:
+      assertUnreachable(mode);
+  }
+
   const result = await engine.summarizeTrace(
-    [metric],
+    [summarySpec],
     undefined,
     undefined,
     format === 'proto' ? 'proto' : 'prototext',
   );
-  if (result.error || result.error.length > 0) {
+  if (result.error) {
     throw new Error(result.error);
   }
   switch (format) {
@@ -172,7 +304,7 @@ function renderResult(
   format: Format,
 ) {
   if (result === undefined) {
-    return m('pre.pf-metrics-page__error', 'No metric provided');
+    return null;
   }
 
   if (result === 'pending') {
@@ -180,7 +312,11 @@ function renderResult(
   }
 
   if (!result.ok) {
-    return m('pre.pf-metrics-page__error', `${result.error}`);
+    return m(
+      Callout,
+      {icon: 'error', intent: Intent.Danger},
+      `${result.error}`,
+    );
   }
 
   return m(CodeSnippet, {language: format, text: result.value});
@@ -238,6 +374,7 @@ class MetricV1Fetcher implements m.ClassComponent<MetricV1FetcherAttrs> {
 
 interface MetricV2FetcherAttrs {
   readonly engine: Engine;
+  readonly mode: V2Mode;
   readonly showExample: boolean;
   readonly onExecuteRunMetric: (result: Result<string> | 'pending') => void;
   readonly onUpdateText: () => void;
@@ -246,50 +383,60 @@ interface MetricV2FetcherAttrs {
 
 class MetricV2Fetcher implements m.ClassComponent<MetricV2FetcherAttrs> {
   private text: string = '';
+  // Store current attrs so callbacks can access latest values
+  // (Editor caches callbacks in oncreate and doesn't update them)
+  private currentAttrs?: MetricV2FetcherAttrs;
+
+  private runQuery() {
+    const currentAttrs = this.currentAttrs;
+    if (!currentAttrs) return;
+    getMetricV2(currentAttrs.engine, currentAttrs.mode, this.text, 'prototext')
+      .then((result) => {
+        currentAttrs.onExecuteRunMetric(okResult(result));
+      })
+      .catch((e) => {
+        currentAttrs.onExecuteRunMetric(errResult(e));
+      });
+  }
 
   view({attrs}: m.CVnode<MetricV2FetcherAttrs>) {
+    this.currentAttrs = attrs;
     if (attrs.showExample) {
-      this.text = `id: "memory_per_process"
-dimensions: "process_name"
-value: "avg_rss_and_swap"
-query: {
-  table: {
-    table_name: "memory_rss_and_swap_per_process"
-    module_name: "linux.memory.process"
-  }
-  group_by: {
-    column_names: "process_name"
-    aggregates: {
-      column_name: "rss_and_swap"
-      op: DURATION_WEIGHTED_MEAN
-      result_column_name: "avg_rss_and_swap"
-    }
-  }
-}`;
+      this.text = getExampleForMode(attrs.mode);
     }
     return m(
       '.pf-metricsv2-page',
-      'Provide metric v2 spec in prototext format ',
-      m(Editor, {
-        text: this.text,
-        onExecute: (text: string) => {
-          this.text = text;
-          getMetricV2(attrs.engine, `metric_spec: {${text}}`, 'prototext')
-            .then((result) => {
-              attrs.onExecuteRunMetric(okResult(result));
-            })
-            .catch((e) => {
-              attrs.onExecuteRunMetric(errResult(e));
-            });
-        },
-        onUpdate: (text: string) => {
-          if (text === this.text) {
-            return;
-          }
-          this.text = text;
-          attrs.onUpdateText();
-        },
-      }),
+      m(
+        '.pf-metricsv2-page__header',
+        m(
+          Callout,
+          {icon: 'info', intent: Intent.Primary},
+          getDescriptionForMode(attrs.mode),
+        ),
+        m(Button, {
+          label: 'Run',
+          variant: ButtonVariant.Outlined,
+          icon: 'play_arrow',
+          onclick: () => this.runQuery(),
+        }),
+      ),
+      m(
+        '.pf-metricsv2-page__editor',
+        m(Editor, {
+          text: this.text,
+          onExecute: (text: string) => {
+            this.text = text;
+            this.runQuery();
+          },
+          onUpdate: (text: string) => {
+            if (text === this.text) {
+              return;
+            }
+            this.text = text;
+            this.currentAttrs?.onUpdateText();
+          },
+        }),
+      ),
     );
   }
 }
@@ -303,6 +450,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
   private v2Result?: Result<string> | 'pending';
   private showV2MetricExample: boolean = false;
   private mode: 'V1' | 'V2' = 'V1';
+  private v2Mode: V2Mode = 'metric-spec';
   private fetcherGeneration: number = 0;
 
   oninit({attrs}: m.Vnode<MetricsPageAttrs>) {
@@ -327,14 +475,27 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
           },
         }),
       ),
+      this.mode === 'V2' &&
+        m(
+          '',
+          m(SegmentedButtons, {
+            options: [{label: 'Metric Spec'}, {label: 'Full Summary'}],
+            selectedOption: this.v2Mode === 'metric-spec' ? 0 : 1,
+            onOptionSelected: (num) => {
+              this.v2Mode = num === 0 ? 'metric-spec' : 'full-trace-summary';
+              this.showV2MetricExample = false;
+              this.v2Result = undefined;
+            },
+          }),
+        ),
       this.mode === 'V1' &&
         m(MetricV1Fetcher, {
           controller: v1Controller,
         }),
       this.mode === 'V2' && [
         m(Button, {
-          label: 'Example metric',
-          intent: Intent.Primary,
+          label: 'Load example',
+          variant: ButtonVariant.Outlined,
           onclick: () => {
             this.showV2MetricExample = true;
             this.fetcherGeneration++;
@@ -342,6 +503,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
         }),
         m(MetricV2Fetcher, {
           engine: attrs.trace.engine,
+          mode: this.v2Mode,
           showExample: this.showV2MetricExample,
           editorGeneration: this.fetcherGeneration,
           onExecuteRunMetric: (result: Result<string> | 'pending') => {

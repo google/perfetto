@@ -40,4 +40,27 @@
   &__metric_id_box {
     margin-bottom: 1rem;
   }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+
+    .pf-callout {
+      flex: 1;
+    }
+  }
+
+  &__editor {
+    min-height: 300px;
+    margin: 1rem 0;
+
+    .pf-editor {
+      min-height: 300px;
+    }
+
+    .cm-editor {
+      min-height: 300px;
+    }
+  }
 }
