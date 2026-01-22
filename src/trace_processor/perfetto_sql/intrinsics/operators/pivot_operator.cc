@@ -26,14 +26,14 @@
 //       'SUM(value), COUNT(*), AVG(price)'   -- Aggregation expressions
 //   );
 //
-// QUERYING (whitelist mode - only specified IDs expanded):
+// QUERYING (allowlist mode - only specified IDs expanded):
 //   SELECT * FROM my_pivot
 //   WHERE __expanded_ids__ = '1,2,3'   -- Comma-separated node IDs to expand
 //     AND __sort__ = 'agg_0 DESC'      -- Optional: sort by aggregate or 'name'
 //     AND __offset__ = 0               -- Optional: pagination offset
 //     AND __limit__ = 100;             -- Optional: pagination limit
 //
-// QUERYING (blacklist mode - all expanded except specified IDs):
+// QUERYING (denylist mode - all expanded except specified IDs):
 //   SELECT * FROM my_pivot
 //   WHERE __collapsed_ids__ = '4,5'    -- Nodes to keep collapsed
 //     AND __sort__ = 'agg_1 ASC';
@@ -125,7 +125,7 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   schema += ",__aggs__ TEXT HIDDEN";
   schema += ",__expanded_ids__ TEXT HIDDEN";
   schema +=
-      ",__collapsed_ids__ TEXT HIDDEN";  // Blacklist mode (expand all except)
+      ",__collapsed_ids__ TEXT HIDDEN";  // Denylist mode (expand all except)
   schema += ",__sort__ TEXT HIDDEN";
   schema += ",__offset__ INTEGER HIDDEN";
   schema += ",__limit__ INTEGER HIDDEN";
@@ -225,17 +225,17 @@ void SortTree(PivotNode* node, const PivotSortSpec& spec) {
 // All nodes are collapsed by default - only expanded IDs show their children.
 void FlattenTree(PivotNode* node,
                  const base::FlatHashMap<int64_t, bool>& expansion_ids,
-                 bool blacklist_mode,
+                 bool denylist_mode,
                  std::vector<PivotNode*>* out) {
   if (!node) {
     return;
   }
 
   // Root (level -1) is always "expanded" to show top-level nodes.
-  // In whitelist mode: nodes are expanded if their ID is in expansion_ids.
-  // In blacklist mode: nodes are expanded unless their ID is in expansion_ids.
+  // In allowlist mode: nodes are expanded if their ID is in expansion_ids.
+  // In denylist mode: nodes are expanded unless their ID is in expansion_ids.
   bool in_list = (expansion_ids.Find(node->id) != nullptr);
-  bool is_expanded = (node->level < 0) || (blacklist_mode ? !in_list : in_list);
+  bool is_expanded = (node->level < 0) || (denylist_mode ? !in_list : in_list);
   node->expanded = is_expanded;
 
   // Add children to output if this node is expanded
@@ -243,7 +243,7 @@ void FlattenTree(PivotNode* node,
     for (auto& child : node->children) {
       out->push_back(child.get());
       // Recursively add grandchildren if child is also expanded
-      FlattenTree(child.get(), expansion_ids, blacklist_mode, out);
+      FlattenTree(child.get(), expansion_ids, denylist_mode, out);
     }
   }
 }
@@ -643,8 +643,8 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Map of expanded/collapsed node IDs and mode
   base::FlatHashMap<int64_t, bool> expansion_ids;
-  bool blacklist_mode = false;  // false = whitelist (expanded_ids), true =
-                                // blacklist (collapsed_ids)
+  bool denylist_mode = false;  // false = allowlist (expanded_ids), true =
+                                // denylist (collapsed_ids)
 
   // Parse idxStr to determine which arguments are present and their argv index.
   // Each char in idxStr is either '-' (not present) or '0'-'6' (argv index).
@@ -683,15 +683,15 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   // Process __aggs__ (flag position 0)
   // Currently unused, but could parse to select specific aggregates
 
-  // Process __expanded_ids__ (flag position 1) - whitelist mode
+  // Process __expanded_ids__ (flag position 1) - allowlist mode
   if (sqlite3_value* val = get_argv(1)) {
     const char* ids_str =
         reinterpret_cast<const char*>(sqlite3_value_text(val));
     parse_ids(ids_str);
-    blacklist_mode = false;
+    denylist_mode = false;
   }
 
-  // Process __collapsed_ids__ (flag position 2) - blacklist mode (expand all
+  // Process __collapsed_ids__ (flag position 2) - denylist mode (expand all
   // except) Note: If both expanded_ids and collapsed_ids are provided,
   // collapsed_ids wins
   if (sqlite3_value* val = get_argv(2)) {
@@ -699,7 +699,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
         reinterpret_cast<const char*>(sqlite3_value_text(val));
     expansion_ids.Clear();
     parse_ids(ids_str);
-    blacklist_mode = true;
+    denylist_mode = true;
   }
 
   // Process __sort__ (flag position 3)
@@ -751,7 +751,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Flatten the tree based on expansion state
   t->flat.clear();
-  FlattenTree(t->root.get(), expansion_ids, blacklist_mode, &t->flat);
+  FlattenTree(t->root.get(), expansion_ids, denylist_mode, &t->flat);
 
   // Apply offset
   c->row_index = c->offset;

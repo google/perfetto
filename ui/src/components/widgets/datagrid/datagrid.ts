@@ -1098,15 +1098,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   /**
    * Checks if a group node is currently expanded using its ID.
-   * Handles both whitelist (expandedIds) and blacklist (collapsedIds) modes.
+   * Handles both allowlist (expandedIds) and denylist (collapsedIds) modes.
    */
   private isGroupExpanded(nodeId: bigint): boolean {
     if (!this.pivot) return false;
-    // Blacklist mode: expanded unless in collapsedIds
+    // Denylist mode: expanded unless in collapsedIds
     if (this.pivot.collapsedIds !== undefined) {
       return !this.pivot.collapsedIds.has(nodeId);
     }
-    // Whitelist mode: expanded only if in expandedIds
+    // Allowlist mode: expanded only if in expandedIds
     return this.pivot.expandedIds?.has(nodeId) ?? false;
   }
 
@@ -1118,9 +1118,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private toggleExpansion(nodeId: bigint, attrs: DataGridAttrs): void {
     if (!this.pivot) return;
 
-    // Handle both whitelist (expandedIds) and blacklist (collapsedIds) modes
+    // Handle both allowlist (expandedIds) and denylist (collapsedIds) modes
     if (this.pivot.collapsedIds !== undefined) {
-      // Blacklist mode: toggle in collapsedIds
+      // Denylist mode: toggle in collapsedIds
       // In list = collapsed, not in list = expanded
       const currentCollapsed = this.pivot.collapsedIds;
       const newCollapsed = new Set(currentCollapsed);
@@ -1135,7 +1135,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       this.pivot = newPivot;
       attrs.onPivotChanged?.(newPivot);
     } else {
-      // Whitelist mode: toggle in expandedIds
+      // Allowlist mode: toggle in expandedIds
       // In list = expanded, not in list = collapsed
       const currentExpanded = this.pivot.expandedIds ?? new Set<bigint>();
       const newExpanded = new Set(currentExpanded);
@@ -1151,12 +1151,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   /**
-   * Expands all groups by switching to blacklist mode with empty collapsedIds.
+   * Expands all groups by switching to denylist mode with empty collapsedIds.
    * Empty collapsedIds = all nodes expanded (nothing is collapsed).
    */
   private expandAll(attrs: DataGridAttrs): void {
     if (this.pivot) {
-      // Switch to blacklist mode with empty set - all nodes expanded
+      // Switch to denylist mode with empty set - all nodes expanded
       const newPivot: Pivot = {
         ...this.pivot,
         expandedIds: undefined,
@@ -1167,7 +1167,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     }
 
     if (this.idBasedTree) {
-      // Switch to blacklist mode with empty set - all nodes expanded
+      // Switch to denylist mode with empty set - all nodes expanded
       const newTree: IdBasedTree = {
         ...this.idBasedTree,
         expandedIds: undefined,
@@ -1179,12 +1179,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   /**
-   * Collapses all groups by switching to whitelist mode with empty expandedIds.
+   * Collapses all groups by switching to allowlist mode with empty expandedIds.
    * Empty expandedIds = all nodes collapsed (nothing is expanded).
    */
   private collapseAll(attrs: DataGridAttrs): void {
     if (this.pivot) {
-      // Switch to blacklist mode with empty set - all nodes expanded
+      // Switch to denylist mode with empty set - all nodes expanded
       const newPivot: Pivot = {
         ...this.pivot,
         expandedIds: new Set<bigint>(),
@@ -1195,7 +1195,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     }
 
     if (this.idBasedTree) {
-      // Switch to blacklist mode with empty set - all nodes expanded
+      // Switch to denylist mode with empty set - all nodes expanded
       const newTree: IdBasedTree = {
         ...this.idBasedTree,
         expandedIds: new Set<bigint>(),
@@ -1497,7 +1497,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     let newTree: IdBasedTree;
 
     if (this.idBasedTree.collapsedIds) {
-      // Blacklist mode: toggle in collapsedIds
+      // Denylist mode: toggle in collapsedIds
       const newCollapsed = new Set(this.idBasedTree.collapsedIds);
       if (newCollapsed.has(nodeId)) {
         newCollapsed.delete(nodeId);
@@ -1511,7 +1511,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         collapsedIds: newCollapsed,
       };
     } else {
-      // Whitelist mode: toggle in expandedIds
+      // Allowlist mode: toggle in expandedIds
       const currentExpanded =
         'expandedIds' in this.idBasedTree && this.idBasedTree.expandedIds
           ? this.idBasedTree.expandedIds

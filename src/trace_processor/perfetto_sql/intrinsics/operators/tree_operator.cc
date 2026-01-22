@@ -26,14 +26,14 @@
 //       'parent_id_column'           -- Column containing parent ID (NULL=root)
 //   );
 //
-// QUERYING (whitelist mode - only specified IDs expanded):
+// QUERYING (allowlist mode - only specified IDs expanded):
 //   SELECT * FROM my_tree
 //   WHERE __expanded_ids__ = '1,2,3'   -- Comma-separated node IDs to expand
 //     AND __sort__ = 'name ASC'        -- Optional: sort by column
 //     AND __offset__ = 0               -- Optional: pagination offset
 //     AND __limit__ = 100;             -- Optional: pagination limit
 //
-// QUERYING (blacklist mode - all expanded except specified IDs):
+// QUERYING (denylist mode - all expanded except specified IDs):
 //   SELECT * FROM my_tree
 //   WHERE __collapsed_ids__ = '4,5'    -- Nodes to keep collapsed
 //     AND __sort__ = 'size DESC';
@@ -195,18 +195,18 @@ void SortTree(std::vector<std::unique_ptr<TreeNode>>& nodes,
 // Only shows children of nodes that are expanded.
 void FlattenTree(TreeNode* node,
                  const std::unordered_set<int64_t>& expansion_ids,
-                 bool blacklist_mode,
+                 bool denylist_mode,
                  std::vector<TreeNode*>* out) {
   if (!node) {
     return;
   }
 
-  // In whitelist mode: nodes are expanded if their ID is in expansion_ids.
-  // In blacklist mode: nodes are expanded unless their ID is in expansion_ids.
+  // In allowlist mode: nodes are expanded if their ID is in expansion_ids.
+  // In denylist mode: nodes are expanded unless their ID is in expansion_ids.
   // Nodes without a valid ID are never expanded.
   bool in_list =
       node->id.has_value() && (expansion_ids.count(*node->id) > 0);
-  bool is_expanded = blacklist_mode ? !in_list : in_list;
+  bool is_expanded = denylist_mode ? !in_list : in_list;
   node->expanded = is_expanded;
 
   // Add children to output if this node is expanded
@@ -214,7 +214,7 @@ void FlattenTree(TreeNode* node,
     for (auto& child : node->children) {
       out->push_back(child.get());
       // Recursively add grandchildren
-      FlattenTree(child.get(), expansion_ids, blacklist_mode, out);
+      FlattenTree(child.get(), expansion_ids, denylist_mode, out);
     }
   }
 }
@@ -222,11 +222,11 @@ void FlattenTree(TreeNode* node,
 // Flatten root-level nodes (these are always visible)
 void FlattenRoots(std::vector<std::unique_ptr<TreeNode>>& roots,
                   const std::unordered_set<int64_t>& expansion_ids,
-                  bool blacklist_mode,
+                  bool denylist_mode,
                   std::vector<TreeNode*>* out) {
   for (auto& root : roots) {
     out->push_back(root.get());
-    FlattenTree(root.get(), expansion_ids, blacklist_mode, out);
+    FlattenTree(root.get(), expansion_ids, denylist_mode, out);
   }
 }
 
@@ -662,7 +662,7 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Set of expanded/collapsed node IDs and mode
   std::unordered_set<int64_t> expansion_ids;
-  bool blacklist_mode = false;
+  bool denylist_mode = false;
 
   // Parse idxStr to determine which arguments are present
   std::string flags = idxStr ? idxStr : "------";
@@ -697,22 +697,22 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     }
   };
 
-  // Process __expanded_ids__ (flag position 0) - whitelist mode
+  // Process __expanded_ids__ (flag position 0) - allowlist mode
   if (sqlite3_value* val = get_argv(0)) {
     const char* ids_str =
         reinterpret_cast<const char*>(sqlite3_value_text(val));
     parse_ids(ids_str);
-    blacklist_mode = false;
+    denylist_mode = false;
   }
 
-  // Process __collapsed_ids__ (flag position 1) - blacklist mode
+  // Process __collapsed_ids__ (flag position 1) - denylist mode
   // Note: If both are provided, collapsed_ids wins
   if (sqlite3_value* val = get_argv(1)) {
     const char* ids_str =
         reinterpret_cast<const char*>(sqlite3_value_text(val));
     expansion_ids.clear();
     parse_ids(ids_str);
-    blacklist_mode = true;
+    denylist_mode = true;
   }
 
   // Process __sort__ (flag position 2)
@@ -760,7 +760,7 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Flatten the tree based on expansion state
   t->flat.clear();
-  FlattenRoots(t->roots, expansion_ids, blacklist_mode, &t->flat);
+  FlattenRoots(t->roots, expansion_ids, denylist_mode, &t->flat);
 
   // Apply offset
   c->row_index = c->offset;

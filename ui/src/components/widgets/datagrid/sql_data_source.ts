@@ -706,8 +706,8 @@ ${joinClauses}`;
       this.intrinsicPivotCache?.tableName ?? '__intrinsic_pivot_default__';
 
     // Build expansion constraint - collapsedIds takes precedence if both set
-    // collapsedIds = blacklist mode (all expanded except listed)
-    // expandedIds = whitelist mode (only listed are expanded)
+    // collapsedIds = denylist mode (all expanded except listed)
+    // expandedIds = allowlist mode (only listed are expanded)
     let expansionConstraint: string;
     if (pivot.collapsedIds !== undefined) {
       const collapsedIdsStr = Array.from(pivot.collapsedIds).join(',');
@@ -1025,7 +1025,7 @@ WHERE ${expansionConstraint}
       const expandedIdsStr = Array.from(tree.expandedIds).join(',');
       expansionConstraint = `__expanded_ids__ = '${expandedIdsStr}'`;
     } else {
-      // Default: all collapsed (whitelist mode with empty set)
+      // Default: all collapsed (allowlist mode with empty set)
       expansionConstraint = `__expanded_ids__ = ''`;
     }
 
