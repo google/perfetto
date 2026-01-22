@@ -23,7 +23,7 @@ import {
   DataSourceRows,
   Pagination,
 } from './data_source';
-import {Column, Filter, Pivot, TreeGrouping} from './model';
+import {Column, Filter, IdBasedTree, Pivot} from './model';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
@@ -87,19 +87,6 @@ interface DistinctValuesCache {
   values: ReadonlyArray<SqlValue>;
 }
 
-// Cache entry for tree metadata (has_children computation)
-// This is cached separately because it only depends on base data + filters,
-// NOT on expansion state. So we can reuse it across expand/collapse operations.
-interface TreeMetadataCache {
-  // Cache key based on: base table, filters, tree field, delimiter
-  cacheKey: string;
-  // Name of the temp table storing has_children paths
-  tempTableName: string;
-}
-
-// Counter for generating unique temp table names
-let treeMetadataTempTableCounter = 0;
-
 // Cache entry for intrinsic pivot virtual table
 // This caches the virtual table creation so we don't recreate it on every query.
 // The table needs to be recreated when filters change (different base data).
@@ -112,6 +99,19 @@ interface IntrinsicPivotCache {
 
 // Counter for generating unique intrinsic pivot table names
 let intrinsicPivotTableCounter = 0;
+
+// Cache entry for intrinsic tree virtual table
+// This caches the virtual table creation so we don't recreate it on every query.
+// The table needs to be recreated when filters change (different base data).
+interface IntrinsicTreeCache {
+  // Cache key based on: base table, filters, id column, parent_id column
+  cacheKey: string;
+  // Name of the virtual table
+  tableName: string;
+}
+
+// Counter for generating unique intrinsic tree table names
+let intrinsicTreeTableCounter = 0;
 
 /**
  * SQL data source for DataGrid.
@@ -164,11 +164,10 @@ export class SQLDataSource implements DataSource {
   private aggregatesCache?: AggregatesCache;
   private distinctValuesCache = new Map<string, DistinctValuesCache>();
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
-  private treeMetadataCache?: TreeMetadataCache;
-  // Current tree metadata temp table name (for sync access during query building)
-  private currentTreeMetadataTable?: string;
   // Cache for intrinsic pivot virtual table
   private intrinsicPivotCache?: IntrinsicPivotCache;
+  // Cache for intrinsic tree virtual table
+  private intrinsicTreeCache?: IntrinsicTreeCache;
 
   // Current results
   private cachedResult?: DataSourceRows;
@@ -228,11 +227,11 @@ export class SQLDataSource implements DataSource {
       this.isLoadingFlag = true;
 
       try {
-        // Ensure tree metadata table is ready if in tree mode
-        await this.maybeRefreshTreeMetadata(model);
-
         // Ensure intrinsic pivot table is ready if using ID-based expansion
         await this.maybeRefreshIntrinsicPivot(model);
+
+        // Ensure intrinsic tree table is ready if using ID-based tree mode
+        await this.maybeRefreshIntrinsicTree(model);
 
         // Resolve row count
         const rowCount = await this.resolveRowCount(model);
@@ -536,7 +535,7 @@ export class SQLDataSource implements DataSource {
     model: DataSourceModel,
     options: {includeOrderBy: boolean},
   ): string {
-    const {columns, filters = [], pivot, tree} = model;
+    const {columns, filters = [], pivot, idBasedTree} = model;
 
     const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
 
@@ -548,9 +547,9 @@ export class SQLDataSource implements DataSource {
       return this.buildPivotQuery(resolver, filters, pivot, options, columns);
     }
 
-    // Tree grouping mode: hierarchical display without aggregation
-    if (tree) {
-      return this.buildTreeQuery(resolver, filters, tree, options, columns);
+    // ID-based tree mode: uses __intrinsic_tree virtual table
+    if (idBasedTree) {
+      return this.buildIdBasedTreeQuery(idBasedTree, columns, options);
     }
 
     // Normal mode or drill-down: select individual columns
@@ -666,401 +665,6 @@ ${joinClauses}`;
       options,
       dependencyColumns,
     );
-  }
-
-  /**
-   * Checks if tree mode is active and refreshes the tree metadata table if needed.
-   * Called from notify() before building queries.
-   */
-  private async maybeRefreshTreeMetadata(
-    model: DataSourceModel,
-  ): Promise<void> {
-    const {filters = [], pivot, tree} = model;
-
-    // Check for tree mode in flat mode
-    if (tree) {
-      const resolver = new SQLSchemaResolver(
-        this.sqlSchema,
-        this.rootSchemaName,
-      );
-      this.currentTreeMetadataTable = await this.ensureTreeMetadataTable(
-        resolver,
-        filters,
-        tree.field,
-        tree.delimiter ?? '/',
-      );
-      return;
-    }
-
-    // Check for tree mode in pivot mode
-    if (pivot && !pivot.drillDown && pivot.groupBy.length === 1) {
-      const groupByCol = pivot.groupBy[0];
-      if (groupByCol.tree) {
-        const resolver = new SQLSchemaResolver(
-          this.sqlSchema,
-          this.rootSchemaName,
-        );
-        this.currentTreeMetadataTable = await this.ensureTreeMetadataTable(
-          resolver,
-          filters,
-          groupByCol.field,
-          groupByCol.tree.delimiter ?? '/',
-        );
-        return;
-      }
-    }
-
-    // Not in tree mode - clear the cached table name
-    this.currentTreeMetadataTable = undefined;
-  }
-
-  /**
-   * Ensures the tree metadata temp table exists and is up-to-date.
-   * Returns the temp table name to use in queries.
-   *
-   * The tree metadata table contains paths that have children, computed once
-   * and cached until filters or tree config changes. This avoids recomputing
-   * the expensive LEAD window function on every expand/collapse.
-   */
-  private async ensureTreeMetadataTable(
-    resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<Filter>,
-    treeField: string,
-    delimiter: string,
-  ): Promise<string> {
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
-
-    // Build cache key from factors that affect which paths have children
-    const filterKey = filters
-      .map((f) => `${f.field}:${f.op}:${'value' in f ? f.value : ''}`)
-      .join('|');
-    const cacheKey = `${baseTable}:${treeField}:${delimiter}:${filterKey}`;
-
-    // Check if cache is valid
-    if (this.treeMetadataCache?.cacheKey === cacheKey) {
-      return this.treeMetadataCache.tempTableName;
-    }
-
-    // Generate unique temp table name
-    const tempTableName = `__tree_meta_${treeMetadataTempTableCounter++}__`;
-
-    // Resolve the path column expression
-    const pathExpr = resolver.resolveColumnPath(treeField);
-    if (!pathExpr) {
-      throw new Error(`Could not resolve tree field: ${treeField}`);
-    }
-
-    // Build filter clause
-    let filterClause = '';
-    if (filters.length > 0) {
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        return filterToSql(filter, sqlExpr ?? filter.field);
-      });
-      filterClause = `WHERE ${whereConditions.join(' AND ')}`;
-    }
-
-    const joinClauses = resolver.buildJoinClauses();
-
-    // Create temp table with has_children paths
-    // Uses LEAD window function: a path has children if the next path (sorted)
-    // starts with it + delimiter and has level = current level + 1
-    const createQuery = `
-CREATE TEMP TABLE ${tempTableName} AS
-WITH __source__ AS (
-  SELECT ${pathExpr} AS __tree_path__
-  FROM ${baseTable} AS ${baseAlias}
-  ${joinClauses}
-  ${filterClause}
-),
-__tree__ AS (
-  SELECT
-    __tree_path__,
-    length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
-  FROM __source__
-)
-SELECT DISTINCT __tree_path__
-FROM (
-  SELECT
-    __tree_path__,
-    "__level__",
-    LEAD(__tree_path__) OVER (ORDER BY __tree_path__) AS __next_path__,
-    LEAD("__level__") OVER (ORDER BY __tree_path__) AS __next_level__
-  FROM __tree__
-)
-WHERE __next_path__ LIKE __tree_path__ || '${delimiter}%'
-  AND __next_level__ = "__level__" + 1`;
-
-    // Drop old temp table if it exists (from previous cache)
-    if (this.treeMetadataCache?.tempTableName) {
-      try {
-        await this.engine.query(
-          `DROP TABLE IF EXISTS ${this.treeMetadataCache.tempTableName}`,
-        );
-      } catch {
-        // Ignore errors dropping old table
-      }
-    }
-
-    // Create the new temp table
-    await this.engine.query(this.wrapQueryWithPrelude(createQuery));
-
-    // Update cache
-    this.treeMetadataCache = {cacheKey, tempTableName};
-
-    return tempTableName;
-  }
-
-  /**
-   * Builds a tree query for flat mode with hierarchical display.
-   *
-   * This displays raw
-   * column values with tree filtering based on expansion state.
-   * No GROUP BY, no aggregates - just filtering rows by what's expanded.
-   */
-  private buildTreeQuery(
-    resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<Filter>,
-    tree: TreeGrouping,
-    options: {includeOrderBy: boolean},
-    columns?: ReadonlyArray<Column>,
-  ): string {
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
-
-    const delimiter = tree.delimiter ?? '/';
-    const treeField = tree.field;
-
-    // Resolve the tree path column expression
-    const pathExpr = resolver.resolveColumnPath(treeField);
-    if (!pathExpr) {
-      // Fallback to normal query if tree field not found
-      return this.buildNormalQuery(resolver, filters, options, columns);
-    }
-
-    // Build column expressions
-    const selectExprs: string[] = [];
-    const addedFields = new Set<string>();
-
-    // Add tree path column
-    selectExprs.push(`${pathExpr} AS __tree_path__`);
-    addedFields.add(treeField);
-
-    // Add other columns
-    for (const col of columns ?? []) {
-      if (!addedFields.has(col.field)) {
-        const sqlExpr = resolver.resolveColumnPath(col.field);
-        if (sqlExpr) {
-          const alias = toAlias(col.id);
-          selectExprs.push(`${sqlExpr} AS ${alias}`);
-          addedFields.add(col.field);
-        }
-      }
-    }
-
-    // Resolve filter column paths
-    for (const filter of filters) {
-      resolver.resolveColumnPath(filter.field);
-    }
-
-    const joinClauses = resolver.buildJoinClauses();
-
-    // Build WHERE clause for filters
-    let filterClause = '';
-    if (filters.length > 0) {
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        return filterToSql(filter, sqlExpr ?? filter.field);
-      });
-      filterClause = `\nWHERE ${whereConditions.join(' AND ')}`;
-    }
-
-    // Build the expansion filter based on whitelist (expandedPaths) or blacklist (collapsedPaths) mode
-    let expansionFilter: string;
-
-    if ('collapsedPaths' in tree) {
-      // Blacklist mode: all expanded except collapsed paths
-      // A row is visible if its parent is not collapsed
-      // This is done by excluding rows whose path starts with a collapsed path + delimiter
-      const collapsedPathsByLevel = new Map<number, string[]>();
-      for (const path of tree.collapsedPaths) {
-        if (path.length === 1 && typeof path[0] === 'string') {
-          const pathStr = path[0];
-          const level =
-            pathStr.length - pathStr.replaceAll(delimiter, '').length;
-          if (!collapsedPathsByLevel.has(level)) {
-            collapsedPathsByLevel.set(level, []);
-          }
-          collapsedPathsByLevel.get(level)!.push(pathStr);
-        }
-      }
-
-      if (collapsedPathsByLevel.size === 0) {
-        // No collapsed paths - show all rows
-        expansionFilter = '1=1';
-      } else {
-        // Exclude children of collapsed paths
-        const exclusionConditions: string[] = [];
-        for (const [_, paths] of collapsedPathsByLevel) {
-          for (const p of paths) {
-            exclusionConditions.push(
-              `t.__tree_path__ NOT GLOB ${sqlValue(p + delimiter + '*')}`,
-            );
-          }
-        }
-        expansionFilter = exclusionConditions.join('\n   AND ');
-      }
-    } else {
-      // Whitelist mode: only expanded paths are visible
-      // A path is "fully expanded" only if ALL its ancestors are also expanded
-      const allExpandedPaths = new Set<string>();
-      if ('expandedPaths' in tree && tree.expandedPaths) {
-        for (const path of tree.expandedPaths) {
-          if (path.length === 1 && typeof path[0] === 'string') {
-            allExpandedPaths.add(path[0]);
-          }
-        }
-      }
-
-      // Compute fully expanded paths (where all ancestors are also expanded)
-      const fullyExpandedPaths: string[] = [];
-      for (const pathStr of allExpandedPaths) {
-        const level = pathStr.length - pathStr.replaceAll(delimiter, '').length;
-
-        if (level === 0) {
-          // Level 0 paths have no ancestors - always fully expanded
-          fullyExpandedPaths.push(pathStr);
-        } else {
-          // Check if all ancestors are expanded
-          const parts = pathStr.split(delimiter);
-          let ancestorPath = '';
-          let allAncestorsExpanded = true;
-
-          for (let i = 0; i < parts.length - 1; i++) {
-            ancestorPath =
-              i === 0 ? parts[0] : ancestorPath + delimiter + parts[i];
-            if (!allExpandedPaths.has(ancestorPath)) {
-              allAncestorsExpanded = false;
-              break;
-            }
-          }
-
-          if (allAncestorsExpanded) {
-            fullyExpandedPaths.push(pathStr);
-          }
-        }
-      }
-
-      // Build the expansion filter using GLOB prefix matching
-      // Note: Use t. prefix since this is used after LEFT JOIN with __has_children__
-      const expansionConditions: string[] = ['t."__level__" = 0'];
-      for (const pathStr of fullyExpandedPaths) {
-        const pathLevel =
-          pathStr.length - pathStr.replaceAll(delimiter, '').length;
-        const childLevel = pathLevel + 1;
-        expansionConditions.push(
-          `(t."__level__" = ${childLevel} AND t.__tree_path__ GLOB ${sqlValue(pathStr + delimiter + '*')})`,
-        );
-      }
-      expansionFilter = expansionConditions.join('\n   OR ');
-    }
-
-    // Find the tree field column for output alias
-    const treeColumn = columns?.find((c) => c.field === treeField);
-    const pathAlias = treeColumn ? toAlias(treeColumn.id) : toAlias(treeField);
-
-    // Build column expressions for final SELECT (raw values, no aggregation)
-    const otherColumnExprs = columns
-      ?.filter((c) => c.field !== treeField)
-      .map((c) => `t.${toAlias(c.id)}`)
-      .join(',\n  ');
-
-    // Build the complete query
-    // The __has_children__ data comes from a cached temp table (created in maybeRefreshTreeMetadata)
-    // to avoid recomputing the expensive LEAD window function on every expand/collapse.
-    const hasChildrenTable =
-      this.currentTreeMetadataTable ?? '__has_children__';
-    const query = `WITH __source__ AS (
-  SELECT ${selectExprs.join(', ')}
-  FROM ${baseTable} AS ${baseAlias}
-  ${joinClauses}${filterClause}
-),
-__tree__ AS (
-  SELECT *,
-    length(__tree_path__) - length(replace(__tree_path__, '${delimiter}', '')) AS "__level__"
-  FROM __source__
-)
-SELECT
-  t.__tree_path__ AS ${pathAlias},
-  t."__level__",
-  ${otherColumnExprs || 'NULL AS __placeholder__'},
-  (h.__tree_path__ IS NOT NULL) AS __tree_has_children__
-FROM __tree__ t
-LEFT JOIN ${hasChildrenTable} h ON h.__tree_path__ = t.__tree_path__
-WHERE ${expansionFilter}${options.includeOrderBy ? '\nORDER BY t.__tree_path__' : ''}`;
-
-    return query;
-  }
-
-  /**
-   * Builds a normal (non-pivot, non-tree) query. Extracted for reuse.
-   */
-  private buildNormalQuery(
-    resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<Filter>,
-    options: {includeOrderBy: boolean},
-    columns?: ReadonlyArray<Column>,
-  ): string {
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
-
-    const selectExprs: string[] = [];
-    for (const col of columns ?? []) {
-      const sqlExpr = resolver.resolveColumnPath(col.field);
-      if (sqlExpr) {
-        const alias = toAlias(col.id);
-        selectExprs.push(`${sqlExpr} AS ${alias}`);
-      }
-    }
-
-    for (const filter of filters) {
-      resolver.resolveColumnPath(filter.field);
-    }
-
-    if (selectExprs.length === 0) {
-      selectExprs.push(`${baseAlias}.*`);
-    }
-
-    const joinClauses = resolver.buildJoinClauses();
-
-    let query = `
-SELECT ${selectExprs.join(',\n       ')}
-FROM ${baseTable} AS ${baseAlias}
-${joinClauses}`;
-
-    if (filters.length > 0) {
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        if (!sqlExpr) {
-          return filterToSql(filter, filter.field);
-        }
-        return filterToSql(filter, sqlExpr);
-      });
-      query += `\nWHERE ${whereConditions.join(' AND ')}`;
-    }
-
-    if (options.includeOrderBy) {
-      const sortedColumn = columns?.find((c) => c.sort);
-      if (sortedColumn) {
-        const sqlExpr = resolver.resolveColumnPath(sortedColumn.field);
-        if (sqlExpr) {
-          query += `\nORDER BY ${sqlExpr} ${sortedColumn.sort!.toUpperCase()}`;
-        }
-      }
-    }
-
-    return query;
   }
 
   /**
@@ -1285,6 +889,155 @@ WHERE ${expansionConstraint}
       );
       await this.ensureIntrinsicPivotTable(resolver, filters, pivot);
     }
+  }
+
+  /**
+   * Checks if ID-based tree mode is active and refreshes the virtual table if needed.
+   * Called from notify() before building queries.
+   */
+  private async maybeRefreshIntrinsicTree(
+    model: DataSourceModel,
+  ): Promise<void> {
+    const {filters = [], idBasedTree} = model;
+
+    if (idBasedTree) {
+      const resolver = new SQLSchemaResolver(
+        this.sqlSchema,
+        this.rootSchemaName,
+      );
+      await this.ensureIntrinsicTreeTable(resolver, filters, idBasedTree);
+    }
+  }
+
+  /**
+   * Ensures the intrinsic tree virtual table exists and is up-to-date.
+   * The virtual table needs to be recreated when:
+   * - Filters change (different base data)
+   * - ID column or parent_id column change
+   */
+  private async ensureIntrinsicTreeTable(
+    resolver: SQLSchemaResolver,
+    filters: ReadonlyArray<Filter>,
+    tree: IdBasedTree,
+  ): Promise<string> {
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+
+    // Build cache key from factors that affect the tree structure
+    const filterKey = filters
+      .map((f) => `${f.field}:${f.op}:${'value' in f ? f.value : ''}`)
+      .join('|');
+    const cacheKey = `${baseTable}:${filterKey}:${tree.idColumn}:${tree.parentIdColumn}`;
+
+    // Check if cache is valid
+    if (this.intrinsicTreeCache?.cacheKey === cacheKey) {
+      return this.intrinsicTreeCache.tableName;
+    }
+
+    // Generate unique table name
+    const tableName = `__tree_${intrinsicTreeTableCounter++}__`;
+
+    // Build the base table expression (with filters as subquery if needed)
+    let sourceTable = baseTable;
+    if (filters.length > 0) {
+      // Resolve filter column paths
+      for (const filter of filters) {
+        resolver.resolveColumnPath(filter.field);
+      }
+      const joinClauses = resolver.buildJoinClauses();
+
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+
+      sourceTable = `(SELECT ${baseAlias}.* FROM ${baseTable} AS ${baseAlias} ${joinClauses} WHERE ${whereConditions.join(' AND ')})`;
+    }
+
+    // Drop old table if it exists
+    if (this.intrinsicTreeCache?.tableName) {
+      try {
+        await this.engine.query(
+          `DROP TABLE IF EXISTS ${this.intrinsicTreeCache.tableName}`,
+        );
+      } catch {
+        // Ignore errors dropping old table
+      }
+    }
+
+    // Create the virtual table
+    // Use double quotes for sourceTable to avoid issues with single-quoted filter values
+    const createQuery = `CREATE VIRTUAL TABLE ${tableName} USING __intrinsic_tree(
+  "${sourceTable.replace(/"/g, '""')}",
+  '${tree.idColumn}',
+  '${tree.parentIdColumn}'
+)`;
+
+    await this.engine.query(this.wrapQueryWithPrelude(createQuery));
+
+    // Update cache
+    this.intrinsicTreeCache = {cacheKey, tableName};
+
+    return tableName;
+  }
+
+  /**
+   * Builds a query using the __intrinsic_tree virtual table.
+   * This passes through all source columns plus tree metadata columns.
+   */
+  private buildIdBasedTreeQuery(
+    tree: IdBasedTree,
+    columns: ReadonlyArray<Column> | undefined,
+    options: {includeOrderBy: boolean},
+  ): string {
+    // Get the virtual table name (should be set by ensureIntrinsicTreeTable)
+    const tableName =
+      this.intrinsicTreeCache?.tableName ?? '__intrinsic_tree_default__';
+
+    // Build expansion constraint - collapsedIds takes precedence if both set
+    let expansionConstraint: string;
+    if ('collapsedIds' in tree && tree.collapsedIds !== undefined) {
+      const collapsedIdsStr = Array.from(tree.collapsedIds).join(',');
+      expansionConstraint = `__collapsed_ids__ = '${collapsedIdsStr}'`;
+    } else if ('expandedIds' in tree && tree.expandedIds !== undefined) {
+      const expandedIdsStr = Array.from(tree.expandedIds).join(',');
+      expansionConstraint = `__expanded_ids__ = '${expandedIdsStr}'`;
+    } else {
+      // Default: all collapsed (whitelist mode with empty set)
+      expansionConstraint = `__expanded_ids__ = ''`;
+    }
+
+    // Build sort spec from columns
+    let sortSpec = '';
+    if (columns) {
+      for (const col of columns) {
+        if (col.sort) {
+          sortSpec = `${col.field} ${col.sort}`;
+          break;
+        }
+      }
+    }
+
+    // Build the SELECT clause
+    // The virtual table returns: source columns + __depth__ + __has_children__ + __child_count__
+    const selectClauses: string[] = ['*'];
+
+    // Build the query
+    let query = `SELECT ${selectClauses.join(', ')}
+FROM ${tableName}
+WHERE ${expansionConstraint}`;
+
+    // Add sort constraint if specified
+    if (sortSpec) {
+      query += `\n  AND __sort__ = '${sortSpec}'`;
+    }
+
+    // Add ORDER BY if requested (virtual table handles sorting, but we preserve tree order)
+    if (options.includeOrderBy) {
+      query += '\nORDER BY rowid'; // Preserve tree order from virtual table
+    }
+
+    return query;
   }
 
   /**

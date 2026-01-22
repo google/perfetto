@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Column, Filter, Pivot, TreeGrouping} from './model';
+import {Column, Filter, IdBasedTree, Pivot} from './model';
 
 export interface Pagination {
   readonly offset: number;
@@ -61,9 +61,10 @@ export interface DataSourceModel {
   // Pivot configuration for grouped/aggregated views
   readonly pivot?: Pivot;
 
-  // Tree grouping configuration for hierarchical display without aggregation.
+  // ID-based tree configuration using __intrinsic_tree virtual table.
+  // Uses explicit id/parent_id columns for tree structure.
   // Mutually exclusive with pivot.
-  readonly tree?: TreeGrouping;
+  readonly idBasedTree?: IdBasedTree;
 
   // Columns for which to fetch distinct values (for filter dropdowns)
   readonly distinctValuesColumns?: ReadonlySet<string>;

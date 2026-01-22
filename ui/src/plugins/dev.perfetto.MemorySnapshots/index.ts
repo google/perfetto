@@ -60,6 +60,7 @@ function createMemorySnapshotSchema(snapshotId: number): SQLSchemaRegistry {
       table: `(SELECT * FROM memory_snapshot_node WHERE process_snapshot_id = ${snapshotId})`,
       columns: {
         id: {},
+        parent_node_id: {},
         path: {},
         size: {},
         effective_size: {},
@@ -110,9 +111,10 @@ class SnapshotTab implements m.ClassComponent<SnapshotTabAttrs> {
       rootSchema: 'memory_snapshot_node',
       data: this.dataSource,
       fillHeight: true,
-      initialTree: {
-        field: 'path',
-        delimiter: '/',
+      initialIdBasedTree: {
+        idColumn: 'id',
+        parentIdColumn: 'parent_node_id',
+        treeColumn: 'path',
       },
       initialColumns: [
         {id: 'path', field: 'path'},
