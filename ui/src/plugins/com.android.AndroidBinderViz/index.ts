@@ -45,6 +45,7 @@ export default class implements PerfettoPlugin {
           `(${oppositePerspective}_process || ":" || ${oppositePerspective}_upid)`,
           `(${oppositePerspective}_thread || ":" ||  ${oppositePerspective}_utid)`,
         ],
+        idCol: perspective === 'client' ? 'binder_txn_id' : 'binder_reply_id',
         tsCol: `${oppositePerspective}_ts`,
         durCol: `${oppositePerspective}_dur`,
         tableName: 'android_binder_txns',
