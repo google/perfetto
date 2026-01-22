@@ -26,6 +26,7 @@ const ANR_TRACK_URI = '/android_anrs';
 
 interface AnrArgs {
   processName?: string;
+  packageName?: string;
   errorId?: string;
   autoSelect?: boolean; // true if the base plugin id 'com.android.AndroidAnr' is present in the route args
 }
@@ -36,10 +37,16 @@ function getAnrArgsFromRouteArgs(args: RouteArgs): AnrArgs {
   const baseKey = AndroidAnr.id;
   const processNameKey = baseKey + '.processName';
   const errorIdKey = baseKey + '.errorId';
+  const packageNameKey = baseKey + '.packageName';
 
   const processName = args[processNameKey];
   if (typeof processName === 'string') {
     tempArgs.processName = processName;
+  }
+
+  const packageName = args[packageNameKey];
+  if (typeof packageName === 'string') {
+    tempArgs.packageName = packageName;
   }
 
   const errorId = args[errorIdKey];
@@ -117,6 +124,9 @@ export default class AndroidAnr implements PerfettoPlugin {
     if (args.processName !== undefined) {
       whereFilters.push(`anr.process_name = '${args.processName}'`);
     }
+    if (args.packageName !== undefined) {
+      whereFilters.push(`apm.package_name = '${args.packageName}'`);
+    }
     if (args.errorId !== undefined) {
       whereFilters.push(`anr.error_id = '${args.errorId}'`);
     }
@@ -134,6 +144,10 @@ export default class AndroidAnr implements PerfettoPlugin {
       return;
     }
 
+    await e.query(`
+      include perfetto module android.process_metadata;
+    `);
+
     const query = `
       SELECT
         anr.ts - coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS ts,
@@ -141,6 +155,8 @@ export default class AndroidAnr implements PerfettoPlugin {
         tt.id AS main_thread_track_id
       FROM
         android_anrs anr
+      JOIN
+        android_process_metadata apm ON anr.upid = apm.upid
       JOIN
         thread t ON anr.upid = t.upid
       JOIN
