@@ -53,7 +53,7 @@ export abstract class RelatedEventsTabBase implements Tab {
         resolvedDataset = datasetOrPromise;
       }
     } catch (e) {
-      console.error('RelatedLockEventsTab: Dataset promise failed', e);
+      console.error('RelatedEventsTab: Dataset promise failed', e);
     }
 
     if (!resolvedDataset) {
@@ -67,6 +67,7 @@ export abstract class RelatedEventsTabBase implements Tab {
       const it = result.iter(RELATION_SCHEMA);
 
       this.relatedEvents = [];
+
       while (it.valid()) {
         this.relatedEvents.push({
           id: Number(it.id),
@@ -78,10 +79,9 @@ export abstract class RelatedEventsTabBase implements Tab {
         it.next();
       }
 
-      // Sort by time
       this.relatedEvents.sort((a, b) => Number(a.ts - b.ts));
     } catch (e) {
-      console.error('RelatedLockEventsTab: Failed to query dataset', e);
+      console.error('RelatedEventsTab: Failed to query dataset', e);
     } finally {
       this.isLoading = false;
       m.redraw();
