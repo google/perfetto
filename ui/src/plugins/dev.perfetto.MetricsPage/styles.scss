@@ -51,6 +51,14 @@
     }
   }
 
+  &__metric-filter {
+    margin: 0.5rem 0;
+
+    .pf-text-input {
+      width: 100%;
+    }
+  }
+
   &__editor {
     min-height: 300px;
     margin: 1rem 0;

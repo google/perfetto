@@ -26,6 +26,7 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {CodeSnippet} from '../../widgets/code_snippet';
 import {Callout} from '../../widgets/callout';
+import {TextInput} from '../../widgets/text_input';
 
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
@@ -172,6 +173,7 @@ async function getMetricV2(
   mode: V2Mode,
   input: string,
   format: Format,
+  metricIds?: string[],
 ): Promise<string> {
   let summarySpec: string;
 
@@ -188,9 +190,12 @@ async function getMetricV2(
       assertUnreachable(mode);
   }
 
+  // If metricIds provided and non-empty, use them; otherwise run all
+  const idsToRun = metricIds && metricIds.length > 0 ? metricIds : undefined;
+
   const result = await engine.summarizeTrace(
     [summarySpec],
-    undefined,
+    idsToRun,
     undefined,
     format === 'proto' ? 'proto' : 'prototext',
   );
@@ -383,14 +388,31 @@ interface MetricV2FetcherAttrs {
 
 class MetricV2Fetcher implements m.ClassComponent<MetricV2FetcherAttrs> {
   private text: string = '';
+  private metricIdsInput: string = '';
   // Store current attrs so callbacks can access latest values
   // (Editor caches callbacks in oncreate and doesn't update them)
   private currentAttrs?: MetricV2FetcherAttrs;
 
+  private parseMetricIds(): string[] | undefined {
+    const trimmed = this.metricIdsInput.trim();
+    if (trimmed === '') return undefined;
+    return trimmed
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id !== '');
+  }
+
   private runQuery() {
     const currentAttrs = this.currentAttrs;
     if (!currentAttrs) return;
-    getMetricV2(currentAttrs.engine, currentAttrs.mode, this.text, 'prototext')
+    const metricIds = this.parseMetricIds();
+    getMetricV2(
+      currentAttrs.engine,
+      currentAttrs.mode,
+      this.text,
+      'prototext',
+      metricIds,
+    )
       .then((result) => {
         currentAttrs.onExecuteRunMetric(okResult(result));
       })
@@ -420,6 +442,17 @@ class MetricV2Fetcher implements m.ClassComponent<MetricV2FetcherAttrs> {
           onclick: () => this.runQuery(),
         }),
       ),
+      attrs.mode === 'full-trace-summary' &&
+        m(
+          '.pf-metricsv2-page__metric-filter',
+          m(TextInput, {
+            placeholder: 'Metric IDs to run (comma-separated, empty = all)',
+            value: this.metricIdsInput,
+            onInput: (value: string) => {
+              this.metricIdsInput = value;
+            },
+          }),
+        ),
       m(
         '.pf-metricsv2-page__editor',
         m(Editor, {
