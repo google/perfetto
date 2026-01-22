@@ -23,7 +23,7 @@ import {
   DataSourceRows,
   Pagination,
 } from './data_source';
-import {Column, Filter, IdBasedTree, Pivot} from './model';
+import {AggregateFunction, Column, Filter, IdBasedTree, Pivot} from './model';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
@@ -721,7 +721,9 @@ ${joinClauses}`;
       } else {
         const sqlExpr = resolver.resolveColumnPath(agg.field);
         if (sqlExpr) {
-          selectClauses.push(`${agg.function}(${sqlExpr}) AS ${alias}`);
+          selectClauses.push(
+            `${aggregateFunctionToSql(agg.function, sqlExpr)} AS ${alias}`,
+          );
         }
       }
     }
@@ -913,7 +915,7 @@ WHERE ${expansionConstraint}
     const aggKey = (pivot.aggregates ?? [])
       .map((a) => {
         if (a.function === 'COUNT') return 'COUNT(*)';
-        return `${a.function}(${'field' in a ? a.field : ''})`;
+        return aggregateFunctionToSql(a.function, 'field' in a ? a.field : '');
       })
       .join(',');
     const cacheKey = `${baseTable}:${filterKey}:${groupByKey}:${aggKey}`;
@@ -951,8 +953,7 @@ WHERE ${expansionConstraint}
       .map((a) => {
         if (a.function === 'COUNT') return 'COUNT(*)';
         const field = 'field' in a ? a.field : '';
-        if (a.function === 'ANY') return `MIN(${field})`; // ANY -> MIN
-        return `${a.function}(${field})`;
+        return aggregateFunctionToSql(a.function, field);
       })
       .join(', ');
 
@@ -1354,4 +1355,14 @@ function comparePagination(a?: Pagination, b?: Pagination): boolean {
   if (!a && !b) return true;
   if (!a || !b) return false;
   return a.limit === b.limit && a.offset === b.offset;
+}
+
+function aggregateFunctionToSql(
+  func: AggregateFunction,
+  fieldExpr: string,
+): string {
+  if (func === 'ANY') {
+    return `MIN(${fieldExpr})`; // ANY maps to MIN
+  }
+  return `${func}(${fieldExpr})`;
 }
