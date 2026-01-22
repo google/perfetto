@@ -32,7 +32,8 @@ import {FilterNode} from './query_builder/nodes/filter_node';
 import {JoinNode} from './query_builder/nodes/join_node';
 import {UnionNode} from './query_builder/nodes/union_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
-import {NodeType, addConnection, removeConnection} from './query_node';
+import {NodeType} from './query_node';
+import {addConnection, removeConnection} from './query_builder/graph_utils';
 import {ColumnInfo} from './query_builder/column_info';
 import {FilterDuringNode} from './query_builder/nodes/filter_during_node';
 import {TimeRangeSourceNode} from './query_builder/nodes/sources/timerange_source';
@@ -87,7 +88,9 @@ describe('JSON serialization/deserialization', () => {
     const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -111,10 +114,12 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode.nodeId, {x: 10, y: 20}],
         [modifyNode.nodeId, {x: 100, y: 200}],
       ]),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -127,9 +132,12 @@ describe('JSON serialization/deserialization', () => {
     expect(
       (deserializedModifyNode as ModifyColumnsNode).primaryInput?.nodeId,
     ).toBe(deserializedTableNode.nodeId);
+    // Coordinates are normalized so top-left is at (minX, minY)
+    // Original: tableNode (10, 20), modifyNode (100, 200)
+    // After normalization: tableNode (0, 0), modifyNode (90, 180)
     expect(
       deserializedState.nodeLayouts.get(deserializedTableNode.nodeId),
-    ).toEqual({x: 10, y: 20});
+    ).toEqual({x: 0, y: 0});
   });
 
   test('serializes and deserializes aggregation node', () => {
@@ -166,7 +174,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -198,7 +208,9 @@ describe('JSON serialization/deserialization', () => {
     });
     const initialState: ExplorePageState = {
       rootNodes: [sqlNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -207,6 +219,62 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedNode = deserializedState.rootNodes[0] as SqlSourceNode;
     expect(deserializedNode.state.sql).toBe('SELECT * FROM slice');
+  });
+
+  test('serializes and deserializes sql source node with input connections', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('thread'),
+      trace,
+      sqlModules,
+    });
+
+    const sqlNode = new SqlSourceNode({
+      sql: 'SELECT * FROM $input_0 JOIN $input_1',
+      trace,
+    });
+
+    // Connect inputs
+    tableNode1.nextNodes.push(sqlNode);
+    tableNode2.nextNodes.push(sqlNode);
+    sqlNode.secondaryInputs.connections.set(0, tableNode1);
+    sqlNode.secondaryInputs.connections.set(1, tableNode2);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(2);
+
+    // Find the sql node in the deserialized graph
+    const deserializedTableNode1 = deserializedState.rootNodes[0];
+    const deserializedSqlNode = deserializedTableNode1
+      .nextNodes[0] as SqlSourceNode;
+
+    expect(deserializedSqlNode.state.sql).toBe(
+      'SELECT * FROM $input_0 JOIN $input_1',
+    );
+    expect(deserializedSqlNode.secondaryInputs.connections.size).toBe(2);
+    // The order of rootNodes is preserved during deserialization because
+    // rootNodeIds are serialized in order and restored in the same order.
+    // tableNode1 (slice) was connected to port 0, tableNode2 (thread) to port 1.
+    expect(deserializedSqlNode.secondaryInputs.connections.get(0)?.nodeId).toBe(
+      deserializedState.rootNodes[0].nodeId,
+    );
+    expect(deserializedSqlNode.secondaryInputs.connections.get(1)?.nodeId).toBe(
+      deserializedState.rootNodes[1].nodeId,
+    );
   });
 
   test('serializes and deserializes interval intersect node', () => {
@@ -230,7 +298,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -280,7 +350,6 @@ describe('JSON serialization/deserialization', () => {
     const intervalIntersectNode = new IntervalIntersectNode({
       inputNodes: [tableNode1, tableNode2, tableNode3],
       partitionColumns: ['name'],
-      filterNegativeDur: [true, false, true],
     });
     tableNode1.nextNodes.push(intervalIntersectNode);
     tableNode2.nextNodes.push(intervalIntersectNode);
@@ -288,7 +357,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, tableNode3],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -332,79 +403,6 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedIntervalIntersectNode.state.partitionColumns?.[0]).toBe(
       'name',
     );
-
-    // Verify filterNegativeDur array
-    expect(
-      deserializedIntervalIntersectNode.state.filterNegativeDur,
-    ).toBeDefined();
-    expect(
-      deserializedIntervalIntersectNode.state.filterNegativeDur?.length,
-    ).toBe(3);
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[0]).toBe(
-      true,
-    );
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[1]).toBe(
-      false,
-    );
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[2]).toBe(
-      true,
-    );
-  });
-
-  test('interval intersect node initializes filter to true by default', () => {
-    const tableNode1 = new TableSourceNode({
-      sqlTable: sqlModules.getTable('slice'),
-      trace,
-      sqlModules,
-    });
-
-    const tableNode2 = new TableSourceNode({
-      sqlTable: sqlModules.getTable('slice'),
-      trace,
-      sqlModules,
-    });
-
-    // Create interval intersect node WITHOUT specifying filterNegativeDur
-    const intervalIntersectNode = new IntervalIntersectNode({
-      inputNodes: [tableNode1, tableNode2],
-    });
-    tableNode1.nextNodes.push(intervalIntersectNode);
-    tableNode2.nextNodes.push(intervalIntersectNode);
-
-    // Verify that filterNegativeDur is initialized to true for all inputs
-    // This is the key fix - the array should be initialized with explicit true values
-    // so the UI checkbox state matches the actual filter behavior
-    expect(intervalIntersectNode.state.filterNegativeDur).toBeDefined();
-    expect(intervalIntersectNode.state.filterNegativeDur?.length).toBe(2);
-    expect(intervalIntersectNode.state.filterNegativeDur?.[0]).toBe(true);
-    expect(intervalIntersectNode.state.filterNegativeDur?.[1]).toBe(true);
-
-    // Serialize and deserialize to ensure the filter persists
-    const initialState: ExplorePageState = {
-      rootNodes: [tableNode1, tableNode2],
-      nodeLayouts: new Map(),
-    };
-
-    const json = serializeState(initialState);
-    const deserializedState = deserializeState(json, trace, sqlModules);
-
-    const deserializedTableNode1 = deserializedState.rootNodes[0];
-    const deserializedIntervalIntersectNode = deserializedTableNode1
-      .nextNodes[0] as IntervalIntersectNode;
-
-    // Verify filterNegativeDur is still true after deserialization
-    expect(
-      deserializedIntervalIntersectNode.state.filterNegativeDur,
-    ).toBeDefined();
-    expect(
-      deserializedIntervalIntersectNode.state.filterNegativeDur?.length,
-    ).toBe(2);
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[0]).toBe(
-      true,
-    );
-    expect(deserializedIntervalIntersectNode.state.filterNegativeDur?.[1]).toBe(
-      true,
-    );
   });
 
   test('serializes and deserializes sql source node with reference', () => {
@@ -421,7 +419,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -437,7 +437,7 @@ describe('JSON serialization/deserialization', () => {
     );
   });
 
-  test('serializes and deserializes node with filters', () => {
+  test('serializes and deserializes node with string filters', () => {
     const tableNode = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),
       trace,
@@ -457,7 +457,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -479,6 +481,52 @@ describe('JSON serialization/deserialization', () => {
     }
   });
 
+  test('serializes and deserializes node with numeric filters', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const filterNode = new FilterNode({
+      filters: [
+        {
+          column: 'dur',
+          op: '>',
+          value: 1000,
+        },
+      ],
+    });
+    addConnection(tableNode, filterNode);
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    expect(deserializedState.rootNodes.length).toBe(1);
+    const deserializedTableNode = deserializedState.rootNodes[0];
+    expect(deserializedTableNode.nextNodes.length).toBe(1);
+    const deserializedFilterNode = deserializedTableNode
+      .nextNodes[0] as FilterNode;
+    expect(deserializedFilterNode.state.filters?.length).toBe(1);
+    const filter = deserializedFilterNode.state.filters?.[0];
+    expect(filter?.column).toBe('dur');
+    expect(filter?.op).toBe('>');
+    if (filter !== undefined && 'value' in filter) {
+      // Numeric filters should remain as numbers after serialization/deserialization
+      expect(typeof filter.value).toBe('number');
+      expect(filter.value).toBe(1000);
+    } else {
+      fail('Filter value not found');
+    }
+  });
+
   test('serializes and deserializes node layouts', () => {
     const tableNode = new TableSourceNode({
       sqlTable: sqlModules.getTable('slice'),
@@ -490,10 +538,12 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode, sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode.nodeId, {x: 10, y: 20}],
         [sliceNode.nodeId, {x: 100, y: 200}],
       ]),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -503,12 +553,15 @@ describe('JSON serialization/deserialization', () => {
     const deserializedTableNode = deserializedState.rootNodes[0];
     const deserializedSliceNode = deserializedState.rootNodes[1];
 
+    // Coordinates are normalized so top-left is at (minX, minY)
+    // Original: tableNode (10, 20), sliceNode (100, 200)
+    // After normalization: tableNode (0, 0), sliceNode (90, 180)
     expect(
       deserializedState.nodeLayouts.get(deserializedTableNode.nodeId),
-    ).toEqual({x: 10, y: 20});
+    ).toEqual({x: 0, y: 0});
     expect(
       deserializedState.nodeLayouts.get(deserializedSliceNode.nodeId),
-    ).toEqual({x: 100, y: 200});
+    ).toEqual({x: 90, y: 180});
   });
 
   test('serializes and deserializes node with BigInt filter', () => {
@@ -531,7 +584,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -547,7 +602,10 @@ describe('JSON serialization/deserialization', () => {
     expect(filter?.column).toBe('id');
     expect(filter?.op).toBe('=');
     if (filter !== undefined && 'value' in filter) {
-      expect(filter.value).toBe('12345678901234567890');
+      // BigInt values are serialized as strings and then converted back to numbers.
+      // Note: Very large numbers may lose precision due to JavaScript Number limits.
+      expect(typeof filter.value).toBe('number');
+      expect(filter.value).toBe(Number('12345678901234567890'));
     } else {
       fail('Filter value not found');
     }
@@ -556,7 +614,9 @@ describe('JSON serialization/deserialization', () => {
   test('serializes and deserializes an empty graph', () => {
     const initialState: ExplorePageState = {
       rootNodes: [],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -584,7 +644,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     // Test with primaryInput
@@ -628,7 +690,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -664,7 +728,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -710,11 +776,13 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode1.nodeId, {x: 0, y: 0}],
         [addColumnsNode.nodeId, {x: 0, y: 100}],
         [tableNode2.nodeId, {x: -200, y: 100}],
       ]),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -758,16 +826,19 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedAddColumnsNode.state.leftColumn).toBe('id');
     expect(deserializedAddColumnsNode.state.rightColumn).toBe('id');
 
-    // Verify layouts are preserved
+    // Verify layouts are preserved (after normalization)
+    // Original: tableNode1 (0, 0), addColumnsNode (0, 100), tableNode2 (-200, 100)
+    // After normalization (minX=-200, minY=0):
+    // tableNode1 (200, 0), addColumnsNode (200, 100), tableNode2 (0, 100)
     expect(
       deserializedState.nodeLayouts.get(deserializedTableNode1.nodeId),
-    ).toEqual({x: 0, y: 0});
+    ).toEqual({x: 200, y: 0});
     expect(
       deserializedState.nodeLayouts.get(deserializedAddColumnsNode.nodeId),
-    ).toEqual({x: 0, y: 100});
+    ).toEqual({x: 200, y: 100});
     expect(
       deserializedState.nodeLayouts.get(deserializedTableNode2.nodeId),
-    ).toEqual({x: -200, y: 100});
+    ).toEqual({x: 0, y: 100});
   });
 
   test('add columns node uses renamed columns from modify columns node', () => {
@@ -835,7 +906,9 @@ describe('JSON serialization/deserialization', () => {
     // Now test serialization/deserialization preserves this
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -933,7 +1006,9 @@ describe('JSON serialization/deserialization', () => {
     // Serialize and deserialize
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -992,7 +1067,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1015,13 +1092,18 @@ describe('JSON serialization/deserialization', () => {
     });
 
     const sortNode = new SortNode({
-      sortColNames: ['name', 'ts'],
+      sortCriteria: [
+        {colName: 'name', direction: 'ASC'},
+        {colName: 'ts', direction: 'DESC'},
+      ],
     });
     addConnection(tableNode, sortNode);
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1031,7 +1113,10 @@ describe('JSON serialization/deserialization', () => {
     const deserializedTableNode = deserializedState.rootNodes[0];
     expect(deserializedTableNode.nextNodes.length).toBe(1);
     const deserializedNode = deserializedTableNode.nextNodes[0] as SortNode;
-    expect(deserializedNode.state.sortColNames).toEqual(['name', 'ts']);
+    expect(deserializedNode.state.sortCriteria).toEqual([
+      {colName: 'name', direction: 'ASC'},
+      {colName: 'ts', direction: 'DESC'},
+    ]);
   });
 
   test('serializes and deserializes filter node', () => {
@@ -1060,7 +1145,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1119,7 +1206,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1170,7 +1259,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1228,7 +1319,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1254,7 +1347,7 @@ describe('JSON serialization/deserialization', () => {
       "nodes": [
         {
           "nodeId": "0",
-          "type": ${NodeType.kMerge},
+          "type": "${NodeType.kMerge}",
           "state": {
             "leftQueryAlias": "left",
             "rightQueryAlias": "right",
@@ -1269,7 +1362,7 @@ describe('JSON serialization/deserialization', () => {
         },
         {
           "nodeId": "1",
-          "type": ${NodeType.kTable},
+          "type": "${NodeType.kTable}",
           "state": {
             "tableName": "slice",
             "columnNames": ["id", "ts", "dur", "name"]
@@ -1278,7 +1371,7 @@ describe('JSON serialization/deserialization', () => {
         },
         {
           "nodeId": "2",
-          "type": ${NodeType.kTable},
+          "type": "${NodeType.kTable}",
           "state": {
             "tableName": "slice",
             "columnNames": ["id", "ts", "dur", "name"]
@@ -1362,7 +1455,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, tableNode3],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1435,7 +1530,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1492,7 +1589,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1608,7 +1707,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1632,7 +1733,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [modifyColumnsNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     // Should be able to serialize without throwing
@@ -1710,7 +1813,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1797,7 +1902,7 @@ describe('JSON serialization/deserialization', () => {
     addConnection(modifyNode, aggregationNode);
 
     const sortNode = new SortNode({
-      sortColNames: ['total_dur_ms'],
+      sortCriteria: [{colName: 'total_dur_ms', direction: 'ASC'}],
     });
     addConnection(aggregationNode, sortNode);
 
@@ -1809,6 +1914,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode.nodeId, {x: 0, y: 0}],
         [filterNode.nodeId, {x: 0, y: 50}],
@@ -1817,6 +1923,7 @@ describe('JSON serialization/deserialization', () => {
         [sortNode.nodeId, {x: 0, y: 300}],
         [limitNode.nodeId, {x: 0, y: 400}],
       ]),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1886,7 +1993,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1908,7 +2017,9 @@ describe('JSON serialization/deserialization', () => {
     const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
     const serialized = serializeState(initialState);
 
@@ -1938,8 +2049,8 @@ describe('JSON serialization/deserialization', () => {
     const timeRangeNode = new TimeRangeSourceNode({trace});
 
     const filterDuringNode = new FilterDuringNode({
-      filterNegativeDurPrimary: true,
-      filterNegativeDurSecondary: false,
+      partitionColumns: ['utid'],
+      clipToIntervals: false,
     });
 
     // Connect slicesNode as primaryInput (from above)
@@ -1952,7 +2063,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [slicesNode, timeRangeNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -1980,13 +2093,11 @@ describe('JSON serialization/deserialization', () => {
       1,
     );
 
-    // Verify filter settings preserved
-    expect(deserializedFilterDuringNode.state.filterNegativeDurPrimary).toBe(
-      true,
-    );
-    expect(deserializedFilterDuringNode.state.filterNegativeDurSecondary).toBe(
-      false,
-    );
+    // Verify state preserved
+    expect(deserializedFilterDuringNode.state.partitionColumns).toEqual([
+      'utid',
+    ]);
+    expect(deserializedFilterDuringNode.state.clipToIntervals).toBe(false);
   });
 
   // ========================================
@@ -2013,7 +2124,9 @@ describe('JSON serialization/deserialization', () => {
     });
     addConnection(tableNode1, filterNode);
 
-    const sortNode = new SortNode({sortColNames: ['ts']});
+    const sortNode = new SortNode({
+      sortCriteria: [{colName: 'ts', direction: 'ASC'}],
+    });
     addConnection(tableNode2, sortNode);
 
     const sliceTable = sqlModules.getTable('slice')!;
@@ -2033,7 +2146,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -2076,7 +2191,9 @@ describe('JSON serialization/deserialization', () => {
     });
     addConnection(filterNode1, filterNode2);
 
-    const sortNode = new SortNode({sortColNames: ['ts']});
+    const sortNode = new SortNode({
+      sortCriteria: [{colName: 'ts', direction: 'ASC'}],
+    });
     addConnection(filterNode2, sortNode);
 
     const sliceTable = sqlModules.getTable('slice')!;
@@ -2109,7 +2226,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -2187,7 +2306,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, tableNode3],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -2234,7 +2355,9 @@ describe('JSON serialization/deserialization', () => {
     });
     addConnection(tableNode, filterNode);
 
-    const sortNode = new SortNode({sortColNames: ['ts']});
+    const sortNode = new SortNode({
+      sortCriteria: [{colName: 'ts', direction: 'ASC'}],
+    });
     addConnection(filterNode, sortNode);
 
     const limitNode = new LimitAndOffsetNode({limit: 10, offset: 0});
@@ -2249,7 +2372,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -2311,7 +2436,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, tableNode3],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -2364,7 +2491,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, unionNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -2399,7 +2528,9 @@ describe('JSON serialization/deserialization', () => {
       trace,
       sqlModules,
     });
-    const sortNode = new SortNode({sortColNames: ['ts']});
+    const sortNode = new SortNode({
+      sortCriteria: [{colName: 'ts', direction: 'ASC'}],
+    });
     addConnection(tableNode2, sortNode);
     const limitNode = new LimitAndOffsetNode({limit: 100, offset: 0});
     addConnection(sortNode, limitNode);
@@ -2409,7 +2540,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, slicesNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -2447,7 +2580,9 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [timeRangeNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
@@ -2482,6 +2617,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels,
     };
@@ -2489,26 +2625,47 @@ describe('JSON serialization/deserialization', () => {
     const json = serializeState(initialState);
     const deserializedState = deserializeState(json, trace, sqlModules);
 
-    expect(deserializedState.labels).toEqual(labels);
+    // Labels are normalized so top-left is at (minX, minY)
+    // Original: label-1 (100, 200), label-2 (400, 500)
+    // After normalization: label-1 (0, 0), label-2 (300, 300)
+    expect(deserializedState.labels).toEqual([
+      {
+        id: 'label-1',
+        x: 0,
+        y: 0,
+        width: 300,
+        text: 'First label',
+      },
+      {
+        id: 'label-2',
+        x: 300,
+        y: 300,
+        width: 250,
+        text: 'Second label',
+      },
+    ]);
   });
 
   test('handles state without labels', () => {
     const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
+      labels: [],
     };
 
     const json = serializeState(initialState);
     const deserializedState = deserializeState(json, trace, sqlModules);
 
-    expect(deserializedState.labels).toBeUndefined();
+    expect(deserializedState.labels).toEqual([]);
   });
 
   test('handles empty labels array', () => {
     const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2540,6 +2697,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels,
     };
@@ -2548,5 +2706,121 @@ describe('JSON serialization/deserialization', () => {
     const deserializedState = deserializeState(json, trace, sqlModules);
 
     expect(deserializedState.labels).toEqual(labels);
+  });
+
+  test('normalizes coordinates so top-left corner starts at minimum coordinates', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const sliceNode = new SlicesSourceNode({});
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode, sliceNode],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map([
+        [tableNode.nodeId, {x: 500, y: 300}],
+        [sliceNode.nodeId, {x: 800, y: 600}],
+      ]),
+      labels: [
+        {
+          id: 'label-1',
+          x: 400,
+          y: 250,
+          width: 100,
+          text: 'Test label',
+        },
+      ],
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    // After normalization, the minimum coordinates (400, 250) become (0, 0)
+    // All other coordinates are shifted accordingly
+    const tableNodeId = deserializedState.rootNodes[0].nodeId;
+    const sliceNodeId = deserializedState.rootNodes[1].nodeId;
+
+    expect(deserializedState.nodeLayouts.get(tableNodeId)).toEqual({
+      x: 100,
+      y: 50,
+    }); // (500-400, 300-250)
+    expect(deserializedState.nodeLayouts.get(sliceNodeId)).toEqual({
+      x: 400,
+      y: 350,
+    }); // (800-400, 600-250)
+    expect(deserializedState.labels[0]).toEqual({
+      id: 'label-1',
+      x: 0,
+      y: 0,
+      width: 100,
+      text: 'Test label',
+    }); // (400-400, 250-250)
+  });
+
+  test('does not modify coordinates when already normalized at (0, 0)', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map([[tableNode.nodeId, {x: 0, y: 0}]]),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const deserializedState = deserializeState(json, trace, sqlModules);
+
+    const tableNodeId = deserializedState.rootNodes[0].nodeId;
+    expect(deserializedState.nodeLayouts.get(tableNodeId)).toEqual({
+      x: 0,
+      y: 0,
+    });
+  });
+
+  test('serializeState normalizes coordinates in the exported JSON', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const sliceNode = new SlicesSourceNode({});
+
+    // State with non-zero minimum coordinates
+    const initialState: ExplorePageState = {
+      rootNodes: [tableNode, sliceNode],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map([
+        [tableNode.nodeId, {x: 500, y: 300}],
+        [sliceNode.nodeId, {x: 800, y: 600}],
+      ]),
+      labels: [{id: 'label-1', x: 400, y: 250, width: 100, text: 'Test label'}],
+    };
+
+    const json = serializeState(initialState);
+    const parsed = JSON.parse(json);
+
+    // The exported JSON should have normalized coordinates
+    // Minimum is (400, 250) from the label, so all coordinates shift by that
+    expect(parsed.nodeLayouts[tableNode.nodeId]).toEqual({
+      x: 100,
+      y: 50,
+    }); // (500-400, 300-250)
+    expect(parsed.nodeLayouts[sliceNode.nodeId]).toEqual({
+      x: 400,
+      y: 350,
+    }); // (800-400, 600-250)
+    expect(parsed.labels[0]).toEqual({
+      id: 'label-1',
+      x: 0,
+      y: 0,
+      width: 100,
+      text: 'Test label',
+    }); // (400-400, 250-250)
   });
 });

@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {exists} from '../../base/utils';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {WattsonAggregationPanel} from './aggregation_panel';
+import {SqlValue} from '../../trace_processor/query_result';
+import {SegmentedButtons} from '../../widgets/segmented_buttons';
 
 export class WattsonThreadSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_thread_aggregation';
-  readonly Panel = WattsonAggregationPanel;
+  private scaleNumericData: boolean = false;
 
   probe(area: AreaSelection): Aggregation | undefined {
     const selectedCpus: number[] = [];
@@ -128,6 +130,28 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
     };
   }
 
+  renderTopbarControls(): m.Children {
+    return m(SegmentedButtons, {
+      options: [{label: 'µW'}, {label: 'mW'}],
+      selectedOption: this.scaleNumericData ? 0 : 1,
+      onOptionSelected: (index) => {
+        this.scaleNumericData = index === 0;
+      },
+      title: 'Select power units',
+    });
+  }
+
+  private powerUnits(): string {
+    return this.scaleNumericData ? 'µW' : 'mW';
+  }
+
+  private renderMilliwatts(value: SqlValue): m.Children {
+    if (this.scaleNumericData && typeof value === 'number') {
+      return value * 1000;
+    }
+    return String(value);
+  }
+
   getColumnDefinitions(): ColumnDef[] {
     return [
       {
@@ -145,28 +169,29 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
         formatHint: 'NUMERIC',
       },
       {
-        title: 'Active power (estimated mW)',
+        title: `Active power (estimated ${this.powerUnits()})`,
         columnId: 'active_mw',
         sum: true,
-        formatHint: 'NUMERIC',
+        cellRenderer: this.renderMilliwatts.bind(this),
       },
       {
-        title: 'Active energy (estimated mWs)',
+        title: `Active energy (estimated ${this.powerUnits()}s)`,
         columnId: 'active_mws',
         sum: true,
-        formatHint: 'NUMERIC',
+        cellRenderer: this.renderMilliwatts.bind(this),
+        sort: 'DESC',
       },
       {
-        title: 'Idle transitions overhead (estimated mWs)',
+        title: `Idle transitions overhead (estimated ${this.powerUnits()}s)`,
         columnId: 'idle_cost_mws',
         sum: false,
-        formatHint: 'NUMERIC',
+        cellRenderer: this.renderMilliwatts.bind(this),
       },
       {
-        title: 'Total energy (estimated mWs)',
+        title: `Total energy (estimated ${this.powerUnits()}s)`,
         columnId: 'total_mws',
         sum: true,
-        formatHint: 'NUMERIC',
+        cellRenderer: this.renderMilliwatts.bind(this),
       },
       {
         title: '% of total energy',
@@ -179,9 +204,5 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Wattson by thread';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'active_mws', direction: 'DESC'};
   }
 }

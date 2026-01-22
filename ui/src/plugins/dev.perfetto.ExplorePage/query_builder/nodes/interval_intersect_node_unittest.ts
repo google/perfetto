@@ -14,7 +14,8 @@
 
 import {IntervalIntersectNode} from './interval_intersect_node';
 import {ModifyColumnsNode} from './modify_columns_node';
-import {QueryNode, notifyNextNodes} from '../../query_node';
+import {QueryNode} from '../../query_node';
+import {notifyNextNodes} from '../graph_utils';
 import {ColumnInfo} from '../column_info';
 import {
   PerfettoSqlType,
@@ -60,70 +61,6 @@ describe('IntervalIntersectNode', () => {
   }
 
   describe('constructor', () => {
-    it('should initialize with default filterNegativeDur as true', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
-
-      expect(node.state.filterNegativeDur).toEqual([true, true]);
-    });
-
-    it('should preserve provided filterNegativeDur values', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-        filterNegativeDur: [false, true],
-      });
-
-      expect(node.state.filterNegativeDur).toEqual([false, true]);
-    });
-
-    it('should fill missing filterNegativeDur indices with true', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2, node3],
-        filterNegativeDur: [false],
-      });
-
-      expect(node.state.filterNegativeDur).toEqual([false, true, true]);
-    });
-
     it('should set autoExecute to false by default', () => {
       const node = new IntervalIntersectNode({
         inputNodes: [],
@@ -784,7 +721,6 @@ describe('IntervalIntersectNode', () => {
 
       const node = new IntervalIntersectNode({
         inputNodes: [node1, node2],
-        filterNegativeDur: [true, false],
         partitionColumns: ['utid'],
       });
 
@@ -792,7 +728,6 @@ describe('IntervalIntersectNode', () => {
 
       expect(cloned).toBeInstanceOf(IntervalIntersectNode);
       expect(cloned.nodeId).not.toBe(node.nodeId);
-      expect(cloned.state.filterNegativeDur).toEqual([true, false]);
       expect(cloned.state.partitionColumns).toEqual(['utid']);
     });
 
@@ -810,18 +745,15 @@ describe('IntervalIntersectNode', () => {
 
       const node = new IntervalIntersectNode({
         inputNodes: [node1, node2],
-        filterNegativeDur: [true, false],
         partitionColumns: ['utid'],
       });
 
       const cloned = node.clone() as IntervalIntersectNode;
 
       // Modify cloned arrays
-      cloned.state.filterNegativeDur![0] = false;
       cloned.state.partitionColumns!.push('upid');
 
       // Original should not be affected
-      expect(node.state.filterNegativeDur).toEqual([true, false]);
       expect(node.state.partitionColumns).toEqual(['utid']);
     });
   });
@@ -846,7 +778,6 @@ describe('IntervalIntersectNode', () => {
 
       const node = new IntervalIntersectNode({
         inputNodes: [node1, node2, node3],
-        filterNegativeDur: [true, false, true],
         partitionColumns: ['utid'],
       });
 
@@ -854,7 +785,6 @@ describe('IntervalIntersectNode', () => {
 
       // All input node IDs are now serialized
       expect(serialized.intervalNodes).toEqual(['node1', 'node2', 'node3']);
-      expect(serialized.filterNegativeDur).toEqual([true, false, true]);
       expect(serialized.partitionColumns).toEqual(['utid']);
     });
 
@@ -909,7 +839,6 @@ describe('IntervalIntersectNode', () => {
       const serialized = {
         // All input node IDs are stored
         intervalNodes: ['node1', 'node2', 'node3'],
-        filterNegativeDur: [true, false, true],
         partitionColumns: ['utid'],
       };
 
@@ -941,7 +870,6 @@ describe('IntervalIntersectNode', () => {
       const serialized = {
         // Include a missing node ID to test graceful handling
         intervalNodes: ['node1', 'node2', 'node_missing'],
-        filterNegativeDur: [true, false, true],
         partitionColumns: ['utid'],
       };
 
@@ -952,93 +880,6 @@ describe('IntervalIntersectNode', () => {
 
       // Should only include found nodes (node_missing is filtered out)
       expect(deserialized.inputNodes).toEqual([node1, node2]);
-    });
-  });
-
-  describe('onPrevNodesUpdated', () => {
-    it('should initialize filterNegativeDur when undefined', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
-
-      // Clear filterNegativeDur
-      node.state.filterNegativeDur = undefined;
-
-      node.onPrevNodesUpdated();
-
-      expect(node.state.filterNegativeDur).toBeDefined();
-      expect(node.state.filterNegativeDur).toEqual([true, true]);
-    });
-
-    it('should compact filterNegativeDur when inputNodes shrinks', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2, node3],
-        filterNegativeDur: [true, false, true],
-      });
-
-      // Remove one input node
-      node.secondaryInputs.connections.delete(2);
-
-      node.onPrevNodesUpdated();
-
-      expect(node.state.filterNegativeDur).toEqual([true, false]);
-    });
-
-    it('should expand filterNegativeDur when inputNodes grows', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-        filterNegativeDur: [true, false],
-      });
-
-      // Add another input node
-      node.secondaryInputs.connections.set(2, node3);
-
-      node.onPrevNodesUpdated();
-
-      expect(node.state.filterNegativeDur).toEqual([true, false, true]);
     });
   });
 

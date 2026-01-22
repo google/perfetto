@@ -47,6 +47,7 @@ enum FtraceFieldType {
   kFtraceDevId32,
   kFtraceDevId64,
   kFtraceDataLoc,
+  kFtraceDataLocUint8,
   kFtraceSymAddr32,
   kFtraceSymAddr64,
 };
@@ -84,6 +85,7 @@ enum TranslationStrategy {
   kDevId32ToUint64,
   kDevId64ToUint64,
   kDataLocToString,
+  kDataLocUint8ToBytes,
   kFtraceSymAddr32ToUint64,
   kFtraceSymAddr64ToUint64,
 };
@@ -128,6 +130,8 @@ inline const char* ToString(FtraceFieldType v) {
       return "devid64";
     case kFtraceDataLoc:
       return "__data_loc";
+    case kFtraceDataLocUint8:
+      return "__data_loc u8[]";
     case kFtraceSymAddr32:
     case kFtraceSymAddr64:
       return "void*";

@@ -442,7 +442,7 @@ TEST(PerfettoTracedIntegrationTest, TraceFilterLargePackets) {
   filt.AddSimpleFieldRange(1, 1000);
   filt.EndMessage();
 
-  trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize());
+  trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize().bytecode);
 
   // The data source is configured to emit another batch when it is started via
   // send_batch_on_register in the TestConfig.

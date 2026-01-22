@@ -2,7 +2,7 @@
   "nodes": [
     {
       "nodeId": "8",
-      "type": 1,
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
         "9"
@@ -10,7 +10,7 @@
     },
     {
       "nodeId": "10",
-      "type": 3,
+      "type": "time_range_source",
       "state": {
         "isDynamic": true
       },
@@ -20,14 +20,12 @@
     },
     {
       "nodeId": "9",
-      "type": 7,
+      "type": "filter_during",
       "state": {
         "primaryInputId": "8",
         "secondaryInputNodeIds": [
           "10"
         ],
-        "filterNegativeDurPrimary": true,
-        "filterNegativeDurSecondary": true,
         "partitionColumns": []
       },
       "nextNodes": [
@@ -36,7 +34,7 @@
     },
     {
       "nodeId": "11",
-      "type": 4,
+      "type": "aggregation",
       "state": {
         "primaryInputId": "9",
         "groupByColumns": [

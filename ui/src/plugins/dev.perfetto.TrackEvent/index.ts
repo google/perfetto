@@ -41,6 +41,13 @@ import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/calls
 import {Store} from '../../base/store';
 import {z} from 'zod';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import ThreadPlugin from '../dev.perfetto.Thread';
+import ProcessSummaryPlugin from '../dev.perfetto.ProcessSummary';
+import {
+  Config as SliceTrackSummaryConfig,
+  SLICE_TRACK_SUMMARY_KIND,
+  GroupSummaryTrack,
+} from '../dev.perfetto.ProcessSummary/group_summary_track';
 
 function createTrackEventDetailsPanel(trace: Trace) {
   return () =>
@@ -60,6 +67,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
     TraceProcessorTrackPlugin,
+    ThreadPlugin,
+    ProcessSummaryPlugin,
   ];
 
   private parentTrackNodes = new Map<string, TrackNode>();
@@ -150,6 +159,14 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       ProcessThreadGroupsPlugin,
     );
     const trackIdToTrackNode = new Map<number, TrackNode>();
+
+    // Get CPU count and threads for summary tracks
+    const cpuCountResult = await ctx.engine.query(`
+      SELECT COUNT(*) as cpu_count FROM cpu WHERE IFNULL(machine_id, 0) = 0
+    `);
+    const cpuCount = cpuCountResult.firstRow({cpu_count: NUM}).cpu_count;
+    const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
+
     for (; it.valid(); it.next()) {
       const {
         upid,
@@ -248,6 +265,33 @@ export default class TrackEventPlugin implements PerfettoPlugin {
                 : undefined,
           }),
         });
+      } else {
+        // Summary track with no data but has children - use SliceTrackSummary
+        const config: SliceTrackSummaryConfig = {
+          pidForColor: pid ?? 0,
+          upid: upid ?? null,
+          utid: utid ?? null,
+        };
+
+        const track = new GroupSummaryTrack(
+          ctx,
+          config,
+          cpuCount,
+          threads,
+          false,
+        );
+        ctx.tracks.registerTrack({
+          uri,
+          description: description ?? undefined,
+          tags: {
+            kinds: [SLICE_TRACK_SUMMARY_KIND],
+            trackIds: trackIds,
+            upid: upid ?? undefined,
+            utid: utid ?? undefined,
+            trackEvent: true,
+          },
+          renderer: track,
+        });
       }
       const parent = this.findParentTrackNode(
         ctx,
@@ -326,8 +370,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     if (trackIds.length === 0) {
       return undefined;
     }
-    const metrics = metricsFromTableOrSubquery(
-      `
+    const metrics = metricsFromTableOrSubquery({
+      tableOrSubquery: `
       (
         with relevant_slices as (
           select id
@@ -371,26 +415,29 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         ))
       )
     `,
-      [
+      tableMetrics: [
         {
           name: 'Samples',
           unit: '',
           columnName: 'self_count',
         },
       ],
-      `
+      dependencySql: `
      include perfetto module callstacks.stack_profile;
      include perfetto module intervals.intersect;
     `,
-      [{name: 'mapping_name', displayName: 'Mapping'}],
-      [
+      unaggregatableProperties: [
+        {name: 'mapping_name', displayName: 'Mapping'},
+      ],
+      aggregatableProperties: [
         {
           name: 'source_location',
           displayName: 'Source Location',
           mergeAggregation: 'ONE_OR_SUMMARY',
         },
       ],
-    );
+      nameColumnLabel: 'Symbol',
+    });
     const store = assertExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(

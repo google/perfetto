@@ -5006,4 +5006,919 @@ TEST(StructuredQueryGeneratorTest, ExperimentalTimeRangeStaticMissingDur) {
               testing::HasSubstr("dur is required for STATIC mode"));
 }
 
+// ============================================================================
+// ExperimentalFilterToIntervals Tests
+// ============================================================================
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterToIntervalsBasic) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_2 AS (
+      SELECT * FROM time_windows
+    ),
+    sq_1 AS (
+      SELECT * FROM slice
+    ),
+    sq_0 AS (
+      SELECT * FROM (
+        WITH fti_base AS (SELECT * FROM sq_1),
+        fti_intervals_raw AS (SELECT * FROM sq_2),
+        fti_intervals AS (
+          SELECT
+            ROW_NUMBER() OVER (ORDER BY ts) AS id,
+            ts,
+            dur
+          FROM interval_merge_overlapping!(fti_intervals_raw, 0)
+        )
+        SELECT ii.ts, ii.dur, base_0.*
+        FROM _interval_intersect!((fti_base, fti_intervals), ()) ii
+        JOIN fti_base AS base_0 ON ii.id_0 = base_0.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+  ASSERT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("intervals.intersect", "intervals.overlap"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithClipToIntervalsFalse) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      clip_to_intervals: false
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When clip_to_intervals is false, select only base_0.* (no duplicates)
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_2 AS (
+      SELECT * FROM time_windows
+    ),
+    sq_1 AS (
+      SELECT * FROM slice
+    ),
+    sq_0 AS (
+      SELECT * FROM (
+        WITH fti_base AS (SELECT * FROM sq_1),
+        fti_intervals_raw AS (SELECT * FROM sq_2),
+        fti_intervals AS (
+          SELECT
+            ROW_NUMBER() OVER (ORDER BY ts) AS id,
+            ts,
+            dur
+          FROM interval_merge_overlapping!(fti_intervals_raw, 0)
+        )
+        SELECT base_0.*
+        FROM _interval_intersect!((fti_base, fti_intervals), ()) ii
+        JOIN fti_base AS base_0 ON ii.id_0 = base_0.id
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithClipToIntervalsTrue) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      clip_to_intervals: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When clip_to_intervals is true, use ii.ts and ii.dur
+  EXPECT_THAT(res, testing::HasSubstr("ii.ts, ii.dur"));
+  // Should merge overlapping intervals
+  EXPECT_THAT(res, testing::HasSubstr("interval_merge_overlapping!"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithPartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "thread_slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      partition_columns: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should include utid in the partition columns for interval_intersect
+  EXPECT_THAT(res, testing::HasSubstr("_interval_intersect!((fti_base, "
+                                      "fti_intervals), (utid))"));
+  // Should use partitioned merge for overlapping intervals
+  EXPECT_THAT(res, testing::HasSubstr("interval_merge_overlapping_partitioned!"
+                                      "(fti_intervals_raw, (utid))"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithMultiplePartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "thread_slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      partition_columns: "utid"
+      partition_columns: "upid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should include both partition columns for interval_intersect
+  EXPECT_THAT(res, testing::HasSubstr("_interval_intersect!((fti_base, "
+                                      "fti_intervals), (utid, upid))"));
+  // Should use partitioned merge with first partition column
+  EXPECT_THAT(res, testing::HasSubstr("interval_merge_overlapping_partitioned!"
+                                      "(fti_intervals_raw, (utid))"));
+  // fti_intervals should include both partition columns
+  EXPECT_THAT(res, testing::HasSubstr("utid"));
+  EXPECT_THAT(res, testing::HasSubstr("upid"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterToIntervalsWithFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+        filters: {
+          column_name: "name"
+          op: GLOB
+          string_rhs: "foo*"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Filter should be applied to the base query
+  EXPECT_THAT(res, testing::HasSubstr("name GLOB 'foo*'"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterToIntervalsMissingBase) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(
+      ret.status().message(),
+      testing::HasSubstr("FilterToIntervals must specify a base query"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsMissingIntervals) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(
+      ret.status().message(),
+      testing::HasSubstr("FilterToIntervals must specify an intervals query"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithReservedPartitionColumnId) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      partition_columns: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'id' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithReservedPartitionColumnTs) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      partition_columns: "ts"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'ts' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithReservedPartitionColumnDur) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      partition_columns: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'dur' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithDuplicatePartitionColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      partition_columns: "utid"
+      partition_columns: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'utid' is duplicated"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithEmptyPartitionColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      partition_columns: ""
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column cannot be empty"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithSimpleSlices) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        simple_slices: {
+          slice_name_glob: "foo*"
+          process_name_glob: "system_server"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  EXPECT_THAT(res, testing::HasSubstr("thread_or_process_slice"));
+  EXPECT_THAT(res, testing::HasSubstr("slice_name GLOB 'foo*'"));
+  EXPECT_THAT(res, testing::HasSubstr("process_name GLOB 'system_server'"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterToIntervalsWithGroupBy) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+    }
+    group_by: {
+      column_names: "name"
+      aggregates: {
+        column_name: "dur"
+        op: SUM
+        result_column_name: "total_dur"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  EXPECT_THAT(res, testing::HasSubstr("GROUP BY name"));
+  EXPECT_THAT(res, testing::HasSubstr("SUM(dur)"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithOrderByAndLimit) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+    }
+    order_by: {
+      ordering_specs: {
+        column_name: "ts"
+        direction: ASC
+      }
+    }
+    limit: 100
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  EXPECT_THAT(res, testing::HasSubstr("ORDER BY ts ASC"));
+  EXPECT_THAT(res, testing::HasSubstr("LIMIT 100"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithCaseInsensitiveReservedColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      partition_columns: "ID"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().message(),
+              testing::HasSubstr("Partition column 'ID' is reserved"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithSelectColumnsAndClipTrue) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      select_columns: "id"
+      select_columns: "name"
+      select_columns: "depth"
+      clip_to_intervals: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When select_columns is specified with clip_to_intervals=true,
+  // should select ii.ts, ii.dur, then the specified columns
+  EXPECT_THAT(
+      res, testing::HasSubstr(
+               "SELECT ii.ts, ii.dur, base_0.id, base_0.name, base_0.depth"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithSelectColumnsAndClipFalse) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      select_columns: "id"
+      select_columns: "ts"
+      select_columns: "dur"
+      select_columns: "name"
+      clip_to_intervals: false
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When select_columns is specified with clip_to_intervals=false,
+  // preserve exact order from select_columns (no reordering)
+  EXPECT_THAT(res, testing::HasSubstr(
+                       "SELECT base_0.id, base_0.ts, base_0.dur, base_0.name"));
+}
+
+TEST(
+    StructuredQueryGeneratorTest,
+    ExperimentalFilterToIntervalsWithSelectColumnsIncludingTsAndDurWithClipTrue) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      select_columns: "id"
+      select_columns: "ts"
+      select_columns: "dur"
+      select_columns: "name"
+      clip_to_intervals: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When select_columns includes ts and dur with clip_to_intervals=true,
+  // should have ii.ts, ii.dur first, then other columns, then
+  // original_ts/original_dur at the end
+  EXPECT_THAT(res,
+              testing::HasSubstr(
+                  "SELECT ii.ts, ii.dur, base_0.id, base_0.name, base_0.ts AS "
+                  "original_ts, base_0.dur AS original_dur"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithSelectColumnsOnlyTsAndDurWithClipFalse) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      select_columns: "ts"
+      select_columns: "dur"
+      clip_to_intervals: false
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When select_columns contains only ts and dur with clip_to_intervals=false,
+  // they should NOT be aliased (just base_0.ts, base_0.dur)
+  EXPECT_THAT(res, testing::HasSubstr("SELECT base_0.ts, base_0.dur"));
+}
+
+TEST(
+    StructuredQueryGeneratorTest,
+    ExperimentalFilterToIntervalsWithSelectColumnsIncludingTsAndDurOrderVerification) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      select_columns: "id"
+      select_columns: "ts"
+      select_columns: "dur"
+      select_columns: "name"
+      clip_to_intervals: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When clip_to_intervals=true and select_columns includes ts and dur,
+  // verify column order: ii.ts, ii.dur first, then other non-ts/dur columns,
+  // then original_ts and original_dur at the end
+  EXPECT_THAT(res,
+              testing::HasSubstr(
+                  "SELECT ii.ts, ii.dur, base_0.id, base_0.name, base_0.ts AS "
+                  "original_ts, base_0.dur AS original_dur"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithEmptySelectColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      clip_to_intervals: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When select_columns is not specified (empty), should select all columns
+  // from base using base_0.* with clipped ts/dur prepended
+  EXPECT_THAT(res, testing::HasSubstr("SELECT ii.ts, ii.dur, base_0.*"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithNonExistentColumn) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      select_columns: "id"
+      select_columns: "nonexistent_column"
+      select_columns: "name"
+      clip_to_intervals: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Generation succeeds even with non-existent columns - they will fail at SQL
+  // execution time. Verify the query includes the non-existent column
+  // reference.
+  EXPECT_THAT(res, testing::HasSubstr("base_0.id, base_0.nonexistent_column, "
+                                      "base_0.name"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalFilterToIntervalsNested) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        experimental_filter_to_intervals: {
+          base: {
+            table: {
+              table_name: "slice"
+            }
+          }
+          intervals: {
+            table: {
+              table_name: "time_windows_1"
+            }
+          }
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows_2"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Should generate nested FilterToIntervals operations
+  // Verify both interval sources are referenced
+  EXPECT_THAT(res, testing::HasSubstr("time_windows_1"));
+  EXPECT_THAT(res, testing::HasSubstr("time_windows_2"));
+  // Verify nested CTEs are created
+  EXPECT_THAT(res, testing::HasSubstr("fti_base"));
+  EXPECT_THAT(res, testing::HasSubstr("fti_intervals"));
+  // Should have multiple levels of subqueries
+  std::string::size_type pos = 0;
+  int count = 0;
+  while ((pos = res.find("fti_base", pos)) != std::string::npos) {
+    ++count;
+    pos += 8;  // length of "fti_base"
+  }
+  // Should have at least 2 occurrences (one for outer, one for inner)
+  EXPECT_GE(count, 2);
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithOnlyTsInSelectColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      select_columns: "id"
+      select_columns: "ts"
+      select_columns: "name"
+      clip_to_intervals: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When only ts is in select_columns (not dur), should have:
+  // ii.ts, ii.dur, then id, name, then original_ts at the end
+  EXPECT_THAT(res, testing::HasSubstr("SELECT ii.ts, ii.dur, base_0.id, "
+                                      "base_0.name, base_0.ts AS original_ts"));
+  // Should NOT have original_dur since dur wasn't in select_columns
+  EXPECT_THAT(res, testing::Not(testing::HasSubstr("original_dur")));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalFilterToIntervalsWithOnlyDurInSelectColumns) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_to_intervals: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      intervals: {
+        table: {
+          table_name: "time_windows"
+        }
+      }
+      select_columns: "id"
+      select_columns: "dur"
+      select_columns: "name"
+      clip_to_intervals: true
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // When only dur is in select_columns (not ts), should have:
+  // ii.ts, ii.dur, then id, name, then original_dur at the end
+  EXPECT_THAT(res,
+              testing::HasSubstr("SELECT ii.ts, ii.dur, base_0.id, "
+                                 "base_0.name, base_0.dur AS original_dur"));
+  // Should NOT have original_ts since ts wasn't in select_columns
+  EXPECT_THAT(res, testing::Not(testing::HasSubstr("original_ts")));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalCounterIntervalsBasic) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_counter_intervals: {
+      input_query: {
+        table: {
+          table_name: "counter"
+          column_names: "id"
+          column_names: "ts"
+          column_names: "track_id"
+          column_names: "value"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  EXPECT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_1 AS (SELECT * FROM counter),
+    sq_0 AS (
+      SELECT * FROM (SELECT * FROM counter_leading_intervals!(sq_1))
+    )
+    SELECT * FROM sq_0
+  )"));
+  // Verify the module was referenced
+  EXPECT_THAT(gen.ComputeReferencedModules(),
+              UnorderedElementsAre("counters.intervals"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalCounterIntervalsNested) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_counter_intervals: {
+      input_query: {
+        table: {
+          table_name: "counter"
+          column_names: "id"
+          column_names: "ts"
+          column_names: "track_id"
+          column_names: "value"
+        }
+        filters: {
+          column_name: "track_id"
+          op: EQUAL
+          int64_rhs: 42
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  EXPECT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_1 AS (
+      SELECT *
+      FROM counter
+      WHERE track_id = 42
+    ),
+    sq_0 AS (
+      SELECT * FROM (SELECT * FROM counter_leading_intervals!(sq_1))
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest,
+     ExperimentalCounterIntervalsWithIntervalIntersect) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    interval_intersect: {
+      base: {
+        experimental_counter_intervals: {
+          input_query: {
+            table: {
+              table_name: "counter"
+              column_names: "id"
+              column_names: "ts"
+              column_names: "track_id"
+              column_names: "value"
+            }
+          }
+        }
+      }
+      interval_intersect: {
+        table: {
+          table_name: "slices"
+          column_names: "id"
+          column_names: "ts"
+          column_names: "dur"
+        }
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  // Verify that counter_leading_intervals is used
+  EXPECT_THAT(res, testing::HasSubstr("counter_leading_intervals!"));
+  // Verify that _interval_intersect is used
+  EXPECT_THAT(res, testing::HasSubstr("_interval_intersect!"));
+  // Verify the modules were referenced
+  EXPECT_THAT(
+      gen.ComputeReferencedModules(),
+      UnorderedElementsAre("counters.intervals", "intervals.intersect"));
+}
+
+TEST(StructuredQueryGeneratorTest, ExperimentalCounterIntervalsMissingInput) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_counter_intervals: {
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  EXPECT_FALSE(ret.ok());
+  EXPECT_THAT(ret.status().c_message(),
+              testing::HasSubstr("must specify an input_query"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

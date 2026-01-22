@@ -28,7 +28,7 @@ import {
 
 const docs = defer<SqlModulesDocsSchema>();
 
-export default class implements PerfettoPlugin {
+export default class SqlModulesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
 
   private sqlModules: SqlModules | undefined;
@@ -42,7 +42,7 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     docs.then(async (resolvedDocs) => {
       const impl = new SqlModulesImpl(trace, resolvedDocs);
-      await impl.waitForInit();
+      // Don't initialize immediately - let consumers trigger it when needed
       this.sqlModules = impl;
       m.redraw();
     });
@@ -104,6 +104,13 @@ export default class implements PerfettoPlugin {
 
   getSqlModules(): SqlModules | undefined {
     return this.sqlModules;
+  }
+
+  ensureInitialized(): Promise<void> {
+    if (this.sqlModules) {
+      return this.sqlModules.ensureInitialized();
+    }
+    return Promise.resolve();
   }
 }
 

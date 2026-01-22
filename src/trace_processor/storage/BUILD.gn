@@ -26,6 +26,7 @@ source_set("storage") {
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
     "../containers",
+    "../dataframe",
     "../tables",
     "../types",
   ]

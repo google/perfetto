@@ -74,7 +74,11 @@ CREATE PERFETTO VIEW android_winscope_trace_rect (
   -- Opacity
   opacity DOUBLE,
   -- Transform id
-  transform_id LONG
+  transform_id LONG,
+  -- Border width
+  border_width LONG,
+  -- Border color
+  border_color DOUBLE
 ) AS
 SELECT
   *

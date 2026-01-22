@@ -201,8 +201,8 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     if (!hasDayExplorer) {
       return undefined;
     }
-    const metrics = metricsFromTableOrSubquery(
-      `
+    const metrics = metricsFromTableOrSubquery({
+      tableOrSubquery: `
         (
           WITH
             total_energy AS (
@@ -230,14 +230,15 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
           FROM with_child
         )
       `,
-      [
+      tableMetrics: [
         {
-          name: 'Energy mWs',
-          unit: '',
+          name: 'Energy',
+          unit: 'mWs',
           columnName: 'self_count',
         },
       ],
-    );
+      nameColumnLabel: 'Component',
+    });
     const store = assertExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(

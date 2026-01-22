@@ -16,21 +16,29 @@
 
 #include "src/protozero/filtering/filter_util.h"
 
-#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <deque>
 #include <map>
-#include <memory>
+#include <optional>
 #include <set>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include <google/protobuf/compiler/importer.h>
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/descriptor.pb.h>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/getopt.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/protozero/proto_utils.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
+
+#include "protos/perfetto/common/semantic_type.pbzero.h"
+#include "protos/perfetto/proto_filtering/proto_filter_options.pb.h"
 
 namespace protozero {
 
@@ -41,18 +49,18 @@ class MultiFileErrorCollectorImpl
  public:
   ~MultiFileErrorCollectorImpl() override = default;
 #if GOOGLE_PROTOBUF_VERSION >= 4022000
-  void RecordError(absl::string_view filename,
+  void RecordError(std::string_view filename,
                    int line,
                    int column,
-                   absl::string_view message) override {
+                   std::string_view message) override {
     PERFETTO_ELOG("Error %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
                   filename.data(), line, column,
                   static_cast<int>(message.size()), message.data());
   }
-  void RecordWarning(absl::string_view filename,
+  void RecordWarning(std::string_view filename,
                      int line,
                      int column,
-                     absl::string_view message) override {
+                     std::string_view message) override {
     PERFETTO_ELOG("Warning %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
                   filename.data(), line, column,
                   static_cast<int>(message.size()), message.data());
@@ -75,22 +83,38 @@ class MultiFileErrorCollectorImpl
 #endif
 };
 
+// Reads proto_filter annotation from a field's options.
+struct ProtoFilterOptions {
+  uint32_t semantic_type = 0;
+  bool filter_string = false;
+  bool passthrough = false;
+  bool allow_v2_with_semantic_type = false;
+  bool allow_v1_with_filter_string = false;
+};
+
+ProtoFilterOptions ReadProtoFilterAnnotation(
+    const google::protobuf::FieldDescriptor* proto_field) {
+  ProtoFilterOptions opts;
+  const auto& options = proto_field->options();
+  if (options.HasExtension(perfetto::protos::proto_filter)) {
+    const auto& ext = options.GetExtension(perfetto::protos::proto_filter);
+    opts.semantic_type = static_cast<uint32_t>(ext.semantic_type());
+    opts.filter_string = ext.filter_string();
+    opts.passthrough = ext.passthrough();
+    opts.allow_v2_with_semantic_type = ext.allow_v2_with_semantic_type();
+    opts.allow_v1_with_filter_string = ext.allow_v1_with_filter_string();
+  }
+  return opts;
+}
+
 }  // namespace
 
 FilterUtil::FilterUtil() = default;
 FilterUtil::~FilterUtil() = default;
 
-bool FilterUtil::LoadMessageDefinition(
-    const std::string& proto_file,
-    const std::string& root_message,
-    const std::string& proto_dir_path,
-    const std::set<std::string>& passthrough_fields,
-    const std::set<std::string>& string_filter_fields) {
-  passthrough_fields_ = passthrough_fields;
-  passthrough_fields_seen_.clear();
-  filter_string_fields_ = string_filter_fields;
-  filter_string_fields_seen_.clear();
-
+bool FilterUtil::LoadMessageDefinition(const std::string& proto_file,
+                                       const std::string& root_message,
+                                       const std::string& proto_dir_path) {
   // The protobuf compiler doesn't like backslashes and prints an error like:
   // Error C:\it7mjanpw3\perfetto-a16500 -1:0: Backslashes, consecutive slashes,
   // ".", or ".." are not allowed in the virtual path.
@@ -142,36 +166,50 @@ bool FilterUtil::LoadMessageDefinition(
   // field so that we don't risk leaving it out of sync (and depending on it in
   // future without realizing) when performing the Dedupe() pass.
   DescriptorsByNameMap descriptors_by_full_name;
-  ParseProtoDescriptor(root_msg, &descriptors_by_full_name);
+  return ParseProtoDescriptor(root_msg, &descriptors_by_full_name) != nullptr;
+}
 
-  // If the user specified a set of fields to pass through, print an error and
-  // fail if any of the passed fields have not been seen while recursing in the
-  // schema. This is to avoid typos or naming changes to be silently ignored.
-  std::vector<std::string> unused;
-  std::set_difference(passthrough_fields_.begin(), passthrough_fields_.end(),
-                      passthrough_fields_seen_.begin(),
-                      passthrough_fields_seen_.end(),
-                      std::back_inserter(unused));
-  for (const std::string& message_and_field : unused) {
-    PERFETTO_ELOG("Field not found %s", message_and_field.c_str());
-  }
-  if (!unused.empty()) {
-    PERFETTO_ELOG("Passthrough syntax: perfetto.protos.MessageName:field_name");
+bool FilterUtil::LoadFromDescriptorSet(const uint8_t* descriptor_set_bytes,
+                                       size_t descriptor_set_size,
+                                       const std::string& root_message) {
+  google::protobuf::FileDescriptorSet fds;
+  if (!fds.ParseFromArray(descriptor_set_bytes,
+                          static_cast<int>(descriptor_set_size))) {
+    PERFETTO_ELOG("Failed to parse FileDescriptorSet");
     return false;
   }
-  std::set_difference(
-      filter_string_fields_.begin(), filter_string_fields_.end(),
-      filter_string_fields_seen_.begin(), filter_string_fields_seen_.end(),
-      std::back_inserter(unused));
-  for (const std::string& message_and_field : unused) {
-    PERFETTO_ELOG("Field not found %s", message_and_field.c_str());
+
+  // Build a DescriptorPool from the FileDescriptorSet.
+  // We use the generated_pool() as underlay so that extensions are properly
+  // linked to compiled-in message types like FieldOptions.
+  google::protobuf::DescriptorPool pool(
+      google::protobuf::DescriptorPool::generated_pool());
+  for (const auto& file : fds.file()) {
+    // Skip files that are already in the generated pool (like descriptor.proto)
+    if (google::protobuf::DescriptorPool::generated_pool()->FindFileByName(
+            file.name())) {
+      continue;
+    }
+    if (!pool.BuildFile(file)) {
+      PERFETTO_ELOG("Failed to build file descriptor for %s",
+                    file.name().c_str());
+      return false;
+    }
   }
-  if (!unused.empty()) {
-    PERFETTO_ELOG(
-        "Filter string syntax: perfetto.protos.MessageName:field_name");
+
+  const google::protobuf::Descriptor* root_msg =
+      pool.FindMessageTypeByName(root_message);
+  if (!root_msg) {
+    PERFETTO_ELOG("Could not find the root message \"%s\"",
+                  root_message.c_str());
     return false;
   }
-  return true;
+
+  // |descriptors_by_full_name| is passed by argument rather than being a member
+  // field so that we don't risk leaving it out of sync (and depending on it in
+  // future without realizing) when performing the Dedupe() pass.
+  DescriptorsByNameMap descriptors_by_full_name;
+  return ParseProtoDescriptor(root_msg, &descriptors_by_full_name) != nullptr;
 }
 
 // Generates a Message object for the given libprotobuf message descriptor.
@@ -196,24 +234,43 @@ FilterUtil::Message* FilterUtil::ParseProtoDescriptor(
     field.name = proto_field->name();
     field.type = proto_field->type_name();
 
-    std::string message_and_field = msg->full_name + ":" + field.name;
-    bool passthrough = false;
-    if (passthrough_fields_.count(message_and_field)) {
+    // Read proto_filter annotation from the field.
+    ProtoFilterOptions filter_opts = ReadProtoFilterAnnotation(proto_field);
+    bool passthrough = filter_opts.passthrough;
+
+    if (passthrough) {
       field.type = "bytes";
-      passthrough = true;
-      passthrough_fields_seen_.insert(message_and_field);
     }
-    if (filter_string_fields_.count(message_and_field)) {
-      PERFETTO_CHECK(field.type == "string");
+
+    // A field should be filtered if either:
+    // - filter_string is explicitly set to true, or
+    // - semantic_type is set (non-zero)
+    if (filter_opts.filter_string || filter_opts.semantic_type != 0) {
+      if (proto_field->type() !=
+          google::protobuf::FieldDescriptor::TYPE_STRING) {
+        PERFETTO_ELOG(
+            "filter_string or semantic_type specified on non-string field %.*s",
+            static_cast<int>(proto_field->full_name().size()),
+            proto_field->full_name().data());
+        return nullptr;
+      }
       field.filter_string = true;
+      field.semantic_type = filter_opts.semantic_type;
+      field.allow_v2_with_semantic_type =
+          filter_opts.allow_v2_with_semantic_type;
+      field.allow_v1_with_filter_string =
+          filter_opts.allow_v1_with_filter_string;
       msg->has_filter_string_fields = true;
-      filter_string_fields_seen_.insert(message_and_field);
     }
+
     if (proto_field->message_type() && !passthrough) {
       msg->has_nested_fields = true;
       // Recurse.
       field.nested_type = ParseProtoDescriptor(proto_field->message_type(),
                                                descriptors_by_full_name);
+      if (!field.nested_type) {
+        return nullptr;  // Propagate error from nested parsing.
+      }
     }
   }
   return msg;
@@ -310,7 +367,7 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
       const uint32_t field_id = id_and_field.first;
       const auto& field = id_and_field.second;
 
-      FilterBytecodeParser::QueryResult result{0, false};
+      FilterBytecodeParser::QueryResult result{false, 0, 0};
       if (filter_bytecode) {
         result = parser.Query(msg_index, field_id);
         if (!result.allowed) {
@@ -319,11 +376,7 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
       }
 
       const Message* nested_type = id_and_field.second.nested_type;
-      bool passthrough = false;
       if (nested_type) {
-        // result.simple_field might be true if the generated bytecode is
-        // passing through a whole submessage without recursing.
-        passthrough = result.allowed && result.simple_field();
         auto [_, msg_inserted] = seen_msgs.insert(nested_type);
         if (msg_inserted) {
           queue.emplace_back(result.nested_msg_index, nested_type);
@@ -331,18 +384,27 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
       } else {  // simple field
         PERFETTO_CHECK(result.simple_field() || result.filter_string_field() ||
                        !filter_bytecode);
-        PERFETTO_CHECK(result.filter_string_field() == field.filter_string ||
-                       !filter_bytecode);
       }
 
       auto stripped_name = StripPrefix(descr.full_name, root_prefix);
       std::string stripped_nested =
           nested_type ? " " + StripPrefix(nested_type->full_name, root_prefix)
                       : "";
-      if (passthrough)
-        stripped_nested += "  # PASSTHROUGH";
-      if (field.filter_string)
+      // Use bytecode result if available, otherwise fall back to schema field.
+      bool is_filter_string =
+          filter_bytecode ? result.filter_string_field() : field.filter_string;
+      uint32_t semantic =
+          filter_bytecode ? result.semantic_type : field.semantic_type;
+      if (is_filter_string) {
         stripped_nested += "  # FILTER STRING";
+        if (semantic != 0) {
+          stripped_nested +=
+              std::string("  # SEMANTIC TYPE ") +
+              perfetto::protos::pbzero::SemanticType_Name(
+                  static_cast<perfetto::protos::pbzero::SemanticType>(
+                      semantic));
+        }
+      }
       fprintf(print_stream_, "%-60s %3u %-8s %-32s%s\n", stripped_name.c_str(),
               field_id, field.type.c_str(), field.name.c_str(),
               stripped_nested.c_str());
@@ -350,8 +412,9 @@ void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
   }
 }
 
-std::string FilterUtil::GenerateFilterBytecode() {
-  protozero::FilterBytecodeGenerator bytecode_gen;
+FilterBytecodeGenerator::SerializeResult FilterUtil::GenerateFilterBytecode(
+    FilterBytecodeGenerator::BytecodeVersion min_version) {
+  protozero::FilterBytecodeGenerator bytecode_gen(min_version);
 
   // Assign indexes to descriptors, simply by counting them in order;
   std::map<Message*, uint32_t> descr_to_idx;
@@ -371,7 +434,9 @@ std::string FilterUtil::GenerateFilterBytecode() {
         continue;
       }
       if (field.filter_string) {
-        bytecode_gen.AddFilterStringField(field_id);
+        bytecode_gen.AddFilterStringField(field_id, field.semantic_type,
+                                          field.allow_v1_with_filter_string,
+                                          field.allow_v2_with_semantic_type);
         ++it;
         continue;
       }

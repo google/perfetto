@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {BarChartData, Sorting} from '../../components/aggregation';
+import {BarChartData} from '../../components/aggregation';
 import {
   AggregatePivotModel,
   Aggregation,
@@ -116,17 +116,25 @@ export class ThreadStateByCpuAggregator implements Aggregator {
 
   getColumnDefinitions(): AggregatePivotModel {
     return {
-      groupBy: ['utid', 'state', 'ucpu'],
-      values: {
-        occurrences: {func: 'COUNT'},
-        process_name: {col: 'process_name', func: 'ANY'},
-        pid: {col: 'pid', func: 'ANY'},
-        thread_name: {col: 'thread_name', func: 'ANY'},
-        tid: {col: 'tid', func: 'ANY'},
-        total_dur: {col: 'dur', func: 'SUM'},
-        fraction_of_total: {col: 'fraction_of_total', func: 'SUM'},
-        avg_dur: {col: 'dur', func: 'AVG'},
-      },
+      groupBy: [
+        {id: 'thread_name', field: 'thread_name'},
+        {id: 'state', field: 'state'},
+        {id: 'ucpu', field: 'ucpu'},
+      ],
+      aggregates: [
+        {id: 'count', function: 'COUNT'},
+        {id: 'process_name', field: 'process_name', function: 'ANY'},
+        {id: 'pid', field: 'pid', function: 'ANY'},
+        {id: 'thread_name', field: 'thread_name', function: 'ANY'},
+        {id: 'tid', field: 'tid', function: 'ANY'},
+        {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+        {
+          id: 'fraction_of_total_sum',
+          field: 'fraction_of_total',
+          function: 'SUM',
+        },
+        {id: 'dur_avg', field: 'dur', function: 'AVG'},
+      ],
       columns: [
         {
           title: 'Process',
@@ -176,9 +184,5 @@ export class ThreadStateByCpuAggregator implements Aggregator {
 
   getTabName() {
     return 'Thread States by CPU';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'total_dur', direction: 'DESC'};
   }
 }

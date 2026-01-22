@@ -27,7 +27,7 @@
 
   label {
     font-weight: 600;
-    font-size: 12px;
+    font-size: var(--pf-font-size-s);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--pf-color-text-muted);
@@ -79,7 +79,7 @@
   margin-bottom: 1rem;
 
   h2 {
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     font-weight: 500;
     margin: 0;
   }
@@ -130,14 +130,14 @@
 }
 
 .pf-exp-list-item-name {
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   font-weight: 600;
   color: var(--pf-color-text);
   font-family: "Roboto Mono", monospace;
 }
 
 .pf-exp-list-item-description {
-  font-size: 12px;
+  font-size: var(--pf-font-size-s);
   color: var(--pf-color-text-muted);
 }
 
@@ -168,7 +168,7 @@
 
   span {
     font-weight: 500;
-    font-size: 12px;
+    font-size: var(--pf-font-size-s);
     color: var(--pf-color-text-muted);
     min-width: 100px;
   }
@@ -275,7 +275,7 @@
 // Advanced mode change button - subtle text-like button for mode switching
 // Overrides Button widget styles for a more subtle appearance
 .pf-exp-advanced-mode-button.pf-button {
-  font-size: 12px;
+  font-size: var(--pf-font-size-s);
   color: var(--pf-color-text-muted);
 
   &:hover {
@@ -284,7 +284,7 @@
   }
 
   .pf-left-icon {
-    font-size: 16px;
+    font-size: var(--pf-font-size-l);
   }
 
   .pf-button__label {
@@ -314,6 +314,23 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  // Number inputs in limit/offset should be narrow
+  .pf-inline-field .pf-text-input[type="number"] {
+    flex: 0 0 auto;
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+  }
+
+  // Keep number inputs narrow even in responsive mode
+  @container (max-width: 400px) {
+    .pf-inline-field .pf-text-input[type="number"] {
+      width: 80px;
+      min-width: 80px;
+      max-width: 80px;
+    }
+  }
 }
 
 // Equal width row widget - responsive layout for equal-width items
@@ -350,7 +367,7 @@
   display: flex;
   align-items: center;
   color: var(--pf-color-text-muted);
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   font-weight: 500;
   user-select: none;
 }
@@ -480,7 +497,7 @@
   .pf-outlined-field-legend {
     padding: 0 4px;
     margin-left: 8px;
-    font-size: 12px;
+    font-size: var(--pf-font-size-s);
     font-weight: 500;
     color: var(--pf-color-text-muted);
     user-select: none;
@@ -493,7 +510,7 @@
     border: none;
     background: transparent;
     color: var(--pf-color-text);
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     font-family: inherit;
     outline: none;
 
@@ -550,7 +567,7 @@
   background: var(--pf-color-background-secondary);
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--pf-font-size-m);
   font-family: inherit;
   color: var(--pf-color-text-muted);
   cursor: pointer;
@@ -601,7 +618,7 @@
   }
 
   .pf-inline-field__label {
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     font-weight: 600;
     color: var(--pf-color-text);
     white-space: nowrap;
@@ -610,7 +627,7 @@
 
   .pf-inline-field__value {
     flex: 1;
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
     color: var(--pf-color-text-muted);
     font-family: "Roboto Mono", monospace;
   }
@@ -642,13 +659,15 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 // Column type selector - aligns to the right in modify columns rows
 .pf-column-type {
   margin-left: auto;
   padding: 2px 4px;
-  font-size: 12px;
+  font-size: var(--pf-font-size-s);
   font-weight: 400;
   color: var(--pf-color-text-muted);
   cursor: pointer;

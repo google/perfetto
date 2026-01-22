@@ -70,6 +70,7 @@ from diff_tests.parser.chrome.tests_memory_snapshots import ChromeMemorySnapshot
 from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.cros.tests import Cros
 from diff_tests.parser.etm.tests import Etm
+from diff_tests.parser.etw.tests import Etw
 from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
@@ -95,6 +96,7 @@ from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.perf_text.tests import PerfTextParser
 from diff_tests.parser.pprof.tests_pprof import PprofParser
+from diff_tests.parser.collapsed_stack.tests_collapsed_stack import CollapsedStackParser
 from diff_tests.parser.power.tests_battery_stats import BatteryStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
@@ -103,6 +105,7 @@ from diff_tests.parser.power.tests_power_rails import PowerPowerRails
 from diff_tests.parser.power.tests_voltage_and_scaling import PowerVoltageAndScaling
 from diff_tests.parser.process_tracking.tests import ProcessTracking
 from diff_tests.parser.profiling.deobfuscation_tests import Deobfuscation
+from diff_tests.parser.profiling.r8_retrace_compat.tests import R8RetraceCompat
 from diff_tests.parser.profiling.tests import Profiling
 from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
@@ -173,6 +176,7 @@ from diff_tests.syntax.filtering_tests import PerfettoFiltering
 from diff_tests.syntax.function_tests import PerfettoFunction
 from diff_tests.syntax.include_tests import PerfettoInclude
 from diff_tests.syntax.macro_tests import PerfettoMacro
+from diff_tests.syntax.structured_query_tests import StructuredQueryTests
 from diff_tests.syntax.table_function_tests import PerfettoTableFunction
 from diff_tests.syntax.table_tests import PerfettoTable
 from diff_tests.syntax.view_tests import PerfettoView
@@ -200,7 +204,9 @@ def fetch_all_diff_tests(
       ChromeV8Parser,
       Cros,
       Deobfuscation,
+      R8RetraceCompat,
       Etm,
+      Etw,
       Fs,
       Fuchsia,
       GenericFtrace,
@@ -262,6 +268,7 @@ def fetch_all_diff_tests(
       ArtMethodParser,
       PerfTextParser,
       PprofParser,
+      CollapsedStackParser,
   ]
 
   metrics_tests = [
@@ -346,6 +353,7 @@ def fetch_all_diff_tests(
       PerfettoTable,
       PerfettoTableFunction,
       PerfettoView,
+      StructuredQueryTests,
   ]
 
   tables_tests = [

@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/symbol_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
+#include "src/trace_processor/importers/etw/file_io_tracker.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
@@ -98,7 +99,13 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
   }
 
   base::Status status = parser_->Parse(std::move(blob));
-  unrecoverable_parse_error_ |= !status.ok();
+  if (!status.ok()) {
+    unrecoverable_parse_error_ = true;
+    status = base::ErrStatus(
+        "Trace parse failure (%s) (ERR:tp-parse). "
+        "The trace file is corrupt.",
+        status.c_message());
+  }
   return status;
 }
 
@@ -136,6 +143,7 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   }
   auto& all = context()->forked_context_state->trace_and_machine_to_context;
   for (auto it = all.GetIterator(); it; ++it) {
+    it.value()->file_io_tracker->NotifyEndOfFile();
     it.value()->event_tracker->FlushPendingEvents();
     it.value()->slice_tracker->FlushPendingSlices();
     it.value()->process_tracker->NotifyEndOfFile();

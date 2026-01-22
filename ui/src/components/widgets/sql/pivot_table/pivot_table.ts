@@ -98,7 +98,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     if (extraRowButton) {
       columns.push({
         key: 'action-button',
-        minWidth: 0,
+        widthPx: 24,
         header: m(GridHeaderCell, ''),
       });
     }

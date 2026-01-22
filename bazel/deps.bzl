@@ -12,15 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+"""Perfetto third-party dependencies for WORKSPACE-based builds.
 
-# This file must be kept in sync with tools/install-build-deps.
+This file defines external repository rules for Perfetto's dependencies.
+It is used by embedders who include Perfetto via WORKSPACE. For bzlmod users,
+the equivalent dependencies are defined in perfetto_deps.bzl as a module
+extension.
+
+This file must be kept in sync with:
+- tools/install-build-deps (for version consistency)
+- bazel/perfetto_deps.bzl (for bzlmod compatibility)
+"""
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # To generate shallow_since fields for git repos, use:
 #   git show --date=raw COMMIT
 
 def perfetto_deps():
+    """Loads Perfetto's third-party dependencies.
+
+    Call this function from your WORKSPACE file after loading this file.
+    For bzlmod users, use the perfetto_deps module extension instead.
+    """
     # For bzlmod users, protobuf is provided via MODULE.bazel.
     # For non-bzlmod users, this provides protobuf v31.1.
     _add_repo_if_not_existing(

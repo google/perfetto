@@ -53,8 +53,12 @@
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
+#include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -541,7 +545,7 @@ class JsonExporter {
           cur_args_set_id = set_id;
         }
         arg_set.AppendArg(storage->GetString(it.key()),
-                          storage_->GetArgValue(it.row_number().row_number()));
+                          GetArgValue(*storage_, it.row_number().row_number()));
       }
       if (cur_args_set_id != std::numeric_limits<uint32_t>::max()) {
         args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());
