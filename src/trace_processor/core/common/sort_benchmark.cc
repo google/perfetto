@@ -19,9 +19,12 @@
 #include <benchmark/benchmark.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <random>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -67,7 +70,7 @@ struct LsdSorter<RadixSortTag> {
   static void Sort(std::vector<PodObject>& data) {
     std::vector<PodObject> scratch(data.size());
     std::vector<uint32_t> counts(1 << 16);
-    perfetto::core::RadixSort(
+    perfetto::trace_processor::core::RadixSort(
         data.data(), data.data() + data.size(), scratch.data(), counts.data(),
         sizeof(uint64_t), [](const PodObject& obj) {
           return reinterpret_cast<const uint8_t*>(&obj.key);
@@ -102,7 +105,7 @@ template <>
 struct MsdSorter<RadixSortTag> {
   static void Sort(std::vector<StringPtr>& data) {
     std::vector<StringPtr> scratch(data.size());
-    perfetto::core::MsdRadixSort(
+    perfetto::trace_processor::core::MsdRadixSort(
         data.data(), data.data() + data.size(), scratch.data(),
         [](const StringPtr& s) { return std::string_view(s.data, s.size); });
   }
