@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {AsyncLimiter} from '../../base/async_limiter';
-import {Monitor} from '../../base/monitor';
+import {SerialQueryExecutor, QuerySlot} from '../../base/query_slot';
 import {Store} from '../../base/store';
 import {time, Time} from '../../base/time';
 import {materialColorScheme} from '../../components/colorizer';
@@ -104,20 +103,14 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     offset: 0,
     count: 0,
   };
-  private readonly filterAndWindowStateMonitor: Monitor;
-  private readonly queryLimiter = new AsyncLimiter();
 
-  // A cache of the data we have most recently loaded from our store
-  private data?: FtracePanelData;
-  private numEvents: number = 0;
+  // Query slots for declarative data fetching
+  private readonly executor = new SerialQueryExecutor();
+  private readonly countSlot = new QuerySlot<number>(this.executor);
+  private readonly eventsSlot = new QuerySlot<FtracePanelData>(this.executor);
 
   constructor({attrs}: m.CVnode<FtraceExplorerAttrs>) {
     this.trace = attrs.trace;
-    this.filterAndWindowStateMonitor = new Monitor([
-      () => attrs.trace.timeline.visibleWindow.toTimeSpan().start,
-      () => attrs.trace.timeline.visibleWindow.toTimeSpan().end,
-      () => attrs.filterStore.state,
-    ]);
 
     if (attrs.cache.state === 'blank') {
       getFtraceCounters(attrs.trace.engine)
@@ -133,8 +126,31 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   }
 
   view({attrs}: m.CVnode<FtraceExplorerAttrs>) {
-    this.filterAndWindowStateMonitor.ifStateChanged(() => {
-      this.scheduleDataReload(attrs, true);
+    const {start, end} = attrs.trace.timeline.visibleWindow.toTimeSpan();
+    const excludeList = attrs.filterStore.state.excludeList;
+    const pagination = this.pagination;
+    const engine = attrs.trace.engine;
+
+    // Count query - always fresh (no staleOn)
+    const {data: numEvents} = this.countSlot.use({
+      key: {viewport: {start, end}, excludeList},
+      staleOn: ['viewport'],
+      queryFn: () => fetchFtraceEventCount(engine, start, end, excludeList),
+    });
+
+    // Events query - stale on pagination for smooth scrolling
+    const {data} = this.eventsSlot.use({
+      key: {viewport: {start, end}, excludeList, pagination},
+      staleOn: ['pagination', 'viewport'],
+      queryFn: () =>
+        fetchFtraceEvents(
+          engine,
+          pagination.offset,
+          pagination.count,
+          start,
+          end,
+          excludeList,
+        ),
     });
 
     const columns: GridColumn[] = [
@@ -149,7 +165,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     return m(
       DetailsShell,
       {
-        title: this.renderTitle(),
+        title: `Ftrace Events (${numEvents ?? '...'})`,
         buttons: this.renderFilterPanel(attrs),
         fillHeight: true,
       },
@@ -157,12 +173,11 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
         className: 'pf-ftrace-explorer',
         columns,
         rowData: {
-          data: this.renderData(),
-          total: this.numEvents,
-          offset: this.data?.offset ?? 0,
+          data: this.renderData(data),
+          total: numEvents ?? 0,
+          offset: data?.offset ?? 0,
           onLoadData: (offset, count) => {
             this.pagination = {offset, count};
-            this.scheduleDataReload(attrs, false);
           },
         },
         virtualization: {
@@ -171,8 +186,8 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
         fillHeight: true,
         onRowHover: (rowIndex) => {
           // Calculate the actual row index from virtualization offset
-          const actualIndex = rowIndex - (this.data?.offset ?? 0);
-          const event = this.data?.events[actualIndex];
+          const actualIndex = rowIndex - (data?.offset ?? 0);
+          const event = data?.events[actualIndex];
           if (event) {
             attrs.trace.timeline.hoverCursorTimestamp = event.ts;
           }
@@ -184,40 +199,14 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     );
   }
 
-  private scheduleDataReload(
-    {filterStore, trace}: FtraceExplorerAttrs,
-    filterOrTimeWindowChanged: boolean,
-  ): void {
-    const {offset, count} = this.pagination;
-    const {start, end} = trace.timeline.visibleWindow.toTimeSpan();
-    const excludeList = filterStore.state.excludeList;
-
-    this.queryLimiter.schedule(async () => {
-      if (filterOrTimeWindowChanged) {
-        this.numEvents = await fetchFtraceEventCount(
-          trace.engine,
-          start,
-          end,
-          excludeList,
-        );
-      }
-      this.data = await fetchFtraceEvents(
-        trace.engine,
-        offset,
-        count,
-        start,
-        end,
-        excludeList,
-      );
-    });
-  }
-
-  private renderData(): ReadonlyArray<GridRow> {
-    if (!this.data) {
+  private renderData(
+    data: FtracePanelData | undefined,
+  ): ReadonlyArray<GridRow> {
+    if (!data) {
       return [];
     }
 
-    return this.data.events.map((event) => {
+    return data.events.map((event) => {
       const {ts, name, cpu, process, args, id} = event;
       const color = materialColorScheme(name).base.cssString;
 
@@ -237,14 +226,6 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
         m(GridCell, args),
       ];
     });
-  }
-
-  private renderTitle() {
-    if (this.data) {
-      return `Ftrace Events (${this.numEvents})`;
-    } else {
-      return 'Ftrace Events';
-    }
   }
 
   private renderFilterPanel(attrs: FtraceExplorerAttrs) {
