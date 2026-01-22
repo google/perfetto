@@ -238,6 +238,159 @@ export class BreakdownTracks {
       .join('\n');
   }
 
+  async createTracks() {
+    if (this.modulesClause !== '') {
+      await this.props.trace.engine.query(this.modulesClause);
+    }
+
+    if (this.props.aggregationType !== BreakdownTrackAggType.COUNT) {
+      await this.props.trace.engine.query(`
+        CREATE OR REPLACE PERFETTO FUNCTION _ui_dev_perfetto_breakdown_tracks_is_spans_overlapping(
+          ts1 LONG,
+          ts_end1 LONG,
+          ts2 LONG,
+          ts_end2 LONG)
+        RETURNS BOOL
+        AS
+        SELECT (IIF($ts1 < $ts2, $ts2, $ts1) < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2));
+
+        ${this.getIntervals()}
+      `);
+    }
+
+    const rootTrackNode = await this.createCounterTrackNode(
+      `${this.props.trackTitle}`,
+      [],
+    );
+
+    const aggColNames = this.props.aggregation.columns;
+    const sliceColNames = this.props.slice?.columns ?? [];
+    const pivotColNames = this.props.pivots?.columns ?? [];
+
+    const allColNames = [];
+    allColNames.push(...aggColNames);
+    allColNames.push(...sliceColNames);
+    allColNames.push(...pivotColNames);
+
+    const query = `
+      SELECT ${allColNames.join(', ')}
+      FROM ${this.props.aggregation.tableName}
+      ${this.sliceJoinClause ?? ''}
+      ${this.pivotJoinClause ?? ''}
+      GROUP BY ${allColNames.join(', ')}
+    `;
+    const res = await this.props.trace.engine.query(query);
+
+    await this.createBreakdownHierarchy(
+      rootTrackNode,
+      res,
+      aggColNames,
+      sliceColNames,
+      pivotColNames,
+    );
+
+    return rootTrackNode;
+  }
+
+  private async createBreakdownHierarchy(
+    rootNode: TrackNode,
+    queryResult: QueryResult,
+    aggColumns: string[],
+    sliceColumns: string[],
+    pivotColumns: string[],
+  ) {
+    const cache: Map<string, Map<string, TrackNode>> = new Map();
+    if (rootNode.uri) {
+      cache.set(rootNode.uri, new Map<string, TrackNode>());
+    }
+
+    const iter = queryResult.iter({});
+    for (; iter.valid(); iter.next()) {
+      let state: {currentNode: TrackNode; currentFilters: Filter[]} = {
+        currentNode: rootNode,
+        currentFilters: [],
+      };
+
+      state = await this.processRowForColumns(
+        iter,
+        state,
+        aggColumns,
+        cache,
+        (name, filters) => this.createCounterTrackNode(name, filters),
+      );
+
+      state = await this.processRowForColumns(
+        iter,
+        state,
+        sliceColumns,
+        cache,
+        (name, filters, colIndex) =>
+          this.createSliceTrackNode(
+            name,
+            filters,
+            colIndex,
+            this.props.slice!,
+            BreakdownTrackType.SLICE,
+          ),
+      );
+
+      state = await this.processRowForColumns(
+        iter,
+        state,
+        pivotColumns,
+        cache,
+        (name, filters, colIndex) =>
+          this.createSliceTrackNode(
+            name,
+            filters,
+            colIndex,
+            this.props.pivots!,
+            BreakdownTrackType.PIVOT,
+          ),
+      );
+    }
+  }
+
+  private async processRowForColumns(
+    iter: {get: (col: string) => SqlValue},
+    {
+      currentNode,
+      currentFilters,
+    }: {currentNode: TrackNode; currentFilters: Filter[]},
+    columns: string[],
+    cache: Map<string, Map<string, TrackNode>>,
+    createNode: (
+      name: string,
+      filters: Filter[],
+      colIndex: number,
+    ) => Promise<TrackNode>,
+  ): Promise<{currentNode: TrackNode; currentFilters: Filter[]}> {
+    for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+      let children = cache.get(currentNode.uri!);
+      if (!children) {
+        children = new Map<string, TrackNode>();
+        cache.set(currentNode.uri!, children);
+      }
+      const colName = columns[colIndex];
+      const colResRaw = iter.get(colName);
+      const childName = colResRaw === null ? 'NULL' : colResRaw.toString();
+
+      currentFilters.push({
+        columnName: colName,
+        value: childName,
+      });
+
+      let childNode = children.get(childName);
+      if (!childNode) {
+        childNode = await createNode(childName, currentFilters, colIndex);
+        currentNode.addChildInOrder(childNode);
+        children.set(childName, childNode);
+      }
+      currentNode = childNode;
+    }
+    return {currentNode, currentFilters};
+  }
+
   private async createSliceTrackNode(
     title: string,
     newFilters: Filter[],
@@ -342,159 +495,6 @@ export class BreakdownTracks {
       uri,
       sortOrder: sortOrder !== undefined ? -sortOrder : undefined,
     });
-  }
-
-  async createTracks() {
-    if (this.modulesClause !== '') {
-      await this.props.trace.engine.query(this.modulesClause);
-    }
-
-    if (this.props.aggregationType !== BreakdownTrackAggType.COUNT) {
-      await this.props.trace.engine.query(`
-        CREATE OR REPLACE PERFETTO FUNCTION _ui_dev_perfetto_breakdown_tracks_is_spans_overlapping(
-          ts1 LONG,
-          ts_end1 LONG,
-          ts2 LONG,
-          ts_end2 LONG)
-        RETURNS BOOL
-        AS
-        SELECT (IIF($ts1 < $ts2, $ts2, $ts1) < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2));
-
-        ${this.getIntervals()}
-      `);
-    }
-
-    const rootTrackNode = await this.createCounterTrackNode(
-      `${this.props.trackTitle}`,
-      [],
-    );
-
-    const aggColNames = this.props.aggregation.columns;
-    const sliceColNames = this.props.slice?.columns ?? [];
-    const pivotColNames = this.props.pivots?.columns ?? [];
-
-    const allColNames = [];
-    allColNames.push(...aggColNames);
-    allColNames.push(...sliceColNames);
-    allColNames.push(...pivotColNames);
-
-    const query = `
-      SELECT ${allColNames.join(', ')}
-      FROM ${this.props.aggregation.tableName}
-      ${this.sliceJoinClause ?? ''}
-      ${this.pivotJoinClause ?? ''}
-      GROUP BY ${allColNames.join(', ')}
-    `;
-    const res = await this.props.trace.engine.query(query);
-
-    await this.createBreakdownHierarchy(
-      rootTrackNode,
-      res,
-      aggColNames,
-      sliceColNames,
-      pivotColNames,
-    );
-
-    return rootTrackNode;
-  }
-
-  private async processRowForColumns(
-    iter: {get: (col: string) => SqlValue},
-    {
-      currentNode,
-      currentFilters,
-    }: {currentNode: TrackNode; currentFilters: Filter[]},
-    columns: string[],
-    cache: Map<string, Map<string, TrackNode>>,
-    createNode: (
-      name: string,
-      filters: Filter[],
-      colIndex: number,
-    ) => Promise<TrackNode>,
-  ): Promise<{currentNode: TrackNode; currentFilters: Filter[]}> {
-    for (let colIndex = 0; colIndex < columns.length; colIndex++) {
-      let children = cache.get(currentNode.uri!);
-      if (!children) {
-        children = new Map<string, TrackNode>();
-        cache.set(currentNode.uri!, children);
-      }
-      const colName = columns[colIndex];
-      const colResRaw = iter.get(colName);
-      const childName = colResRaw === null ? 'NULL' : colResRaw.toString();
-
-      currentFilters.push({
-        columnName: colName,
-        value: childName,
-      });
-
-      let childNode = children.get(childName);
-      if (!childNode) {
-        childNode = await createNode(childName, currentFilters, colIndex);
-        currentNode.addChildInOrder(childNode);
-        children.set(childName, childNode);
-      }
-      currentNode = childNode;
-    }
-    return {currentNode, currentFilters};
-  }
-
-  private async createBreakdownHierarchy(
-    rootNode: TrackNode,
-    queryResult: QueryResult,
-    aggColumns: string[],
-    sliceColumns: string[],
-    pivotColumns: string[],
-  ) {
-    const cache: Map<string, Map<string, TrackNode>> = new Map();
-    if (rootNode.uri) {
-      cache.set(rootNode.uri, new Map<string, TrackNode>());
-    }
-
-    const iter = queryResult.iter({});
-    for (; iter.valid(); iter.next()) {
-      let state: {currentNode: TrackNode; currentFilters: Filter[]} = {
-        currentNode: rootNode,
-        currentFilters: [],
-      };
-
-      state = await this.processRowForColumns(
-        iter,
-        state,
-        aggColumns,
-        cache,
-        (name, filters) => this.createCounterTrackNode(name, filters),
-      );
-
-      state = await this.processRowForColumns(
-        iter,
-        state,
-        sliceColumns,
-        cache,
-        (name, filters, colIndex) =>
-          this.createSliceTrackNode(
-            name,
-            filters,
-            colIndex,
-            this.props.slice!,
-            BreakdownTrackType.SLICE,
-          ),
-      );
-
-      state = await this.processRowForColumns(
-        iter,
-        state,
-        pivotColumns,
-        cache,
-        (name, filters, colIndex) =>
-          this.createSliceTrackNode(
-            name,
-            filters,
-            colIndex,
-            this.props.pivots!,
-            BreakdownTrackType.PIVOT,
-          ),
-      );
-    }
   }
 }
 
