@@ -326,8 +326,8 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
   int64_t next_id = 1;
   *total_nodes = 0;
 
-  // Process rows
-  while (stmt.Step()) {
+  // Helper lambda to process a single row from the statement.
+  auto process_row = [&]() {
     // Determine level by counting non-NULL hierarchy columns
     int level = -1;
     std::vector<std::string> segments;
@@ -364,6 +364,17 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
         (*total_nodes)++;
       }
     }
+  };
+
+  // ExecuteUntilLastStatement already stepped once, so if stmt is not done,
+  // the first row is ready to be read. Process it before calling Step() again.
+  if (!stmt.IsDone()) {
+    process_row();
+  }
+
+  // Process remaining rows
+  while (stmt.Step()) {
+    process_row();
   }
 
   if (!stmt.status().ok()) {

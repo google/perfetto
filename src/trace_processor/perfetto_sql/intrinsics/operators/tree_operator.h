@@ -41,8 +41,9 @@ using TreeValue = std::variant<std::monostate,  // NULL
 // A tree node representing a row from the source table.
 // Unlike PivotNode, this stores actual row data without aggregation.
 struct TreeNode {
-  // The row's ID from the id_column (used for expansion state)
-  int64_t id = 0;
+  // The row's ID from the id_column (used for expansion state).
+  // Optional to distinguish "no ID" from "id is 0".
+  std::optional<int64_t> id;
 
   // Parent's ID (-1 or 0 typically means root-level)
   std::optional<int64_t> parent_id;

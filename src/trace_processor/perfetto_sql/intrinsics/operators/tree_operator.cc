@@ -14,6 +14,43 @@
  * limitations under the License.
  */
 
+// __intrinsic_tree virtual table for hierarchical tree display.
+//
+// This operator displays data from a table with id/parent_id relationships
+// as a tree structure with expand/collapse support.
+//
+// CREATION:
+//   CREATE VIRTUAL TABLE my_tree USING __intrinsic_tree(
+//       'source_table_or_subquery',  -- Table name or (SELECT ...) subquery
+//       'id_column',                 -- Column containing the row's unique ID
+//       'parent_id_column'           -- Column containing parent ID (NULL=root)
+//   );
+//
+// QUERYING (whitelist mode - only specified IDs expanded):
+//   SELECT * FROM my_tree
+//   WHERE __expanded_ids__ = '1,2,3'   -- Comma-separated node IDs to expand
+//     AND __sort__ = 'name ASC'        -- Optional: sort by column
+//     AND __depth_limit__ = 5          -- Optional: max depth to show
+//     AND __offset__ = 0               -- Optional: pagination offset
+//     AND __limit__ = 100;             -- Optional: pagination limit
+//
+// QUERYING (blacklist mode - all expanded except specified IDs):
+//   SELECT * FROM my_tree
+//   WHERE __collapsed_ids__ = '4,5'    -- Nodes to keep collapsed
+//     AND __sort__ = 'size DESC';
+//
+// OUTPUT COLUMNS:
+//   - All columns from the source table (in original order)
+//   - __depth__: Tree depth (0 for root-level nodes)
+//   - __tree_has_children__: 1 if node has children, 0 otherwise
+//   - __child_count__: Number of direct children
+//
+// BEHAVIOR:
+//   - Nodes whose parent_id references a non-existent row become root nodes
+//   - This allows filtered data to display correctly (orphans promoted to root)
+//   - Tree is built once at CREATE time and cached
+//   - Use __rebuild__ = 1 to force rebuild after data changes
+
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/tree_operator.h"
 
 #include <sqlite3.h>
@@ -24,13 +61,14 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
@@ -158,7 +196,7 @@ void SortTree(std::vector<std::unique_ptr<TreeNode>>& nodes,
 // Flattens the tree into a vector of visible nodes.
 // Only shows children of nodes that are expanded.
 void FlattenTree(TreeNode* node,
-                 const base::FlatHashMap<int64_t, bool>& expansion_ids,
+                 const std::unordered_set<int64_t>& expansion_ids,
                  bool blacklist_mode,
                  int depth_limit,
                  std::vector<TreeNode*>* out) {
@@ -168,7 +206,9 @@ void FlattenTree(TreeNode* node,
 
   // In whitelist mode: nodes are expanded if their ID is in expansion_ids.
   // In blacklist mode: nodes are expanded unless their ID is in expansion_ids.
-  bool in_list = (expansion_ids.Find(node->id) != nullptr);
+  // Nodes without a valid ID are never expanded.
+  bool in_list =
+      node->id.has_value() && (expansion_ids.count(*node->id) > 0);
   bool is_expanded = blacklist_mode ? !in_list : in_list;
   node->expanded = is_expanded;
 
@@ -187,7 +227,7 @@ void FlattenTree(TreeNode* node,
 
 // Flatten root-level nodes (these are always visible)
 void FlattenRoots(std::vector<std::unique_ptr<TreeNode>>& roots,
-                  const base::FlatHashMap<int64_t, bool>& expansion_ids,
+                  const std::unordered_set<int64_t>& expansion_ids,
                   bool blacklist_mode,
                   int depth_limit,
                   std::vector<TreeNode*>* out) {
@@ -316,10 +356,13 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
   int col_count = static_cast<int>(column_names.size());
 
   // First pass: create all nodes and store in a map by ID
-  base::FlatHashMap<int64_t, TreeNode*> node_map;
+  // Using std::unordered_map because we need to look up parent pointers by ID.
+  std::unordered_map<int64_t, TreeNode*> node_map;
   std::vector<std::unique_ptr<TreeNode>> all_nodes;
 
-  while (stmt.Step()) {
+  // Helper lambda to process a single row from the statement.
+  // ExecuteUntilLastStatement steps once, so the first row is already available.
+  auto process_row = [&]() {
     auto node = std::make_unique<TreeNode>();
 
     // Read all column values
@@ -362,6 +405,7 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
       if (std::holds_alternative<int64_t>(id_val)) {
         node->id = std::get<int64_t>(id_val);
       }
+      // If NULL or not an integer, leave id as std::nullopt
     }
 
     // Extract parent ID from the parent_id column
@@ -376,8 +420,22 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
     }
 
     TreeNode* raw_ptr = node.get();
-    node_map.Insert(node->id, raw_ptr);
+    // Only add to map if node has a valid ID
+    if (node->id.has_value()) {
+      node_map[*node->id] = raw_ptr;
+    }
     all_nodes.push_back(std::move(node));
+  };
+
+  // ExecuteUntilLastStatement already stepped once, so if stmt is not done,
+  // the first row is ready to be read. Process it before calling Step() again.
+  if (!stmt.IsDone()) {
+    process_row();
+  }
+
+  // Process remaining rows
+  while (stmt.Step()) {
+    process_row();
   }
 
   if (!stmt.status().ok()) {
@@ -387,11 +445,12 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
   // Second pass: build tree structure
   for (auto& node : all_nodes) {
     if (node->parent_id.has_value()) {
-      TreeNode** parent_ptr = node_map.Find(*node->parent_id);
-      if (parent_ptr) {
-        node->parent = *parent_ptr;
-        node->depth = (*parent_ptr)->depth + 1;
-        (*parent_ptr)->children.push_back(std::move(node));
+      auto it = node_map.find(*node->parent_id);
+      if (it != node_map.end()) {
+        TreeNode* parent = it->second;
+        node->parent = parent;
+        node->depth = parent->depth + 1;
+        parent->children.push_back(std::move(node));
       } else {
         // Parent not found - treat as root
         roots->push_back(std::move(node));
@@ -616,8 +675,8 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   c->rows_returned = 0;
   c->depth_limit = std::numeric_limits<int>::max();
 
-  // Map of expanded/collapsed node IDs and mode
-  base::FlatHashMap<int64_t, bool> expansion_ids;
+  // Set of expanded/collapsed node IDs and mode
+  std::unordered_set<int64_t> expansion_ids;
   bool blacklist_mode = false;
 
   // Parse idxStr to determine which arguments are present
@@ -646,7 +705,7 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
         if (!id_str.empty()) {
           std::optional<int64_t> id = base::StringToInt64(id_str);
           if (id) {
-            expansion_ids.Insert(*id, true);
+            expansion_ids.insert(*id);
           }
         }
       }
@@ -666,7 +725,7 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   if (sqlite3_value* val = get_argv(1)) {
     const char* ids_str =
         reinterpret_cast<const char*>(sqlite3_value_text(val));
-    expansion_ids.Clear();
+    expansion_ids.clear();
     parse_ids(ids_str);
     blacklist_mode = true;
   }
