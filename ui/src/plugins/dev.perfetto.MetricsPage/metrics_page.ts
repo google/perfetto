@@ -449,7 +449,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
   private v1Controller?: MetricsV1Controller;
   private v2Result?: Result<string> | 'pending';
   private showV2MetricExample: boolean = false;
-  private mode: 'V1' | 'V2' = 'V1';
+  private mode: 'V1' | 'V2' = 'V2';
   private v2Mode: V2Mode = 'metric-spec';
   private fetcherGeneration: number = 0;
 
