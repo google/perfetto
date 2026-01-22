@@ -296,10 +296,18 @@ export class SQLDataSource implements DataSource {
   private async resolveRows(
     model: DataSourceModel,
   ): Promise<{offset: number; rows: Row[]}> {
-    const {pagination} = model;
+    const {pagination, pivot, idBasedTree} = model;
 
-    // Build query with ORDER BY for proper pagination ordering
-    const rowsQuery = this.buildQuery(model, {includeOrderBy: true});
+    // Virtual tables handle pagination internally - pass it to buildQuery
+    // This is more efficient as the virtual table can skip rows without building them
+    const usesVirtualTable =
+      (pivot !== undefined && !pivot.drillDown) || idBasedTree !== undefined;
+
+    // Build query with ORDER BY and optionally pagination (for virtual tables)
+    const rowsQuery = this.buildQuery(model, {
+      includeOrderBy: true,
+      pagination: usesVirtualTable ? pagination : undefined,
+    });
 
     // Check cache - both query and pagination must match
     if (
@@ -316,7 +324,9 @@ export class SQLDataSource implements DataSource {
       FROM data
     `;
 
-    if (pagination) {
+    // Only apply external LIMIT/OFFSET for non-virtual-table queries
+    // Virtual tables handle pagination internally via __offset__ and __limit__
+    if (pagination && !usesVirtualTable) {
       query += `LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
     }
 
@@ -533,7 +543,7 @@ export class SQLDataSource implements DataSource {
    */
   private buildQuery(
     model: DataSourceModel,
-    options: {includeOrderBy: boolean},
+    options: {includeOrderBy: boolean; pagination?: Pagination},
   ): string {
     const {columns, filters = [], pivot, idBasedTree} = model;
 
@@ -544,7 +554,13 @@ export class SQLDataSource implements DataSource {
 
     // For pivot mode without drill-down, we build aggregates differently
     if (pivot && !pivot.drillDown) {
-      return this.buildPivotQuery(resolver, filters, pivot, options, columns);
+      return this.buildPivotQuery(
+        resolver,
+        filters,
+        pivot,
+        options,
+        columns,
+      );
     }
 
     // ID-based tree mode: uses __intrinsic_tree virtual table
@@ -655,7 +671,7 @@ ${joinClauses}`;
     resolver: SQLSchemaResolver,
     filters: ReadonlyArray<Filter>,
     pivot: Pivot,
-    options: {includeOrderBy: boolean},
+    options: {includeOrderBy: boolean; pagination?: Pagination},
     dependencyColumns?: ReadonlyArray<Column>,
   ): string {
     return this.buildIntrinsicPivotQuery(
@@ -682,7 +698,7 @@ ${joinClauses}`;
     _resolver: SQLSchemaResolver,
     _filters: ReadonlyArray<Filter>,
     pivot: Pivot,
-    options: {includeOrderBy: boolean},
+    options: {includeOrderBy: boolean; pagination?: Pagination},
     dependencyColumns?: ReadonlyArray<Column>,
   ): string {
     // Get the virtual table name (should be set by ensureIntrinsicPivotTable)
@@ -766,6 +782,12 @@ ${joinClauses}`;
 FROM ${tableName}
 WHERE ${expansionConstraint}
   AND __sort__ = '${sortSpec}'`;
+
+    // Add pagination constraints - virtual table handles these efficiently
+    if (options.pagination) {
+      query += `\n  AND __offset__ = ${options.pagination.offset}`;
+      query += `\n  AND __limit__ = ${options.pagination.limit}`;
+    }
 
     // Add ORDER BY if requested (virtual table handles sorting, but we need
     // to maintain proper tree ordering which the table provides)
@@ -988,7 +1010,7 @@ WHERE ${expansionConstraint}
   private buildIdBasedTreeQuery(
     tree: IdBasedTree,
     columns: ReadonlyArray<Column> | undefined,
-    options: {includeOrderBy: boolean},
+    options: {includeOrderBy: boolean; pagination?: Pagination},
   ): string {
     // Get the virtual table name (should be set by ensureIntrinsicTreeTable)
     const tableName =
@@ -1030,6 +1052,12 @@ WHERE ${expansionConstraint}`;
     // Add sort constraint if specified
     if (sortSpec) {
       query += `\n  AND __sort__ = '${sortSpec}'`;
+    }
+
+    // Add pagination constraints - virtual table handles these efficiently
+    if (options.pagination) {
+      query += `\n  AND __offset__ = ${options.pagination.offset}`;
+      query += `\n  AND __limit__ = ${options.pagination.limit}`;
     }
 
     // Add ORDER BY if requested (virtual table handles sorting, but we preserve tree order)
