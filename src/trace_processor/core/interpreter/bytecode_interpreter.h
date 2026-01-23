@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_INTERPRETER_H_
-#define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_INTERPRETER_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_H_
+#define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_H_
 
 #include <cstdint>
 #include <cstring>
@@ -23,14 +23,14 @@
 
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_core.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_state.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_registers.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_core.h"
+#include "src/trace_processor/core/interpreter/bytecode_interpreter_state.h"
+#include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/dataframe/value_fetcher.h"
 
-namespace perfetto::trace_processor::dataframe::impl::bytecode {
+namespace perfetto::trace_processor::interpreter {
 
 // The Interpreter class implements a virtual machine that executes bytecode
 // instructions for dataframe query operations. It maintains an internal
@@ -89,6 +89,6 @@ class Interpreter {
   InterpreterState state_;
 };
 
-}  // namespace perfetto::trace_processor::dataframe::impl::bytecode
+}  // namespace perfetto::trace_processor::interpreter
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_INTERPRETER_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_H_

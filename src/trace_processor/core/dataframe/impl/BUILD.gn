@@ -16,69 +16,16 @@ import("../../../../../gn/test.gni")
 
 source_set("impl") {
   sources = [
-    "bytecode_core.h",
-    "bytecode_instructions.h",
-    "bytecode_interpreter.h",
-    "bytecode_interpreter_impl.cc",
-    "bytecode_interpreter_impl.h",
-    "bytecode_interpreter_state.h",
-    "bytecode_registers.h",
     "query_plan.cc",
     "query_plan.h",
-    "types.h",
   ]
   deps = [
     "..:specs",
     "../../../../../gn:default_deps",
     "../../../../base",
     "../../../containers",
-    "../../../util:glob",
     "../../../util:regex",
     "../../common",
+    "../../interpreter",
   ]
-}
-
-source_set("bytecode_interpreter_test_utils") {
-  testonly = true
-  sources = [ "bytecode_interpreter_test_utils.h" ]
-  deps = [
-    ":impl",
-    "..:specs",
-    "../../../../../gn:default_deps",
-    "../../../../base",
-    "../../common",
-  ]
-}
-
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  sources = [ "bytecode_interpreter_unittest.cc" ]
-  deps = [
-    ":bytecode_interpreter_test_utils",
-    ":impl",
-    "..:dataframe",
-    "..:specs",
-    "../../../../../gn:default_deps",
-    "../../../../../gn:gtest_and_gmock",
-    "../../../../base",
-    "../../../containers",
-    "../../../util:regex",
-    "../../common",
-  ]
-}
-
-if (enable_perfetto_benchmarks) {
-  source_set("benchmarks") {
-    testonly = true
-    deps = [
-      ":bytecode_interpreter_test_utils",
-      ":impl",
-      "../../../../../gn:benchmark",
-      "../../../../../gn:default_deps",
-      "../../../../base",
-      "../../../containers",
-      "../../common",
-    ]
-    sources = [ "bytecode_interpreter_benchmark.cc" ]
-  }
 }

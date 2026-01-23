@@ -37,14 +37,54 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_core.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_registers.h"
-#include "src/trace_processor/core/common/slab.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_core.h"
+#include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
+
+// Namespace alias for the bytecode interpreter types which moved to interpreter
+// namespace.
+namespace bytecode = ::perfetto::trace_processor::interpreter;
+
+// Import types from interpreter namespace that are used in dataframe.
+using interpreter::BeginBound;
+using interpreter::BothBounds;
+using interpreter::BoundModifier;
+using interpreter::CastFilterValueListResult;
+using interpreter::CastFilterValueResult;
+using interpreter::Column;
+using interpreter::EndBound;
+using interpreter::EqualRange;
+using interpreter::EqualRangeLowerBoundUpperBound;
+using interpreter::FilterValueHandle;
+using interpreter::InequalityOp;
+using interpreter::IntegerOrDoubleType;
+using interpreter::LowerBound;
+using interpreter::MaxOp;
+using interpreter::MinMaxOp;
+using interpreter::MinOp;
+using interpreter::NonIdStorageType;
+using interpreter::NonNullOp;
+using interpreter::NonStringOp;
+using interpreter::NonStringType;
+using interpreter::NullOp;
+using interpreter::NullsAtEnd;
+using interpreter::NullsAtStart;
+using interpreter::NullsLocation;
+using interpreter::NullStorage;
+using interpreter::OnlyStringOp;
+using interpreter::Range;
+using interpreter::RangeOp;
+using interpreter::Span;
+using interpreter::SparseNullCollapsedNullability;
+using interpreter::SparseNullTypes;
+using interpreter::SpecializedStorage;
+using interpreter::Storage;
+using interpreter::StringOp;
+using interpreter::UpperBound;
 
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
@@ -227,7 +267,8 @@ class QueryPlanBuilder {
 
   // State information for a column during query planning.
   struct ColumnState {
-    std::optional<bytecode::reg::RwHandle<Slab<uint32_t>>> prefix_popcount;
+    std::optional<bytecode::reg::RwHandle<bytecode::Slab<uint32_t>>>
+        prefix_popcount;
   };
 
   // Constructs a builder for the given number of rows and columns.
@@ -336,7 +377,7 @@ class QueryPlanBuilder {
   void SetGuaranteedToBeEmpty();
 
   // Returns the prefix popcount register for the given column.
-  bytecode::reg::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
+  bytecode::reg::ReadHandle<bytecode::Slab<uint32_t>> PrefixPopcountRegisterFor(
       uint32_t col);
 
   bytecode::reg::ReadHandle<CastFilterValueResult>
@@ -360,7 +401,7 @@ class QueryPlanBuilder {
   uint16_t CalculateRowLayoutStride(
       const std::vector<RowLayoutParams>& row_layout_params);
 
-  bytecode::reg::RwHandle<Slab<uint8_t>> CopyToRowLayout(
+  bytecode::reg::RwHandle<bytecode::Slab<uint8_t>> CopyToRowLayout(
       uint16_t row_stride,
       bytecode::reg::RwHandle<Span<uint32_t>> indices,
       bytecode::reg::ReadHandle<bytecode::reg::StringIdToRankMap> rank_map,
@@ -396,7 +437,7 @@ class QueryPlanBuilder {
   // the scratch indices in both Span and Slab forms.
   struct ScratchIndices {
     uint32_t size;
-    bytecode::reg::RwHandle<Slab<uint32_t>> slab;
+    bytecode::reg::RwHandle<bytecode::Slab<uint32_t>> slab;
     bytecode::reg::RwHandle<Span<uint32_t>> span;
     bool in_use = false;
   };

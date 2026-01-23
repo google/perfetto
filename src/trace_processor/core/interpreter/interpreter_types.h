@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_TYPES_H_
-#define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_TYPES_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
+#define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -30,13 +30,52 @@
 #include "src/trace_processor/core/common/flex_vector.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/type_set.h"
+#include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/dataframe/value_fetcher.h"
 
-namespace perfetto::trace_processor::dataframe::impl {
+namespace perfetto::trace_processor::interpreter {
 
 // Import common types from core namespace.
 using core::BitVector;
 using core::FlexVector;
 using core::Slab;
+
+// Import types from dataframe namespace that are used in the interpreter.
+using dataframe::DenseNull;
+using dataframe::Double;
+using dataframe::DuplicateState;
+using dataframe::Eq;
+using dataframe::Ge;
+using dataframe::Glob;
+using dataframe::Gt;
+using dataframe::HasDuplicates;
+using dataframe::Id;
+using dataframe::Index;
+using dataframe::Int32;
+using dataframe::Int64;
+using dataframe::IsNotNull;
+using dataframe::IsNull;
+using dataframe::Le;
+using dataframe::Lt;
+using dataframe::Ne;
+using dataframe::NoDuplicates;
+using dataframe::NonNull;
+using dataframe::Nullability;
+using dataframe::Op;
+using dataframe::Regex;
+using dataframe::SetIdSorted;
+using dataframe::Sorted;
+using dataframe::SortDirection;
+using dataframe::SortState;
+using dataframe::SparseNull;
+using dataframe::SparseNullWithPopcountAlways;
+using dataframe::SparseNullWithPopcountUntilFinalization;
+using dataframe::StorageType;
+using dataframe::String;
+using dataframe::TypeSet;
+using dataframe::Uint32;
+using dataframe::Unsorted;
+using dataframe::ValueFetcher;
 
 // Type categories for column content and operations.
 // These define which operations can be applied to which content types.
@@ -514,6 +553,6 @@ struct Span {
   bool empty() const { return b == e; }
 };
 
-}  // namespace perfetto::trace_processor::dataframe::impl
+}  // namespace perfetto::trace_processor::interpreter
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_TYPES_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
