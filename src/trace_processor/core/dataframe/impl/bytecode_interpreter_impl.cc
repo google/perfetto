@@ -232,4 +232,4 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
                 RegexComparator{string_pool});
 }
 
-}  // namespace perfetto::trace_processor::dataframe::impl::bytecode
+}  // namespace perfetto::trace_processor::dataframe::impl::bytecode::ops

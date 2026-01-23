@@ -236,6 +236,42 @@ template <typename Comparator, typename ValueType>
   return o_write;
 }
 
+template <typename T>
+inline PERFETTO_ALWAYS_INLINE auto GetComparableRowLayoutReprInteger(T x) {
+  // The inspiration behind this function comes from:
+  // https://arrow.apache.org/blog/2022/11/07/multi-column-sorts-in-arrow-rust-part-2/
+  if constexpr (std::is_same_v<T, uint32_t>) {
+    return base::HostToBE32(x);
+  } else if constexpr (std::is_same_v<T, int32_t>) {
+    return base::HostToBE32(
+        static_cast<uint32_t>(x ^ static_cast<int32_t>(0x80000000)));
+  } else if constexpr (std::is_same_v<T, int64_t>) {
+    return base::HostToBE64(
+        static_cast<uint64_t>(x ^ static_cast<int64_t>(0x8000000000000000)));
+  } else {
+    static_assert(std::is_same_v<T, uint32_t>,
+                  "Unsupported type for row layout representation");
+  }
+}
+
+template <typename T>
+inline PERFETTO_ALWAYS_INLINE auto GetComparableRowLayoutRepr(T x) {
+  // The inspiration behind this function comes from:
+  // https://arrow.apache.org/blog/2022/11/07/multi-column-sorts-in-arrow-rust-part-2/
+  if constexpr (std::is_same_v<T, uint32_t> || std::is_same_v<T, int32_t> ||
+                std::is_same_v<T, int64_t>) {
+    return GetComparableRowLayoutReprInteger(x);
+  } else if constexpr (std::is_same_v<T, double>) {
+    int64_t bits;
+    memcpy(&bits, &x, sizeof(double));
+    bits ^= static_cast<int64_t>(static_cast<uint64_t>(bits >> 63) >> 1);
+    return GetComparableRowLayoutReprInteger(bits);
+  } else {
+    static_assert(std::is_same_v<T, uint32_t>,
+                  "Unsupported type for row layout representation");
+  }
+}
+
 inline PERFETTO_ALWAYS_INLINE void InitRange(InterpreterState& state,
                                              const bytecode::InitRange& init) {
   using B = bytecode::InitRange;
@@ -1412,29 +1448,6 @@ inline PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
   bool in_bounds = update.b <= k && k < update.e;
   update.b = in_bounds ? k : update.e;
   update.e = in_bounds ? k + 1 : update.b;
-}
-
-template <typename T>
-inline auto GetComparableRowLayoutRepr(T x) {
-  // The inspiration behind this function comes from:
-  // https://arrow.apache.org/blog/2022/11/07/multi-column-sorts-in-arrow-rust-part-2/
-  if constexpr (std::is_same_v<T, uint32_t>) {
-    return base::HostToBE32(x);
-  } else if constexpr (std::is_same_v<T, int32_t>) {
-    return base::HostToBE32(
-        static_cast<uint32_t>(x ^ static_cast<int32_t>(0x80000000)));
-  } else if constexpr (std::is_same_v<T, int64_t>) {
-    return base::HostToBE64(
-        static_cast<uint64_t>(x ^ static_cast<int64_t>(0x8000000000000000)));
-  } else if constexpr (std::is_same_v<T, double>) {
-    int64_t bits;
-    memcpy(&bits, &x, sizeof(double));
-    bits ^= static_cast<int64_t>(static_cast<uint64_t>(bits >> 63) >> 1);
-    return GetComparableRowLayoutRepr(bits);
-  } else {
-    static_assert(std::is_same_v<T, uint32_t>,
-                  "Unsupported type for row layout representation");
-  }
 }
 
 template <typename T, typename Nullability>
