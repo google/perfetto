@@ -40,6 +40,11 @@
  *
  *     return m('div', result.data ? renderData(result.data) : 'Loading...');
  *   }
+ *
+ *   onremove() {
+ *     // Cancel pending queries and cleanup resources
+ *     this.dataSlot.dispose();
+ *   }
  * }
  * ```
  *
@@ -67,8 +72,8 @@ export interface QueryOptions<T, K extends object> {
   queryFn: () => Promise<T>;
   // If provided, query only runs when this is truthy
   // e.g., dependsOn: viewResult.data
-  dependsOn?: unknown;
-  staleOn?: (keyof K)[];
+  enabled?: unknown;
+  retainOn?: (keyof K)[];
 }
 
 export interface QueryResult<T> {
@@ -101,6 +106,14 @@ export class SerialQueryExecutor {
   schedule<T>(slot: QuerySlot<T>, work: PendingWork<T>): void {
     this.pending.set(slot, work);
     this.tryRunNext();
+  }
+
+  /**
+   * Cancel any pending work for a slot.
+   * Called when a slot is disposed to prevent orphaned queries.
+   */
+  cancel(slot: QuerySlot<unknown>): void {
+    this.pending.delete(slot);
   }
 
   private async tryRunNext(): Promise<void> {
@@ -153,7 +166,7 @@ export class QuerySlot<T> {
    * Call every render cycle to get the current query result.
    */
   use<K extends object>(options: QueryOptions<T, K>): QueryResult<T> {
-    const {key, queryFn, dependsOn, staleOn = []} = options;
+    const {key, queryFn, enabled: dependsOn, retainOn: staleOn = []} = options;
     const keyStr = stringifyJsonWithBigints(key);
 
     // Check if we need to schedule a new query
@@ -219,6 +232,16 @@ export class QuerySlot<T> {
     ) {
       this.pendingKey = undefined;
     }
+  }
+
+  /**
+   * Dispose this slot. Cancels pending work.
+   * Call this in component's onremove() to prevent orphaned queries.
+   */
+  dispose(): void {
+    this.executor.cancel(this);
+    this.cache = undefined;
+    this.pendingKey = undefined;
   }
 }
 

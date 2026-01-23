@@ -45,7 +45,6 @@ import {Store} from '../../base/store';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
 import {SerialQueryExecutor, QuerySlot} from '../../base/query_slot';
-import {stringifyJsonWithBigints} from '../../base/json_utils';
 
 const ROW_H = 24;
 
@@ -87,8 +86,6 @@ interface LogEntries {
   readonly totalEvents: number; // Count of the total number of events within this window
 }
 
-const serialize = stringifyJsonWithBigints;
-
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly trace: Trace;
   private readonly executor = new SerialQueryExecutor();
@@ -103,6 +100,11 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     this.trace = attrs.trace;
   }
 
+  onremove() {
+    this.viewQuery.dispose();
+    this.entriesQuery.dispose();
+  }
+
   view({attrs}: m.CVnode<LogPanelAttrs>) {
     const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
     const filters = attrs.filterStore.state;
@@ -112,25 +114,16 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     // Query 1: Create the filtered_logs table (no staleOn = always-fresh)
     const viewResult = this.viewQuery.use({
       key: {filters},
-      queryFn: async () => {
-        await updateLogView(engine, filters);
-        return true;
-      },
+      queryFn: () => updateLogView(engine, filters),
     });
-    console.log('viewQuery', serialize({filters}), viewResult);
 
     // Query 2: Read from the table (staleOn=['pagination'] for smooth scrolling)
     const entriesResult = this.entriesQuery.use({
       key: {filters, visibleSpan, pagination},
-      staleOn: ['pagination', 'visibleSpan'],
+      retainOn: ['pagination', 'visibleSpan'],
       queryFn: () => updateLogEntries(engine, visibleSpan, pagination),
-      dependsOn: viewResult.data,
+      enabled: viewResult.data,
     });
-    console.log(
-      'entriesResult',
-      serialize({filters, visibleSpan, pagination}),
-      entriesResult,
-    );
 
     const entries = entriesResult.data;
     const totalEvents = entries?.totalEvents ?? 0;
@@ -575,6 +568,8 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
   await engine.query(`create perfetto table filtered_logs as select *
     from (${selectedRows})
     where is_msg_chosen is 1 or is_process_chosen is 1`);
+
+  return true;
 }
 
 function serializeTags(tags: string[]) {

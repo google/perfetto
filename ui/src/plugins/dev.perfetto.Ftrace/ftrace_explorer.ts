@@ -125,6 +125,11 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     }
   }
 
+  onremove() {
+    this.countSlot.dispose();
+    this.eventsSlot.dispose();
+  }
+
   view({attrs}: m.CVnode<FtraceExplorerAttrs>) {
     const {start, end} = attrs.trace.timeline.visibleWindow.toTimeSpan();
     const excludeList = attrs.filterStore.state.excludeList;
@@ -134,14 +139,14 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     // Count query - always fresh (no staleOn)
     const {data: numEvents} = this.countSlot.use({
       key: {viewport: {start, end}, excludeList},
-      staleOn: ['viewport'],
+      retainOn: ['viewport'],
       queryFn: () => fetchFtraceEventCount(engine, start, end, excludeList),
     });
 
     // Events query - stale on pagination for smooth scrolling
     const {data} = this.eventsSlot.use({
       key: {viewport: {start, end}, excludeList, pagination},
-      staleOn: ['pagination', 'viewport'],
+      retainOn: ['pagination', 'viewport'],
       queryFn: () =>
         fetchFtraceEvents(
           engine,

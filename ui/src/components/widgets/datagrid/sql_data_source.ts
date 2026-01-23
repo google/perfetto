@@ -235,7 +235,7 @@ export class SQLDataSource implements DataSource {
     // Rows query - stale on pagination changes for smooth scrolling
     this.rowsResult = this.rowsSlot.use({
       key: {query: rowsQuery, pagination},
-      staleOn: ['pagination'],
+      retainOn: ['pagination'],
       queryFn: () => this.fetchRows(rowsQuery, pagination),
     });
 
@@ -480,7 +480,7 @@ export class SQLDataSource implements DataSource {
    * Export all data with current filters/sorting applied.
    */
   async exportData(): Promise<Row[]> {
-    const workingQuery = this.rowsCache?.query;
+    const workingQuery = this.currentRowsQuery;
     if (!workingQuery) {
       return [];
     }
