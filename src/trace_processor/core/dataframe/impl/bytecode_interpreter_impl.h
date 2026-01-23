@@ -41,13 +41,14 @@
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/bit_vector.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_instructions.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_state.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/core/common/flex_vector.h"
 #include "src/trace_processor/core/common/slab.h"
 #include "src/trace_processor/core/common/sort.h"
+#include "src/trace_processor/core/dataframe/impl/bytecode_instructions.h"
+#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter.h"
+#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_outlined.h"
+#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_state.h"
+#include "src/trace_processor/core/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/core/dataframe/impl/types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
@@ -102,23 +103,6 @@ struct StringLessInvert {
   }
   const StringPool* pool_;
 };
-struct Glob {
-  bool operator()(StringPool::Id lhs, const util::GlobMatcher& matcher) const {
-    return matcher.Matches(pool_->Get(lhs));
-  }
-  const StringPool* pool_;
-};
-struct GlobFullStringPool {
-  bool operator()(StringPool::Id lhs, const BitVector& matches) const {
-    return matches.is_set(lhs.raw_id());
-  }
-};
-struct Regex {
-  bool operator()(StringPool::Id lhs, const regex::Regex& pattern) const {
-    return pattern.Search(pool_->Get(lhs).c_str());
-  }
-  const StringPool* pool_;
-};
 
 }  // namespace comparators
 
@@ -138,6 +122,90 @@ PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
     return false;
   }
   return true;
+}
+
+// Filters an existing index buffer in-place, based on data comparisons
+// performed using a separate set of source indices.
+//
+// This function iterates synchronously through two sets of indices:
+// 1. Source Indices: Provided by [begin, end), pointed to by `it`. These
+//    indices are used *only* to look up data values (`data[*it]`).
+// 2. Destination/Update Indices: Starting at `o_start`, pointed to by
+//    `o_read` (for reading the original index) and `o_write` (for writing
+//    kept indices). This buffer is modified *in-place*.
+//
+// For each step `i`:
+//   - It retrieves the data value using the i-th source index:
+//   `data[begin[i]]`.
+//   - It compares this data value against the provided `value`.
+//   - It reads the i-th *original* index from the destination buffer:
+//   `o_read[i]`.
+//   - If the comparison is true, it copies the original index `o_read[i]`
+//     to the current write position `*o_write` and advances `o_write`.
+//
+// The result is that the destination buffer `[o_start, returned_pointer)`
+// contains the subset of its *original* indices for which the comparison
+// (using the corresponding source index for data lookup) was true.
+//
+// Use Case Example (SparseNull Filter):
+//   - `[begin, end)` holds translated storage indices (for correct data
+//     lookup).
+//   - `o_start` points to the buffer holding original table indices (that
+//     was have already been filtered by `NullFilter<IsNotNull>`).
+//   - This function further filters the original table indices in `o_start`
+//     based on data comparisons using the translated indices.
+//
+// Args:
+//   data: Pointer to the start of the column's data storage.
+//   begin: Pointer to the first index in the source span (for data lookup).
+//   end: Pointer one past the last index in the source span.
+//   o_start: Pointer to the destination/update buffer (filtered in-place).
+//   value: The value to compare data against.
+//   comparator: Functor implementing the comparison logic.
+//
+// Returns:
+//   A pointer one past the last index written to the destination buffer.
+template <typename Comparator, typename ValueType, typename DataType>
+[[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* Filter(
+    const DataType* data,
+    const uint32_t* begin,
+    const uint32_t* end,
+    uint32_t* output,
+    const ValueType& value,
+    const Comparator& comparator) {
+  const uint32_t* o_read = output;
+  uint32_t* o_write = output;
+  for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
+    // The choice of a branchy implemntation is intentional: this seems faster
+    // than trying to do something branchless, likely because the compiler is
+    // helping us with branch prediction.
+    if (comparator(data[*it], value)) {
+      *o_write++ = *o_read;
+    }
+  }
+  return o_write;
+}
+
+// Similar to Filter but operates directly on the identity values
+// (indices) rather than dereferencing through a data array.
+template <typename Comparator, typename ValueType>
+[[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* IdentityFilter(
+    const uint32_t* begin,
+    const uint32_t* end,
+    uint32_t* output,
+    const ValueType& value,
+    Comparator comparator) {
+  const uint32_t* o_read = output;
+  uint32_t* o_write = output;
+  for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
+    // The choice of a branchy implemntation is intentional: this seems faster
+    // than trying to do something branchless, likely because the compiler is
+    // helping us with branch prediction.
+    if (comparator(*it, value)) {
+      *o_write++ = *o_read;
+    }
+  }
+  return o_write;
 }
 
 // The Interpreter class implements a virtual machine that executes bytecode
@@ -888,21 +956,9 @@ class InterpreterImpl {
     if (indices.empty()) {
       return;
     }
-
     const auto& buffer = ReadFromRegister(bytecode.arg<B::buffer_register>());
     uint32_t stride = bytecode.arg<B::total_row_stride>();
-    const uint8_t* row_ptr = buffer.data();
-
-    std::unordered_set<std::string_view> seen_rows;
-    seen_rows.reserve(indices.size());
-    uint32_t* write_ptr = indices.b;
-    for (const uint32_t* it = indices.b; it != indices.e; ++it) {
-      std::string_view row_view(reinterpret_cast<const char*>(row_ptr), stride);
-      *write_ptr = *it;
-      write_ptr += seen_rows.insert(row_view).second;
-      row_ptr += stride;
-    }
-    indices.e = write_ptr;
+    outlined::DistinctImpl(buffer, stride, indices);
   }
 
   PERFETTO_ALWAYS_INLINE void LimitOffsetIndices(
@@ -1030,98 +1086,22 @@ class InterpreterImpl {
   PERFETTO_ALWAYS_INLINE void FinalizeRanksInMap(
       const bytecode::FinalizeRanksInMap& bytecode) {
     using B = bytecode::FinalizeRanksInMap;
-
     reg::StringIdToRankMap& rank_map_ptr =
         ReadFromRegister(bytecode.arg<B::update_register>());
-    PERFETTO_DCHECK(rank_map_ptr && rank_map_ptr.get());
-    auto& rank_map = *rank_map_ptr;
-
-    struct SortToken {
-      std::string_view str_view;
-      StringPool::Id id;
-      PERFETTO_ALWAYS_INLINE bool operator<(const SortToken& other) const {
-        return str_view < other.str_view;
-      }
-    };
-    // Initally do *not* default initialize the array for performance.
-    std::unique_ptr<SortToken[]> ids_to_sort(new SortToken[rank_map.size()]);
-    std::unique_ptr<SortToken[]> scratch(new SortToken[rank_map.size()]);
-    uint32_t i = 0;
-    for (auto it = rank_map.GetIterator(); it; ++it) {
-      base::StringView str_view = state_.string_pool->Get(it.key());
-      ids_to_sort[i++] = SortToken{
-          std::string_view(str_view.data(), str_view.size()),
-          it.key(),
-      };
-    }
-    auto* sorted = core::MsdRadixSort(
-        ids_to_sort.get(), ids_to_sort.get() + rank_map.size(), scratch.get(),
-        [](const SortToken& token) { return token.str_view; });
-    for (uint32_t rank = 0; rank < rank_map.size(); ++rank) {
-      auto* it = rank_map.Find(sorted[rank].id);
-      PERFETTO_DCHECK(it);
-      *it = rank;
-    }
+    outlined::FinalizeRanksInMapImpl(state_.string_pool, rank_map_ptr);
   }
 
   PERFETTO_ALWAYS_INLINE void SortRowLayout(
       const bytecode::SortRowLayout& bytecode) {
     using B = bytecode::SortRowLayout;
-
     auto& indices = ReadFromRegister(bytecode.arg<B::indices_register>());
-    auto num_indices = static_cast<size_t>(indices.e - indices.b);
-
     // Single element is always sorted.
-    if (num_indices <= 1) {
+    if (indices.size() <= 1) {
       return;
     }
-
-    const auto& buffer_slab =
-        ReadFromRegister(bytecode.arg<B::buffer_register>());
-    const uint8_t* buf = buffer_slab.data();
-
+    const auto& buffer = ReadFromRegister(bytecode.arg<B::buffer_register>());
     uint32_t stride = bytecode.arg<B::total_row_stride>();
-
-    struct SortToken {
-      uint32_t index;
-      uint32_t buf_offset;
-    };
-
-    // Initally do *not* default initialize the array for performance.
-    std::unique_ptr<SortToken[]> p(new SortToken[num_indices]);
-    std::unique_ptr<SortToken[]> q;
-    for (uint32_t i = 0; i < num_indices; ++i) {
-      p[i] = {indices.b[i], i * stride};
-    }
-
-    // Crossover point where our custom RadixSort starts becoming faster that
-    // std::stable_sort.
-    //
-    // Empirically chosen by looking at the crossover point of benchmarks
-    // BM_DataframeSortLsdRadix and BM_DataframeSortLsdStd.
-    static constexpr uint32_t kStableSortCutoff = 4096;
-    SortToken* res;
-    if (num_indices < kStableSortCutoff) {
-      std::stable_sort(p.get(), p.get() + num_indices,
-                       [buf, stride](const SortToken& a, const SortToken& b) {
-                         return memcmp(buf + a.buf_offset, buf + b.buf_offset,
-                                       stride) < 0;
-                       });
-      res = p.get();
-    } else {
-      // We declare q above and populate it here because res might point to q
-      // so we need to make sure that q outlives the end of this block.
-      // Initally do *not* default initialize the arrays for performance.
-      q.reset(new SortToken[num_indices]);
-      std::unique_ptr<uint32_t[]> counts(new uint32_t[1 << 16]);
-      res = core::RadixSort(
-          p.get(), p.get() + num_indices, q.get(), counts.get(), stride,
-          [buf](const SortToken& token) { return buf + token.buf_offset; });
-    }
-
-    for (uint32_t i = 0; i < num_indices; ++i) {
-      indices.b[i] = res[i].index;
-    }
+    outlined::SortRowLayoutImpl(buffer, stride, indices);
   }
 
   template <typename N>
@@ -1253,9 +1233,11 @@ class InterpreterImpl {
     } else if constexpr (std::is_same_v<Op, Ne>) {
       return StringFilterNe(data, begin, end, output, val);
     } else if constexpr (std::is_same_v<Op, Glob>) {
-      return StringFilterGlob(data, begin, end, output, val);
+      return outlined::StringFilterGlobImpl(state_.string_pool, data, val,
+                                            begin, end, output);
     } else if constexpr (std::is_same_v<Op, Regex>) {
-      return StringFilterRegex(data, begin, end, output, val);
+      return outlined::StringFilterRegexImpl(state_.string_pool, data, val,
+                                             begin, end, output);
     } else {
       return Filter(data, begin, end, output, NullTermStringView(val),
                     comparators::StringComparator<Op>{state_.string_pool});
@@ -1291,137 +1273,6 @@ class InterpreterImpl {
     static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
     return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
                   id->raw_id(), std::not_equal_to<>());
-  }
-
-  PERFETTO_ALWAYS_INLINE uint32_t* StringFilterGlob(const StringPool::Id* data,
-                                                    const uint32_t* begin,
-                                                    const uint32_t* end,
-                                                    uint32_t* output,
-                                                    const char* val) {
-    auto matcher = util::GlobMatcher::FromPattern(val);
-    // If glob pattern doesn't involve any special characters, the function
-    // called should be equality.
-    if (matcher.IsEquality()) {
-      return StringFilterEq(data, begin, end, output, val);
-    }
-    // For very big string pools (or small ranges) or pools with large
-    // strings run a standard glob function.
-    if (size_t(end - begin) < state_.string_pool->size() ||
-        state_.string_pool->HasLargeString()) {
-      return Filter(data, begin, end, output, matcher,
-                    comparators::Glob{state_.string_pool});
-    }
-    // TODO(lalitm): the BitVector can be placed in a register removing to
-    // need to allocate every time.
-    auto matches = BitVector::CreateWithSize(
-        state_.string_pool->MaxSmallStringId().raw_id());
-    PERFETTO_DCHECK(!state_.string_pool->HasLargeString());
-    for (auto it = state_.string_pool->CreateSmallStringIterator(); it; ++it) {
-      auto id = it.StringId();
-      matches.change_assume_unset(id.raw_id(),
-                                  matcher.Matches(state_.string_pool->Get(id)));
-    }
-    return Filter(data, begin, end, output, matches,
-                  comparators::GlobFullStringPool{});
-  }
-
-  PERFETTO_ALWAYS_INLINE uint32_t* StringFilterRegex(const StringPool::Id* data,
-                                                     const uint32_t* begin,
-                                                     const uint32_t* end,
-                                                     uint32_t* output,
-                                                     const char* val) {
-    auto regex = regex::Regex::Create(val);
-    if (!regex.ok()) {
-      return output;
-    }
-    return Filter(data, begin, end, output, regex.value(),
-                  comparators::Regex{state_.string_pool});
-  }
-
-  // Filters an existing index buffer in-place, based on data comparisons
-  // performed using a separate set of source indices.
-  //
-  // This function iterates synchronously through two sets of indices:
-  // 1. Source Indices: Provided by [begin, end), pointed to by `it`. These
-  //    indices are used *only* to look up data values (`data[*it]`).
-  // 2. Destination/Update Indices: Starting at `o_start`, pointed to by
-  //    `o_read` (for reading the original index) and `o_write` (for writing
-  //    (for reading the original index) and `o_write` (for writing kept
-  //    indices). This buffer is modified *in-place*.
-  //
-  // For each step `i`:
-  //   - It retrieves the data value using the i-th source index:
-  //   `data[begin[i]]`.
-  //   - It compares this data value against the provided `value`.
-  //   - It reads the i-th *original* index from the destination buffer:
-  //   `o_read[i]`.
-  //   - If the comparison is true, it copies the original index `o_read[i]`
-  //     to the current write position `*o_write` and advances `o_write`.
-  //
-  // The result is that the destination buffer `[o_start, returned_pointer)`
-  // contains the subset of its *original* indices for which the comparison
-  // (using the corresponding source index for data lookup) was true.
-  //
-  // Use Case Example (SparseNull Filter):
-  //   - `[begin, end)` holds translated storage indices (for correct data
-  //     lookup).
-  //   - `o_start` points to the buffer holding original table indices (that
-  //     was have already been filtered by `NullFilter<IsNotNull>`).
-  //   - This function further filters the original table indices in
-  //   `o_start`
-  //     based on data comparisons using the translated indices.
-  //
-  // Args:
-  //   data: Pointer to the start of the column's data storage.
-  //   begin: Pointer to the first index in the source span (for data
-  //   lookup). end: Pointer one past the last index in the source span.
-  //   o_start: Pointer to the destination/update buffer (filtered
-  //   in-place). value: The value to compare data against. comparator:
-  //   Functor implementing the comparison logic.
-  //
-  // Returns:
-  //   A pointer one past the last index written to the destination buffer.
-  template <typename Comparator, typename ValueType, typename DataType>
-  [[nodiscard]] PERFETTO_ALWAYS_INLINE static uint32_t* Filter(
-      const DataType* data,
-      const uint32_t* begin,
-      const uint32_t* end,
-      uint32_t* o_start,
-      const ValueType& value,
-      const Comparator& comparator) {
-    const uint32_t* o_read = o_start;
-    uint32_t* o_write = o_start;
-    for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      // The choice of a branchy implemntation is intentional: this seems faster
-      // than trying to do something branchless, likely because the compiler is
-      // helping us with branch prediction.
-      if (comparator(data[*it], value)) {
-        *o_write++ = *o_read;
-      }
-    }
-    return o_write;
-  }
-
-  // Similar to Filter but operates directly on the identity values
-  // (indices) rather than dereferencing through a data array.
-  template <typename Comparator, typename ValueType>
-  [[nodiscard]] PERFETTO_ALWAYS_INLINE static uint32_t* IdentityFilter(
-      const uint32_t* begin,
-      const uint32_t* end,
-      uint32_t* o_start,
-      const ValueType& value,
-      Comparator comparator) {
-    const uint32_t* o_read = o_start;
-    uint32_t* o_write = o_start;
-    for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      // The choice of a branchy implemntation is intentional: this seems faster
-      // than trying to do something branchless, likely because the compiler is
-      // helping us with branch prediction.
-      if (comparator(*it, value)) {
-        *o_write++ = *o_read;
-      }
-    }
-    return o_write;
   }
 
   // Attempts to cast a filter value to a numeric type, dispatching to the
