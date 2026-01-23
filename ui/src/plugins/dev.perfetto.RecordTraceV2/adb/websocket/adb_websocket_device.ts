@@ -83,12 +83,11 @@ export class AdbWebsocketDevice extends AdbDevice {
     if (!connRes.ok) return connRes;
     const sock = connRes.value;
 
+    let stream: ByteStream;
     if (this.mode === 'WEBSOCKET_BRIDGE') {
       const status = await adbCmdAndWait(sock, svc, false);
       if (!status.ok) return status;
-      const stream = new WebSocketStream(sock.release());
-      this.streams.push(stream);
-      return okResult(stream);
+      stream = new WebSocketStream(sock.release());
     } else if (this.mode === 'WEB_DEVICE_PROXY') {
       sock.send(
         JSON.stringify({
@@ -98,14 +97,15 @@ export class AdbWebsocketDevice extends AdbDevice {
           },
         }),
       );
-      const stream = new WdpWebSocketStream(sock.release());
-      this.streams.push(stream);
-      return okResult(stream);
+      stream = new WdpWebSocketStream(sock.release());
+    } else {
+      assertUnreachable(
+        this.mode,
+        'Mode needs to be one of WEBSOCKET_BRIDGE or WEB_DEVICE_PROXY',
+      );
     }
-    assertUnreachable(
-      this.mode,
-      'Mode needs to be one of WEBSOCKET_BRIDGE or WEB_DEVICE_PROXY',
-    );
+    this.streams.push(stream);
+    return okResult(stream);
   }
 
   get connected(): boolean {
