@@ -18,11 +18,9 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PRIMES_PRIMES_TRACE_PARSER_H_
 
 #include <cstdint>
-#include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "protos/third_party/primes/primes_tracing.pbzero.h"
-#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"

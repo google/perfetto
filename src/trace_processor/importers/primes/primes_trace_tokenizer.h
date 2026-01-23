@@ -37,7 +37,7 @@ class PrimesTraceTokenizer : public ChunkedTraceReader {
 
  private:
   util::TraceBlobViewReader reader_;
-  TraceProcessorContext* const PERFETTO_UNUSED context_;
+  TraceProcessorContext* const context_;
   std::unique_ptr<TraceSorter::Stream<TraceBlobView>> stream_;
 };
 

@@ -35,7 +35,7 @@ PrimesTraceTokenizer::PrimesTraceTokenizer(TraceProcessorContext* ctx)
 
 PrimesTraceTokenizer::~PrimesTraceTokenizer() = default;
 
-int64_t to_nanos(int64_t seconds, int32_t nanos) {
+static int64_t to_nanos(int64_t seconds, int32_t nanos) {
   return seconds * 1000000000LL + nanos;
 }
 
