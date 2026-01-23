@@ -118,9 +118,8 @@ struct TreeOperatorModule : sqlite::Module<TreeOperatorModule> {
     kSortSpec = 2,      // Sort specification
     kOffset = 3,        // Pagination offset
     kLimit = 4,         // Pagination limit
-    kRebuild = 5,       // Trigger cache rebuild
   };
-  static constexpr int kHiddenColCount = 6;
+  static constexpr int kHiddenColCount = 5;
 
   struct Context {
     explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}

@@ -18,44 +18,289 @@ from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
+CREATE_TEST_TABLE = """
+  CREATE PERFETTO TABLE sales AS
+  WITH data(category, item, value) AS (
+    VALUES
+      ('fruit', 'apple', 10),
+      ('fruit', 'apple', 20),
+      ('fruit', 'banana', 15),
+      ('vegetable', 'carrot', 5),
+      ('vegetable', 'carrot', 8),
+      ('vegetable', 'potato', 12)
+  )
+  SELECT * FROM data;
+"""
 
 CREATE_PIVOT_TABLE_QUERY = """
   CREATE VIRTUAL TABLE pivot USING __intrinsic_pivot(
-    '(SELECT * FROM slice)',
-    'cat, name',
-    'SUM(dur)'
+    '(SELECT * FROM sales)',
+    'category, item',
+    'SUM(value)'
   );
 """
 
 
 class Pivot(TestSuite):
-  def test_stuff(self):
+
+  def test_pivot_basic(self):
     return DiffTestBlueprint(
-        trace=DataPath('api34_startup_cold.perfetto-trace'),
+        trace=TextProto(''),
         query=f"""
+          {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT cat, name, __id__, __parent_id__, __depth__, __has_children__, __child_count__, agg_0 FROM pivot
+          SELECT category, item, __depth__, __has_children__, __child_count__, agg_0 FROM pivot
         """,
         out=Csv("""
-"cat","name","__id__","__parent_id__","__depth__","__has_children__","__child_count__","agg_0"
-"binder","[NULL]",1,0,0,1,4,5279798319.000000
-"workqueue","[NULL]",2,0,0,1,33,160086968.000000
-        """))
-  
-  def test_other_stuff(self):
-    return DiffTestBlueprint(
-        trace=DataPath('api34_startup_cold.perfetto-trace'),
-        query=f"""
-          {CREATE_PIVOT_TABLE_QUERY}
-          SELECT cat, name, __id__, __parent_id__, __depth__, __has_children__, __child_count__, agg_0 FROM pivot
-          WHERE __expanded_ids__ = '1'
-          LIMIT 5
-        """,
-        out=Csv("""
-"cat","name","__id__","__parent_id__","__depth__","__has_children__","__child_count__","agg_0"
-"binder","binder transaction",5,1,1,0,0,2684362805.000000
-"binder","binder reply",4,1,1,0,0,2595435514.000000
-"binder","binder async rcv",3,1,1,0,0,0.000000
-"binder","binder transaction async",6,1,1,0,0,0.000000
+"category","item","__depth__","__has_children__","__child_count__","agg_0"
+"fruit","[NULL]",0,1,2,45.000000
+"vegetable","[NULL]",0,1,2,25.000000
         """))
 
+  def test_pivot_expanded(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, __has_children__, __child_count__, agg_0 FROM pivot
+          WHERE __expanded_ids__ = '1'
+        """,
+        out=Csv("""
+"category","item","__depth__","__has_children__","__child_count__","agg_0"
+"fruit","[NULL]",0,1,2,45.000000
+"fruit","apple",1,0,0,30.000000
+"fruit","banana",1,0,0,15.000000
+"vegetable","[NULL]",0,1,2,25.000000
+        """))
+
+  def test_pivot_collapsed(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, __has_children__, __child_count__, agg_0 FROM pivot
+          WHERE __collapsed_ids__ = '1'
+        """,
+        out=Csv("""
+"category","item","__depth__","__has_children__","__child_count__","agg_0"
+"fruit","[NULL]",0,1,2,45.000000
+"vegetable","[NULL]",0,1,2,25.000000
+"vegetable","carrot",1,0,0,13.000000
+"vegetable","potato",1,0,0,12.000000
+        """))
+
+  def test_pivot_sort_asc(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __sort__ = 'agg_0 ASC'
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"vegetable","[NULL]",0,25.000000
+"fruit","[NULL]",0,45.000000
+        """))
+
+  def test_pivot_sort_by_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __sort__ = 'name ASC'
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"fruit","[NULL]",0,45.000000
+"vegetable","[NULL]",0,25.000000
+        """))
+
+  def test_pivot_limit(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __expanded_ids__ = '1,2' AND __limit__ = 3
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"fruit","[NULL]",0,45.000000
+"fruit","apple",1,30.000000
+"fruit","banana",1,15.000000
+        """))
+
+  def test_pivot_offset_and_limit(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __expanded_ids__ = '1,2' AND __offset__ = 2 AND __limit__ = 2
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"fruit","banana",1,15.000000
+"vegetable","[NULL]",0,25.000000
+        """))
+
+  def test_pivot_multiple_aggregates(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          CREATE VIRTUAL TABLE pivot_multi USING __intrinsic_pivot(
+            '(SELECT * FROM sales)',
+            'category, item',
+            'SUM(value), COUNT(*), AVG(value)'
+          );
+          SELECT category, item, __depth__, agg_0, agg_1, agg_2 FROM pivot_multi
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0","agg_1","agg_2"
+"fruit","[NULL]",0,45.000000,3.000000,15.000000
+"vegetable","[NULL]",0,25.000000,3.000000,8.333333
+        """))
+
+  def test_pivot_expand_multiple(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __expanded_ids__ = '1,2'
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"fruit","[NULL]",0,45.000000
+"fruit","apple",1,30.000000
+"fruit","banana",1,15.000000
+"vegetable","[NULL]",0,25.000000
+"vegetable","carrot",1,13.000000
+"vegetable","potato",1,12.000000
+        """))
+
+  def test_pivot_table_name_input(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          CREATE VIRTUAL TABLE pivot_direct USING __intrinsic_pivot(
+            'sales',
+            'category, item',
+            'SUM(value)'
+          );
+          SELECT category, item, __depth__, agg_0 FROM pivot_direct
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"fruit","[NULL]",0,45.000000
+"vegetable","[NULL]",0,25.000000
+        """))
+
+  def test_pivot_sort_expanded_asc(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __expanded_ids__ = '1,2' AND __sort__ = 'agg_0 ASC'
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"vegetable","[NULL]",0,25.000000
+"vegetable","potato",1,12.000000
+"vegetable","carrot",1,13.000000
+"fruit","[NULL]",0,45.000000
+"fruit","banana",1,15.000000
+"fruit","apple",1,30.000000
+        """))
+
+  def test_pivot_sort_expanded_desc(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __expanded_ids__ = '1,2' AND __sort__ = 'agg_0 DESC'
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"fruit","[NULL]",0,45.000000
+"fruit","apple",1,30.000000
+"fruit","banana",1,15.000000
+"vegetable","[NULL]",0,25.000000
+"vegetable","carrot",1,13.000000
+"vegetable","potato",1,12.000000
+        """))
+
+  def test_pivot_offset_only(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __expanded_ids__ = '1,2' AND __offset__ = 4
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"vegetable","carrot",1,13.000000
+"vegetable","potato",1,12.000000
+        """))
+
+  def test_pivot_limit_with_sort(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __expanded_ids__ = '1,2' AND __sort__ = 'agg_0 ASC' AND __limit__ = 3
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"vegetable","[NULL]",0,25.000000
+"vegetable","potato",1,12.000000
+"vegetable","carrot",1,13.000000
+        """))
+
+  def test_pivot_offset_limit_with_sort(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __expanded_ids__ = '1,2' AND __sort__ = 'agg_0 ASC' AND __offset__ = 1 AND __limit__ = 3
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+"vegetable","potato",1,12.000000
+"vegetable","carrot",1,13.000000
+"fruit","[NULL]",0,45.000000
+        """))
+
+  def test_pivot_offset_past_data(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+          {CREATE_TEST_TABLE}
+          {CREATE_PIVOT_TABLE_QUERY}
+          SELECT category, item, __depth__, agg_0 FROM pivot
+          WHERE __offset__ = 100
+        """,
+        out=Csv("""
+"category","item","__depth__","agg_0"
+        """))

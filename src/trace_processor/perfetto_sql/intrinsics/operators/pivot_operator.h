@@ -109,7 +109,6 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
     kSortSpec = 3,      // Sort specification
     kOffset = 4,        // Pagination offset
     kLimit = 5,         // Pagination limit
-    kRebuild = 6,       // Trigger cache rebuild
   };
 
   struct Context {

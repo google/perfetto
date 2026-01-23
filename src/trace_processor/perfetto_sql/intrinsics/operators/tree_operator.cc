@@ -48,7 +48,6 @@
 //   - Nodes whose parent_id references a non-existent row become root nodes
 //   - This allows filtered data to display correctly (orphans promoted to root)
 //   - Tree is built once at CREATE time and cached
-//   - Use __rebuild__ = 1 to force rebuild after data changes
 
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/tree_operator.h"
 
@@ -114,7 +113,6 @@ std::string BuildSchemaString(const std::vector<std::string>& column_names,
   schema += ",__sort__ TEXT HIDDEN";
   schema += ",__offset__ INTEGER HIDDEN";
   schema += ",__limit__ INTEGER HIDDEN";
-  schema += ",__rebuild__ INTEGER HIDDEN";
 
   schema += ")";
   return schema;
@@ -583,13 +581,11 @@ int TreeOperatorModule::BestIndex(sqlite3_vtab* vtab,
   int sort_col = hidden_start + kSortSpec;
   int offset_col = hidden_start + kOffset;
   int limit_col = hidden_start + kLimit;
-  int rebuild_col = hidden_start + kRebuild;
 
   // Build idxStr to encode argv index for each constraint type.
-  // Format: 6 characters (expanded, collapsed, sort, offset, limit,
-  // rebuild). Each char is '0'-'5' indicating the argv index, or '-' if not
-  // present.
-  char idx_flags[7] = "------";
+  // Format: 5 characters (expanded, collapsed, sort, offset, limit).
+  // Each char is '0'-'4' indicating the argv index, or '-' if not present.
+  char idx_flags[6] = "-----";
 
   int argv_index = 1;  // argvIndex is 1-based in SQLite
   for (int i = 0; i < info->nConstraint; i++) {
@@ -619,10 +615,6 @@ int TreeOperatorModule::BestIndex(sqlite3_vtab* vtab,
       info->aConstraintUsage[i].omit = true;
     } else if (col == limit_col) {
       idx_flags[4] = static_cast<char>('0' + argv_index - 1);
-      info->aConstraintUsage[i].argvIndex = argv_index++;
-      info->aConstraintUsage[i].omit = true;
-    } else if (col == rebuild_col) {
-      idx_flags[5] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     }
@@ -665,10 +657,9 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   bool denylist_mode = false;
 
   // Parse idxStr to determine which arguments are present
-  std::string flags = idxStr ? idxStr : "------";
+  std::string flags = idxStr ? idxStr : "-----";
 
   std::string sort_spec_str;
-  bool needs_rebuild = false;
 
   // Helper to get argv value for a flag position
   auto get_argv = [&](size_t flag_pos) -> sqlite3_value* {
@@ -732,23 +723,6 @@ int TreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   // Process __limit__ (flag position 4)
   if (sqlite3_value* val = get_argv(4)) {
     c->limit = sqlite3_value_int(val);
-  }
-
-  // Process __rebuild__ (flag position 5)
-  if (sqlite3_value* val = get_argv(5)) {
-    needs_rebuild = sqlite3_value_int(val) != 0;
-  }
-
-  // Rebuild tree if requested
-  if (needs_rebuild) {
-    t->roots.clear();
-    base::Status status =
-        BuildTree(t->engine, t->base_table, t->column_names, t->id_col_index,
-                  t->parent_id_col_index, &t->roots, &t->total_nodes);
-    if (!status.ok()) {
-      return sqlite::utils::SetError(t, status);
-    }
-    t->current_sort_spec.clear();  // Force resort after rebuild
   }
 
   // Resort if sort spec changed

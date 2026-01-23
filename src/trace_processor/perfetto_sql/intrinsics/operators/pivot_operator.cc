@@ -53,7 +53,6 @@
 //   - Each level groups by cumulative hierarchy columns (level 1 by col1,
 //     level 2 by col1+col2, etc.)
 //   - Tree is built once at CREATE time and cached
-//   - Use __rebuild__ = 1 to force rebuild after data changes
 
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/pivot_operator.h"
 
@@ -129,7 +128,6 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   schema += ",__sort__ TEXT HIDDEN";
   schema += ",__offset__ INTEGER HIDDEN";
   schema += ",__limit__ INTEGER HIDDEN";
-  schema += ",__rebuild__ INTEGER HIDDEN";
 
   schema += ")";
   return schema;
@@ -497,10 +495,10 @@ int PivotOperatorModule::Create(sqlite3* db,
   res->hierarchy_cols = std::move(hierarchy_cols);
   res->aggregations = std::move(aggregations);
   res->agg_col_count = res->aggregations.size();
-  // Column layout: hierarchy cols + 5 metadata + agg cols + 8 hidden
+  // Column layout: hierarchy cols + 5 metadata + agg cols + 6 hidden
   size_t num_hier = res->hierarchy_cols.size();
   res->total_col_count =
-      static_cast<int>(num_hier + kMetadataColCount + res->agg_col_count + 8);
+      static_cast<int>(num_hier + kMetadataColCount + res->agg_col_count + 6);
 
   // Create root node
   res->root = std::make_unique<PivotNode>();
@@ -559,14 +557,13 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
   int sort_col = hidden_start + kSortSpec;
   int offset_col = hidden_start + kOffset;
   int limit_col = hidden_start + kLimit;
-  int rebuild_col = hidden_start + kRebuild;
 
   // Build idxStr to encode argv index for each constraint type.
-  // Format: 7 characters, one per constraint type (aggs, expanded, collapsed,
-  // sort, offset, limit, rebuild). Each char is '0'-'6' indicating the
-  // argv index, or '-' if not present.
+  // Format: 6 characters, one per constraint type (aggs, expanded, collapsed,
+  // sort, offset, limit). Each char is '0'-'5' indicating the argv index,
+  // or '-' if not present.
   // This allows Filter() to know exactly which argv slot each value is in.
-  char idx_flags[8] = "-------";
+  char idx_flags[7] = "------";
 
   int argv_index = 1;  // argvIndex is 1-based in SQLite
   for (int i = 0; i < info->nConstraint; i++) {
@@ -600,10 +597,6 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
       info->aConstraintUsage[i].omit = true;
     } else if (col == limit_col) {
       idx_flags[5] = static_cast<char>('0' + argv_index - 1);
-      info->aConstraintUsage[i].argvIndex = argv_index++;
-      info->aConstraintUsage[i].omit = true;
-    } else if (col == rebuild_col) {
-      idx_flags[6] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     }
@@ -647,11 +640,10 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
                                // denylist (collapsed_ids)
 
   // Parse idxStr to determine which arguments are present and their argv index.
-  // Each char in idxStr is either '-' (not present) or '0'-'6' (argv index).
-  std::string flags = idxStr ? idxStr : "-------";
+  // Each char in idxStr is either '-' (not present) or '0'-'5' (argv index).
+  std::string flags = idxStr ? idxStr : "------";
 
   std::string sort_spec_str;
-  bool needs_rebuild = false;
 
   // Helper to get argv value for a flag position, or nullptr if not present
   auto get_argv = [&](size_t flag_pos) -> sqlite3_value* {
@@ -719,23 +711,6 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   // Process __limit__ (flag position 5)
   if (sqlite3_value* val = get_argv(5)) {
     c->limit = sqlite3_value_int(val);
-  }
-
-  // Process __rebuild__ (flag position 6)
-  if (sqlite3_value* val = get_argv(6)) {
-    needs_rebuild = sqlite3_value_int(val) != 0;
-  }
-
-  // Rebuild tree if requested
-  if (needs_rebuild) {
-    t->root = std::make_unique<PivotNode>();
-    base::Status status =
-        BuildTree(t->engine, t->base_table, t->hierarchy_cols, t->aggregations,
-                  t->root.get(), &t->total_nodes);
-    if (!status.ok()) {
-      return sqlite::utils::SetError(t, status);
-    }
-    t->current_sort_spec.clear();  // Force resort after rebuild
   }
 
   // Resort if sort spec changed or if we haven't sorted yet
