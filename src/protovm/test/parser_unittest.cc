@@ -233,7 +233,7 @@ TEST_F(ParserTest, Select_CanBreakOuterNestedInstructions) {
   auto program = SamplePrograms::Select_CanBreakOuterNestedInstructions()
                      .SerializeAsString();
   Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsError());
 }
 
 TEST_F(ParserTest,
@@ -250,7 +250,7 @@ TEST_F(ParserTest,
 
   auto program = SamplePrograms::AbortLevel_default().SerializeAsString();
   Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsError());
 }
 
 TEST_F(ParserTest, AbortLevel_SKIP_CURRENT_INSTRUCTION) {
@@ -286,7 +286,7 @@ TEST_F(ParserTest, AbortLevel_SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER) {
       SamplePrograms::AbortLevel_SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER()
           .SerializeAsString();
   Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsError());
 }
 
 TEST_F(ParserTest, AbortLevel_ABORT) {

@@ -32,45 +32,96 @@ class AllocatorTest : public ::testing::Test {
 };
 
 TEST_F(AllocatorTest, NodeAllocationRespectsMemoryLimit) {
-  auto nodes = std::vector<OwnedPtr<Node>>{};
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), 0u);
 
+  // Allocate N nodes
+  auto nodes = std::vector<OwnedPtr<Node>>{};
   for (size_t i = 0; i < kCapacity; ++i) {
+    auto prev_memory_usage = allocator_.GetMemoryUsageBytes();
     auto node = allocator_.CreateNode<Node::Empty>();
     ASSERT_TRUE(node.IsOk());
+    ASSERT_GT(allocator_.GetMemoryUsageBytes(), prev_memory_usage);
     nodes.push_back(std::move(*node));
   }
 
-  auto node = allocator_.CreateNode<Node::Empty>();
-  ASSERT_FALSE(node.IsOk());
-
-  for (auto& n : nodes) {
-    allocator_.Delete(n.release());
+  // Failed node allocation (memory limit reached)
+  {
+    auto prev_memory_usage = allocator_.GetMemoryUsageBytes();
+    auto node_fail = allocator_.CreateNode<Node::Empty>();
+    ASSERT_FALSE(node_fail.IsOk());
+    ASSERT_EQ(allocator_.GetMemoryUsageBytes(), prev_memory_usage);
   }
+
+  // Delete one node
+  {
+    auto prev_memory_usage = allocator_.GetMemoryUsageBytes();
+    allocator_.Delete(nodes.back().release());
+    nodes.pop_back();
+    ASSERT_LT(allocator_.GetMemoryUsageBytes(), prev_memory_usage);
+  }
+
+  // Successfull node allocation (verify that previous deletion actually freed
+  // memory for one node)
+  {
+    auto prev_memory_usage = allocator_.GetMemoryUsageBytes();
+    auto node_success = allocator_.CreateNode<Node::Empty>();
+    ASSERT_TRUE(node_success.IsOk());
+    ASSERT_GT(allocator_.GetMemoryUsageBytes(), prev_memory_usage);
+    nodes.push_back(node_success->release());
+  }
+
+  // Delete all nodes
+  for (auto& n : nodes) {
+    auto prev_memory_usage = allocator_.GetMemoryUsageBytes();
+    allocator_.Delete(n.release());
+    ASSERT_LT(allocator_.GetMemoryUsageBytes(), prev_memory_usage);
+  }
+
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), 0u);
 }
 
 TEST_F(AllocatorTest, BytesAllocationRespectsMemoryLimit) {
-  auto bytes = std::vector<Node::Bytes>{};
-
   auto bytes0 = std::vector<std::uint8_t>(kMemoryLimitBytes / 2);
   auto bytes1 = std::vector<std::uint8_t>(kMemoryLimitBytes - bytes0.size());
 
+  // Successfully allocate copy0 and copy1 (reach memory limit)
   auto copy0 = allocator_.AllocateAndCopyBytes(
       protozero::ConstBytes{bytes0.data(), bytes0.size()});
   ASSERT_TRUE(copy0.IsOk());
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), bytes0.size());
 
   auto copy1 = allocator_.AllocateAndCopyBytes(
       protozero::ConstBytes{bytes1.data(), bytes1.size()});
   ASSERT_TRUE(copy1.IsOk());
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), bytes0.size() + bytes1.size());
 
+  // Failed allocation
+  // (verify that previous allocations affected memory usage)
   auto copy_fail = allocator_.AllocateAndCopyBytes(
       protozero::ConstBytes{bytes0.data(), bytes0.size()});
   ASSERT_FALSE(copy_fail.IsOk());
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), bytes0.size() + bytes1.size());
 
-  auto node0 = Node{std::move(*copy0)};
-  allocator_.DeleteReferencedData(&node0);
-
+  // Delete copy1
   auto node1 = Node{std::move(*copy1)};
   allocator_.DeleteReferencedData(&node1);
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), bytes0.size());
+
+  // Successfully allocate copy11
+  // (verify that previous deletion affected memory usage)
+  auto copy11 = allocator_.AllocateAndCopyBytes(
+      protozero::ConstBytes{bytes1.data(), bytes1.size()});
+  ASSERT_TRUE(copy11.IsOk());
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), bytes0.size() + bytes1.size());
+
+  // Delete
+  auto node0 = Node{std::move(*copy0)};
+  allocator_.DeleteReferencedData(&node0);
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), bytes1.size());
+
+  auto node11 = Node{std::move(*copy11)};
+  allocator_.DeleteReferencedData(&node11);
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), 0u);
 }
 
 }  // namespace test

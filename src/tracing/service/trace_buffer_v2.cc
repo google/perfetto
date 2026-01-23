@@ -16,12 +16,18 @@
 
 #include "src/tracing/service/trace_buffer_v2.h"
 
+#include <algorithm>
+#include <memory>
+
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
-#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/protovm/vm.h"
 
 // Set manually when debugging test failures.
 // TRACE_BUFFER_V2_DLOG is too verbose, even for debug builds.
@@ -330,6 +336,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
       frag_iter_ = FragIterator(next_chunk);
       continue;
     }
+
     Frag& frag = *maybe_frag;
     switch (frag.type) {
       case Frag::kFragWholePacket:
@@ -916,14 +923,22 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     ChunkSeqReader csr(this, chunk, ChunkSeqReader::kEraseMode);
     bool has_cleared_unconsumed_fragments = false;
     for (;;) {
-      // TODO(keanmariotti): if we have a ProtoVM here we should pass a non-null
-      // TracePacket. But if we don't we should pass nullptr, as AddSlice() on
-      // TracePacket has significant overhead (due to hitting the allocator)
-      TracePacket* trace_packet = nullptr;
-      if (!csr.ReadNextPacketInSeqOrder(trace_packet))
+      // If we have ProtoVMs, we need to readout each packet and pass to
+      // protovm. If not, we still need to do reads, but without having to
+      // accumulated data in a packet.
+      TracePacket* maybe_packet = nullptr;
+      if (!protovms_.empty()) {
+        overwritten_packet_.Clear();
+        maybe_packet = &overwritten_packet_;
+      }
+      if (!csr.ReadNextPacketInSeqOrder(maybe_packet)) {
         break;
+      }
+      if (maybe_packet) {
+        MaybeProcessOverwrittenPacketWithProtoVm(*maybe_packet,
+                                                 csr.seq()->producer_id);
+      }
       has_cleared_unconsumed_fragments = true;
-      // TODO(keanmariotti): pass `trace_packet` to ProtoVM.
     }
 
     // In future this branch should become "&& !protovm_has_consumed_packet"
@@ -1084,6 +1099,14 @@ std::unique_ptr<TraceBuffer> TraceBufferV2::CloneReadOnly() const {
   return buf;
 }
 
+size_t TraceBufferV2::GetMemoryUsageBytes() const {
+  size_t total_bytes = size();
+  for (const Vm& vm : protovms_) {
+    total_bytes += vm.instance->GetMemoryUsageBytes();
+  }
+  return total_bytes;
+}
+
 TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
     : overwrite_policy_(src.overwrite_policy_),
       read_generation_(src.read_generation_),
@@ -1107,6 +1130,26 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
 
   // Finally copy over the SequenceState map.
   sequences_ = src.sequences_;
+
+  for (const auto& vm : src.protovms_) {
+    auto vm_cloned = vm.CloneReadOnly();
+    if (!vm_cloned.instance) {
+      PERFETTO_ELOG("Failed to clone ProtoVMs");
+      protovms_.clear();
+      break;
+    }
+    protovms_.push_back(std::move(vm_cloned));
+  }
+}
+
+TraceBufferV2::Vm TraceBufferV2::Vm::CloneReadOnly() const {
+  Vm cloned_vm;
+  cloned_vm.data_source_name = data_source_name;
+  cloned_vm.program_hash = program_hash;
+  cloned_vm.memory_limit_kb = memory_limit_kb;
+  cloned_vm.producers = producers;
+  cloned_vm.instance = instance->CloneReadOnly();
+  return cloned_vm;
 }
 
 void TraceBufferV2::DumpForTesting() {
@@ -1139,6 +1182,111 @@ void TraceBufferV2::DumpForTesting() {
     break;
   }
   PERFETTO_DLOG("------------------------------------------------------------");
+}
+
+TraceBufferV2::Vm::Vm() = default;
+TraceBufferV2::Vm::~Vm() = default;
+TraceBufferV2::Vm::Vm(Vm&&) noexcept = default;
+
+void TraceBufferV2::MaybeSetUpProtoVm(const std::string& data_source_name,
+                                      const std::string& program_bytes,
+                                      uint32_t memory_limit_kb,
+                                      ProducerID producer_id) {
+  Vm* vm = nullptr;
+  // Re-use existing ProtoVM instance, if any.
+  uint64_t program_hash = base::MurmurHashValue(program_bytes);
+  auto vm_it =
+      std::find_if(protovms_.begin(), protovms_.end(), [&](const Vm& vm) {
+        return vm.data_source_name == data_source_name &&
+               vm.program_hash == program_hash;
+      });
+  if (vm_it != protovms_.end()) {
+    vm = std::addressof(*vm_it);
+  } else {
+    // Otherwise instantiate new ProtoVM
+    Vm new_vm;
+    new_vm.data_source_name = data_source_name;
+    new_vm.program_hash = program_hash;
+    new_vm.memory_limit_kb = memory_limit_kb;
+
+    protozero::ConstBytes program_bytes_view{
+        reinterpret_cast<const uint8_t*>(program_bytes.data()),
+        program_bytes.size()};
+
+    new_vm.instance = std::make_unique<protovm::Vm>(
+        program_bytes_view, new_vm.memory_limit_kb * 1024);
+    if (!new_vm.instance) {
+      PERFETTO_ELOG("Failed to allocate ProtoVM");
+      return;
+    }
+
+    protovms_.push_back(std::move(new_vm));
+    vm = &protovms_.back();
+  }
+  // Update ProtoVM's producer IDs
+  if (!vm->producers.Add(producer_id)) {
+    PERFETTO_ELOG("Hit max capacity of ProtoVM producers");
+  }
+}
+
+void TraceBufferV2::MaybeProcessOverwrittenPacketWithProtoVm(
+    const TracePacket& packet,
+    ProducerID producer) {
+  protovm_patch_.clear();
+
+  /*
+  TODO(primiano):
+  As discussed offline, here the idea is to loop through the
+  possible ProtoVMs for this producer and stop as soon as we find one that
+  doesn't error.
+
+  In am still leaning towards the alternative where a data source advertises the
+  processed packet field numbers in the ProtoVM config. So TBv2 knows wich
+  packet's field is required to process a patch with a given VM. This would also
+  be beneficial for performance, as the service could first read the field
+  number from the fragmented TracePacket and perform the stitching only if there
+  is actually a VM that can process the packet.
+
+  The current approach works for programs that access a single field in
+  TracePacket. E.g. this program accesses only patch.surfaceflinger:
+    1. Enter patch.surfaceflinger
+        1.1 Enter field_X and do something
+        1.2 Enter field_Y and do something
+    2. < more instructions to copy the timestamp >
+
+  so that if instruction 1. fails, the program stops and returns an error.
+
+  However, this approach breaks if we have a program that wants to access
+  multiple fields in TracePacket. E.g. patch.surfaceflinger +
+  patch.windowmanager. We don't really have this use case atm, but it seems like
+  a reasonable one. I am thinking about a ProtoVM that somehow aggregates/merges
+  different packet fields. I remember at some point we even mentioned
+  "promiscous mode" ProtoVMs that process packets from any producer.
+  */
+  for (auto& vm : protovms_) {
+    if (!vm.producers.Contains(producer)) {
+      continue;
+    }
+    if (protovm_patch_.empty()) {
+      // TODO(primiano): can we expect packet.slices().size() == 1 quite often?
+      // In those cases we could avoid calling StitchPacket and use directly the
+      // packet's slice
+      packet.GetRawBytes(&protovm_patch_);
+    }
+    protozero::ConstBytes bytes{
+        reinterpret_cast<const uint8_t*>(protovm_patch_.data()),
+        protovm_patch_.size()};
+    auto status = vm.instance->ApplyPatch(bytes);
+    if (status.IsOk()) {
+      break;
+    }
+    if (status.IsAbort()) {
+      // TODO(primiano): can we do something more here? I am thinking about
+      // triggering a field upload containing the stacktrace?
+      PERFETTO_ELOG("ProtoVM abort while applying patch. Stacktrace:\n%s",
+                    base::Join(status.stacktrace(), "\n").c_str());
+    }
+  }
 }
 
 }  // namespace perfetto

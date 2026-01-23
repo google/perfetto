@@ -79,6 +79,8 @@ class Allocator {
     return OwnedPtr<Node>(static_cast<Node*>(p));
   }
 
+  size_t GetMemoryUsageBytes() const { return used_memory_bytes_; }
+
  private:
   void DeallocateBytes(OwnedPtr<void> p, size_t size);
 
