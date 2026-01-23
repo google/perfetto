@@ -149,7 +149,7 @@ PivotNode* FindOrCreateNode(PivotNode* root,
 
   PivotNode* current = root;
   for (int i = 0; i <= level && i < static_cast<int>(segments.size()); i++) {
-    const std::string& segment = segments[i];
+    const std::string& segment = segments[static_cast<size_t>(i)];
     PivotNode* found = nullptr;
 
     // Look for existing child with matching hierarchy value at this level
