@@ -66,6 +66,15 @@
 
 import {stringifyJsonWithBigints} from './json_utils';
 
+function isAsyncDisposable(value: unknown): value is AsyncDisposable {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    Symbol.asyncDispose in value &&
+    typeof (value as AsyncDisposable)[Symbol.asyncDispose] === 'function'
+  );
+}
+
 // Simple alias for a function that returns a Promise of type T.
 type AsyncFunc<T> = () => Promise<T>;
 
@@ -138,17 +147,25 @@ export interface QueryResult<T> {
  *
  * Created once per query on a component. Multiple slots share a
  * SerialTaskQueue for serialized execution.
+ *
+ * If T is an AsyncDisposable, the slot will automatically dispose of
+ * previous results before running a new query and when the slot is disposed.
  */
 export class QuerySlot<T> {
   private cache?: {key: object; keyStr: string; data: T};
   private pendingKey?: object;
+  private disposed = false;
 
   constructor(private readonly queue: SerialTaskQueue) {}
 
   /**
    * Call every render cycle to get the current query result.
+   * @throws Error if called after dispose()
    */
   use<K extends object>(options: QueryOptions<T, K>): QueryResult<T> {
+    if (this.disposed) {
+      throw new Error('QuerySlot.use() called after dispose()');
+    }
     const {key, queryFn, enabled, retainOn = []} = options;
     const keyStr = stringifyJsonWithBigints(key);
 
@@ -168,6 +185,8 @@ export class QuerySlot<T> {
     if (isKeyDifferentFromPending && isKeyDifferentFromCache && canRun) {
       this.pendingKey = key;
       this.queue.schedule(this, async () => {
+        // Dispose of previous result before running new query
+        await this.disposeCache();
         const result = await queryFn();
         this.setCache(key, result);
       });
@@ -213,14 +232,33 @@ export class QuerySlot<T> {
     }
   }
 
+  private async disposeCache(): Promise<void> {
+    if (this.cache && isAsyncDisposable(this.cache.data)) {
+      await this.cache.data[Symbol.asyncDispose]();
+      // Only clear cache for AsyncDisposable - the resource is now invalid
+      // For non-AsyncDisposable data, keep the cache until setCache replaces it
+      this.cache = undefined;
+    }
+  }
+
   /**
-   * Dispose this slot. Cancels pending work.
+   * Dispose this slot. Cancels pending work and disposes any cached
+   * AsyncDisposable through the queue to maintain synchronization.
    * Call this in component's onremove() to prevent orphaned queries.
    */
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+
     this.queue.cancel(this);
-    this.cache = undefined;
     this.pendingKey = undefined;
+
+    // Schedule cache disposal through the queue. This runs after any
+    // in-flight query completes, ensuring we dispose whatever ends up
+    // in the cache (either existing data or newly fetched data).
+    this.queue.schedule(this, async () => {
+      await this.disposeCache();
+    });
   }
 }
 

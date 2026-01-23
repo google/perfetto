@@ -89,7 +89,7 @@ interface LogEntries {
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly trace: Trace;
   private readonly executor = new SerialTaskQueue();
-  private readonly viewQuery = new QuerySlot<boolean>(this.executor);
+  private readonly viewQuery = new QuerySlot<AsyncDisposable>(this.executor);
   private readonly entriesQuery = new QuerySlot<LogEntries>(this.executor);
   private pagination: Pagination = {
     offset: 0,
@@ -114,10 +114,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     // Query 1: Create the filtered_logs table (no staleOn = always-fresh)
     const viewResult = this.viewQuery.use({
       key: {filters},
-      queryFn: async () => {
-        await updateLogView(engine, filters);
-        return true;
-      },
+      queryFn: () => updateLogView(engine, filters),
     });
 
     // Query 2: Read from the table (staleOn=['pagination'] for smooth scrolling)
@@ -125,7 +122,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       key: {filters, visibleSpan, pagination},
       retainOn: ['pagination', 'visibleSpan'],
       queryFn: () => updateLogEntries(engine, visibleSpan, pagination),
-      enabled: viewResult.data,
+      enabled: !!viewResult.data,
     });
 
     const entries = entriesResult.data;
@@ -542,9 +539,10 @@ async function updateLogEntries(
   };
 }
 
-async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
-  await engine.query('drop view if exists filtered_logs');
-
+async function updateLogView(
+  engine: Engine,
+  filter: LogFilteringCriteria,
+): Promise<AsyncDisposable> {
   const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);
   let selectedRows = `select prio, ts, pid, tid, tag, msg,
       process.name as process_name,
@@ -568,9 +566,15 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
   }
 
   // We extract only the rows which will be visible.
-  await engine.query(`create view filtered_logs as select *
+  await engine.query(`create perfetto table filtered_logs as select *
     from (${selectedRows})
     where is_msg_chosen is 1 or is_process_chosen is 1`);
+
+  return {
+    async [Symbol.asyncDispose]() {
+      await engine.query('drop table filtered_logs');
+    },
+  };
 }
 
 function serializeTags(tags: string[]) {

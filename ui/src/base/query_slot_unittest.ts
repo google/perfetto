@@ -226,7 +226,7 @@ test('enabled prevents query from running', async () => {
   expect(queryFn).toHaveBeenCalledTimes(1);
 });
 
-test('dispose clears cache and pending state', async () => {
+test('use after dispose throws', async () => {
   const executor = new SerialTaskQueue();
   const slot = new QuerySlot<number>(executor);
 
@@ -235,17 +235,11 @@ test('dispose clears cache and pending state', async () => {
   slot.use({key: {id: 1}, queryFn});
   await flushPromises();
 
-  // Verify data is cached
-  const result1 = slot.use({key: {id: 1}, queryFn});
-  expect(result1.data).toBe(42);
-
-  // Dispose clears everything
   slot.dispose();
 
-  // After dispose, slot has no cache
-  const result2 = slot.use({key: {id: 1}, queryFn});
-  expect(result2.data).toBeUndefined();
-  expect(result2.isPending).toBe(true);
+  expect(() => slot.use({key: {id: 1}, queryFn})).toThrow(
+    'QuerySlot.use() called after dispose()',
+  );
 });
 
 test('queued work is cancelled when slot is disposed', async () => {
@@ -273,4 +267,93 @@ test('queued work is cancelled when slot is disposed', async () => {
 
   expect(queryFn1).toHaveBeenCalledTimes(1);
   expect(queryFn2).not.toHaveBeenCalled();
+});
+
+test('AsyncDisposable is disposed before running next queryFn', async () => {
+  const executor = new SerialTaskQueue();
+  const slot = new QuerySlot<AsyncDisposable>(executor);
+
+  const events: string[] = [];
+
+  const disposable1: AsyncDisposable = {
+    [Symbol.asyncDispose]: jest.fn().mockImplementation(async () => {
+      events.push('dispose1');
+    }),
+  };
+
+  const disposable2: AsyncDisposable = {
+    [Symbol.asyncDispose]: jest.fn().mockImplementation(async () => {
+      events.push('dispose2');
+    }),
+  };
+
+  const queryFn1 = jest.fn().mockImplementation(async () => {
+    events.push('query1');
+    return disposable1;
+  });
+
+  const queryFn2 = jest.fn().mockImplementation(async () => {
+    events.push('query2');
+    return disposable2;
+  });
+
+  // First query
+  slot.use({key: {id: 1}, queryFn: queryFn1});
+  await flushPromises();
+
+  expect(events).toEqual(['query1']);
+
+  // Second query with different key - should dispose first before running second
+  slot.use({key: {id: 2}, queryFn: queryFn2});
+  await flushPromises();
+
+  expect(events).toEqual(['query1', 'dispose1', 'query2']);
+  expect(disposable1[Symbol.asyncDispose]).toHaveBeenCalledTimes(1);
+});
+
+test('slot dispose calls AsyncDisposable dispose after in-flight task completes', async () => {
+  const executor = new SerialTaskQueue();
+  const slot = new QuerySlot<AsyncDisposable>(executor);
+
+  const events: string[] = [];
+  let resolveQuery: () => void;
+  const queryPromise = new Promise<void>((resolve) => {
+    resolveQuery = resolve;
+  });
+
+  const disposable: AsyncDisposable = {
+    [Symbol.asyncDispose]: jest.fn().mockImplementation(async () => {
+      events.push('disposed');
+    }),
+  };
+
+  const queryFn = jest.fn().mockImplementation(async () => {
+    events.push('query-start');
+    await queryPromise;
+    events.push('query-end');
+    return disposable;
+  });
+
+  // Start query
+  slot.use({key: {id: 1}, queryFn});
+  await flushPromises();
+
+  expect(events).toEqual(['query-start']);
+
+  // Dispose slot while query is in-flight
+  slot.dispose();
+  await flushPromises();
+
+  // Dispose should not have been called yet - query is still running
+  expect(events).toEqual(['query-start']);
+  expect(disposable[Symbol.asyncDispose]).not.toHaveBeenCalled();
+
+  // Complete the query
+  resolveQuery!();
+  await flushPromises();
+  await flushPromises();
+
+  // Now the dispose should have been scheduled and run
+  expect(events).toEqual(['query-start', 'query-end', 'disposed']);
+  expect(disposable[Symbol.asyncDispose]).toHaveBeenCalledTimes(1);
 });
