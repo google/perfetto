@@ -24,9 +24,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/common/slab.h"
 #include "src/trace_processor/core/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/core/dataframe/impl/bytecode_registers.h"
-#include "src/trace_processor/core/common/slab.h"
 #include "src/trace_processor/core/dataframe/impl/types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 
@@ -619,154 +619,162 @@ struct Reverse : Bytecode {
                                      update_register);
 };
 
-// List of all bytecode instruction types for variant definition.
-#define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
-  X(InitRange)                               \
-  X(AllocateIndices)                         \
-  X(Iota)                                    \
-  X(CastFilterValue<Id>)                     \
-  X(CastFilterValue<Uint32>)                 \
-  X(CastFilterValue<Int32>)                  \
-  X(CastFilterValue<Int64>)                  \
-  X(CastFilterValue<Double>)                 \
-  X(CastFilterValue<String>)                 \
-  X(CastFilterValueList<Id>)                 \
-  X(CastFilterValueList<Uint32>)             \
-  X(CastFilterValueList<Int32>)              \
-  X(CastFilterValueList<Int64>)              \
-  X(CastFilterValueList<Double>)             \
-  X(CastFilterValueList<String>)             \
-  X(SortedFilter<Id, EqualRange>)            \
-  X(SortedFilter<Id, LowerBound>)            \
-  X(SortedFilter<Id, UpperBound>)            \
-  X(SortedFilter<Uint32, EqualRange>)        \
-  X(SortedFilter<Uint32, LowerBound>)        \
-  X(SortedFilter<Uint32, UpperBound>)        \
-  X(SortedFilter<Int32, EqualRange>)         \
-  X(SortedFilter<Int32, LowerBound>)         \
-  X(SortedFilter<Int32, UpperBound>)         \
-  X(SortedFilter<Int64, EqualRange>)         \
-  X(SortedFilter<Int64, LowerBound>)         \
-  X(SortedFilter<Int64, UpperBound>)         \
-  X(SortedFilter<Double, EqualRange>)        \
-  X(SortedFilter<Double, LowerBound>)        \
-  X(SortedFilter<Double, UpperBound>)        \
-  X(SortedFilter<String, EqualRange>)        \
-  X(SortedFilter<String, LowerBound>)        \
-  X(SortedFilter<String, UpperBound>)        \
-  X(Uint32SetIdSortedEq)                     \
-  X(SpecializedStorageSmallValueEq)          \
-  X(LinearFilterEq<Uint32>)                  \
-  X(LinearFilterEq<Int32>)                   \
-  X(LinearFilterEq<Int64>)                   \
-  X(LinearFilterEq<Double>)                  \
-  X(LinearFilterEq<String>)                  \
-  X(NonStringFilter<Id, Eq>)                 \
-  X(NonStringFilter<Id, Ne>)                 \
-  X(NonStringFilter<Id, Lt>)                 \
-  X(NonStringFilter<Id, Le>)                 \
-  X(NonStringFilter<Id, Gt>)                 \
-  X(NonStringFilter<Id, Ge>)                 \
-  X(NonStringFilter<Uint32, Eq>)             \
-  X(NonStringFilter<Uint32, Ne>)             \
-  X(NonStringFilter<Uint32, Lt>)             \
-  X(NonStringFilter<Uint32, Le>)             \
-  X(NonStringFilter<Uint32, Gt>)             \
-  X(NonStringFilter<Uint32, Ge>)             \
-  X(NonStringFilter<Int32, Eq>)              \
-  X(NonStringFilter<Int32, Ne>)              \
-  X(NonStringFilter<Int32, Lt>)              \
-  X(NonStringFilter<Int32, Le>)              \
-  X(NonStringFilter<Int32, Gt>)              \
-  X(NonStringFilter<Int32, Ge>)              \
-  X(NonStringFilter<Int64, Eq>)              \
-  X(NonStringFilter<Int64, Ne>)              \
-  X(NonStringFilter<Int64, Lt>)              \
-  X(NonStringFilter<Int64, Le>)              \
-  X(NonStringFilter<Int64, Gt>)              \
-  X(NonStringFilter<Int64, Ge>)              \
-  X(NonStringFilter<Double, Eq>)             \
-  X(NonStringFilter<Double, Ne>)             \
-  X(NonStringFilter<Double, Lt>)             \
-  X(NonStringFilter<Double, Le>)             \
-  X(NonStringFilter<Double, Gt>)             \
-  X(NonStringFilter<Double, Ge>)             \
-  X(StringFilter<Eq>)                        \
-  X(StringFilter<Ne>)                        \
-  X(StringFilter<Lt>)                        \
-  X(StringFilter<Le>)                        \
-  X(StringFilter<Gt>)                        \
-  X(StringFilter<Ge>)                        \
-  X(StringFilter<Glob>)                      \
-  X(StringFilter<Regex>)                     \
-  X(NullFilter<IsNotNull>)                   \
-  X(NullFilter<IsNull>)                      \
-  X(StrideCopy)                              \
-  X(StrideTranslateAndCopySparseNullIndices) \
-  X(StrideCopyDenseNullIndices)              \
-  X(PrefixPopcount)                          \
-  X(TranslateSparseNullIndices)              \
-  X(AllocateRowLayoutBuffer)                 \
-  X(CopyToRowLayout<Id, NonNull>)            \
-  X(CopyToRowLayout<Id, SparseNull>)         \
-  X(CopyToRowLayout<Id, DenseNull>)          \
-  X(CopyToRowLayout<Uint32, NonNull>)        \
-  X(CopyToRowLayout<Uint32, SparseNull>)     \
-  X(CopyToRowLayout<Uint32, DenseNull>)      \
-  X(CopyToRowLayout<Int32, NonNull>)         \
-  X(CopyToRowLayout<Int32, SparseNull>)      \
-  X(CopyToRowLayout<Int32, DenseNull>)       \
-  X(CopyToRowLayout<Int64, NonNull>)         \
-  X(CopyToRowLayout<Int64, SparseNull>)      \
-  X(CopyToRowLayout<Int64, DenseNull>)       \
-  X(CopyToRowLayout<Double, NonNull>)        \
-  X(CopyToRowLayout<Double, SparseNull>)     \
-  X(CopyToRowLayout<Double, DenseNull>)      \
-  X(CopyToRowLayout<String, NonNull>)        \
-  X(CopyToRowLayout<String, SparseNull>)     \
-  X(CopyToRowLayout<String, DenseNull>)      \
-  X(Distinct)                                \
-  X(LimitOffsetIndices)                      \
-  X(FindMinMaxIndex<Id, MinOp>)              \
-  X(FindMinMaxIndex<Id, MaxOp>)              \
-  X(FindMinMaxIndex<Uint32, MinOp>)          \
-  X(FindMinMaxIndex<Uint32, MaxOp>)          \
-  X(FindMinMaxIndex<Int32, MinOp>)           \
-  X(FindMinMaxIndex<Int32, MaxOp>)           \
-  X(FindMinMaxIndex<Int64, MinOp>)           \
-  X(FindMinMaxIndex<Int64, MaxOp>)           \
-  X(FindMinMaxIndex<Double, MinOp>)          \
-  X(FindMinMaxIndex<Double, MaxOp>)          \
-  X(FindMinMaxIndex<String, MinOp>)          \
-  X(FindMinMaxIndex<String, MaxOp>)          \
-  X(IndexPermutationVectorToSpan)            \
-  X(IndexedFilterEq<Uint32, NonNull>)        \
-  X(IndexedFilterEq<Uint32, SparseNull>)     \
-  X(IndexedFilterEq<Uint32, DenseNull>)      \
-  X(IndexedFilterEq<Int32, NonNull>)         \
-  X(IndexedFilterEq<Int32, SparseNull>)      \
-  X(IndexedFilterEq<Int32, DenseNull>)       \
-  X(IndexedFilterEq<Int64, NonNull>)         \
-  X(IndexedFilterEq<Int64, SparseNull>)      \
-  X(IndexedFilterEq<Int64, DenseNull>)       \
-  X(IndexedFilterEq<Double, NonNull>)        \
-  X(IndexedFilterEq<Double, SparseNull>)     \
-  X(IndexedFilterEq<Double, DenseNull>)      \
-  X(IndexedFilterEq<String, NonNull>)        \
-  X(IndexedFilterEq<String, SparseNull>)     \
-  X(IndexedFilterEq<String, DenseNull>)      \
-  X(CopySpanIntersectingRange)               \
-  X(InitRankMap)                             \
-  X(CollectIdIntoRankMap)                    \
-  X(FinalizeRanksInMap)                      \
-  X(SortRowLayout)                           \
-  X(In<Id>)                                  \
-  X(In<Uint32>)                              \
-  X(In<Int32>)                               \
-  X(In<Int64>)                               \
-  X(In<Double>)                              \
-  X(In<String>)                              \
+// Bytecode ops that require FilterValueFetcher access.
+#define PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X) \
+  X(CastFilterValue<Id>)                        \
+  X(CastFilterValue<Uint32>)                    \
+  X(CastFilterValue<Int32>)                     \
+  X(CastFilterValue<Int64>)                     \
+  X(CastFilterValue<Double>)                    \
+  X(CastFilterValue<String>)                    \
+  X(CastFilterValueList<Id>)                    \
+  X(CastFilterValueList<Uint32>)                \
+  X(CastFilterValueList<Int32>)                 \
+  X(CastFilterValueList<Int64>)                 \
+  X(CastFilterValueList<Double>)                \
+  X(CastFilterValueList<String>)
+
+// Bytecode ops that only need InterpreterState (no FilterValueFetcher).
+#define PERFETTO_DATAFRAME_BYTECODE_STATE_ONLY_LIST(X) \
+  X(InitRange)                                         \
+  X(AllocateIndices)                                   \
+  X(Iota)                                              \
+  X(SortedFilter<Id, EqualRange>)                      \
+  X(SortedFilter<Id, LowerBound>)                      \
+  X(SortedFilter<Id, UpperBound>)                      \
+  X(SortedFilter<Uint32, EqualRange>)                  \
+  X(SortedFilter<Uint32, LowerBound>)                  \
+  X(SortedFilter<Uint32, UpperBound>)                  \
+  X(SortedFilter<Int32, EqualRange>)                   \
+  X(SortedFilter<Int32, LowerBound>)                   \
+  X(SortedFilter<Int32, UpperBound>)                   \
+  X(SortedFilter<Int64, EqualRange>)                   \
+  X(SortedFilter<Int64, LowerBound>)                   \
+  X(SortedFilter<Int64, UpperBound>)                   \
+  X(SortedFilter<Double, EqualRange>)                  \
+  X(SortedFilter<Double, LowerBound>)                  \
+  X(SortedFilter<Double, UpperBound>)                  \
+  X(SortedFilter<String, EqualRange>)                  \
+  X(SortedFilter<String, LowerBound>)                  \
+  X(SortedFilter<String, UpperBound>)                  \
+  X(Uint32SetIdSortedEq)                               \
+  X(SpecializedStorageSmallValueEq)                    \
+  X(LinearFilterEq<Uint32>)                            \
+  X(LinearFilterEq<Int32>)                             \
+  X(LinearFilterEq<Int64>)                             \
+  X(LinearFilterEq<Double>)                            \
+  X(LinearFilterEq<String>)                            \
+  X(NonStringFilter<Id, Eq>)                           \
+  X(NonStringFilter<Id, Ne>)                           \
+  X(NonStringFilter<Id, Lt>)                           \
+  X(NonStringFilter<Id, Le>)                           \
+  X(NonStringFilter<Id, Gt>)                           \
+  X(NonStringFilter<Id, Ge>)                           \
+  X(NonStringFilter<Uint32, Eq>)                       \
+  X(NonStringFilter<Uint32, Ne>)                       \
+  X(NonStringFilter<Uint32, Lt>)                       \
+  X(NonStringFilter<Uint32, Le>)                       \
+  X(NonStringFilter<Uint32, Gt>)                       \
+  X(NonStringFilter<Uint32, Ge>)                       \
+  X(NonStringFilter<Int32, Eq>)                        \
+  X(NonStringFilter<Int32, Ne>)                        \
+  X(NonStringFilter<Int32, Lt>)                        \
+  X(NonStringFilter<Int32, Le>)                        \
+  X(NonStringFilter<Int32, Gt>)                        \
+  X(NonStringFilter<Int32, Ge>)                        \
+  X(NonStringFilter<Int64, Eq>)                        \
+  X(NonStringFilter<Int64, Ne>)                        \
+  X(NonStringFilter<Int64, Lt>)                        \
+  X(NonStringFilter<Int64, Le>)                        \
+  X(NonStringFilter<Int64, Gt>)                        \
+  X(NonStringFilter<Int64, Ge>)                        \
+  X(NonStringFilter<Double, Eq>)                       \
+  X(NonStringFilter<Double, Ne>)                       \
+  X(NonStringFilter<Double, Lt>)                       \
+  X(NonStringFilter<Double, Le>)                       \
+  X(NonStringFilter<Double, Gt>)                       \
+  X(NonStringFilter<Double, Ge>)                       \
+  X(StringFilter<Eq>)                                  \
+  X(StringFilter<Ne>)                                  \
+  X(StringFilter<Lt>)                                  \
+  X(StringFilter<Le>)                                  \
+  X(StringFilter<Gt>)                                  \
+  X(StringFilter<Ge>)                                  \
+  X(StringFilter<Glob>)                                \
+  X(StringFilter<Regex>)                               \
+  X(NullFilter<IsNotNull>)                             \
+  X(NullFilter<IsNull>)                                \
+  X(StrideCopy)                                        \
+  X(StrideTranslateAndCopySparseNullIndices)           \
+  X(StrideCopyDenseNullIndices)                        \
+  X(PrefixPopcount)                                    \
+  X(TranslateSparseNullIndices)                        \
+  X(AllocateRowLayoutBuffer)                           \
+  X(CopyToRowLayout<Id, NonNull>)                      \
+  X(CopyToRowLayout<Id, SparseNull>)                   \
+  X(CopyToRowLayout<Id, DenseNull>)                    \
+  X(CopyToRowLayout<Uint32, NonNull>)                  \
+  X(CopyToRowLayout<Uint32, SparseNull>)               \
+  X(CopyToRowLayout<Uint32, DenseNull>)                \
+  X(CopyToRowLayout<Int32, NonNull>)                   \
+  X(CopyToRowLayout<Int32, SparseNull>)                \
+  X(CopyToRowLayout<Int32, DenseNull>)                 \
+  X(CopyToRowLayout<Int64, NonNull>)                   \
+  X(CopyToRowLayout<Int64, SparseNull>)                \
+  X(CopyToRowLayout<Int64, DenseNull>)                 \
+  X(CopyToRowLayout<Double, NonNull>)                  \
+  X(CopyToRowLayout<Double, SparseNull>)               \
+  X(CopyToRowLayout<Double, DenseNull>)                \
+  X(CopyToRowLayout<String, NonNull>)                  \
+  X(CopyToRowLayout<String, SparseNull>)               \
+  X(CopyToRowLayout<String, DenseNull>)                \
+  X(Distinct)                                          \
+  X(LimitOffsetIndices)                                \
+  X(FindMinMaxIndex<Id, MinOp>)                        \
+  X(FindMinMaxIndex<Id, MaxOp>)                        \
+  X(FindMinMaxIndex<Uint32, MinOp>)                    \
+  X(FindMinMaxIndex<Uint32, MaxOp>)                    \
+  X(FindMinMaxIndex<Int32, MinOp>)                     \
+  X(FindMinMaxIndex<Int32, MaxOp>)                     \
+  X(FindMinMaxIndex<Int64, MinOp>)                     \
+  X(FindMinMaxIndex<Int64, MaxOp>)                     \
+  X(FindMinMaxIndex<Double, MinOp>)                    \
+  X(FindMinMaxIndex<Double, MaxOp>)                    \
+  X(FindMinMaxIndex<String, MinOp>)                    \
+  X(FindMinMaxIndex<String, MaxOp>)                    \
+  X(IndexPermutationVectorToSpan)                      \
+  X(IndexedFilterEq<Uint32, NonNull>)                  \
+  X(IndexedFilterEq<Uint32, SparseNull>)               \
+  X(IndexedFilterEq<Uint32, DenseNull>)                \
+  X(IndexedFilterEq<Int32, NonNull>)                   \
+  X(IndexedFilterEq<Int32, SparseNull>)                \
+  X(IndexedFilterEq<Int32, DenseNull>)                 \
+  X(IndexedFilterEq<Int64, NonNull>)                   \
+  X(IndexedFilterEq<Int64, SparseNull>)                \
+  X(IndexedFilterEq<Int64, DenseNull>)                 \
+  X(IndexedFilterEq<Double, NonNull>)                  \
+  X(IndexedFilterEq<Double, SparseNull>)               \
+  X(IndexedFilterEq<Double, DenseNull>)                \
+  X(IndexedFilterEq<String, NonNull>)                  \
+  X(IndexedFilterEq<String, SparseNull>)               \
+  X(IndexedFilterEq<String, DenseNull>)                \
+  X(CopySpanIntersectingRange)                         \
+  X(InitRankMap)                                       \
+  X(CollectIdIntoRankMap)                              \
+  X(FinalizeRanksInMap)                                \
+  X(SortRowLayout)                                     \
+  X(In<Id>)                                            \
+  X(In<Uint32>)                                        \
+  X(In<Int32>)                                         \
+  X(In<Int64>)                                         \
+  X(In<Double>)                                        \
+  X(In<String>)                                        \
   X(Reverse)
+
+// Combined list of all bytecode instruction types.
+#define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \
+  PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X)   \
+  PERFETTO_DATAFRAME_BYTECODE_STATE_ONLY_LIST(X)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 

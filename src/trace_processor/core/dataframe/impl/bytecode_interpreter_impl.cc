@@ -14,27 +14,27 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_outlined.h"
+#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_impl.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <unordered_set>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/bit_vector.h"
-#include "src/trace_processor/core/common/slab.h"
 #include "src/trace_processor/core/common/sort.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_impl.h"
 #include "src/trace_processor/core/dataframe/impl/types.h"
 #include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/regex.h"
 
-namespace perfetto::trace_processor::dataframe::impl::bytecode::outlined {
+namespace perfetto::trace_processor::dataframe::impl::bytecode::ops {
 
 namespace {
 
@@ -201,7 +201,7 @@ uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
   // strings run a standard glob function.
   if (size_t(end - begin) < string_pool->size() ||
       string_pool->HasLargeString()) {
-    return Filter(data, begin, end, output, matcher,
+    return ops::Filter(data, begin, end, output, matcher,
                   GlobComparator{string_pool});
   }
 
@@ -215,7 +215,7 @@ uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
                                 matcher.Matches(string_pool->Get(id)));
   }
 
-  return Filter(data, begin, end, output, matches, BitVectorComparator{});
+  return ops::Filter(data, begin, end, output, matches, BitVectorComparator{});
 }
 
 uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
@@ -228,8 +228,8 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
   if (!regex.ok()) {
     return output;
   }
-  return Filter(data, begin, end, output, regex.value(),
+  return ops::Filter(data, begin, end, output, regex.value(),
                 RegexComparator{string_pool});
 }
 
-}  // namespace perfetto::trace_processor::dataframe::impl::bytecode::outlined
+}  // namespace perfetto::trace_processor::dataframe::impl::bytecode::ops
