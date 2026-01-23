@@ -41,6 +41,8 @@ We propose making the following changes:
    at the cost of performance from having to do the joins.
 4. A "reexport" `__intrinsic_perf_counter_for_sample` function in the stdlib
    with a public name as `linux_perf_counter_for_sample(sample_id)`.
+5. Add a new column to __intrinsic_perf_sample (not exposed to public API for
+   now) called `counter_set_id` which mapes to `__intrinsic_perf_counter_set`.
 
 ## Alternatives considered
 
