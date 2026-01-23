@@ -215,17 +215,44 @@ function getMetricValue(
   return null;
 }
 
+// Extract dimension names from spec (handles both dimensions and dimensionsSpecs)
+function getDimensionNames(
+  spec: protos.ITraceMetricV2Spec | null | undefined,
+): string[] {
+  if (!spec) return [];
+
+  // First check dimensionsSpecs (detailed specs with name field)
+  if (spec.dimensionsSpecs && spec.dimensionsSpecs.length > 0) {
+    return spec.dimensionsSpecs
+      .map((ds) => ds.name)
+      .filter((name): name is string => name !== null && name !== undefined);
+  }
+
+  // Fall back to simple dimensions array
+  return spec.dimensions ?? [];
+}
+
 // Parse TraceSummary proto into MetricBundle array
 function parseTraceSummary(data: Uint8Array): MetricBundle[] {
   const summary = protos.TraceSummary.decode(data);
   const bundles: MetricBundle[] = [];
 
   for (const bundle of summary.metricBundles) {
-    // Get metric spec to find dimension names and value name
-    const spec = bundle.specs?.[0];
-    const metricId = spec?.id ?? bundle.bundleId ?? 'unknown';
-    const dimensionNames = spec?.dimensions ?? [];
-    const valueName = spec?.value ?? 'value';
+    // Get all specs to find dimension names and value names
+    const specs = bundle.specs ?? [];
+    const firstSpec = specs[0];
+    const metricId = firstSpec?.id ?? bundle.bundleId ?? 'unknown';
+    const dimensionNames = getDimensionNames(firstSpec);
+
+    // Get value names from all specs (templates can have multiple value columns)
+    const valueNames = specs
+      .map((s) => s.value)
+      .filter((v): v is string => v !== null && v !== undefined);
+
+    // If no value names found, use default
+    if (valueNames.length === 0) {
+      valueNames.push('value');
+    }
 
     // Build schema for this metric
     const schemaColumns: Record<
@@ -235,7 +262,9 @@ function parseTraceSummary(data: Uint8Array): MetricBundle[] {
     for (const dimName of dimensionNames) {
       schemaColumns[dimName] = {title: dimName, columnType: 'text'};
     }
-    schemaColumns[valueName] = {title: valueName, columnType: 'quantitative'};
+    for (const valueName of valueNames) {
+      schemaColumns[valueName] = {title: valueName, columnType: 'quantitative'};
+    }
 
     const schema: SchemaRegistry = {
       [metricId]: schemaColumns,
@@ -253,9 +282,12 @@ function parseTraceSummary(data: Uint8Array): MetricBundle[] {
         rowData[dimName] = dimValue ? getDimensionValue(dimValue) : null;
       }
 
-      // Add value (first value in the values array)
-      const val = row.values?.[0];
-      rowData[valueName] = val ? getMetricValue(val) : null;
+      // Add all values (templates can have multiple value columns)
+      for (let i = 0; i < valueNames.length; i++) {
+        const valueName = valueNames[i];
+        const val = row.values?.[i];
+        rowData[valueName] = val ? getMetricValue(val) : null;
+      }
 
       rows.push(rowData);
     }
