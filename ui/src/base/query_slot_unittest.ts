@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialQueryExecutor} from './query_slot';
+import {QuerySlot, SerialTaskQueue} from './query_slot';
 
 // Helper to wait for pending promises to resolve
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test('basic query execution', async () => {
-  const executor = new SerialQueryExecutor();
-  const slot = new QuerySlot<number>(executor);
+  const queue = new SerialTaskQueue();
+  const slot = new QuerySlot<number>(queue);
 
   const queryFn = jest.fn().mockResolvedValue(42);
 
@@ -44,7 +44,7 @@ test('basic query execution', async () => {
 });
 
 test('cached result is returned without re-query', async () => {
-  const executor = new SerialQueryExecutor();
+  const executor = new SerialTaskQueue();
   const slot = new QuerySlot<number>(executor);
 
   const queryFn = jest.fn().mockResolvedValue(42);
@@ -61,7 +61,7 @@ test('cached result is returned without re-query', async () => {
 });
 
 test('dispose cancels queued work across render cycles', async () => {
-  const executor = new SerialQueryExecutor();
+  const executor = new SerialTaskQueue();
 
   // Simulate first component mounting and starting a long query
   const slot1 = new QuerySlot<number>(executor);
@@ -92,7 +92,7 @@ test('dispose cancels queued work across render cycles', async () => {
 });
 
 test('multiple slots same executor run serially', async () => {
-  const executor = new SerialQueryExecutor();
+  const executor = new SerialTaskQueue();
   const slot1 = new QuerySlot<number>(executor);
   const slot2 = new QuerySlot<number>(executor);
 
@@ -120,7 +120,7 @@ test('multiple slots same executor run serially', async () => {
 });
 
 test('rapid key changes on same slot only runs first and last', async () => {
-  const executor = new SerialQueryExecutor();
+  const executor = new SerialTaskQueue();
   const slot = new QuerySlot<number>(executor);
 
   const queryFn1 = jest.fn().mockResolvedValue(1);
@@ -143,7 +143,7 @@ test('rapid key changes on same slot only runs first and last', async () => {
 });
 
 test('retainOn allows showing previous data during compatible changes', async () => {
-  const executor = new SerialQueryExecutor();
+  const executor = new SerialTaskQueue();
   const slot = new QuerySlot<number>(executor);
 
   const queryFn1 = jest.fn().mockResolvedValue(100);
@@ -191,7 +191,7 @@ test('retainOn allows showing previous data during compatible changes', async ()
 });
 
 test('enabled prevents query from running', async () => {
-  const executor = new SerialQueryExecutor();
+  const executor = new SerialTaskQueue();
   const slot = new QuerySlot<number>(executor);
 
   const queryFn = jest.fn().mockResolvedValue(42);
@@ -227,7 +227,7 @@ test('enabled prevents query from running', async () => {
 });
 
 test('dispose clears cache and pending state', async () => {
-  const executor = new SerialQueryExecutor();
+  const executor = new SerialTaskQueue();
   const slot = new QuerySlot<number>(executor);
 
   const queryFn = jest.fn().mockResolvedValue(42);
@@ -249,7 +249,7 @@ test('dispose clears cache and pending state', async () => {
 });
 
 test('queued work is cancelled when slot is disposed', async () => {
-  const executor = new SerialQueryExecutor();
+  const executor = new SerialTaskQueue();
   const slot1 = new QuerySlot<number>(executor);
   const slot2 = new QuerySlot<number>(executor);
 

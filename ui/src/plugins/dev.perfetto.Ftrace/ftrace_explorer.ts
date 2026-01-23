@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SerialQueryExecutor, QuerySlot} from '../../base/query_slot';
+import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
 import {Store} from '../../base/store';
 import {time, Time} from '../../base/time';
 import {materialColorScheme} from '../../components/colorizer';
@@ -105,7 +105,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   };
 
   // Query slots for declarative data fetching
-  private readonly executor = new SerialQueryExecutor();
+  private readonly executor = new SerialTaskQueue();
   private readonly countSlot = new QuerySlot<number>(this.executor);
   private readonly eventsSlot = new QuerySlot<FtracePanelData>(this.executor);
 

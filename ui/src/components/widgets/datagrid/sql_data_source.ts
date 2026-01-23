@@ -16,7 +16,7 @@ import {maybeUndefined} from '../../../base/utils';
 import {
   QueryResult,
   QuerySlot,
-  SerialQueryExecutor,
+  SerialTaskQueue,
 } from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
@@ -122,7 +122,7 @@ export class SQLDataSource implements DataSource {
   private readonly prelude?: string;
 
   // Query slots for declarative data fetching
-  private readonly executor = new SerialQueryExecutor();
+  private readonly executor = new SerialTaskQueue();
   private readonly rowCountSlot = new QuerySlot<number>(this.executor);
   private readonly rowsSlot = new QuerySlot<{offset: number; rows: Row[]}>(
     this.executor,

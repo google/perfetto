@@ -44,7 +44,7 @@ import {TagInput} from '../../widgets/tag_input';
 import {Store} from '../../base/store';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
-import {SerialQueryExecutor, QuerySlot} from '../../base/query_slot';
+import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
 
 const ROW_H = 24;
 
@@ -88,7 +88,7 @@ interface LogEntries {
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly trace: Trace;
-  private readonly executor = new SerialQueryExecutor();
+  private readonly executor = new SerialTaskQueue();
   private readonly viewQuery = new QuerySlot<boolean>(this.executor);
   private readonly entriesQuery = new QuerySlot<LogEntries>(this.executor);
   private pagination: Pagination = {

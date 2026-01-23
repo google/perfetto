@@ -28,14 +28,14 @@
  *
  * ```typescript
  * class MyPanel implements m.ClassComponent<Attrs> {
- *   private readonly executor = new SerialQueryExecutor();
- *   private readonly dataSlot = new QuerySlot<MyData>(this.executor);
+ *   private readonly taskQueue = new SerialTaskQueue();
+ *   private readonly dataSlot = new QuerySlot<MyData>(this.taskQueue);
  *
  *   view({attrs}: m.CVnode<Attrs>) {
  *     const result = this.dataSlot.use({
  *       key: {filters: attrs.filters, pagination: this.pagination},
  *       queryFn: () => fetchData(attrs.filters, this.pagination),
- *       staleOn: ['pagination'],  // Show stale data during pagination changes
+ *       retainOn: ['pagination'],  // Show stale data during pagination changes
  *     });
  *
  *     return m('div', result.data ? renderData(result.data) : 'Loading...');
@@ -51,28 +51,76 @@
  * ## Key concepts
  *
  * - **key**: Object identifying the query. Changes trigger re-fetch.
- * - **staleOn**: Key fields that allow showing previous data while fetching.
- *   E.g., `staleOn: ['pagination']` shows old data during scroll for smoothness,
+ * - **retainOn**: Key fields that allow showing previous data while fetching.
+ *   E.g., `retainOn: ['pagination']` shows old data during scroll for smoothness,
  *   but `filters` changing would show loading state.
- * - **dependsOn**: Truthy value required before query runs. Use for dependencies
- *   like `dependsOn: tableResult.data` to wait for a temp table to be created.
+ * - **enabled**: Truthy value required before query runs. Use for dependencies
+ *   like `enabled: tableResult.data` to wait for a temp table to be created.
  *
  * ## Behavior
  *
- * - Queries within an executor run serially (no interleaving)
- * - Only the latest pending query per slot is kept (intermediates dropped)
+ * - Tasks within a queue run serially (no interleaving)
+ * - Only the latest pending task per slot is kept (intermediates dropped)
  * - Each slot has a single-entry cache (most recent result)
  */
 
-import m from 'mithril';
 import {stringifyJsonWithBigints} from './json_utils';
+
+/**
+ * Runs async tasks one at a time with cancellation support.
+ *
+ * Tasks are keyed by an object reference. If a new task is scheduled with
+ * the same key, it replaces any pending task for that key ("latest wins").
+ * Tasks that have already started running cannot be cancelled.
+ */
+export class SerialTaskQueue {
+  private pending = new Map<object, () => Promise<void>>();
+  private running = false;
+
+  /**
+   * Schedule a task. If a task with this key is already pending,
+   * it gets replaced.
+   */
+  schedule(key: object, task: () => Promise<void>): void {
+    this.pending.set(key, task);
+    this.runNext();
+  }
+
+  /**
+   * Cancel any pending task for this key.
+   * Has no effect if the task is already running.
+   */
+  cancel(key: object): void {
+    this.pending.delete(key);
+  }
+
+  private async runNext(): Promise<void> {
+    if (this.running) return;
+
+    const first = this.pending.entries().next();
+    if (first.done) return;
+
+    const [key, task] = first.value;
+    this.pending.delete(key);
+
+    this.running = true;
+    try {
+      await task();
+    } catch (e) {
+      console.error('Task failed:', e);
+    } finally {
+      this.running = false;
+      this.runNext();
+    }
+  }
+}
 
 export interface QueryOptions<T, K extends object> {
   key: K;
   queryFn: () => Promise<T>;
   // If provided, query only runs when this is truthy
-  // e.g., dependsOn: viewResult.data
-  enabled?: unknown;
+  // e.g., enabled: viewResult.data
+  enabled?: boolean;
   retainOn?: (keyof K)[];
 }
 
@@ -82,91 +130,23 @@ export interface QueryResult<T> {
   isFresh: boolean;
 }
 
-interface PendingWork<T> {
-  key: object;
-  queryFn: () => Promise<T>;
-  staleOn: string[];
-}
-
-/**
- * Executes queries serially across multiple QuerySlots.
- *
- * - Tracks pending work per slot (each slot keeps only its latest)
- * - Runs one query at a time globally (no interleaving)
- * - Respects dependency order (slot A before slot B if B depends on A)
- */
-export class SerialQueryExecutor {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private pending = new Map<QuerySlot<any>, PendingWork<any>>();
-  private running = false;
-
-  /**
-   * Schedule work for a slot. Replaces any existing pending work for this slot.
-   */
-  schedule<T>(slot: QuerySlot<T>, work: PendingWork<T>): void {
-    this.pending.set(slot, work);
-    this.tryRunNext();
-  }
-
-  /**
-   * Cancel any pending work for a slot.
-   * Called when a slot is disposed to prevent orphaned queries.
-   */
-  cancel(slot: QuerySlot<unknown>): void {
-    this.pending.delete(slot);
-  }
-
-  private async tryRunNext(): Promise<void> {
-    if (this.running) return;
-
-    const slot = this.pickRunnableSlot();
-    if (!slot) return;
-
-    const work = this.pending.get(slot)!;
-    this.pending.delete(slot);
-
-    this.running = true;
-    try {
-      const result = await work.queryFn();
-      slot.setCache(work.key, result);
-      m.redraw();
-    } catch (e) {
-      // TODO: handle errors properly
-      console.error('Query failed:', e);
-    } finally {
-      this.running = false;
-      this.tryRunNext();
-    }
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private pickRunnableSlot(): QuerySlot<any> | undefined {
-    // All pending work has satisfied dependencies (checked at schedule time)
-    // Just return the first one
-    for (const [slot] of this.pending) {
-      return slot;
-    }
-    return undefined;
-  }
-}
-
 /**
  * A single query slot with a single-entry cache.
  *
  * Created once per query on a component. Multiple slots share a
- * SerialQueryExecutor for serialized execution.
+ * SerialTaskQueue for serialized execution.
  */
 export class QuerySlot<T> {
   private cache?: {key: object; keyStr: string; data: T};
   private pendingKey?: object;
 
-  constructor(private readonly executor: SerialQueryExecutor) {}
+  constructor(private readonly queue: SerialTaskQueue) {}
 
   /**
    * Call every render cycle to get the current query result.
    */
   use<K extends object>(options: QueryOptions<T, K>): QueryResult<T> {
-    const {key, queryFn, enabled: dependsOn, retainOn: staleOn = []} = options;
+    const {key, queryFn, enabled, retainOn = []} = options;
     const keyStr = stringifyJsonWithBigints(key);
 
     // Check if we need to schedule a new query
@@ -178,16 +158,15 @@ export class QuerySlot<T> {
     const isKeyDifferentFromPending = pendingKeyStr !== keyStr;
     const isKeyDifferentFromCache = cachedKeyStr !== keyStr;
 
-    // dependsOn: undefined means no dependencies (satisfied)
-    // dependsOn: <value> means satisfied only if truthy
-    const depsSatisfied = dependsOn === undefined || !!dependsOn;
+    // enabled: undefined means no dependencies (satisfied)
+    // enabled: <value> means satisfied only if truthy
+    const canRun = enabled === undefined || enabled;
 
-    if (isKeyDifferentFromPending && isKeyDifferentFromCache && depsSatisfied) {
+    if (isKeyDifferentFromPending && isKeyDifferentFromCache && canRun) {
       this.pendingKey = key;
-      this.executor.schedule(this, {
-        key,
-        queryFn,
-        staleOn: staleOn as string[],
+      this.queue.schedule(this, async () => {
+        const result = await queryFn();
+        this.setCache(key, result);
       });
     }
 
@@ -208,7 +187,7 @@ export class QuerySlot<T> {
     const canUseStale = canUseStaleData(
       this.cache.key,
       key,
-      staleOn as string[],
+      retainOn as string[],
     );
     if (canUseStale) {
       return {data: this.cache.data, isPending, isFresh: false};
@@ -218,10 +197,7 @@ export class QuerySlot<T> {
     return {data: undefined, isPending, isFresh: false};
   }
 
-  /**
-   * Called by executor when query completes.
-   */
-  setCache(key: object, data: T): void {
+  private setCache(key: object, data: T): void {
     const keyStr = stringifyJsonWithBigints(key);
     this.cache = {key, keyStr, data};
 
@@ -239,7 +215,7 @@ export class QuerySlot<T> {
    * Call this in component's onremove() to prevent orphaned queries.
    */
   dispose(): void {
-    this.executor.cancel(this);
+    this.queue.cancel(this);
     this.cache = undefined;
     this.pendingKey = undefined;
   }
@@ -248,13 +224,13 @@ export class QuerySlot<T> {
 /**
  * Check if stale data can be used by comparing cached and current keys.
  *
- * Returns true if only fields listed in staleOn differ.
- * Returns false if any non-staleOn field differs.
+ * Returns true if only fields listed in retainOn differ.
+ * Returns false if any non-retainOn field differs.
  */
 function canUseStaleData(
   cachedKey: object,
   currentKey: object,
-  staleOn: string[],
+  retainOn: string[],
 ): boolean {
   const cached = cachedKey as Record<string, unknown>;
   const current = currentKey as Record<string, unknown>;
@@ -265,9 +241,9 @@ function canUseStaleData(
     const currentStr = stringifyJsonWithBigints(current[field]);
 
     if (cachedStr !== currentStr) {
-      // Field differs - is it in staleOn?
-      if (!staleOn.includes(field)) {
-        return false; // Non-staleOn field changed → need fresh data
+      // Field differs - is it in retainOn?
+      if (!retainOn.includes(field)) {
+        return false; // Non-retainOn field changed → need fresh data
       }
     }
   }
@@ -275,11 +251,11 @@ function canUseStaleData(
   // Also check for fields in cached that aren't in current (removed fields)
   for (const field of Object.keys(cached)) {
     if (!(field in current)) {
-      if (!staleOn.includes(field)) {
+      if (!retainOn.includes(field)) {
         return false;
       }
     }
   }
 
-  return true; // Only staleOn fields changed → stale OK
+  return true; // Only retainOn fields changed → stale OK
 }

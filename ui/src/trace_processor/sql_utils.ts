@@ -136,7 +136,6 @@ function makeTempName(): string {
  */
 export interface DisposableSqlEntity extends AsyncDisposable {
   readonly name: string;
-  asyncDispose(): Promise<void>;
 }
 
 async function createDisposableSqlEntity(
@@ -147,9 +146,6 @@ async function createDisposableSqlEntity(
   return {
     name,
     [Symbol.asyncDispose]: async () => {
-      await engine.tryQuery(`DROP ${entityType} IF EXISTS ${name}`);
-    },
-    asyncDispose: async () => {
       await engine.tryQuery(`DROP ${entityType} IF EXISTS ${name}`);
     },
   };
