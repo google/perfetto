@@ -639,6 +639,13 @@ void ProcessTracker::SetMainThread(UniqueTid utid, bool is_main_thread) {
   trr.set_is_main_thread(is_main_thread);
 }
 
+void ProcessTracker::SetIdleThread(UniqueTid utid, bool is_idle) {
+  auto& thread_table = *context_->storage->mutable_thread_table();
+
+  auto trr = thread_table[utid];
+  trr.set_is_idle(is_idle);
+}
+
 void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
   // Create a mapping from (t|p)id 0 -> u(t|p)id for the idle process.
   tids_.Insert(0, std::vector<UniqueTid>{swapper_utid_});

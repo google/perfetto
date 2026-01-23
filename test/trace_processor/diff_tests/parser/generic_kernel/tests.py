@@ -1325,6 +1325,12 @@ class GenericKernelParser(TestSuite):
                 tid: 5678
                 pid: 22
                 comm: "task2"
+              },
+              {
+                tid: 9012
+                pid: 33
+                comm: "idle"
+                is_idle: true
               }
             ]
           }
@@ -1345,4 +1351,5 @@ class GenericKernelParser(TestSuite):
         0,0,"swapper",0,1,1
         1,1234,"task1",2,1,0
         2,5678,"task2",3,0,0
+        3,9012,"idle",4,0,1
         """))

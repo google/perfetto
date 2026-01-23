@@ -514,6 +514,7 @@ export class AggregationNode implements QueryNode {
       aggregations: this.state.aggregations.map((a) => ({...a})),
       onchange: this.state.onchange,
       issues: this.state.issues,
+      sqlModules: this.state.sqlModules,
     };
     return new AggregationNode(stateCopy);
   }

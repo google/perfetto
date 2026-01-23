@@ -671,9 +671,9 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/tables/macros_internal.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/dataframe/typed_cursor.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "{fwd_header_str}"
 
 {include_paths_str}

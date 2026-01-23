@@ -39,7 +39,7 @@ source_set("engine") {
     "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",
     "../../containers",
-    "../../dataframe",
+    "../../core/dataframe",
     "../../perfetto_sql/intrinsics/functions:interface",
     "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",

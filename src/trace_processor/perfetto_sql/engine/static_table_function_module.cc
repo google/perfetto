@@ -27,8 +27,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"

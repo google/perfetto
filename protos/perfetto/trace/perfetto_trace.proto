@@ -13582,6 +13582,9 @@ message GenericKernelProcessTree {
 
     // True if thread is the main thread.
     optional bool is_main_thread = 4;
+
+    // True if thread is an idle thread.
+    optional bool is_idle = 5;
   }
 
   // Representation of a process.

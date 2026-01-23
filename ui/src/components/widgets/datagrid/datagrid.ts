@@ -174,6 +174,23 @@ export interface DataGridAttrs {
   readonly onColumnsChanged?: (columns: readonly Column[]) => void;
 
   /**
+   * Whether columns can be added. Defaults to true.
+   */
+  readonly canAddColumns?: boolean;
+
+  /**
+   * Whether columns can be removed. Defaults to true.
+   */
+  readonly canRemoveColumns?: boolean;
+
+  /**
+   * Custom menu items to add to each column's header menu.
+   * Called with the column field; return menu items (e.g., MenuItem components).
+   * Items are placed below the "Add column" section.
+   */
+  readonly addColumnMenuItems?: (field: string) => m.Children;
+
+  /**
    * Array of filters to apply to the data - can operate in controlled or
    * uncontrolled mode.
    *
@@ -647,10 +664,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     attrs: DataGridAttrs,
     afterIndex?: number,
   ): void {
+    const newColumn: Column = {id: shortUuid(), field};
     const newColumns = [...this.columns];
     const insertIndex =
       afterIndex !== undefined ? afterIndex + 1 : newColumns.length;
-    newColumns.splice(insertIndex, 0, {id: shortUuid(), field});
+    newColumns.splice(insertIndex, 0, newColumn);
     this.columns = newColumns;
     attrs.onColumnsChanged?.(newColumns);
   }
@@ -1221,8 +1239,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           }),
         m(MenuDivider),
         m(ColumnMenu, {
+          canAdd: attrs.canAddColumns ?? true,
           canRemove: this.columns.length > 1,
-          onRemove: () => this.removeColumn(colId, attrs),
+          onRemove:
+            attrs.canRemoveColumns ?? true
+              ? () => this.removeColumn(colId, attrs)
+              : undefined,
           schema,
           rootSchema,
           visibleColumns: this.columns.map((c) => c.field),
@@ -1230,6 +1252,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           dataSource: datasource,
           parameterKeyColumns: this.parameterKeyColumns,
         }),
+        attrs.addColumnMenuItems?.(field),
         m(MenuDivider),
         enablePivotControls &&
           m(MenuItem, {

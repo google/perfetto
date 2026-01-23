@@ -26,6 +26,19 @@ export function nextNodeId(): string {
   return (nodeCounter++).toString();
 }
 
+/**
+ * Ensures the node counter is higher than any existing ID.
+ * Call this after deserializing nodes to prevent ID collisions.
+ */
+export function ensureCounterAbove(ids: string[]): void {
+  for (const id of ids) {
+    const numId = parseInt(id, 10);
+    if (!isNaN(numId) && numId >= nodeCounter) {
+      nodeCounter = numId + 1;
+    }
+  }
+}
+
 export enum NodeType {
   // Sources
   kTable = 'table',

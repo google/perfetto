@@ -568,20 +568,25 @@ describe('UnionNode', () => {
       const sq = unionNode.getStructuredQuery();
 
       expect(sq).toBeDefined();
-      // The union queries should be wrapped with SELECT that only includes id and ts
+      // The union queries reference queries with SELECT that only includes id and ts
       const queries = sq?.experimentalUnion?.queries;
       expect(queries?.length).toBe(2);
 
-      // Each wrapped query should have selectColumns for only checked columns
+      // Each union query is a reference to the wrapped SELECT query.
+      // Verify:
+      // 1. Each query has an ID and innerQueryId
+      // 2. The innerQueryIds are unique (different SELECT queries for each input)
+      const queryIds = new Set<string>();
+      const innerQueryIds = new Set<string>();
       queries?.forEach((query) => {
-        expect(query.selectColumns?.length).toBe(2);
-        const colNames = query.selectColumns?.map(
-          (c) => c.columnNameOrExpression,
-        );
-        expect(colNames).toContain('id');
-        expect(colNames).toContain('ts');
-        expect(colNames).not.toContain('name');
+        expect(query.id).toBeDefined();
+        expect(query.innerQueryId).toBeDefined();
+        queryIds.add(query.id!);
+        innerQueryIds.add(query.innerQueryId!);
       });
+      // Should have 2 unique query IDs and 2 unique innerQueryIds
+      expect(queryIds.size).toBe(2);
+      expect(innerQueryIds.size).toBe(2);
     });
   });
 

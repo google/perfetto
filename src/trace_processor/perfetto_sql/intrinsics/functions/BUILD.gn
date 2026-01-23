@@ -77,7 +77,7 @@ source_set("functions") {
     "../../../../../protos/perfetto/trace_processor:zero",
     "../../../../base",
     "../../../containers",
-    "../../../dataframe",
+    "../../../core/dataframe",
     "../../../importers/common",
     "../../../importers/ftrace:ftrace_descriptors",
     "../../../perfetto_sql/intrinsics/table_functions",

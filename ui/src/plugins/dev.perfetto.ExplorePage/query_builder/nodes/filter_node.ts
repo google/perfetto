@@ -458,6 +458,7 @@ export class FilterNode implements QueryNode {
       filters: this.state.filters?.map((f) => ({...f})),
       filterOperator: this.state.filterOperator,
       onchange: this.state.onchange,
+      sqlModules: this.state.sqlModules,
     };
     return new FilterNode(stateCopy);
   }
@@ -470,7 +471,11 @@ export class FilterNode implements QueryNode {
     if (mode === 'freeform') {
       // Use SQL expression for freeform filtering
       if (!this.state.sqlExpression || this.state.sqlExpression.trim() === '') {
-        return this.primaryInput.getStructuredQuery();
+        // No filter expression - return passthrough to maintain reference chain
+        return StructuredQueryBuilder.passthrough(
+          this.primaryInput,
+          this.nodeId,
+        );
       }
 
       // Create a filter group with just the SQL expression
@@ -493,7 +498,8 @@ export class FilterNode implements QueryNode {
       this.state.filters?.filter((f) => this.isFilterValid(f)) ?? [];
 
     if (validFilters.length === 0) {
-      return this.primaryInput.getStructuredQuery();
+      // No valid filters - return passthrough to maintain reference chain
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
     }
 
     const filtersProto = createExperimentalFiltersProto(
@@ -503,7 +509,8 @@ export class FilterNode implements QueryNode {
     );
 
     if (filtersProto === undefined) {
-      return this.primaryInput.getStructuredQuery();
+      // No valid filters proto - return passthrough to maintain reference chain
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
     }
 
     return StructuredQueryBuilder.withFilter(

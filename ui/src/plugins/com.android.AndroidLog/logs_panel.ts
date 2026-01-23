@@ -18,8 +18,6 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
-import {Monitor} from '../../base/monitor';
-import {AsyncLimiter} from '../../base/async_limiter';
 import {
   escapeQuery,
   escapeSearchQuery,
@@ -46,6 +44,7 @@ import {TagInput} from '../../widgets/tag_input';
 import {Store} from '../../base/store';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
+import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
 
 const ROW_H = 24;
 
@@ -89,56 +88,49 @@ interface LogEntries {
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly trace: Trace;
-  private entries?: LogEntries;
+  private readonly executor = new SerialTaskQueue();
+  private readonly viewQuery = new QuerySlot<AsyncDisposable>(this.executor);
+  private readonly entriesQuery = new QuerySlot<LogEntries>(this.executor);
   private pagination: Pagination = {
     offset: 0,
     count: 0,
   };
-  private readonly rowsMonitor: Monitor;
-  private readonly filterMonitor: Monitor;
-  private readonly queryLimiter = new AsyncLimiter();
 
   constructor({attrs}: m.CVnode<LogPanelAttrs>) {
     this.trace = attrs.trace;
-    this.rowsMonitor = new Monitor([
-      () => attrs.filterStore.state,
-      () => attrs.trace.timeline.visibleWindow.toTimeSpan().start,
-      () => attrs.trace.timeline.visibleWindow.toTimeSpan().end,
-    ]);
+  }
 
-    this.filterMonitor = new Monitor([() => attrs.filterStore.state]);
+  onremove() {
+    this.viewQuery.dispose();
+    this.entriesQuery.dispose();
   }
 
   view({attrs}: m.CVnode<LogPanelAttrs>) {
-    if (this.rowsMonitor.ifStateChanged()) {
-      this.scheduleDataReload(attrs);
-    }
+    const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
+    const filters = attrs.filterStore.state;
+    const pagination = this.pagination;
+    const engine = attrs.trace.engine;
 
-    const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
-    const hasProcessNames =
-      this.entries &&
-      this.entries.processName.filter((name) => name).length > 0;
-    const totalEvents = this.entries?.totalEvents ?? 0;
+    // Query 1: Create the filtered_logs table (no staleOn = always-fresh)
+    const viewResult = this.viewQuery.use({
+      key: {filters},
+      queryFn: () => updateLogView(engine, filters),
+    });
 
-    const columns: GridColumn[] = [
-      ...(hasMachineIds
-        ? [{key: 'machine', header: m(GridHeaderCell, 'Machine')}]
-        : []),
-      {key: 'timestamp', header: m(GridHeaderCell, 'Timestamp')},
-      {key: 'pid', header: m(GridHeaderCell, 'PID')},
-      {key: 'tid', header: m(GridHeaderCell, 'TID')},
-      {key: 'level', header: m(GridHeaderCell, 'Level')},
-      ...(hasProcessNames
-        ? [{key: 'process', header: m(GridHeaderCell, 'Process')}]
-        : []),
-      {key: 'tag', header: m(GridHeaderCell, 'Tag')},
-      {
-        key: 'message',
-        // Allow the initial width of the message column to expand as needed.
-        maxInitialWidthPx: Infinity,
-        header: m(GridHeaderCell, 'Message'),
+    // Query 2: Read from the table (staleOn=['pagination'] for smooth scrolling)
+    const entriesResult = this.entriesQuery.use({
+      key: {
+        filters,
+        viewport: {start: visibleSpan.start, end: visibleSpan.end},
+        pagination,
       },
-    ];
+      retainOn: ['pagination', 'viewport'],
+      queryFn: () => updateLogEntries(engine, visibleSpan, pagination),
+      enabled: !!viewResult.data,
+    });
+
+    const entries = entriesResult.data;
+    const totalEvents = entries?.totalEvents ?? 0;
 
     return m(
       DetailsShell,
@@ -151,16 +143,50 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
           store: attrs.filterStore,
         }),
       },
-      m(Grid, {
+      this.renderGrid(attrs.trace, entries, attrs.cache),
+    );
+  }
+
+  private renderGrid(
+    trace: Trace,
+    entries: LogEntries | undefined,
+    cache: LogPanelCache,
+  ) {
+    if (entries) {
+      const hasMachineIds = cache.uniqueMachineIds.length > 1;
+      const hasProcessNames =
+        entries.processName.filter((name) => name).length > 0;
+
+      const columns: GridColumn[] = [
+        ...(hasMachineIds
+          ? [{key: 'machine', header: m(GridHeaderCell, 'Machine')}]
+          : []),
+        {key: 'timestamp', header: m(GridHeaderCell, 'Timestamp')},
+        {key: 'pid', header: m(GridHeaderCell, 'PID')},
+        {key: 'tid', header: m(GridHeaderCell, 'TID')},
+        {key: 'level', header: m(GridHeaderCell, 'Level')},
+        ...(hasProcessNames
+          ? [{key: 'process', header: m(GridHeaderCell, 'Process')}]
+          : []),
+        {key: 'tag', header: m(GridHeaderCell, 'Tag')},
+        {
+          key: 'message',
+          // Allow the initial width of the message column to expand as needed.
+          maxInitialWidthPx: Infinity,
+          header: m(GridHeaderCell, 'Message'),
+        },
+      ];
+
+      return m(Grid, {
         className: 'pf-logs-panel',
         columns,
         rowData: {
-          data: this.renderRows(hasMachineIds, hasProcessNames),
-          total: this.entries?.totalEvents ?? 0,
-          offset: this.entries?.offset ?? 0,
+          data: this.renderRows(entries, hasMachineIds, hasProcessNames),
+          total: entries?.totalEvents ?? 0,
+          offset: entries?.offset ?? 0,
           onLoadData: (offset, count) => {
             this.pagination = {offset, count};
-            this.scheduleDataReload(attrs);
+            m.redraw();
           },
         },
         virtualization: {
@@ -169,60 +195,43 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         fillHeight: true,
         onRowHover: (rowIndex) => {
           // Calculate the actual row index from virtualization offset
-          const actualIndex = rowIndex - (this.entries?.offset ?? 0);
-          const timestamp = this.entries?.timestamps[actualIndex];
+          const actualIndex = rowIndex - (entries?.offset ?? 0);
+          const timestamp = entries?.timestamps[actualIndex];
           if (timestamp !== undefined) {
-            attrs.trace.timeline.hoverCursorTimestamp = timestamp;
+            trace.timeline.hoverCursorTimestamp = timestamp;
           }
         },
         onRowOut: () => {
-          attrs.trace.timeline.hoverCursorTimestamp = undefined;
+          trace.timeline.hoverCursorTimestamp = undefined;
         },
-      }),
-    );
-  }
-
-  private scheduleDataReload(attrs: LogPanelAttrs) {
-    const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
-    const filterStateChanged = this.filterMonitor.ifStateChanged();
-    const filterStoreState = attrs.filterStore.state;
-    const engine = attrs.trace.engine;
-    const pagination = this.pagination;
-
-    this.queryLimiter.schedule(async () => {
-      if (filterStateChanged) {
-        await updateLogView(engine, filterStoreState);
-      }
-
-      this.entries = await updateLogEntries(engine, visibleSpan, pagination);
-    });
+      });
+    } else {
+      return null;
+    }
   }
 
   private renderRows(
+    entries: LogEntries,
     hasMachineIds: boolean | undefined,
     hasProcessNames: boolean | undefined,
   ): ReadonlyArray<GridRow> {
-    if (!this.entries) {
-      return [];
-    }
-
     const trace = this.trace;
-    const machineIds = this.entries.machineIds;
-    const timestamps = this.entries.timestamps;
-    const pids = this.entries.pids;
-    const tids = this.entries.tids;
-    const priorities = this.entries.priorities;
-    const tags = this.entries.tags;
-    const messages = this.entries.messages;
-    const processNames = this.entries.processName;
+    const machineIds = entries.machineIds;
+    const timestamps = entries.timestamps;
+    const pids = entries.pids;
+    const tids = entries.tids;
+    const priorities = entries.priorities;
+    const tags = entries.tags;
+    const messages = entries.messages;
+    const processNames = entries.processName;
 
     const rows: GridRow[] = [];
-    for (let i = 0; i < this.entries.timestamps.length; i++) {
+    for (let i = 0; i < entries.timestamps.length; i++) {
       const priority = priorities[i];
       const priorityLetter = LOG_PRIORITIES[priority][0];
       const ts = timestamps[i];
       const priorityClass = `pf-logs-panel__row--${classForPriority(priority)}`;
-      const isHighlighted = this.entries.isHighlighted[i];
+      const isHighlighted = entries.isHighlighted[i];
       const className = classNames(
         priorityClass,
         isHighlighted && 'pf-logs-panel__row--highlighted',
@@ -534,9 +543,10 @@ async function updateLogEntries(
   };
 }
 
-async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
-  await engine.query('drop view if exists filtered_logs');
-
+async function updateLogView(
+  engine: Engine,
+  filter: LogFilteringCriteria,
+): Promise<AsyncDisposable> {
   const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);
   let selectedRows = `select prio, ts, pid, tid, tag, msg,
       process.name as process_name,
@@ -560,9 +570,15 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
   }
 
   // We extract only the rows which will be visible.
-  await engine.query(`create view filtered_logs as select *
+  await engine.query(`create perfetto table filtered_logs as select *
     from (${selectedRows})
     where is_msg_chosen is 1 or is_process_chosen is 1`);
+
+  return {
+    async [Symbol.asyncDispose]() {
+      await engine.query('drop table filtered_logs');
+    },
+  };
 }
 
 function serializeTags(tags: string[]) {
