@@ -66,6 +66,9 @@
 
 import {stringifyJsonWithBigints} from './json_utils';
 
+// Simple alias for a function that returns a Promise of type T.
+type AsyncFunc<T> = () => Promise<T>;
+
 /**
  * Runs async tasks one at a time with cancellation support.
  *
@@ -74,14 +77,14 @@ import {stringifyJsonWithBigints} from './json_utils';
  * Tasks that have already started running cannot be cancelled.
  */
 export class SerialTaskQueue {
-  private pending = new Map<object, () => Promise<void>>();
+  private pending = new Map<object, AsyncFunc<void>>();
   private running = false;
 
   /**
    * Schedule a task. If a task with this key is already pending,
    * it gets replaced.
    */
-  schedule(key: object, task: () => Promise<void>): void {
+  schedule(key: object, task: AsyncFunc<void>): void {
     this.pending.set(key, task);
     this.runNext();
   }
@@ -117,7 +120,7 @@ export class SerialTaskQueue {
 
 export interface QueryOptions<T, K extends object> {
   key: K;
-  queryFn: () => Promise<T>;
+  queryFn: AsyncFunc<T>;
   // If provided, query only runs when this is truthy
   // e.g., enabled: viewResult.data
   enabled?: boolean;

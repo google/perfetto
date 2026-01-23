@@ -114,7 +114,10 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     // Query 1: Create the filtered_logs table (no staleOn = always-fresh)
     const viewResult = this.viewQuery.use({
       key: {filters},
-      queryFn: () => updateLogView(engine, filters),
+      queryFn: async () => {
+        await updateLogView(engine, filters);
+        return true;
+      },
     });
 
     // Query 2: Read from the table (staleOn=['pagination'] for smooth scrolling)
@@ -463,22 +466,22 @@ async function updateLogEntries(
   pagination: Pagination,
 ): Promise<LogEntries> {
   const rowsResult = await engine.query(`
-      select
-        ts,
-        pid,
-        tid,
-        prio,
-        ifnull(tag, '[NULL]') as tag,
-        ifnull(msg, '[NULL]') as msg,
-        is_msg_highlighted as isMsgHighlighted,
-        is_process_highlighted as isProcessHighlighted,
-        ifnull(process_name, '') as processName,
-        machine_id as machineId
-      from filtered_logs
-      where ts >= ${span.start} and ts <= ${span.end}
-      order by ts
-      limit ${pagination.offset}, ${pagination.count}
-  `);
+        select
+          ts,
+          pid,
+          tid,
+          prio,
+          ifnull(tag, '[NULL]') as tag,
+          ifnull(msg, '[NULL]') as msg,
+          is_msg_highlighted as isMsgHighlighted,
+          is_process_highlighted as isProcessHighlighted,
+          ifnull(process_name, '') as processName,
+          machine_id as machineId
+        from filtered_logs
+        where ts >= ${span.start} and ts <= ${span.end}
+        order by ts
+        limit ${pagination.offset}, ${pagination.count}
+    `);
 
   const machineIds = [];
   const timestamps: time[] = [];
@@ -540,7 +543,7 @@ async function updateLogEntries(
 }
 
 async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
-  await engine.query('drop table if exists filtered_logs');
+  await engine.query('drop view if exists filtered_logs');
 
   const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);
   let selectedRows = `select prio, ts, pid, tid, tag, msg,
@@ -565,11 +568,9 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
   }
 
   // We extract only the rows which will be visible.
-  await engine.query(`create perfetto table filtered_logs as select *
+  await engine.query(`create view filtered_logs as select *
     from (${selectedRows})
     where is_msg_chosen is 1 or is_process_chosen is 1`);
-
-  return true;
 }
 
 function serializeTags(tags: string[]) {
