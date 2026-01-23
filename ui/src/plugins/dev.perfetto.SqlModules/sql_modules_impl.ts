@@ -88,6 +88,8 @@ export class SqlModulesImpl implements SqlModules {
 
     // Check data availability for modules with checks
     const missingDataModules = new Set<string>();
+    // Track modules whose trace checks explicitly passed (have data)
+    const hasDataModules = new Set<string>();
     for (const [moduleName, checkSql] of modulesWithChecks) {
       try {
         const result = await trace.engine.query(checkSql);
@@ -103,6 +105,8 @@ export class SqlModulesImpl implements SqlModules {
               : Number(hasDataValue) !== 0;
           if (!hasData) {
             missingDataModules.add(moduleName);
+          } else {
+            hasDataModules.add(moduleName);
           }
         }
       } catch (e) {
@@ -111,7 +115,30 @@ export class SqlModulesImpl implements SqlModules {
       }
     }
 
+    // Compute "protected" modules: modules with passing checks AND all modules
+    // that depend on them (transitively). These should not be disabled by
+    // dependency propagation since they have access to data through at least
+    // one dependency with a passing trace check.
+    const protectedModules = new Set(hasDataModules);
+    const protectedQueue = Array.from(hasDataModules);
+
+    while (protectedQueue.length > 0) {
+      const current = protectedQueue.shift()!;
+      const deps = dependents.get(current);
+
+      if (deps) {
+        for (const dependent of deps) {
+          if (!protectedModules.has(dependent)) {
+            protectedModules.add(dependent);
+            protectedQueue.push(dependent);
+          }
+        }
+      }
+    }
+
     // BFS to find all transitive dependents of modules with missing data
+    // Skip disabling protected modules (those with passing checks or that
+    // depend on modules with passing checks)
     const queue = Array.from(missingDataModules);
     const disabled = new Set(missingDataModules);
 
@@ -121,7 +148,7 @@ export class SqlModulesImpl implements SqlModules {
 
       if (deps) {
         for (const dependent of deps) {
-          if (!disabled.has(dependent)) {
+          if (!disabled.has(dependent) && !protectedModules.has(dependent)) {
             disabled.add(dependent);
             queue.push(dependent);
           }
