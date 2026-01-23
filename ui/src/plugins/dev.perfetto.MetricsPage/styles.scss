@@ -72,3 +72,21 @@
     }
   }
 }
+
+.pf-metricsv2-result {
+  &__header {
+    margin-bottom: 1rem;
+  }
+
+  &__tabs {
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+  }
+
+  &__bundle {
+    .pf-datagrid {
+      min-height: 200px;
+      max-height: 400px;
+    }
+  }
+}

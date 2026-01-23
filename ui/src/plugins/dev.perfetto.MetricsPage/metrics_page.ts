@@ -27,9 +27,27 @@ import {Intent} from '../../widgets/common';
 import {CodeSnippet} from '../../widgets/code_snippet';
 import {Callout} from '../../widgets/callout';
 import {TextInput} from '../../widgets/text_input';
+import {Tabs} from '../../widgets/tabs';
+import {DataGrid} from '../../components/widgets/datagrid/datagrid';
+import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import {Row} from '../../trace_processor/query_result';
+import protos from '../../protos';
 
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
+
+// Parsed metric bundle for table display
+interface MetricBundle {
+  metricId: string;
+  schema: SchemaRegistry;
+  rows: Row[];
+}
+
+// Result type that includes both text and parsed table data
+interface MetricV2Result {
+  text: string;
+  bundles: MetricBundle[];
+}
 
 type V2Mode = 'metric-spec' | 'full-trace-summary';
 
@@ -168,13 +186,92 @@ async function getMetricV1(
   }
 }
 
+// Helper to extract dimension value as string
+function getDimensionValue(
+  dim: protos.TraceMetricV2Bundle.Row.IDimension,
+): string {
+  if (dim.stringValue !== undefined && dim.stringValue !== null) {
+    return dim.stringValue;
+  }
+  if (dim.int64Value !== undefined && dim.int64Value !== null) {
+    return String(dim.int64Value);
+  }
+  if (dim.doubleValue !== undefined && dim.doubleValue !== null) {
+    return String(dim.doubleValue);
+  }
+  if (dim.boolValue !== undefined && dim.boolValue !== null) {
+    return String(dim.boolValue);
+  }
+  return 'NULL';
+}
+
+// Helper to extract value as number or null
+function getMetricValue(
+  val: protos.TraceMetricV2Bundle.Row.IValue,
+): number | null {
+  if (val.doubleValue !== undefined && val.doubleValue !== null) {
+    return val.doubleValue;
+  }
+  return null;
+}
+
+// Parse TraceSummary proto into MetricBundle array
+function parseTraceSummary(data: Uint8Array): MetricBundle[] {
+  const summary = protos.TraceSummary.decode(data);
+  const bundles: MetricBundle[] = [];
+
+  for (const bundle of summary.metricBundles) {
+    // Get metric spec to find dimension names and value name
+    const spec = bundle.specs?.[0];
+    const metricId = spec?.id ?? bundle.bundleId ?? 'unknown';
+    const dimensionNames = spec?.dimensions ?? [];
+    const valueName = spec?.value ?? 'value';
+
+    // Build schema for this metric
+    const schemaColumns: Record<
+      string,
+      {title: string; columnType: 'text' | 'quantitative'}
+    > = {};
+    for (const dimName of dimensionNames) {
+      schemaColumns[dimName] = {title: dimName, columnType: 'text'};
+    }
+    schemaColumns[valueName] = {title: valueName, columnType: 'quantitative'};
+
+    const schema: SchemaRegistry = {
+      [metricId]: schemaColumns,
+    };
+
+    // Convert rows to DataGrid format
+    const rows: Row[] = [];
+    for (const row of bundle.row ?? []) {
+      const rowData: Row = {};
+
+      // Add dimensions
+      for (let i = 0; i < dimensionNames.length; i++) {
+        const dimName = dimensionNames[i];
+        const dimValue = row.dimension?.[i];
+        rowData[dimName] = dimValue ? getDimensionValue(dimValue) : null;
+      }
+
+      // Add value (first value in the values array)
+      const val = row.values?.[0];
+      rowData[valueName] = val ? getMetricValue(val) : null;
+
+      rows.push(rowData);
+    }
+
+    bundles.push({metricId, schema, rows});
+  }
+
+  return bundles;
+}
+
 async function getMetricV2(
   engine: Engine,
   mode: V2Mode,
   input: string,
-  format: Format,
   metricIds?: string[],
-): Promise<string> {
+): Promise<MetricV2Result> {
   let summarySpec: string;
 
   switch (mode) {
@@ -193,31 +290,28 @@ async function getMetricV2(
   // If metricIds provided and non-empty, use them; otherwise run all
   const idsToRun = metricIds && metricIds.length > 0 ? metricIds : undefined;
 
+  // Request proto format to get binary data we can parse
   const result = await engine.summarizeTrace(
     [summarySpec],
     idsToRun,
     undefined,
-    format === 'proto' ? 'proto' : 'prototext',
+    'proto',
   );
   if (result.error) {
     throw new Error(result.error);
   }
-  switch (format) {
-    case 'json':
-      if (!result.protoSummary) {
-        throw new Error('Error fetching Textproto trace summary');
-      }
-      return JSON.stringify(result.protoSummary, null, 2);
-    case 'prototext':
-      if (!result.textprotoSummary) {
-        throw new Error('Error fetching Textproto trace summary');
-      }
-      return result.textprotoSummary;
-    case 'proto':
-      throw new Error('Proto format not supported');
-    default:
-      assertUnreachable(format);
+  if (!result.protoSummary) {
+    throw new Error('No proto summary returned');
   }
+
+  // Parse the proto data
+  const bundles = parseTraceSummary(result.protoSummary);
+
+  // Generate text representation (JSON format)
+  const summary = protos.TraceSummary.decode(result.protoSummary);
+  const text = JSON.stringify(protos.TraceSummary.toObject(summary), null, 2);
+
+  return {text, bundles};
 }
 
 class MetricsV1Controller {
@@ -327,6 +421,61 @@ function renderResult(
   return m(CodeSnippet, {language: format, text: result.value});
 }
 
+function renderV2Result(
+  result: Result<MetricV2Result> | 'pending' | undefined,
+  viewMode: 'table' | 'json',
+  onViewModeChange: (mode: 'table' | 'json') => void,
+) {
+  if (result === undefined) {
+    return null;
+  }
+
+  if (result === 'pending') {
+    return m(Spinner);
+  }
+
+  if (!result.ok) {
+    return m(
+      Callout,
+      {icon: 'error', intent: Intent.Danger},
+      `${result.error}`,
+    );
+  }
+
+  const {text, bundles} = result.value;
+
+  return m(
+    '.pf-metricsv2-result',
+    m(
+      '.pf-metricsv2-result__header',
+      m(SegmentedButtons, {
+        options: [{label: 'Table'}, {label: 'JSON'}],
+        selectedOption: viewMode === 'table' ? 0 : 1,
+        onOptionSelected: (num) => {
+          onViewModeChange(num === 0 ? 'table' : 'json');
+        },
+      }),
+    ),
+    viewMode === 'json'
+      ? m(CodeSnippet, {language: 'json', text})
+      : m(Tabs, {
+          className: 'pf-metricsv2-result__tabs',
+          tabs: bundles.map((bundle) => ({
+            key: bundle.metricId,
+            title: bundle.metricId,
+            content: m(
+              '.pf-metricsv2-result__bundle',
+              m(DataGrid, {
+                data: bundle.rows,
+                schema: bundle.schema,
+                rootSchema: bundle.metricId,
+              }),
+            ),
+          })),
+        }),
+  );
+}
+
 interface MetricV1FetcherAttrs {
   controller: MetricsV1Controller;
 }
@@ -381,7 +530,9 @@ interface MetricV2FetcherAttrs {
   readonly engine: Engine;
   readonly mode: V2Mode;
   readonly showExample: boolean;
-  readonly onExecuteRunMetric: (result: Result<string> | 'pending') => void;
+  readonly onExecuteRunMetric: (
+    result: Result<MetricV2Result> | 'pending',
+  ) => void;
   readonly onUpdateText: () => void;
   readonly editorGeneration: number;
 }
@@ -406,13 +557,7 @@ class MetricV2Fetcher implements m.ClassComponent<MetricV2FetcherAttrs> {
     const currentAttrs = this.currentAttrs;
     if (!currentAttrs) return;
     const metricIds = this.parseMetricIds();
-    getMetricV2(
-      currentAttrs.engine,
-      currentAttrs.mode,
-      this.text,
-      'prototext',
-      metricIds,
-    )
+    getMetricV2(currentAttrs.engine, currentAttrs.mode, this.text, metricIds)
       .then((result) => {
         currentAttrs.onExecuteRunMetric(okResult(result));
       })
@@ -480,11 +625,12 @@ export interface MetricsPageAttrs {
 
 export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
   private v1Controller?: MetricsV1Controller;
-  private v2Result?: Result<string> | 'pending';
+  private v2Result?: Result<MetricV2Result> | 'pending';
   private showV2MetricExample: boolean = false;
   private mode: 'V1' | 'V2' = 'V2';
   private v2Mode: V2Mode = 'metric-spec';
   private fetcherGeneration: number = 0;
+  private v2ViewMode: 'table' | 'json' = 'table';
 
   oninit({attrs}: m.Vnode<MetricsPageAttrs>) {
     this.v1Controller = new MetricsV1Controller(attrs.trace);
@@ -539,7 +685,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
           mode: this.v2Mode,
           showExample: this.showV2MetricExample,
           editorGeneration: this.fetcherGeneration,
-          onExecuteRunMetric: (result: Result<string> | 'pending') => {
+          onExecuteRunMetric: (result: Result<MetricV2Result> | 'pending') => {
             this.v2Result = result;
           },
           onUpdateText: () => {
@@ -548,10 +694,12 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
           },
         }),
       ],
-      renderResult(
-        this.mode === 'V1' ? v1Controller.result : this.v2Result,
-        v1Controller.format,
-      ),
+      this.mode === 'V1' &&
+        renderResult(v1Controller.result, v1Controller.format),
+      this.mode === 'V2' &&
+        renderV2Result(this.v2Result, this.v2ViewMode, (mode) => {
+          this.v2ViewMode = mode;
+        }),
     );
   }
 }
