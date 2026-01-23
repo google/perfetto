@@ -21,6 +21,10 @@ export class WebSocketStream extends ByteStream {
     sock.binaryType = 'arraybuffer';
     sock.onclose = () => this.onClose();
     sock.onmessage = async (e: MessageEvent) => {
+      console.error('[Debug] WebSocketStream: onmessage', {
+        data: e.data,
+        type: typeof e.data,
+      });
       assertTrue(e.data instanceof ArrayBuffer);
       this.onData(new Uint8Array(e.data as ArrayBuffer));
     };

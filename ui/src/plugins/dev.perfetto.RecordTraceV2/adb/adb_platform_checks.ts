@@ -44,10 +44,20 @@ export async function* checkAndroidTarget(
     name: 'traced running?',
     status: await (async (): Promise<Result<string>> => {
       const status = await adbDevice.shell('pidof traced');
-      if (!status.ok) return status;
+      if (!status.ok) {
+        console.error(
+          '[Debug] traced running check shell failed:',
+          status.error,
+        );
+        return status;
+      }
       if (isFinite(parseInt(status.value))) {
         return okResult(`pid = ${status.value}`);
       }
+      console.error(
+        '[Debug] traced running check: pidof traced returned:',
+        status.value,
+      );
       return errResult(
         'Not running. Try `adb shell setprop persist.traced.enable 1`',
       );
