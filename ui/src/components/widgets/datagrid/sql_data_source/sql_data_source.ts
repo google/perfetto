@@ -16,26 +16,28 @@ import {
   QueryResult,
   QuerySlot,
   SerialTaskQueue,
-} from '../../../base/query_slot';
-import {exists} from '../../../base/utils';
-import {Engine} from '../../../trace_processor/engine';
-import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
-import {DisposableSqlEntity} from '../../../trace_processor/sql_utils';
-import {runQueryForQueryTable} from '../../query_table/queries';
+} from '../../../../base/query_slot';
+import {exists} from '../../../../base/utils';
+import {Engine} from '../../../../trace_processor/engine';
+import {NUM, Row, SqlValue} from '../../../../trace_processor/query_result';
+import {DisposableSqlEntity} from '../../../../trace_processor/sql_utils';
+import {runQueryForQueryTable} from '../../../query_table/queries';
 import {
   DataSource,
   DataSourceModel,
+  DataSourceRows,
   Pagination,
   RowsQueryResult,
-} from './data_source';
-import {AggregateFunction, Column, Filter, Pivot} from './model';
-import {SQLSchemaRegistry, SQLSchemaResolver} from './sql_schema';
-import {filterToSql, sqlValue, toAlias} from './sql_utils';
+} from '../data_source';
+import {AggregateFunction, Column, Filter, Pivot} from '../model';
+import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
+import {filterToSql, sqlValue, toAlias} from '../sql_utils';
 import {
   buildAggregateExpr,
   createPivotTable,
   queryPivotTable,
-} from './pivot_operator';
+} from '../pivot_operator';
+import {NormalizedQueryModel, SQLDataSourceFlat} from './sql_data_source_flat';
 
 export function ensure<T>(x: T | null | undefined): asserts x is T {
   if (!exists(x)) {
@@ -68,17 +70,17 @@ interface AggregatesResult {
 }
 
 interface SortSpec {
-  id: string;
-  field: string;
-  direction: 'ASC' | 'DESC';
+  readonly id: string;
+  readonly field: string;
+  readonly direction: 'ASC' | 'DESC';
 }
 
 interface NormalizedRequest {
-  columns: readonly Column[];
-  filters: readonly Filter[];
-  pagination?: Pagination;
-  pivot?: Pivot;
-  sort?: SortSpec;
+  readonly columns: readonly Column[];
+  readonly filters: readonly Filter[];
+  readonly pagination?: Pagination;
+  readonly pivot?: Pivot;
+  readonly sort?: SortSpec;
 }
 
 /**
@@ -98,6 +100,8 @@ export class SQLDataSource implements DataSource {
   private readonly aggregatesSlot: QuerySlot<AggregatesResult>;
   private readonly pivotTableSlot: QuerySlot<DisposableSqlEntity>;
 
+  private readonly flat: SQLDataSourceFlat;
+
   // Track the last working query for exportData
   private lastWorkingQuery?: string;
 
@@ -111,6 +115,12 @@ export class SQLDataSource implements DataSource {
     this.rowsSlot = new QuerySlot(this.taskQueue);
     this.aggregatesSlot = new QuerySlot(this.taskQueue);
     this.pivotTableSlot = new QuerySlot(this.taskQueue);
+
+    this.flat = new SQLDataSourceFlat(
+      this.engine,
+      this.sqlSchema,
+      this.rootSchemaName,
+    );
   }
 
   /**
@@ -125,26 +135,52 @@ export class SQLDataSource implements DataSource {
    * Fetch rows for the current model state.
    */
   useRows(model: DataSourceModel): RowsQueryResult {
-    // Normalize the model into a cleaner working structure
-    const req = this.normalizeRequest(model);
+    const normModel = this.normalizeRequest(model);
+    const result = this.flat.useData(normModel);
+    console.log('Flat data source result:', result);
+    // return {
+    //   data: undefined,
+    //   isPending: false,
+    //   isFresh: true,
+    //   query: '',
+    // };
 
-    if (req.pivot) {
-      if (req.pivot.drillDown) {
-        return this.useRowsPivotDrilldownMode(req);
-      } else if (req.pivot.collapsibleGroups) {
-        return this.useRowsPivotMode(req);
+    if (normModel.pivot) {
+      if (normModel.pivot.drillDown) {
+        return this.useRowsPivotDrilldownMode(normModel);
+      } else if (normModel.pivot.collapsibleGroups) {
+        return this.useRowsPivotMode(normModel);
       } else {
-        return this.useRowsFlatPivotMode(req);
+        return this.useRowsFlatPivotMode(normModel);
       }
     } else {
-      return this.useRowsFlatMode(req);
+      const foo = this.useRowsFlatMode(normModel);
+      console.log(foo);
+      if (
+        result.rowOffset !== undefined &&
+        result.rows !== undefined &&
+        result.totalRows !== undefined
+      ) {
+        return {
+          data: result as DataSourceRows,
+          isPending: false,
+          isFresh: true,
+          query: '',
+        };
+      }
+      return {
+        data: undefined,
+        isPending: false,
+        isFresh: true,
+        query: '',
+      };
     }
   }
 
   /**
    * Normalized request structure - separates concerns for easier processing.
    */
-  private normalizeRequest(model: DataSourceModel): NormalizedRequest {
+  private normalizeRequest(model: DataSourceModel): NormalizedQueryModel {
     const {columns, filters = [], pagination, pivot} = model;
 
     // Extract sorting from wherever it lives
@@ -160,7 +196,11 @@ export class SQLDataSource implements DataSource {
       // In pivot mode, sort comes from groupBy or aggregates
       const groupCol = pivot.groupBy.find((g) => g.sort);
       if (groupCol) {
-        sort = {id: groupCol.id, field: groupCol.field, direction: groupCol.sort!};
+        sort = {
+          id: groupCol.id,
+          field: groupCol.field,
+          direction: groupCol.sort!,
+        };
       } else {
         const agg = pivot.aggregates?.find((a) => a.sort);
         if (agg) {
@@ -180,7 +220,13 @@ export class SQLDataSource implements DataSource {
     }
 
     return {
-      columns: columns ?? [],
+      columns: (columns ?? []).map((c) => {
+        const {sort: _, ...rest} = c;
+        return rest;
+      }).sort((a, b) => {
+        // Make the column order irrelevant for caching
+        return (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0;
+      }),
       filters,
       pagination,
       pivot,
@@ -226,24 +272,6 @@ export class SQLDataSource implements DataSource {
 
   useParameterKeys(): QueryResult<ReadonlyMap<string, readonly string[]>> {
     return {data: undefined, isPending: false, isFresh: true};
-  }
-
-  /**
-   * Flat mode: Regular table view without pivot.
-   */
-  private useRowsFlatMode(req: NormalizedRequest): RowsQueryResult {
-    const {pagination} = req;
-
-    const rowsQuery = this.buildQuery(req);
-
-    const result = this.rowsSlot.use({
-      key: {query: rowsQuery, pagination},
-      queryFn: async () => this.fetchRows(req, rowsQuery),
-      enabled: true,
-      retainOn: ['pagination'],
-    });
-
-    return this.toRowsQueryResult(result, rowsQuery);
   }
 
   /**

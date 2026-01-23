@@ -118,7 +118,7 @@ import {
   DrawerPanel,
   DrawerPanelVisibility,
 } from '../../../widgets/drawer_panel';
-import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
+import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';

@@ -21,7 +21,7 @@ import {
   CellRenderResult,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
-import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
+import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source/sql_data_source';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {
   AreaSelection,

@@ -45,7 +45,6 @@ import {AppImpl} from './app_impl';
 import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
 import {TraceSource} from './trace_source';
-import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
 import {parseUrlCommands} from './command_manager';
