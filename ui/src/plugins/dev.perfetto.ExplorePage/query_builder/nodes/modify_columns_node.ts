@@ -421,6 +421,7 @@ export class ModifyColumnsNode implements QueryNode {
       filters: this.state.filters?.map((f) => ({...f})),
       filterOperator: this.state.filterOperator,
       onchange: this.state.onchange,
+      sqlModules: this.state.sqlModules,
     };
     return new ModifyColumnsNode(stateCopy);
   }
