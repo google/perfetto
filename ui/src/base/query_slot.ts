@@ -62,6 +62,9 @@
  * - Tasks within a queue run serially (no interleaving)
  * - Only the latest pending task per slot is kept (intermediates dropped)
  * - Each slot has a single-entry cache (most recent result)
+ * - If queryFn returns an AsyncDisposable, it is automatically disposed before
+ *   running the next query and when the slot is disposed. Disposal runs through
+ *   the queue to stay synchronized with in-flight queries.
  */
 
 import {stringifyJsonWithBigints} from './json_utils';

@@ -12,12 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {AsyncLimiter} from '../../../base/async_limiter';
 import {maybeUndefined} from '../../../base/utils';
-import {
-  QueryResult,
-  QuerySlot,
-  SerialTaskQueue,
-} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../query_table/queries';
@@ -71,6 +67,26 @@ export interface SQLDataSourceConfig {
   readonly preamble?: string;
 }
 
+// Cache entry for row count resolution
+interface RowCountCache {
+  query: string;
+  count: number;
+}
+
+// Cache entry for rows resolution
+interface RowsCache {
+  query: string;
+  pagination: Pagination | undefined;
+  offset: number;
+  rows: Row[];
+}
+
+// Cache entry for aggregate resolution
+interface AggregatesCache {
+  query: string;
+  totals: Map<string, SqlValue>;
+}
+
 // Cache entry for distinct values resolution
 interface DistinctValuesCache {
   query: string;
@@ -117,44 +133,23 @@ interface DistinctValuesCache {
  */
 export class SQLDataSource implements DataSource {
   private readonly engine: Engine;
+  private readonly limiter = new AsyncLimiter();
   private readonly sqlSchema: SQLSchemaRegistry;
   private readonly rootSchemaName: string;
   private readonly prelude?: string;
 
-  // Query slots for declarative data fetching
-  private readonly executor = new SerialTaskQueue();
-  private readonly rowCountSlot = new QuerySlot<number>(this.executor);
-  private readonly rowsSlot = new QuerySlot<{offset: number; rows: Row[]}>(
-    this.executor,
-  );
-  private readonly aggregatesSlot = new QuerySlot<Map<string, SqlValue>>(
-    this.executor,
-  );
-
-  // Store latest query results from slots
-  private rowCountResult: QueryResult<number> = {
-    data: undefined,
-    isPending: false,
-    isFresh: false,
-  };
-  private rowsResult: QueryResult<{offset: number; rows: Row[]}> = {
-    data: undefined,
-    isPending: false,
-    isFresh: false,
-  };
-  private aggregatesResult: QueryResult<Map<string, SqlValue>> = {
-    data: undefined,
-    isPending: false,
-    isFresh: false,
-  };
-
-  // Cache for distinct values and parameter keys (per-column, kept as-is)
+  // Cache for each resolution type
+  private rowCountCache?: RowCountCache;
+  private rowsCache?: RowsCache;
+  private aggregatesCache?: AggregatesCache;
   private distinctValuesCache = new Map<string, DistinctValuesCache>();
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
-  private cachedDistinctValues?: ReadonlyMap<string, ReadonlyArray<SqlValue>>;
 
-  // Track the current rows query for getCurrentQuery()
-  private currentRowsQuery?: string;
+  // Current results
+  private cachedResult?: DataSourceRows;
+  private cachedDistinctValues?: ReadonlyMap<string, ReadonlyArray<SqlValue>>;
+  private cachedAggregateTotals?: ReadonlyMap<string, SqlValue>;
+  private isLoadingFlag = false;
 
   constructor(config: SQLDataSourceConfig) {
     this.engine = config.engine;
@@ -164,29 +159,14 @@ export class SQLDataSource implements DataSource {
   }
 
   /**
-   * Getter for the current rows result.
-   * Combines rowCount and rows data from their respective QuerySlots.
+   * Getter for the current rows result
    */
   get rows(): DataSourceRows | undefined {
-    const rowCount = this.rowCountResult.data;
-    const rowsData = this.rowsResult.data;
-
-    if (rowCount !== undefined && rowsData) {
-      return {
-        rowOffset: rowsData.offset,
-        totalRows: rowCount,
-        rows: rowsData.rows,
-      };
-    }
-    return undefined;
+    return this.cachedResult;
   }
 
   get isLoading(): boolean {
-    return (
-      this.rowCountResult.isPending ||
-      this.rowsResult.isPending ||
-      this.aggregatesResult.isPending
-    );
+    return this.isLoadingFlag;
   }
 
   get distinctValues(): ReadonlyMap<string, readonly SqlValue[]> | undefined {
@@ -200,7 +180,7 @@ export class SQLDataSource implements DataSource {
   }
 
   get aggregateTotals(): ReadonlyMap<string, SqlValue> | undefined {
-    return this.aggregatesResult.data;
+    return this.cachedAggregateTotals;
   }
 
   /**
@@ -208,61 +188,63 @@ export class SQLDataSource implements DataSource {
    * Useful for debugging or creating debug tracks.
    */
   getCurrentQuery(): string {
-    return this.currentRowsQuery ?? '';
+    return this.rowsCache?.query ?? '';
   }
 
   /**
-   * Notify of parameter changes and trigger data update.
-   * Called every frame - uses QuerySlots for declarative data fetching.
+   * Notify of parameter changes and trigger data update
    */
   notify(model: DataSourceModel): void {
-    const {pagination} = model;
+    this.limiter.schedule(async () => {
+      // Defer setting loading flag to avoid setting it synchronously during the
+      // view() call that triggered notify(). This avoids the bug that the
+      // current frame always has isLoading = true.
+      await Promise.resolve();
+      this.isLoadingFlag = true;
 
-    // Build queries
-    const countQuery = this.buildQuery(model, {includeOrderBy: false});
-    const rowsQuery = this.buildQuery(model, {includeOrderBy: true});
-    const aggregateQuery = this.buildAggregateQuery(model);
+      try {
+        // Resolve row count
+        const rowCount = await this.resolveRowCount(model);
 
-    // Store for getCurrentQuery()
-    this.currentRowsQuery = rowsQuery;
+        // Resolve aggregates
+        const aggregateTotals = await this.resolveAggregates(model);
 
-    // Row count query - always fresh (no staleOn)
-    this.rowCountResult = this.rowCountSlot.use({
-      key: {query: countQuery},
-      queryFn: () => this.fetchRowCount(countQuery),
+        // Resolve rows
+        const {offset, rows} = await this.resolveRows(model);
+
+        // Resolve distinct values
+        const distinctValues = await this.resolveDistinctValues(model);
+
+        // Resolve parameter keys
+        await this.resolveParameterKeys(model);
+
+        // Build final result
+        this.cachedResult = {
+          rowOffset: offset,
+          totalRows: rowCount,
+          rows,
+        };
+        this.cachedDistinctValues = distinctValues;
+        this.cachedAggregateTotals = aggregateTotals;
+      } finally {
+        this.isLoadingFlag = false;
+      }
     });
-
-    // Rows query - stale on pagination changes for smooth scrolling
-    this.rowsResult = this.rowsSlot.use({
-      key: {query: rowsQuery, pagination},
-      retainOn: ['pagination'],
-      queryFn: () => this.fetchRows(rowsQuery, pagination),
-    });
-
-    // Aggregates query - always fresh
-    if (aggregateQuery) {
-      this.aggregatesResult = this.aggregatesSlot.use({
-        key: {query: aggregateQuery},
-        queryFn: () => this.fetchAggregates(model),
-      });
-    } else {
-      this.aggregatesResult = {
-        data: undefined,
-        isPending: false,
-        isFresh: true,
-      };
-    }
-
-    // Distinct values and parameter keys use the old caching approach
-    // since they're per-column and dynamically determined
-    this.resolveDistinctValuesAsync(model);
-    this.resolveParameterKeysAsync(model);
   }
 
   /**
-   * Fetch row count for a given query.
+   * Resolves the row count. Compares query against cache and reuses if unchanged.
    */
-  private async fetchRowCount(countQuery: string): Promise<number> {
+  private async resolveRowCount(model: DataSourceModel): Promise<number> {
+    // Build query without ORDER BY - ordering is irrelevant for counting
+    const countQuery = this.buildQuery(model, {includeOrderBy: false});
+
+    // Check cache
+    if (this.rowCountCache?.query === countQuery) {
+      return this.rowCountCache.count;
+    }
+
+    // Fetch new count
     const result = await this.engine.query(
       this.wrapQueryWithPrelude(`
       WITH data AS (${countQuery})
@@ -270,16 +252,34 @@ export class SQLDataSource implements DataSource {
       FROM data
     `),
     );
-    return result.firstRow({total_count: NUM}).total_count;
+    const count = result.firstRow({total_count: NUM}).total_count;
+
+    // Update cache
+    this.rowCountCache = {query: countQuery, count};
+
+    return count;
   }
 
   /**
-   * Fetch rows for a given query and pagination.
+   * Resolves the rows for the current page. Compares query and pagination against cache.
    */
-  private async fetchRows(
-    rowsQuery: string,
-    pagination: Pagination | undefined,
+  private async resolveRows(
+    model: DataSourceModel,
   ): Promise<{offset: number; rows: Row[]}> {
+    const {pagination} = model;
+
+    // Build query with ORDER BY for proper pagination ordering
+    const rowsQuery = this.buildQuery(model, {includeOrderBy: true});
+
+    // Check cache - both query and pagination must match
+    if (
+      this.rowsCache?.query === rowsQuery &&
+      comparePagination(this.rowsCache.pagination, pagination)
+    ) {
+      return {offset: this.rowsCache.offset, rows: this.rowsCache.rows};
+    }
+
+    // Fetch new rows
     let query = `
       WITH data AS (${rowsQuery})
       SELECT *
@@ -295,19 +295,38 @@ export class SQLDataSource implements DataSource {
       this.engine,
     );
 
-    return {
-      offset: pagination?.offset ?? 0,
-      rows: result.rows,
-    };
+    const offset = pagination?.offset ?? 0;
+    const rows = result.rows;
+
+    // Update cache
+    this.rowsCache = {query: rowsQuery, pagination, offset, rows};
+
+    return {offset, rows};
   }
 
   /**
-   * Fetch aggregates for a given model.
+   * Resolves aggregate totals. Handles both pivot aggregates and column aggregates.
    */
-  private async fetchAggregates(
+  private async resolveAggregates(
     model: DataSourceModel,
-  ): Promise<Map<string, SqlValue>> {
+  ): Promise<Map<string, SqlValue> | undefined> {
     const {columns, filters = [], pivot} = model;
+
+    // Build a unique query string for the aggregates
+    const aggregateQuery = this.buildAggregateQuery(model);
+
+    // If no aggregates needed, return undefined
+    if (!aggregateQuery) {
+      this.aggregatesCache = undefined;
+      return undefined;
+    }
+
+    // Check cache
+    if (this.aggregatesCache?.query === aggregateQuery) {
+      return this.aggregatesCache.totals;
+    }
+
+    // Compute aggregates
     const totals = new Map<string, SqlValue>();
 
     // Pivot aggregates (but not drill-down mode)
@@ -331,26 +350,10 @@ export class SQLDataSource implements DataSource {
       }
     }
 
+    // Update cache
+    this.aggregatesCache = {query: aggregateQuery, totals};
+
     return totals;
-  }
-
-  /**
-   * Resolve distinct values asynchronously (uses internal caching).
-   */
-  private async resolveDistinctValuesAsync(
-    model: DataSourceModel,
-  ): Promise<void> {
-    const distinctValues = await this.resolveDistinctValues(model);
-    this.cachedDistinctValues = distinctValues;
-  }
-
-  /**
-   * Resolve parameter keys asynchronously (uses internal caching).
-   */
-  private async resolveParameterKeysAsync(
-    model: DataSourceModel,
-  ): Promise<void> {
-    await this.resolveParameterKeys(model);
   }
 
   /**
@@ -480,7 +483,7 @@ export class SQLDataSource implements DataSource {
    * Export all data with current filters/sorting applied.
    */
   async exportData(): Promise<Row[]> {
-    const workingQuery = this.currentRowsQuery;
+    const workingQuery = this.rowsCache?.query;
     if (!workingQuery) {
       return [];
     }
@@ -1384,4 +1387,10 @@ ${joinClauses}`;
     );
     return result.rows[0] ?? {};
   }
+}
+
+function comparePagination(a?: Pagination, b?: Pagination): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.limit === b.limit && a.offset === b.offset;
 }
