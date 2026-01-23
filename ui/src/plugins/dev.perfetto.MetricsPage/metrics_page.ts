@@ -628,7 +628,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
   private v2Result?: Result<MetricV2Result> | 'pending';
   private showV2MetricExample: boolean = false;
   private mode: 'V1' | 'V2' = 'V2';
-  private v2Mode: V2Mode = 'metric-spec';
+  private v2Mode: V2Mode = 'full-trace-summary';
   private fetcherGeneration: number = 0;
   private v2ViewMode: 'table' | 'json' = 'table';
 
