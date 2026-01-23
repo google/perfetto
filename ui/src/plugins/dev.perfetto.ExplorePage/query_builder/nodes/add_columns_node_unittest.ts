@@ -125,8 +125,10 @@ describe('AddColumnsNode', () => {
 
       const query = node.getStructuredQuery();
 
-      // Should return the primary input's query
-      expect(query).toEqual(primaryNode.getStructuredQuery());
+      // Should return a passthrough query with its own ID referencing the primary input
+      expect(query).toBeDefined();
+      expect(query?.id).toBe(node.nodeId);
+      expect(query?.innerQueryId).toBe(primaryNode.nodeId);
     });
 
     it('should skip invalid computed columns', () => {
