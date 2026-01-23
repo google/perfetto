@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_CORE_H_
-#define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_CORE_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_CORE_H_
+#define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_CORE_H_
 
 #include <array>
 #include <cstddef>
@@ -32,11 +32,10 @@
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_registers.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
-#include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 
-namespace perfetto::trace_processor::dataframe::impl::bytecode {
+namespace perfetto::trace_processor::interpreter {
 
 // Base bytecode structure representing a single instruction with operation
 // code and fixed-size buffer for arguments.
@@ -149,7 +148,7 @@ PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
 }
 
 PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
-    impl::BoundModifier bound) {
+    BoundModifier bound) {
   return base::StackString<64>("BoundModifier(%u)", bound.index());
 }
 
@@ -246,6 +245,6 @@ PERFETTO_NO_INLINE inline std::string BytecodeFieldsFormat(
 #define PERFETTO_DATAFRAME_BYTECODE_IMPL_1(t1, n1) \
   PERFETTO_DATAFRAME_BYTECODE_IMPL_2(t1, n1, uint32_t, pad2)
 
-}  // namespace perfetto::trace_processor::dataframe::impl::bytecode
+}  // namespace perfetto::trace_processor::interpreter
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_CORE_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_CORE_H_

@@ -28,12 +28,12 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
-#include "src/trace_processor/core/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/core/dataframe/impl/query_plan.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_instructions.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 
 namespace perfetto::trace_processor::dataframe {
 

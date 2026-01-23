@@ -347,6 +347,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_dataframe_impl_impl",
         ":src_trace_processor_core_dataframe_specs",
+        ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -550,6 +551,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_dataframe_impl_impl",
         ":src_trace_processor_core_dataframe_specs",
+        ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -2007,16 +2009,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_core_dataframe_impl_impl",
     srcs = [
-        "src/trace_processor/core/dataframe/impl/bytecode_core.h",
-        "src/trace_processor/core/dataframe/impl/bytecode_instructions.h",
-        "src/trace_processor/core/dataframe/impl/bytecode_interpreter.h",
-        "src/trace_processor/core/dataframe/impl/bytecode_interpreter_impl.cc",
-        "src/trace_processor/core/dataframe/impl/bytecode_interpreter_impl.h",
-        "src/trace_processor/core/dataframe/impl/bytecode_interpreter_state.h",
-        "src/trace_processor/core/dataframe/impl/bytecode_registers.h",
         "src/trace_processor/core/dataframe/impl/query_plan.cc",
         "src/trace_processor/core/dataframe/impl/query_plan.h",
-        "src/trace_processor/core/dataframe/impl/types.h",
     ],
 )
 
@@ -2044,6 +2038,21 @@ perfetto_filegroup(
         "src/trace_processor/core/dataframe/type_set.h",
         "src/trace_processor/core/dataframe/types.h",
         "src/trace_processor/core/dataframe/value_fetcher.h",
+    ],
+)
+
+# GN target: //src/trace_processor/core/interpreter:interpreter
+perfetto_filegroup(
+    name = "src_trace_processor_core_interpreter_interpreter",
+    srcs = [
+        "src/trace_processor/core/interpreter/bytecode_core.h",
+        "src/trace_processor/core/interpreter/bytecode_instructions.h",
+        "src/trace_processor/core/interpreter/bytecode_interpreter.h",
+        "src/trace_processor/core/interpreter/bytecode_interpreter_impl.cc",
+        "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h",
+        "src/trace_processor/core/interpreter/bytecode_interpreter_state.h",
+        "src/trace_processor/core/interpreter/bytecode_registers.h",
+        "src/trace_processor/core/interpreter/interpreter_types.h",
     ],
 )
 
@@ -8029,6 +8038,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_dataframe_impl_impl",
         ":src_trace_processor_core_dataframe_specs",
+        ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -8261,6 +8271,7 @@ perfetto_cc_binary(
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_dataframe_impl_impl",
         ":src_trace_processor_core_dataframe_specs",
+        ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",

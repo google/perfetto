@@ -33,14 +33,14 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_core.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_instructions.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/core/common/slab.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/type_set.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_core.h"
+#include "src/trace_processor/core/interpreter/bytecode_instructions.h"
+#include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/util/regex.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
@@ -546,7 +546,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
 
   bytecode::reg::RwHandle<Span<uint32_t>> storage_update_register;
   if (plan_.params.output_per_row > 1) {
-    bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{
+    bytecode::reg::RwHandle<bytecode::Slab<uint32_t>> slab_register{
         plan_.params.register_count++};
     storage_update_register =
         bytecode::reg::RwHandle<Span<uint32_t>>{plan_.params.register_count++};
@@ -732,14 +732,15 @@ void QueryPlanBuilder::IndexConstraints(
     PERFETTO_CHECK(non_id);
     {
       using B = bytecode::IndexedFilterEqBase;
-      using PopcountHandle = bytecode::reg::ReadHandle<Slab<uint32_t>>;
+      using PopcountHandle =
+          bytecode::reg::ReadHandle<bytecode::Slab<uint32_t>>;
       PopcountHandle popcount_register;
       if (column.null_storage.nullability().IsAnyOf<SparseNullTypes>()) {
         popcount_register = PrefixPopcountRegisterFor(fs.col);
       } else {
         // Dummy register for non-sparse null columns. IndexedFilterEq knows
         // how to handle this.
-        popcount_register = bytecode::reg::ReadHandle<Slab<uint32_t>>{
+        popcount_register = bytecode::reg::ReadHandle<bytecode::Slab<uint32_t>>{
             plan_.params.register_count++};
       }
       auto& bc = AddOpcode<B>(
@@ -760,7 +761,7 @@ void QueryPlanBuilder::IndexConstraints(
   const auto& indices_reg =
       base::unchecked_get<bytecode::reg::RwHandle<Range>>(indices_reg_);
 
-  bytecode::reg::RwHandle<Slab<uint32_t>> output_slab_reg{
+  bytecode::reg::RwHandle<bytecode::Slab<uint32_t>> output_slab_reg{
       plan_.params.register_count++};
   bytecode::reg::RwHandle<Span<uint32_t>> output_span_reg{
       plan_.params.register_count++};
@@ -900,7 +901,7 @@ QueryPlanBuilder::TranslateNonNullIndices(
 PERFETTO_NO_INLINE bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::EnsureIndicesAreInSlab() {
   using SpanReg = bytecode::reg::RwHandle<Span<uint32_t>>;
-  using SlabReg = bytecode::reg::RwHandle<Slab<uint32_t>>;
+  using SlabReg = bytecode::reg::RwHandle<bytecode::Slab<uint32_t>>;
 
   if (PERFETTO_LIKELY(std::holds_alternative<SpanReg>(indices_reg_))) {
     return base::unchecked_get<SpanReg>(indices_reg_);
@@ -1044,7 +1045,7 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
 }
 
 void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
-  bytecode::reg::RwHandle<Slab<uint32_t>> slab_reg{
+  bytecode::reg::RwHandle<bytecode::Slab<uint32_t>> slab_reg{
       plan_.params.register_count++};
   bytecode::reg::RwHandle<Span<uint32_t>> span_reg{
       plan_.params.register_count++};
@@ -1058,12 +1059,12 @@ void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
   indices_reg_ = span_reg;
 }
 
-bytecode::reg::ReadHandle<Slab<uint32_t>>
+bytecode::reg::ReadHandle<bytecode::Slab<uint32_t>>
 QueryPlanBuilder::PrefixPopcountRegisterFor(uint32_t col) {
   auto& reg = column_states_[col].prefix_popcount;
   if (!reg) {
-    reg =
-        bytecode::reg::RwHandle<Slab<uint32_t>>{plan_.params.register_count++};
+    reg = bytecode::reg::RwHandle<bytecode::Slab<uint32_t>>{
+        plan_.params.register_count++};
     {
       using B = bytecode::PrefixPopcount;
       auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -1104,7 +1105,7 @@ QueryPlanBuilder::CastFilterValue(FilterSpec& c,
 
 bytecode::reg::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::GetOrCreateScratchSpanRegister(uint32_t size) {
-  bytecode::reg::RwHandle<Slab<uint32_t>> scratch_slab;
+  bytecode::reg::RwHandle<bytecode::Slab<uint32_t>> scratch_slab;
   bytecode::reg::RwHandle<Span<uint32_t>> scratch_span;
   if (scratch_indices_) {
     PERFETTO_CHECK(size <= scratch_indices_->size);
@@ -1112,8 +1113,8 @@ QueryPlanBuilder::GetOrCreateScratchSpanRegister(uint32_t size) {
     scratch_slab = scratch_indices_->slab;
     scratch_span = scratch_indices_->span;
   } else {
-    scratch_slab =
-        bytecode::reg::RwHandle<Slab<uint32_t>>{plan_.params.register_count++};
+    scratch_slab = bytecode::reg::RwHandle<bytecode::Slab<uint32_t>>{
+        plan_.params.register_count++};
     scratch_span =
         bytecode::reg::RwHandle<Span<uint32_t>>{plan_.params.register_count++};
   }
@@ -1147,13 +1148,14 @@ uint16_t QueryPlanBuilder::CalculateRowLayoutStride(
   return calculated_total_row_stride;
 }
 
-bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
+bytecode::reg::RwHandle<bytecode::Slab<uint8_t>>
+QueryPlanBuilder::CopyToRowLayout(
     uint16_t row_stride,
     bytecode::reg::RwHandle<Span<uint32_t>> indices,
     bytecode::reg::ReadHandle<bytecode::reg::StringIdToRankMap> rank_map,
     const std::vector<RowLayoutParams>& row_layout_params) {
   uint32_t buffer_size = plan_.params.max_row_count * row_stride;
-  bytecode::reg::RwHandle<Slab<uint8_t>> new_buffer_reg{
+  bytecode::reg::RwHandle<bytecode::Slab<uint8_t>> new_buffer_reg{
       plan_.params.register_count++};
   {
     using B = bytecode::AllocateRowLayoutBuffer;
@@ -1167,7 +1169,7 @@ bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
     const auto& nullability = col.null_storage.nullability();
     auto popcount = nullability.IsAnyOf<SparseNullTypes>()
                         ? PrefixPopcountRegisterFor(param.column)
-                        : bytecode::reg::ReadHandle<Slab<uint32_t>>{
+                        : bytecode::reg::ReadHandle<bytecode::Slab<uint32_t>>{
                               std::numeric_limits<uint32_t>::max()};
     {
       using B = bytecode::CopyToRowLayoutBase;
@@ -1203,7 +1205,7 @@ void QueryPlanBuilder::AddLinearFilterEqBytecode(
   PERFETTO_DCHECK(c.op.Is<Eq>());
 
   using SpanReg = bytecode::reg::RwHandle<Span<uint32_t>>;
-  using SlabReg = bytecode::reg::RwHandle<Slab<uint32_t>>;
+  using SlabReg = bytecode::reg::RwHandle<bytecode::Slab<uint32_t>>;
   using RegRange = bytecode::reg::RwHandle<Range>;
 
   auto range_reg = base::unchecked_get<RegRange>(indices_reg_);
@@ -1227,7 +1229,7 @@ void QueryPlanBuilder::AddLinearFilterEqBytecode(
     // For NonNull columns, popcount_register is not used by LinearFilterEq
     // logic. Pass a default-constructed handle.
     bc.arg<B::popcount_register>() =
-        bytecode::reg::ReadHandle<Slab<uint32_t>>{};
+        bytecode::reg::ReadHandle<bytecode::Slab<uint32_t>>{};
     bc.arg<B::source_register>() = range_reg;
     bc.arg<B::update_register>() = span_reg;
   }

@@ -27,12 +27,12 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter.h"
 #include "src/trace_processor/core/dataframe/impl/query_plan.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/dataframe/value_fetcher.h"
+#include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 
 namespace perfetto::trace_processor::dataframe {
 

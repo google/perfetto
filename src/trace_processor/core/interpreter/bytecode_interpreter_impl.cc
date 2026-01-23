@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_impl.h"
+#include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -30,11 +30,11 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/bit_vector.h"
 #include "src/trace_processor/core/common/sort.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/regex.h"
 
-namespace perfetto::trace_processor::dataframe::impl::bytecode::ops {
+namespace perfetto::trace_processor::interpreter::ops {
 
 namespace {
 
@@ -232,4 +232,4 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
                 RegexComparator{string_pool});
 }
 
-}  // namespace perfetto::trace_processor::dataframe::impl::bytecode::ops
+}  // namespace perfetto::trace_processor::interpreter::ops

@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,17 +14,16 @@
 
 import("../../../../gn/test.gni")
 
-source_set("dataframe") {
+source_set("interpreter") {
   sources = [
-    "adhoc_dataframe_builder.cc",
-    "adhoc_dataframe_builder.h",
-    "cursor.h",
-    "cursor_impl.h",
-    "dataframe.cc",
-    "dataframe.h",
-    "runtime_dataframe_builder.h",
-    "typed_cursor.cc",
-    "typed_cursor.h",
+    "bytecode_core.h",
+    "bytecode_instructions.h",
+    "bytecode_interpreter.h",
+    "bytecode_interpreter_impl.cc",
+    "bytecode_interpreter_impl.h",
+    "bytecode_interpreter_state.h",
+    "bytecode_registers.h",
+    "interpreter_types.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -33,44 +32,50 @@ source_set("dataframe") {
     "../../util:glob",
     "../../util:regex",
     "../common",
-    "../interpreter",
-    "impl",
+    "../dataframe:specs",
   ]
-  public_deps = [ ":specs" ]
 }
 
-source_set("specs") {
-  sources = [
-    "specs.h",
-    "type_set.h",
-    "types.h",
-    "value_fetcher.h",
-  ]
+source_set("bytecode_interpreter_test_utils") {
+  testonly = true
+  sources = [ "bytecode_interpreter_test_utils.h" ]
   deps = [
+    ":interpreter",
     "../../../../gn:default_deps",
     "../../../base",
-    "../../containers",
+    "../common",
+    "../dataframe:specs",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [
-    "dataframe_test_utils.h",
-    "dataframe_unittest.cc",
-    "runtime_dataframe_builder_unittest.cc",
-    "type_set_unittest.cc",
-  ]
+  sources = [ "bytecode_interpreter_unittest.cc" ]
   deps = [
-    ":dataframe",
+    ":bytecode_interpreter_test_utils",
+    ":interpreter",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../base",
-    "../../../base:test_support",
     "../../containers",
     "../../util:regex",
     "../common",
-    "../interpreter",
-    "impl",
+    "../dataframe:specs",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "bytecode_interpreter_benchmark.cc" ]
+    deps = [
+      ":bytecode_interpreter_test_utils",
+      ":interpreter",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../base",
+      "../../containers",
+      "../common",
+    ]
+  }
 }

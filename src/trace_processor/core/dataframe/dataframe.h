@@ -32,12 +32,12 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/common/bit_vector.h"
+#include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/impl/query_plan.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 
 namespace perfetto::trace_processor::dataframe {
 

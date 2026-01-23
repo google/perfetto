@@ -21,12 +21,12 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_impl.h"  // IWYU pragma: keep
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_test_utils.h"
+#include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
+#include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"  // IWYU pragma: keep
+#include "src/trace_processor/core/interpreter/bytecode_interpreter_test_utils.h"
 #include "src/trace_processor/core/common/flex_vector.h"
 
-namespace perfetto::trace_processor::dataframe::impl::bytecode {
+namespace perfetto::trace_processor::interpreter {
 namespace {
 
 static void BM_BytecodeInterpreter_LinearFilterEqUint32(
@@ -192,4 +192,4 @@ static void BM_BytecodeInterpreter_SortString(benchmark::State& state) {
 }
 BENCHMARK(BM_BytecodeInterpreter_SortString);
 
-}  // namespace perfetto::trace_processor::dataframe::impl::bytecode
+}  // namespace perfetto::trace_processor::interpreter

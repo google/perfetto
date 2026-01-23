@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_REGISTERS_H_
-#define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_REGISTERS_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_REGISTERS_H_
+#define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_REGISTERS_H_
 
 #include <cstdint>
 #include <limits>
@@ -25,9 +25,9 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 
-namespace perfetto::trace_processor::dataframe::impl::bytecode::reg {
+namespace perfetto::trace_processor::interpreter::reg {
 
 // Register system for the bytecode interpreter.
 // Provides typed handles for accessing virtual registers with appropriate
@@ -102,6 +102,6 @@ using Value = std::variant<Empty,
                            Slab<uint8_t>,
                            StringIdToRankMap>;
 
-}  // namespace perfetto::trace_processor::dataframe::impl::bytecode::reg
+}  // namespace perfetto::trace_processor::interpreter::reg
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_REGISTERS_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_REGISTERS_H_

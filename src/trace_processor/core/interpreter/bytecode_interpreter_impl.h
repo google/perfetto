@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_INTERPRETER_IMPL_H_
-#define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_INTERPRETER_IMPL_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_IMPL_H_
+#define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_IMPL_H_
 
 #include <algorithm>
 #include <cmath>
@@ -38,15 +38,15 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_instructions.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_state.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_registers.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_instructions.h"
+#include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
+#include "src/trace_processor/core/interpreter/bytecode_interpreter_state.h"
+#include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 
-namespace perfetto::trace_processor::dataframe::impl::bytecode {
+namespace perfetto::trace_processor::interpreter {
 namespace comparators {
 
 // Returns an appropriate comparator functor for the given integer/double type
@@ -273,16 +273,16 @@ inline PERFETTO_ALWAYS_INLINE auto GetComparableRowLayoutRepr(T x) {
 }
 
 inline PERFETTO_ALWAYS_INLINE void InitRange(InterpreterState& state,
-                                             const bytecode::InitRange& init) {
-  using B = bytecode::InitRange;
+                                             const struct InitRange& init) {
+  using B = struct InitRange;
   state.WriteToRegister(init.arg<B::dest_register>(),
                         Range{0, init.arg<B::size>()});
 }
 
 inline PERFETTO_ALWAYS_INLINE void AllocateIndices(
     InterpreterState& state,
-    const bytecode::AllocateIndices& ai) {
-  using B = bytecode::AllocateIndices;
+    const struct AllocateIndices& ai) {
+  using B = struct AllocateIndices;
 
   if (auto* exist_slab =
           state.MaybeReadFromRegister(ai.arg<B::dest_slab_register>())) {
@@ -303,8 +303,8 @@ inline PERFETTO_ALWAYS_INLINE void AllocateIndices(
 }
 
 inline PERFETTO_ALWAYS_INLINE void Iota(InterpreterState& state,
-                                        const bytecode::Iota& r) {
-  using B = bytecode::Iota;
+                                        const struct Iota& r) {
+  using B = struct Iota;
   const auto& source = state.ReadFromRegister(r.arg<B::source_register>());
   auto& update = state.ReadFromRegister(r.arg<B::update_register>());
   PERFETTO_DCHECK(source.size() <= update.size());
@@ -314,16 +314,16 @@ inline PERFETTO_ALWAYS_INLINE void Iota(InterpreterState& state,
 }
 
 inline PERFETTO_ALWAYS_INLINE void Reverse(InterpreterState& state,
-                                           const bytecode::Reverse& r) {
-  using B = bytecode::Reverse;
+                                           const struct Reverse& r) {
+  using B = struct Reverse;
   auto& update = state.ReadFromRegister(r.arg<B::update_register>());
   std::reverse(update.b, update.e);
 }
 
 inline PERFETTO_ALWAYS_INLINE void StrideCopy(
     InterpreterState& state,
-    const bytecode::StrideCopy& stride_copy) {
-  using B = bytecode::StrideCopy;
+    const struct StrideCopy& stride_copy) {
+  using B = struct StrideCopy;
   const auto& source =
       state.ReadFromRegister(stride_copy.arg<B::source_register>());
   auto& update = state.ReadFromRegister(stride_copy.arg<B::update_register>());
@@ -344,8 +344,8 @@ inline PERFETTO_ALWAYS_INLINE void StrideCopy(
 
 inline PERFETTO_ALWAYS_INLINE void PrefixPopcount(
     InterpreterState& state,
-    const bytecode::PrefixPopcount& popcount) {
-  using B = bytecode::PrefixPopcount;
+    const struct PrefixPopcount& popcount) {
+  using B = struct PrefixPopcount;
   auto dest_register = popcount.arg<B::dest_register>();
   if (state.MaybeReadFromRegister(dest_register)) {
     return;
@@ -357,8 +357,8 @@ inline PERFETTO_ALWAYS_INLINE void PrefixPopcount(
 
 inline PERFETTO_ALWAYS_INLINE void AllocateRowLayoutBuffer(
     InterpreterState& state,
-    const bytecode::AllocateRowLayoutBuffer& bytecode) {
-  using B = bytecode::AllocateRowLayoutBuffer;
+    const struct AllocateRowLayoutBuffer& bytecode) {
+  using B = struct AllocateRowLayoutBuffer;
   uint32_t size = bytecode.arg<B::buffer_size>();
   auto dest_reg = bytecode.arg<B::dest_buffer_register>();
   // Return early if buffer already allocated.
@@ -370,8 +370,8 @@ inline PERFETTO_ALWAYS_INLINE void AllocateRowLayoutBuffer(
 
 inline PERFETTO_ALWAYS_INLINE void LimitOffsetIndices(
     InterpreterState& state,
-    const bytecode::LimitOffsetIndices& bytecode) {
-  using B = bytecode::LimitOffsetIndices;
+    const LimitOffsetIndices& bytecode) {
+  using B = struct LimitOffsetIndices;
   uint32_t offset_value = bytecode.arg<B::offset_value>();
   uint32_t limit_value = bytecode.arg<B::limit_value>();
   auto& span = state.ReadFromRegister(bytecode.arg<B::update_register>());
@@ -389,8 +389,8 @@ inline PERFETTO_ALWAYS_INLINE void LimitOffsetIndices(
 
 inline PERFETTO_ALWAYS_INLINE void IndexPermutationVectorToSpan(
     InterpreterState& state,
-    const bytecode::IndexPermutationVectorToSpan& bytecode) {
-  using B = bytecode::IndexPermutationVectorToSpan;
+    const IndexPermutationVectorToSpan& bytecode) {
+  using B = struct IndexPermutationVectorToSpan;
   const dataframe::Index& index = state.indexes[bytecode.arg<B::index>()];
   state.WriteToRegister(bytecode.arg<B::write_register>(),
                         Span<uint32_t>(index.permutation_vector()->data(),
@@ -400,8 +400,8 @@ inline PERFETTO_ALWAYS_INLINE void IndexPermutationVectorToSpan(
 
 inline PERFETTO_ALWAYS_INLINE void CopySpanIntersectingRange(
     InterpreterState& state,
-    const bytecode::CopySpanIntersectingRange& bytecode) {
-  using B = bytecode::CopySpanIntersectingRange;
+    const CopySpanIntersectingRange& bytecode) {
+  using B = struct CopySpanIntersectingRange;
   const auto& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
   const auto& source_range =
@@ -418,8 +418,8 @@ inline PERFETTO_ALWAYS_INLINE void CopySpanIntersectingRange(
 
 inline PERFETTO_ALWAYS_INLINE void InitRankMap(
     InterpreterState& state,
-    const bytecode::InitRankMap& bytecode) {
-  using B = bytecode::InitRankMap;
+    const InitRankMap& bytecode) {
+  using B = struct InitRankMap;
 
   reg::StringIdToRankMap* rank_map =
       state.MaybeReadFromRegister(bytecode.arg<B::dest_register>());
@@ -434,8 +434,8 @@ inline PERFETTO_ALWAYS_INLINE void InitRankMap(
 
 inline PERFETTO_ALWAYS_INLINE void CollectIdIntoRankMap(
     InterpreterState& state,
-    const bytecode::CollectIdIntoRankMap& bytecode) {
-  using B = bytecode::CollectIdIntoRankMap;
+    const CollectIdIntoRankMap& bytecode) {
+  using B = struct CollectIdIntoRankMap;
 
   reg::StringIdToRankMap& rank_map_ptr =
       state.ReadFromRegister(bytecode.arg<B::rank_map_register>());
@@ -456,8 +456,8 @@ inline PERFETTO_ALWAYS_INLINE void CollectIdIntoRankMap(
 
 inline PERFETTO_ALWAYS_INLINE void FinalizeRanksInMap(
     InterpreterState& state,
-    const bytecode::FinalizeRanksInMap& bytecode) {
-  using B = bytecode::FinalizeRanksInMap;
+    const FinalizeRanksInMap& bytecode) {
+  using B = struct FinalizeRanksInMap;
   reg::StringIdToRankMap& rank_map_ptr =
       state.ReadFromRegister(bytecode.arg<B::update_register>());
   FinalizeRanksInMapImpl(state.string_pool, rank_map_ptr);
@@ -465,8 +465,8 @@ inline PERFETTO_ALWAYS_INLINE void FinalizeRanksInMap(
 
 inline PERFETTO_ALWAYS_INLINE void Distinct(
     InterpreterState& state,
-    const bytecode::Distinct& bytecode) {
-  using B = bytecode::Distinct;
+    const Distinct& bytecode) {
+  using B = struct Distinct;
   auto& indices = state.ReadFromRegister(bytecode.arg<B::indices_register>());
   if (indices.empty()) {
     return;
@@ -479,8 +479,8 @@ inline PERFETTO_ALWAYS_INLINE void Distinct(
 
 inline PERFETTO_ALWAYS_INLINE void SortRowLayout(
     InterpreterState& state,
-    const bytecode::SortRowLayout& bytecode) {
-  using B = bytecode::SortRowLayout;
+    const SortRowLayout& bytecode) {
+  using B = struct SortRowLayout;
   auto& indices = state.ReadFromRegister(bytecode.arg<B::indices_register>());
   // Single element is always sorted.
   if (indices.size() <= 1) {
@@ -494,8 +494,8 @@ inline PERFETTO_ALWAYS_INLINE void SortRowLayout(
 
 inline PERFETTO_ALWAYS_INLINE void TranslateSparseNullIndices(
     InterpreterState& state,
-    const bytecode::TranslateSparseNullIndices& bytecode) {
-  using B = bytecode::TranslateSparseNullIndices;
+    const TranslateSparseNullIndices& bytecode) {
+  using B = struct TranslateSparseNullIndices;
   const auto& overlay = state.GetColumn(bytecode.arg<B::col>()).null_storage;
   const auto& bv = overlay.template unchecked_get<SparseNull>().bit_vector;
 
@@ -517,8 +517,8 @@ inline PERFETTO_ALWAYS_INLINE void TranslateSparseNullIndices(
 
 inline PERFETTO_ALWAYS_INLINE void StrideTranslateAndCopySparseNullIndices(
     InterpreterState& state,
-    const bytecode::StrideTranslateAndCopySparseNullIndices& bytecode) {
-  using B = bytecode::StrideTranslateAndCopySparseNullIndices;
+    const StrideTranslateAndCopySparseNullIndices& bytecode) {
+  using B = struct StrideTranslateAndCopySparseNullIndices;
   const auto& overlay = state.GetColumn(bytecode.arg<B::col>()).null_storage;
   const auto& bv = overlay.template unchecked_get<SparseNull>().bit_vector;
 
@@ -540,8 +540,8 @@ inline PERFETTO_ALWAYS_INLINE void StrideTranslateAndCopySparseNullIndices(
 
 inline PERFETTO_ALWAYS_INLINE void StrideCopyDenseNullIndices(
     InterpreterState& state,
-    const bytecode::StrideCopyDenseNullIndices& bytecode) {
-  using B = bytecode::StrideCopyDenseNullIndices;
+    const StrideCopyDenseNullIndices& bytecode) {
+  using B = struct StrideCopyDenseNullIndices;
   const auto& overlay = state.GetColumn(bytecode.arg<B::col>()).null_storage;
   const auto& bv = overlay.template unchecked_get<DenseNull>().bit_vector;
 
@@ -556,8 +556,8 @@ inline PERFETTO_ALWAYS_INLINE void StrideCopyDenseNullIndices(
 template <typename NullOp>
 inline PERFETTO_ALWAYS_INLINE void NullFilter(
     InterpreterState& state,
-    const bytecode::NullFilterBase& filter) {
-  using B = bytecode::NullFilterBase;
+    const NullFilterBase& filter) {
+  using B = NullFilterBase;
   const auto& column = state.GetColumn(filter.arg<B::col>());
   const auto& overlay = column.null_storage;
   auto& update = state.ReadFromRegister(filter.arg<B::update_register>());
@@ -835,8 +835,8 @@ template <typename T, typename FilterValueFetcherImpl>
 inline PERFETTO_ALWAYS_INLINE void CastFilterValue(
     InterpreterState& state,
     FilterValueFetcherImpl& fetcher,
-    const bytecode::CastFilterValueBase& f) {
-  using B = bytecode::CastFilterValueBase;
+    const CastFilterValueBase& f) {
+  using B = CastFilterValueBase;
   FilterValueHandle handle = f.arg<B::fval_handle>();
   typename FilterValueFetcherImpl::Type filter_value_type =
       fetcher.GetValueType(handle.index);
@@ -881,8 +881,8 @@ template <typename T, typename FilterValueFetcherImpl>
 inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
     InterpreterState& state,
     FilterValueFetcherImpl& fetcher,
-    const bytecode::CastFilterValueListBase& c) {
-  using B = bytecode::CastFilterValueListBase;
+    const CastFilterValueListBase& c) {
+  using B = CastFilterValueListBase;
   FilterValueHandle handle = c.arg<B::fval_handle>();
   using ValueType =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
@@ -957,8 +957,8 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
 template <typename T, typename Op>
 inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
     InterpreterState& state,
-    const bytecode::NonStringFilterBase& nf) {
-  using B = bytecode::NonStringFilterBase;
+    const NonStringFilterBase& nf) {
+  using B = NonStringFilterBase;
   const auto& value = state.ReadFromRegister(nf.arg<B::val_register>());
   auto& update = state.ReadFromRegister(nf.arg<B::update_register>());
   if (!HandleInvalidCastFilterValueResult(value.validity, update)) {
@@ -1042,8 +1042,8 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(
 template <typename Op>
 inline PERFETTO_ALWAYS_INLINE void StringFilter(
     InterpreterState& state,
-    const bytecode::StringFilterBase& sf) {
-  using B = bytecode::StringFilterBase;
+    const StringFilterBase& sf) {
+  using B = StringFilterBase;
   const auto& filter_value = state.ReadFromRegister(sf.arg<B::val_register>());
   auto& update = state.ReadFromRegister(sf.arg<B::update_register>());
   if (!HandleInvalidCastFilterValueResult(filter_value.validity, update)) {
@@ -1136,8 +1136,8 @@ inline PERFETTO_ALWAYS_INLINE void NonIdSortedFilter(
 template <typename T, typename RangeOp>
 inline PERFETTO_ALWAYS_INLINE void SortedFilter(
     InterpreterState& state,
-    const bytecode::SortedFilterBase& f) {
-  using B = bytecode::SortedFilterBase;
+    const SortedFilterBase& f) {
+  using B = SortedFilterBase;
 
   const auto& value = state.ReadFromRegister(f.arg<B::val_register>());
   Range& update = state.ReadFromRegister(f.arg<B::update_register>());
@@ -1219,8 +1219,8 @@ inline PERFETTO_ALWAYS_INLINE bool InBitVector(const FlexVector<M>& val,
 
 template <typename T>
 inline PERFETTO_ALWAYS_INLINE void In(InterpreterState& state,
-                                      const bytecode::InBase& f) {
-  using B = bytecode::InBase;
+                                      const InBase& f) {
+  using B = InBase;
   const auto& value = state.ReadFromRegister(f.arg<B::value_list_register>());
   const Span<uint32_t>& source =
       state.ReadFromRegister(f.arg<B::source_register>());
@@ -1275,8 +1275,8 @@ inline PERFETTO_ALWAYS_INLINE void In(InterpreterState& state,
 template <typename T>
 inline PERFETTO_ALWAYS_INLINE void LinearFilterEq(
     InterpreterState& state,
-    const bytecode::LinearFilterEqBase& leq) {
-  using B = bytecode::LinearFilterEqBase;
+    const LinearFilterEqBase& leq) {
+  using B = LinearFilterEqBase;
 
   Span<uint32_t>& span = state.ReadFromRegister(leq.arg<B::update_register>());
   Range range = state.ReadFromRegister(leq.arg<B::source_register>());
@@ -1352,8 +1352,8 @@ IndexToStorageIndex(uint32_t index,
 template <typename T, typename N>
 inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
     InterpreterState& state,
-    const bytecode::IndexedFilterEqBase& bytecode) {
-  using B = bytecode::IndexedFilterEqBase;
+    const IndexedFilterEqBase& bytecode) {
+  using B = IndexedFilterEqBase;
   const auto& filter_value =
       state.ReadFromRegister(bytecode.arg<B::filter_value_reg>());
   auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
@@ -1395,8 +1395,8 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
 
 inline PERFETTO_ALWAYS_INLINE void Uint32SetIdSortedEq(
     InterpreterState& state,
-    const bytecode::Uint32SetIdSortedEq& bytecode) {
-  using B = bytecode::Uint32SetIdSortedEq;
+    const Uint32SetIdSortedEq& bytecode) {
+  using B = struct Uint32SetIdSortedEq;
 
   const CastFilterValueResult& cast_result =
       state.ReadFromRegister(bytecode.arg<B::val_register>());
@@ -1423,8 +1423,8 @@ inline PERFETTO_ALWAYS_INLINE void Uint32SetIdSortedEq(
 
 inline PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
     InterpreterState& state,
-    const bytecode::SpecializedStorageSmallValueEq& bytecode) {
-  using B = bytecode::SpecializedStorageSmallValueEq;
+    const SpecializedStorageSmallValueEq& bytecode) {
+  using B = struct SpecializedStorageSmallValueEq;
 
   const CastFilterValueResult& cast_result =
       state.ReadFromRegister(bytecode.arg<B::val_register>());
@@ -1453,8 +1453,8 @@ inline PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
 template <typename T, typename Nullability>
 inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
     InterpreterState& state,
-    const bytecode::CopyToRowLayoutBase& bytecode) {
-  using B = bytecode::CopyToRowLayoutBase;
+    const CopyToRowLayoutBase& bytecode) {
+  using B = CopyToRowLayoutBase;
 
   uint32_t col_idx = bytecode.arg<B::col>();
   const auto& col = state.GetColumn(col_idx);
@@ -1546,8 +1546,8 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
 template <typename T, typename Op>
 inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
     InterpreterState& state,
-    const bytecode::FindMinMaxIndex<T, Op>& bytecode) {
-  using B = bytecode::FindMinMaxIndexBase;
+    const FindMinMaxIndex<T, Op>& bytecode) {
+  using B = FindMinMaxIndexBase;
   uint32_t col = bytecode.template arg<B::col>();
   auto& indices =
       state.ReadFromRegister(bytecode.template arg<B::update_register>());
@@ -1593,21 +1593,19 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
 // EqualRange>).
 
 // For ops that need state and fetcher:
-#define PERFETTO_OP_CASE_FVF(...)                                          \
-  case base::variant_index<bytecode::BytecodeVariant,                      \
-                           bytecode::__VA_ARGS__>(): {                     \
-    ops::__VA_ARGS__(state_, fetcher,                                      \
-                     static_cast<const bytecode::__VA_ARGS__&>(bytecode)); \
-    break;                                                                 \
+#define PERFETTO_OP_CASE_FVF(...)                                    \
+  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {        \
+    ops::__VA_ARGS__(state_, fetcher,                                \
+                     static_cast<const __VA_ARGS__&>(bytecode));     \
+    break;                                                           \
   }
 
 // For ops that only need state:
-#define PERFETTO_OP_CASE_STATE(...)                                        \
-  case base::variant_index<bytecode::BytecodeVariant,                      \
-                           bytecode::__VA_ARGS__>(): {                     \
-    ops::__VA_ARGS__(state_,                                               \
-                     static_cast<const bytecode::__VA_ARGS__&>(bytecode)); \
-    break;                                                                 \
+#define PERFETTO_OP_CASE_STATE(...)                                  \
+  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {        \
+    ops::__VA_ARGS__(state_,                                         \
+                     static_cast<const __VA_ARGS__&>(bytecode));     \
+    break;                                                           \
   }
 
 // Executes all bytecode instructions using free functions.
@@ -1627,6 +1625,6 @@ PERFETTO_ALWAYS_INLINE void Interpreter<FilterValueFetcherImpl>::Execute(
 #undef PERFETTO_OP_CASE_FVF
 #undef PERFETTO_OP_CASE_STATE
 
-}  // namespace perfetto::trace_processor::dataframe::impl::bytecode
+}  // namespace perfetto::trace_processor::interpreter
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_INTERPRETER_IMPL_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_IMPL_H_

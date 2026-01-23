@@ -21,15 +21,15 @@
 #include <cstdint>
 
 #include "src/trace_processor/core/dataframe/cursor.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_impl.h"  // IWYU pragma: keep
-#include "src/trace_processor/core/dataframe/impl/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"  // IWYU pragma: keep
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 
 namespace perfetto::trace_processor::dataframe {
 
 template <typename FilterValueFetcherImpl>
 void Cursor<FilterValueFetcherImpl>::Execute(
     FilterValueFetcherImpl& filter_value_fetcher) {
-  using S = impl::Span<uint32_t>;
+  using S = interpreter::Span<uint32_t>;
   interpreter_.Execute(filter_value_fetcher);
 
   const auto& span =

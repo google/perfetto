@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_INTERPRETER_TEST_UTILS_H_
-#define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_INTERPRETER_TEST_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_TEST_UTILS_H_
+#define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_TEST_UTILS_H_
 
 #include <cstdint>
 #include <variant>
@@ -24,12 +24,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
-#include "src/trace_processor/core/dataframe/impl/bytecode_instructions.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_instructions.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/value_fetcher.h"
 
-namespace perfetto::trace_processor::dataframe::impl::bytecode {
+namespace perfetto::trace_processor::interpreter {
 
 using FilterValue = std::variant<int64_t, double, const char*, std::nullptr_t>;
 
@@ -252,8 +252,8 @@ inline Column CreateNonNullColumn(std::initializer_list<U> data,
   for (const U& val : data) {
     vec.push_back(val);
   }
-  return impl::Column{impl::Storage{std::move(vec)},
-                      impl::NullStorage::NonNull{}, sort_state,
+  return Column{Storage{std::move(vec)},
+                      NullStorage::NonNull{}, sort_state,
                       duplicate_state};
 }
 
@@ -267,8 +267,8 @@ inline Column CreateNonNullStringColumn(std::initializer_list<U> data,
   for (const auto& str_like : data) {
     vec.push_back(pool->InternString(str_like));
   }
-  return impl::Column{impl::Storage{std::move(vec)},
-                      impl::NullStorage::NonNull{}, sort_state,
+  return Column{Storage{std::move(vec)},
+                      NullStorage::NonNull{}, sort_state,
                       duplicate_state};
 }
 
@@ -296,9 +296,9 @@ inline Column CreateSparseNullableColumn(
       bv.set(i);
     }
   }
-  return impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
+  return Column{
+      Storage{std::move(data_vec)},
+      NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
       sort_state, duplicate_state};
 }
 
@@ -316,10 +316,9 @@ inline Column CreateSparseNullableStringColumn(
       bv.set(i);
     }
   }
-  return impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      sort_state, duplicate_state};
+  return Column{Storage{std::move(data_vec)},
+                NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
+                sort_state, duplicate_state};
 }
 
 template <typename T>
@@ -339,10 +338,9 @@ inline Column CreateDenseNullableColumn(
       data_vec[i] = T{};  // Default construct T for null storage slot
     }
   }
-  return impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::DenseNull{std::move(bv)}},
-      sort_state, duplicate_state};
+  return Column{Storage{std::move(data_vec)},
+                NullStorage{NullStorage::DenseNull{std::move(bv)}}, sort_state,
+                duplicate_state};
 }
 
 inline Column CreateDenseNullableStringColumn(
@@ -362,10 +360,9 @@ inline Column CreateDenseNullableStringColumn(
       data_vec[i] = StringPool::Id::Null();
     }
   }
-  return impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::DenseNull{std::move(bv)}},
-      sort_state, duplicate_state};
+  return Column{Storage{std::move(data_vec)},
+                NullStorage{NullStorage::DenseNull{std::move(bv)}}, sort_state,
+                duplicate_state};
 }
 
 PERFETTO_NO_INLINE BytecodeVector inline ParseBytecodeToVec(
@@ -381,6 +378,6 @@ PERFETTO_NO_INLINE BytecodeVector inline ParseBytecodeToVec(
   return bytecode_vector;
 }
 
-}  // namespace perfetto::trace_processor::dataframe::impl::bytecode
+}  // namespace perfetto::trace_processor::interpreter
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_IMPL_BYTECODE_INTERPRETER_TEST_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_TEST_UTILS_H_
