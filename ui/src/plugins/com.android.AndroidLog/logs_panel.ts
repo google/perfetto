@@ -119,8 +119,12 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
     // Query 2: Read from the table (staleOn=['pagination'] for smooth scrolling)
     const entriesResult = this.entriesQuery.use({
-      key: {filters, visibleSpan, pagination},
-      retainOn: ['pagination', 'visibleSpan'],
+      key: {
+        filters,
+        viewport: {start: visibleSpan.start, end: visibleSpan.end},
+        pagination,
+      },
+      retainOn: ['pagination', 'viewport'],
       queryFn: () => updateLogEntries(engine, visibleSpan, pagination),
       enabled: !!viewResult.data,
     });

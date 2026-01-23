@@ -81,6 +81,29 @@ function isAsyncDisposable(value: unknown): value is AsyncDisposable {
 // Simple alias for a function that returns a Promise of type T.
 type AsyncFunc<T> = () => Promise<T>;
 
+// TODO(stevegolton): Eventually these types should be moved to json_utils.ts
+// and used in the definitions for stringifyJsonWithBigints and friends, but
+// there are too many dependencies that depend on these functions using 'any'
+// right now. They should instead use zod to narrow the types properly.
+type JSONPrimitive = string | number | boolean | null | undefined | bigint;
+
+type JSONObject = {
+  [key: string]: JSONValue;
+};
+type JSONValue = JSONPrimitive | JSONValue[] | JSONObject;
+
+type JSONCompatible<T> = unknown extends T
+  ? never
+  : {
+      [P in keyof T]: T[P] extends JSONValue
+        ? T[P]
+        : T[P] extends NotAssignableToJson
+          ? never
+          : JSONCompatible<T[P]>;
+    };
+
+type NotAssignableToJson = symbol | Function;
+
 /**
  * Runs async tasks one at a time with cancellation support.
  *
@@ -130,7 +153,7 @@ export class SerialTaskQueue {
   }
 }
 
-export interface QueryOptions<T, K extends object> {
+export interface QueryOptions<T, K extends JSONCompatible<K>> {
   key: K;
   queryFn: AsyncFunc<T>;
   // If provided, query only runs when this is truthy
@@ -165,7 +188,9 @@ export class QuerySlot<T> {
    * Call every render cycle to get the current query result.
    * @throws Error if called after dispose()
    */
-  use<K extends object>(options: QueryOptions<T, K>): QueryResult<T> {
+  use<K extends JSONCompatible<K>>(
+    options: QueryOptions<T, K>,
+  ): QueryResult<T> {
     if (this.disposed) {
       throw new Error('QuerySlot.use() called after dispose()');
     }
