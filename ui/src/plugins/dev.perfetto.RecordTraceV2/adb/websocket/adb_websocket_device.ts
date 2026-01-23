@@ -17,6 +17,8 @@ import {WebSocketStream} from '../../websocket/websocket_stream';
 import {AdbDevice} from '../adb_device';
 import {adbCmdAndWait} from './adb_websocket_utils';
 import {AsyncWebsocket} from '../../websocket/async_websocket';
+import {ByteStream} from '../../interfaces/byte_stream';
+import {WdpWebSocketStream} from '../web_device_proxy/wdp_websocket_stream ';
 
 export type AdbWebsocketMode = 'WEBSOCKET_BRIDGE' | 'WEB_DEVICE_PROXY';
 /**
@@ -29,7 +31,7 @@ export type AdbWebsocketMode = 'WEBSOCKET_BRIDGE' | 'WEB_DEVICE_PROXY';
  * object suitable to run shell commands and create streams on it.
  */
 export class AdbWebsocketDevice extends AdbDevice {
-  private streams = new Array<WebSocketStream>();
+  private streams = new Array<ByteStream>();
 
   private constructor(
     private wsUrl: string,
@@ -71,7 +73,7 @@ export class AdbWebsocketDevice extends AdbDevice {
     return okResult(sock);
   }
 
-  override async createStream(svc: string): Promise<Result<WebSocketStream>> {
+  override async createStream(svc: string): Promise<Result<ByteStream>> {
     const connRes = await AdbWebsocketDevice.connectToTransport(
       this.wsUrl,
       this.deviceSerial,
@@ -83,6 +85,9 @@ export class AdbWebsocketDevice extends AdbDevice {
     if (this.mode === 'WEBSOCKET_BRIDGE') {
       const status = await adbCmdAndWait(sock, svc, false);
       if (!status.ok) return status;
+      const stream = new WebSocketStream(sock.release());
+      this.streams.push(stream);
+      return okResult(stream);
     } else if (this.mode === 'WEB_DEVICE_PROXY') {
       sock.send(
         JSON.stringify({
@@ -92,10 +97,10 @@ export class AdbWebsocketDevice extends AdbDevice {
           },
         }),
       );
+      const stream = new WdpWebSocketStream(sock.release());
+      this.streams.push(stream);
+      return okResult(stream);
     }
-    const stream = new WebSocketStream(sock.release());
-    this.streams.push(stream);
-    return okResult(stream);
   }
 
   get connected(): boolean {
