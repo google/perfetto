@@ -33,6 +33,7 @@ import {
   IssueList,
   ListItem,
   OutlinedMultiSelect,
+  OutlinedField,
   MultiSelectOption,
   MultiSelectDiff,
 } from '../widgets';
@@ -44,11 +45,13 @@ export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
   comment?: string;
   partitionColumns?: string[]; // Columns to partition by during interval intersection
+  tsDurSource?: 'intersection' | number; // Source for ts/dur: 'intersection' or input index
 }
 
 export interface IntervalIntersectNodeState extends QueryNodeState {
   inputNodes: QueryNode[];
   partitionColumns?: string[]; // Columns to partition by during interval intersection
+  tsDurSource?: 'intersection' | number; // Source for ts/dur: 'intersection' or input index
 }
 
 export class IntervalIntersectNode implements QueryNode {
@@ -73,8 +76,29 @@ export class IntervalIntersectNode implements QueryNode {
     const finalCols: ColumnInfo[] = [];
     const seenColumns = new Set<string>();
 
-    // Add ts and dur from the intersection (without suffix)
-    // These have well-defined types: ts is TIMESTAMP, dur is DURATION
+    // Add id column only when tsDurSource is a specific input (not intersection)
+    // Intersection doesn't have a single id, but a specific input does
+    const tsDurSource = this.state.tsDurSource ?? 'intersection';
+    if (typeof tsDurSource === 'number') {
+      // Get the id type from the selected input
+      const sourceNode = inputNodes[tsDurSource];
+      const sourceIdCol =
+        sourceNode !== undefined
+          ? this.getEffectiveCols(sourceNode).find((c) => c.name === 'id')
+          : undefined;
+      const idColumnType = sourceIdCol?.column.type;
+
+      finalCols.push({
+        name: 'id',
+        type: sourceIdCol?.type ?? 'NA',
+        checked: true,
+        column: idColumnType ? {name: 'id', type: idColumnType} : {name: 'id'},
+      });
+      seenColumns.add('id');
+    }
+
+    // Add ts and dur columns - always present with same names,
+    // but aliased from different sources based on tsDurSource
     finalCols.push({
       name: 'ts',
       type: 'TIMESTAMP',
@@ -384,8 +408,56 @@ export class IntervalIntersectNode implements QueryNode {
     );
   }
 
+  private renderTsDurSourceSelector(): m.Child {
+    const inputNodes = this.inputNodesList;
+    if (inputNodes.length === 0) {
+      return null;
+    }
+
+    const currentSource = this.state.tsDurSource ?? 'intersection';
+    const currentValue =
+      currentSource === 'intersection' ? 'intersection' : String(currentSource);
+
+    // Build options: "Intersection" + one per input
+    const options: m.Children = [
+      m('option', {value: 'intersection'}, 'Intersection (no id)'),
+    ];
+
+    for (let i = 0; i < inputNodes.length; i++) {
+      options.push(m('option', {value: String(i)}, `Input ${i}`));
+    }
+
+    return m(
+      OutlinedField,
+      {
+        label: 'Return id, ts, dur from',
+        value: currentValue,
+        onchange: (e: Event) => {
+          const target = e.target as HTMLSelectElement;
+          const value = target.value;
+          if (value === 'intersection') {
+            this.state.tsDurSource = 'intersection';
+          } else {
+            this.state.tsDurSource = parseInt(value, 10);
+          }
+          notifyNextNodes(this);
+          this.state.onchange?.();
+        },
+      },
+      options,
+    );
+  }
+
   nodeDetails(): NodeDetailsAttrs {
     const details: m.Child[] = [NodeTitle(this.getTitle())];
+
+    // Display id/ts/dur source (read-only)
+    const tsDurSource = this.state.tsDurSource ?? 'intersection';
+    const tsDurSourceLabel =
+      tsDurSource === 'intersection' ? 'Intersection' : `Input ${tsDurSource}`;
+    if (tsDurSource !== 'intersection') {
+      details.push(m('div', `Return id, ts, dur from: ${tsDurSourceLabel}`));
+    }
 
     // Display partition columns (read-only)
     if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
@@ -557,6 +629,14 @@ export class IntervalIntersectNode implements QueryNode {
       });
     }
 
+    // Add ts/dur source selector
+    const tsDurSourceSelector = this.renderTsDurSourceSelector();
+    if (tsDurSourceSelector !== null) {
+      sections.push({
+        content: tsDurSourceSelector,
+      });
+    }
+
     // Add input nodes section
     sections.push({
       content: connectedInputs.map(({node, index}) => {
@@ -632,6 +712,7 @@ export class IntervalIntersectNode implements QueryNode {
       partitionColumns: this.state.partitionColumns
         ? [...this.state.partitionColumns]
         : undefined,
+      tsDurSource: this.state.tsDurSource,
       onchange: this.state.onchange,
     };
     return new IntervalIntersectNode(stateCopy);
@@ -649,15 +730,48 @@ export class IntervalIntersectNode implements QueryNode {
 
     if (sq === undefined) return undefined;
 
-    // Add select_columns to explicitly specify which columns to return
-    // This ensures we only expose the clean, well-defined columns from finalCols
-    sq.selectColumns = this.finalCols.map((col) => {
-      const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectCol.columnNameOrExpression = col.name;
-      return selectCol;
-    });
+    const tsDurSource = this.state.tsDurSource ?? 'intersection';
+
+    // Build select_columns with aliasing based on tsDurSource
+    sq.selectColumns = this.buildSelectColumns(tsDurSource);
 
     return sq;
+  }
+
+  /**
+   * Build the select columns with appropriate aliasing based on tsDurSource.
+   * When tsDurSource is 'intersection': ts/dur come from the intersection (no id)
+   * When tsDurSource is a number: id/ts/dur come from that input (id_N/ts_N/dur_N)
+   */
+  private buildSelectColumns(
+    tsDurSource: 'intersection' | number,
+  ): protos.PerfettoSqlStructuredQuery.SelectColumn[] {
+    const selectColumns: protos.PerfettoSqlStructuredQuery.SelectColumn[] = [];
+
+    for (const col of this.finalCols) {
+      const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
+
+      if (typeof tsDurSource === 'number' && col.name === 'id') {
+        // Main id comes from the selected input
+        selectCol.columnNameOrExpression = `id_${tsDurSource}`;
+        selectCol.alias = 'id';
+      } else if (typeof tsDurSource === 'number' && col.name === 'ts') {
+        // Main ts comes from the selected input
+        selectCol.columnNameOrExpression = `ts_${tsDurSource}`;
+        selectCol.alias = 'ts';
+      } else if (typeof tsDurSource === 'number' && col.name === 'dur') {
+        // Main dur comes from the selected input
+        selectCol.columnNameOrExpression = `dur_${tsDurSource}`;
+        selectCol.alias = 'dur';
+      } else {
+        // All other columns pass through unchanged
+        selectCol.columnNameOrExpression = col.name;
+      }
+
+      selectColumns.push(selectCol);
+    }
+
+    return selectColumns;
   }
 
   serializeState(): IntervalIntersectSerializedState {
@@ -667,6 +781,7 @@ export class IntervalIntersectNode implements QueryNode {
         .filter((n): n is QueryNode => n !== undefined)
         .map((n) => n.nodeId),
       partitionColumns: this.state.partitionColumns,
+      tsDurSource: this.state.tsDurSource,
     };
   }
 
@@ -676,6 +791,7 @@ export class IntervalIntersectNode implements QueryNode {
     return {
       inputNodes: [],
       partitionColumns: state.partitionColumns,
+      tsDurSource: state.tsDurSource,
     };
   }
 

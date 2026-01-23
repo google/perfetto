@@ -20,6 +20,8 @@ source_set("impl") {
     "bytecode_instructions.h",
     "bytecode_interpreter.h",
     "bytecode_interpreter_impl.h",
+    "bytecode_interpreter_outlined.cc",
+    "bytecode_interpreter_outlined.h",
     "bytecode_interpreter_state.h",
     "bytecode_registers.h",
     "query_plan.cc",

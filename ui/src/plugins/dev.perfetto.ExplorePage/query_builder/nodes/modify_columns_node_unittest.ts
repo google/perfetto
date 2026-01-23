@@ -241,6 +241,7 @@ describe('ModifyColumnsNode', () => {
         ...modifyNode.state.selectedColumns[2].column,
         type: {kind: 'duration'},
       };
+      modifyNode.state.selectedColumns[2].typeUserModified = true;
 
       // Verify the type was modified
       expect(modifyNode.state.selectedColumns[2].type).toBe('DURATION');
