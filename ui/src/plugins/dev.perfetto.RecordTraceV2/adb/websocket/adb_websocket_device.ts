@@ -19,6 +19,7 @@ import {adbCmdAndWait} from './adb_websocket_utils';
 import {AsyncWebsocket} from '../../websocket/async_websocket';
 import {ByteStream} from '../../interfaces/byte_stream';
 import {WdpWebSocketStream} from '../web_device_proxy/wdp_websocket_stream ';
+import {assertUnreachable} from '../../../../base/logging';
 
 export type AdbWebsocketMode = 'WEBSOCKET_BRIDGE' | 'WEB_DEVICE_PROXY';
 /**
@@ -101,6 +102,10 @@ export class AdbWebsocketDevice extends AdbDevice {
       this.streams.push(stream);
       return okResult(stream);
     }
+    assertUnreachable(
+      this.mode,
+      'Mode needs to be one of WEBSOCKET_BRIDGE or WEB_DEVICE_PROXY',
+    );
   }
 
   get connected(): boolean {
