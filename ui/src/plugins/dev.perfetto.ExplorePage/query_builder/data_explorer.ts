@@ -28,7 +28,7 @@ import {Query, QueryNode} from '../query_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {findErrors} from './query_builder_utils';
+import {findErrors, isAQuery} from './query_builder_utils';
 import {UIFilter, normalizeDataGridFilter} from './operations/filter';
 import {DataExplorerEmptyState} from './widgets';
 import {Trace} from '../../../public/trace';
@@ -273,6 +273,9 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     // invalid column names). These are stored separately from validation errors
     // so they survive validate() calls during rendering.
     if (attrs.node.state.issues?.executionError) {
+      // Get the SQL that caused the error (query is preserved during error)
+      const failingSql = isAQuery(attrs.query) ? attrs.query.sql : undefined;
+
       return m(
         DataExplorerEmptyState,
         {
@@ -280,16 +283,34 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           variant: 'warning',
           title: attrs.node.state.issues.executionError.message,
         },
-        m(Button, {
-          label: 'Retry',
-          icon: 'refresh',
-          intent: Intent.Primary,
-          onclick: () => {
-            // Clear the execution error and re-run the query
-            attrs.node.state.issues?.clearExecutionError();
-            attrs.onExecute();
-          },
-        }),
+        [
+          // Show the failing SQL if available
+          failingSql &&
+            m('.pf-failing-sql', [
+              m('.pf-failing-sql__header', [
+                m('.pf-failing-sql__label', 'Failed SQL:'),
+                m(Button, {
+                  icon: 'content_copy',
+                  compact: true,
+                  title: 'Copy SQL to clipboard',
+                  onclick: () => {
+                    navigator.clipboard.writeText(failingSql);
+                  },
+                }),
+              ]),
+              m('pre.pf-failing-sql__code', failingSql),
+            ]),
+          m(Button, {
+            label: 'Retry',
+            icon: 'refresh',
+            intent: Intent.Primary,
+            onclick: () => {
+              // Clear the execution error and re-run the query
+              attrs.node.state.issues?.clearExecutionError();
+              attrs.onExecute();
+            },
+          }),
+        ],
       );
     }
 
