@@ -27,7 +27,7 @@ export class WdpWebSocketStream extends ByteStream {
     sock.binaryType = 'arraybuffer';
     sock.onclose = () => this.onClose();
     sock.onmessage = async (e: MessageEvent) => {
-      if (e.type === 'string') {
+      if (typeof e.data === 'string') {
         // On Windows, the public version of WebDeviceProxy unfortunately
         // predates cl/706026527 which was responsbile for sending adb frames
         // as binary. This means it sends it as a protojson message with the
@@ -37,7 +37,6 @@ export class WdpWebSocketStream extends ByteStream {
         // }
         //
         // Unmarshall this transparently to caller.
-        assertTrue(typeof e.data === 'string');
         const parsed = this.schema.safeParse(JSON.parse(e.data));
         this.onData(
           new Uint8Array(base64Decode(assertExists(parsed.data).response)),
