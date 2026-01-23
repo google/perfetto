@@ -12,16 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncLimiter} from '../../../base/async_limiter';
-import {maybeUndefined} from '../../../base/utils';
+import {
+  QueryResult,
+  QuerySlot,
+  SerialTaskQueue,
+} from '../../../base/query_slot';
+import {exists, maybeUndefined} from '../../../base/utils';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, Row, SqlValue} from '../../../trace_processor/query_result';
+import {
+  createVirtualTable,
+  DisposableSqlEntity,
+} from '../../../trace_processor/sql_utils';
 import {runQueryForQueryTable} from '../../query_table/queries';
 import {
   DataSource,
   DataSourceModel,
-  DataSourceRows,
   Pagination,
+  RowsQueryResult,
 } from './data_source';
 import {AggregateFunction, Column, Filter, IdBasedTree, Pivot} from './model';
 import {
@@ -30,6 +38,15 @@ import {
   SQLSchemaResolver,
 } from './sql_schema';
 import {filterToSql, sqlValue, toAlias} from './sql_utils';
+
+export function ensure<T>(x: T | null | undefined): asserts x is T {
+  if (!exists(x)) {
+    throw new Error('Value is null or undefined');
+  }
+}
+
+// Get the virtual table name
+const pivotTableName = '__intrinsic_pivot_default__';
 
 /**
  * Configuration for SQLDataSource.
@@ -61,57 +78,39 @@ export interface SQLDataSourceConfig {
   readonly preamble?: string;
 }
 
-// Cache entry for row count resolution
-interface RowCountCache {
-  query: string;
-  count: number;
-}
-
-// Cache entry for rows resolution
-interface RowsCache {
-  query: string;
-  pagination: Pagination | undefined;
-  offset: number;
+// Result types for QuerySlots
+interface RowsResult {
+  rowOffset: number;
+  totalRows: number;
   rows: Row[];
+  query: string;
 }
 
-// Cache entry for aggregate resolution
-interface AggregatesCache {
-  query: string;
+interface AggregatesResult {
   totals: Map<string, SqlValue>;
 }
 
-// Cache entry for distinct values resolution
-interface DistinctValuesCache {
-  query: string;
-  values: ReadonlyArray<SqlValue>;
+interface DistinctValuesResult {
+  values: Map<string, ReadonlyArray<SqlValue>>;
 }
 
-// Cache entry for intrinsic pivot virtual table
-// This caches the virtual table creation so we don't recreate it on every query.
-// The table needs to be recreated when filters change (different base data).
-interface IntrinsicPivotCache {
-  // Cache key based on: base table, filters, groupBy cols, aggregates
-  cacheKey: string;
-  // Name of the virtual table
-  tableName: string;
+interface DistinctValuesKey {
+  columns: ReadonlyArray<string>;
 }
 
-// Counter for generating unique intrinsic pivot table names
-let intrinsicPivotTableCounter = 0;
-
-// Cache entry for intrinsic tree virtual table
-// This caches the virtual table creation so we don't recreate it on every query.
-// The table needs to be recreated when filters change (different base data).
-interface IntrinsicTreeCache {
-  // Cache key based on: base table, filters, id column, parent_id column
-  cacheKey: string;
-  // Name of the virtual table
-  tableName: string;
+// Simplified filter representation for cache keys
+// Values are converted to strings for consistent serialization
+interface FilterKey {
+  field: string;
+  op: string;
+  value?: string;
 }
 
-// Counter for generating unique intrinsic tree table names
-let intrinsicTreeTableCounter = 0;
+interface TreeTableKey {
+  filters: ReadonlyArray<FilterKey>;
+  idColumn: string;
+  parentIdColumn: string;
+}
 
 /**
  * SQL data source for DataGrid.
@@ -153,181 +152,385 @@ let intrinsicTreeTableCounter = 0;
  */
 export class SQLDataSource implements DataSource {
   private readonly engine: Engine;
-  private readonly limiter = new AsyncLimiter();
+  private readonly taskQueue = new SerialTaskQueue();
   private readonly sqlSchema: SQLSchemaRegistry;
   private readonly rootSchemaName: string;
   private readonly prelude?: string;
 
-  // Cache for each resolution type
-  private rowCountCache?: RowCountCache;
-  private rowsCache?: RowsCache;
-  private aggregatesCache?: AggregatesCache;
-  private distinctValuesCache = new Map<string, DistinctValuesCache>();
-  private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
-  // Cache for intrinsic pivot virtual table
-  private intrinsicPivotCache?: IntrinsicPivotCache;
-  // Cache for intrinsic tree virtual table
-  private intrinsicTreeCache?: IntrinsicTreeCache;
+  // QuerySlots for each data type
+  private readonly rowsSlot: QuerySlot<RowsResult>;
+  private readonly aggregatesSlot: QuerySlot<AggregatesResult>;
+  private readonly distinctValuesSlot: QuerySlot<DistinctValuesResult>;
+  private readonly pivotTableSlot: QuerySlot<DisposableSqlEntity>;
+  private readonly treeTableSlot: QuerySlot<DisposableSqlEntity>;
 
-  // Current results
-  private cachedResult?: DataSourceRows;
-  private cachedDistinctValues?: ReadonlyMap<string, ReadonlyArray<SqlValue>>;
-  private cachedAggregateTotals?: ReadonlyMap<string, SqlValue>;
-  private isLoadingFlag = false;
+  // Cache for parameter keys (simple cache, not using QuerySlot)
+  private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
+
+  private currentTreeTableName?: string;
+
+  // Track the last working query for exportData
+  private lastWorkingQuery?: string;
 
   constructor(config: SQLDataSourceConfig) {
     this.engine = config.engine;
     this.sqlSchema = config.sqlSchema;
     this.rootSchemaName = config.rootSchemaName;
     this.prelude = config.preamble;
+
+    // Initialize QuerySlots with shared task queue
+    this.rowsSlot = new QuerySlot(this.taskQueue);
+    this.aggregatesSlot = new QuerySlot(this.taskQueue);
+    this.distinctValuesSlot = new QuerySlot(this.taskQueue);
+    this.pivotTableSlot = new QuerySlot(this.taskQueue);
+    this.treeTableSlot = new QuerySlot(this.taskQueue);
   }
 
   /**
-   * Getter for the current rows result
+   * Fetch rows for the current model state.
+   * Call every render with the current model to get rows and trigger updates.
    */
-  get rows(): DataSourceRows | undefined {
-    return this.cachedResult;
-  }
+  useRows(model: DataSourceModel): RowsQueryResult {
+    const {pivot, idBasedTree} = model;
 
-  get isLoading(): boolean {
-    return this.isLoadingFlag;
-  }
-
-  get distinctValues(): ReadonlyMap<string, readonly SqlValue[]> | undefined {
-    return this.cachedDistinctValues;
-  }
-
-  get parameterKeys(): ReadonlyMap<string, readonly string[]> | undefined {
-    return this.parameterKeysCache.size > 0
-      ? this.parameterKeysCache
-      : undefined;
-  }
-
-  get aggregateTotals(): ReadonlyMap<string, SqlValue> | undefined {
-    return this.cachedAggregateTotals;
-  }
-
-  /**
-   * Get the current working query for the datasource.
-   * Useful for debugging or creating debug tracks.
-   */
-  getCurrentQuery(): string {
-    return this.rowsCache?.query ?? '';
-  }
-
-  /**
-   * Notify of parameter changes and trigger data update
-   */
-  notify(model: DataSourceModel): void {
-    this.limiter.schedule(async () => {
-      // Defer setting loading flag to avoid setting it synchronously during the
-      // view() call that triggered notify(). This avoids the bug that the
-      // current frame always has isLoading = true.
-      await Promise.resolve();
-      this.isLoadingFlag = true;
-
-      try {
-        // Ensure intrinsic pivot table is ready if using ID-based expansion
-        await this.maybeRefreshIntrinsicPivot(model);
-
-        // Ensure intrinsic tree table is ready if using ID-based tree mode
-        await this.maybeRefreshIntrinsicTree(model);
-
-        // Resolve row count
-        const rowCount = await this.resolveRowCount(model);
-
-        // Resolve aggregates
-        const aggregateTotals = await this.resolveAggregates(model);
-
-        // Resolve rows
-        const {offset, rows} = await this.resolveRows(model);
-
-        // Resolve distinct values
-        const distinctValues = await this.resolveDistinctValues(model);
-
-        // Resolve parameter keys
-        await this.resolveParameterKeys(model);
-
-        // Build final result
-        this.cachedResult = {
-          rowOffset: offset,
-          totalRows: rowCount,
-          rows,
-        };
-        this.cachedDistinctValues = distinctValues;
-        this.cachedAggregateTotals = aggregateTotals;
-      } finally {
-        this.isLoadingFlag = false;
+    // Dispatch to the appropriate mode handler
+    if (idBasedTree) {
+      return this.useRowsTreeMode(model);
+    } else if (pivot) {
+      if (pivot.drillDown) {
+        return this.useRowsPivotDrilldownMode(model);
+      } else if (pivot.collapsibleGroups) {
+        return this.useRowsPivotMode(model);
+      } else {
+        return this.useRowsFlatPivotMode(model);
       }
-    });
+    } else {
+      return this.useRowsFlatMode(model);
+    }
   }
 
   /**
-   * Resolves the row count. Compares query against cache and reuses if unchanged.
+   * Fetch distinct values for filter dropdowns.
    */
-  private async resolveRowCount(model: DataSourceModel): Promise<number> {
-    // Build query without ORDER BY - ordering is irrelevant for counting
-    const countQuery = this.buildQuery(model, {includeOrderBy: false});
+  useDistinctValues(
+    model: DataSourceModel,
+  ): QueryResult<ReadonlyMap<string, readonly SqlValue[]>> {
+    const {distinctValuesColumns} = model;
 
-    // Check cache
-    if (this.rowCountCache?.query === countQuery) {
-      return this.rowCountCache.count;
+    if (!distinctValuesColumns || distinctValuesColumns.size === 0) {
+      return {data: undefined, isPending: false, isFresh: true};
     }
 
-    // Fetch new count
-    const result = await this.engine.query(
+    const columns = Array.from(distinctValuesColumns).sort();
+    const result = this.distinctValuesSlot.use({
+      key: {columns} as DistinctValuesKey,
+      queryFn: async () => this.fetchDistinctValues(model),
+    });
+
+    return {
+      data: result.data?.values,
+      isPending: result.isPending,
+      isFresh: result.isFresh,
+    };
+  }
+
+  /**
+   * Fetch parameter keys for parameterized columns.
+   */
+  useParameterKeys(
+    model: DataSourceModel,
+  ): QueryResult<ReadonlyMap<string, readonly string[]>> {
+    // Resolve parameter keys (synchronously cached)
+    this.resolveParameterKeys(model);
+
+    // Return current cache state
+    const data =
+      this.parameterKeysCache.size > 0 ? this.parameterKeysCache : undefined;
+    return {data, isPending: false, isFresh: true};
+  }
+
+  /**
+   * Fetch aggregate totals (grand totals across all filtered rows).
+   */
+  useAggregateTotals(
+    model: DataSourceModel,
+  ): QueryResult<ReadonlyMap<string, SqlValue>> {
+    const {pivot, idBasedTree} = model;
+
+    // No aggregates in tree mode or drill-down mode
+    if (idBasedTree || pivot?.drillDown) {
+      return {data: undefined, isPending: false, isFresh: true};
+    }
+
+    const aggregateQueryKey = this.buildAggregateQueryKey(model);
+    if (!aggregateQueryKey) {
+      return {data: undefined, isPending: false, isFresh: true};
+    }
+
+    const result = this.aggregatesSlot.use({
+      key: {queryKey: aggregateQueryKey},
+      queryFn: async () => this.fetchAggregates(model),
+      enabled: true,
+    });
+
+    return {
+      data: result.data?.totals,
+      isPending: result.isPending,
+      isFresh: result.isFresh,
+    };
+  }
+
+  /**
+   * Flat mode: Regular table view without pivot or tree structure.
+   */
+  private useRowsFlatMode(model: DataSourceModel): RowsQueryResult {
+    const {pagination} = model;
+
+    const rowsQuery = this.buildQuery(model, {
+      includeOrderBy: true,
+      pagination: undefined, // Pagination handled in fetchRows
+    });
+
+    const result = this.rowsSlot.use({
+      key: {query: rowsQuery, pagination},
+      queryFn: async () => this.fetchRows(model, rowsQuery),
+      enabled: true,
+      retainOn: ['pagination'],
+    });
+
+    return this.toRowsQueryResult(result, rowsQuery);
+  }
+
+  /**
+   * Pivot mode with collapsible groups: Uses __intrinsic_pivot virtual table.
+   */
+  private useRowsPivotMode(model: DataSourceModel): RowsQueryResult {
+    const {pagination, pivot, filters = []} = model;
+    ensure(pivot);
+
+    // The table key is based on:
+    // - Group columns in the pivot (not sort)
+    // - Filters
+    // - Aggregate columns and functions
+    const tableKey = {
+      filters: filters.map((f) => ({
+        field: f.field,
+        op: f.op,
+        value: 'value' in f ? String(f.value) : undefined,
+      })),
+      groupBy: pivot.groupBy.map((g) => g.field),
+      aggregates: (pivot.aggregates ?? []).map((a) => ({
+        function: a.function,
+        field: 'field' in a ? a.field : undefined,
+      })),
+    };
+
+    const sorting = pivot.groupBy
+      .map((c) => ({field: c.field, sort: c.sort}))
+      .concat(pivot.aggregates.map((a) => ({field: a.id, sort: a.sort})));
+
+    // The rows key is based on:
+    // - The table key
+    // - Pagination
+    // - Sorting
+    // - Expand/collapse state
+    const rowsKey = {
+      table: tableKey,
+      pagination,
+      sort: sorting,
+      expandedIds: pivot.expandedIds
+        ? Array.from(pivot.expandedIds).sort()
+        : [],
+      collapsedIds: pivot.collapsedIds
+        ? Array.from(pivot.collapsedIds).sort()
+        : [],
+    };
+
+    // First we use the intrinsic pivot virtual table
+    const {data: virtualTable, isPending: tableIsPending} =
+      this.pivotTableSlot.use({
+        key: tableKey,
+        queryFn: async () => this.createIntrinsicPivotTable(pivot, filters),
+      });
+
+    if (tableIsPending) {
+      console.log('Pivot table loading...', tableKey);
+    }
+
+    // Build query (pagination handled by virtual table)
+    const rowsQuery = this.buildQuery(model, {
+      includeOrderBy: true,
+      pagination,
+    });
+
+    // Schedule rows fetch (depends on virtual table being ready)
+    const result = this.rowsSlot.use({
+      key: rowsKey,
+      queryFn: async () => this.fetchRows(model, rowsQuery),
+      enabled: !!virtualTable,
+      retainOn: ['pagination', 'expandedIds', 'collapsedIds'],
+    });
+
+    if (result.isPending) {
+      console.log('Rows query loading...', rowsKey, result.isFresh, result.data);
+    }
+
+    return this.toRowsQueryResult(result, rowsQuery);
+  }
+
+  /**
+   * Flat pivot mode: Simple GROUP BY aggregation without hierarchy.
+   */
+  private useRowsFlatPivotMode(model: DataSourceModel): RowsQueryResult {
+    const {pagination} = model;
+
+    const rowsQuery = this.buildQuery(model, {
+      includeOrderBy: true,
+      pagination: undefined, // Pagination handled in fetchRows
+    });
+
+    const result = this.rowsSlot.use({
+      key: {query: rowsQuery, pagination},
+      queryFn: async () => this.fetchRows(model, rowsQuery),
+      enabled: true,
+      retainOn: ['pagination'],
+    });
+
+    return this.toRowsQueryResult(result, rowsQuery);
+  }
+
+  /**
+   * Pivot drill-down mode: Shows individual rows filtered by pivot group.
+   */
+  private useRowsPivotDrilldownMode(model: DataSourceModel): RowsQueryResult {
+    const {pagination} = model;
+
+    const rowsQuery = this.buildQuery(model, {
+      includeOrderBy: true,
+      pagination: undefined, // Pagination handled in fetchRows
+    });
+
+    const result = this.rowsSlot.use({
+      key: {query: rowsQuery, pagination},
+      queryFn: async () => this.fetchRows(model, rowsQuery),
+      enabled: true,
+      retainOn: ['pagination'],
+    });
+
+    return this.toRowsQueryResult(result, rowsQuery);
+  }
+
+  /**
+   * Tree mode: Uses __intrinsic_tree virtual table.
+   */
+  private useRowsTreeMode(model: DataSourceModel): RowsQueryResult {
+    const {pagination} = model;
+
+    // Ensure tree table is created
+    this.ensureTreeTable(model);
+
+    // Build query (pagination handled by virtual table)
+    const rowsQuery = this.buildQuery(model, {
+      includeOrderBy: true,
+      pagination,
+    });
+
+    // Schedule rows fetch (depends on virtual table being ready)
+    const virtualTableReady = this.currentTreeTableName !== undefined;
+    const result = this.rowsSlot.use({
+      key: {query: rowsQuery, pagination},
+      queryFn: async () => this.fetchRows(model, rowsQuery),
+      enabled: virtualTableReady,
+      retainOn: ['pagination'],
+    });
+
+    return this.toRowsQueryResult(result, rowsQuery);
+  }
+
+  /**
+   * Ensures the tree virtual table is created/updated.
+   */
+  private ensureTreeTable(model: DataSourceModel): void {
+    const {filters = [], idBasedTree} = model;
+    if (!idBasedTree) return;
+
+    const treeKey: TreeTableKey = {
+      filters: filters.map((f) => ({
+        field: f.field,
+        op: f.op,
+        value: 'value' in f ? String(f.value) : undefined,
+      })),
+      idColumn: idBasedTree.idColumn,
+      parentIdColumn: idBasedTree.parentIdColumn,
+    };
+    const treeResult = this.treeTableSlot.use({
+      key: treeKey,
+      queryFn: async () => this.createIntrinsicTreeTable(model),
+    });
+    this.currentTreeTableName = treeResult.data?.name;
+  }
+
+  /**
+   * Converts internal QueryResult to RowsQueryResult.
+   */
+  private toRowsQueryResult(
+    result: QueryResult<RowsResult>,
+    query: string,
+  ): RowsQueryResult {
+    const data = result.data
+      ? {
+          rowOffset: result.data.rowOffset,
+          totalRows: result.data.totalRows,
+          rows: result.data.rows,
+        }
+      : undefined;
+
+    const workingQuery = result.data?.query ?? query;
+
+    // Track for exportData
+    if (result.data?.query) {
+      this.lastWorkingQuery = result.data.query;
+    }
+
+    return {
+      data,
+      isPending: result.isPending,
+      isFresh: result.isFresh,
+      query: workingQuery,
+    };
+  }
+
+  /**
+   * Fetches rows for the current model.
+   */
+  private async fetchRows(
+    model: DataSourceModel,
+    rowsQuery: string,
+  ): Promise<RowsResult> {
+    const {pagination, pivot, idBasedTree} = model;
+
+    // Get row count
+    const countQuery = this.buildQuery(model, {includeOrderBy: false});
+    const countResult = await this.engine.query(
       this.wrapQueryWithPrelude(`
       WITH data AS (${countQuery})
       SELECT COUNT(*) AS total_count
       FROM data
     `),
     );
-    const count = result.firstRow({total_count: NUM}).total_count;
+    const totalRows = countResult.firstRow({total_count: NUM}).total_count;
 
-    // Update cache
-    this.rowCountCache = {query: countQuery, count};
-
-    return count;
-  }
-
-  /**
-   * Resolves the rows for the current page. Compares query and pagination against cache.
-   */
-  private async resolveRows(
-    model: DataSourceModel,
-  ): Promise<{offset: number; rows: Row[]}> {
-    const {pagination, pivot, idBasedTree} = model;
-
-    // Virtual tables handle pagination internally - pass it to buildQuery
-    // This is more efficient as the virtual table can skip rows without building them
-    // Note: Only tree mode (collapsibleGroups=true) uses intrinsic_pivot; flat mode uses GROUP BY
+    // Fetch rows
     const usesVirtualTable =
       (pivot !== undefined && !pivot.drillDown && pivot.collapsibleGroups) ||
       idBasedTree !== undefined;
 
-    // Build query with ORDER BY and optionally pagination (for virtual tables)
-    const rowsQuery = this.buildQuery(model, {
-      includeOrderBy: true,
-      pagination: usesVirtualTable ? pagination : undefined,
-    });
-
-    // Check cache - both query and pagination must match
-    if (
-      this.rowsCache?.query === rowsQuery &&
-      comparePagination(this.rowsCache.pagination, pagination)
-    ) {
-      return {offset: this.rowsCache.offset, rows: this.rowsCache.rows};
-    }
-
-    // Fetch new rows
     let query = `
       WITH data AS (${rowsQuery})
       SELECT *
       FROM data
     `;
 
-    // Only apply external LIMIT/OFFSET for non-virtual-table queries
-    // Virtual tables handle pagination internally via __offset__ and __limit__
     if (pagination && !usesVirtualTable) {
       query += `LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
     }
@@ -337,38 +540,21 @@ export class SQLDataSource implements DataSource {
       this.engine,
     );
 
-    const offset = pagination?.offset ?? 0;
-    const rows = result.rows;
-
-    // Update cache
-    this.rowsCache = {query: rowsQuery, pagination, offset, rows};
-
-    return {offset, rows};
+    return {
+      rowOffset: pagination?.offset ?? 0,
+      totalRows,
+      rows: result.rows as Row[],
+      query: rowsQuery,
+    };
   }
 
   /**
-   * Resolves aggregate totals. Handles both pivot aggregates and column aggregates.
+   * Fetches aggregate totals for the current model.
    */
-  private async resolveAggregates(
+  private async fetchAggregates(
     model: DataSourceModel,
-  ): Promise<Map<string, SqlValue> | undefined> {
+  ): Promise<AggregatesResult> {
     const {columns, filters = [], pivot} = model;
-
-    // Build a unique query string for the aggregates
-    const aggregateQuery = this.buildAggregateQuery(model);
-
-    // If no aggregates needed, return undefined
-    if (!aggregateQuery) {
-      this.aggregatesCache = undefined;
-      return undefined;
-    }
-
-    // Check cache
-    if (this.aggregatesCache?.query === aggregateQuery) {
-      return this.aggregatesCache.totals;
-    }
-
-    // Compute aggregates
     const totals = new Map<string, SqlValue>();
 
     // Pivot aggregates (but not drill-down mode)
@@ -392,16 +578,43 @@ export class SQLDataSource implements DataSource {
       }
     }
 
-    // Update cache
-    this.aggregatesCache = {query: aggregateQuery, totals};
+    return {totals};
+  }
 
-    return totals;
+  /**
+   * Fetches distinct values for requested columns.
+   */
+  private async fetchDistinctValues(
+    model: DataSourceModel,
+  ): Promise<DistinctValuesResult> {
+    const {distinctValuesColumns} = model;
+    const values = new Map<string, ReadonlyArray<SqlValue>>();
+
+    if (!distinctValuesColumns) {
+      return {values};
+    }
+
+    for (const columnPath of distinctValuesColumns) {
+      const query = this.buildDistinctValuesQuery(columnPath);
+      if (!query) continue;
+
+      const queryResult = await runQueryForQueryTable(
+        this.wrapQueryWithPrelude(query),
+        this.engine,
+      );
+      values.set(
+        columnPath,
+        queryResult.rows.map((r) => r['value']),
+      );
+    }
+
+    return {values};
   }
 
   /**
    * Builds a unique string representing the aggregate query for cache comparison.
    */
-  private buildAggregateQuery(model: DataSourceModel): string | undefined {
+  private buildAggregateQueryKey(model: DataSourceModel): string | undefined {
     const {columns, filters = [], pivot} = model;
 
     const parts: string[] = [];
@@ -435,49 +648,9 @@ export class SQLDataSource implements DataSource {
   }
 
   /**
-   * Resolves distinct values for requested columns.
-   */
-  private async resolveDistinctValues(
-    model: DataSourceModel,
-  ): Promise<Map<string, ReadonlyArray<SqlValue>>> {
-    const {distinctValuesColumns} = model;
-
-    const result = new Map<string, ReadonlyArray<SqlValue>>();
-
-    if (!distinctValuesColumns) {
-      return result;
-    }
-
-    for (const columnPath of distinctValuesColumns) {
-      const query = this.buildDistinctValuesQuery(columnPath);
-      if (!query) continue;
-
-      // Check cache
-      const cached = this.distinctValuesCache.get(columnPath);
-      if (cached?.query === query) {
-        result.set(columnPath, cached.values);
-        continue;
-      }
-
-      // Fetch new values
-      const queryResult = await runQueryForQueryTable(
-        this.wrapQueryWithPrelude(query),
-        this.engine,
-      );
-      const values = queryResult.rows.map((r) => r['value']);
-
-      // Update cache
-      this.distinctValuesCache.set(columnPath, {query, values});
-      result.set(columnPath, values);
-    }
-
-    return result;
-  }
-
-  /**
    * Resolves parameter keys for parameterized columns.
    */
-  private async resolveParameterKeys(model: DataSourceModel): Promise<void> {
+  private resolveParameterKeys(model: DataSourceModel): void {
     const {parameterKeyColumns} = model;
 
     if (!parameterKeyColumns) {
@@ -501,16 +674,19 @@ export class SQLDataSource implements DataSource {
           const baseAlias = `${aliasBase}_0`;
           const query = colDef.parameterKeysQuery(baseTable, baseAlias);
 
-          try {
-            const result = await runQueryForQueryTable(
-              this.wrapQueryWithPrelude(query),
-              this.engine,
-            );
-            const keys = result.rows.map((r) => String(r['key']));
-            this.parameterKeysCache.set(prefix, keys);
-          } catch {
-            this.parameterKeysCache.set(prefix, []);
-          }
+          // Schedule async fetch through task queue
+          this.taskQueue.schedule(this, async () => {
+            try {
+              const result = await runQueryForQueryTable(
+                this.wrapQueryWithPrelude(query),
+                this.engine,
+              );
+              const keys = result.rows.map((r) => String(r['key']));
+              this.parameterKeysCache.set(prefix, keys);
+            } catch {
+              this.parameterKeysCache.set(prefix, []);
+            }
+          });
         }
       }
     }
@@ -527,17 +703,113 @@ export class SQLDataSource implements DataSource {
    * Export all data with current filters/sorting applied.
    */
   async exportData(): Promise<Row[]> {
-    const workingQuery = this.rowsCache?.query;
-    if (!workingQuery) {
+    if (!this.lastWorkingQuery) {
       return [];
     }
 
-    const query = `SELECT * FROM (${workingQuery})`;
+    const query = `SELECT * FROM (${this.lastWorkingQuery})`;
     const result = await runQueryForQueryTable(
       this.wrapQueryWithPrelude(query),
       this.engine,
     );
-    return result.rows;
+    return result.rows as Row[];
+  }
+
+  /**
+   * Creates the intrinsic pivot virtual table.
+   * Returns a DisposableSqlEntity that will drop the table when disposed.
+   */
+  private async createIntrinsicPivotTable(
+    pivot: Pivot,
+    filters: readonly Filter[],
+  ): Promise<DisposableSqlEntity> {
+    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+
+    // Build the base table expression (with filters as subquery if needed)
+    let sourceTable = baseTable;
+    if (filters.length > 0) {
+      for (const filter of filters) {
+        resolver.resolveColumnPath(filter.field);
+      }
+      const joinClauses = resolver.buildJoinClauses();
+
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+
+      sourceTable = `(SELECT ${baseAlias}.* FROM ${baseTable} AS ${baseAlias} ${joinClauses} WHERE ${whereConditions.join(' AND ')})`;
+    }
+
+    // Build hierarchy columns string
+    const hierarchyCols = pivot.groupBy.map((g) => g.field).join(', ');
+
+    // Build aggregation expressions string
+    const aggExprs = (pivot.aggregates ?? [])
+      .map((a) => {
+        if (a.function === 'COUNT') return 'COUNT(*)';
+        const field = 'field' in a ? a.field : '';
+        return aggregateFunctionToSql(a.function, field);
+      })
+      .join(', ');
+
+    // Build the USING clause for the virtual table
+    const usingClause = `__intrinsic_pivot(
+  "${sourceTable.replace(/"/g, '""')}",
+  '${hierarchyCols}',
+  '${aggExprs}'
+)`;
+
+    return await createVirtualTable({
+      engine: this.engine,
+      using: usingClause,
+      name: pivotTableName,
+    });
+  }
+
+  /**
+   * Creates the intrinsic tree virtual table.
+   * Returns a DisposableSqlEntity that will drop the table when disposed.
+   */
+  private async createIntrinsicTreeTable(
+    model: DataSourceModel,
+  ): Promise<DisposableSqlEntity> {
+    const {filters = [], idBasedTree} = model;
+    if (!idBasedTree) throw new Error('idBasedTree required');
+
+    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+
+    // Build the base table expression (with filters as subquery if needed)
+    let sourceTable = baseTable;
+    if (filters.length > 0) {
+      for (const filter of filters) {
+        resolver.resolveColumnPath(filter.field);
+      }
+      const joinClauses = resolver.buildJoinClauses();
+
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+
+      sourceTable = `(SELECT ${baseAlias}.* FROM ${baseTable} AS ${baseAlias} ${joinClauses} WHERE ${whereConditions.join(' AND ')})`;
+    }
+
+    // Build the USING clause for the virtual table
+    const usingClause = `__intrinsic_tree(
+  "${sourceTable.replace(/"/g, '""')}",
+  '${idBasedTree.idColumn}',
+  '${idBasedTree.parentIdColumn}'
+)`;
+
+    return await createVirtualTable({
+      engine: this.engine,
+      using: usingClause,
+    });
   }
 
   /**
@@ -782,7 +1054,6 @@ ${joinClauses}`;
    * 3. No complex UNION ALL or window functions needed
    *
    * The virtual table must be created/recreated when filters change.
-   * This is handled by ensureIntrinsicPivotTable() called from notify().
    */
   private buildIntrinsicPivotQuery(
     _resolver: SQLSchemaResolver,
@@ -791,10 +1062,6 @@ ${joinClauses}`;
     options: {includeOrderBy: boolean; pagination?: Pagination},
     dependencyColumns?: ReadonlyArray<Column>,
   ): string {
-    // Get the virtual table name (should be set by ensureIntrinsicPivotTable)
-    const tableName =
-      this.intrinsicPivotCache?.tableName ?? '__intrinsic_pivot_default__';
-
     // Build expansion constraint - collapsedIds takes precedence if both set
     // collapsedIds = denylist mode (all expanded except listed)
     // expandedIds = allowlist mode (only listed are expanded)
@@ -869,7 +1136,7 @@ ${joinClauses}`;
 
     // Build the query
     let query = `SELECT ${selectClauses.join(',\n       ')}
-FROM ${tableName}
+FROM ${pivotTableName}
 WHERE ${expansionConstraint}
   AND __sort__ = '${sortSpec}'`;
 
@@ -891,210 +1158,6 @@ WHERE ${expansionConstraint}
   }
 
   /**
-   * Ensures the intrinsic pivot virtual table exists and is up-to-date.
-   * Called from maybeRefreshIntrinsicPivot() before building queries.
-   *
-   * The virtual table needs to be recreated when:
-   * - Filters change (different base data)
-   * - GroupBy columns change
-   * - Aggregate expressions change
-   */
-  private async ensureIntrinsicPivotTable(
-    resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<Filter>,
-    pivot: Pivot,
-  ): Promise<string> {
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
-
-    // Build cache key from factors that affect the tree structure
-    const filterKey = filters
-      .map((f) => `${f.field}:${f.op}:${'value' in f ? f.value : ''}`)
-      .join('|');
-    const groupByKey = pivot.groupBy.map((g) => g.field).join(',');
-    const aggKey = (pivot.aggregates ?? [])
-      .map((a) => {
-        if (a.function === 'COUNT') return 'COUNT(*)';
-        return aggregateFunctionToSql(a.function, 'field' in a ? a.field : '');
-      })
-      .join(',');
-    const cacheKey = `${baseTable}:${filterKey}:${groupByKey}:${aggKey}`;
-
-    // Check if cache is valid
-    if (this.intrinsicPivotCache?.cacheKey === cacheKey) {
-      return this.intrinsicPivotCache.tableName;
-    }
-
-    // Generate unique table name
-    const tableName = `__pivot_${intrinsicPivotTableCounter++}__`;
-
-    // Build the base table expression (with filters as subquery if needed)
-    let sourceTable = baseTable;
-    if (filters.length > 0) {
-      // Resolve filter column paths
-      for (const filter of filters) {
-        resolver.resolveColumnPath(filter.field);
-      }
-      const joinClauses = resolver.buildJoinClauses();
-
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        return filterToSql(filter, sqlExpr ?? filter.field);
-      });
-
-      sourceTable = `(SELECT ${baseAlias}.* FROM ${baseTable} AS ${baseAlias} ${joinClauses} WHERE ${whereConditions.join(' AND ')})`;
-    }
-
-    // Build hierarchy columns string
-    const hierarchyCols = pivot.groupBy.map((g) => g.field).join(', ');
-
-    // Build aggregation expressions string
-    const aggExprs = (pivot.aggregates ?? [])
-      .map((a) => {
-        if (a.function === 'COUNT') return 'COUNT(*)';
-        const field = 'field' in a ? a.field : '';
-        return aggregateFunctionToSql(a.function, field);
-      })
-      .join(', ');
-
-    // Drop old table if it exists
-    if (this.intrinsicPivotCache?.tableName) {
-      try {
-        await this.engine.query(
-          `DROP TABLE IF EXISTS ${this.intrinsicPivotCache.tableName}`,
-        );
-      } catch {
-        // Ignore errors dropping old table
-      }
-    }
-
-    // Create the virtual table
-    // Use double quotes for sourceTable to avoid issues with single-quoted filter values
-    const createQuery = `CREATE VIRTUAL TABLE ${tableName} USING __intrinsic_pivot(
-  "${sourceTable.replace(/"/g, '""')}",
-  '${hierarchyCols}',
-  '${aggExprs}'
-)`;
-
-    await this.engine.query(this.wrapQueryWithPrelude(createQuery));
-
-    // Update cache
-    this.intrinsicPivotCache = {cacheKey, tableName};
-
-    return tableName;
-  }
-
-  /**
-   * Checks if pivot mode is active and refreshes the virtual table if needed.
-   * Called from notify() before building queries.
-   */
-  private async maybeRefreshIntrinsicPivot(
-    model: DataSourceModel,
-  ): Promise<void> {
-    const {filters = [], pivot} = model;
-
-    // Only create virtual table for tree mode (collapsibleGroups=true)
-    // Flat mode uses simple GROUP BY and doesn't need the virtual table
-    if (pivot && !pivot.drillDown && pivot.collapsibleGroups) {
-      const resolver = new SQLSchemaResolver(
-        this.sqlSchema,
-        this.rootSchemaName,
-      );
-      await this.ensureIntrinsicPivotTable(resolver, filters, pivot);
-    }
-  }
-
-  /**
-   * Checks if ID-based tree mode is active and refreshes the virtual table if needed.
-   * Called from notify() before building queries.
-   */
-  private async maybeRefreshIntrinsicTree(
-    model: DataSourceModel,
-  ): Promise<void> {
-    const {filters = [], idBasedTree} = model;
-
-    if (idBasedTree) {
-      const resolver = new SQLSchemaResolver(
-        this.sqlSchema,
-        this.rootSchemaName,
-      );
-      await this.ensureIntrinsicTreeTable(resolver, filters, idBasedTree);
-    }
-  }
-
-  /**
-   * Ensures the intrinsic tree virtual table exists and is up-to-date.
-   * The virtual table needs to be recreated when:
-   * - Filters change (different base data)
-   * - ID column or parent_id column change
-   */
-  private async ensureIntrinsicTreeTable(
-    resolver: SQLSchemaResolver,
-    filters: ReadonlyArray<Filter>,
-    tree: IdBasedTree,
-  ): Promise<string> {
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
-
-    // Build cache key from factors that affect the tree structure
-    const filterKey = filters
-      .map((f) => `${f.field}:${f.op}:${'value' in f ? f.value : ''}`)
-      .join('|');
-    const cacheKey = `${baseTable}:${filterKey}:${tree.idColumn}:${tree.parentIdColumn}`;
-
-    // Check if cache is valid
-    if (this.intrinsicTreeCache?.cacheKey === cacheKey) {
-      return this.intrinsicTreeCache.tableName;
-    }
-
-    // Generate unique table name
-    const tableName = `__tree_${intrinsicTreeTableCounter++}__`;
-
-    // Build the base table expression (with filters as subquery if needed)
-    let sourceTable = baseTable;
-    if (filters.length > 0) {
-      // Resolve filter column paths
-      for (const filter of filters) {
-        resolver.resolveColumnPath(filter.field);
-      }
-      const joinClauses = resolver.buildJoinClauses();
-
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        return filterToSql(filter, sqlExpr ?? filter.field);
-      });
-
-      sourceTable = `(SELECT ${baseAlias}.* FROM ${baseTable} AS ${baseAlias} ${joinClauses} WHERE ${whereConditions.join(' AND ')})`;
-    }
-
-    // Drop old table if it exists
-    if (this.intrinsicTreeCache?.tableName) {
-      try {
-        await this.engine.query(
-          `DROP TABLE IF EXISTS ${this.intrinsicTreeCache.tableName}`,
-        );
-      } catch {
-        // Ignore errors dropping old table
-      }
-    }
-
-    // Create the virtual table
-    // Use double quotes for sourceTable to avoid issues with single-quoted filter values
-    const createQuery = `CREATE VIRTUAL TABLE ${tableName} USING __intrinsic_tree(
-  "${sourceTable.replace(/"/g, '""')}",
-  '${tree.idColumn}',
-  '${tree.parentIdColumn}'
-)`;
-
-    await this.engine.query(this.wrapQueryWithPrelude(createQuery));
-
-    // Update cache
-    this.intrinsicTreeCache = {cacheKey, tableName};
-
-    return tableName;
-  }
-
-  /**
    * Builds a query using the __intrinsic_tree virtual table.
    * This passes through all source columns plus tree metadata columns.
    */
@@ -1103,9 +1166,8 @@ WHERE ${expansionConstraint}
     columns: ReadonlyArray<Column> | undefined,
     options: {includeOrderBy: boolean; pagination?: Pagination},
   ): string {
-    // Get the virtual table name (should be set by ensureIntrinsicTreeTable)
-    const tableName =
-      this.intrinsicTreeCache?.tableName ?? '__intrinsic_tree_default__';
+    // Get the virtual table name
+    const tableName = this.currentTreeTableName ?? '__intrinsic_tree_default__';
 
     // Build expansion constraint - collapsedIds takes precedence if both set
     let expansionConstraint: string;
@@ -1349,12 +1411,6 @@ ${joinClauses}`;
     );
     return result.rows[0] ?? {};
   }
-}
-
-function comparePagination(a?: Pagination, b?: Pagination): boolean {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  return a.limit === b.limit && a.offset === b.offset;
 }
 
 function aggregateFunctionToSql(

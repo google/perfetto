@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {QueryResult} from '../../../base/query_slot';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Column, Filter, IdBasedTree, Pivot} from './model';
 
@@ -20,31 +21,59 @@ export interface Pagination {
   readonly limit: number;
 }
 
+/**
+ * Result type for useRows(), includes the working SQL query for debugging.
+ */
+export interface RowsQueryResult extends QueryResult<DataSourceRows> {
+  // The SQL query used to fetch the rows (useful for debugging)
+  readonly query: string;
+}
+
+/**
+ * Data source interface for DataGrid.
+ *
+ * Uses a slot-like API where each use* method:
+ * - Takes the current model/parameters
+ * - Returns the current state (data, isPending, isFresh)
+ * - Automatically schedules fetches when parameters change
+ *
+ * Call these methods on every render cycle - they handle caching internally.
+ */
 export interface DataSource {
-  // The row data for the current data grid state (filters, sorting, pagination,
-  // etc)
-  readonly rows?: DataSourceRows;
+  /**
+   * Fetch rows for the current model state.
+   * Call every render with the current model to get rows and trigger updates.
+   */
+  useRows(model: DataSourceModel): RowsQueryResult;
 
-  // Available distinct values for specified columns (for filter dropdowns)
-  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
+  /**
+   * Fetch distinct values for filter dropdowns.
+   * Only fetches for columns specified in model.distinctValuesColumns.
+   */
+  useDistinctValues(
+    model: DataSourceModel,
+  ): QueryResult<ReadonlyMap<string, readonly SqlValue[]>>;
 
-  // Available parameter keys for parameterized columns (e.g., for 'args' ->
-  // ['foo', 'bar'])
-  readonly parameterKeys?: ReadonlyMap<string, readonly string[]>;
+  /**
+   * Fetch parameter keys for parameterized columns (e.g., 'args' -> ['foo', 'bar']).
+   * Only fetches for prefixes specified in model.parameterKeyColumns.
+   */
+  useParameterKeys(
+    model: DataSourceModel,
+  ): QueryResult<ReadonlyMap<string, readonly string[]>>;
 
-  // Computed aggregate totals for each aggregate column (grand total across all
-  // filtered rows)
-  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
+  /**
+   * Fetch aggregate totals (grand totals across all filtered rows).
+   * Returns totals for columns with aggregate functions or pivot aggregates.
+   */
+  useAggregateTotals(
+    model: DataSourceModel,
+  ): QueryResult<ReadonlyMap<string, SqlValue>>;
 
-  // Whether the data source is currently loading data/updating.
-  readonly isLoading?: boolean;
-
-  // Called when the data grid parameters change (sorting, filtering,
-  // pagination, etc), which might trigger a data reload.
-  notify(model: DataSourceModel): void;
-
-  // Export all data with current filters/sorting applied. Returns a promise
-  // that resolves to all filtered and sorted rows.
+  /**
+   * Export all data with current filters/sorting applied.
+   * Returns a promise that resolves to all filtered and sorted rows.
+   */
   exportData(): Promise<readonly Row[]>;
 }
 

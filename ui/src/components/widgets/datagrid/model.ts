@@ -77,7 +77,7 @@ export interface Pivot {
   readonly groupBy: readonly GroupByColumn[];
 
   // List of aggregate column definitions.
-  readonly aggregates?: readonly AggregateColumn[];
+  readonly aggregates: readonly AggregateColumn[];
 
   // When set, shows raw rows filtered by these groupBy column values.
   // This allows drilling down into a specific pivot group to see the

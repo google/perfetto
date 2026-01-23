@@ -42,7 +42,7 @@ import {
 import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
-import {DataSource} from './data_source';
+import {DataSource, RowsQueryResult} from './data_source';
 import {
   SchemaRegistry,
   getColumnInfo,
@@ -331,7 +331,7 @@ export interface DataGridApi {
 }
 
 function getOrCreateDataSource(data: DataSource | readonly Row[]): DataSource {
-  if ('notify' in data) {
+  if ('useRows' in data) {
     return data;
   } else {
     return new InMemoryDataSource(data);
@@ -346,7 +346,9 @@ interface FlatGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly result: DataSource['rows'];
+  readonly rowsResult: RowsQueryResult;
+  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
+  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
@@ -362,7 +364,9 @@ interface PivotGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly result: DataSource['rows'];
+  readonly rowsResult: RowsQueryResult;
+  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
+  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
   readonly pivot: Pivot;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
@@ -436,9 +440,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (pivot) this.pivot = pivot;
     if (idBasedTree) this.idBasedTree = idBasedTree;
 
-    // Notify the data source of the current model state.
+    // Build the model for data source queries
     const datasource = getOrCreateDataSource(data);
-    datasource.notify({
+    const model = {
       columns: this.columns,
       filters: this.filters,
       pagination: {
@@ -449,7 +453,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       idBasedTree: this.idBasedTree,
       distinctValuesColumns: this.distinctValuesColumns,
       parameterKeyColumns: this.parameterKeyColumns,
-    });
+    };
+
+    // Fetch data using the slot-like API
+    const rowsResult = datasource.useRows(model);
+    const distinctValuesResult = datasource.useDistinctValues(model);
+    const aggregateTotalsResult = datasource.useAggregateTotals(model);
 
     // Expose the API
     attrs.onReady?.({
@@ -463,12 +472,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         );
       },
       getRowCount: () => {
-        return datasource?.rows?.totalRows;
+        return rowsResult.data?.totalRows;
       },
     });
-
-    // Extract the result from the datasource
-    const result = datasource.rows;
 
     // Determine if we're in pivot mode (has groupBy columns and not drilling down)
     const isPivotMode =
@@ -487,7 +493,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         schema,
         rootSchema,
         datasource,
-        result,
+        rowsResult,
+        distinctValues: distinctValuesResult.data,
+        aggregateTotals: aggregateTotalsResult.data,
         pivot: this.pivot!,
         structuredQueryCompatMode,
         enablePivotControls,
@@ -510,7 +518,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         schema,
         rootSchema,
         datasource,
-        result,
+        rowsResult,
+        distinctValues: distinctValuesResult.data,
+        aggregateTotals: aggregateTotalsResult.data,
         columnInfoCache,
         structuredQueryCompatMode,
         enablePivotControls,
@@ -616,15 +626,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       }),
       m(LinearProgress, {
         className: 'pf-data-grid__loading',
-        state: datasource.isLoading ? 'indeterminate' : 'none',
+        state: rowsResult.isPending ? 'indeterminate' : 'none',
       }),
       m(Grid, {
         className: 'pf-data-grid__table',
         columns: gridColumns,
         rowData: {
           data: gridRows,
-          total: result?.totalRows ?? 0,
-          offset: Math.max(result?.rowOffset ?? 0, this.paginationOffset),
+          total: rowsResult.data?.totalRows ?? 0,
+          offset: Math.max(rowsResult.data?.rowOffset ?? 0, this.paginationOffset),
           onLoadData: (offset, limit) => {
             this.paginationOffset = offset;
             this.paginationLimit = limit;
@@ -646,8 +656,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           this.gridApi = api;
         },
         emptyState:
-          result?.totalRows === 0 &&
-          !datasource.isLoading &&
+          rowsResult.data?.totalRows === 0 &&
+          !rowsResult.isPending &&
           m(
             EmptyState,
             {
@@ -1239,6 +1249,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       datasource,
+      distinctValues,
+      aggregateTotals,
       columnInfoCache,
       structuredQueryCompatMode,
       enablePivotControls,
@@ -1269,7 +1281,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         m(FilterMenu, {
           columnType,
           structuredQueryCompatMode,
-          distinctValues: datasource.distinctValues?.get(field),
+          distinctValues: distinctValues?.get(field),
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
           onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
@@ -1342,7 +1354,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build subContent showing grand total if column has an aggregate
       let subContent: m.Children;
       if (aggregate) {
-        const totalValue = datasource.aggregateTotals?.get(colAlias);
+        const totalValue = aggregateTotals?.get(colAlias);
         const isLoading = totalValue === undefined;
         // Don't show grand total for ANY aggregation (it's just an arbitrary value)
         let totalContent: m.Children;
@@ -1384,7 +1396,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds grid rows for flat (non-pivot) mode.
    */
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
-    const {attrs, result, columnInfoCache, idBasedTree} = ctx;
+    const {attrs, rowsResult, columnInfoCache, idBasedTree} = ctx;
+    const result = rowsResult.data;
 
     if (result === undefined) return [];
 
@@ -1547,6 +1560,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       datasource,
+      distinctValues,
+      aggregateTotals,
       pivot,
       structuredQueryCompatMode,
       enablePivotControls,
@@ -1586,7 +1601,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         m(FilterMenu, {
           columnType,
           structuredQueryCompatMode,
-          distinctValues: datasource.distinctValues?.get(field),
+          distinctValues: distinctValues?.get(field),
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
           onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
@@ -1724,7 +1739,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Build subContent showing grand total with aggregate symbol
       // Don't show grand total for ANY aggregation (it's just an arbitrary value)
-      const aggregateTotalValue = datasource.aggregateTotals?.get(alias);
+      const aggregateTotalValue = aggregateTotals?.get(alias);
       const symbol = agg.function;
       const isLoading = aggregateTotalValue === undefined;
       let aggTotalContent: m.Children;
@@ -1768,7 +1783,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * For multi-level pivots with rollups, adds expand/collapse chevrons.
    */
   private buildPivotRows(ctx: PivotGridBuildContext): m.Children[][] {
-    const {attrs, schema, rootSchema, result, pivot, enablePivotControls} = ctx;
+    const {attrs, schema, rootSchema, rowsResult, pivot, enablePivotControls} =
+      ctx;
+    const result = rowsResult.data;
 
     if (result === undefined) return [];
 
