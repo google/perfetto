@@ -314,6 +314,23 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  // Number inputs in limit/offset should be narrow
+  .pf-inline-field .pf-text-input[type="number"] {
+    flex: 0 0 auto;
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+  }
+
+  // Keep number inputs narrow even in responsive mode
+  @container (max-width: 400px) {
+    .pf-inline-field .pf-text-input[type="number"] {
+      width: 80px;
+      min-width: 80px;
+      max-width: 80px;
+    }
+  }
 }
 
 // Equal width row widget - responsive layout for equal-width items

@@ -305,10 +305,12 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
   size_t cte_count = 0;
   for (size_t i = 0; i < state_.size(); ++i) {
     QueryState& state = state_[state_.size() - i - 1];
+    // Shared queries are tracked in queries_ for external reference, but they
+    // must also be included in the WITH clause so they can be referenced by
+    // other queries via inner_query_id.
     if (state.type == QueryType::kShared) {
       queries_.emplace_back(
           Query{state.id_from_proto.value(), state.table_name, state.sql});
-      continue;
     }
     // Skip the root query if it's just a wrapper for inner_query + operations
     if (&state == &state_[0] && root_only_has_inner_query_and_operations) {
@@ -1629,8 +1631,9 @@ base::StatusOr<std::string> StructuredQueryGenerator::GenerateById(
   return Generate(ptr->data.get(), ptr->size);
 }
 
-base::Status StructuredQueryGenerator::AddQuery(const uint8_t* data,
-                                                size_t size) {
+base::StatusOr<std::string> StructuredQueryGenerator::AddQuery(
+    const uint8_t* data,
+    size_t size) {
   protozero::ProtoDecoder decoder(data, size);
   auto field = decoder.FindField(
       protos::pbzero::PerfettoSqlStructuredQuery::kIdFieldNumber);
@@ -1648,7 +1651,7 @@ base::Status StructuredQueryGenerator::AddQuery(const uint8_t* data,
     return base::ErrStatus("Multiple shared queries specified with the ids %s",
                            id.c_str());
   }
-  return base::OkStatus();
+  return id;
 }
 
 std::vector<std::string> StructuredQueryGenerator::ComputeReferencedModules()
