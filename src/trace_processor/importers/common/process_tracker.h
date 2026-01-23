@@ -103,6 +103,9 @@ class ProcessTracker {
   // Mark whether a thread is the main thread or not.
   void SetMainThread(UniqueTid utid, bool is_main_thread);
 
+  // Mark whether a thread is an idle thread or not.
+  void SetIdleThread(UniqueTid utid, bool is_idle);
+
   // Associates trusted_pid with track UUID.
   void UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid);
 
