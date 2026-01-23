@@ -38,12 +38,12 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/bit_vector.h"
+#include "src/trace_processor/core/common/flex_vector.h"
+#include "src/trace_processor/core/common/slab.h"
 #include "src/trace_processor/core/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/dataframe/impl/bytecode_interpreter_test_utils.h"
 #include "src/trace_processor/core/dataframe/impl/bytecode_registers.h"
-#include "src/trace_processor/core/common/flex_vector.h"
-#include "src/trace_processor/core/common/slab.h"
 #include "src/trace_processor/core/dataframe/impl/types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
@@ -863,6 +863,32 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
   RunStringFilterSubTest("Ne string not in pool", "Ne", "grape",
                          {0, 1, 2, 3, 4, 5, 6});
 }
+
+// Test StringFilterNe for a string not in the pool returns all indices.
+// When comparing with Ne against a non-existent string, all rows should match.
+TEST_F(BytecodeInterpreterTest, StringFilterNeStringNotInPool) {
+  auto apple_id = spool_.InternString("apple");
+  auto banana_id = spool_.InternString("banana");
+
+  auto values = CreateFlexVectorForTesting<StringPool::Id>(
+      {apple_id, banana_id, apple_id, banana_id});
+  AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Unsorted{},
+                         HasDuplicates{}});
+
+  // Use separate source and update buffers to properly test memcpy behavior.
+  std::vector<uint32_t> source_indices = {0, 1, 2, 3};
+  std::vector<uint32_t> update_buffer(4, 0);
+
+  SetRegistersAndExecute(
+      "StringFilter<Ne>: [col=0, val_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]",
+      CastFilterValueResult::Valid("nonexistent"), GetSpan(source_indices),
+      GetSpan(update_buffer));
+
+  // All 4 indices should be returned since "nonexistent" != any string
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(0, 1, 2, 3));
+}
+
 TEST_F(BytecodeInterpreterTest, NullFilter) {
   // Create a BitVector representing nulls: 0=null, 1=not_null, 2=null,
   // 3=not_null, ...
