@@ -25,7 +25,6 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/common/slab.h"
 #include "src/trace_processor/core/dataframe/impl/types.h"
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode::reg {
