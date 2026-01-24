@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from '../../../../base/query_slot';
+import {QueryResult, QuerySlot, SerialTaskQueue} from '../../../../base/query_slot';
 import {Engine} from '../../../../trace_processor/engine';
-import {NUM, Row} from '../../../../trace_processor/query_result';
+import {NUM, Row, SqlValue} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, FlatModel} from '../datagrid_engine';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
@@ -38,6 +38,14 @@ export class FlatEngine {
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
+  }
+
+  /**
+   * Flat mode doesn't have aggregates defined in the model.
+   * Returns undefined - summary functions would need to be passed separately.
+   */
+  getTotals(_model: FlatModel): QueryResult<ReadonlyMap<string, SqlValue>> {
+    return {data: undefined, isPending: false, isFresh: true};
   }
 
   get(model: FlatModel): DataSourceRows {

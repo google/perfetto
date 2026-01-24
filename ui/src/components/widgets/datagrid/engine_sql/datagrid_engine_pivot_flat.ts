@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from '../../../../base/query_slot';
+import {QueryResult, QuerySlot, SerialTaskQueue} from '../../../../base/query_slot';
 import {Engine} from '../../../../trace_processor/engine';
-import {NUM, Row} from '../../../../trace_processor/query_result';
+import {NUM, Row, SqlValue} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../datagrid_engine';
 import {buildAggregateExpr} from '../pivot_operator';
@@ -33,6 +33,7 @@ export class PivotFlatEngine {
     readonly rows: readonly Row[];
     readonly rowOffset: number;
   }>;
+  private readonly totalsSlot: QuerySlot<ReadonlyMap<string, SqlValue>>;
 
   constructor(
     queue: SerialTaskQueue,
@@ -45,10 +46,80 @@ export class PivotFlatEngine {
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
+    this.totalsSlot = new QuerySlot<ReadonlyMap<string, SqlValue>>(queue);
   }
 
   get(model: PivotModel): DataSourceRows {
     return this.getGroupedRows(model);
+  }
+
+  /**
+   * Get grand totals across all filtered rows (no grouping).
+   */
+  getTotals(model: PivotModel): QueryResult<ReadonlyMap<string, SqlValue>> {
+    const {aggregates, filters = []} = model;
+
+    return this.totalsSlot.use({
+      key: {
+        aggregates,
+        filters: serializeFilters(filters),
+      },
+      queryFn: async () => {
+        const query = this.buildTotalsQuery(model);
+        const result = await this.engine.query(query);
+        const row = result.firstRow({}) as Row;
+        const totals = new Map<string, SqlValue>();
+        for (const agg of aggregates) {
+          totals.set(agg.alias, row[agg.alias]);
+        }
+        return totals;
+      },
+    });
+  }
+
+  /**
+   * Builds a query to get grand totals (aggregates without GROUP BY).
+   */
+  private buildTotalsQuery(model: PivotModel): string {
+    const {aggregates, filters = []} = model;
+    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
+
+    // Build SELECT clause with only aggregates
+    const selectExprs: string[] = [];
+    for (const agg of aggregates) {
+      let aggExpr: string;
+      if (agg.function === 'COUNT') {
+        aggExpr = 'COUNT(*)';
+      } else {
+        const fieldExpr = resolver.resolveColumnPath(agg.field);
+        aggExpr = buildAggregateExpr(agg.function, fieldExpr ?? agg.field);
+      }
+      selectExprs.push(`${aggExpr} AS ${toAlias(agg.alias)}`);
+    }
+
+    // Build FROM clause
+    const baseTable = resolver.getBaseTable();
+    const baseAlias = resolver.getBaseAlias();
+    const joinClauses = resolver.buildJoinClauses();
+
+    let sql = `SELECT ${selectExprs.join(', ')}`;
+    sql += `\nFROM ${baseTable} AS ${baseAlias}`;
+    if (joinClauses) {
+      sql += `\n${joinClauses}`;
+    }
+
+    // Add WHERE clause for filters
+    if (filters.length > 0) {
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+      sql += `\nWHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    // No GROUP BY - aggregate across all rows
+
+    return sql;
   }
 
   /**
@@ -174,6 +245,7 @@ export class PivotFlatEngine {
   dispose(): void {
     this.rowCountSlot.dispose();
     this.rowsSlot.dispose();
+    this.totalsSlot.dispose();
   }
 }
 

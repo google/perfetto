@@ -119,9 +119,21 @@ export class DatagridEngineSQL implements DatagridEngine {
    * Fetch aggregate totals (grand totals across all filtered rows).
    */
   useAggregateTotals(
-    _model: DataSourceModel,
+    model: DataSourceModel,
   ): QueryResult<ReadonlyMap<string, SqlValue>> {
-    return {data: undefined, isPending: false, isFresh: true};
+    const mode = model.mode;
+    switch (mode) {
+      case 'flat':
+        return this.flatEngine.getTotals(model);
+      case 'pivot':
+        if (model.groupDisplay === 'flat') {
+          return this.pivotFlatEngine.getTotals(model);
+        } else {
+          return this.pivotEngine.getTotals(model);
+        }
+      default:
+        assertUnreachable(mode);
+    }
   }
 
   // Stub implementations for interface compliance
