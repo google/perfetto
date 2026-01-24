@@ -39,13 +39,21 @@ class MetadataTracker {
   // SetMetadata(metadata::benchmark_name,
   //             Variadic::String(storage->InternString("foo"));
   // Returns the id of the new entry.
-  MetadataId SetMetadata(metadata::KeyId key, Variadic value);
+  MetadataId SetMetadata(
+      metadata::KeyId key,
+      Variadic value,
+      std::optional<tables::MachineTable_Id> machine_id = std::nullopt,
+      std::optional<uint32_t> trace_id = std::nullopt);
 
   // Example usage:
   // AppendMetadata(metadata::benchmark_story_tags,
   //                Variadic::String(storage->InternString("bar"));
   // Returns the id of the new entry.
-  MetadataId AppendMetadata(metadata::KeyId key, Variadic value);
+  MetadataId AppendMetadata(
+      metadata::KeyId key,
+      Variadic value,
+      std::optional<tables::MachineTable_Id> machine_id = std::nullopt,
+      std::optional<uint32_t> trace_id = std::nullopt);
 
   // Sets a metadata entry using any interned string as key.
   // Returns the id of the new entry.

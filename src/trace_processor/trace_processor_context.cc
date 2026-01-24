@@ -196,6 +196,12 @@ void CopyGlobalState(const TraceProcessorContext* source,
 TraceProcessorContext::TraceProcessorContext() = default;
 TraceProcessorContext::TraceProcessorContext(const Config& _config) {
   InitGlobalState(this, _config);
+
+  // The metadata tracker is logically a per-trace and per-machine object.
+  // However, it is needed in the root context to allow
+  // TraceProcessorStorageImpl to record the initial trace UUID hash before any
+  // specific machine or leaf trace is identified.
+  metadata_tracker = Ptr<MetadataTracker>::MakeRoot(this);
 }
 TraceProcessorContext::~TraceProcessorContext() = default;
 

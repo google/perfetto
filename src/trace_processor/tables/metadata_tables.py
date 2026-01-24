@@ -656,15 +656,39 @@ METADATA_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'machine_id',
+            CppOptional(CppTableId(MACHINE_TABLE)),
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'trace_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
         group='Metadata',
         columns={
-            'name': '''''',
-            'key_type': '''''',
-            'int_value': '''''',
-            'str_value': ''''''
+            'name':
+                '''''',
+            'key_type':
+                '''''',
+            'int_value':
+                '''''',
+            'str_value':
+                '''''',
+            'machine_id':
+                '''
+                  Machine identifier, non-null for metadata items with machine
+                  scope.
+                ''',
+            'trace_id':
+                '''
+                  Trace identifier, non-null for metadata items with trace
+                  scope.
+                ''',
         }))
 
 FILEDESCRIPTOR_TABLE = Table(
@@ -794,7 +818,8 @@ TRACE_FILE_TABLE = Table(
     class_name='TraceFileTable',
     sql_name='__intrinsic_trace_file',
     columns=[
-        C('parent_id', CppOptional(CppSelfTableId())),
+        C('parent_id', CppOptional(CppSelfTableId()),
+          cpp_access=CppAccess.READ),
         C('name', CppOptional(CppString())),
         C('size', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C(
