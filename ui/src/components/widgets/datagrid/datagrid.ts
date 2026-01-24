@@ -537,9 +537,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       m(DataGridToolbar, {
         leftItems: [
           toolbarItemsLeft,
-          // Show expand/collapse/flat buttons for multi-level pivot (not in drill-down)
+          // Show expand/collapse/flat buttons for pivot mode (not in drill-down)
           this.pivot &&
-            this.pivot.groupBy.length > 1 &&
             !this.pivot.drillDown && [
               m(Button, {
                 icon: 'unfold_more',
@@ -567,7 +566,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 selectedOption: this.pivot.collapsibleGroups ? 1 : 0,
                 onOptionSelected: (num: number) => {
                   if (num === 1) {
-                    this.disableFlatMode(attrs);
+                    this.enableTreeMode(attrs);
                   } else {
                     this.enableFlatMode(attrs);
                   }
@@ -697,10 +696,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     };
 
     if (isPivotMode && this.pivot) {
+      // Extract sort from pivot columns (groupBy or aggregates)
+      const sortedGroupBy = this.pivot.groupBy.find((c) => c.sort);
+      const sortedAggregate = (this.pivot.aggregates ?? []).find((c) => c.sort);
+      const sortedPivotCol = sortedGroupBy ?? sortedAggregate;
+      const pivotSort = sortedPivotCol
+        ? {alias: sortedPivotCol.id, direction: sortedPivotCol.sort!}
+        : undefined;
+
       // Build PivotModel
       const pivotModel: PivotModel = {
         ...baseModel,
         mode: 'pivot',
+        sort: pivotSort,
         groupBy: this.pivot.groupBy.map((col) => ({
           field: col.field,
           alias: col.id,
@@ -711,7 +719,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           } else {
             return {function: agg.function, field: agg.field, alias: agg.id};
           }
-        }),
+        }).sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
         drillDown: this.pivot.drillDown,
         groupDisplay: this.pivot.collapsibleGroups ? 'tree' : 'flat',
         expandedIds: this.pivot.expandedIds,
@@ -727,11 +735,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         columns: this.columns.map((col) => ({
           field: col.field,
           alias: col.id,
-        })).sort((a, b) => {
-          // Consistent column order by alias to avoid reloads when reordering
-          // columns in the UI
-          return a.alias.localeCompare(b.alias);
-        }),
+        })).sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
       };
       return flatModel;
     }
@@ -969,6 +973,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const newPivot: Pivot = {
       groupBy: [{id: shortUuid(), field}],
       aggregates,
+      collapsibleGroups: true,
     };
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
@@ -1287,7 +1292,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   /**
    * Disables flat mode - shows hierarchical grouping with rollup rows.
    */
-  private disableFlatMode(attrs: DataGridAttrs): void {
+  private enableTreeMode(attrs: DataGridAttrs): void {
     if (!this.pivot) return;
     const newPivot: Pivot = {...this.pivot, collapsibleGroups: true};
     this.pivot = newPivot;

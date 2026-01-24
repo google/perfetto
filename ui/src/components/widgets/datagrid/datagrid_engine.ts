@@ -98,8 +98,8 @@ export interface FlatModel extends DataSourceModelBase {
   }[];
 }
 
-// Pivot mode: grouped/aggregated views (sort handled internally)
-export interface PivotModel extends Omit<DataSourceModelBase, 'sort'> {
+// Pivot mode: grouped/aggregated views
+export interface PivotModel extends DataSourceModelBase {
   readonly mode: 'pivot';
   // Columns to group by (hierarchy levels)
   readonly groupBy: readonly {
