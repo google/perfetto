@@ -239,7 +239,7 @@ source_set("args_utils") {
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
     "../containers",
-    "../core/dataframe:specs",
+    "../core/dataframe",
     "../storage",
     "../tables",
     "../types",

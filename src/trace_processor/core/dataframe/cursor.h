@@ -31,7 +31,8 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -63,8 +64,7 @@ class Cursor {
                   const Column* const* column_ptrs,
                   const Index* indexes,
                   const StringPool* pool) {
-    interpreter_.Initialize(plan.bytecode, plan.params.register_count,
-                            column_count, column_ptrs, indexes, pool);
+    interpreter_.Initialize(plan.bytecode, plan.params.register_count, pool);
     params_ = plan.params;
     col_to_output_offset_ = plan.col_to_output_offset;
     pool_ = pool;
@@ -73,6 +73,14 @@ class Cursor {
     column_storage_data_ptrs_.reserve(column_count);
     for (uint32_t i = 0; i < column_count; ++i) {
       column_storage_data_ptrs_.push_back(column_ptrs[i]->storage.data());
+    }
+
+    // Process register initialization specs from the plan.
+    // This sets up registers with pointers extracted from columns/indexes.
+    for (const auto& init : plan.register_inits) {
+      auto val = GetRegisterInitValue(init, column_ptrs, indexes);
+      interpreter_.SetRegisterValue(interpreter::HandleBase{init.dest_register},
+                                    std::move(val));
     }
   }
 
@@ -142,6 +150,66 @@ class Cursor {
   }
 
  private:
+  interpreter::RegValue GetRegisterInitValue(const RegisterInit& init,
+                                             const Column* const* column_ptrs,
+                                             const Index* indexes) {
+    switch (init.kind.index()) {
+      case RegisterInit::Type::GetTypeIndex<Uint32>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<Uint32>(),
+            Uint32{},
+        };
+      case RegisterInit::Type::GetTypeIndex<Int32>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<Int32>(),
+            Int32{},
+        };
+      case RegisterInit::Type::GetTypeIndex<Int64>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<Int64>(),
+            Int64{},
+        };
+      case RegisterInit::Type::GetTypeIndex<Double>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<Double>(),
+            Double{},
+        };
+      case RegisterInit::Type::GetTypeIndex<String>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<String>(),
+            String{},
+        };
+      case RegisterInit::Type::GetTypeIndex<RegisterInit::NullBitvector>():
+        return column_ptrs[init.source_index]
+            ->null_storage.MaybeGetNullBitVector();
+      case RegisterInit::Type::GetTypeIndex<RegisterInit::IndexVector>():
+        return Span<uint32_t>(
+            indexes[init.source_index].permutation_vector()->data(),
+            indexes[init.source_index].permutation_vector()->data() +
+                indexes[init.source_index].permutation_vector()->size());
+      case RegisterInit::Type::GetTypeIndex<
+          RegisterInit::SmallValueEqBitvector>(): {
+        const auto& sve =
+            column_ptrs[init.source_index]
+                ->specialized_storage
+                .unchecked_get<SpecializedStorage::SmallValueEq>();
+        return &sve.bit_vector;
+      }
+      case RegisterInit::Type::GetTypeIndex<
+          RegisterInit::SmallValueEqPopcount>(): {
+        const auto& sve =
+            column_ptrs[init.source_index]
+                ->specialized_storage
+                .unchecked_get<SpecializedStorage::SmallValueEq>();
+        return Span<const uint32_t>(
+            sve.prefix_popcount.data(),
+            sve.prefix_popcount.data() + sve.prefix_popcount.size());
+      }
+      default:
+        return interpreter::Empty{};
+    }
+  }
+
   // Bytecode interpreter that executes the query.
   interpreter::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.

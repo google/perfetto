@@ -33,15 +33,18 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/core/util/type_set.h"
 #include "src/trace_processor/util/regex.h"
 
 namespace perfetto::trace_processor::core::dataframe {
@@ -50,9 +53,14 @@ namespace {
 
 namespace i = interpreter;
 
+// TypeSet of all possible sparse nullability states.
+using SparseNullTypes = TypeSet<SparseNull,
+                                SparseNullWithPopcountAlways,
+                                SparseNullWithPopcountUntilFinalization>;
+
 // Calculates filter preference score for ordering filters.
 // Lower scores are applied first for better efficiency.
-uint32_t FilterPreference(const FilterSpec& fs, const i::Column& col) {
+uint32_t FilterPreference(const FilterSpec& fs, const Column& col) {
   enum AbsolutePreference : uint8_t {
     kIdEq,                     // Most efficient: id equality check
     kSetIdSortedEq,            // Set id sorted equality check
@@ -199,7 +207,7 @@ std::optional<BestIndex> GetBestIndexForFilterSpecs(
 
 QueryPlanBuilder::QueryPlanBuilder(
     uint32_t row_count,
-    const std::vector<std::shared_ptr<i::Column>>& columns,
+    const std::vector<std::shared_ptr<Column>>& columns,
     const std::vector<Index>& indexes)
     : columns_(columns), indexes_(indexes) {
   for (uint32_t i = 0; i < columns_.size(); ++i) {
@@ -210,7 +218,7 @@ QueryPlanBuilder::QueryPlanBuilder(
   plan_.params.estimated_row_count = row_count;
 
   // Initialize with a range covering all rows
-  i::reg::RwHandle<Range> range{plan_.params.register_count++};
+  i::RwHandle<Range> range{plan_.params.register_count++};
   {
     using B = i::InitRange;
     auto& ir = AddOpcode<B>(UnchangedRowCount{});
@@ -267,7 +275,7 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     StorageType ct = col.storage.type();
 
     if (c.op.Is<In>()) {
-      i::reg::RwHandle<i::CastFilterValueListResult> value{
+      i::RwHandle<i::CastFilterValueListResult> value{
           plan_.params.register_count++};
       {
         using B = i::CastFilterValueListBase;
@@ -285,7 +293,8 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
         using B = i::InBase;
         B& bc = AddOpcode<B>(i::Index<i::In>(col.storage.type()),
                              RowCountModifier{NonEqualityFilterRowCount{}});
-        bc.arg<B::col>() = c.col;
+        bc.arg<B::storage_register>() =
+            StorageRegisterFor(c.col, col.storage.type());
         bc.arg<B::value_list_register>() = value;
         bc.arg<B::source_register>() = source;
         bc.arg<B::update_register>() = update;
@@ -331,7 +340,7 @@ void QueryPlanBuilder::Distinct(
     row_layout_params.push_back({spec.col, false});
   }
   uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
-  i::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
+  i::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
   auto buffer_reg =
       CopyToRowLayout(total_row_stride, indices, {}, row_layout_params);
   {
@@ -376,7 +385,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
 
   // main_indices_span will be modified by the final sort operation.
   // EnsureIndicesAreInSlab makes it an RwHandle.
-  i::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
+  i::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
 
   bool has_string_sort_keys = false;
   for (const auto& spec : sort_specs) {
@@ -386,10 +395,10 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
     }
   }
 
-  using Map = i::reg::StringIdToRankMap;
-  i::reg::RwHandle<Map> string_rank_map;
+  using Map = i::StringIdToRankMap;
+  i::RwHandle<Map> string_rank_map;
   if (has_string_sort_keys) {
-    string_rank_map = i::reg::RwHandle<Map>{plan_.params.register_count++};
+    string_rank_map = i::RwHandle<Map>{plan_.params.register_count++};
     {
       using B = i::InitRankMap;
       auto& op = AddOpcode<B>(UnchangedRowCount{});
@@ -405,7 +414,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
         continue;
       }
 
-      i::reg::RwHandle<Span<uint32_t>> translated;
+      i::RwHandle<Span<uint32_t>> translated;
       if (col.null_storage.nullability().Is<NonNull>()) {
         // If the column is non-null, we can use the main indices directly.
         translated = indices;
@@ -414,7 +423,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
         // This ensures that the main_indices_span is not modified, allowing
         // each string column to be processed independently from the original
         // set of rows.
-        i::reg::RwHandle<Span<uint32_t>> scratch =
+        i::RwHandle<Span<uint32_t>> scratch =
             GetOrCreateScratchSpanRegister(plan_.params.max_row_count);
 
         // 1. Copy the current indices to our temporary scratch span.
@@ -438,7 +447,8 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
       {
         using B = i::CollectIdIntoRankMap;
         auto& op = AddOpcode<B>(UnchangedRowCount{});
-        op.arg<B::col>() = spec.col;
+        op.arg<B::storage_register>() =
+            StorageRegisterFor(spec.col, col.storage.type());
         op.arg<B::source_register>() = translated;
         op.arg<B::rank_map_register>() = string_rank_map;
       }
@@ -490,7 +500,7 @@ void QueryPlanBuilder::MinMax(const SortSpec& sort_spec) {
   auto& op = AddOpcode<B>(i::Index<i::FindMinMaxIndex>(storage_type, mmop),
                           OneRowCount{});
   op.arg<B::update_register>() = indices;
-  op.arg<B::col>() = col_idx;
+  op.arg<B::storage_register>() = StorageRegisterFor(col_idx, storage_type);
 }
 
 void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
@@ -544,12 +554,11 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     bc.arg<B::update_register>() = in_memory_indices;
   }
 
-  i::reg::RwHandle<Span<uint32_t>> storage_update_register;
+  i::RwHandle<Span<uint32_t>> storage_update_register;
   if (plan_.params.output_per_row > 1) {
-    i::reg::RwHandle<Slab<uint32_t>> slab_register{
-        plan_.params.register_count++};
+    i::RwHandle<Slab<uint32_t>> slab_register{plan_.params.register_count++};
     storage_update_register =
-        i::reg::RwHandle<Span<uint32_t>>{plan_.params.register_count++};
+        i::RwHandle<Span<uint32_t>>{plan_.params.register_count++};
     {
       using B = i::AllocateIndices;
       auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -577,7 +586,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
           auto& bc = AddOpcode<B>(UnchangedRowCount{});
           bc.arg<B::update_register>() = storage_update_register;
           bc.arg<B::popcount_register>() = {reg};
-          bc.arg<B::col>() = col;
+          bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
           bc.arg<B::offset>() = offset;
           bc.arg<B::stride>() = plan_.params.output_per_row;
           break;
@@ -586,7 +595,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
           using B = i::StrideCopyDenseNullIndices;
           auto& bc = AddOpcode<B>(UnchangedRowCount{});
           bc.arg<B::update_register>() = storage_update_register;
-          bc.arg<B::col>() = col;
+          bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
           bc.arg<B::offset>() = offset;
           bc.arg<B::stride>() = plan_.params.output_per_row;
           break;
@@ -611,10 +620,10 @@ void QueryPlanBuilder::NonStringConstraint(
     const FilterSpec& c,
     const i::NonStringType& type,
     const i::NonStringOp& op,
-    const i::reg::ReadHandle<i::CastFilterValueResult>& result) {
+    const i::ReadHandle<i::CastFilterValueResult>& result) {
   const auto& col = GetColumn(c.col);
-  if (std::holds_alternative<i::reg::RwHandle<Range>>(indices_reg_) &&
-      op.Is<Eq>() && col.null_storage.nullability().Is<NonNull>()) {
+  if (std::holds_alternative<i::RwHandle<Range>>(indices_reg_) && op.Is<Eq>() &&
+      col.null_storage.nullability().Is<NonNull>()) {
     // Non null equality on an id column should have been handled earlier.
     PERFETTO_CHECK(!type.Is<Id>());
     auto non_id_type = type.TryDowncast<i::NonIdStorageType>();
@@ -632,7 +641,8 @@ void QueryPlanBuilder::NonStringConstraint(
         op.Is<Eq>()
             ? RowCountModifier{EqualityFilterRowCount{col.duplicate_state}}
             : RowCountModifier{NonEqualityFilterRowCount{}});
-    bc.arg<B::col>() = c.col;
+    bc.arg<B::storage_register>() =
+        StorageRegisterFor(c.col, type.Upcast<StorageType>());
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
     bc.arg<B::update_register>() = update;
@@ -643,10 +653,9 @@ void QueryPlanBuilder::NonStringConstraint(
 base::Status QueryPlanBuilder::StringConstraint(
     const FilterSpec& c,
     const i::StringOp& op,
-    const i::reg::ReadHandle<i::CastFilterValueResult>& result) {
+    const i::ReadHandle<i::CastFilterValueResult>& result) {
   const auto& col = GetColumn(c.col);
-  if (op.Is<Eq>() &&
-      std::holds_alternative<i::reg::RwHandle<Range>>(indices_reg_) &&
+  if (op.Is<Eq>() && std::holds_alternative<i::RwHandle<Range>>(indices_reg_) &&
       col.null_storage.nullability().Is<NonNull>()) {
     AddLinearFilterEqBytecode(c, result, i::NonIdStorageType{String{}});
     return base::OkStatus();
@@ -667,7 +676,7 @@ base::Status QueryPlanBuilder::StringConstraint(
         op.Is<Eq>()
             ? RowCountModifier{EqualityFilterRowCount{col.duplicate_state}}
             : RowCountModifier{NonEqualityFilterRowCount{}});
-    bc.arg<B::col>() = c.col;
+    bc.arg<B::storage_register>() = StorageRegisterFor(c.col, String{});
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
     bc.arg<B::update_register>() = update;
@@ -693,7 +702,7 @@ void QueryPlanBuilder::NullConstraint(const i::NullOp& op, FilterSpec& c) {
         using B = i::NullFilterBase;
         B& bc = AddOpcode<B>(i::Index<i::NullFilter>(op),
                              NonEqualityFilterRowCount{});
-        bc.arg<B::col>() = c.col;
+        bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(c.col);
         bc.arg<B::update_register>() = indices;
       }
       break;
@@ -715,14 +724,13 @@ void QueryPlanBuilder::IndexConstraints(
     std::vector<uint8_t>& specs_handled,
     uint32_t index_idx,
     const std::vector<uint32_t>& filter_specs) {
-  i::reg::RwHandle<Span<uint32_t>> reg{plan_.params.register_count++};
-  {
-    using B = i::IndexPermutationVectorToSpan;
-    auto& bc_alloc = AddOpcode<B>(UnchangedRowCount{});
-    bc_alloc.arg<B::index>() = index_idx;
-    bc_alloc.arg<B::write_register>() = reg;
-  }
-
+  // Source register points to the immutable index permutation vector.
+  i::ReadHandle<Span<uint32_t>> source_reg{plan_.params.register_count++};
+  plan_.register_inits.emplace_back(
+      RegisterInit{source_reg.index, static_cast<uint16_t>(index_idx),
+                   RegisterInit::Type{RegisterInit::IndexVector{}}});
+  // Dest register receives filtered results (pointing into source).
+  i::RwHandle<Span<uint32_t>> dest_reg{plan_.params.register_count++};
   for (uint32_t spec_idx : filter_specs) {
     FilterSpec& fs = specs[spec_idx];
     const Column& column = GetColumn(fs.col);
@@ -732,37 +740,41 @@ void QueryPlanBuilder::IndexConstraints(
     PERFETTO_CHECK(non_id);
     {
       using B = i::IndexedFilterEqBase;
-      using PopcountHandle = i::reg::ReadHandle<Slab<uint32_t>>;
+      using PopcountHandle = i::ReadHandle<Slab<uint32_t>>;
       PopcountHandle popcount_register;
-      if (column.null_storage.nullability().IsAnyOf<i::SparseNullTypes>()) {
+      if (column.null_storage.nullability().IsAnyOf<SparseNullTypes>()) {
         popcount_register = PrefixPopcountRegisterFor(fs.col);
       } else {
         // Dummy register for non-sparse null columns. IndexedFilterEq knows
         // how to handle this.
         popcount_register =
-            i::reg::ReadHandle<Slab<uint32_t>>{plan_.params.register_count++};
+            i::ReadHandle<Slab<uint32_t>>{plan_.params.register_count++};
       }
       auto& bc = AddOpcode<B>(
           i::Index<i::IndexedFilterEq>(
               *non_id, NullabilityToSparseNullCollapsedNullability(
                            column.null_storage.nullability())),
           RowCountModifier{EqualityFilterRowCount{column.duplicate_state}});
-      bc.arg<B::col>() = fs.col;
+      bc.arg<B::storage_register>() =
+          StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
+      bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(fs.col);
       bc.arg<B::filter_value_reg>() = value_reg;
       bc.arg<B::popcount_register>() = popcount_register;
-      bc.arg<B::update_register>() = reg;
+      bc.arg<B::source_register>() = source_reg;
+      bc.arg<B::dest_register>() = dest_reg;
     }
+    // After first filter, subsequent filters read from dest and write back to
+    // dest.
+    source_reg = i::ReadHandle<Span<uint32_t>>{dest_reg.index};
     specs_handled[spec_idx] = true;
   }
 
-  PERFETTO_CHECK(std::holds_alternative<i::reg::RwHandle<Range>>(indices_reg_));
+  PERFETTO_CHECK(std::holds_alternative<i::RwHandle<Range>>(indices_reg_));
   const auto& indices_reg =
-      base::unchecked_get<i::reg::RwHandle<Range>>(indices_reg_);
+      base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
 
-  i::reg::RwHandle<Slab<uint32_t>> output_slab_reg{
-      plan_.params.register_count++};
-  i::reg::RwHandle<Span<uint32_t>> output_span_reg{
-      plan_.params.register_count++};
+  i::RwHandle<Slab<uint32_t>> output_slab_reg{plan_.params.register_count++};
+  i::RwHandle<Span<uint32_t>> output_span_reg{plan_.params.register_count++};
   {
     using B = i::AllocateIndices;
     auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -773,7 +785,7 @@ void QueryPlanBuilder::IndexConstraints(
   {
     using B = i::CopySpanIntersectingRange;
     auto& bc = AddOpcode<B>(UnchangedRowCount{});
-    bc.arg<B::source_register>() = reg;
+    bc.arg<B::source_register>() = dest_reg;
     bc.arg<B::source_range_register>() = indices_reg;
     bc.arg<B::update_register>() = output_span_reg;
   }
@@ -795,8 +807,8 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
 
   // We should have ordered the constraints such that we only reach this
   // point with range indices.
-  PERFETTO_CHECK(std::holds_alternative<i::reg::RwHandle<Range>>(indices_reg_));
-  const auto& reg = base::unchecked_get<i::reg::RwHandle<Range>>(indices_reg_);
+  PERFETTO_CHECK(std::holds_alternative<i::RwHandle<Range>>(indices_reg_));
+  const auto& reg = base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
 
   auto value_reg = CastFilterValue(fs, ct, op);
 
@@ -805,7 +817,7 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
     using B = i::Uint32SetIdSortedEq;
     auto& bc = AddOpcode<B>(
         RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
-    bc.arg<B::col>() = fs.col;
+    bc.arg<B::storage_register>() = StorageRegisterFor(fs.col, ct);
     bc.arg<B::val_register>() = value_reg;
     bc.arg<B::update_register>() = reg;
     return true;
@@ -816,7 +828,9 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
     using B = i::SpecializedStorageSmallValueEq;
     auto& bc = AddOpcode<B>(
         RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
-    bc.arg<B::col>() = fs.col;
+    bc.arg<B::small_value_bv_register>() = SmallValueEqBvRegisterFor(fs.col);
+    bc.arg<B::small_value_popcount_register>() =
+        SmallValueEqPopcountRegisterFor(fs.col);
     bc.arg<B::val_register>() = value_reg;
     bc.arg<B::update_register>() = reg;
     return true;
@@ -833,7 +847,7 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
     using B = i::SortedFilterBase;
     auto& bc = AddOpcode<B>(i::Index<i::SortedFilter>(ct, erlbub), modifier,
                             i::SortedFilterBase::EstimateCost(ct));
-    bc.arg<B::col>() = fs.col;
+    bc.arg<B::storage_register>() = StorageRegisterFor(fs.col, ct);
     bc.arg<B::val_register>() = value_reg;
     bc.arg<B::update_register>() = reg;
     bc.arg<B::write_result_to>() = bound;
@@ -841,9 +855,8 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   return true;
 }
 
-void QueryPlanBuilder::PruneNullIndices(
-    uint32_t col,
-    i::reg::RwHandle<Span<uint32_t>> indices) {
+void QueryPlanBuilder::PruneNullIndices(uint32_t col,
+                                        i::RwHandle<Span<uint32_t>> indices) {
   switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
     case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
@@ -851,7 +864,7 @@ void QueryPlanBuilder::PruneNullIndices(
     case Nullability::GetTypeIndex<DenseNull>(): {
       using B = i::NullFilter<IsNotNull>;
       i::NullFilterBase& bc = AddOpcode<B>(NonEqualityFilterRowCount{});
-      bc.arg<B::col>() = col;
+      bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
       bc.arg<B::update_register>() = indices;
       break;
     }
@@ -862,9 +875,9 @@ void QueryPlanBuilder::PruneNullIndices(
   }
 }
 
-i::reg::RwHandle<Span<uint32_t>> QueryPlanBuilder::TranslateNonNullIndices(
+i::RwHandle<Span<uint32_t>> QueryPlanBuilder::TranslateNonNullIndices(
     uint32_t col,
-    i::reg::RwHandle<Span<uint32_t>> table_indices_register,
+    i::RwHandle<Span<uint32_t>> table_indices_register,
     bool in_place) {
   switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
@@ -877,7 +890,7 @@ i::reg::RwHandle<Span<uint32_t>> QueryPlanBuilder::TranslateNonNullIndices(
       {
         using B = i::TranslateSparseNullIndices;
         auto& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::col>() = col;
+        bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
         bc.arg<B::popcount_register>() = popcount_reg;
         bc.arg<B::source_register>() = table_indices_register;
         bc.arg<B::update_register>() = update;
@@ -892,16 +905,16 @@ i::reg::RwHandle<Span<uint32_t>> QueryPlanBuilder::TranslateNonNullIndices(
   }
 }
 
-PERFETTO_NO_INLINE i::reg::RwHandle<Span<uint32_t>>
+PERFETTO_NO_INLINE i::RwHandle<Span<uint32_t>>
 QueryPlanBuilder::EnsureIndicesAreInSlab() {
-  using SpanReg = i::reg::RwHandle<Span<uint32_t>>;
-  using SlabReg = i::reg::RwHandle<Slab<uint32_t>>;
+  using SpanReg = i::RwHandle<Span<uint32_t>>;
+  using SlabReg = i::RwHandle<Slab<uint32_t>>;
 
   if (PERFETTO_LIKELY(std::holds_alternative<SpanReg>(indices_reg_))) {
     return base::unchecked_get<SpanReg>(indices_reg_);
   }
 
-  using RegRange = i::reg::RwHandle<Range>;
+  using RegRange = i::RwHandle<Range>;
   PERFETTO_DCHECK(std::holds_alternative<RegRange>(indices_reg_));
   auto range_reg = base::unchecked_get<RegRange>(indices_reg_);
 
@@ -1036,8 +1049,8 @@ PERFETTO_NO_INLINE i::Bytecode& QueryPlanBuilder::AddRawOpcode(
 }
 
 void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
-  i::reg::RwHandle<Slab<uint32_t>> slab_reg{plan_.params.register_count++};
-  i::reg::RwHandle<Span<uint32_t>> span_reg{plan_.params.register_count++};
+  i::RwHandle<Slab<uint32_t>> slab_reg{plan_.params.register_count++};
+  i::RwHandle<Span<uint32_t>> span_reg{plan_.params.register_count++};
   {
     using B = i::AllocateIndices;
     auto& bc = AddOpcode<B>(ZeroRowCount{});
@@ -1048,19 +1061,66 @@ void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
   indices_reg_ = span_reg;
 }
 
-i::reg::ReadHandle<Slab<uint32_t>> QueryPlanBuilder::PrefixPopcountRegisterFor(
+i::ReadHandle<Slab<uint32_t>> QueryPlanBuilder::PrefixPopcountRegisterFor(
     uint32_t col) {
   auto& reg = column_states_[col].prefix_popcount;
   if (!reg) {
-    reg = i::reg::RwHandle<Slab<uint32_t>>{plan_.params.register_count++};
+    reg = i::RwHandle<Slab<uint32_t>>{plan_.params.register_count++};
     {
       using B = i::PrefixPopcount;
       auto& bc = AddOpcode<B>(UnchangedRowCount{});
-      bc.arg<B::col>() = col;
+      bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
       bc.arg<B::dest_register>() = *reg;
     }
   }
   return *reg;
+}
+
+i::RwHandle<i::StoragePtr> QueryPlanBuilder::StorageRegisterFor(
+    uint32_t col,
+    StorageType type) {
+  auto& reg = column_states_[col].storage_register;
+  if (!reg) {
+    reg = i::RwHandle<i::StoragePtr>{plan_.params.register_count++};
+    plan_.register_inits.emplace_back(
+        RegisterInit{reg->index, static_cast<uint16_t>(col),
+                     type.Upcast<RegisterInit::Type>()});
+  }
+  return *reg;
+}
+
+template <typename Handle, typename InitType, typename StateField>
+Handle QueryPlanBuilder::GetOrCreateInitRegister(
+    uint32_t col,
+    StateField ColumnState::* field,
+    InitType init_type) {
+  auto& reg = column_states_[col].*field;
+  if (!reg) {
+    reg = Handle{plan_.params.register_count++};
+    plan_.register_inits.emplace_back(RegisterInit{
+        reg->index, static_cast<uint16_t>(col), RegisterInit::Type{init_type}});
+  }
+  return *reg;
+}
+
+i::ReadHandle<const BitVector*> QueryPlanBuilder::NullBitvectorRegisterFor(
+    uint32_t col) {
+  return GetOrCreateInitRegister<i::ReadHandle<const BitVector*>>(
+      col, &ColumnState::null_bv_register, RegisterInit::NullBitvector{});
+}
+
+i::ReadHandle<const BitVector*> QueryPlanBuilder::SmallValueEqBvRegisterFor(
+    uint32_t col) {
+  return GetOrCreateInitRegister<i::ReadHandle<const BitVector*>>(
+      col, &ColumnState::small_value_eq_bv_register,
+      RegisterInit::SmallValueEqBitvector{});
+}
+
+i::ReadHandle<Span<uint32_t>> QueryPlanBuilder::SmallValueEqPopcountRegisterFor(
+    uint32_t col) {
+  return GetOrCreateInitRegister<i::ReadHandle<Span<uint32_t>>>(
+      col, &ColumnState::small_value_eq_popcount_register,
+      RegisterInit::SmallValueEqPopcount{});
 }
 
 bool QueryPlanBuilder::CanUseMinMaxOptimization(
@@ -1073,11 +1133,11 @@ bool QueryPlanBuilder::CanUseMinMaxOptimization(
          limit_spec.limit == 1 && limit_spec.offset.value_or(0) == 0;
 }
 
-i::reg::ReadHandle<i::CastFilterValueResult> QueryPlanBuilder::CastFilterValue(
+i::ReadHandle<i::CastFilterValueResult> QueryPlanBuilder::CastFilterValue(
     FilterSpec& c,
     const StorageType& ct,
     i::NonNullOp op) {
-  i::reg::RwHandle<i::CastFilterValueResult> value_reg{
+  i::RwHandle<i::CastFilterValueResult> value_reg{
       plan_.params.register_count++};
   {
     using B = i::CastFilterValueBase;
@@ -1091,20 +1151,18 @@ i::reg::ReadHandle<i::CastFilterValueResult> QueryPlanBuilder::CastFilterValue(
   return value_reg;
 }
 
-i::reg::RwHandle<Span<uint32_t>>
-QueryPlanBuilder::GetOrCreateScratchSpanRegister(uint32_t size) {
-  i::reg::RwHandle<Slab<uint32_t>> scratch_slab;
-  i::reg::RwHandle<Span<uint32_t>> scratch_span;
+i::RwHandle<Span<uint32_t>> QueryPlanBuilder::GetOrCreateScratchSpanRegister(
+    uint32_t size) {
+  i::RwHandle<Slab<uint32_t>> scratch_slab;
+  i::RwHandle<Span<uint32_t>> scratch_span;
   if (scratch_indices_) {
     PERFETTO_CHECK(size <= scratch_indices_->size);
     PERFETTO_CHECK(!scratch_indices_->in_use);
     scratch_slab = scratch_indices_->slab;
     scratch_span = scratch_indices_->span;
   } else {
-    scratch_slab =
-        i::reg::RwHandle<Slab<uint32_t>>{plan_.params.register_count++};
-    scratch_span =
-        i::reg::RwHandle<Span<uint32_t>>{plan_.params.register_count++};
+    scratch_slab = i::RwHandle<Slab<uint32_t>>{plan_.params.register_count++};
+    scratch_span = i::RwHandle<Span<uint32_t>>{plan_.params.register_count++};
   }
   {
     using B = i::AllocateIndices;
@@ -1136,13 +1194,13 @@ uint16_t QueryPlanBuilder::CalculateRowLayoutStride(
   return calculated_total_row_stride;
 }
 
-i::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
+i::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
     uint16_t row_stride,
-    i::reg::RwHandle<Span<uint32_t>> indices,
-    i::reg::ReadHandle<i::reg::StringIdToRankMap> rank_map,
+    i::RwHandle<Span<uint32_t>> indices,
+    i::ReadHandle<i::StringIdToRankMap> rank_map,
     const std::vector<RowLayoutParams>& row_layout_params) {
   uint32_t buffer_size = plan_.params.max_row_count * row_stride;
-  i::reg::RwHandle<Slab<uint8_t>> new_buffer_reg{plan_.params.register_count++};
+  i::RwHandle<Slab<uint8_t>> new_buffer_reg{plan_.params.register_count++};
   {
     using B = i::AllocateRowLayoutBuffer;
     auto& op = AddOpcode<B>(UnchangedRowCount{});
@@ -1153,9 +1211,9 @@ i::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
   for (const auto& param : row_layout_params) {
     const Column& col = GetColumn(param.column);
     const auto& nullability = col.null_storage.nullability();
-    auto popcount = nullability.IsAnyOf<i::SparseNullTypes>()
+    auto popcount = nullability.IsAnyOf<SparseNullTypes>()
                         ? PrefixPopcountRegisterFor(param.column)
-                        : i::reg::ReadHandle<Slab<uint32_t>>{
+                        : i::ReadHandle<Slab<uint32_t>>{
                               std::numeric_limits<uint32_t>::max()};
     {
       using B = i::CopyToRowLayoutBase;
@@ -1163,7 +1221,9 @@ i::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
           col.storage.type(),
           NullabilityToSparseNullCollapsedNullability(nullability));
       auto& op = AddOpcode<B>(index, UnchangedRowCount{});
-      op.arg<B::col>() = param.column;
+      op.arg<B::storage_register>() =
+          StorageRegisterFor(param.column, col.storage.type());
+      op.arg<B::null_bv_register>() = NullBitvectorRegisterFor(param.column);
       op.arg<B::source_indices_register>() = indices;
       op.arg<B::dest_buffer_register>() = new_buffer_reg;
       op.arg<B::rank_map_register>() = rank_map;
@@ -1181,17 +1241,16 @@ i::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
 
 void QueryPlanBuilder::AddLinearFilterEqBytecode(
     const FilterSpec& c,
-    const i::reg::ReadHandle<i::CastFilterValueResult>& filter_value_result_reg,
+    const i::ReadHandle<i::CastFilterValueResult>& filter_value_result_reg,
     const i::NonIdStorageType& non_id_storage_type) {
   const auto& col = GetColumn(c.col);
-  PERFETTO_DCHECK(
-      std::holds_alternative<i::reg::RwHandle<Range>>(indices_reg_));
+  PERFETTO_DCHECK(std::holds_alternative<i::RwHandle<Range>>(indices_reg_));
   PERFETTO_DCHECK(col.null_storage.nullability().Is<NonNull>());
   PERFETTO_DCHECK(c.op.Is<Eq>());
 
-  using SpanReg = i::reg::RwHandle<Span<uint32_t>>;
-  using SlabReg = i::reg::RwHandle<Slab<uint32_t>>;
-  using RegRange = i::reg::RwHandle<Range>;
+  using SpanReg = i::RwHandle<Span<uint32_t>>;
+  using SlabReg = i::RwHandle<Slab<uint32_t>>;
+  using RegRange = i::RwHandle<Range>;
 
   auto range_reg = base::unchecked_get<RegRange>(indices_reg_);
   SlabReg slab_reg{plan_.params.register_count++};
@@ -1209,11 +1268,12 @@ void QueryPlanBuilder::AddLinearFilterEqBytecode(
     B& bc = AddOpcode<B>(
         i::Index<i::LinearFilterEq>(non_id_storage_type),
         RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
-    bc.arg<B::col>() = c.col;
+    bc.arg<B::storage_register>() =
+        StorageRegisterFor(c.col, non_id_storage_type.Upcast<StorageType>());
     bc.arg<B::filter_value_reg>() = filter_value_result_reg;
     // For NonNull columns, popcount_register is not used by LinearFilterEq
     // logic. Pass a default-constructed handle.
-    bc.arg<B::popcount_register>() = i::reg::ReadHandle<Slab<uint32_t>>{};
+    bc.arg<B::popcount_register>() = i::ReadHandle<Slab<uint32_t>>{};
     bc.arg<B::source_register>() = range_reg;
     bc.arg<B::update_register>() = span_reg;
   }

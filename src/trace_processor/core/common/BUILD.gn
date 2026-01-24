@@ -26,6 +26,7 @@ source_set("common") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../containers",
     "../util",
   ]
 }

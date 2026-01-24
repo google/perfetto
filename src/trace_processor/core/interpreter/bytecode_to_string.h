@@ -33,7 +33,7 @@ struct Bytecode;
 
 // String conversion utilities for bytecode arguments.
 base::StackString<32> ArgToString(uint32_t value);
-base::StackString<64> ArgToString(const reg::HandleBase& value);
+base::StackString<64> ArgToString(const HandleBase& value);
 base::StackString<64> ArgToString(NonNullOp value);
 base::StackString<64> ArgToString(FilterValueHandle value);
 base::StackString<64> ArgToString(BoundModifier bound);

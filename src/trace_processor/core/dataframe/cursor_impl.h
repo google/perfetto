@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/util/span.h"

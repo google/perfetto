@@ -26,24 +26,10 @@
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::interpreter {
-
-// TODO(lalitm): The interpreter currently depends on dataframe types (Column,
-// Storage, NullStorage, etc.). This coupling should be removed to make the
-// interpreter truly generic and reusable for other data structures like trees,
-// graphs, and intervals.
-
-// Import types from dataframe that interpreter currently depends on.
-using dataframe::Column;
-using dataframe::IdDataTag;
-using dataframe::Index;
-using dataframe::NullStorage;
-using dataframe::SpecializedStorage;
-using dataframe::Storage;
 
 // Type categories for column content and operations.
 // These define which operations can be applied to which content types.
@@ -129,11 +115,6 @@ using NonIdStorageType = TypeSet<Uint32, Int32, Int64, Double, String>;
 // TypeSet which collapses all of the sparse nullability types into a single
 // type.
 using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;
-
-// TypeSet of all possible sparse nullability states.
-using SparseNullTypes = TypeSet<SparseNull,
-                                SparseNullWithPopcountAlways,
-                                SparseNullWithPopcountUntilFinalization>;
 
 // Handle for referring to a filter value during query execution.
 struct FilterValueHandle {

@@ -30,9 +30,13 @@
 
 namespace perfetto::trace_processor::core::interpreter {
 
+// Maximum number of arguments in any bytecode instruction.
+inline constexpr size_t kMaxBytecodeArgs = 9;
+
 template <typename T, size_t... I>
 constexpr auto MakeOffsetsArrayImpl(std::index_sequence<I...>) {
-  std::array<uint32_t, std::tuple_size_v<T> + 1> offsets{};
+  // Fixed size array for consistent sizing across all bytecodes.
+  std::array<uint32_t, kMaxBytecodeArgs + 1> offsets{};
   ((offsets[I + 1] = offsets[I] + sizeof(std::tuple_element_t<I, T>)), ...);
   // Ensure that all the types have aligned offsets.
   ((offsets[I + 1] % alignof(std::tuple_element_t<I, T>) == 0
@@ -44,8 +48,9 @@ constexpr auto MakeOffsetsArrayImpl(std::index_sequence<I...>) {
 }
 
 // Helper for generating the offsets array for instruction arguments.
+// Returns a fixed-size array (kMaxBytecodeArgs + 1) for uniform sizing.
 template <typename T>
-constexpr std::array<uint32_t, std::tuple_size_v<T> + 1> MakeOffsetsArray() {
+constexpr std::array<uint32_t, kMaxBytecodeArgs + 1> MakeOffsetsArray() {
   constexpr auto kOffsets =
       MakeOffsetsArrayImpl<T>(std::make_index_sequence<std::tuple_size_v<T>>());
   static_assert(kOffsets[std::tuple_size_v<T>] <=
@@ -75,13 +80,13 @@ struct TemplatedBytecode2 : Bytecode {
 };
 
 // Macro to define bytecode instruction with 5 fields.
-#define PERFETTO_DATAFRAME_BYTECODE_IMPL_8(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
-                                           n5, t6, n6, t7, n7, t8, n8)         \
-  enum Field : uint8_t { n1 = 0, n2, n3, n4, n5, n6, n7, n8 };                 \
-  using tuple = std::tuple<t1, t2, t3, t4, t5, t6, t7, t8>;                    \
+#define PERFETTO_DATAFRAME_BYTECODE_IMPL_9(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
+                                           n5, t6, n6, t7, n7, t8, n8, t9, n9) \
+  enum Field : uint8_t { n1 = 0, n2, n3, n4, n5, n6, n7, n8, n9 };             \
+  using tuple = std::tuple<t1, t2, t3, t4, t5, t6, t7, t8, t9>;                \
   static constexpr auto kOffsets = MakeOffsetsArray<tuple>();                  \
   static constexpr auto kNames =                                               \
-      std::array{#n1, #n2, #n3, #n4, #n5, #n6, #n7, #n8};                      \
+      std::array{#n1, #n2, #n3, #n4, #n5, #n6, #n7, #n8, #n9};                 \
                                                                                \
   template <Field N>                                                           \
   const auto& arg() const {                                                    \
@@ -103,9 +108,16 @@ struct TemplatedBytecode2 : Bytecode {
     BytecodeFieldToString(#n6, ArgToString(arg<n6>()).c_str(), fields);        \
     BytecodeFieldToString(#n7, ArgToString(arg<n7>()).c_str(), fields);        \
     BytecodeFieldToString(#n8, ArgToString(arg<n8>()).c_str(), fields);        \
+    BytecodeFieldToString(#n9, ArgToString(arg<n9>()).c_str(), fields);        \
     return BytecodeFieldsFormat(fields);                                       \
   }                                                                            \
   static void UnusedForWarningSuppresssion()
+
+// Simplified macros that add padding fields automatically.
+#define PERFETTO_DATAFRAME_BYTECODE_IMPL_8(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
+                                           n5, t6, n6, t7, n7, t8, n8)         \
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_9(t1, n1, t2, n2, t3, n3, t4, n4, t5, n5,   \
+                                     t6, n6, t7, n7, t8, n8, uint32_t, pad9)
 
 // Simplified macros that add padding fields automatically.
 #define PERFETTO_DATAFRAME_BYTECODE_IMPL_7(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
