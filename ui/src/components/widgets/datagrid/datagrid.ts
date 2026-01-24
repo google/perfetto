@@ -454,7 +454,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     // Build the model for data source queries
     const datasource = getOrCreateDataSource(data);
-    const model = this.buildDataSourceModel(isPivotMode);
+    const model = this.buildDataSourceModel();
 
     // Fetch data using the slot-like API
     const rowsResult = datasource.useRows(model);
@@ -677,7 +677,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds a DataSourceModel from the current state.
    * The model shape depends on whether we're in pivot mode or flat mode.
    */
-  private buildDataSourceModel(isPivotMode: boolean): DataSourceModel {
+  private buildDataSourceModel(): DataSourceModel {
     // Extract sort from columns (flat mode only)
     const sortedColumn = this.columns.find((c) => c.sort);
     const sort = sortedColumn
@@ -695,7 +695,27 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       parameterKeyColumns: this.parameterKeyColumns,
     };
 
-    if (isPivotMode && this.pivot) {
+    if (this.pivot && this.pivot.drillDown) {
+      // DrillDown mode: use FlatModel with drilldown conditions as filters
+      // This shows raw rows filtered to specific group values
+      const drillDownFilters: Filter[] = this.pivot.drillDown.map((dd) => ({
+        field: dd.field,
+        op: dd.value === null ? 'is null' : '=',
+        value: dd.value === null ? undefined : dd.value,
+      })) as Filter[];
+
+      const flatModel: FlatModel = {
+        ...baseModel,
+        mode: 'flat',
+        sort,
+        filters: [...(this.filters ?? []), ...drillDownFilters],
+        columns: this.columns.map((col) => ({
+          field: col.field,
+          alias: col.id,
+        })).sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
+      };
+      return flatModel;
+    } else if (this.pivot) {
       // Extract sort from pivot columns (groupBy or aggregates)
       const sortedGroupBy = this.pivot.groupBy.find((c) => c.sort);
       const sortedAggregate = (this.pivot.aggregates ?? []).find((c) => c.sort);
@@ -720,7 +740,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             return {function: agg.function, field: agg.field, alias: agg.id};
           }
         }).sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
-        drillDown: this.pivot.drillDown,
         groupDisplay: this.pivot.groupDisplay ?? 'tree',
         expandedIds: this.pivot.expandedIds,
         collapsedIds: this.pivot.collapsedIds,

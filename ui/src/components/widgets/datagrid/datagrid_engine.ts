@@ -118,11 +118,6 @@ export interface PivotModel extends DataSourceModelBase {
         readonly alias: string;
       }
   )[];
-  // Drill down into a specific group (shows raw rows)
-  readonly drillDown?: readonly {
-    readonly field: string;
-    readonly value: SqlValue;
-  }[];
   // How to display grouped data: 'flat' shows leaf rows only, 'tree' shows
   // hierarchical structure with expand/collapse
   readonly groupDisplay?: 'flat' | 'tree';

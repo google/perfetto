@@ -19,14 +19,13 @@ import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../datagrid_engine';
 import {buildAggregateExpr} from '../pivot_operator';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, sqlValue, toAlias} from '../sql_utils';
+import {filterToSql, toAlias} from '../sql_utils';
 
 /**
  * Flat pivot engine for DataGrid.
  *
- * Handles grouped/aggregated views without hierarchical expand/collapse:
- * - When no drillDown: shows aggregated groups (GROUP BY query)
- * - When drillDown is set: shows raw rows filtered to specific group values
+ * Handles grouped/aggregated views without hierarchical expand/collapse.
+ * Shows aggregated groups using a simple GROUP BY query.
  */
 export class PivotFlatEngine {
   private readonly rowCountSlot: QuerySlot<number>;
@@ -49,14 +48,6 @@ export class PivotFlatEngine {
   }
 
   get(model: PivotModel): DataSourceRows {
-    const {drillDown} = model;
-
-    // When drillDown is set, show raw rows filtered to specific group values
-    if (drillDown && drillDown.length > 0) {
-      return this.getDrillDownRows(model);
-    }
-
-    // Otherwise show aggregated groups
     return this.getGroupedRows(model);
   }
 
@@ -88,49 +79,6 @@ export class PivotFlatEngine {
       retainOn: ['pagination', 'sort'],
       queryFn: async () => {
         const query = this.buildGroupByQuery(model);
-        const result = await runQueryForQueryTable(query, this.engine);
-        return {
-          rows: result.rows as Row[],
-          rowOffset: pagination?.offset ?? 0,
-        };
-      },
-    });
-
-    return {
-      totalRows: rowCountResult.data,
-      rowOffset: rowsResult.data?.rowOffset,
-      rows: rowsResult.data?.rows,
-      isPending: rowCountResult.isPending || rowsResult.isPending,
-    };
-  }
-
-  /**
-   * Get raw rows filtered to specific group values (drillDown mode).
-   */
-  private getDrillDownRows(model: PivotModel): DataSourceRows {
-    const {drillDown, filters = [], pagination, sort} = model;
-
-    const queryKey = {
-      drillDown: serializeDrillDown(drillDown),
-      filters: serializeFilters(filters),
-    };
-
-    // Get row count
-    const rowCountResult = this.rowCountSlot.use({
-      key: queryKey,
-      queryFn: async () => {
-        const query = this.buildDrillDownQuery(model, {countOnly: true});
-        const result = await this.engine.query(query);
-        return result.firstRow({count: NUM}).count;
-      },
-    });
-
-    // Get rows
-    const rowsResult = this.rowsSlot.use({
-      key: {...queryKey, pagination, sort},
-      retainOn: ['pagination', 'sort'],
-      queryFn: async () => {
-        const query = this.buildDrillDownQuery(model);
         const result = await runQueryForQueryTable(query, this.engine);
         return {
           rows: result.rows as Row[],
@@ -222,78 +170,6 @@ export class PivotFlatEngine {
 
     return sql;
   }
-
-  /**
-   * Builds a query for raw rows filtered to drillDown values.
-   */
-  private buildDrillDownQuery(
-    model: PivotModel,
-    options?: {countOnly?: boolean},
-  ): string {
-    const {drillDown = [], filters = [], pagination, sort} = model;
-    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
-
-    // Resolve drillDown fields to trigger JOIN creation
-    for (const dd of drillDown) {
-      resolver.resolveColumnPath(dd.field);
-    }
-
-    // Also resolve filter fields
-    for (const filter of filters) {
-      resolver.resolveColumnPath(filter.field);
-    }
-
-    // Build FROM clause
-    const baseTable = resolver.getBaseTable();
-    const baseAlias = resolver.getBaseAlias();
-    const joinClauses = resolver.buildJoinClauses();
-
-    let sql = `SELECT ${baseAlias}.*`;
-    sql += `\nFROM ${baseTable} AS ${baseAlias}`;
-    if (joinClauses) {
-      sql += `\n${joinClauses}`;
-    }
-
-    // Build WHERE clause combining drillDown and filters
-    const whereConditions: string[] = [];
-
-    // Add drillDown conditions
-    for (const dd of drillDown) {
-      const sqlExpr = resolver.resolveColumnPath(dd.field);
-      const expr = sqlExpr ?? dd.field;
-      if (dd.value === null) {
-        whereConditions.push(`${expr} IS NULL`);
-      } else {
-        whereConditions.push(`${expr} = ${sqlValue(dd.value)}`);
-      }
-    }
-
-    // Add filter conditions
-    for (const filter of filters) {
-      const sqlExpr = resolver.resolveColumnPath(filter.field);
-      whereConditions.push(filterToSql(filter, sqlExpr ?? filter.field));
-    }
-
-    if (whereConditions.length > 0) {
-      sql += `\nWHERE ${whereConditions.join(' AND ')}`;
-    }
-
-    if (options?.countOnly) {
-      return `SELECT COUNT(*) as count FROM (${sql})`;
-    }
-
-    // Add ORDER BY
-    if (sort) {
-      sql += `\nORDER BY ${toAlias(sort.alias)} ${sort.direction}`;
-    }
-
-    // Add pagination
-    if (pagination) {
-      sql += `\nLIMIT ${pagination.limit} OFFSET ${pagination.offset ?? 0}`;
-    }
-
-    return sql;
-  }
 }
 
 /**
@@ -302,12 +178,4 @@ export class PivotFlatEngine {
  */
 function serializeFilters(filters: PivotModel['filters']) {
   return filters?.map((filter) => filterToSql(filter, filter.field));
-}
-
-/**
- * DrillDown values can contain Uint8Arrays which are not JSON friendly.
- * Returns a serialized version suitable for use as a cache key.
- */
-function serializeDrillDown(drillDown: PivotModel['drillDown']) {
-  return drillDown?.map((dd) => `${dd.field}=${sqlValue(dd.value)}`);
 }
