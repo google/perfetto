@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/common/flex_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 
 #include <cstddef>
 

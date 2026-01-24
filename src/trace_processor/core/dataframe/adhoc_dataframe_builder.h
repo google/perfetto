@@ -39,14 +39,13 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/common/bit_vector.h"
-#include "src/trace_processor/core/common/flex_vector.h"
-#include "src/trace_processor/core/common/slab.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 // Builds a `Dataframe` on an adhoc basis by allowing users to append
 // values column by column.
@@ -229,15 +228,15 @@ class AdhocDataframeBuilder {
   base::StatusOr<Dataframe> Build() && {
     uint64_t row_count = std::numeric_limits<uint64_t>::max();
     RETURN_IF_ERROR(current_status_);
-    std::vector<std::shared_ptr<impl::Column>> columns;
+    std::vector<std::shared_ptr<Column>> columns;
     for (uint32_t i = 0; i < column_names_.size(); ++i) {
       auto& state = column_states_[i];
       size_t non_null_row_count;
       switch (state.data.index()) {
         case base::variant_index<DataVariant, std::nullopt_t>():
           non_null_row_count = 0;
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              impl::Storage{core::FlexVector<uint32_t>()},
+          columns.emplace_back(std::make_shared<Column>(Column{
+              Storage{core::FlexVector<uint32_t>()},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               Unsorted{},
               HasDuplicates{},
@@ -269,9 +268,9 @@ class AdhocDataframeBuilder {
                 summary.has_duplicates || CheckDuplicate(data[j], data.size());
           }
           auto integer = CreateIntegerStorage(std::move(data), summary);
-          impl::SpecializedStorage specialized_storage =
+          SpecializedStorage specialized_storage =
               GetSpecializedStorage(integer, summary);
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
+          columns.emplace_back(std::make_shared<Column>(Column{
               std::move(integer),
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               GetIntegerSortStateFromProperties(summary),
@@ -292,8 +291,8 @@ class AdhocDataframeBuilder {
           for (uint32_t j = 1; j < data.size(); ++j) {
             is_sorted = is_sorted && data[j - 1] <= data[j];
           }
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              impl::Storage{std::move(data)},
+          columns.emplace_back(std::make_shared<Column>(Column{
+              Storage{std::move(data)},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               is_sorted && !is_nullable ? SortState{Sorted{}}
                                         : SortState{Unsorted{}},
@@ -317,8 +316,8 @@ class AdhocDataframeBuilder {
               prev = curr;
             }
           }
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              impl::Storage{std::move(data)},
+          columns.emplace_back(std::make_shared<Column>(Column{
+              Storage{std::move(data)},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               is_sorted && !is_nullable ? SortState{Sorted{}}
                                         : SortState{Unsorted{}},
@@ -346,9 +345,9 @@ class AdhocDataframeBuilder {
     // Create an implicit id column for acting as a primary key even if there
     // are no other id columns.
     column_names_.emplace_back("_auto_id");
-    columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-        impl::Storage{impl::Storage::Id{static_cast<uint32_t>(row_count)}},
-        impl::NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
+    columns.emplace_back(std::make_shared<Column>(
+        Column{Storage{Storage::Id{static_cast<uint32_t>(row_count)}},
+               NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
     return Dataframe(true, std::move(column_names_), std::move(columns),
                      static_cast<uint32_t>(row_count), string_pool_);
   }
@@ -478,34 +477,29 @@ class AdhocDataframeBuilder {
     }
   }
 
-  static impl::Storage CreateIntegerStorage(
-      core::FlexVector<int64_t> data,
-      const IntegerColumnSummary& summary) {
+  static Storage CreateIntegerStorage(core::FlexVector<int64_t> data,
+                                      const IntegerColumnSummary& summary) {
     // TODO(lalitm): `!summary.is_nullable` is an unnecesarily strong condition
     // but we impose it as query planning assumes that id columns never have an
     // index added to them.
     if (summary.is_id_sorted && !summary.is_nullable) {
-      return impl::Storage{
-          impl::Storage::Id{static_cast<uint32_t>(data.size())}};
+      return Storage{Storage::Id{static_cast<uint32_t>(data.size())}};
     }
     if (IsRangeFullyRepresentableByType<uint32_t>(summary.min, summary.max)) {
-      return impl::Storage{
-          impl::Storage::Uint32{DowncastFromInt64<uint32_t>(data)}};
+      return Storage{Storage::Uint32{DowncastFromInt64<uint32_t>(data)}};
     }
     if (IsRangeFullyRepresentableByType<int32_t>(summary.min, summary.max)) {
-      return impl::Storage{
-          impl::Storage::Int32{DowncastFromInt64<int32_t>(data)}};
+      return Storage{Storage::Int32{DowncastFromInt64<int32_t>(data)}};
     }
-    return impl::Storage{impl::Storage::Int64{std::move(data)}};
+    return Storage{Storage::Int64{std::move(data)}};
   }
 
-  static impl::NullStorage CreateNullStorageFromBitvector(
+  static NullStorage CreateNullStorageFromBitvector(
       std::optional<core::BitVector> bit_vector) {
     if (bit_vector) {
-      return impl::NullStorage{
-          impl::NullStorage::SparseNull{*std::move(bit_vector), {}}};
+      return NullStorage{NullStorage::SparseNull{*std::move(bit_vector), {}}};
     }
-    return impl::NullStorage{impl::NullStorage::NonNull{}};
+    return NullStorage{NullStorage::NonNull{}};
   }
 
   template <typename T>
@@ -548,13 +542,13 @@ class AdhocDataframeBuilder {
     return SortState{Unsorted{}};
   }
 
-  static impl::SpecializedStorage GetSpecializedStorage(
-      const impl::Storage& storage,
+  static SpecializedStorage GetSpecializedStorage(
+      const Storage& storage,
       const IntegerColumnSummary& summary) {
     // If we're already sorted or setid_sorted, we don't need specialized
     // storage.
     if (summary.is_id_sorted || summary.is_setid_sorted) {
-      return impl::SpecializedStorage{};
+      return SpecializedStorage{};
     }
 
     // Check if we meet the hard conditions for small value eq.
@@ -569,12 +563,12 @@ class AdhocDataframeBuilder {
       }
     }
     // Otherwise, we cannot use specialized storage.
-    return impl::SpecializedStorage{};
+    return SpecializedStorage{};
   }
 
-  PERFETTO_NO_INLINE static impl::SpecializedStorage::SmallValueEq
-  BuildSmallValueEq(const core::FlexVector<uint32_t>& data) {
-    impl::SpecializedStorage::SmallValueEq offset_bv{
+  PERFETTO_NO_INLINE static SpecializedStorage::SmallValueEq BuildSmallValueEq(
+      const core::FlexVector<uint32_t>& data) {
+    SpecializedStorage::SmallValueEq offset_bv{
         core::BitVector::CreateWithSize(data.empty() ? 0 : data.back() + 1,
                                         false),
         {},
@@ -656,6 +650,6 @@ class AdhocDataframeBuilder {
   core::BitVector duplicate_bit_vector_;
 };
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_ADHOC_DATAFRAME_BUILDER_H_

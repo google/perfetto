@@ -26,8 +26,11 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/range.h"
+#include "src/trace_processor/core/util/slab.h"
+#include "src/trace_processor/core/util/span.h"
 
-namespace perfetto::trace_processor::interpreter::reg {
+namespace perfetto::trace_processor::core::interpreter::reg {
 
 // Register system for the bytecode interpreter.
 // Provides typed handles for accessing virtual registers with appropriate
@@ -102,6 +105,6 @@ using Value = std::variant<Empty,
                            Slab<uint8_t>,
                            StringIdToRankMap>;
 
-}  // namespace perfetto::trace_processor::interpreter::reg
+}  // namespace perfetto::trace_processor::core::interpreter::reg
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_REGISTERS_H_

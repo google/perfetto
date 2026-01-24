@@ -27,14 +27,15 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/impl/query_plan.h"
+#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/core/dataframe/value_fetcher.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
+
+// Namespace alias for the interpreter types.
 
 // Callback for receiving cell values
 struct CellCallback {
@@ -57,9 +58,9 @@ class Cursor {
   Cursor() = default;
 
   // Initializes the cursor from a query plan and dataframe columns.
-  void Initialize(const impl::QueryPlan& plan,
+  void Initialize(const QueryPlanImpl& plan,
                   uint32_t column_count,
-                  const impl::Column* const* column_ptrs,
+                  const Column* const* column_ptrs,
                   const Index* indexes,
                   const StringPool* pool) {
     interpreter_.Initialize(plan.bytecode, plan.params.register_count,
@@ -109,7 +110,7 @@ class Cursor {
     static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
                   "CellCallbackImpl must be a subclass of CellCallback");
     PERFETTO_DCHECK(col < col_to_output_offset_.size());
-    const impl::Storage::DataPointer& p = column_storage_data_ptrs_[col];
+    const Storage::DataPointer& p = column_storage_data_ptrs_[col];
     uint32_t idx = pos_[col_to_output_offset_[col]];
     if (idx == std::numeric_limits<uint32_t>::max()) {
       cell_callback_impl.OnCell(nullptr);
@@ -120,20 +121,20 @@ class Cursor {
         cell_callback_impl.OnCell(idx);
         break;
       case StorageType::GetTypeIndex<Uint32>():
-        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Uint32>(p)[idx]);
+        cell_callback_impl.OnCell(Storage::CastDataPtr<Uint32>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<Int32>():
-        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Int32>(p)[idx]);
+        cell_callback_impl.OnCell(Storage::CastDataPtr<Int32>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<Int64>():
-        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Int64>(p)[idx]);
+        cell_callback_impl.OnCell(Storage::CastDataPtr<Int64>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<Double>():
-        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Double>(p)[idx]);
+        cell_callback_impl.OnCell(Storage::CastDataPtr<Double>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<String>():
         cell_callback_impl.OnCell(
-            pool_->Get(impl::Storage::CastDataPtr<String>(p)[idx]));
+            pool_->Get(Storage::CastDataPtr<String>(p)[idx]));
         break;
       default:
         PERFETTO_FATAL("Invalid storage spec");
@@ -142,13 +143,13 @@ class Cursor {
 
  private:
   // Bytecode interpreter that executes the query.
-  impl::bytecode::Interpreter<FilterValueFetcherImpl> interpreter_;
+  interpreter::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.
-  impl::QueryPlan::ExecutionParams params_;
+  QueryPlanImpl::ExecutionParams params_;
   // Maps column indices to their output offsets in the result set.
   base::SmallVector<uint32_t, 24> col_to_output_offset_;
   // Variant of pointers to the storage data.
-  std::vector<impl::Storage::DataPointer> column_storage_data_ptrs_;
+  std::vector<Storage::DataPointer> column_storage_data_ptrs_;
   // String pool for string values.
   const StringPool* pool_;
 
@@ -158,6 +159,6 @@ class Cursor {
   const uint32_t* end_;
 };
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_CURSOR_H_

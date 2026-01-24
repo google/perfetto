@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_TYPE_SET_H_
-#define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_TYPE_SET_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_TYPE_SET_H_
+#define SRC_TRACE_PROCESSOR_CORE_UTIL_TYPE_SET_H_
 
 #include <array>
 #include <cstddef>
@@ -28,7 +28,7 @@
 
 #include "perfetto/base/logging.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core {
 
 // TypeSet: memory-efficient type hierarchy system with explicit ownership.
 //
@@ -231,6 +231,6 @@ class TypeSet {
   uint32_t type_idx_;
 };
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_TYPE_SET_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_UTIL_TYPE_SET_H_

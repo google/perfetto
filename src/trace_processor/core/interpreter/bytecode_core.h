@@ -32,41 +32,43 @@
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/common/sort_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 
-namespace perfetto::trace_processor::interpreter {
+namespace perfetto::trace_processor::core::interpreter {
 
 // Base bytecode structure representing a single instruction with operation
 // code and fixed-size buffer for arguments.
 struct Bytecode {
   uint32_t option = 0;                    // Opcode determining instruction type
   std::array<uint8_t, 32> args_buffer{};  // Storage for instruction arguments
-
- protected:
-  // Helper for generating the offsets array for instruction arguments.
-  template <typename T>
-  static constexpr auto MakeOffsetsArray() {
-    constexpr auto kOffsets = MakeOffsetsArrayImpl<T>(
-        std::make_index_sequence<std::tuple_size_v<T>>());
-    static_assert(kOffsets[std::tuple_size_v<T>] <= sizeof(args_buffer));
-    return kOffsets;
-  }
-  template <typename T, size_t... I>
-  static constexpr auto MakeOffsetsArrayImpl(std::index_sequence<I...>) {
-    std::array<uint32_t, std::tuple_size_v<T> + 1> offsets{};
-    ((offsets[I + 1] = offsets[I] + sizeof(std::tuple_element_t<I, T>)), ...);
-    // Ensure that all the types have aligned offsets.
-    ((offsets[I + 1] % alignof(std::tuple_element_t<I, T>) == 0
-          ? void()
-          : PERFETTO_ELOG("Type index %zu is not aligned to %zu", I,
-                          alignof(std::tuple_element_t<I, T>))),
-     ...);
-    return offsets;
-  }
 };
 static_assert(std::is_trivially_copyable_v<Bytecode>);
 static_assert(sizeof(Bytecode) <= 36);
+
+template <typename T, size_t... I>
+constexpr auto MakeOffsetsArrayImpl(std::index_sequence<I...>) {
+  std::array<uint32_t, std::tuple_size_v<T> + 1> offsets{};
+  ((offsets[I + 1] = offsets[I] + sizeof(std::tuple_element_t<I, T>)), ...);
+  // Ensure that all the types have aligned offsets.
+  ((offsets[I + 1] % alignof(std::tuple_element_t<I, T>) == 0
+        ? void()
+        : PERFETTO_ELOG("Type index %zu is not aligned to %zu", I,
+                        alignof(std::tuple_element_t<I, T>))),
+   ...);
+  return offsets;
+}
+
+// Helper for generating the offsets array for instruction arguments.
+template <typename T>
+constexpr std::array<uint32_t, std::tuple_size_v<T> + 1> MakeOffsetsArray() {
+  constexpr auto kOffsets =
+      MakeOffsetsArrayImpl<T>(std::make_index_sequence<std::tuple_size_v<T>>());
+  static_assert(kOffsets[std::tuple_size_v<T>] <=
+                sizeof(Bytecode::args_buffer));
+  return kOffsets;
+}
 
 // Indicates that the bytecode has a fixed cost.
 struct FixedCost {
@@ -245,6 +247,6 @@ PERFETTO_NO_INLINE inline std::string BytecodeFieldsFormat(
 #define PERFETTO_DATAFRAME_BYTECODE_IMPL_1(t1, n1) \
   PERFETTO_DATAFRAME_BYTECODE_IMPL_2(t1, n1, uint32_t, pad2)
 
-}  // namespace perfetto::trace_processor::interpreter
+}  // namespace perfetto::trace_processor::core::interpreter
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_CORE_H_

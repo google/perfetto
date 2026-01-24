@@ -22,11 +22,14 @@ source_set("dataframe") {
     "cursor_impl.h",
     "dataframe.cc",
     "dataframe.h",
+    "query_plan.cc",
+    "query_plan.h",
     "runtime_dataframe_builder.h",
     "typed_cursor.cc",
     "typed_cursor.h",
   ]
   deps = [
+    ":types",
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
@@ -34,23 +37,32 @@ source_set("dataframe") {
     "../../util:regex",
     "../common",
     "../interpreter",
-    "impl",
+    "../util",
   ]
   public_deps = [ ":specs" ]
 }
 
-source_set("specs") {
-  sources = [
-    "specs.h",
-    "type_set.h",
-    "types.h",
-    "value_fetcher.h",
-  ]
+source_set("types") {
+  sources = [ "types.h" ]
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
+    "../common",
+    "../util",
   ]
+}
+
+source_set("specs") {
+  sources = [ "specs.h" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../containers",
+    "../common",
+    "../util",
+  ]
+  public_deps = [ ":types" ]
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -59,7 +71,6 @@ perfetto_unittest_source_set("unittests") {
     "dataframe_test_utils.h",
     "dataframe_unittest.cc",
     "runtime_dataframe_builder_unittest.cc",
-    "type_set_unittest.cc",
   ]
   deps = [
     ":dataframe",
@@ -69,8 +80,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../base:test_support",
     "../../containers",
     "../../util:regex",
-    "../common",
     "../interpreter",
-    "impl",
+    "../util",
   ]
 }

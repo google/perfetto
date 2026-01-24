@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/common/sort.h"
+#include "src/trace_processor/core/util/sort.h"
 
 #include <cstdint>
 #include <random>

@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_TYPED_CURSOR_H_
 #define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_TYPED_CURSOR_H_
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -28,13 +27,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/core/dataframe/value_fetcher.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/slab.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 class Dataframe;
 
@@ -206,6 +205,6 @@ class TypedCursor {
       std::numeric_limits<uint32_t>::max();
 };
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_TYPED_CURSOR_H_

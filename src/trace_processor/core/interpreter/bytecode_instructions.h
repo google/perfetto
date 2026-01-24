@@ -24,13 +24,17 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/core/common/slab.h"
+#include "src/trace_processor/core/common/null_types.h"
+#include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
-#include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/util/range.h"
+#include "src/trace_processor/core/util/slab.h"
+#include "src/trace_processor/core/util/span.h"
 
-namespace perfetto::trace_processor::interpreter {
+namespace perfetto::trace_processor::core::interpreter {
 
 // Bytecode instructions - each represents a specific operation for query
 // execution.
@@ -820,8 +824,7 @@ PERFETTO_ALWAYS_INLINE constexpr uint32_t Index(const V1& f, const V2& s) {
 // Converts a bytecode instruction to string representation.
 inline std::string ToString(const Bytecode& op) {
 #define PERFETTO_DATAFRAME_BYTECODE_CASE_TO_STRING(...)            \
-  case base::variant_index<BytecodeVariant,                        \
-                           __VA_ARGS__>(): {                       \
+  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {      \
     __VA_ARGS__ typed_op;                                          \
     typed_op.option = op.option;                                   \
     typed_op.args_buffer = op.args_buffer;                         \
@@ -834,6 +837,6 @@ inline std::string ToString(const Bytecode& op) {
   }
 }
 
-}  // namespace perfetto::trace_processor::interpreter
+}  // namespace perfetto::trace_processor::core::interpreter
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INSTRUCTIONS_H_
