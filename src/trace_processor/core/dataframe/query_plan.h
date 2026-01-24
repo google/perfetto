@@ -42,13 +42,39 @@
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
-// Namespace alias for the bytecode interpreter.
+// Specification for initializing a register before bytecode execution.
+// The plan contains abstract references (column indices, index IDs), and
+// the cursor converts these to concrete pointers based on the kind.
+struct RegisterInit {
+  struct NullBitvector {};
+  struct IndexVector {};
+  struct SmallValueEqBitvector {};
+  struct SmallValueEqPopcount {};
+
+  using Type = TypeSet<Id,
+                       Uint32,
+                       Int32,
+                       Int64,
+                       Double,
+                       String,
+                       NullBitvector,
+                       IndexVector,
+                       SmallValueEqBitvector,
+                       SmallValueEqPopcount>;
+  uint32_t dest_register = 0;
+  Type kind{Id{}};
+  uint16_t source_index = 0;  // col_index or index_id depending on kind
+  uint16_t pad_ = 0;          // Explicit trailing padding
+};
+static_assert(std::is_trivially_copyable_v<RegisterInit>);
 
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
@@ -59,7 +85,7 @@ struct QueryPlanImpl {
     double estimated_cost = 0;
 
     // Register holding the final filtered indices.
-    interpreter::reg::ReadHandle<Span<uint32_t>> output_register;
+    interpreter::ReadHandle<Span<uint32_t>> output_register{};
 
     // The maximum number of rows it's possible for this query plan to return.
     uint32_t max_row_count = 0;
@@ -86,7 +112,9 @@ struct QueryPlanImpl {
     size_t size = sizeof(params) + sizeof(size_t) +
                   (bytecode.size() * sizeof(interpreter::Bytecode)) +
                   sizeof(size_t) +
-                  (col_to_output_offset.size() * sizeof(uint32_t));
+                  (col_to_output_offset.size() * sizeof(uint32_t)) +
+                  sizeof(size_t) +
+                  (register_inits.size() * sizeof(RegisterInit));
     std::string res(size, '\0');
     char* p = res.data();
     {
@@ -113,6 +141,16 @@ struct QueryPlanImpl {
       memcpy(p, col_to_output_offset.data(), columns_size * sizeof(uint32_t));
       p += columns_size * sizeof(uint32_t);
     }
+    {
+      size_t register_inits_size = register_inits.size();
+      memcpy(p, &register_inits_size, sizeof(register_inits_size));
+      p += sizeof(register_inits_size);
+    }
+    {
+      memcpy(p, register_inits.data(),
+             register_inits.size() * sizeof(RegisterInit));
+      p += register_inits.size() * sizeof(RegisterInit);
+    }
     PERFETTO_CHECK(p == res.data() + res.size());
     return base::Base64Encode(base::StringView(res));
   }
@@ -127,6 +165,7 @@ struct QueryPlanImpl {
     const char* p = raw_data->data();
     size_t bytecode_size;
     size_t columns_size;
+    size_t register_inits_size;
     {
       memcpy(&res.params, p, sizeof(res.params));
       p += sizeof(res.params);
@@ -155,6 +194,19 @@ struct QueryPlanImpl {
              columns_size * sizeof(uint32_t));
       p += columns_size * sizeof(uint32_t);
     }
+    {
+      memcpy(&register_inits_size, p, sizeof(register_inits_size));
+      p += sizeof(register_inits_size);
+    }
+    {
+      for (size_t i = 0; i < register_inits_size; ++i) {
+        alignas(RegisterInit) char buf[sizeof(RegisterInit)];
+        memcpy(buf, p, sizeof(RegisterInit));
+        p += sizeof(RegisterInit);
+        res.register_inits.emplace_back(
+            *reinterpret_cast<const RegisterInit*>(buf));
+      }
+    }
     PERFETTO_CHECK(p == raw_data->data() + raw_data->size());
     return res;
   }
@@ -162,6 +214,10 @@ struct QueryPlanImpl {
   ExecutionParams params;
   interpreter::BytecodeVector bytecode;
   base::SmallVector<uint32_t, 24> col_to_output_offset;
+
+  // Register initialization specifications.
+  // The cursor processes these to set up registers before bytecode execution.
+  base::SmallVector<RegisterInit, 16> register_inits;
 };
 
 // Builder class for creating query plans.
@@ -194,8 +250,8 @@ class QueryPlanBuilder {
 
  private:
   // Represents register types for holding indices.
-  using IndicesReg = std::variant<interpreter::reg::RwHandle<Range>,
-                                  interpreter::reg::RwHandle<Span<uint32_t>>>;
+  using IndicesReg = std::variant<interpreter::RwHandle<Range>,
+                                  interpreter::RwHandle<Span<uint32_t>>>;
 
   // Indicates that the bytecode does not change the estimated or maximum number
   // of rows.
@@ -232,14 +288,20 @@ class QueryPlanBuilder {
 
   // State information for a column during query planning.
   struct ColumnState {
-    std::optional<interpreter::reg::RwHandle<Slab<uint32_t>>> prefix_popcount;
+    std::optional<interpreter::RwHandle<Slab<uint32_t>>> prefix_popcount;
+    std::optional<interpreter::RwHandle<interpreter::StoragePtr>>
+        storage_register;
+    std::optional<interpreter::ReadHandle<const BitVector*>> null_bv_register;
+    std::optional<interpreter::ReadHandle<const BitVector*>>
+        small_value_eq_bv_register;
+    std::optional<interpreter::ReadHandle<Span<uint32_t>>>
+        small_value_eq_popcount_register;
   };
 
   // Constructs a builder for the given number of rows and columns.
-  QueryPlanBuilder(
-      uint32_t row_count,
-      const std::vector<std::shared_ptr<Column>>& columns,
-      const std::vector<Index>& indexes);
+  QueryPlanBuilder(uint32_t row_count,
+                   const std::vector<std::shared_ptr<Column>>& columns,
+                   const std::vector<Index>& indexes);
 
   // Adds filter operations to the query plan based on filter specifications.
   // Optimizes the order of filters for efficiency.
@@ -271,14 +333,14 @@ class QueryPlanBuilder {
       const FilterSpec& c,
       const interpreter::NonStringType& type,
       const interpreter::NonStringOp& op,
-      const interpreter::reg::ReadHandle<interpreter::CastFilterValueResult>&
+      const interpreter::ReadHandle<interpreter::CastFilterValueResult>&
           result);
 
   // Processes string filter constraints.
   base::Status StringConstraint(
       const FilterSpec& c,
       const interpreter::StringOp& op,
-      const interpreter::reg::ReadHandle<interpreter::CastFilterValueResult>&
+      const interpreter::ReadHandle<interpreter::CastFilterValueResult>&
           result);
 
   // Processes null filter constraints.
@@ -300,7 +362,7 @@ class QueryPlanBuilder {
   // in the given column. The indices are pruned in-place, and the
   // `indices_register` is updated to contain only non-null indices.
   void PruneNullIndices(uint32_t col,
-                        interpreter::reg::RwHandle<Span<uint32_t>> indices);
+                        interpreter::RwHandle<Span<uint32_t>> indices);
 
   // Given a list of table indices pointing to *only* non-null rows,
   // if necessary, translates them to the storage indices for the given column.
@@ -311,13 +373,13 @@ class QueryPlanBuilder {
   //
   // Returns a register handle to the translated indices (either
   // `indices_register` or the scratch register).
-  interpreter::reg::RwHandle<Span<uint32_t>> TranslateNonNullIndices(
+  interpreter::RwHandle<Span<uint32_t>> TranslateNonNullIndices(
       uint32_t col,
-      interpreter::reg::RwHandle<Span<uint32_t>> indices_register,
+      interpreter::RwHandle<Span<uint32_t>> indices_register,
       bool in_place);
 
   // Ensures indices are stored in a Slab, converting from Range if necessary.
-  PERFETTO_NO_INLINE interpreter::reg::RwHandle<Span<uint32_t>>
+  PERFETTO_NO_INLINE interpreter::RwHandle<Span<uint32_t>>
   EnsureIndicesAreInSlab();
 
   // Adds a new bytecode instruction of type T to the plan.
@@ -343,15 +405,39 @@ class QueryPlanBuilder {
   void SetGuaranteedToBeEmpty();
 
   // Returns the prefix popcount register for the given column.
-  interpreter::reg::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
+  interpreter::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
       uint32_t col);
 
-  interpreter::reg::ReadHandle<interpreter::CastFilterValueResult>
-  CastFilterValue(FilterSpec& c,
-                  const StorageType& ct,
-                  interpreter::NonNullOp non_null_op);
+  // Allocates a register for column data pointer and adds RegisterInit entry.
+  // Returns a HandleBase that can be assigned to typed data_register fields.
+  interpreter::RwHandle<interpreter::StoragePtr> StorageRegisterFor(
+      uint32_t col,
+      StorageType storage_type);
 
-  interpreter::reg::RwHandle<Span<uint32_t>> GetOrCreateScratchSpanRegister(
+  // Helper template to create or retrieve a register from ColumnState.
+  template <typename Handle, typename InitType, typename StateField>
+  Handle GetOrCreateInitRegister(uint32_t col,
+                                 StateField ColumnState::* field,
+                                 InitType init_type);
+
+  // Returns the null bitvector register for the given column.
+  interpreter::ReadHandle<const BitVector*> NullBitvectorRegisterFor(
+      uint32_t col);
+
+  // Returns the SmallValueEq bitvector register for the given column.
+  interpreter::ReadHandle<const BitVector*> SmallValueEqBvRegisterFor(
+      uint32_t col);
+
+  // Returns the SmallValueEq popcount register for the given column.
+  interpreter::ReadHandle<Span<uint32_t>> SmallValueEqPopcountRegisterFor(
+      uint32_t col);
+
+  interpreter::ReadHandle<interpreter::CastFilterValueResult> CastFilterValue(
+      FilterSpec& c,
+      const StorageType& ct,
+      interpreter::NonNullOp non_null_op);
+
+  interpreter::RwHandle<Span<uint32_t>> GetOrCreateScratchSpanRegister(
       uint32_t size);
 
   // Parameters for conversion to row layout.
@@ -369,18 +455,17 @@ class QueryPlanBuilder {
   uint16_t CalculateRowLayoutStride(
       const std::vector<RowLayoutParams>& row_layout_params);
 
-  interpreter::reg::RwHandle<Slab<uint8_t>> CopyToRowLayout(
+  interpreter::RwHandle<Slab<uint8_t>> CopyToRowLayout(
       uint16_t row_stride,
-      interpreter::reg::RwHandle<Span<uint32_t>> indices,
-      interpreter::reg::ReadHandle<interpreter::reg::StringIdToRankMap>
-          rank_map,
+      interpreter::RwHandle<Span<uint32_t>> indices,
+      interpreter::ReadHandle<interpreter::StringIdToRankMap> rank_map,
       const std::vector<RowLayoutParams>& row_layout_params);
 
   void MaybeReleaseScratchSpanRegister();
 
   void AddLinearFilterEqBytecode(
       const FilterSpec&,
-      const interpreter::reg::ReadHandle<interpreter::CastFilterValueResult>&,
+      const interpreter::ReadHandle<interpreter::CastFilterValueResult>&,
       const interpreter::NonIdStorageType&);
 
   bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
@@ -406,8 +491,8 @@ class QueryPlanBuilder {
   // the scratch indices in both Span and Slab forms.
   struct ScratchIndices {
     uint32_t size;
-    interpreter::reg::RwHandle<Slab<uint32_t>> slab;
-    interpreter::reg::RwHandle<Span<uint32_t>> span;
+    interpreter::RwHandle<Slab<uint32_t>> slab;
+    interpreter::RwHandle<Span<uint32_t>> span;
     bool in_use = false;
   };
   std::optional<ScratchIndices> scratch_indices_;

@@ -175,9 +175,9 @@ TEST_F(DataframeBytecodeTest, SingleFilter) {
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
+    SortedFilter<Id, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    Iota: [source_register=Register(0), update_register=Register(4)]
   )");
 }
 
@@ -198,11 +198,11 @@ TEST_F(DataframeBytecodeTest, MultipleFilters) {
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(2), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [col=1, val_register=Register(2), update_register=Register(0), write_result_to=BoundModifier(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
-    Iota: [source_register=Register(0), update_register=Register(4)]
+    SortedFilter<Id, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(3), op=NonNullOp(0)]
+    SortedFilter<Id, EqualRange>: [storage_register=Register(4), val_register=Register(3), update_register=Register(0), write_result_to=BoundModifier(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    Iota: [source_register=Register(0), update_register=Register(6)]
   )");
 }
 
@@ -213,9 +213,9 @@ TEST_F(DataframeBytecodeTest, NumericSortedEq) {
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Uint32, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
+    SortedFilter<Uint32, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    Iota: [source_register=Register(0), update_register=Register(4)]
   )");
 }
 
@@ -228,7 +228,7 @@ TEST_F(DataframeBytecodeTest, InFilter) {
     CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    In<Uint32>: [col=0, value_list_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    In<Uint32>: [storage_register=Register(4), value_list_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
 }
 
@@ -241,9 +241,9 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(2)]
-      SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
-      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      Iota: [source_register=Register(0), update_register=Register(3)]
+      SortedFilter<Uint32, LowerBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
+      AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+      Iota: [source_register=Register(0), update_register=Register(4)]
     )");
   }
   {
@@ -254,9 +254,9 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(3)]
-      SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
-      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      Iota: [source_register=Register(0), update_register=Register(3)]
+      SortedFilter<Uint32, UpperBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
+      AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+      Iota: [source_register=Register(0), update_register=Register(4)]
     )");
   }
   {
@@ -267,9 +267,9 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
-      SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      Iota: [source_register=Register(0), update_register=Register(3)]
+      SortedFilter<Uint32, UpperBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+      AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+      Iota: [source_register=Register(0), update_register=Register(4)]
     )");
   }
   {
@@ -280,9 +280,9 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
-      SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      Iota: [source_register=Register(0), update_register=Register(3)]
+      SortedFilter<Uint32, LowerBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+      AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+      Iota: [source_register=Register(0), update_register=Register(4)]
     )");
   }
 }
@@ -298,7 +298,7 @@ TEST_F(DataframeBytecodeTest, Numeric) {
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
       AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+      LinearFilterEq<Uint32>: [storage_register=Register(4), filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
     )");
   }
   {
@@ -312,7 +312,7 @@ TEST_F(DataframeBytecodeTest, Numeric) {
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
       AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
       Iota: [source_register=Register(0), update_register=Register(3)]
-      NonStringFilter<Uint32, Ge>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+      NonStringFilter<Uint32, Ge>: [storage_register=Register(4), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
   }
 }
@@ -337,23 +337,23 @@ TEST_F(DataframeBytecodeTest, SortingOfFilters) {
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(2), op=NonNullOp(3)]
-    SortedFilter<Id, UpperBound>: [col=0, val_register=Register(2), update_register=Register(0), write_result_to=BoundModifier(2)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(2), write_register=Register(3), op=NonNullOp(0)]
-    SortedFilter<Uint32, EqualRange>: [col=1, val_register=Register(3), update_register=Register(0), write_result_to=BoundModifier(0)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(3), write_register=Register(4), op=NonNullOp(3)]
-    SortedFilter<Uint32, UpperBound>: [col=1, val_register=Register(4), update_register=Register(0), write_result_to=BoundModifier(2)]
-    CastFilterValue<String>: [fval_handle=FilterValue(4), write_register=Register(5), op=NonNullOp(0)]
-    SortedFilter<String, EqualRange>: [col=3, val_register=Register(5), update_register=Register(0), write_result_to=BoundModifier(0)]
-    CastFilterValue<String>: [fval_handle=FilterValue(5), write_register=Register(6), op=NonNullOp(3)]
-    SortedFilter<String, UpperBound>: [col=3, val_register=Register(6), update_register=Register(0), write_result_to=BoundModifier(2)]
-    CastFilterValue<String>: [fval_handle=FilterValue(6), write_register=Register(7), op=NonNullOp(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(8), dest_span_register=Register(9)]
-    Iota: [source_register=Register(0), update_register=Register(9)]
-    StringFilter<Le>: [col=4, val_register=Register(7), source_register=Register(9), update_register=Register(9)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(7), write_register=Register(10), op=NonNullOp(0)]
-    NonStringFilter<Uint32, Eq>: [col=2, val_register=Register(10), source_register=Register(9), update_register=Register(9)]
+    SortedFilter<Id, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(3), op=NonNullOp(3)]
+    SortedFilter<Id, UpperBound>: [storage_register=Register(2), val_register=Register(3), update_register=Register(0), write_result_to=BoundModifier(2)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(2), write_register=Register(4), op=NonNullOp(0)]
+    SortedFilter<Uint32, EqualRange>: [storage_register=Register(5), val_register=Register(4), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(3), write_register=Register(6), op=NonNullOp(3)]
+    SortedFilter<Uint32, UpperBound>: [storage_register=Register(5), val_register=Register(6), update_register=Register(0), write_result_to=BoundModifier(2)]
+    CastFilterValue<String>: [fval_handle=FilterValue(4), write_register=Register(7), op=NonNullOp(0)]
+    SortedFilter<String, EqualRange>: [storage_register=Register(8), val_register=Register(7), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<String>: [fval_handle=FilterValue(5), write_register=Register(9), op=NonNullOp(3)]
+    SortedFilter<String, UpperBound>: [storage_register=Register(8), val_register=Register(9), update_register=Register(0), write_result_to=BoundModifier(2)]
+    CastFilterValue<String>: [fval_handle=FilterValue(6), write_register=Register(10), op=NonNullOp(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(11), dest_span_register=Register(12)]
+    Iota: [source_register=Register(0), update_register=Register(12)]
+    StringFilter<Le>: [storage_register=Register(13), val_register=Register(10), source_register=Register(12), update_register=Register(12)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(7), write_register=Register(14), op=NonNullOp(0)]
+    NonStringFilter<Uint32, Eq>: [storage_register=Register(15), val_register=Register(14), source_register=Register(12), update_register=Register(12)]
   )");
 }
 
@@ -371,7 +371,7 @@ TEST_F(DataframeBytecodeTest, StringFilter) {
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(7)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    StringFilter<Regex>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    StringFilter<Regex>: [storage_register=Register(4), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
 }
 
@@ -386,7 +386,7 @@ TEST_F(DataframeBytecodeTest, StringFilterGlob) {
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(6)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    StringFilter<Glob>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    StringFilter<Glob>: [storage_register=Register(4), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
 }
 
@@ -400,7 +400,7 @@ TEST_F(DataframeBytecodeTest, SparseNullFilters) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullFilter<IsNull>: [col=0, update_register=Register(2)]
+    NullFilter<IsNull>: [null_bv_register=Register(3), update_register=Register(2)]
   )",
                     /*cols_used=*/0);
   }
@@ -416,7 +416,7 @@ TEST_F(DataframeBytecodeTest, SparseNullFilters) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(2)]
+    NullFilter<IsNotNull>: [null_bv_register=Register(3), update_register=Register(2)]
   )",
                     /*cols_used=*/0);
   }
@@ -434,7 +434,7 @@ TEST_F(DataframeBytecodeTest, DenseNullFilters) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullFilter<IsNull>: [col=0, update_register=Register(2)]
+    NullFilter<IsNull>: [null_bv_register=Register(3), update_register=Register(2)]
   )",
                     /*cols_used=*/0);
   }
@@ -450,7 +450,7 @@ TEST_F(DataframeBytecodeTest, DenseNullFilters) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(2)]
+    NullFilter<IsNotNull>: [null_bv_register=Register(3), update_register=Register(2)]
   )",
                     /*cols_used=*/0);
   }
@@ -500,11 +500,11 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    PrefixPopcount: [col=0, dest_register=Register(6)]
-    TranslateSparseNullIndices: [col=0, popcount_register=Register(6), source_register=Register(3), update_register=Register(5)]
-    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(5), update_register=Register(3)]
+    NullFilter<IsNotNull>: [null_bv_register=Register(4), update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    PrefixPopcount: [null_bv_register=Register(4), dest_register=Register(7)]
+    TranslateSparseNullIndices: [null_bv_register=Register(4), popcount_register=Register(7), source_register=Register(3), update_register=Register(6)]
+    NonStringFilter<Uint32, Eq>: [storage_register=Register(8), val_register=Register(1), source_register=Register(6), update_register=Register(3)]
   )",
                   /*cols_used=*/0);
 }
@@ -523,8 +523,8 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnDenseNull) {
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(3)]
-    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    NullFilter<IsNotNull>: [null_bv_register=Register(4), update_register=Register(3)]
+    NonStringFilter<Uint32, Eq>: [storage_register=Register(5), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )",
                   /*cols_used=*/0);
 }
@@ -554,8 +554,8 @@ TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
     StrideCopy: [source_register=Register(2), update_register=Register(4), stride=2]
-    PrefixPopcount: [col=1, dest_register=Register(5)]
-    StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(5), update_register=Register(4), offset=1, stride=2]
+    PrefixPopcount: [null_bv_register=Register(6), dest_register=Register(5)]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(6), popcount_register=Register(5), update_register=Register(4), offset=1, stride=2]
   )",
                   cols_used);
 }
@@ -585,7 +585,7 @@ TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
     StrideCopy: [source_register=Register(2), update_register=Register(4), stride=2]
-    StrideCopyDenseNullIndices: [col=1, update_register=Register(4), offset=1, stride=2]
+    StrideCopyDenseNullIndices: [null_bv_register=Register(5), update_register=Register(4), offset=1, stride=2]
   )",
                   cols_used);
 }
@@ -618,9 +618,9 @@ TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
     StrideCopy: [source_register=Register(2), update_register=Register(4), stride=3]
-    PrefixPopcount: [col=1, dest_register=Register(5)]
-    StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(5), update_register=Register(4), offset=1, stride=3]
-    StrideCopyDenseNullIndices: [col=2, update_register=Register(4), offset=2, stride=3]
+    PrefixPopcount: [null_bv_register=Register(6), dest_register=Register(5)]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(6), popcount_register=Register(5), update_register=Register(4), offset=1, stride=3]
+    StrideCopyDenseNullIndices: [null_bv_register=Register(7), update_register=Register(4), offset=2, stride=3]
   )",
                   cols_used);
 }
@@ -635,9 +635,9 @@ TEST_F(DataframeBytecodeTest, Uint32SetIdSortedEqGeneration) {
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    Uint32SetIdSortedEq: [col=0, val_register=Register(1), update_register=Register(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
+    Uint32SetIdSortedEq: [storage_register=Register(2), val_register=Register(1), update_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    Iota: [source_register=Register(0), update_register=Register(4)]
   )");
 }
 // Test sorting by a single Uint32 column, ascending.
@@ -651,7 +651,7 @@ TEST_F(DataframeBytecodeTest, SortSingleUint32Asc) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=4, indices_register=Register(2)]
   )",
                   /*cols_used=*/1);
@@ -668,11 +668,11 @@ TEST_F(DataframeBytecodeTest, SortSingleStringDesc) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     InitRankMap: [dest_register=Register(3)]
-    CollectIdIntoRankMap: [col=0, source_register=Register(2), rank_map_register=Register(3)]
+    CollectIdIntoRankMap: [storage_register=Register(4), source_register=Register(2), rank_map_register=Register(3)]
     FinalizeRanksInMap: [update_register=Register(3)]
-    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(4)]
-    CopyToRowLayout<String, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(4), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(3)]
-    SortRowLayout: [buffer_register=Register(4), total_row_stride=4, indices_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(5)]
+    CopyToRowLayout<String, NonNull>: [storage_register=Register(4), null_bv_register=Register(6), source_indices_register=Register(2), dest_buffer_register=Register(5), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(3)]
+    SortRowLayout: [buffer_register=Register(5), total_row_stride=4, indices_register=Register(2)]
   )",
                   /*cols_used=*/1);
 }
@@ -693,8 +693,8 @@ TEST_F(DataframeBytecodeTest, SortMultiColumnStable) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Int64, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=16, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<Double, NonNull>: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=8, row_layout_stride=16, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Int64, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=16, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Double, NonNull>: [storage_register=Register(6), null_bv_register=Register(7), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=8, row_layout_stride=16, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=16, indices_register=Register(2)]
   )",
                   /*cols_used=*/3);
@@ -711,12 +711,12 @@ TEST_F(DataframeBytecodeTest, SortWithFilter) {
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
-    SortedFilter<Id, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(4)]
-    CopyToRowLayout<Double, NonNull>: [col=1, source_indices_register=Register(3), dest_buffer_register=Register(4), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    SortRowLayout: [buffer_register=Register(4), total_row_stride=8, indices_register=Register(3)]
+    SortedFilter<Id, UpperBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    Iota: [source_register=Register(0), update_register=Register(4)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(5)]
+    CopyToRowLayout<Double, NonNull>: [storage_register=Register(6), null_bv_register=Register(7), source_indices_register=Register(4), dest_buffer_register=Register(5), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(5), total_row_stride=8, indices_register=Register(4)]
   )",
                   /*cols_used=*/3);
 }
@@ -733,12 +733,12 @@ TEST_F(DataframeBytecodeTest, SortNullableColumn) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    PrefixPopcount: [col=0, dest_register=Register(4)]
-    CopyToRowLayout<Int32, SparseNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=1, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
+    CopyToRowLayout<Int32, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=1, popcount_register=Register(4), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=5, indices_register=Register(2)]
-    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
-    StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
+    AllocateIndices: [size=0, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    StrideCopy: [source_register=Register(2), update_register=Register(8), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(8), offset=1, stride=2]
   )",
                   /*cols_used=*/1);
 }
@@ -759,8 +759,8 @@ TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Int32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<String, NonNull>: [storage_register=Register(6), null_bv_register=Register(7), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     Distinct: [buffer_register=Register(3), total_row_stride=8, indices_register=Register(2)]
   )";
 
@@ -784,12 +784,12 @@ TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+    LinearFilterEq<Uint32>: [storage_register=Register(4), filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
     LimitOffsetIndices: [offset_value=2, limit_value=10, update_register=Register(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    StrideCopy: [source_register=Register(3), update_register=Register(5), stride=2]
-    PrefixPopcount: [col=1, dest_register=Register(6)]
-    StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(6), update_register=Register(5), offset=1, stride=2]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    StrideCopy: [source_register=Register(3), update_register=Register(6), stride=2]
+    PrefixPopcount: [null_bv_register=Register(8), dest_register=Register(7)]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(8), popcount_register=Register(7), update_register=Register(6), offset=1, stride=2]
   )",
                   /*cols_used=*/2);
 }
@@ -807,7 +807,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationApplied) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    FindMinMaxIndex<Uint32, MinOp>: [col=0, update_register=Register(2)]
+    FindMinMaxIndex<Uint32, MinOp>: [storage_register=Register(3), update_register=Register(2)]
   )";
 
   RunBytecodeTest(cols, filters, distinct_specs, sort_specs, limit_spec,
@@ -841,8 +841,8 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_MultipleSpecs) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<Int32, NonNull>: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Int32, NonNull>: [storage_register=Register(6), null_bv_register=Register(7), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=8, indices_register=Register(2)]
   )",
                   /*cols_used=*/3);  // 0b11
@@ -872,12 +872,12 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_NullableColumn) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    PrefixPopcount: [col=0, dest_register=Register(4)]
-    CopyToRowLayout<Uint32, SparseNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
+    CopyToRowLayout<Uint32, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=5, indices_register=Register(2)]
-    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
-    StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
+    AllocateIndices: [size=0, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    StrideCopy: [source_register=Register(2), update_register=Register(8), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(8), offset=1, stride=2]
   )",
                   /*cols_used=*/1);
 }
@@ -892,7 +892,7 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_UnsortedColumn) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=4, indices_register=Register(2)]
   )",
                   /*cols_used=*/1);
@@ -916,13 +916,13 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    PrefixPopcount: [col=0, dest_register=Register(4)]
-    CopyToRowLayout<Uint32, SparseNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
+    CopyToRowLayout<Uint32, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=5, indices_register=Register(2)]
     LimitOffsetIndices: [offset_value=0, limit_value=1, update_register=Register(2)]
-    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
-    StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
+    AllocateIndices: [size=0, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    StrideCopy: [source_register=Register(2), update_register=Register(8), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(8), offset=1, stride=2]
   )";
   RunBytecodeTest(cols, filters, distinct_specs, sort_specs, limit_spec,
                   expected_bytecode, /*cols_used=*/1);
@@ -945,11 +945,10 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_NonNullInt) {
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   std::string expected_bytecode = R"(
     InitRange: [size=100, dest_register=Register(0)]
-    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
-    AllocateIndices: [size=100, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    AllocateIndices: [size=100, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode,
                   /*cols_used=*/1);
@@ -976,15 +975,14 @@ TEST_F(DataframeBytecodeTest,
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
-    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
-    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
-    PrefixPopcount: [col=0, dest_register=Register(3)]
-    IndexedFilterEq<String, SparseNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
-    AllocateIndices: [size=4, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
-    AllocateIndices: [size=8, dest_slab_register=Register(6), dest_span_register=Register(7)]
-    StrideCopy: [source_register=Register(5), update_register=Register(7), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(3), update_register=Register(7), offset=1, stride=2]
+    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
+    IndexedFilterEq<String, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    AllocateIndices: [size=4, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
+    AllocateIndices: [size=8, dest_slab_register=Register(9), dest_span_register=Register(10)]
+    StrideCopy: [source_register=Register(8), update_register=Register(10), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(10), offset=1, stride=2]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
@@ -1006,14 +1004,13 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_DenseNullInt) {
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
-    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, DenseNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
-    AllocateIndices: [size=4, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
-    AllocateIndices: [size=8, dest_slab_register=Register(6), dest_span_register=Register(7)]
-    StrideCopy: [source_register=Register(5), update_register=Register(7), stride=2]
-    StrideCopyDenseNullIndices: [col=0, update_register=Register(7), offset=1, stride=2]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, DenseNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    AllocateIndices: [size=4, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
+    AllocateIndices: [size=8, dest_slab_register=Register(9), dest_span_register=Register(10)]
+    StrideCopy: [source_register=Register(8), update_register=Register(10), stride=2]
+    StrideCopyDenseNullIndices: [null_bv_register=Register(6), update_register=Register(10), offset=1, stride=2]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
@@ -1042,13 +1039,12 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
   };
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
-    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(4), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [col=1, filter_value_reg=Register(4), popcount_register=Register(5), update_register=Register(1)]
-    AllocateIndices: [size=4, dest_slab_register=Register(6), dest_span_register=Register(7)]
-    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(7)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(7), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(9), null_bv_register=Register(10), filter_value_reg=Register(7), popcount_register=Register(8), source_register=Register(2), dest_register=Register(2)]
+    AllocateIndices: [size=4, dest_slab_register=Register(11), dest_span_register=Register(12)]
+    CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(12)]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
@@ -1065,7 +1061,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullUint32) {
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+    LinearFilterEq<Uint32>: [storage_register=Register(4), filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
   )",
                   /*cols_used=*/1);
 }
@@ -1078,7 +1074,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullString) {
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    LinearFilterEq<String>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+    LinearFilterEq<String>: [storage_register=Register(4), filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
   )",
                   /*cols_used=*/1);
 }
@@ -1101,10 +1097,10 @@ TEST_F(DataframeBytecodeTest,
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
-    SortedFilter<Id, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(2), op=NonNullOp(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
-    LinearFilterEq<Uint32>: [col=1, filter_value_reg=Register(2), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(4)]
+    SortedFilter<Id, UpperBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(3), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    LinearFilterEq<Uint32>: [storage_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(5)]
   )",
                   /*cols_used=*/3);  // 0b11
 }
@@ -1119,7 +1115,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNotEqOperator) {
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    NonStringFilter<Uint32, Gt>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    NonStringFilter<Uint32, Gt>: [storage_register=Register(4), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )",
                   /*cols_used=*/1);
 }
@@ -1135,14 +1131,14 @@ TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNullableColumn) {
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    PrefixPopcount: [col=0, dest_register=Register(6)]
-    TranslateSparseNullIndices: [col=0, popcount_register=Register(6), source_register=Register(3), update_register=Register(5)]
-    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(5), update_register=Register(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(7), dest_span_register=Register(8)]
-    StrideCopy: [source_register=Register(3), update_register=Register(8), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(6), update_register=Register(8), offset=1, stride=2]
+    NullFilter<IsNotNull>: [null_bv_register=Register(4), update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    PrefixPopcount: [null_bv_register=Register(4), dest_register=Register(7)]
+    TranslateSparseNullIndices: [null_bv_register=Register(4), popcount_register=Register(7), source_register=Register(3), update_register=Register(6)]
+    NonStringFilter<Uint32, Eq>: [storage_register=Register(8), val_register=Register(1), source_register=Register(6), update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(9), dest_span_register=Register(10)]
+    StrideCopy: [source_register=Register(3), update_register=Register(10), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(4), popcount_register=Register(7), update_register=Register(10), offset=1, stride=2]
   )",
                   /*cols_used=*/1);
 }

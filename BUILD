@@ -345,8 +345,6 @@ perfetto_cc_library(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
-        ":src_trace_processor_core_dataframe_specs",
-        ":src_trace_processor_core_dataframe_types",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
@@ -550,8 +548,6 @@ perfetto_cc_library(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
-        ":src_trace_processor_core_dataframe_specs",
-        ":src_trace_processor_core_dataframe_types",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
@@ -2022,23 +2018,9 @@ perfetto_filegroup(
         "src/trace_processor/core/dataframe/query_plan.cc",
         "src/trace_processor/core/dataframe/query_plan.h",
         "src/trace_processor/core/dataframe/runtime_dataframe_builder.h",
+        "src/trace_processor/core/dataframe/specs.h",
         "src/trace_processor/core/dataframe/typed_cursor.cc",
         "src/trace_processor/core/dataframe/typed_cursor.h",
-    ],
-)
-
-# GN target: //src/trace_processor/core/dataframe:specs
-perfetto_filegroup(
-    name = "src_trace_processor_core_dataframe_specs",
-    srcs = [
-        "src/trace_processor/core/dataframe/specs.h",
-    ],
-)
-
-# GN target: //src/trace_processor/core/dataframe:types
-perfetto_filegroup(
-    name = "src_trace_processor_core_dataframe_types",
-    srcs = [
         "src/trace_processor/core/dataframe/types.h",
     ],
 )
@@ -8055,8 +8037,6 @@ perfetto_cc_library(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
-        ":src_trace_processor_core_dataframe_specs",
-        ":src_trace_processor_core_dataframe_types",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
@@ -8289,8 +8269,6 @@ perfetto_cc_binary(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
-        ":src_trace_processor_core_dataframe_specs",
-        ":src_trace_processor_core_dataframe_types",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
