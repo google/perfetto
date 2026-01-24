@@ -84,9 +84,9 @@ export interface Pivot {
   // underlying data. The keys are the groupBy column names.
   readonly drillDown?: readonly {field: string; value: SqlValue}[];
 
-  // When true, shows leaf-level rows only (no rollup/summary rows).
-  // This displays the data in a flat table format without hierarchical grouping.
-  readonly collapsibleGroups?: boolean;
+  // How to display grouped data: 'flat' shows leaf rows only, 'tree' shows
+  // hierarchical structure with expand/collapse.
+  readonly groupDisplay?: 'flat' | 'tree';
 
   // Allowlist mode: only these node IDs are expanded
   readonly expandedIds?: ReadonlySet<bigint>;

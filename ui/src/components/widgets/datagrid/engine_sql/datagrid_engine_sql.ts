@@ -106,10 +106,10 @@ export class DatagridEngineSQL implements DatagridEngine {
       case 'flat':
         return this.flatEngine.get(model);
       case 'pivot':
-        if (model.groupDisplay === 'tree') {
-          return this.pivotEngine.get(model);
-        } else {
+        if (model.groupDisplay === 'flat') {
           return this.pivotFlatEngine.get(model);
+        } else {
+          return this.pivotEngine.get(model);
         }
       default:
         assertUnreachable(mode);
