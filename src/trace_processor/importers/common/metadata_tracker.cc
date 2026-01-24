@@ -15,9 +15,11 @@
  */
 
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/crash_keys.h"
@@ -32,7 +34,62 @@ namespace perfetto::trace_processor {
 
 namespace {
 base::CrashKey g_crash_key_uuid("trace_uuid");
+
+using MachineId = tables::MachineTable::Id;
+
+// Returns the (machine_id, trace_id) pair that should be associated with a
+// metadata key based on its defined scope.
+//
+// For machine-scoped metadata, we default to MachineId(0) (the host machine)
+// if the context doesn't specify one. This ensures host metadata is correctly
+// linked to its machine table entry instead of having a NULL machine_id.
+std::pair<std::optional<MachineId>, std::optional<uint32_t>> GetContextIds(
+    TraceProcessorContext* context,
+    metadata::KeyId key) {
+  switch (metadata::kScopes[key]) {
+    case metadata::Scope::kGlobal:
+      return {std::nullopt, std::nullopt};
+    case metadata::Scope::kMachine:
+      return {context->machine_id().value_or(MachineId(0)), std::nullopt};
+    case metadata::Scope::kTrace:
+      return {std::nullopt, context->trace_id()};
+    case metadata::Scope::kMachineAndTrace:
+      return {context->machine_id().value_or(MachineId(0)),
+              context->trace_id()};
+    case metadata::Scope::kNumScopes:
+      PERFETTO_FATAL("Invalid scope");
+  }
+  PERFETTO_FATAL("For GCC");
 }
+
+// Returns true if |possible_parent| is an ancestor of |child| in the trace file
+// hierarchy. |nullopt| is considered the ultimate ancestor of everything.
+bool IsAncestor(TraceStorage* storage,
+                std::optional<uint32_t> possible_parent,
+                uint32_t child) {
+  if (!possible_parent.has_value()) {
+    return true;
+  }
+  const auto& table = storage->trace_file_table();
+  std::optional<uint32_t> current = child;
+  while (current) {
+    auto row = table.FindById(tables::TraceFileTable::Id(*current));
+    if (!row) {
+      break;
+    }
+    auto parent = row->parent_id();
+    if (!parent) {
+      break;
+    }
+    if (parent->value == *possible_parent) {
+      return true;
+    }
+    current = parent->value;
+  }
+  return false;
+}
+
+}  // namespace
 
 MetadataTracker::MetadataTracker(TraceProcessorContext* context)
     : context_(context) {
@@ -45,7 +102,10 @@ MetadataTracker::MetadataTracker(TraceProcessorContext* context)
   }
 }
 
-MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
+MetadataId MetadataTracker::SetMetadata(metadata::KeyId key,
+                                        Variadic value,
+                                        std::optional<MachineId> machine_id,
+                                        std::optional<uint32_t> trace_id) {
   PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::KeyType::kSingle);
   PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
 
@@ -56,6 +116,9 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
     g_crash_key_uuid.Set(uuid_string_view);
   }
 
+  if (!machine_id.has_value() && !trace_id.has_value()) {
+    std::tie(machine_id, trace_id) = GetContextIds(context_, key);
+  }
   auto& metadata_table = *context_->storage->mutable_metadata_table();
   auto key_idx = static_cast<uint32_t>(key);
   auto name_id =
@@ -63,8 +126,26 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
   if (name_id) {
     for (auto it = metadata_table.IterateRows(); it; ++it) {
       if (it.name() == *name_id) {
-        WriteValue(it.row_number().row_number(), value);
-        return it.id();
+        // Normal case: update if machine and trace IDs match.
+        if (it.machine_id() == machine_id && it.trace_id() == trace_id) {
+          WriteValue(it.row_number().row_number(), value);
+          return it.id();
+        }
+
+        // Special case for trace_uuid:
+        // We want to "promote" the UUID from a container (e.g. ZIP) to its
+        // first leaf trace. This ensures a single identity is maintained for
+        // the session's primary entry (the first trace processed), while
+        // allowing sibling traces (which are NOT descendants of each other) to
+        // have their own separate entries if they provide their own UUIDs.
+        if (key == metadata::trace_uuid && trace_id.has_value()) {
+          if (IsAncestor(context_->storage.get(), it.trace_id(), *trace_id)) {
+            // Hijack the row from the ancestor container.
+            it.set_trace_id(trace_id);
+            WriteValue(it.row_number().row_number(), value);
+            return it.id();
+          }
+        }
       }
     }
   }
@@ -72,6 +153,8 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
   tables::MetadataTable::Row row;
   row.name = key_ids_[key_idx];
   row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kSingle)];
+  row.machine_id = machine_id;
+  row.trace_id = trace_id;
 
   auto id_and_row = metadata_table.Insert(row);
   WriteValue(id_and_row.row, value);
@@ -82,6 +165,7 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
   // KeyType::kMulti not yet supported by this method:
   PERFETTO_CHECK(metadata::kKeyTypes[key] == metadata::KeyType::kSingle);
 
+  auto [machine_id, trace_id] = GetContextIds(context_, key);
   auto& metadata_table = *context_->storage->mutable_metadata_table();
   auto key_idx = static_cast<uint32_t>(key);
 
@@ -94,8 +178,19 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
   std::optional<tables::MetadataTable::RowReference> row;
   for (auto it = metadata_table.IterateRows(); it; ++it) {
     if (key_id == it.name()) {
-      row = it.ToRowReference();
-      break;
+      if (it.machine_id() == machine_id && it.trace_id() == trace_id) {
+        row = it.ToRowReference();
+        break;
+      }
+      // For trace_uuid, return the first entry if it's an ancestor of the
+      // current context. This ensures GetMetadata(trace_uuid) works even
+      // before promotion.
+      if (key == metadata::trace_uuid && trace_id.has_value()) {
+        if (IsAncestor(context_->storage.get(), it.trace_id(), *trace_id)) {
+          row = it.ToRowReference();
+          break;
+        }
+      }
     }
   }
   if (!row.has_value()) {
@@ -123,15 +218,22 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
 }
 
 MetadataId MetadataTracker::AppendMetadata(metadata::KeyId key,
-                                           Variadic value) {
+                                           Variadic value,
+                                           std::optional<MachineId> machine_id,
+                                           std::optional<uint32_t> trace_id) {
   PERFETTO_DCHECK(key < metadata::kNumKeys);
   PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::KeyType::kMulti);
   PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
 
+  if (!machine_id.has_value() && !trace_id.has_value()) {
+    std::tie(machine_id, trace_id) = GetContextIds(context_, key);
+  }
   uint32_t key_idx = static_cast<uint32_t>(key);
   tables::MetadataTable::Row row;
   row.name = key_ids_[key_idx];
   row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kMulti)];
+  row.machine_id = machine_id;
+  row.trace_id = trace_id;
 
   auto* metadata_table = context_->storage->mutable_metadata_table();
   auto id_and_row = metadata_table->Insert(row);
@@ -143,6 +245,8 @@ MetadataId MetadataTracker::SetDynamicMetadata(StringId key, Variadic value) {
   tables::MetadataTable::Row row;
   row.name = key;
   row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kSingle)];
+  row.machine_id = context_->machine_id();
+  row.trace_id = context_->trace_id();
 
   auto* metadata_table = context_->storage->mutable_metadata_table();
   auto id_and_row = metadata_table->Insert(row);

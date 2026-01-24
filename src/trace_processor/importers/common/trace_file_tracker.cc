@@ -75,9 +75,11 @@ void TraceFileTracker::DoneParsing(tables::TraceFileTable::Id id, size_t size) {
 
   if (!has_children) {
     context_->metadata_tracker->SetMetadata(metadata::trace_type,
-                                            Variadic::String(row.trace_type()));
+                                            Variadic::String(row.trace_type()),
+                                            std::nullopt, id.value);
     context_->metadata_tracker->SetMetadata(metadata::trace_size_bytes,
-                                            Variadic::Integer(row.size()));
+                                            Variadic::Integer(row.size()),
+                                            std::nullopt, id.value);
   }
 }
 
