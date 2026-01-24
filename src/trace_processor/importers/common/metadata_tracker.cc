@@ -34,12 +34,12 @@ namespace {
 base::CrashKey g_crash_key_uuid("trace_uuid");
 }
 
-MetadataTracker::MetadataTracker(TraceStorage* storage) : storage_(storage) {
+MetadataTracker::MetadataTracker(TraceProcessorContext* context) : context_(context) {
   for (uint32_t i = 0; i < kNumKeys; ++i) {
-    key_ids_[i] = storage->InternString(metadata::kNames[i]);
+    key_ids_[i] = context->storage->InternString(metadata::kNames[i]);
   }
   for (uint32_t i = 0; i < kNumKeyTypes; ++i) {
-    key_type_ids_[i] = storage->InternString(metadata::kKeyTypeNames[i]);
+    key_type_ids_[i] = context->storage->InternString(metadata::kKeyTypeNames[i]);
   }
 }
 
@@ -50,13 +50,13 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
   // When the trace_uuid is set, store a copy in a crash key, so in case of
   // a crash in the pipelines we can tell which trace caused the crash.
   if (key == metadata::trace_uuid && value.type == Variadic::kString) {
-    auto uuid_string_view = storage_->GetString(value.string_value);
+    auto uuid_string_view = context_->storage->GetString(value.string_value);
     g_crash_key_uuid.Set(uuid_string_view);
   }
 
-  auto& metadata_table = *storage_->mutable_metadata_table();
+  auto& metadata_table = *context_->storage->mutable_metadata_table();
   auto key_idx = static_cast<uint32_t>(key);
-  auto name_id = storage_->string_pool().GetId(metadata::kNames[key_idx]);
+  auto name_id = context_->storage->string_pool().GetId(metadata::kNames[key_idx]);
   if (name_id) {
     for (auto it = metadata_table.IterateRows(); it; ++it) {
       if (it.name() == *name_id) {
@@ -79,10 +79,10 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
   // KeyType::kMulti not yet supported by this method:
   PERFETTO_CHECK(metadata::kKeyTypes[key] == metadata::KeyType::kSingle);
 
-  auto& metadata_table = *storage_->mutable_metadata_table();
+  auto& metadata_table = *context_->storage->mutable_metadata_table();
   auto key_idx = static_cast<uint32_t>(key);
 
-  auto key_id = storage_->string_pool().GetId(metadata::kNames[key_idx]);
+  auto key_id = context_->storage->string_pool().GetId(metadata::kNames[key_idx]);
   if (!key_id) {
     return std::nullopt;
   }
@@ -104,7 +104,7 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
       return SqlValue::Long(*row->int_value());
     }
     case Variadic::kString:
-      return SqlValue::String(storage_->GetString(*row->str_value()).c_str());
+      return SqlValue::String(context_->storage->GetString(*row->str_value()).c_str());
     case Variadic::kNull:
       return SqlValue();
     case Variadic::kJson:
@@ -128,7 +128,7 @@ MetadataId MetadataTracker::AppendMetadata(metadata::KeyId key,
   row.name = key_ids_[key_idx];
   row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kMulti)];
 
-  auto* metadata_table = storage_->mutable_metadata_table();
+  auto* metadata_table = context_->storage->mutable_metadata_table();
   auto id_and_row = metadata_table->Insert(row);
   WriteValue(id_and_row.row, value);
   return id_and_row.id;
@@ -139,14 +139,14 @@ MetadataId MetadataTracker::SetDynamicMetadata(StringId key, Variadic value) {
   row.name = key;
   row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kSingle)];
 
-  auto* metadata_table = storage_->mutable_metadata_table();
+  auto* metadata_table = context_->storage->mutable_metadata_table();
   auto id_and_row = metadata_table->Insert(row);
   WriteValue(id_and_row.row, value);
   return id_and_row.id;
 }
 
 void MetadataTracker::WriteValue(uint32_t row, Variadic value) {
-  auto& metadata_table = *storage_->mutable_metadata_table();
+  auto& metadata_table = *context_->storage->mutable_metadata_table();
   auto rr = metadata_table[row];
   switch (value.type) {
     case Variadic::Type::kInt:

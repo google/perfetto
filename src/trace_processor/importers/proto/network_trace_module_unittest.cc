@@ -67,8 +67,7 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
     storage_ = context_.storage.get();
-    context_.metadata_tracker =
-        std::make_unique<MetadataTracker>(context_.storage.get());
+    context_.metadata_tracker = std::make_unique<MetadataTracker>(&context_);
     context_.import_logs_tracker =
         std::make_unique<ImportLogsTracker>(&context_, 1);
     context_.clock_tracker = std::make_unique<ClockTracker>(

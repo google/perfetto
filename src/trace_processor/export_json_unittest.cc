@@ -93,8 +93,7 @@ class ExportJsonTest : public ::testing::Test {
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.machine_tracker.reset(new MachineTracker(&context_, 0));
     context_.cpu_tracker.reset(new CpuTracker(&context_));
-    context_.metadata_tracker.reset(
-        new MetadataTracker(context_.storage.get()));
+    context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.process_track_translation_table.reset(
         new ProcessTrackTranslationTable(context_.storage.get()));

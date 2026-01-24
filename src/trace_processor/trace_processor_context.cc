@@ -160,8 +160,7 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->register_additional_proto_modules = nullptr;
 
   // Per-Trace State (Miscategorized).
-  context->metadata_tracker =
-      Ptr<MetadataTracker>::MakeRoot(context->storage.get());
+  context->metadata_tracker = Ptr<MetadataTracker>::MakeRoot(context);
   context->registered_file_tracker =
       Ptr<RegisteredFileTracker>::MakeRoot(context);
   context->uuid_state = Ptr<TraceProcessorContext::UuidState>::MakeRoot();

@@ -42,8 +42,7 @@ class ClockTrackerTest : public ::testing::Test {
     context_.storage.reset(new TraceStorage());
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
-    context_.metadata_tracker.reset(
-        new MetadataTracker(context_.storage.get()));
+    context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.import_logs_tracker.reset(new ImportLogsTracker(&context_, 1));
     ct_ = std::make_unique<ClockTracker>(
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
