@@ -26,7 +26,7 @@ import {Filter} from './model';
  *
  * Call these methods on every render cycle - they handle caching internally.
  */
-export interface DataSource {
+export interface DatagridEngine {
   /**
    * Fetch rows for the current model state.
    * Call every render with the current model to get rows and trigger updates.

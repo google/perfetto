@@ -118,7 +118,7 @@ import {
   DrawerPanel,
   DrawerPanelVisibility,
 } from '../../../widgets/drawer_panel';
-import {SQLDataSource} from '../../../components/widgets/datagrid/datagrid_engine_sql/datagrid_engine_sql';
+import {DatagridEngineSQL} from '../../../components/widgets/datagrid/engine_sql/datagrid_engine_sql';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
@@ -132,7 +132,7 @@ import {Column} from '../../../components/widgets/datagrid/model';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {getAllDownstreamNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
-import {DataSource} from '../../../components/widgets/datagrid/datagrid_engine';
+import {DatagridEngine} from '../../../components/widgets/datagrid/datagrid_engine';
 import {NavigationSidePanel} from './navigation_sidepanel';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
@@ -242,7 +242,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   // Updated in view() to stay synchronized with attrs.
   private selectedNode?: QueryNode;
   private response?: QueryResponse;
-  private dataSource?: DataSource;
+  private dataSource?: DatagridEngine;
   private drawerVisibility = DrawerPanelVisibility.COLLAPSED;
   private selectedView: SelectedView = SelectedView.kInfo;
   private readonly MIN_SIDEBAR_WIDTH = 250;
@@ -666,7 +666,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       lastStatementSql: isAQuery(query) ? query.sql : '',
     };
 
-    this.dataSource = new SQLDataSource({
+    this.dataSource = new DatagridEngineSQL({
       engine,
       sqlSchema: createSimpleSchema(result.tableName),
       rootSchemaName: 'query',

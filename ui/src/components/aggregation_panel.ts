@@ -27,12 +27,12 @@ import {
   ColumnType,
   SchemaRegistry,
 } from './widgets/datagrid/datagrid_schema';
-import {DataSource} from './widgets/datagrid/datagrid_engine';
+import {DatagridEngine} from './widgets/datagrid/datagrid_engine';
 import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 
 export interface AggregationPanelAttrs {
-  readonly dataSource: DataSource;
+  readonly dataSource: DatagridEngine;
   readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
   readonly barChartData?: ReadonlyArray<BarChartData>;
   readonly onReady?: (api: DataGridApi) => void;
@@ -73,7 +73,7 @@ export class AggregationPanel
 
   private renderTable(
     controls: m.Children | undefined,
-    dataSource: DataSource,
+    dataSource: DatagridEngine,
     model: ReadonlyArray<ColumnDef> | AggregatePivotModel,
     onReady?: (api: DataGridApi) => void,
     dataGridState?: DataGridState,

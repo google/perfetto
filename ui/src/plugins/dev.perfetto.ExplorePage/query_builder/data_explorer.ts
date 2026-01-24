@@ -37,7 +37,7 @@ import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {DataSource} from '../../../components/widgets/datagrid/datagrid_engine';
+import {DatagridEngine} from '../../../components/widgets/datagrid/datagrid_engine';
 import {
   PerfettoSqlType,
   isIdType,
@@ -66,7 +66,7 @@ export interface DataExplorerAttrs {
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
-  readonly dataSource?: DataSource;
+  readonly dataSource?: DatagridEngine;
   readonly isQueryRunning: boolean;
   readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;

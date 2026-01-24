@@ -21,7 +21,7 @@ import {
   ColumnSchema,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
-import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
+import {InMemoryDataSource} from '../../components/widgets/datagrid/datagrid_engine_inmem';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import {Trace} from '../../public/trace';
 import {Box} from '../../widgets/box';
@@ -38,7 +38,7 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
 import {getSliceId, isSliceish} from '../../components/query_table/query_table';
-import {DataSource} from '../../components/widgets/datagrid/datagrid_engine';
+import {DatagridEngine} from '../../components/widgets/datagrid/datagrid_engine';
 import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
@@ -92,7 +92,7 @@ export interface QueryPageAttrs {
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   // Map of tab ID to DataSource for each tab's query results
-  private dataSources = new Map<string, DataSource>();
+  private dataSources = new Map<string, DatagridEngine>();
 
   // Track previous query results to detect changes
   private prevQueryResults = new Map<string, QueryResponse | undefined>();
@@ -344,7 +344,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private renderQueryResult(
     trace: Trace,
     queryResult: QueryResponse,
-    dataSource: DataSource,
+    dataSource: DatagridEngine,
   ) {
     const queryTimeString = `${queryResult.durationMs.toFixed(1)} ms`;
     if (queryResult.error) {

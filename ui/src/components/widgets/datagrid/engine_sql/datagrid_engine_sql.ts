@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../../../../base/logging';
-import {QueryResult} from '../../../../base/query_slot';
+import {QueryResult, QuerySlot, SerialTaskQueue} from '../../../../base/query_slot';
 import {exists} from '../../../../base/utils';
 import {Engine} from '../../../../trace_processor/engine';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
-import {DataSource, DataSourceModel, DataSourceRows} from '../datagrid_engine';
+import {DatagridEngine, DataSourceModel, DataSourceRows} from '../datagrid_engine';
 import {SQLSchemaRegistry} from '../sql_schema';
 import {FlatEngine} from './datagrid_engine_flat';
 
@@ -30,7 +30,7 @@ export function ensure<T>(x: T): asserts x is NonNullable<T> {
 /**
  * Configuration for SQLDataSource.
  */
-export interface SQLDataSourceConfig {
+export interface DatagridEngineSQLConfig {
   readonly engine: Engine;
   readonly sqlSchema: SQLSchemaRegistry;
   readonly rootSchemaName: string;
@@ -42,20 +42,23 @@ export interface SQLDataSourceConfig {
  *
  * Simplified version: supports flat mode and pivot mode.
  */
-export class SQLDataSource implements DataSource {
+export class DatagridEngineSQL implements DatagridEngine {
   private readonly engine: Engine;
   private readonly sqlSchema: SQLSchemaRegistry;
   private readonly rootSchemaName: string;
   private readonly preamble?: string;
   private readonly flatEngine: FlatEngine;
+  private readonly queue = new SerialTaskQueue();
+  private readonly preableSlot = new QuerySlot<void>(this.queue);
 
-  constructor(config: SQLDataSourceConfig) {
+  constructor(config: DatagridEngineSQLConfig) {
     this.engine = config.engine;
     this.sqlSchema = config.sqlSchema;
     this.rootSchemaName = config.rootSchemaName;
     this.preamble = config.preamble;
 
     this.flatEngine = new FlatEngine(
+      this.queue,
       this.engine,
       this.sqlSchema,
       this.rootSchemaName,
@@ -66,12 +69,27 @@ export class SQLDataSource implements DataSource {
    * Fetch rows for the current model state.
    */
   useRows(model: DataSourceModel): DataSourceRows {
+    const {isPending: preamblePending} = this.preableSlot.use({
+      key: this.preamble,
+      queryFn: async () => {
+        if (this.preamble) {
+          await this.engine.query(this.preamble);
+        }
+      },
+    });
+
+    // Don't trigger any other queries until the preable has completed
+    if (preamblePending) {
+      return {isPending: true};
+    }
+
     const mode = model.mode;
     switch (mode) {
       case 'flat':
         return this.flatEngine.get(model);
       case 'pivot':
-        return {rowOffset: 0, isPending: false};
+        // Eternally pending....
+        return {isPending: true};
       default:
         assertUnreachable(mode);
     }

@@ -21,18 +21,24 @@ import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
 
 export class FlatEngine {
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly rowCountSlot = new QuerySlot<number>(this.taskQueue);
-  private readonly rowsSlot = new QuerySlot<{
+  private readonly rowCountSlot: QuerySlot<number>;
+  private readonly rowsSlot: QuerySlot<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
-  }>(this.taskQueue);
+  }>;
 
   constructor(
+    queue: SerialTaskQueue,
     private readonly engine: Engine,
     private readonly sqlSchema: SQLSchemaRegistry,
     private readonly rootSchemaName: string,
-  ) {}
+  ) {
+    this.rowCountSlot = new QuerySlot<number>(queue);
+    this.rowsSlot = new QuerySlot<{
+      readonly rows: readonly Row[];
+      readonly rowOffset: number;
+    }>(queue);
+  }
 
   get(model: FlatModel): DataSourceRows {
     const {columns, filters = [], pagination, sort} = model;

@@ -17,7 +17,7 @@ import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/logging';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {
-  DataSource,
+  DatagridEngine,
   DataSourceModel,
   DataSourceRows,
   FlatModel,
@@ -27,7 +27,7 @@ import {Filter} from './model';
 // Column shape from FlatModel
 type FlatColumn = FlatModel['columns'][number];
 
-export class InMemoryDataSource implements DataSource {
+export class InMemoryDataSource implements DatagridEngine {
   private data: ReadonlyArray<Row> = [];
   private filteredSortedData: ReadonlyArray<Row> = [];
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();

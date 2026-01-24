@@ -16,14 +16,14 @@ import m from 'mithril';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Row} from '../../../trace_processor/query_result';
-import {SQLDataSource} from '../../../components/widgets/datagrid/datagrid_engine_sql/datagrid_engine_sql';
+import {DatagridEngineSQL} from '../../../components/widgets/datagrid/engine_sql/datagrid_engine_sql';
 import {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {App} from '../../../public/app';
 import {Anchor} from '../../../widgets/anchor';
 
 // Cache for the SQL data source - created once when page is first opened with a trace
-let cachedSliceDataSource: SQLDataSource | undefined;
+let cachedSliceDataSource: DatagridEngineSQL | undefined;
 
 // SQL schema for slice table with track join
 const SLICE_SQL_SCHEMA: SQLSchemaRegistry = {
@@ -151,7 +151,7 @@ const SLICE_UI_SCHEMA: SchemaRegistry = {
 export function renderDataGrid(app: App): m.Children {
   // Create the SQL data source once when the page is first opened with a trace
   if (app.trace && !cachedSliceDataSource) {
-    cachedSliceDataSource = new SQLDataSource({
+    cachedSliceDataSource = new DatagridEngineSQL({
       engine: app.trace.engine,
       sqlSchema: SLICE_SQL_SCHEMA,
       rootSchemaName: 'slice',
