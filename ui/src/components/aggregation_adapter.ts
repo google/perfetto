@@ -30,7 +30,7 @@ import {Spinner} from '../widgets/spinner';
 import {shortUuid} from '../base/uuid';
 import {AggregationPanel} from './aggregation_panel';
 import {Column, Filter, Pivot} from './widgets/datagrid/model';
-import {SQLDataSource} from './widgets/datagrid/sql_data_source/sql_data_source';
+import {SQLDataSource} from './widgets/datagrid/datagrid_engine_sql/datagrid_engine_sql';
 import {createSimpleSchema} from './widgets/datagrid/sql_schema';
 import {BarChartData, ColumnDef} from './aggregation';
 import {

@@ -14,15 +14,18 @@
 
 import {QueryResult} from '../../../base/query_slot';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
-import {assertTrue, assertUnreachable} from '../../../base/logging';
+import {assertUnreachable} from '../../../base/logging';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {
   DataSource,
   DataSourceModel,
   DataSourceRows,
-  RowsQueryResult,
-} from './data_source';
-import {Column, Filter} from './model';
+  FlatModel,
+} from './datagrid_engine';
+import {Filter} from './model';
+
+// Column shape from FlatModel
+type FlatColumn = FlatModel['columns'][number];
 
 export class InMemoryDataSource implements DataSource {
   private data: ReadonlyArray<Row> = [];
@@ -32,8 +35,9 @@ export class InMemoryDataSource implements DataSource {
   private aggregateTotalsCache = new Map<string, SqlValue>();
 
   // Cached state for diffing
-  private oldColumns?: readonly Column[];
+  private oldColumns?: readonly FlatColumn[];
   private oldFilters: ReadonlyArray<Filter> = [];
+  private oldSort?: FlatModel['sort'];
 
   constructor(data: ReadonlyArray<Row>) {
     this.data = data;
@@ -43,18 +47,24 @@ export class InMemoryDataSource implements DataSource {
   /**
    * Fetch rows for the current model state.
    */
-  useRows(model: DataSourceModel): RowsQueryResult {
-    const {columns, filters = [], pivot} = model;
+  useRows(model: DataSourceModel): DataSourceRows {
+    // Only support flat mode
+    if (model.mode !== 'flat') {
+      return {isPending: false};
+    }
 
-    // Assert that pivot is not defined - we don't support pivoting, yet!
-    assertTrue(!pivot);
+    const columns = model.columns;
+    const filters = model.filters ?? [];
+    const sort = model.sort;
 
     if (
       !this.areColumnsEqual(columns, this.oldColumns) ||
-      !this.areFiltersEqual(filters, this.oldFilters)
+      !this.areFiltersEqual(filters, this.oldFilters) ||
+      !this.isSortEqual(sort, this.oldSort)
     ) {
       this.oldColumns = columns;
       this.oldFilters = filters;
+      this.oldSort = sort;
 
       // Clear aggregate totals cache
       this.aggregateTotalsCache.clear();
@@ -62,37 +72,24 @@ export class InMemoryDataSource implements DataSource {
       let result = this.applyFilters(this.data, filters);
 
       if (columns) {
-        // Non-pivot mode: compute column-level aggregations
-        this.computeColumnAggregates(result, columns);
-        // Project columns to use IDs as keys (for consistency with SQL data source)
+        // Project columns to use aliases as keys (for consistency with SQL data source)
         result = this.projectColumns(result, columns);
       }
 
-      // Apply sorting - find sorted column from columns or pivot
-      const sortedColumn = this.findSortedColumn(columns);
-      if (sortedColumn) {
-        result = this.applySorting(
-          result,
-          sortedColumn.key,
-          sortedColumn.direction,
-        );
+      // Apply sorting from model
+      if (sort) {
+        result = this.applySorting(result, sort.alias, sort.direction);
       }
 
       // Store the filtered and sorted data
       this.filteredSortedData = result;
     }
 
-    const rows: DataSourceRows = {
+    return {
       rowOffset: 0,
       rows: this.filteredSortedData,
       totalRows: this.filteredSortedData.length,
-    };
-
-    return {
-      data: rows,
       isPending: false,
-      isFresh: true,
-      query: '(in-memory)',
     };
   }
 
@@ -224,11 +221,11 @@ export class InMemoryDataSource implements DataSource {
   }
 
   /**
-   * Compare columns for equality (including id, sort state, and aggregate).
+   * Compare columns for equality.
    */
   private areColumnsEqual(
-    a: readonly Column[] | undefined,
-    b: readonly Column[] | undefined,
+    a: readonly FlatColumn[] | undefined,
+    b: readonly FlatColumn[] | undefined,
   ): boolean {
     if (a === b) return true;
     if (!a || !b) return false;
@@ -236,48 +233,35 @@ export class InMemoryDataSource implements DataSource {
 
     return a.every((colA, i) => {
       const colB = b[i];
-      return (
-        colA.id === colB.id &&
-        colA.field === colB.field &&
-        colA.sort === colB.sort &&
-        colA.aggregate === colB.aggregate
-      );
+      return colA.alias === colB.alias && colA.field === colB.field;
     });
   }
 
   /**
-   * Find the column that has sorting applied.
-   * Returns the key to use for sorting (column ID) and the direction.
+   * Compare sort configurations for equality.
    */
-  private findSortedColumn(
-    columns: readonly Column[] | undefined,
-  ): {key: string; direction: 'ASC' | 'DESC'} | undefined {
-    // Check regular columns for sort
-    if (columns) {
-      for (const col of columns) {
-        if (col.sort) {
-          // In non-pivot mode after projection, rows are keyed by column ID
-          return {key: col.id, direction: col.sort};
-        }
-      }
-    }
-
-    return undefined;
+  private isSortEqual(
+    a: FlatModel['sort'],
+    b: FlatModel['sort'],
+  ): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return a.alias === b.alias && a.direction === b.direction;
   }
 
   /**
-   * Project rows to use column IDs as keys instead of field names.
+   * Project rows to use column aliases as keys instead of field names.
    * This ensures consistency with SQLDataSource which uses column IDs as SQL aliases.
    */
   private projectColumns(
     data: ReadonlyArray<Row>,
-    columns: ReadonlyArray<Column>,
+    columns: ReadonlyArray<FlatColumn>,
   ): ReadonlyArray<Row> {
     return data.map((row) => {
       const projectedRow: Row = {};
       for (const col of columns) {
-        // Map field value to column ID key
-        projectedRow[col.id] = row[col.field];
+        // Map field value to alias key
+        projectedRow[col.alias] = row[col.field];
       }
       return projectedRow;
     });
@@ -408,61 +392,6 @@ export class InMemoryDataSource implements DataSource {
     });
   }
 
-  /**
-   * Compute aggregates for columns with aggregation functions defined.
-   * This is used in non-pivot mode when columns have individual aggregations.
-   */
-  private computeColumnAggregates(
-    data: ReadonlyArray<Row>,
-    columns: ReadonlyArray<Column>,
-  ): void {
-    for (const col of columns) {
-      if (!col.aggregate) continue;
-
-      // Read values using field (source data key), store using ID (result key)
-      const values = data
-        .map((row) => row[col.field])
-        .filter((v) => v !== null);
-
-      if (values.length === 0) {
-        this.aggregateTotalsCache.set(col.id, null);
-        continue;
-      }
-
-      switch (col.aggregate) {
-        case 'SUM':
-          this.aggregateTotalsCache.set(
-            col.id,
-            values.reduce((acc: number, val) => acc + (Number(val) || 0), 0),
-          );
-          break;
-        case 'AVG':
-          this.aggregateTotalsCache.set(
-            col.id,
-            (values.reduce(
-              (acc: number, val) => acc + (Number(val) || 0),
-              0,
-            ) as number) / values.length,
-          );
-          break;
-        case 'MIN':
-          this.aggregateTotalsCache.set(
-            col.id,
-            values.reduce((acc, val) => (val < acc ? val : acc), values[0]),
-          );
-          break;
-        case 'MAX':
-          this.aggregateTotalsCache.set(
-            col.id,
-            values.reduce((acc, val) => (val > acc ? val : acc), values[0]),
-          );
-          break;
-        case 'ANY':
-          this.aggregateTotalsCache.set(col.id, values[0]);
-          break;
-      }
-    }
-  }
 }
 
 // Compare values, using a special deep comparison for Uint8Arrays.

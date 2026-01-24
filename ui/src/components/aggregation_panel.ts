@@ -27,7 +27,7 @@ import {
   ColumnType,
   SchemaRegistry,
 } from './widgets/datagrid/datagrid_schema';
-import {DataSource} from './widgets/datagrid/data_source';
+import {DataSource} from './widgets/datagrid/datagrid_engine';
 import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 

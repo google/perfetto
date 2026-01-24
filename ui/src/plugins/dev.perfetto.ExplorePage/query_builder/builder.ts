@@ -118,7 +118,7 @@ import {
   DrawerPanel,
   DrawerPanelVisibility,
 } from '../../../widgets/drawer_panel';
-import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source/sql_data_source';
+import {SQLDataSource} from '../../../components/widgets/datagrid/datagrid_engine_sql/datagrid_engine_sql';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
@@ -132,7 +132,7 @@ import {Column} from '../../../components/widgets/datagrid/model';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {getAllDownstreamNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
-import {DataSource} from '../../../components/widgets/datagrid/data_source';
+import {DataSource} from '../../../components/widgets/datagrid/datagrid_engine';
 import {NavigationSidePanel} from './navigation_sidepanel';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss

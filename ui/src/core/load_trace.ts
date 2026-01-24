@@ -45,6 +45,7 @@ import {AppImpl} from './app_impl';
 import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
 import {TraceSource} from './trace_source';
+import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
 import {parseUrlCommands} from './command_manager';
@@ -244,8 +245,8 @@ async function loadTraceIntoEngine(
   );
   trace.timeline.setVisibleWindow(newViewport);
 
-  // const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-  // Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
+  const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
+  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);

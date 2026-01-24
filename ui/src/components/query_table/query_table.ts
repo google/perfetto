@@ -30,7 +30,7 @@ import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
 import {DataGridExportButton} from '../widgets/datagrid/export_button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
-import {DataSource} from '../widgets/datagrid/data_source';
+import {DataSource} from '../widgets/datagrid/datagrid_engine';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {Button} from '../../widgets/button';
 import {PopupMenu} from '../../widgets/menu';

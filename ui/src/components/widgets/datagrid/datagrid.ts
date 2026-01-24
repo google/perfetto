@@ -42,7 +42,13 @@ import {
 import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
-import {DataSource, RowsQueryResult} from './data_source';
+import {
+  DataSource,
+  DataSourceModel,
+  DataSourceRows,
+  FlatModel,
+  PivotModel,
+} from './datagrid_engine';
 import {
   SchemaRegistry,
   getColumnInfo,
@@ -346,7 +352,7 @@ interface FlatGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly rowsResult: RowsQueryResult;
+  readonly rowsResult: DataSourceRows;
   readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
   readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
@@ -364,7 +370,7 @@ interface PivotGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly rowsResult: RowsQueryResult;
+  readonly rowsResult: DataSourceRows;
   readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
   readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
   readonly pivot: Pivot;
@@ -440,20 +446,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (pivot) this.pivot = pivot;
     if (idBasedTree) this.idBasedTree = idBasedTree;
 
+    // Determine if we're in pivot mode (has groupBy columns and not drilling down)
+    const isPivotMode =
+      this.pivot !== undefined &&
+      this.pivot.groupBy.length > 0 &&
+      this.pivot.drillDown === undefined;
+
     // Build the model for data source queries
     const datasource = getOrCreateDataSource(data);
-    const model = {
-      columns: this.columns,
-      filters: this.filters,
-      pagination: {
-        offset: this.paginationOffset,
-        limit: this.paginationLimit,
-      },
-      pivot: this.pivot,
-      idBasedTree: this.idBasedTree,
-      distinctValuesColumns: this.distinctValuesColumns,
-      parameterKeyColumns: this.parameterKeyColumns,
-    };
+    const model = this.buildDataSourceModel(isPivotMode);
 
     // Fetch data using the slot-like API
     const rowsResult = datasource.useRows(model);
@@ -472,15 +473,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         );
       },
       getRowCount: () => {
-        return rowsResult.data?.totalRows;
+        return rowsResult.totalRows;
       },
     });
-
-    // Determine if we're in pivot mode (has groupBy columns and not drilling down)
-    const isPivotMode =
-      this.pivot !== undefined &&
-      this.pivot.groupBy.length > 0 &&
-      this.pivot.drillDown === undefined;
 
     // Build grid columns and rows based on mode
     let gridColumns: GridColumn[];
@@ -633,8 +628,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         columns: gridColumns,
         rowData: {
           data: gridRows,
-          total: rowsResult.data?.totalRows ?? 0,
-          offset: Math.max(rowsResult.data?.rowOffset ?? 0, this.paginationOffset),
+          total: rowsResult.totalRows ?? 0,
+          offset: Math.max(rowsResult.rowOffset ?? 0, this.paginationOffset),
           onLoadData: (offset, limit) => {
             this.paginationOffset = offset;
             this.paginationLimit = limit;
@@ -656,7 +651,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           this.gridApi = api;
         },
         emptyState:
-          rowsResult.data?.totalRows === 0 &&
+          rowsResult.totalRows === 0 &&
           !rowsResult.isPending &&
           m(
             EmptyState,
@@ -677,6 +672,69 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           ),
       }),
     );
+  }
+
+  /**
+   * Builds a DataSourceModel from the current state.
+   * The model shape depends on whether we're in pivot mode or flat mode.
+   */
+  private buildDataSourceModel(isPivotMode: boolean): DataSourceModel {
+    // Extract sort from columns (flat mode only)
+    const sortedColumn = this.columns.find((c) => c.sort);
+    const sort = sortedColumn
+      ? {alias: sortedColumn.id, direction: sortedColumn.sort!}
+      : undefined;
+
+    // Common base fields
+    const baseModel = {
+      filters: this.filters,
+      pagination: {
+        offset: this.paginationOffset,
+        limit: this.paginationLimit,
+      },
+      distinctValuesColumns: this.distinctValuesColumns,
+      parameterKeyColumns: this.parameterKeyColumns,
+    };
+
+    if (isPivotMode && this.pivot) {
+      // Build PivotModel
+      const pivotModel: PivotModel = {
+        ...baseModel,
+        mode: 'pivot',
+        groupBy: this.pivot.groupBy.map((col) => ({
+          field: col.field,
+          alias: col.id,
+        })),
+        aggregates: (this.pivot.aggregates ?? []).map((agg) => {
+          if (agg.function === 'COUNT') {
+            return {function: 'COUNT' as const, alias: agg.id};
+          } else {
+            return {function: agg.function, field: agg.field, alias: agg.id};
+          }
+        }),
+        drillDown: this.pivot.drillDown,
+        groupDisplay: this.pivot.collapsibleGroups ? 'tree' : 'flat',
+        expandedIds: this.pivot.expandedIds,
+        collapsedIds: this.pivot.collapsedIds,
+      };
+      return pivotModel;
+    } else {
+      // Build FlatModel
+      const flatModel: FlatModel = {
+        ...baseModel,
+        mode: 'flat',
+        sort,
+        columns: this.columns.map((col) => ({
+          field: col.field,
+          alias: col.id,
+        })).sort((a, b) => {
+          // Consistent column order by alias to avoid reloads when reordering
+          // columns in the UI
+          return a.alias.localeCompare(b.alias);
+        }),
+      };
+      return flatModel;
+    }
   }
 
   private updateSort(
@@ -1397,13 +1455,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    */
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
     const {attrs, rowsResult, columnInfoCache, idBasedTree} = ctx;
-    const result = rowsResult.data;
 
-    if (result === undefined) return [];
+    if (rowsResult.rows === undefined) return [];
 
     // Find the intersection of rows between what we have and what is required
     // and only render those.
-    const start = Math.max(result.rowOffset, this.paginationOffset);
+    const start = Math.max(rowsResult.rowOffset ?? 0, this.paginationOffset);
 
     const rowIndices = Array.from(
       {length: this.paginationLimit},
@@ -1418,7 +1475,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     return rowIndices
       .map((index) => {
-        const row = result.rows[index - result.rowOffset];
+        const row = rowsResult.rows![index - (rowsResult.rowOffset ?? 0)];
         if (row === undefined) return undefined;
 
         return this.columns.map((col) => {
@@ -1785,13 +1842,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private buildPivotRows(ctx: PivotGridBuildContext): m.Children[][] {
     const {attrs, schema, rootSchema, rowsResult, pivot, enablePivotControls} =
       ctx;
-    const result = rowsResult.data;
 
-    if (result === undefined) return [];
+    if (rowsResult.rows === undefined) return [];
 
     // Find the intersection of rows between what we have and what is required
     // and only render those.
-    const start = Math.max(result.rowOffset, this.paginationOffset);
+    const start = Math.max(rowsResult.rowOffset ?? 0, this.paginationOffset);
 
     const rowIndices = Array.from(
       {length: this.paginationLimit},
@@ -1805,7 +1861,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     return rowIndices
       .map((index) => {
-        const row = result.rows[index - result.rowOffset];
+        const row = rowsResult.rows![index - (rowsResult.rowOffset ?? 0)];
         if (row === undefined) return undefined;
 
         const cells: m.Children[] = [];

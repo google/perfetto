@@ -20,7 +20,7 @@ import {EmptyState} from '../../../widgets/empty_state';
 import {Icon} from '../../../widgets/icon';
 import {MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
-import {DataSource} from './data_source';
+import {DataSource} from './datagrid_engine';
 import {
   SchemaRegistry,
   isColumnDef,
@@ -106,6 +106,8 @@ function buildAddColumnMenuFromSchema(
       // Parameterized column - show available keys from datasource
       const title = typeof entry.title === 'string' ? entry.title : columnName;
       const parameterKeysResult = context.dataSource.useParameterKeys({
+        mode: 'flat',
+        columns: [],
         parameterKeyColumns: context.parameterKeyColumns,
       });
       const availableKeys = parameterKeysResult.data?.get(fullPath);

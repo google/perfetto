@@ -14,20 +14,7 @@
 
 import {QueryResult} from '../../../base/query_slot';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Column, Filter, IdBasedTree, Pivot} from './model';
-
-export interface Pagination {
-  readonly offset: number;
-  readonly limit: number;
-}
-
-/**
- * Result type for useRows(), includes the working SQL query for debugging.
- */
-export interface RowsQueryResult extends QueryResult<DataSourceRows> {
-  // The SQL query used to fetch the rows (useful for debugging)
-  readonly query: string;
-}
+import {Filter} from './model';
 
 /**
  * Data source interface for DataGrid.
@@ -44,7 +31,7 @@ export interface DataSource {
    * Fetch rows for the current model state.
    * Call every render with the current model to get rows and trigger updates.
    */
-  useRows(model: DataSourceModel): RowsQueryResult;
+  useRows(model: DataSourceModel): DataSourceRows;
 
   /**
    * Fetch distinct values for filter dropdowns.
@@ -77,23 +64,22 @@ export interface DataSource {
   exportData(): Promise<readonly Row[]>;
 }
 
-export interface DataSourceModel {
-  // The columns to display, including their sort direction if any
-  readonly columns?: readonly Column[];
-
+// Common fields shared across all data source modes
+interface DataSourceModelBase {
   // Active filters to apply to the data
   readonly filters?: readonly Filter[];
 
   // Pagination settings (offset and limit for the current page)
-  readonly pagination?: Pagination;
+  readonly pagination?: {
+    readonly offset: number;
+    readonly limit: number;
+  };
 
-  // Pivot configuration for grouped/aggregated views
-  readonly pivot?: Pivot;
-
-  // ID-based tree configuration using __intrinsic_tree virtual table.
-  // Uses explicit id/parent_id columns for tree structure.
-  // Mutually exclusive with pivot.
-  readonly idBasedTree?: IdBasedTree;
+  // Sorting specification (by output alias)
+  readonly sort?: {
+    readonly alias: string;
+    readonly direction: 'ASC' | 'DESC';
+  };
 
   // Columns for which to fetch distinct values (for filter dropdowns)
   readonly distinctValuesColumns?: ReadonlySet<string>;
@@ -103,13 +89,61 @@ export interface DataSourceModel {
   readonly parameterKeyColumns?: ReadonlySet<string>;
 }
 
+// Flat mode: simple column selection
+export interface FlatModel extends DataSourceModelBase {
+  readonly mode: 'flat';
+  readonly columns: readonly {
+    readonly field: string;
+    readonly alias: string;
+  }[];
+}
+
+// Pivot mode: grouped/aggregated views (sort handled internally)
+export interface PivotModel extends Omit<DataSourceModelBase, 'sort'> {
+  readonly mode: 'pivot';
+  // Columns to group by (hierarchy levels)
+  readonly groupBy: readonly {
+    readonly field: string;
+    readonly alias: string;
+  }[];
+  // Aggregate expressions
+  readonly aggregates: readonly (
+    | {
+        readonly function: 'COUNT';
+        readonly alias: string;
+      }
+    | {
+        readonly function: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'ANY';
+        readonly field: string;
+        readonly alias: string;
+      }
+  )[];
+  // Drill down into a specific group (shows raw rows)
+  readonly drillDown?: readonly {
+    readonly field: string;
+    readonly value: SqlValue;
+  }[];
+  // How to display grouped data: 'flat' shows leaf rows only, 'tree' shows
+  // hierarchical structure with expand/collapse
+  readonly groupDisplay?: 'flat' | 'tree';
+  // Allowlist mode: only these node IDs are expanded
+  readonly expandedIds?: ReadonlySet<bigint>;
+  // Denylist mode: all nodes expanded except these IDs
+  readonly collapsedIds?: ReadonlySet<bigint>;
+}
+
+export type DataSourceModel = FlatModel | PivotModel;
+
 export interface DataSourceRows {
   // The total number of rows available in the dataset
-  readonly totalRows: number;
+  readonly totalRows?: number;
 
   // The offset of the first row in this batch
-  readonly rowOffset: number;
+  readonly rowOffset?: number;
 
   // The actual row data for this batch
-  readonly rows: readonly Row[];
+  readonly rows?: readonly Row[];
+
+  // Whether the data is currently being fetched
+  readonly isPending: boolean;
 }

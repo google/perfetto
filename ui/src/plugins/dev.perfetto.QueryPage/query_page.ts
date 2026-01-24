@@ -38,7 +38,7 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
 import {getSliceId, isSliceish} from '../../components/query_table/query_table';
-import {DataSource} from '../../components/widgets/datagrid/data_source';
+import {DataSource} from '../../components/widgets/datagrid/datagrid_engine';
 import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
