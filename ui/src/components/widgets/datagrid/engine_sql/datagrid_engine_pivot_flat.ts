@@ -170,6 +170,11 @@ export class PivotFlatEngine {
 
     return sql;
   }
+
+  dispose(): void {
+    this.rowCountSlot.dispose();
+    this.rowsSlot.dispose();
+  }
 }
 
 /**

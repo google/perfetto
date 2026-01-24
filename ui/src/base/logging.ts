@@ -29,6 +29,13 @@ export interface ErrorDetails {
 export type ErrorHandler = (err: ErrorDetails) => void;
 const errorHandlers: ErrorHandler[] = [];
 
+// TODO(stevegolton): Rename to assert*()
+export function ensure<T>(x: T): asserts x is NonNullable<T> {
+  if (!exists(x)) {
+    throw new Error('Value is null or undefined');
+  }
+}
+
 export function assertExists<A>(
   value: A | null | undefined,
   optMsg?: string,

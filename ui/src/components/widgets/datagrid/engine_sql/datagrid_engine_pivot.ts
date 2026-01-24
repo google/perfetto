@@ -213,4 +213,10 @@ export class PivotEngine {
     // Wrap in parentheses to make it a valid subquery for the pivot table
     return `(${sql})`;
   }
+
+  dispose(): void {
+    this.rowCountSlot.dispose();
+    this.rowsSlot.dispose();
+    this.pivotTableSlot.dispose();
+  }
 }

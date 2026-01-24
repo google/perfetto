@@ -14,7 +14,6 @@
 
 import {assertUnreachable} from '../../../../base/logging';
 import {QueryResult, QuerySlot, SerialTaskQueue} from '../../../../base/query_slot';
-import {exists} from '../../../../base/utils';
 import {Engine} from '../../../../trace_processor/engine';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {DatagridEngine, DataSourceModel, DataSourceRows} from '../datagrid_engine';
@@ -22,12 +21,6 @@ import {SQLSchemaRegistry} from '../sql_schema';
 import {FlatEngine} from './datagrid_engine_flat';
 import {PivotEngine} from './datagrid_engine_pivot';
 import {PivotFlatEngine} from './datagrid_engine_pivot_flat';
-
-export function ensure<T>(x: T): asserts x is NonNullable<T> {
-  if (!exists(x)) {
-    throw new Error('Value is null or undefined');
-  }
-}
 
 /**
  * Configuration for SQLDataSource.
@@ -37,6 +30,7 @@ export interface DatagridEngineSQLConfig {
   readonly sqlSchema: SQLSchemaRegistry;
   readonly rootSchemaName: string;
   readonly preamble?: string;
+  readonly queue?: SerialTaskQueue;
 }
 
 /**
@@ -52,14 +46,16 @@ export class DatagridEngineSQL implements DatagridEngine {
   private readonly flatEngine: FlatEngine;
   private readonly pivotEngine: PivotEngine;
   private readonly pivotFlatEngine: PivotFlatEngine;
-  private readonly queue = new SerialTaskQueue();
-  private readonly preableSlot = new QuerySlot<void>(this.queue);
+  private readonly queue: SerialTaskQueue;
+  private readonly preambleSlot: QuerySlot<void>;
 
   constructor(config: DatagridEngineSQLConfig) {
     this.engine = config.engine;
     this.sqlSchema = config.sqlSchema;
     this.rootSchemaName = config.rootSchemaName;
     this.preamble = config.preamble;
+    this.queue = config.queue ?? new SerialTaskQueue();
+    this.preambleSlot = new QuerySlot<void>(this.queue);
 
     this.flatEngine = new FlatEngine(
       this.queue,
@@ -87,7 +83,7 @@ export class DatagridEngineSQL implements DatagridEngine {
    * Fetch rows for the current model state.
    */
   useRows(model: DataSourceModel): DataSourceRows {
-    const {isPending: preamblePending} = this.preableSlot.use({
+    const {isPending: preamblePending} = this.preambleSlot.use({
       key: this.preamble,
       queryFn: async () => {
         if (this.preamble) {
@@ -136,5 +132,12 @@ export class DatagridEngineSQL implements DatagridEngine {
 
   async exportData(): Promise<Row[]> {
     throw new Error('Not implemented yet');
+  }
+
+  dispose(): void {
+    this.preambleSlot.dispose();
+    this.flatEngine.dispose();
+    this.pivotEngine.dispose();
+    this.pivotFlatEngine.dispose();
   }
 }

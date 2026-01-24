@@ -87,6 +87,11 @@ export class FlatEngine {
       isPending: rowCountResult.isPending || rowsResult.isPending,
     };
   }
+
+  dispose(): void {
+    this.rowCountSlot.dispose();
+    this.rowsSlot.dispose();
+  }
 }
 
 /**
