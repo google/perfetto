@@ -72,6 +72,7 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context) {
   context->sched_event_tracker = Ptr<SchedEventTracker>::MakeRoot(context);
   context->args_translation_table =
       Ptr<ArgsTranslationTable>::MakeRoot(context->storage.get());
+  context->metadata_tracker = Ptr<MetadataTracker>::MakeRoot(context);
 
   context->slice_tracker->SetOnSliceBeginCallback(
       [context](TrackId track_id, SliceId slice_id) {
@@ -160,7 +161,6 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->register_additional_proto_modules = nullptr;
 
   // Per-Trace State (Miscategorized).
-  context->metadata_tracker = Ptr<MetadataTracker>::MakeRoot(context);
   context->registered_file_tracker =
       Ptr<RegisteredFileTracker>::MakeRoot(context);
   context->uuid_state = Ptr<TraceProcessorContext::UuidState>::MakeRoot();
@@ -184,7 +184,6 @@ void CopyGlobalState(const TraceProcessorContext* source,
       source->register_additional_proto_modules;
 
   // Per-Trace State (Miscategorized).
-  dest->metadata_tracker = source->metadata_tracker.Fork();
   dest->registered_file_tracker = source->registered_file_tracker.Fork();
   dest->uuid_state = source->uuid_state.Fork();
   dest->heap_graph_tracker = source->heap_graph_tracker.Fork();
@@ -252,6 +251,13 @@ std::optional<MachineId> TraceProcessorContext::machine_id() const {
     return std::nullopt;
   }
   return machine_tracker->machine_id();
+}
+
+std::optional<uint32_t> TraceProcessorContext::trace_id() const {
+  if (!trace_state) {
+    return std::nullopt;
+  }
+  return trace_state->raw_trace_id;
 }
 
 void TraceProcessorContext::DestroyParsingState() {

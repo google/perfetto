@@ -34,12 +34,14 @@ namespace {
 base::CrashKey g_crash_key_uuid("trace_uuid");
 }
 
-MetadataTracker::MetadataTracker(TraceProcessorContext* context) : context_(context) {
+MetadataTracker::MetadataTracker(TraceProcessorContext* context)
+    : context_(context) {
   for (uint32_t i = 0; i < kNumKeys; ++i) {
     key_ids_[i] = context->storage->InternString(metadata::kNames[i]);
   }
   for (uint32_t i = 0; i < kNumKeyTypes; ++i) {
-    key_type_ids_[i] = context->storage->InternString(metadata::kKeyTypeNames[i]);
+    key_type_ids_[i] =
+        context->storage->InternString(metadata::kKeyTypeNames[i]);
   }
 }
 
@@ -56,7 +58,8 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
 
   auto& metadata_table = *context_->storage->mutable_metadata_table();
   auto key_idx = static_cast<uint32_t>(key);
-  auto name_id = context_->storage->string_pool().GetId(metadata::kNames[key_idx]);
+  auto name_id =
+      context_->storage->string_pool().GetId(metadata::kNames[key_idx]);
   if (name_id) {
     for (auto it = metadata_table.IterateRows(); it; ++it) {
       if (it.name() == *name_id) {
@@ -82,7 +85,8 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
   auto& metadata_table = *context_->storage->mutable_metadata_table();
   auto key_idx = static_cast<uint32_t>(key);
 
-  auto key_id = context_->storage->string_pool().GetId(metadata::kNames[key_idx]);
+  auto key_id =
+      context_->storage->string_pool().GetId(metadata::kNames[key_idx]);
   if (!key_id) {
     return std::nullopt;
   }
@@ -104,7 +108,8 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
       return SqlValue::Long(*row->int_value());
     }
     case Variadic::kString:
-      return SqlValue::String(context_->storage->GetString(*row->str_value()).c_str());
+      return SqlValue::String(
+          context_->storage->GetString(*row->str_value()).c_str());
     case Variadic::kNull:
       return SqlValue();
     case Variadic::kJson:

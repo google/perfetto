@@ -45,11 +45,16 @@ class TraceFileTracker {
   void DoneParsing(tables::TraceFileTable::Id id, size_t size);
 
  private:
+  struct FileStackEntry {
+    tables::TraceFileTable::Id id;
+    bool has_children = false;
+  };
+
   tables::TraceFileTable::Id AddFileImpl(StringId name);
 
   TraceProcessorContext* const context_;
   size_t processing_order_ = 0;
-  std::vector<tables::TraceFileTable::Id> parsing_stack_;
+  std::vector<FileStackEntry> parsing_stack_;
 };
 
 }  // namespace perfetto::trace_processor

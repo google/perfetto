@@ -39,9 +39,11 @@ tables::TraceFileTable::Id TraceFileTracker::AddFile(const std::string& name) {
 }
 
 tables::TraceFileTable::Id TraceFileTracker::AddFileImpl(StringId name) {
-  std::optional<tables::TraceFileTable::Id> parent =
-      parsing_stack_.empty() ? std::nullopt
-                             : std::make_optional(parsing_stack_.back());
+  std::optional<tables::TraceFileTable::Id> parent;
+  if (!parsing_stack_.empty()) {
+    parent = parsing_stack_.back().id;
+    parsing_stack_.back().has_children = true;
+  }
   return context_->storage->mutable_trace_file_table()
       ->Insert({parent, name, 0,
                 context_->storage->InternString(
@@ -57,25 +59,23 @@ void TraceFileTracker::SetSize(tables::TraceFileTable::Id id, uint64_t size) {
 
 void TraceFileTracker::StartParsing(tables::TraceFileTable::Id id,
                                     TraceType trace_type) {
-  parsing_stack_.push_back(id);
+  parsing_stack_.push_back({id, false});
   auto row = *context_->storage->mutable_trace_file_table()->FindById(id);
   row.set_trace_type(
       context_->storage->InternString(TraceTypeToString(trace_type)));
   row.set_processing_order(static_cast<int64_t>(processing_order_++));
-  if (id.value == 0) {
-    context_->metadata_tracker->SetMetadata(metadata::trace_type,
-                                            Variadic::String(row.trace_type()));
-  }
 }
 
 void TraceFileTracker::DoneParsing(tables::TraceFileTable::Id id, size_t size) {
-  PERFETTO_CHECK(!parsing_stack_.empty() && parsing_stack_.back() == id);
+  PERFETTO_CHECK(!parsing_stack_.empty() && parsing_stack_.back().id == id);
+  bool has_children = parsing_stack_.back().has_children;
   parsing_stack_.pop_back();
   auto row = *context_->storage->mutable_trace_file_table()->FindById(id);
   row.set_size(static_cast<int64_t>(size));
 
-  // First file (root)
-  if (id.value == 0) {
+  if (!has_children) {
+    context_->metadata_tracker->SetMetadata(metadata::trace_type,
+                                            Variadic::String(row.trace_type()));
     context_->metadata_tracker->SetMetadata(metadata::trace_size_bytes,
                                             Variadic::Integer(row.size()));
   }

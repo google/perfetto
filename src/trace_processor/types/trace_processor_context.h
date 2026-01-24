@@ -162,7 +162,6 @@ class TraceProcessorContext {
   // TODO(lalitm): this is miscategorized due to legacy reasons. It needs to be
   // moved to a "per-trace" category.
 
-  GlobalPtr<MetadataTracker> metadata_tracker;
   GlobalPtr<RegisteredFileTracker> registered_file_tracker;
   GlobalPtr<UuidState> uuid_state;
   GlobalPtr<Destructible> heap_graph_tracker;  // HeapGraphTracker
@@ -207,6 +206,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<FlowTracker> flow_tracker;
   PerTraceAndMachinePtr<EventTracker> event_tracker;
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
+  PerTraceAndMachinePtr<MetadataTracker> metadata_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -223,6 +223,7 @@ class TraceProcessorContext {
       ftrace_sched_tracker;  // FtraceSchedEventTracker
 
   std::optional<MachineId> machine_id() const;
+  std::optional<uint32_t> trace_id() const;
 
  private:
   explicit TraceProcessorContext(const Config& config);
