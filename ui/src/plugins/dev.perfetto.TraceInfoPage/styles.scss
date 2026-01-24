@@ -55,6 +55,10 @@
     padding: 16px 28px 24px;
   }
 
+  &__banner {
+    margin-bottom: 16px;
+  }
+
   // Category section headings
   &__category-heading {
     font-size: var(--pf-font-size-xl);

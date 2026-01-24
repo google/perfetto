@@ -24,6 +24,8 @@ import {Section} from '../../../widgets/section';
 import {Card} from '../../../widgets/card';
 import {GridLayout} from '../../../widgets/grid_layout';
 import {EmptyState} from '../../../widgets/empty_state';
+import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
 import {Trace} from '../../../public/trace';
 import {duration} from '../../../base/time';
 import {formatDuration} from '../../../components/time_utils';
@@ -47,28 +49,48 @@ export interface OverviewData {
   systemName?: string;
   systemMachine?: string;
   systemRelease?: string;
+  // Multi-trace/machine counts
+  traceCount: number;
+  machineCount: number;
 }
 
 export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
   // Load everything in a single query
-  // Note: _metadata_str and _metadata_int functions are created in the plugin
   const result = await trace.engine.query(`
+    WITH primary_metadata AS (
+      SELECT
+        name,
+        str_value,
+        int_value
+      FROM (
+        SELECT
+          name,
+          str_value,
+          int_value,
+          ROW_NUMBER() OVER (PARTITION BY name ORDER BY trace_id ASC, machine_id ASC) as rn
+        FROM metadata
+      )
+      WHERE rn = 1
+    )
     SELECT
       -- Status card counts
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'analysis') as import_errors,
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'trace') as trace_errors,
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'data_loss') as data_losses,
       -- Metrics
-      _metadata_int('trace_size_bytes') as trace_size_bytes,
-      IFNULL(_metadata_str('trace_type'), 'Unknown') as trace_type,
-      IFNULL(_metadata_str('trace_uuid'), 'Not available') as trace_uuid,
-      _metadata_int('tracing_disabled_ns') - _metadata_int('tracing_started_ns') as duration_ns,
+      (SELECT int_value FROM primary_metadata WHERE name = 'trace_size_bytes') as trace_size_bytes,
+      IFNULL((SELECT str_value FROM primary_metadata WHERE name = 'trace_type'), 'Unknown') as trace_type,
+      IFNULL((SELECT str_value FROM primary_metadata WHERE name = 'trace_uuid'), 'Not available') as trace_uuid,
+      (SELECT int_value FROM primary_metadata WHERE name = 'tracing_disabled_ns') - 
+        (SELECT int_value FROM primary_metadata WHERE name = 'tracing_started_ns') as duration_ns,
       (SELECT max(ts) - min(ts) FROM sched) as sched_duration_ns,
       -- System info
-      _metadata_str('system_name') as system_name,
-      _metadata_str('system_release') as system_release,
-      _metadata_str('system_machine') as system_machine,
-      _metadata_str('android_build_fingerprint') as android_build_fingerprint;
+      (SELECT str_value FROM primary_metadata WHERE name = 'system_name') as system_name,
+      (SELECT str_value FROM primary_metadata WHERE name = 'system_release') as system_release,
+      (SELECT str_value FROM primary_metadata WHERE name = 'system_machine') as system_machine,
+      (SELECT str_value FROM primary_metadata WHERE name = 'android_build_fingerprint') as android_build_fingerprint,
+      (SELECT COUNT(DISTINCT trace_id) FROM metadata WHERE trace_id IS NOT NULL) as trace_count,
+      (SELECT COUNT(DISTINCT machine_id) FROM metadata WHERE machine_id IS NOT NULL) as machine_count;
   `);
 
   const row = result.firstRow({
@@ -84,6 +106,8 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
     system_release: STR_NULL,
     system_machine: STR_NULL,
     android_build_fingerprint: STR_NULL,
+    trace_count: NUM_NULL,
+    machine_count: NUM_NULL,
   });
   return {
     importErrors: row.import_errors ?? 0,
@@ -99,6 +123,8 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
     systemName: row.system_name ?? undefined,
     systemMachine: row.system_machine ?? undefined,
     systemRelease: row.system_release ?? undefined,
+    traceCount: row.trace_count ?? 0,
+    machineCount: row.machine_count ?? 0,
   };
 }
 
@@ -128,6 +154,26 @@ export class OverviewTab implements m.ClassComponent<OverviewTabAttrs> {
   view({attrs}: m.CVnode<OverviewTabAttrs>) {
     return m(
       '.pf-trace-info-page__tab-content',
+      attrs.data.traceCount > 1 &&
+        m(
+          Callout,
+          {
+            icon: 'layers',
+            intent: Intent.Primary,
+            className: 'pf-trace-info-page__banner',
+          },
+          'This session contains multiple traces. See the "Traces" tab for details.',
+        ),
+      attrs.data.machineCount > 1 &&
+        m(
+          Callout,
+          {
+            icon: 'computer',
+            intent: Intent.Primary,
+            className: 'pf-trace-info-page__banner',
+          },
+          'This session contains data from multiple machines. See the "Machines" tab for details.',
+        ),
       this.renderCardSection(
         'Trace Health',
         'Summary of errors, warnings, and data quality indicators',
