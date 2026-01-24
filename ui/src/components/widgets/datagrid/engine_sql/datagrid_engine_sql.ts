@@ -21,6 +21,7 @@ import {DatagridEngine, DataSourceModel, DataSourceRows} from '../datagrid_engin
 import {SQLSchemaRegistry} from '../sql_schema';
 import {FlatEngine} from './datagrid_engine_flat';
 import {PivotEngine} from './datagrid_engine_pivot';
+import {PivotFlatEngine} from './datagrid_engine_pivot_flat';
 
 export function ensure<T>(x: T): asserts x is NonNullable<T> {
   if (!exists(x)) {
@@ -50,6 +51,7 @@ export class DatagridEngineSQL implements DatagridEngine {
   private readonly preamble?: string;
   private readonly flatEngine: FlatEngine;
   private readonly pivotEngine: PivotEngine;
+  private readonly pivotFlatEngine: PivotFlatEngine;
   private readonly queue = new SerialTaskQueue();
   private readonly preableSlot = new QuerySlot<void>(this.queue);
 
@@ -67,6 +69,13 @@ export class DatagridEngineSQL implements DatagridEngine {
     );
 
     this.pivotEngine = new PivotEngine(
+      this.queue,
+      this.engine,
+      this.sqlSchema,
+      this.rootSchemaName,
+    );
+
+    this.pivotFlatEngine = new PivotFlatEngine(
       this.queue,
       this.engine,
       this.sqlSchema,
@@ -100,8 +109,7 @@ export class DatagridEngineSQL implements DatagridEngine {
         if (model.groupDisplay === 'tree') {
           return this.pivotEngine.get(model);
         } else {
-          // Flat pivot mode is not yet implemented - eternally pending
-          return {isPending: true};
+          return this.pivotFlatEngine.get(model);
         }
       default:
         assertUnreachable(mode);
