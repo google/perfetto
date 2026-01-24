@@ -2048,12 +2048,15 @@ perfetto_filegroup(
     name = "src_trace_processor_core_interpreter_interpreter",
     srcs = [
         "src/trace_processor/core/interpreter/bytecode_core.h",
+        "src/trace_processor/core/interpreter/bytecode_instruction_macros.h",
         "src/trace_processor/core/interpreter/bytecode_instructions.h",
         "src/trace_processor/core/interpreter/bytecode_interpreter.h",
         "src/trace_processor/core/interpreter/bytecode_interpreter_impl.cc",
         "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h",
         "src/trace_processor/core/interpreter/bytecode_interpreter_state.h",
         "src/trace_processor/core/interpreter/bytecode_registers.h",
+        "src/trace_processor/core/interpreter/bytecode_to_string.cc",
+        "src/trace_processor/core/interpreter/bytecode_to_string.h",
         "src/trace_processor/core/interpreter/interpreter_types.h",
     ],
 )

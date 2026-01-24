@@ -17,12 +17,15 @@ import("../../../../gn/test.gni")
 source_set("interpreter") {
   sources = [
     "bytecode_core.h",
+    "bytecode_instruction_macros.h",
     "bytecode_instructions.h",
     "bytecode_interpreter.h",
     "bytecode_interpreter_impl.cc",
     "bytecode_interpreter_impl.h",
     "bytecode_interpreter_state.h",
     "bytecode_registers.h",
+    "bytecode_to_string.cc",
+    "bytecode_to_string.h",
     "interpreter_types.h",
   ]
   deps = [
