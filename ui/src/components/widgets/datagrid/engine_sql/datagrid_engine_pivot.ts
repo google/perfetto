@@ -39,6 +39,8 @@ export class PivotEngine {
   private readonly pivotTableSlot: QuerySlot<DisposableSqlEntity>;
 
   constructor(
+    // A short SQL safe UUID to use for naming temporary tables
+    private readonly uuid: string,
     queue: SerialTaskQueue,
     private readonly engine: Engine,
     private readonly sqlSchema: SQLSchemaRegistry,
@@ -90,6 +92,7 @@ export class PivotEngine {
           sourceTable: sourceQuery,
           groupByColumns,
           aggregateExprs,
+          tableName: `pivot_${this.uuid}`,
         });
       },
     });

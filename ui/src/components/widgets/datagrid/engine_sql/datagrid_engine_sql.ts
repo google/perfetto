@@ -14,6 +14,7 @@
 
 import {assertUnreachable} from '../../../../base/logging';
 import {QueryResult, QuerySlot, SerialTaskQueue} from '../../../../base/query_slot';
+import { shortUuid } from '../../../../base/uuid';
 import {Engine} from '../../../../trace_processor/engine';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {DatagridEngine, DataSourceModel, DataSourceRows} from '../datagrid_engine';
@@ -56,6 +57,7 @@ export class DatagridEngineSQL implements DatagridEngine {
     this.preamble = config.preamble;
     this.queue = config.queue ?? new SerialTaskQueue();
     this.preambleSlot = new QuerySlot<void>(this.queue);
+    const uuid = shortUuid();
 
     this.flatEngine = new FlatEngine(
       this.queue,
@@ -65,6 +67,7 @@ export class DatagridEngineSQL implements DatagridEngine {
     );
 
     this.pivotEngine = new PivotEngine(
+      uuid,
       this.queue,
       this.engine,
       this.sqlSchema,
