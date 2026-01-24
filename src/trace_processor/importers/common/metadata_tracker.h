@@ -28,10 +28,12 @@
 
 namespace perfetto::trace_processor {
 
+class TraceProcessorContext;
+
 // Tracks information in the metadata table.
 class MetadataTracker {
  public:
-  explicit MetadataTracker(TraceStorage* storage);
+  explicit MetadataTracker(TraceProcessorContext* context);
 
   // Example usage:
   // SetMetadata(metadata::benchmark_name,
@@ -70,7 +72,7 @@ class MetadataTracker {
   std::array<StringId, kNumKeyTypes> key_type_ids_;
   uint32_t chrome_metadata_bundle_count_ = 0;
 
-  TraceStorage* storage_;
+  TraceProcessorContext* const context_;
 };
 
 }  // namespace perfetto::trace_processor
