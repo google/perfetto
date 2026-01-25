@@ -105,9 +105,7 @@ export class DatagridEngineSQL implements DatagridEngine {
   /**
    * Fetch aggregate summaries (aggregates across all filtered rows).
    */
-  useAggregateSummaries(
-    model: DataSourceModel,
-  ): QueryResult<ReadonlyMap<string, SqlValue>> {
+  useAggregateSummaries(model: DataSourceModel): QueryResult<Row> {
     const mode = model.mode;
     switch (mode) {
       case 'flat':

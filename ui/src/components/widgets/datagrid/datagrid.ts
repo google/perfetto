@@ -356,7 +356,7 @@ interface FlatGridBuildContext {
   readonly datasource: DatagridEngine;
   readonly rowsResult: DataSourceRows;
   readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
-  readonly aggregateSummaries?: ReadonlyMap<string, SqlValue>;
+  readonly aggregateSummaries?: Row;
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
@@ -374,7 +374,7 @@ interface PivotGridBuildContext {
   readonly datasource: DatagridEngine;
   readonly rowsResult: DataSourceRows;
   readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
-  readonly aggregateSummaries?: ReadonlyMap<string, SqlValue>;
+  readonly aggregateSummaries?: Row;
   readonly pivot: Pivot;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
@@ -1444,7 +1444,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build subContent showing grand total if column has an aggregate
       let subContent: m.Children;
       if (aggregate) {
-        const totalValue = aggregateSummaries?.get(colAlias);
+        const totalValue = aggregateSummaries?.[colAlias];
         const isLoading = totalValue === undefined;
         // Don't show grand total for ANY aggregation (it's just an arbitrary value)
         let totalContent: m.Children;
@@ -1828,7 +1828,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Build subContent showing grand total with aggregate symbol
       // Don't show grand total for ANY aggregation (it's just an arbitrary value)
-      const aggregateTotalValue = aggregateSummaries?.get(alias);
+      const aggregateTotalValue = aggregateSummaries?.[alias];
       const symbol = agg.function;
       const isLoading = aggregateTotalValue === undefined;
       let aggTotalContent: m.Children;

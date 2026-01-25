@@ -32,7 +32,7 @@ export class InMemoryDataSource implements DatagridEngine {
   private filteredSortedData: ReadonlyArray<Row> = [];
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
-  private aggregateSummariesCache = new Map<string, SqlValue>();
+  private aggregateSummariesCache: Row = {};
 
   // Cached state for diffing
   private oldColumns?: readonly FlatColumn[];
@@ -67,7 +67,7 @@ export class InMemoryDataSource implements DatagridEngine {
       this.oldSort = sort;
 
       // Clear aggregate summaries cache
-      this.aggregateSummariesCache.clear();
+      this.aggregateSummariesCache = {};
 
       let result = this.applyFilters(this.data, filters);
 
@@ -196,12 +196,10 @@ export class InMemoryDataSource implements DatagridEngine {
   /**
    * Fetch aggregate summaries (aggregates across all filtered rows).
    */
-  useAggregateSummaries(
-    _model: DataSourceModel,
-  ): QueryResult<ReadonlyMap<string, SqlValue>> {
+  useAggregateSummaries(_model: DataSourceModel): QueryResult<Row> {
     // Aggregates are computed in useRows, just return the cache
     const data =
-      this.aggregateSummariesCache.size > 0
+      Object.keys(this.aggregateSummariesCache).length > 0
         ? this.aggregateSummariesCache
         : undefined;
 

@@ -53,9 +53,7 @@ export interface DatagridEngine {
    * Fetch aggregate summaries (aggregates across all filtered rows).
    * Returns summaries for columns with aggregate functions or pivot aggregates.
    */
-  useAggregateSummaries(
-    model: DataSourceModel,
-  ): QueryResult<ReadonlyMap<string, SqlValue>>;
+  useAggregateSummaries(model: DataSourceModel): QueryResult<Row>;
 
   /**
    * Export all data with current filters/sorting applied.

@@ -18,7 +18,7 @@ import {
   SerialTaskQueue,
 } from '../../../../base/query_slot';
 import {Engine} from '../../../../trace_processor/engine';
-import {NUM, Row, SqlValue} from '../../../../trace_processor/query_result';
+import {NUM, Row} from '../../../../trace_processor/query_result';
 import {DisposableSqlEntity} from '../../../../trace_processor/sql_utils';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../datagrid_engine';
@@ -54,7 +54,7 @@ export class PivotEngine {
   }>;
 
   // Summaries slot (aggregate totals across all filtered rows)
-  private readonly summariesSlot: QuerySlot<ReadonlyMap<string, SqlValue>>;
+  private readonly summariesSlot: QuerySlot<Row>;
 
   constructor(
     // A short SQL safe UUID to use for naming temporary tables
@@ -80,7 +80,7 @@ export class PivotEngine {
     }>(queue);
 
     // Summaries slot
-    this.summariesSlot = new QuerySlot<ReadonlyMap<string, SqlValue>>(queue);
+    this.summariesSlot = new QuerySlot<Row>(queue);
   }
 
   getRows(model: PivotModel): DataSourceRows {
@@ -94,7 +94,7 @@ export class PivotEngine {
   /**
    * Get aggregate summaries across all filtered rows (no grouping).
    */
-  getSummaries(model: PivotModel): QueryResult<ReadonlyMap<string, SqlValue>> {
+  getSummaries(model: PivotModel): QueryResult<Row> {
     const {aggregates, filters = []} = model;
 
     return this.summariesSlot.use({
@@ -105,12 +105,7 @@ export class PivotEngine {
       queryFn: async () => {
         const query = this.buildSummariesQuery(model);
         const result = await this.engine.query(query);
-        const row = result.firstRow({}) as Row;
-        const summaries = new Map<string, SqlValue>();
-        for (const agg of aggregates) {
-          summaries.set(agg.alias, row[agg.alias]);
-        }
-        return summaries;
+        return result.firstRow({}) as Row;
       },
     });
   }
