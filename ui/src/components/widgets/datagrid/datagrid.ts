@@ -355,7 +355,6 @@ interface FlatGridBuildContext {
   readonly rootSchema: string;
   readonly datasource: DatagridEngine;
   readonly rowsResult: DataSourceRows;
-  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
   readonly aggregateSummaries?: Row;
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
@@ -373,7 +372,6 @@ interface PivotGridBuildContext {
   readonly rootSchema: string;
   readonly datasource: DatagridEngine;
   readonly rowsResult: DataSourceRows;
-  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
   readonly aggregateSummaries?: Row;
   readonly pivot: Pivot;
   readonly structuredQueryCompatMode: boolean;
@@ -393,12 +391,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   // The grid API instance for column autosizing etc
   private gridApi?: GridApi;
-
-  // Track columns needing distinct values
-  private distinctValuesColumns = new Set<string>();
-
-  // Track parameterized columns needing key discovery
-  private parameterKeyColumns = new Set<string>();
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialColumns) {
@@ -460,7 +452,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     // Fetch data using the slot-like API
     const rowsResult = datasource.useRows(model);
-    const distinctValuesResult = datasource.useDistinctValues(model);
     const aggregateSummariesResult = datasource.useAggregateSummaries(model);
 
     // Expose the API
@@ -491,7 +482,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         rootSchema,
         datasource,
         rowsResult,
-        distinctValues: distinctValuesResult.data,
         aggregateSummaries: aggregateSummariesResult.data,
         pivot: this.pivot!,
         structuredQueryCompatMode,
@@ -516,7 +506,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         rootSchema,
         datasource,
         rowsResult,
-        distinctValues: distinctValuesResult.data,
         aggregateSummaries: aggregateSummariesResult.data,
         columnInfoCache,
         structuredQueryCompatMode,
@@ -693,8 +682,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         offset: this.paginationOffset,
         limit: this.paginationLimit,
       },
-      distinctValuesColumns: this.distinctValuesColumns,
-      parameterKeyColumns: this.parameterKeyColumns,
     };
 
     if (this.pivot && this.pivot.drillDown) {
@@ -1339,7 +1326,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       datasource,
-      distinctValues,
       aggregateSummaries,
       columnInfoCache,
       structuredQueryCompatMode,
@@ -1369,14 +1355,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ),
         m(MenuDivider),
         m(FilterMenu, {
+          datasource,
+          field,
           columnType,
           structuredQueryCompatMode,
-          distinctValues: distinctValues?.get(field),
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
-          onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
-          onDismissDistinctValues: () =>
-            this.distinctValuesColumns.delete(field),
         }),
         m(MenuDivider),
         this.gridApi &&
@@ -1398,7 +1382,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           visibleColumns: this.columns.map((c) => c.field),
           onAddColumn: (newField) => this.addColumn(newField, attrs, colIndex),
           dataSource: datasource,
-          parameterKeyColumns: this.parameterKeyColumns,
         }),
         attrs.addColumnMenuItems?.(field),
         m(MenuDivider),
@@ -1649,7 +1632,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       datasource,
-      distinctValues,
       aggregateSummaries,
       pivot,
       structuredQueryCompatMode,
@@ -1688,14 +1670,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ),
         m(MenuDivider),
         m(FilterMenu, {
+          datasource,
+          field,
           columnType,
           structuredQueryCompatMode,
-          distinctValues: distinctValues?.get(field),
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
-          onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
-          onDismissDistinctValues: () =>
-            this.distinctValuesColumns.delete(field),
         }),
         m(MenuDivider),
         enablePivotControls &&
@@ -1706,7 +1686,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             onAddColumn: (newField) =>
               this.addGroupByColumn(newField, attrs, i),
             dataSource: datasource,
-            parameterKeyColumns: this.parameterKeyColumns,
             canRemove: true,
             onRemove: () => this.removeGroupByColumn(i, attrs),
             removeLabel: 'Remove group by',

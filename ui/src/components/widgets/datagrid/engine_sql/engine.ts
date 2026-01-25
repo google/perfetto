@@ -13,12 +13,29 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../../../../base/logging';
-import {QueryResult, QuerySlot, SerialTaskQueue} from '../../../../base/query_slot';
-import { shortUuid } from '../../../../base/uuid';
+import {
+  QueryResult,
+  QuerySlot,
+  SerialTaskQueue,
+} from '../../../../base/query_slot';
+import {shortUuid} from '../../../../base/uuid';
 import {Engine} from '../../../../trace_processor/engine';
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
-import {DatagridEngine, DataSourceModel, DataSourceRows} from '../datagrid_engine';
-import {SQLSchemaRegistry} from '../sql_schema';
+import {
+  Row,
+  SqlValue,
+  STR,
+  UNKNOWN,
+} from '../../../../trace_processor/query_result';
+import {
+  DatagridEngine,
+  DataSourceModel,
+  DataSourceRows,
+} from '../datagrid_engine';
+import {
+  isSQLExpressionDef,
+  SQLSchemaRegistry,
+  SQLSchemaResolver,
+} from '../sql_schema';
 import {FlatEngine} from './flat';
 import {PivotEngine} from './pivot';
 
@@ -47,6 +64,8 @@ export class DatagridEngineSQL implements DatagridEngine {
   private readonly pivotEngine: PivotEngine;
   private readonly queue: SerialTaskQueue;
   private readonly preambleSlot: QuerySlot<void>;
+  private readonly distinctValuesSlot: QuerySlot<readonly SqlValue[]>;
+  private readonly parameterKeysSlot: QuerySlot<readonly string[]>;
 
   constructor(config: DatagridEngineSQLConfig) {
     this.engine = config.engine;
@@ -55,6 +74,8 @@ export class DatagridEngineSQL implements DatagridEngine {
     this.preamble = config.preamble;
     this.queue = config.queue ?? new SerialTaskQueue();
     this.preambleSlot = new QuerySlot<void>(this.queue);
+    this.distinctValuesSlot = new QuerySlot<readonly SqlValue[]>(this.queue);
+    this.parameterKeysSlot = new QuerySlot<readonly string[]>(this.queue);
     const uuid = shortUuid();
 
     this.flatEngine = new FlatEngine(
@@ -77,16 +98,9 @@ export class DatagridEngineSQL implements DatagridEngine {
    * Fetch rows for the current model state.
    */
   useRows(model: DataSourceModel): DataSourceRows {
-    const {isPending: preamblePending} = this.preambleSlot.use({
-      key: this.preamble,
-      queryFn: async () => {
-        if (this.preamble) {
-          await this.engine.query(this.preamble);
-        }
-      },
-    });
+    const {isPending: preamblePending} = this.usePreamble();
 
-    // Don't trigger any other queries until the preable has completed
+    // Don't trigger any other queries until the preamble has completed
     if (preamblePending) {
       return {isPending: true};
     }
@@ -117,13 +131,95 @@ export class DatagridEngineSQL implements DatagridEngine {
     }
   }
 
-  // Stub implementations for interface compliance
-  useDistinctValues(): QueryResult<ReadonlyMap<string, readonly SqlValue[]>> {
-    return {data: undefined, isPending: false, isFresh: true};
+  /**
+   * Fetch distinct values for a column (for filter dropdowns).
+   */
+  useDistinctValues(
+    column: string | undefined,
+  ): QueryResult<readonly SqlValue[]> {
+    const {isPending: preamblePending} = this.usePreamble();
+
+    if (column === undefined || preamblePending) {
+      return {data: undefined, isPending: preamblePending, isFresh: true};
+    }
+
+    return this.distinctValuesSlot.use({
+      key: column,
+      queryFn: async () => {
+        const resolver = new SQLSchemaResolver(
+          this.sqlSchema,
+          this.rootSchemaName,
+        );
+        const sqlExpr = resolver.resolveColumnPath(column);
+        if (sqlExpr === undefined) {
+          return [];
+        }
+
+        const baseTable = resolver.getBaseTable();
+        const baseAlias = resolver.getBaseAlias();
+        const joinClauses = resolver.buildJoinClauses();
+
+        const query = `
+          SELECT DISTINCT ${sqlExpr} AS value
+          FROM ${baseTable} AS ${baseAlias}
+          ${joinClauses}
+          ORDER BY 1
+          LIMIT 1000
+        `;
+
+        const result = await this.engine.query(query);
+        const values: SqlValue[] = [];
+        for (let it = result.iter({value: UNKNOWN}); it.valid(); it.next()) {
+          values.push(it.value);
+        }
+        return values;
+      },
+    });
   }
 
-  useParameterKeys(): QueryResult<ReadonlyMap<string, readonly string[]>> {
-    return {data: undefined, isPending: false, isFresh: true};
+  /**
+   * Fetch parameter keys for a parameterized column prefix (e.g., 'args' -> ['foo', 'bar']).
+   */
+  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]> {
+    const {isPending: preamblePending} = this.usePreamble();
+
+    if (prefix === undefined || preamblePending) {
+      return {data: undefined, isPending: preamblePending, isFresh: true};
+    }
+
+    return this.parameterKeysSlot.use({
+      key: prefix,
+      queryFn: async () => {
+        const rootSchema = this.sqlSchema[this.rootSchemaName];
+        if (!rootSchema) {
+          return [];
+        }
+
+        const colDef = rootSchema.columns[prefix];
+        if (
+          !colDef ||
+          !isSQLExpressionDef(colDef) ||
+          !colDef.parameterKeysQuery
+        ) {
+          return [];
+        }
+
+        const baseTable = rootSchema.table;
+        const resolver = new SQLSchemaResolver(
+          this.sqlSchema,
+          this.rootSchemaName,
+        );
+        const baseAlias = resolver.getBaseAlias();
+
+        const query = colDef.parameterKeysQuery(baseTable, baseAlias);
+        const queryResult = await this.engine.query(query);
+        const keys: string[] = [];
+        for (let it = queryResult.iter({key: UNKNOWN}); it.valid(); it.next()) {
+          keys.push(String(it.key));
+        }
+        return keys;
+      },
+    });
   }
 
   async exportData(): Promise<Row[]> {
@@ -132,7 +228,23 @@ export class DatagridEngineSQL implements DatagridEngine {
 
   dispose(): void {
     this.preambleSlot.dispose();
+    this.distinctValuesSlot.dispose();
+    this.parameterKeysSlot.dispose();
     this.flatEngine.dispose();
     this.pivotEngine.dispose();
+  }
+
+  /**
+   * Run the preamble query if configured. Returns pending status.
+   */
+  private usePreamble(): QueryResult<void> {
+    return this.preambleSlot.use({
+      key: this.preamble,
+      queryFn: async () => {
+        if (this.preamble) {
+          await this.engine.query(this.preamble);
+        }
+      },
+    });
   }
 }

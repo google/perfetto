@@ -31,9 +31,6 @@ import {AggregateColumn, AggregateFunction} from './model';
 
 interface AddColumnMenuContext {
   readonly dataSource: DatagridEngine;
-  readonly parameterKeyColumns: Set<string>;
-  // Optional callback to check if a column can be added
-  readonly canAddColumnForField?: (field: string) => boolean;
 }
 
 /**
@@ -73,15 +70,13 @@ function buildAddColumnMenuFromSchema(
     const fullPath = pathPrefix ? `${pathPrefix}.${columnName}` : columnName;
 
     if (isColumnDef(entry)) {
-      // Leaf column - clicking adds it (disabled if already visible or not allowed)
+      // Leaf column - clicking adds it (disabled if already visible)
       const title = entry.title ?? columnName;
       const isAlreadyVisible = columns.includes(fullPath);
-      const canAdd = context.canAddColumnForField?.(fullPath) ?? true;
-      const isDisabled = isAlreadyVisible || !canAdd;
       menuItems.push(
         m(MenuItem, {
           label: title,
-          disabled: isDisabled,
+          disabled: isAlreadyVisible,
           onclick: () => onSelect(fullPath),
         }),
       );
@@ -105,29 +100,14 @@ function buildAddColumnMenuFromSchema(
     } else if (isParameterizedColumnDef(entry)) {
       // Parameterized column - show available keys from datasource
       const title = typeof entry.title === 'string' ? entry.title : columnName;
-      const parameterKeysResult = context.dataSource.useParameterKeys({
-        mode: 'flat',
-        columns: [],
-        parameterKeyColumns: context.parameterKeyColumns,
-      });
-      const availableKeys = parameterKeysResult.data?.get(fullPath);
       menuItems.push(
         m(
           MenuItem,
-          {
-            label: `${title}...`,
-            onChange: (isOpen) => {
-              if (isOpen === true) {
-                context.parameterKeyColumns.add(fullPath);
-              } else {
-                context.parameterKeyColumns.delete(fullPath);
-              }
-            },
-          },
+          {label: `${title}...`},
           m(ParameterizedColumnSubmenu, {
             pathPrefix: fullPath,
             columns,
-            availableKeys,
+            dataSource: context.dataSource,
             onSelect,
           }),
         ),
@@ -142,7 +122,7 @@ function buildAddColumnMenuFromSchema(
 export interface ParameterizedColumnSubmenuAttrs {
   readonly pathPrefix: string;
   readonly columns: ReadonlyArray<string>;
-  readonly availableKeys: ReadonlyArray<string> | undefined;
+  readonly dataSource: DatagridEngine;
   readonly onSelect: (columnPath: string) => void;
 }
 
@@ -153,10 +133,13 @@ export class ParameterizedColumnSubmenu
   private static readonly MAX_VISIBLE_ITEMS = 100;
 
   view({attrs}: m.Vnode<ParameterizedColumnSubmenuAttrs>) {
-    const {pathPrefix, columns, availableKeys, onSelect} = attrs;
+    const {pathPrefix, columns, dataSource, onSelect} = attrs;
 
-    // Show loading state if availableKeys is undefined
-    if (availableKeys === undefined) {
+    // Fetch available keys - this is only called when the submenu is visible
+    const {data: availableKeys, isPending} = dataSource.useParameterKeys(pathPrefix);
+
+    // Show loading state while fetching
+    if (isPending || availableKeys === undefined) {
       return m('.pf-distinct-values-menu', [
         m(MenuItem, {label: 'Loading...', disabled: true}),
       ]);
@@ -166,13 +149,13 @@ export class ParameterizedColumnSubmenu
     const fuzzyResults = (() => {
       if (this.searchQuery === '') {
         // No search - show all keys without highlighting
-        return availableKeys.map((key) => ({
+        return availableKeys.map((key: string) => ({
           key,
           segments: [{matching: false, value: key}],
         }));
       } else {
         // Fuzzy search with highlighting
-        const finder = new FuzzyFinder(availableKeys, (k) => k);
+        const finder = new FuzzyFinder(availableKeys as string[], (k: string) => k);
         return finder.find(this.searchQuery).map((result) => ({
           key: result.item,
           segments: result.segments,
@@ -228,12 +211,12 @@ export class ParameterizedColumnSubmenu
         '.pf-distinct-values-menu__list',
         fuzzyResults.length > 0
           ? [
-              visibleResults.map((result) => {
+              visibleResults.map((result: {key: string; segments: {matching: boolean; value: string}[]}) => {
                 const keyPath = `${pathPrefix}.${result.key}`;
                 const isKeyAlreadyVisible = columns.includes(keyPath);
 
                 // Render highlighted label
-                const labelContent = result.segments.map((segment) => {
+                const labelContent = result.segments.map((segment: {matching: boolean; value: string}) => {
                   if (segment.matching) {
                     return m('strong.pf-fuzzy-match', segment.value);
                   } else {
@@ -296,13 +279,9 @@ interface ColumnMenuAttrs {
   readonly visibleColumns: ReadonlyArray<string>;
   readonly onAddColumn: (field: string) => void;
   readonly dataSource: DatagridEngine;
-  readonly parameterKeyColumns: Set<string>;
 
   // Optional add column control - defaults to true
   readonly canAdd?: boolean;
-
-  // Optional callback to check if a specific column can be added
-  readonly canAddColumnForField?: (field: string) => boolean;
 
   // Optional remove button - if not provided, only "Add" is shown
   readonly canRemove?: boolean;
@@ -322,7 +301,6 @@ export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
   view({attrs}: m.Vnode<ColumnMenuAttrs>): m.Children {
     const {
       canAdd = true,
-      canAddColumnForField,
       canRemove,
       onRemove,
       schema,
@@ -330,7 +308,6 @@ export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
       visibleColumns,
       onAddColumn,
       dataSource,
-      parameterKeyColumns,
       removeLabel = 'Remove column',
       addLabel = 'Add column',
     } = attrs;
@@ -342,7 +319,7 @@ export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
       0,
       visibleColumns,
       onAddColumn,
-      {dataSource, parameterKeyColumns, canAddColumnForField},
+      {dataSource},
     );
 
     return [

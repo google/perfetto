@@ -34,20 +34,16 @@ export interface DatagridEngine {
   useRows(model: DataSourceModel): DataSourceRows;
 
   /**
-   * Fetch distinct values for filter dropdowns.
-   * Only fetches for columns specified in model.distinctValuesColumns.
+   * Fetch distinct values for a column (for filter dropdowns).
+   * Pass undefined to skip fetching.
    */
-  useDistinctValues(
-    model: DataSourceModel,
-  ): QueryResult<ReadonlyMap<string, readonly SqlValue[]>>;
+  useDistinctValues(column: string | undefined): QueryResult<readonly SqlValue[]>;
 
   /**
-   * Fetch parameter keys for parameterized columns (e.g., 'args' -> ['foo', 'bar']).
-   * Only fetches for prefixes specified in model.parameterKeyColumns.
+   * Fetch parameter keys for a parameterized column prefix (e.g., 'args' -> ['foo', 'bar']).
+   * Pass undefined to skip fetching.
    */
-  useParameterKeys(
-    model: DataSourceModel,
-  ): QueryResult<ReadonlyMap<string, readonly string[]>>;
+  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]>;
 
   /**
    * Fetch aggregate summaries (aggregates across all filtered rows).
@@ -78,13 +74,6 @@ interface DataSourceModelBase {
     readonly alias: string;
     readonly direction: 'ASC' | 'DESC';
   };
-
-  // Columns for which to fetch distinct values (for filter dropdowns)
-  readonly distinctValuesColumns?: ReadonlySet<string>;
-
-  // Parameterized column prefixes for which to fetch available keys (e.g.,
-  // 'args')
-  readonly parameterKeyColumns?: ReadonlySet<string>;
 }
 
 // Flat mode: simple column selection

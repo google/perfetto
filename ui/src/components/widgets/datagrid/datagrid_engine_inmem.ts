@@ -94,100 +94,86 @@ export class InMemoryDataSource implements DatagridEngine {
   }
 
   /**
-   * Fetch distinct values for filter dropdowns.
+   * Fetch distinct values for a column.
    */
-  useDistinctValues(
-    model: DataSourceModel,
-  ): QueryResult<ReadonlyMap<string, readonly SqlValue[]>> {
-    const {distinctValuesColumns} = model;
-
-    if (!distinctValuesColumns || distinctValuesColumns.size === 0) {
+  useDistinctValues(column: string | undefined): QueryResult<readonly SqlValue[]> {
+    if (column === undefined) {
       return {data: undefined, isPending: false, isFresh: true};
     }
 
-    for (const column of distinctValuesColumns) {
-      if (!this.distinctValuesCache.has(column)) {
-        // Compute distinct values from base data (not filtered)
-        const uniqueValues = new Set<SqlValue>();
-        for (const row of this.data) {
-          uniqueValues.add(row[column]);
+    if (!this.distinctValuesCache.has(column)) {
+      // Compute distinct values from base data (not filtered)
+      const uniqueValues = new Set<SqlValue>();
+      for (const row of this.data) {
+        uniqueValues.add(row[column]);
+      }
+
+      // Sort with null-aware comparison
+      const sorted = Array.from(uniqueValues).sort((a, b) => {
+        // Nulls come first
+        if (a === null && b === null) return 0;
+        if (a === null) return -1;
+        if (b === null) return 1;
+
+        // Type-specific sorting
+        if (typeof a === 'number' && typeof b === 'number') {
+          return a - b;
+        }
+        if (typeof a === 'bigint' && typeof b === 'bigint') {
+          return Number(a - b);
+        }
+        if (typeof a === 'string' && typeof b === 'string') {
+          return a.localeCompare(b);
         }
 
-        // Sort with null-aware comparison
-        const sorted = Array.from(uniqueValues).sort((a, b) => {
-          // Nulls come first
-          if (a === null && b === null) return 0;
-          if (a === null) return -1;
-          if (b === null) return 1;
+        // Default: convert to string and compare
+        return String(a).localeCompare(String(b));
+      });
 
-          // Type-specific sorting
-          if (typeof a === 'number' && typeof b === 'number') {
-            return a - b;
-          }
-          if (typeof a === 'bigint' && typeof b === 'bigint') {
-            return Number(a - b);
-          }
-          if (typeof a === 'string' && typeof b === 'string') {
-            return a.localeCompare(b);
-          }
-
-          // Default: convert to string and compare
-          return String(a).localeCompare(String(b));
-        });
-
-        this.distinctValuesCache.set(column, sorted);
-      }
+      this.distinctValuesCache.set(column, sorted);
     }
 
     return {
-      data: this.distinctValuesCache,
+      data: this.distinctValuesCache.get(column),
       isPending: false,
       isFresh: true,
     };
   }
 
   /**
-   * Fetch parameter keys for parameterized columns.
+   * Fetch parameter keys for a parameterized column prefix.
    */
-  useParameterKeys(
-    model: DataSourceModel,
-  ): QueryResult<ReadonlyMap<string, readonly string[]>> {
-    const {parameterKeyColumns} = model;
-
-    if (!parameterKeyColumns || parameterKeyColumns.size === 0) {
+  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]> {
+    if (prefix === undefined) {
       return {data: undefined, isPending: false, isFresh: true};
     }
 
-    for (const prefix of parameterKeyColumns) {
-      if (!this.parameterKeysCache.has(prefix)) {
-        // Find all keys that match the prefix pattern (e.g., "skills.typescript" for prefix "skills")
-        const uniqueKeys = new Set<string>();
-        const prefixWithDot = prefix + '.';
+    if (!this.parameterKeysCache.has(prefix)) {
+      // Find all keys that match the prefix pattern (e.g., "skills.typescript" for prefix "skills")
+      const uniqueKeys = new Set<string>();
+      const prefixWithDot = prefix + '.';
 
-        for (const row of this.data) {
-          for (const key of Object.keys(row)) {
-            if (key.startsWith(prefixWithDot)) {
-              // Extract the parameter key (everything after the prefix)
-              const paramKey = key.slice(prefixWithDot.length);
-              // Only add top-level keys (no further dots)
-              if (!paramKey.includes('.')) {
-                uniqueKeys.add(paramKey);
-              }
+      for (const row of this.data) {
+        for (const key of Object.keys(row)) {
+          if (key.startsWith(prefixWithDot)) {
+            // Extract the parameter key (everything after the prefix)
+            const paramKey = key.slice(prefixWithDot.length);
+            // Only add top-level keys (no further dots)
+            if (!paramKey.includes('.')) {
+              uniqueKeys.add(paramKey);
             }
           }
         }
-
-        // Sort alphabetically
-        const sorted = Array.from(uniqueKeys).sort((a, b) =>
-          a.localeCompare(b),
-        );
-
-        this.parameterKeysCache.set(prefix, sorted);
       }
+
+      // Sort alphabetically
+      const sorted = Array.from(uniqueKeys).sort((a, b) => a.localeCompare(b));
+
+      this.parameterKeysCache.set(prefix, sorted);
     }
 
     return {
-      data: this.parameterKeysCache,
+      data: this.parameterKeysCache.get(prefix),
       isPending: false,
       isFresh: true,
     };
