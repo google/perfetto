@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {DatagridEngineSQL} from '../../components/widgets/datagrid/engine_sql/engine';
+import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import {PerfettoPlugin} from '../../public/plugin';
@@ -102,14 +102,14 @@ interface SnapshotTabAttrs {
 }
 
 class SnapshotTab implements m.ClassComponent<SnapshotTabAttrs> {
-  private dataSource?: DatagridEngineSQL;
+  private dataSource?: SQLDataSource;
 
   view({attrs}: m.CVnode<SnapshotTabAttrs>) {
     const {trace, snapshotId} = attrs;
 
     // Create data source lazily
     if (!this.dataSource) {
-      this.dataSource = new DatagridEngineSQL({
+      this.dataSource = new SQLDataSource({
         engine: trace.engine,
         sqlSchema: createMemorySnapshotSchema(snapshotId),
         rootSchemaName: 'memory_snapshot_node',

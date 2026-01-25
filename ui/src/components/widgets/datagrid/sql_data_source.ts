@@ -12,28 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertUnreachable} from '../../../../base/logging';
+import {assertUnreachable} from '../../../base/logging';
 import {
   QueryResult,
   QuerySlot,
   SerialTaskQueue,
-} from '../../../../base/query_slot';
-import {maybeUndefined} from '../../../../base/utils';
-import {shortUuid} from '../../../../base/uuid';
-import {Engine} from '../../../../trace_processor/engine';
-import {Row, SqlValue, UNKNOWN} from '../../../../trace_processor/query_result';
-import {
-  DatagridEngine,
-  DataSourceModel,
-  DataSourceRows,
-} from '../datagrid_engine';
+} from '../../../base/query_slot';
+import {maybeUndefined} from '../../../base/utils';
+import {shortUuid} from '../../../base/uuid';
+import {Engine} from '../../../trace_processor/engine';
+import {Row, SqlValue, UNKNOWN} from '../../../trace_processor/query_result';
+import {DataSource, DataSourceModel, DataSourceRows} from './data_source';
 import {
   isSQLExpressionDef,
   SQLSchemaRegistry,
   SQLSchemaResolver,
-} from '../sql_schema';
-import {FlatEngine} from './flat';
-import {PivotEngine} from './pivot';
+} from './sql_schema';
+import {SQLDataSourceFlat} from './sql_data_source/flat';
+import {SQLDataSourcePivot} from './sql_data_source/pivot';
 
 /**
  * Configuration for SQLDataSource.
@@ -51,13 +47,13 @@ export interface DatagridEngineSQLConfig {
  *
  * Simplified version: supports flat mode and pivot mode.
  */
-export class DatagridEngineSQL implements DatagridEngine {
+export class SQLDataSource implements DataSource {
   private readonly engine: Engine;
   private readonly sqlSchema: SQLSchemaRegistry;
   private readonly rootSchemaName: string;
   private readonly preamble?: string;
-  private readonly flatEngine: FlatEngine;
-  private readonly pivotEngine: PivotEngine;
+  private readonly flatEngine: SQLDataSourceFlat;
+  private readonly pivotEngine: SQLDataSourcePivot;
   private readonly queue: SerialTaskQueue;
   private readonly preambleSlot: QuerySlot<void>;
   private readonly distinctValuesSlot: QuerySlot<readonly SqlValue[]>;
@@ -74,14 +70,14 @@ export class DatagridEngineSQL implements DatagridEngine {
     this.parameterKeysSlot = new QuerySlot<readonly string[]>(this.queue);
     const uuid = shortUuid();
 
-    this.flatEngine = new FlatEngine(
+    this.flatEngine = new SQLDataSourceFlat(
       this.queue,
       this.engine,
       this.sqlSchema,
       this.rootSchemaName,
     );
 
-    this.pivotEngine = new PivotEngine(
+    this.pivotEngine = new SQLDataSourcePivot(
       uuid,
       this.queue,
       this.engine,

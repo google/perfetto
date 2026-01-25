@@ -30,7 +30,7 @@ import {Spinner} from '../widgets/spinner';
 import {shortUuid} from '../base/uuid';
 import {AggregationPanel} from './aggregation_panel';
 import {Column, Filter, Pivot} from './widgets/datagrid/model';
-import {DatagridEngineSQL} from './widgets/datagrid/engine_sql/engine';
+import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from './widgets/datagrid/sql_schema';
 import {BarChartData, ColumnDef} from './aggregation';
 import {
@@ -213,7 +213,7 @@ export function createAggregationTab(
   let currentSelection: AreaSelection | undefined;
   let aggregation: Aggregation | undefined;
   let data: AggregationData | undefined;
-  let dataSource: DatagridEngineSQL | undefined;
+  let dataSource: SQLDataSource | undefined;
   let dataGridApi: DataGridApi | undefined;
 
   function createInitialState(): DataGridModel {
@@ -268,7 +268,7 @@ export function createAggregationTab(
           data = undefined;
           if (aggregation) {
             data = await aggregation?.prepareData(trace.engine);
-            dataSource = new DatagridEngineSQL({
+            dataSource = new SQLDataSource({
               queue,
               engine: trace.engine,
               sqlSchema: createSimpleSchema(data.tableName),

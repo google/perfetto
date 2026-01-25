@@ -17,17 +17,17 @@ import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/logging';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {
-  DatagridEngine,
+  DataSource,
   DataSourceModel,
   DataSourceRows,
   FlatModel,
-} from './datagrid_engine';
+} from './data_source';
 import {Filter} from './model';
 
 // Column shape from FlatModel
 type FlatColumn = FlatModel['columns'][number];
 
-export class InMemoryDataSource implements DatagridEngine {
+export class InMemoryDataSource implements DataSource {
   private data: ReadonlyArray<Row> = [];
   private filteredSortedData: ReadonlyArray<Row> = [];
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();
@@ -71,10 +71,8 @@ export class InMemoryDataSource implements DatagridEngine {
 
       let result = this.applyFilters(this.data, filters);
 
-      if (columns) {
-        // Project columns to use aliases as keys (for consistency with SQL data source)
-        result = this.projectColumns(result, columns);
-      }
+      // Project columns to use aliases as keys (for consistency with SQL data source)
+      result = this.projectColumns(result, columns);
 
       // Apply sorting from model
       if (sort) {
@@ -96,7 +94,9 @@ export class InMemoryDataSource implements DatagridEngine {
   /**
    * Fetch distinct values for a column.
    */
-  useDistinctValues(column: string | undefined): QueryResult<readonly SqlValue[]> {
+  useDistinctValues(
+    column: string | undefined,
+  ): QueryResult<readonly SqlValue[]> {
     if (column === undefined) {
       return {data: undefined, isPending: false, isFresh: true};
     }
@@ -224,10 +224,7 @@ export class InMemoryDataSource implements DatagridEngine {
   /**
    * Compare sort configurations for equality.
    */
-  private isSortEqual(
-    a: FlatModel['sort'],
-    b: FlatModel['sort'],
-  ): boolean {
+  private isSortEqual(a: FlatModel['sort'], b: FlatModel['sort']): boolean {
     if (a === b) return true;
     if (!a || !b) return false;
     return a.alias === b.alias && a.direction === b.direction;
@@ -375,7 +372,6 @@ export class InMemoryDataSource implements DatagridEngine {
         : strB.localeCompare(strA);
     });
   }
-
 }
 
 // Compare values, using a special deep comparison for Uint8Arrays.

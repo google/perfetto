@@ -26,12 +26,18 @@ import {Filter} from './model';
  *
  * Call these methods on every render cycle - they handle caching internally.
  */
-export interface DatagridEngine {
+export interface DataSource {
   /**
    * Fetch rows for the current model state.
    * Call every render with the current model to get rows and trigger updates.
    */
   useRows(model: DataSourceModel): DataSourceRows;
+
+  /**
+   * Fetch aggregate summaries (aggregates across all filtered rows).
+   * Returns summaries for columns with aggregate functions or pivot aggregates.
+   */
+  useAggregateSummaries(model: DataSourceModel): QueryResult<Row>;
 
   /**
    * Fetch distinct values for a column (for filter dropdowns).
@@ -46,12 +52,6 @@ export interface DatagridEngine {
    * Pass undefined to skip fetching.
    */
   useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]>;
-
-  /**
-   * Fetch aggregate summaries (aggregates across all filtered rows).
-   * Returns summaries for columns with aggregate functions or pivot aggregates.
-   */
-  useAggregateSummaries(model: DataSourceModel): QueryResult<Row>;
 
   /**
    * Export all data with current filters/sorting applied (no pagination).

@@ -22,7 +22,7 @@ import {Form} from '../../../widgets/form';
 import {Icon} from '../../../widgets/icon';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
-import {DatagridEngine} from './datagrid_engine';
+import {DataSource} from './data_source';
 import {ColumnType} from './datagrid_schema';
 import {FilterOpAndValue} from './model';
 
@@ -46,7 +46,7 @@ export function toCaseInsensitiveGlob(text: string): string {
 
 // Helper component to manage distinct values selection
 interface DistinctValuesSubmenuAttrs {
-  readonly datasource: DatagridEngine;
+  readonly datasource: DataSource;
   readonly field: string;
   readonly excludeNull?: boolean;
   readonly valueFormatter: (value: SqlValue) => string;
@@ -254,7 +254,7 @@ export class TextFilterSubmenu
 }
 
 export interface FilterMenuAttrs {
-  readonly datasource: DatagridEngine;
+  readonly datasource: DataSource;
   readonly field: string;
   readonly columnType: ColumnType | undefined;
   readonly structuredQueryCompatMode: boolean;

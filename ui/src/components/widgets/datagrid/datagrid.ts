@@ -43,12 +43,12 @@ import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
 import {
-  DatagridEngine,
+  DataSource,
   DataSourceModel,
   DataSourceRows,
   FlatModel,
   PivotModel,
-} from './datagrid_engine';
+} from './data_source';
 import {
   SchemaRegistry,
   getColumnInfo,
@@ -65,7 +65,7 @@ import {
   formatAsTSV,
   formatRows,
 } from './export_utils';
-import {InMemoryDataSource} from './datagrid_engine_inmem';
+import {InMemoryDataSource} from './in_memory_data_source';
 import {
   AggregateColumn,
   AggregateFunction,
@@ -147,7 +147,7 @@ export interface DataGridAttrs {
    * The data source is responsible for applying the filters, sorting, and
    * paging and providing the rows that are displayed in the grid.
    */
-  readonly data: DatagridEngine | readonly Row[];
+  readonly data: DataSource | readonly Row[];
 
   /**
    * Array of column paths that are currently visible, in display order.
@@ -336,9 +336,7 @@ export interface DataGridApi {
   getRowCount(): number | undefined;
 }
 
-function getOrCreateDataSource(
-  data: DatagridEngine | readonly Row[],
-): DatagridEngine {
+function getOrCreateDataSource(data: DataSource | readonly Row[]): DataSource {
   if ('useRows' in data) {
     return data;
   } else {
@@ -353,7 +351,7 @@ interface FlatGridBuildContext {
   readonly attrs: DataGridAttrs;
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
-  readonly datasource: DatagridEngine;
+  readonly datasource: DataSource;
   readonly rowsResult: DataSourceRows;
   readonly aggregateSummaries?: Row;
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
@@ -370,7 +368,7 @@ interface PivotGridBuildContext {
   readonly attrs: DataGridAttrs;
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
-  readonly datasource: DatagridEngine;
+  readonly datasource: DataSource;
   readonly rowsResult: DataSourceRows;
   readonly aggregateSummaries?: Row;
   readonly pivot: Pivot;
@@ -2048,7 +2046,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   private async formatData(
-    dataSource: DatagridEngine,
+    dataSource: DataSource,
     model: DataSourceModel,
     schema: SchemaRegistry | undefined,
     rootSchema: string | undefined,

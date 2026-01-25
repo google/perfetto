@@ -21,7 +21,7 @@ import {Engine} from '../../../../trace_processor/engine';
 import {NUM, Row} from '../../../../trace_processor/query_result';
 import {DisposableSqlEntity} from '../../../../trace_processor/sql_utils';
 import {runQueryForQueryTable} from '../../../query_table/queries';
-import {DataSourceRows, PivotModel} from '../datagrid_engine';
+import {DataSourceRows, PivotModel} from '../data_source';
 import {
   buildAggregateExpr,
   createPivotTable,
@@ -31,13 +31,13 @@ import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
 
 /**
- * Pivot engine for DataGrid.
+ * Pivot datasource for DataGrid.
  *
  * Handles grouped/aggregated views with two display modes:
  * - 'flat': Simple GROUP BY query without hierarchical structure
  * - 'tree': Uses __intrinsic_pivot virtual table with expand/collapse
  */
-export class PivotEngine {
+export class SQLDataSourcePivot {
   // Tree mode slots
   private readonly treeRowCountSlot: QuerySlot<number>;
   private readonly treeRowsSlot: QuerySlot<{

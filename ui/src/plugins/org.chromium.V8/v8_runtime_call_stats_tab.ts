@@ -21,7 +21,7 @@ import {
   CellRenderResult,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
-import {DatagridEngineSQL} from '../../components/widgets/datagrid/engine_sql/engine';
+import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
 import {
   AreaSelection,
@@ -79,7 +79,7 @@ const GROUP_COLORS_LENGHT = Object.keys(GROUP_COLORS).length;
 export class V8RuntimeCallStatsTab implements Tab {
   private previousSelection?: Selection;
   private loading = false;
-  private dataSource?: DatagridEngineSQL;
+  private dataSource?: SQLDataSource;
   private selectedGroups = new Set<string>(Object.keys(GROUP_COLORS));
 
   constructor(private readonly trace: Trace) {}
@@ -302,7 +302,7 @@ export class V8RuntimeCallStatsTab implements Tab {
     if (shouldLoad && this.previousSelection === selection) {
       await this.updateSqlView(selection, trackIds);
       if (this.previousSelection === selection) {
-        this.dataSource = new DatagridEngineSQL({
+        this.dataSource = new SQLDataSource({
           engine: this.trace.engine,
           sqlSchema: V8_RCS_SQL_SCHEMA,
           rootSchemaName: 'v8_rcs',

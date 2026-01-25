@@ -25,12 +25,12 @@ import {
   ColumnSchema,
   SchemaRegistry,
 } from '../widgets/datagrid/datagrid_schema';
-import {InMemoryDataSource} from '../widgets/datagrid/datagrid_engine_inmem';
+import {InMemoryDataSource} from '../widgets/datagrid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
 import {DataGridExportButton} from '../widgets/datagrid/export_button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
-import {DatagridEngine} from '../widgets/datagrid/datagrid_engine';
+import {DataSource} from '../widgets/datagrid/data_source';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {Button} from '../../widgets/button';
 import {PopupMenu} from '../../widgets/menu';
@@ -110,7 +110,7 @@ interface QueryResultsTableAttrs {
 export class QueryResultsTable
   implements m.ClassComponent<QueryResultsTableAttrs>
 {
-  private dataSource?: DatagridEngine;
+  private dataSource?: DataSource;
   private dataGridApi?: DataGridApi;
 
   constructor({attrs}: m.CVnode<QueryResultsTableAttrs>) {
@@ -235,7 +235,7 @@ export class QueryResultsTable
   private renderTableContent(
     trace: Trace,
     resp: QueryResponse,
-    dataSource: DatagridEngine,
+    dataSource: DataSource,
   ) {
     return m(
       '.pf-query-panel',
@@ -254,7 +254,7 @@ export class QueryResultsTable
   private renderContent(
     trace: Trace,
     resp: QueryResponse,
-    dataSource: DatagridEngine,
+    dataSource: DataSource,
   ) {
     if (resp.error) {
       return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);

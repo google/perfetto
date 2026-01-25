@@ -20,7 +20,7 @@ import {EmptyState} from '../../../widgets/empty_state';
 import {Icon} from '../../../widgets/icon';
 import {MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
-import {DatagridEngine} from './datagrid_engine';
+import {DataSource} from './data_source';
 import {
   SchemaRegistry,
   isColumnDef,
@@ -30,7 +30,7 @@ import {
 import {AggregateColumn, AggregateFunction} from './model';
 
 interface AddColumnMenuContext {
-  readonly dataSource: DatagridEngine;
+  readonly dataSource: DataSource;
 }
 
 /**
@@ -122,7 +122,7 @@ function buildAddColumnMenuFromSchema(
 export interface ParameterizedColumnSubmenuAttrs {
   readonly pathPrefix: string;
   readonly columns: ReadonlyArray<string>;
-  readonly dataSource: DatagridEngine;
+  readonly dataSource: DataSource;
   readonly onSelect: (columnPath: string) => void;
 }
 
@@ -289,7 +289,7 @@ interface ColumnMenuAttrs {
   readonly rootSchema: string;
   readonly visibleColumns: ReadonlyArray<string>;
   readonly onAddColumn: (field: string) => void;
-  readonly dataSource: DatagridEngine;
+  readonly dataSource: DataSource;
 
   // Optional add column control - defaults to true
   readonly canAdd?: boolean;

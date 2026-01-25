@@ -20,11 +20,11 @@ import {
 import {Engine} from '../../../../trace_processor/engine';
 import {NUM, Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
-import {DataSourceRows, FlatModel} from '../datagrid_engine';
+import {DataSourceRows, FlatModel} from '../data_source';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
 
-export class FlatEngine {
+export class SQLDataSourceFlat {
   private readonly rowCountSlot: QuerySlot<number>;
   private readonly rowsSlot: QuerySlot<{
     readonly rows: readonly Row[];
