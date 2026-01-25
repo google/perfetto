@@ -19,9 +19,8 @@ import {Engine} from '../../../../trace_processor/engine';
 import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {DatagridEngine, DataSourceModel, DataSourceRows} from '../datagrid_engine';
 import {SQLSchemaRegistry} from '../sql_schema';
-import {FlatEngine} from './datagrid_engine_flat';
-import {PivotEngine} from './datagrid_engine_pivot';
-import {PivotFlatEngine} from './datagrid_engine_pivot_flat';
+import {FlatEngine} from './flat';
+import {PivotEngine} from './pivot';
 
 /**
  * Configuration for SQLDataSource.
@@ -46,7 +45,6 @@ export class DatagridEngineSQL implements DatagridEngine {
   private readonly preamble?: string;
   private readonly flatEngine: FlatEngine;
   private readonly pivotEngine: PivotEngine;
-  private readonly pivotFlatEngine: PivotFlatEngine;
   private readonly queue: SerialTaskQueue;
   private readonly preambleSlot: QuerySlot<void>;
 
@@ -68,13 +66,6 @@ export class DatagridEngineSQL implements DatagridEngine {
 
     this.pivotEngine = new PivotEngine(
       uuid,
-      this.queue,
-      this.engine,
-      this.sqlSchema,
-      this.rootSchemaName,
-    );
-
-    this.pivotFlatEngine = new PivotFlatEngine(
       this.queue,
       this.engine,
       this.sqlSchema,
@@ -103,34 +94,26 @@ export class DatagridEngineSQL implements DatagridEngine {
     const mode = model.mode;
     switch (mode) {
       case 'flat':
-        return this.flatEngine.get(model);
+        return this.flatEngine.getRows(model);
       case 'pivot':
-        if (model.groupDisplay === 'flat') {
-          return this.pivotFlatEngine.get(model);
-        } else {
-          return this.pivotEngine.get(model);
-        }
+        return this.pivotEngine.getRows(model);
       default:
         assertUnreachable(mode);
     }
   }
 
   /**
-   * Fetch aggregate totals (grand totals across all filtered rows).
+   * Fetch aggregate summaries (aggregates across all filtered rows).
    */
-  useAggregateTotals(
+  useAggregateSummaries(
     model: DataSourceModel,
   ): QueryResult<ReadonlyMap<string, SqlValue>> {
     const mode = model.mode;
     switch (mode) {
       case 'flat':
-        return this.flatEngine.getTotals(model);
+        return this.flatEngine.getSummaries(model);
       case 'pivot':
-        if (model.groupDisplay === 'flat') {
-          return this.pivotFlatEngine.getTotals(model);
-        } else {
-          return this.pivotEngine.getTotals(model);
-        }
+        return this.pivotEngine.getSummaries(model);
       default:
         assertUnreachable(mode);
     }
@@ -153,6 +136,5 @@ export class DatagridEngineSQL implements DatagridEngine {
     this.preambleSlot.dispose();
     this.flatEngine.dispose();
     this.pivotEngine.dispose();
-    this.pivotFlatEngine.dispose();
   }
 }

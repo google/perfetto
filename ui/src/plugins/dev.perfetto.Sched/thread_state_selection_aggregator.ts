@@ -226,7 +226,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         },
         {title: 'Cluster Type', columnId: 'cluster_type', formatHint: 'STRING'},
         {
-          title: 'Process',
+          title: 'Process Name',
           columnId: 'process_name',
           formatHint: 'STRING',
         },
@@ -236,7 +236,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           formatHint: 'NUMERIC',
         },
         {
-          title: 'Thread',
+          title: 'Thread Name',
           columnId: 'thread_name',
           formatHint: 'STRING',
         },

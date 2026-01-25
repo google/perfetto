@@ -44,11 +44,11 @@ export class FlatEngine {
    * Flat mode doesn't have aggregates defined in the model.
    * Returns undefined - summary functions would need to be passed separately.
    */
-  getTotals(_model: FlatModel): QueryResult<ReadonlyMap<string, SqlValue>> {
+  getSummaries(_model: FlatModel): QueryResult<ReadonlyMap<string, SqlValue>> {
     return {data: undefined, isPending: false, isFresh: true};
   }
 
-  get(model: FlatModel): DataSourceRows {
+  getRows(model: FlatModel): DataSourceRows {
     const {columns, filters = [], pagination, sort} = model;
 
     // Load the row count first

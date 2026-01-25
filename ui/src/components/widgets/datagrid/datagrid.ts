@@ -336,7 +336,9 @@ export interface DataGridApi {
   getRowCount(): number | undefined;
 }
 
-function getOrCreateDataSource(data: DatagridEngine | readonly Row[]): DatagridEngine {
+function getOrCreateDataSource(
+  data: DatagridEngine | readonly Row[],
+): DatagridEngine {
   if ('useRows' in data) {
     return data;
   } else {
@@ -354,7 +356,7 @@ interface FlatGridBuildContext {
   readonly datasource: DatagridEngine;
   readonly rowsResult: DataSourceRows;
   readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
-  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
+  readonly aggregateSummaries?: ReadonlyMap<string, SqlValue>;
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
@@ -372,7 +374,7 @@ interface PivotGridBuildContext {
   readonly datasource: DatagridEngine;
   readonly rowsResult: DataSourceRows;
   readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
-  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
+  readonly aggregateSummaries?: ReadonlyMap<string, SqlValue>;
   readonly pivot: Pivot;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
@@ -459,7 +461,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     // Fetch data using the slot-like API
     const rowsResult = datasource.useRows(model);
     const distinctValuesResult = datasource.useDistinctValues(model);
-    const aggregateTotalsResult = datasource.useAggregateTotals(model);
+    const aggregateSummariesResult = datasource.useAggregateSummaries(model);
 
     // Expose the API
     attrs.onReady?.({
@@ -490,7 +492,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         datasource,
         rowsResult,
         distinctValues: distinctValuesResult.data,
-        aggregateTotals: aggregateTotalsResult.data,
+        aggregateSummaries: aggregateSummariesResult.data,
         pivot: this.pivot!,
         structuredQueryCompatMode,
         enablePivotControls,
@@ -515,7 +517,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         datasource,
         rowsResult,
         distinctValues: distinctValuesResult.data,
-        aggregateTotals: aggregateTotalsResult.data,
+        aggregateSummaries: aggregateSummariesResult.data,
         columnInfoCache,
         structuredQueryCompatMode,
         enablePivotControls,
@@ -709,10 +711,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         mode: 'flat',
         sort,
         filters: [...(this.filters ?? []), ...drillDownFilters],
-        columns: this.columns.map((col) => ({
-          field: col.field,
-          alias: col.id,
-        })).sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
+        columns: this.columns
+          .map((col) => ({
+            field: col.field,
+            alias: col.id,
+          }))
+          .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
       };
       return flatModel;
     } else if (this.pivot) {
@@ -733,13 +737,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           field: col.field,
           alias: col.id,
         })),
-        aggregates: (this.pivot.aggregates ?? []).map((agg) => {
-          if (agg.function === 'COUNT') {
-            return {function: 'COUNT' as const, alias: agg.id};
-          } else {
-            return {function: agg.function, field: agg.field, alias: agg.id};
-          }
-        }).sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
+        aggregates: (this.pivot.aggregates ?? [])
+          .map((agg) => {
+            if (agg.function === 'COUNT') {
+              return {function: 'COUNT' as const, alias: agg.id};
+            } else {
+              return {function: agg.function, field: agg.field, alias: agg.id};
+            }
+          })
+          .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
         groupDisplay: this.pivot.groupDisplay ?? 'tree',
         expandedIds: this.pivot.expandedIds,
         collapsedIds: this.pivot.collapsedIds,
@@ -751,10 +757,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ...baseModel,
         mode: 'flat',
         sort,
-        columns: this.columns.map((col) => ({
-          field: col.field,
-          alias: col.id,
-        })).sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
+        columns: this.columns
+          .map((col) => ({
+            field: col.field,
+            alias: col.id,
+          }))
+          .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
       };
       return flatModel;
     }
@@ -1332,7 +1340,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       rootSchema,
       datasource,
       distinctValues,
-      aggregateTotals,
+      aggregateSummaries,
       columnInfoCache,
       structuredQueryCompatMode,
       enablePivotControls,
@@ -1436,7 +1444,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build subContent showing grand total if column has an aggregate
       let subContent: m.Children;
       if (aggregate) {
-        const totalValue = aggregateTotals?.get(colAlias);
+        const totalValue = aggregateSummaries?.get(colAlias);
         const isLoading = totalValue === undefined;
         // Don't show grand total for ANY aggregation (it's just an arbitrary value)
         let totalContent: m.Children;
@@ -1642,7 +1650,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       rootSchema,
       datasource,
       distinctValues,
-      aggregateTotals,
+      aggregateSummaries,
       pivot,
       structuredQueryCompatMode,
       enablePivotControls,
@@ -1820,7 +1828,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Build subContent showing grand total with aggregate symbol
       // Don't show grand total for ANY aggregation (it's just an arbitrary value)
-      const aggregateTotalValue = aggregateTotals?.get(alias);
+      const aggregateTotalValue = aggregateSummaries?.get(alias);
       const symbol = agg.function;
       const isLoading = aggregateTotalValue === undefined;
       let aggTotalContent: m.Children;

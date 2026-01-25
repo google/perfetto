@@ -30,7 +30,7 @@ import {Spinner} from '../widgets/spinner';
 import {shortUuid} from '../base/uuid';
 import {AggregationPanel} from './aggregation_panel';
 import {Column, Filter, Pivot} from './widgets/datagrid/model';
-import {DatagridEngineSQL} from './widgets/datagrid/engine_sql/datagrid_engine_sql';
+import {DatagridEngineSQL} from './widgets/datagrid/engine_sql/engine';
 import {createSimpleSchema} from './widgets/datagrid/sql_schema';
 import {BarChartData, ColumnDef} from './aggregation';
 import {
@@ -39,7 +39,7 @@ import {
 } from '../trace_processor/sql_utils';
 import {DataGridApi} from './widgets/datagrid/datagrid';
 import {DataGridExportButton} from './widgets/datagrid/export_button';
-import { SerialTaskQueue } from '../base/query_slot';
+import {SerialTaskQueue} from '../base/query_slot';
 
 export interface AggregationData {
   readonly tableName: string;

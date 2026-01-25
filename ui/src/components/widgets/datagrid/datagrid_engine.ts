@@ -50,10 +50,10 @@ export interface DatagridEngine {
   ): QueryResult<ReadonlyMap<string, readonly string[]>>;
 
   /**
-   * Fetch aggregate totals (grand totals across all filtered rows).
-   * Returns totals for columns with aggregate functions or pivot aggregates.
+   * Fetch aggregate summaries (aggregates across all filtered rows).
+   * Returns summaries for columns with aggregate functions or pivot aggregates.
    */
-  useAggregateTotals(
+  useAggregateSummaries(
     model: DataSourceModel,
   ): QueryResult<ReadonlyMap<string, SqlValue>>;
 

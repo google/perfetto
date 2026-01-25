@@ -22,6 +22,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
@@ -29,6 +30,12 @@
 namespace perfetto::trace_processor {
 
 class PerfettoSqlEngine;
+
+// A value that can be stored in a pivot node (mirrors SQL types).
+using PivotValue = std::variant<std::monostate,  // NULL
+                                int64_t,         // INTEGER
+                                double,          // REAL
+                                std::string>;    // TEXT
 
 // A hierarchical pivot node representing a group in the pivot table.
 struct PivotNode {
@@ -43,7 +50,7 @@ struct PivotNode {
   std::vector<std::string> hierarchy_values;
 
   // Aggregate values, one per aggregation expression
-  std::vector<double> aggs;
+  std::vector<PivotValue> aggs;
 
   // Tree structure
   PivotNode* parent = nullptr;

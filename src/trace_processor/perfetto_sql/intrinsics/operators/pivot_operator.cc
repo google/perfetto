@@ -83,6 +83,21 @@ namespace {
 // Maximum number of aggregate columns supported
 constexpr size_t kMaxAggCols = 32;
 
+// Convert a PivotValue to a sortable double for comparison.
+double PivotValueToDouble(const PivotValue& val) {
+  if (std::holds_alternative<std::monostate>(val)) {
+    return std::numeric_limits<double>::lowest();
+  }
+  if (std::holds_alternative<int64_t>(val)) {
+    return static_cast<double>(std::get<int64_t>(val));
+  }
+  if (std::holds_alternative<double>(val)) {
+    return std::get<double>(val);
+  }
+  // For strings, return 0 (can't meaningfully convert to double)
+  return 0.0;
+}
+
 // Parses a comma-separated list of column names, trimming whitespace.
 std::vector<std::string> ParseColumnList(const std::string& cols) {
   std::vector<std::string> result;
@@ -115,9 +130,9 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   schema += ",__has_children__ INTEGER";
   schema += ",__child_count__ INTEGER";
 
-  // Add aggregate columns
+  // Add aggregate columns (no type = dynamic typing for any SQL type)
   for (size_t i = 0; i < measure_col_count; i++) {
-    schema += ",agg_" + std::to_string(i) + " REAL";
+    schema += ",agg_" + std::to_string(i);
   }
 
   // Add hidden columns for query parameters
@@ -208,9 +223,21 @@ void SortTree(PivotNode* node, const PivotSortSpec& spec) {
               if (idx >= a->aggs.size() || idx >= b->aggs.size()) {
                 return false;
               }
-              double val_a = a->aggs[idx];
-              double val_b = b->aggs[idx];
-              return spec.descending ? (val_a > val_b) : (val_a < val_b);
+              const PivotValue& val_a = a->aggs[idx];
+              const PivotValue& val_b = b->aggs[idx];
+
+              // Handle string comparison for MIN/MAX of text
+              if (std::holds_alternative<std::string>(val_a) &&
+                  std::holds_alternative<std::string>(val_b)) {
+                const std::string& str_a = std::get<std::string>(val_a);
+                const std::string& str_b = std::get<std::string>(val_b);
+                return spec.descending ? (str_a > str_b) : (str_a < str_b);
+              }
+
+              // For numeric types, convert to double
+              double d_a = PivotValueToDouble(val_a);
+              double d_b = PivotValueToDouble(val_b);
+              return spec.descending ? (d_a > d_b) : (d_a < d_b);
             });
 
   for (auto& child : node->children) {
@@ -354,7 +381,7 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
   root->id = 0;
   root->level = -1;
   root->hierarchy_values.resize(num_hier);
-  root->aggs.resize(num_aggs, 0.0);
+  root->aggs.resize(num_aggs, std::monostate{});
 
   // Next ID to assign (root is 0, children start at 1)
   int64_t next_id = 1;
@@ -378,12 +405,32 @@ base::Status BuildTree(PerfettoSqlEngine* engine,
       }
     }
 
-    // Get aggregate values
-    std::vector<double> aggs;
+    // Get aggregate values (type-aware)
+    std::vector<PivotValue> aggs;
     for (size_t i = 0; i < num_aggs; i++) {
       int col_idx = static_cast<int>(num_hier + i);
-      double val = sqlite3_column_double(stmt.sqlite_stmt(), col_idx);
-      aggs.push_back(val);
+      int sql_type = sqlite3_column_type(stmt.sqlite_stmt(), col_idx);
+      PivotValue val;
+
+      switch (sql_type) {
+        case SQLITE_INTEGER:
+          val = sqlite3_column_int64(stmt.sqlite_stmt(), col_idx);
+          break;
+        case SQLITE_FLOAT:
+          val = sqlite3_column_double(stmt.sqlite_stmt(), col_idx);
+          break;
+        case SQLITE_TEXT: {
+          const char* text = reinterpret_cast<const char*>(
+              sqlite3_column_text(stmt.sqlite_stmt(), col_idx));
+          val = std::string(text ? text : "");
+          break;
+        }
+        case SQLITE_NULL:
+        default:
+          val = std::monostate{};
+          break;
+      }
+      aggs.push_back(std::move(val));
     }
 
     if (level < 0) {
@@ -809,7 +856,18 @@ int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
     if (col >= agg_start && col < agg_end) {
       size_t agg_idx = static_cast<size_t>(col - agg_start);
       if (agg_idx < node->aggs.size()) {
-        sqlite::result::Double(ctx, node->aggs[agg_idx]);
+        const PivotValue& val = node->aggs[agg_idx];
+        if (std::holds_alternative<std::monostate>(val)) {
+          sqlite::result::Null(ctx);
+        } else if (std::holds_alternative<int64_t>(val)) {
+          sqlite::result::Long(ctx, std::get<int64_t>(val));
+        } else if (std::holds_alternative<double>(val)) {
+          sqlite::result::Double(ctx, std::get<double>(val));
+        } else if (std::holds_alternative<std::string>(val)) {
+          const std::string& str = std::get<std::string>(val);
+          sqlite::result::StaticString(ctx, str.c_str(),
+                                       static_cast<int>(str.size()));
+        }
       } else {
         sqlite::result::Null(ctx);
       }
