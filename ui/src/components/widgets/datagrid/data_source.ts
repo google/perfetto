@@ -116,7 +116,25 @@ export interface PivotModel extends DataSourceModelBase {
   readonly collapsedIds?: ReadonlySet<bigint>;
 }
 
-export type DataSourceModel = FlatModel | PivotModel;
+// Tree mode: hierarchical display using id/parent_id columns
+export interface TreeModel extends DataSourceModelBase {
+  readonly mode: 'tree';
+  // Columns to display
+  readonly columns: readonly {
+    readonly field: string;
+    readonly alias: string;
+  }[];
+  // Column containing the row's unique ID
+  readonly idColumn: string;
+  // Column containing the parent's ID (NULL for root nodes)
+  readonly parentIdColumn: string;
+  // Allowlist mode: only these node IDs are expanded
+  readonly expandedIds?: ReadonlySet<bigint>;
+  // Denylist mode: all nodes expanded except these IDs
+  readonly collapsedIds?: ReadonlySet<bigint>;
+}
+
+export type DataSourceModel = FlatModel | PivotModel | TreeModel;
 
 export interface DataSourceRows {
   // The total number of rows available in the dataset

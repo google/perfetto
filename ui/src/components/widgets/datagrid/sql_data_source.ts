@@ -30,6 +30,7 @@ import {
 } from './sql_schema';
 import {SQLDataSourceFlat} from './sql_data_source/flat';
 import {SQLDataSourcePivot} from './sql_data_source/pivot';
+import {SQLDataSourceTree} from './sql_data_source/tree';
 
 /**
  * Configuration for SQLDataSource.
@@ -45,7 +46,7 @@ export interface DatagridEngineSQLConfig {
 /**
  * SQL data source for DataGrid.
  *
- * Simplified version: supports flat mode and pivot mode.
+ * Supports flat mode, pivot mode, and tree mode.
  */
 export class SQLDataSource implements DataSource {
   private readonly engine: Engine;
@@ -54,6 +55,7 @@ export class SQLDataSource implements DataSource {
   private readonly preamble?: string;
   private readonly flatEngine: SQLDataSourceFlat;
   private readonly pivotEngine: SQLDataSourcePivot;
+  private readonly treeEngine: SQLDataSourceTree;
   private readonly queue: SerialTaskQueue;
   private readonly preambleSlot: QuerySlot<void>;
   private readonly distinctValuesSlot: QuerySlot<readonly SqlValue[]>;
@@ -84,6 +86,14 @@ export class SQLDataSource implements DataSource {
       this.sqlSchema,
       this.rootSchemaName,
     );
+
+    this.treeEngine = new SQLDataSourceTree(
+      uuid,
+      this.queue,
+      this.engine,
+      this.sqlSchema,
+      this.rootSchemaName,
+    );
   }
 
   /**
@@ -103,6 +113,8 @@ export class SQLDataSource implements DataSource {
         return this.flatEngine.getRows(model);
       case 'pivot':
         return this.pivotEngine.getRows(model);
+      case 'tree':
+        return this.treeEngine.getRows(model);
       default:
         assertUnreachable(mode);
     }
@@ -118,6 +130,8 @@ export class SQLDataSource implements DataSource {
         return this.flatEngine.getSummaries(model);
       case 'pivot':
         return this.pivotEngine.getSummaries(model);
+      case 'tree':
+        return this.treeEngine.getSummaries(model);
       default:
         assertUnreachable(mode);
     }
@@ -215,10 +229,13 @@ export class SQLDataSource implements DataSource {
   }
 
   async exportData(model: DataSourceModel): Promise<readonly Row[]> {
-    if (model.mode === 'flat') {
-      return this.flatEngine.exportData(model);
-    } else {
-      return this.pivotEngine.exportData(model);
+    switch (model.mode) {
+      case 'flat':
+        return this.flatEngine.exportData(model);
+      case 'pivot':
+        return this.pivotEngine.exportData(model);
+      case 'tree':
+        return this.treeEngine.exportData(model);
     }
   }
 
@@ -228,6 +245,7 @@ export class SQLDataSource implements DataSource {
     this.parameterKeysSlot.dispose();
     this.flatEngine.dispose();
     this.pivotEngine.dispose();
+    this.treeEngine.dispose();
   }
 
   /**
