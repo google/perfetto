@@ -104,7 +104,6 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           select
             json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             utid,
-            upid,
             process.name as process_name,
             pid,
             thread.name as thread_name,
@@ -190,11 +189,6 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           formatHint: 'NUMERIC',
         },
         {
-          title: 'UPID',
-          columnId: 'upid',
-          formatHint: 'NUMERIC',
-        },
-        {
           title: 'Process Name',
           columnId: 'process_name',
           formatHint: 'STRING',
@@ -202,11 +196,6 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         {
           title: 'TID',
           columnId: 'tid',
-          formatHint: 'NUMERIC',
-        },
-        {
-          title: 'UTID',
-          columnId: 'utid',
           formatHint: 'NUMERIC',
         },
         {
