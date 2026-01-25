@@ -26,8 +26,6 @@ source_set("operators") {
     "slice_mipmap_operator.h",
     "span_join_operator.cc",
     "span_join_operator.h",
-    "tree_operator.cc",
-    "tree_operator.h",
     "window_operator.cc",
     "window_operator.h",
   ]

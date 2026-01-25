@@ -3214,8 +3214,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h",
         "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.h",
-        "src/trace_processor/perfetto_sql/intrinsics/operators/tree_operator.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/operators/tree_operator.h",
         "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h",
     ],

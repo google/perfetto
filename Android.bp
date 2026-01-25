@@ -15456,7 +15456,6 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/operators/pivot_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/operators/tree_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.cc",
     ],
 }
