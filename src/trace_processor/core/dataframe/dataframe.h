@@ -253,21 +253,97 @@ class Dataframe {
   // Returns the number of rows in the dataframe.
   uint32_t row_count() const { return row_count_; }
 
+  // Returns the number of columns in the dataframe.
+  uint32_t column_count() const {
+    return static_cast<uint32_t>(column_ptrs_.size());
+  }
+
+  // Gets the value of a cell at the specified row and column, calling the
+  // appropriate callback method with the value.
+  //
+  // This method performs runtime type dispatch and is suitable for use cases
+  // where the column type is not known at compile time.
+  //
+  // Note: for sparse null columns, this requires popcount support
+  // (SparseNullWithPopcountAlways or SparseNullWithPopcountUntilFinalization).
+  // Plain SparseNull columns will trigger a fatal error.
+  template <typename CellCallbackImpl>
+  void GetCell(uint32_t row, uint32_t col, CellCallbackImpl& callback) const {
+    static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
+                  "CellCallbackImpl must be a subclass of CellCallback");
+    PERFETTO_DCHECK(row < row_count_);
+    PERFETTO_DCHECK(col < column_ptrs_.size());
+
+    const Column& column = *column_ptrs_[col];
+    const Storage::DataPointer data_ptr = column.storage.data();
+    const Nullability nullability = column.null_storage.nullability();
+
+    // Handle nullability and compute storage index.
+    uint32_t storage_idx;
+    switch (nullability.index()) {
+      case Nullability::GetTypeIndex<NonNull>():
+        storage_idx = row;
+        break;
+      case Nullability::GetTypeIndex<DenseNull>(): {
+        const auto& nulls = column.null_storage.unchecked_get<DenseNull>();
+        if (!nulls.bit_vector.is_set(row)) {
+          callback.OnCell(nullptr);
+          return;
+        }
+        storage_idx = row;
+        break;
+      }
+      case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+      case Nullability::GetTypeIndex<
+          SparseNullWithPopcountUntilFinalization>(): {
+        const auto& nulls = column.null_storage.unchecked_get<SparseNull>();
+        if (!nulls.bit_vector.is_set(row)) {
+          callback.OnCell(nullptr);
+          return;
+        }
+        storage_idx = static_cast<uint32_t>(
+            nulls.prefix_popcount_for_cell_get[row / 64] +
+            nulls.bit_vector.count_set_bits_until_in_word(row));
+        break;
+      }
+      case Nullability::GetTypeIndex<SparseNull>():
+        PERFETTO_FATAL(
+            "SparseNull without popcount does not support random access");
+      default:
+        PERFETTO_FATAL("Unknown null storage type");
+    }
+    // Dispatch based on storage type.
+    switch (data_ptr.index()) {
+      case StorageType::GetTypeIndex<Id>():
+        callback.OnCell(storage_idx);
+        break;
+      case StorageType::GetTypeIndex<Uint32>():
+        callback.OnCell(Storage::CastDataPtr<Uint32>(data_ptr)[storage_idx]);
+        break;
+      case StorageType::GetTypeIndex<Int32>():
+        callback.OnCell(Storage::CastDataPtr<Int32>(data_ptr)[storage_idx]);
+        break;
+      case StorageType::GetTypeIndex<Int64>():
+        callback.OnCell(Storage::CastDataPtr<Int64>(data_ptr)[storage_idx]);
+        break;
+      case StorageType::GetTypeIndex<Double>():
+        callback.OnCell(Storage::CastDataPtr<Double>(data_ptr)[storage_idx]);
+        break;
+      case StorageType::GetTypeIndex<String>():
+        callback.OnCell(string_pool_->Get(
+            Storage::CastDataPtr<String>(data_ptr)[storage_idx]));
+        break;
+      default:
+        PERFETTO_FATAL("Invalid storage type");
+    }
+  }
+
   // Returns the nullability of a column at the specified index.
   //
   // DO NOT USE: this function only exists for legacy reasons and should not
   // be used in new code.
   Nullability GetNullabilityLegacy(uint32_t column) const {
     return columns_[column]->null_storage.nullability();
-  }
-
-  // Gets the value of a column at the specified row.
-  //
-  // DO NOT USE: this function only exists for legacy reasons and should not
-  // be used in new code. Use `GetCellUnchecked` instead.
-  template <typename T, typename N>
-  auto GetCellUncheckedLegacy(uint32_t col, uint32_t row) const {
-    return GetCellUncheckedInternal<T, N>(row, *column_ptrs_[col]);
   }
 
   // Sets the value of a column at the specified row to the given value.
