@@ -34,6 +34,7 @@ namespace {
 base::Status MinimalMain(int, char**) {
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance({});
   RETURN_IF_ERROR(tp->Parse(std::unique_ptr<uint8_t[]>(new uint8_t[0]), 0));
+  RETURN_IF_ERROR(tp->ProcessEndOfFileDeferredPackets());
   RETURN_IF_ERROR(tp->NotifyEndOfFile());
 
   auto it = tp->ExecuteQuery("SELECT id FROM slice");

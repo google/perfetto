@@ -64,6 +64,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   base::Status Parse(TraceBlobView) override;
+  base::Status ProcessEndOfFileDeferredPackets() override;
   base::Status NotifyEndOfFile() override;
 
   using SyncClockSnapshots = base::FlatHashMap<

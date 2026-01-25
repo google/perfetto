@@ -36,6 +36,11 @@ class ChunkedTraceReader {
   // The buffer size is guaranteed to be > 0.
   virtual base::Status Parse(TraceBlobView) = 0;
 
+  // Called after the last Parse() call and before NotifyEndOfFile() call.
+  [[nodiscard]] virtual base::Status ProcessEndOfFileDeferredPackets() {
+    return base::OkStatus();
+  }
+
   // Called after the last Parse() call.
   [[nodiscard]] virtual base::Status NotifyEndOfFile() = 0;
 };
