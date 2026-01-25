@@ -530,7 +530,9 @@ function renderQuantitativeFilterMenuItems(
  * Renders filter menu items for identifier columns.
  * Includes: distinct value picker (equals/not equals), numeric comparisons, null filters.
  */
-function renderIdentifierFilterMenuItems(config: FilterMenuAttrs): m.ChildArray {
+function renderIdentifierFilterMenuItems(
+  config: FilterMenuAttrs,
+): m.ChildArray {
   const {onFilterAdd} = config;
 
   return [
@@ -546,7 +548,9 @@ function renderIdentifierFilterMenuItems(config: FilterMenuAttrs): m.ChildArray 
  * Shows all filter options (distinct value picker, text-based equals, numeric comparisons,
  * contains, glob, null).
  */
-function renderUnknownTypeFilterMenuItems(config: FilterMenuAttrs): m.ChildArray {
+function renderUnknownTypeFilterMenuItems(
+  config: FilterMenuAttrs,
+): m.ChildArray {
   const {structuredQueryCompatMode, onFilterAdd} = config;
 
   return [

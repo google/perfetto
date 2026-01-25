@@ -37,7 +37,9 @@ export interface DatagridEngine {
    * Fetch distinct values for a column (for filter dropdowns).
    * Pass undefined to skip fetching.
    */
-  useDistinctValues(column: string | undefined): QueryResult<readonly SqlValue[]>;
+  useDistinctValues(
+    column: string | undefined,
+  ): QueryResult<readonly SqlValue[]>;
 
   /**
    * Fetch parameter keys for a parameterized column prefix (e.g., 'args' -> ['foo', 'bar']).

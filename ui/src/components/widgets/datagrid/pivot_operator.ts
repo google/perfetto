@@ -219,7 +219,10 @@ function buildSelectWithAliases(aliases: Record<string, string>): string {
  * Builds an aggregate expression string from function and field.
  * Note: COUNT is not part of AggregateFunction - use 'COUNT(*)' directly.
  */
-export function buildAggregateExpr(func: AggregateFunction, field: string): string {
+export function buildAggregateExpr(
+  func: AggregateFunction,
+  field: string,
+): string {
   if (func === 'ANY') {
     return `MIN(${field})`; // ANY maps to MIN
   }

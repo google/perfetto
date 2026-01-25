@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryResult, QuerySlot, SerialTaskQueue} from '../../../../base/query_slot';
+import {
+  QueryResult,
+  QuerySlot,
+  SerialTaskQueue,
+} from '../../../../base/query_slot';
 import {Engine} from '../../../../trace_processor/engine';
 import {NUM, Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
@@ -146,13 +150,11 @@ function buildSelectClause(
 ): string {
   const selectExprs: string[] = [];
 
-  if (columns) {
-    for (const col of columns) {
-      const sqlExpr = resolver.resolveColumnPath(col.field);
-      if (sqlExpr) {
-        const alias = toAlias(col.alias);
-        selectExprs.push(`${sqlExpr} AS ${alias}`);
-      }
+  for (const col of columns) {
+    const sqlExpr = resolver.resolveColumnPath(col.field);
+    if (sqlExpr) {
+      const alias = toAlias(col.alias);
+      selectExprs.push(`${sqlExpr} AS ${alias}`);
     }
   }
 

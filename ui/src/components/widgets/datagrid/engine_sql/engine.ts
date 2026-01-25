@@ -18,14 +18,10 @@ import {
   QuerySlot,
   SerialTaskQueue,
 } from '../../../../base/query_slot';
+import {maybeUndefined} from '../../../../base/utils';
 import {shortUuid} from '../../../../base/uuid';
 import {Engine} from '../../../../trace_processor/engine';
-import {
-  Row,
-  SqlValue,
-  STR,
-  UNKNOWN,
-} from '../../../../trace_processor/query_result';
+import {Row, SqlValue, UNKNOWN} from '../../../../trace_processor/query_result';
 import {
   DatagridEngine,
   DataSourceModel,
@@ -190,12 +186,12 @@ export class DatagridEngineSQL implements DatagridEngine {
     return this.parameterKeysSlot.use({
       key: prefix,
       queryFn: async () => {
-        const rootSchema = this.sqlSchema[this.rootSchemaName];
+        const rootSchema = maybeUndefined(this.sqlSchema[this.rootSchemaName]);
         if (!rootSchema) {
           return [];
         }
 
-        const colDef = rootSchema.columns[prefix];
+        const colDef = maybeUndefined(rootSchema.columns[prefix]);
         if (
           !colDef ||
           !isSQLExpressionDef(colDef) ||

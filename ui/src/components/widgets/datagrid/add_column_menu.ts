@@ -136,7 +136,8 @@ export class ParameterizedColumnSubmenu
     const {pathPrefix, columns, dataSource, onSelect} = attrs;
 
     // Fetch available keys - this is only called when the submenu is visible
-    const {data: availableKeys, isPending} = dataSource.useParameterKeys(pathPrefix);
+    const {data: availableKeys, isPending} =
+      dataSource.useParameterKeys(pathPrefix);
 
     // Show loading state while fetching
     if (isPending || availableKeys === undefined) {
@@ -155,7 +156,10 @@ export class ParameterizedColumnSubmenu
         }));
       } else {
         // Fuzzy search with highlighting
-        const finder = new FuzzyFinder(availableKeys as string[], (k: string) => k);
+        const finder = new FuzzyFinder(
+          availableKeys as string[],
+          (k: string) => k,
+        );
         return finder.find(this.searchQuery).map((result) => ({
           key: result.item,
           segments: result.segments,
@@ -211,38 +215,45 @@ export class ParameterizedColumnSubmenu
         '.pf-distinct-values-menu__list',
         fuzzyResults.length > 0
           ? [
-              visibleResults.map((result: {key: string; segments: {matching: boolean; value: string}[]}) => {
-                const keyPath = `${pathPrefix}.${result.key}`;
-                const isKeyAlreadyVisible = columns.includes(keyPath);
+              visibleResults.map(
+                (result: {
+                  key: string;
+                  segments: {matching: boolean; value: string}[];
+                }) => {
+                  const keyPath = `${pathPrefix}.${result.key}`;
+                  const isKeyAlreadyVisible = columns.includes(keyPath);
 
-                // Render highlighted label
-                const labelContent = result.segments.map((segment: {matching: boolean; value: string}) => {
-                  if (segment.matching) {
-                    return m('strong.pf-fuzzy-match', segment.value);
-                  } else {
-                    return segment.value;
-                  }
-                });
-
-                return m(
-                  'button.pf-menu-item' +
-                    (isKeyAlreadyVisible ? '[disabled]' : ''),
-                  {
-                    onclick: () => {
-                      if (!isKeyAlreadyVisible) {
-                        onSelect(keyPath);
-                        this.searchQuery = '';
+                  // Render highlighted label
+                  const labelContent = result.segments.map(
+                    (segment: {matching: boolean; value: string}) => {
+                      if (segment.matching) {
+                        return m('strong.pf-fuzzy-match', segment.value);
+                      } else {
+                        return segment.value;
                       }
                     },
-                  },
-                  m('.pf-menu-item__label', labelContent),
-                  isKeyAlreadyVisible &&
-                    m(Icon, {
-                      className: 'pf-menu-item__right-icon',
-                      icon: 'check',
-                    }),
-                );
-              }),
+                  );
+
+                  return m(
+                    'button.pf-menu-item' +
+                      (isKeyAlreadyVisible ? '[disabled]' : ''),
+                    {
+                      onclick: () => {
+                        if (!isKeyAlreadyVisible) {
+                          onSelect(keyPath);
+                          this.searchQuery = '';
+                        }
+                      },
+                    },
+                    m('.pf-menu-item__label', labelContent),
+                    isKeyAlreadyVisible &&
+                      m(Icon, {
+                        className: 'pf-menu-item__right-icon',
+                        icon: 'check',
+                      }),
+                  );
+                },
+              ),
               remainingCount > 0 &&
                 m(MenuItem, {
                   label: `...and ${remainingCount} more`,
