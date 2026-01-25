@@ -52,10 +52,10 @@ export interface DatagridEngine {
   useAggregateSummaries(model: DataSourceModel): QueryResult<Row>;
 
   /**
-   * Export all data with current filters/sorting applied.
+   * Export all data with current filters/sorting applied (no pagination).
    * Returns a promise that resolves to all filtered and sorted rows.
    */
-  exportData(): Promise<readonly Row[]>;
+  exportData(model: DataSourceModel): Promise<readonly Row[]>;
 }
 
 // Common fields shared across all data source modes

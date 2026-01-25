@@ -197,9 +197,9 @@ export class InMemoryDataSource implements DatagridEngine {
   }
 
   /**
-   * Export all data with current filters/sorting applied.
+   * Export all data with current filters/sorting applied (no pagination).
    */
-  async exportData(): Promise<readonly Row[]> {
+  async exportData(_model: DataSourceModel): Promise<readonly Row[]> {
     // Return all the filtered and sorted data
     return this.filteredSortedData;
   }

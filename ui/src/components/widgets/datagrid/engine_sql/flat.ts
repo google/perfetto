@@ -96,6 +96,19 @@ export class FlatEngine {
     };
   }
 
+  /**
+   * Export all data with current filters/sorting applied (no pagination).
+   */
+  async exportData(model: FlatModel): Promise<readonly Row[]> {
+    // Build query without pagination
+    const query = buildQuery(this.sqlSchema, this.rootSchemaName, {
+      ...model,
+      pagination: undefined,
+    });
+    const result = await runQueryForQueryTable(query, this.engine);
+    return result.rows;
+  }
+
   dispose(): void {
     this.rowCountSlot.dispose();
     this.rowsSlot.dispose();

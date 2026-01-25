@@ -459,6 +459,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       exportData: async (format) => {
         return await this.formatData(
           datasource,
+          model,
           schema,
           rootSchema,
           this.pivot,
@@ -584,6 +585,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               onExportData: (format) =>
                 this.formatData(
                   datasource,
+                  model,
                   schema,
                   rootSchema,
                   this.pivot,
@@ -2047,13 +2049,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   private async formatData(
     dataSource: DatagridEngine,
+    model: DataSourceModel,
     schema: SchemaRegistry | undefined,
     rootSchema: string | undefined,
     pivot: Pivot | undefined,
     format: 'tsv' | 'json' | 'markdown' = 'tsv',
   ): Promise<string> {
     // Get all rows from the data source
-    const rows = await dataSource.exportData();
+    const rows = await dataSource.exportData(model);
 
     // Determine which columns to export based on mode
     let columns: ReadonlyArray<string>;

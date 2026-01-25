@@ -222,8 +222,12 @@ export class DatagridEngineSQL implements DatagridEngine {
     });
   }
 
-  async exportData(): Promise<Row[]> {
-    throw new Error('Not implemented yet');
+  async exportData(model: DataSourceModel): Promise<readonly Row[]> {
+    if (model.mode === 'flat') {
+      return this.flatEngine.exportData(model);
+    } else {
+      return this.pivotEngine.exportData(model);
+    }
   }
 
   dispose(): void {

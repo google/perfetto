@@ -441,6 +441,20 @@ export class PivotEngine {
     return sql;
   }
 
+  /**
+   * Export all aggregated data (no pagination).
+   * Uses GROUP BY query regardless of groupDisplay mode.
+   */
+  async exportData(model: PivotModel): Promise<readonly Row[]> {
+    // Build query without pagination
+    const query = this.buildGroupByQuery({
+      ...model,
+      pagination: undefined,
+    });
+    const result = await runQueryForQueryTable(query, this.engine);
+    return result.rows;
+  }
+
   dispose(): void {
     this.treeRowCountSlot.dispose();
     this.treeRowsSlot.dispose();
