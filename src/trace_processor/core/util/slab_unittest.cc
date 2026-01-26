@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/common/slab.h"
+#include "src/trace_processor/core/util/slab.h"
 
 #include <cstddef>
 #include <cstdint>

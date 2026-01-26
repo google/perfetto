@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_VALUE_FETCHER_H_
-#define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_VALUE_FETCHER_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_VALUE_FETCHER_H_
+#define SRC_TRACE_PROCESSOR_CORE_COMMON_VALUE_FETCHER_H_
 
-#include <cstddef>
 #include <cstdint>
 
 #include "perfetto/base/logging.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core {
 
 // Fetcher for values from an aribtrary indexed source. The meaning of the index
 // in each of the *Value methods varies depending on where this class is used.
@@ -86,6 +85,6 @@ struct ErrorValueFetcher : public ValueFetcher {
   static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
 };
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_VALUE_FETCHER_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_VALUE_FETCHER_H_

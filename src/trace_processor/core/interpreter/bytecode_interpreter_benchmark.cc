@@ -24,9 +24,9 @@
 #include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_test_utils.h"
-#include "src/trace_processor/core/common/flex_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 
-namespace perfetto::trace_processor::interpreter {
+namespace perfetto::trace_processor::core::interpreter {
 namespace {
 
 static void BM_BytecodeInterpreter_LinearFilterEqUint32(
@@ -192,4 +192,4 @@ static void BM_BytecodeInterpreter_SortString(benchmark::State& state) {
 }
 BENCHMARK(BM_BytecodeInterpreter_SortString);
 
-}  // namespace perfetto::trace_processor::interpreter
+}  // namespace perfetto::trace_processor::core::interpreter

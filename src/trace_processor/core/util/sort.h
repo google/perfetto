@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_SORT_H_
-#define SRC_TRACE_PROCESSOR_CORE_COMMON_SORT_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_SORT_H_
+#define SRC_TRACE_PROCESSOR_CORE_UTIL_SORT_H_
 
 #include <algorithm>
 #include <cstddef>
@@ -294,4 +294,4 @@ T* MsdRadixSort(T* begin,
 
 }  // namespace perfetto::trace_processor::core
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_SORT_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_UTIL_SORT_H_

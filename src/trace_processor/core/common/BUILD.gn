@@ -16,42 +16,16 @@ import("../../../../gn/test.gni")
 
 source_set("common") {
   sources = [
-    "bit_vector.h",
-    "flex_vector.h",
-    "slab.h",
-    "sort.h",
+    "duplicate_types.h",
+    "null_types.h",
+    "op_types.h",
+    "sort_types.h",
+    "storage_types.h",
+    "value_fetcher.h",
   ]
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../util",
   ]
-}
-
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  sources = [
-    "bit_vector_unittest.cc",
-    "flex_vector_unittest.cc",
-    "slab_unittest.cc",
-    "sort_unittest.cc",
-  ]
-  deps = [
-    ":common",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../../../base",
-  ]
-}
-
-if (enable_perfetto_benchmarks) {
-  source_set("benchmarks") {
-    testonly = true
-    deps = [
-      ":common",
-      "../../../../gn:benchmark",
-      "../../../../gn:default_deps",
-      "../../../base",
-    ]
-    sources = [ "sort_benchmark.cc" ]
-  }
 }

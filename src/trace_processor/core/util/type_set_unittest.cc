@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/dataframe/type_set.h"
+#include "src/trace_processor/core/util/type_set.h"
 
 #include <string>
 #include <type_traits>
@@ -23,7 +23,7 @@
 
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 namespace {
 
 // Basic type tags for testing
@@ -269,4 +269,4 @@ TEST(TypeSet, ComplexHierarchy) {
 }
 
 }  // namespace
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe

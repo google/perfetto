@@ -32,14 +32,14 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/common/bit_vector.h"
 #include "src/trace_processor/core/dataframe/cursor.h"
-#include "src/trace_processor/core/dataframe/impl/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
+
+struct QueryPlanImpl;
 
 // Dataframe is a columnar data structure for efficient querying and filtering
 // of tabular data. It provides:
@@ -60,38 +60,34 @@ class Dataframe {
     QueryPlan() = default;
 
     // Serializes the query plan to a string.
-    std::string Serialize() const { return plan_.Serialize(); }
+    std::string Serialize() const;
 
     // Deserializes a query plan from a string previously produced by
     // `Serialize()`.
-    static QueryPlan Deserialize(std::string_view serialized) {
-      return QueryPlan(impl::QueryPlan::Deserialize(serialized));
-    }
+    static QueryPlan Deserialize(std::string_view serialized);
 
     // Returns the underlying implementation for testing purposes.
-    const impl::QueryPlan& GetImplForTesting() const { return plan_; }
+    const QueryPlanImpl& GetImplForTesting() const;
 
     // The maximum number of rows it's possible for this query plan to return.
-    uint32_t max_row_count() const { return plan_.params.max_row_count; }
+    uint32_t max_row_count() const;
 
     // The number of rows this query plan estimates it will return.
-    uint32_t estimated_row_count() const {
-      return plan_.params.estimated_row_count;
-    }
+    uint32_t estimated_row_count() const;
 
     // Returns the bytecode instructions of the query plan as a vector of
     // strings, where each string represents a single bytecode instruction.
     std::vector<std::string> BytecodeToString() const;
 
     // An estimate for the cost of executing the query plan.
-    double estimated_cost() const { return plan_.params.estimated_cost; }
+    double estimated_cost() const;
 
    private:
     friend class Dataframe;
     // Constructs a QueryPlan from its implementation.
-    explicit QueryPlan(impl::QueryPlan plan) : plan_(std::move(plan)) {}
+    explicit QueryPlan(QueryPlanImpl plan) : plan_(std::move(plan)) {}
     // The underlying query plan implementation.
-    impl::QueryPlan plan_;
+    QueryPlanImpl plan_;
   };
 
   // Constructs a Dataframe with the specified column names and types.
@@ -307,7 +303,7 @@ class Dataframe {
 
   Dataframe(bool finalized,
             std::vector<std::string> column_names,
-            std::vector<std::shared_ptr<impl::Column>> columns,
+            std::vector<std::shared_ptr<Column>> columns,
             uint32_t row_count,
             StringPool* string_pool);
 
@@ -411,7 +407,7 @@ class Dataframe {
   template <typename T, typename N>
   PERFETTO_ALWAYS_INLINE auto GetCellUncheckedInternal(
       uint32_t row,
-      const impl::Column& col) const {
+      const Column& col) const {
     static constexpr bool is_sparse_null_supporting_get_always =
         std::is_same_v<N, SparseNullWithPopcountAlways>;
     static constexpr bool is_sparse_null_supporting_get_until_finalization =
@@ -449,7 +445,7 @@ class Dataframe {
 
   template <typename T, typename N, typename M>
   PERFETTO_ALWAYS_INLINE void SetCellUncheckedInternal(uint32_t row,
-                                                       impl::Column& col,
+                                                       Column& col,
                                                        const M& value) {
     PERFETTO_DCHECK(!finalized_);
 
@@ -513,14 +509,14 @@ class Dataframe {
   template <typename C>
   PERFETTO_ALWAYS_INLINE auto GetCellUncheckedFromStorage(const C& column,
                                                           uint32_t row) const {
-    if constexpr (std::is_same_v<C, impl::Storage::Id>) {
+    if constexpr (std::is_same_v<C, Storage::Id>) {
       return row;
     } else {
       return column[row];
     }
   }
 
-  static std::vector<std::shared_ptr<impl::Column>> CreateColumnVector(
+  static std::vector<std::shared_ptr<Column>> CreateColumnVector(
       const ColumnSpec*,
       uint32_t);
 
@@ -533,11 +529,11 @@ class Dataframe {
 
   // Internal storage for columns in the dataframe.
   // Should have same size as `column_names_`.
-  std::vector<std::shared_ptr<impl::Column>> columns_;
+  std::vector<std::shared_ptr<Column>> columns_;
 
   // Simple pointers to the columns for consumption by the cursor.
   // Should have same size as `column_names_`.
-  std::vector<impl::Column*> column_ptrs_;
+  std::vector<Column*> column_ptrs_;
 
   // List of indexes associated with the dataframe.
   std::vector<Index> indexes_;
@@ -561,6 +557,13 @@ class Dataframe {
   bool finalized_ = false;
 };
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
+
+namespace perfetto::trace_processor {
+
+// Namespace alias for ergonomics.
+namespace dataframe = core::dataframe;
+
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_DATAFRAME_H_

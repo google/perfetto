@@ -22,14 +22,14 @@
 
 #include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"  // IWYU pragma: keep
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/span.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 template <typename FilterValueFetcherImpl>
 void Cursor<FilterValueFetcherImpl>::Execute(
     FilterValueFetcherImpl& filter_value_fetcher) {
-  using S = interpreter::Span<uint32_t>;
+  using S = Span<uint32_t>;
   interpreter_.Execute(filter_value_fetcher);
 
   const auto& span =
@@ -38,6 +38,6 @@ void Cursor<FilterValueFetcherImpl>::Execute(
   end_ = span.e;
 }
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_CURSOR_IMPL_H_

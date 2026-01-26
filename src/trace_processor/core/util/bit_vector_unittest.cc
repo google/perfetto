@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/common/bit_vector.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 
 #include <algorithm>
 #include <cstddef>

@@ -17,19 +17,35 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_TEST_UTILS_H_
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_TEST_UTILS_H_
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <initializer_list>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
+#include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/duplicate_types.h"
+#include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/core/common/sort_types.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
+#include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
-#include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/core/dataframe/value_fetcher.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/span.h"
 
-namespace perfetto::trace_processor::interpreter {
+namespace perfetto::trace_processor::core::interpreter {
 
 using FilterValue = std::variant<int64_t, double, const char*, std::nullptr_t>;
 
@@ -252,9 +268,8 @@ inline Column CreateNonNullColumn(std::initializer_list<U> data,
   for (const U& val : data) {
     vec.push_back(val);
   }
-  return Column{Storage{std::move(vec)},
-                      NullStorage::NonNull{}, sort_state,
-                      duplicate_state};
+  return Column{Storage{std::move(vec)}, NullStorage::NonNull{}, sort_state,
+                duplicate_state};
 }
 
 template <typename U>
@@ -267,9 +282,8 @@ inline Column CreateNonNullStringColumn(std::initializer_list<U> data,
   for (const auto& str_like : data) {
     vec.push_back(pool->InternString(str_like));
   }
-  return Column{Storage{std::move(vec)},
-                      NullStorage::NonNull{}, sort_state,
-                      duplicate_state};
+  return Column{Storage{std::move(vec)}, NullStorage::NonNull{}, sort_state,
+                duplicate_state};
 }
 
 template <typename T>
@@ -296,10 +310,9 @@ inline Column CreateSparseNullableColumn(
       bv.set(i);
     }
   }
-  return Column{
-      Storage{std::move(data_vec)},
-      NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
-      sort_state, duplicate_state};
+  return Column{Storage{std::move(data_vec)},
+                NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
+                sort_state, duplicate_state};
 }
 
 inline Column CreateSparseNullableStringColumn(
@@ -378,6 +391,6 @@ PERFETTO_NO_INLINE BytecodeVector inline ParseBytecodeToVec(
   return bytecode_vector;
 }
 
-}  // namespace perfetto::trace_processor::interpreter
+}  // namespace perfetto::trace_processor::core::interpreter
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_TEST_UTILS_H_

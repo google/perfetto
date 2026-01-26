@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_SLAB_H_
-#define SRC_TRACE_PROCESSOR_CORE_COMMON_SLAB_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_SLAB_H_
+#define SRC_TRACE_PROCESSOR_CORE_UTIL_SLAB_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -99,4 +99,4 @@ class Slab {
 
 }  // namespace perfetto::trace_processor::core
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_SLAB_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_UTIL_SLAB_H_

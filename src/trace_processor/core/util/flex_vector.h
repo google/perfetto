@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_FLEX_VECTOR_H_
-#define SRC_TRACE_PROCESSOR_CORE_COMMON_FLEX_VECTOR_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_FLEX_VECTOR_H_
+#define SRC_TRACE_PROCESSOR_CORE_UTIL_FLEX_VECTOR_H_
 
 #include <algorithm>
 #include <cstddef>
@@ -26,7 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/core/common/slab.h"
+#include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -209,4 +209,4 @@ class FlexVector {
 
 }  // namespace perfetto::trace_processor::core
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_FLEX_VECTOR_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_UTIL_FLEX_VECTOR_H_

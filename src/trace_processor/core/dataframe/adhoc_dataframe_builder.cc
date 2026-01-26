@@ -24,9 +24,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/common/flex_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 const char* AdhocDataframeBuilder::ToString(const DataVariant& data) {
   static_assert(std::variant_size_v<DataVariant> == 4);
@@ -44,4 +44,4 @@ const char* AdhocDataframeBuilder::ToString(const DataVariant& data) {
   }
 }
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe

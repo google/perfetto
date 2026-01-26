@@ -32,18 +32,18 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/common/bit_vector.h"
 #include "src/trace_processor/core/dataframe/dataframe_test_utils.h"
-#include "src/trace_processor/core/dataframe/impl/query_plan.h"
+#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 inline std::string TrimSpacePerLine(const std::string& s) {
   std::string result;
@@ -65,8 +65,8 @@ inline std::string TrimSpacePerLine(const std::string& s) {
 }
 
 template <typename... Args>
-std::vector<impl::Column> MakeColumnVector(Args&&... args) {
-  std::vector<impl::Column> container;
+std::vector<Column> MakeColumnVector(Args&&... args) {
+  std::vector<Column> container;
   container.reserve(sizeof...(Args));
   ((container.emplace_back(std::forward<Args>(args))), ...);
   return container;
@@ -95,12 +95,12 @@ class DataframeBytecodeTest : public ::testing::Test {
   static std::string FormatBytecode(const Dataframe::QueryPlan& plan) {
     std::string result;
     for (const auto& bc : plan.GetImplForTesting().bytecode) {
-      result += impl::bytecode::ToString(bc) + "\n";
+      result += interpreter::ToString(bc) + "\n";
     }
     return result;
   }
 
-  void RunBytecodeTest(std::vector<impl::Column>& cols,
+  void RunBytecodeTest(std::vector<Column>& cols,
                        std::vector<FilterSpec>& filters,
                        const std::vector<DistinctSpec>& distinct_specs,
                        const std::vector<SortSpec>& sort_specs,
@@ -137,12 +137,11 @@ class DataframeBytecodeTest : public ::testing::Test {
   }
 
   std::unique_ptr<Dataframe> MakeDatafame(std::vector<std::string> col_names,
-                                          std::vector<impl::Column> cols) {
-    std::vector<std::shared_ptr<impl::Column>> col_fixed_vec;
+                                          std::vector<Column> cols) {
+    std::vector<std::shared_ptr<Column>> col_fixed_vec;
     col_fixed_vec.reserve(cols.size());
     for (auto& col : cols) {
-      col_fixed_vec.emplace_back(
-          std::make_shared<impl::Column>(std::move(col)));
+      col_fixed_vec.emplace_back(std::make_shared<Column>(std::move(col)));
     }
     return std::unique_ptr<Dataframe>(new Dataframe(false, std::move(col_names),
                                                     std::move(col_fixed_vec), 0,
@@ -154,11 +153,10 @@ class DataframeBytecodeTest : public ::testing::Test {
 
 // Simple test case with no filters
 TEST_F(DataframeBytecodeTest, NoFilters) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{},
+             NoDuplicates{}});
   std::vector<FilterSpec> filters;
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
@@ -169,11 +167,10 @@ TEST_F(DataframeBytecodeTest, NoFilters) {
 
 // Test case with a single filter
 TEST_F(DataframeBytecodeTest, SingleFilter) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{},
+             NoDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
@@ -187,13 +184,11 @@ TEST_F(DataframeBytecodeTest, SingleFilter) {
 // Test case with multiple filters
 TEST_F(DataframeBytecodeTest, MultipleFilters) {
   // Direct initialization of column specs
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{},
+             NoDuplicates{}});
 
   // Direct initialization of filter specs
   std::vector<FilterSpec> filters = {
@@ -212,9 +207,8 @@ TEST_F(DataframeBytecodeTest, MultipleFilters) {
 }
 
 TEST_F(DataframeBytecodeTest, NumericSortedEq) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
@@ -226,9 +220,8 @@ TEST_F(DataframeBytecodeTest, NumericSortedEq) {
 }
 
 TEST_F(DataframeBytecodeTest, InFilter) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, In{}, std::nullopt}};
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
@@ -241,9 +234,8 @@ TEST_F(DataframeBytecodeTest, InFilter) {
 
 TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Sorted{}, HasDuplicates{}});
+    std::vector<Column> cols = MakeColumnVector(Column{
+        Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Lt{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -255,9 +247,8 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
     )");
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Sorted{}, HasDuplicates{}});
+    std::vector<Column> cols = MakeColumnVector(Column{
+        Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Le{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -269,9 +260,8 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
     )");
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Sorted{}, HasDuplicates{}});
+    std::vector<Column> cols = MakeColumnVector(Column{
+        Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Gt{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -283,9 +273,8 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
     )");
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Sorted{}, HasDuplicates{}});
+    std::vector<Column> cols = MakeColumnVector(Column{
+        Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Ge{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -300,9 +289,9 @@ TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
 
 TEST_F(DataframeBytecodeTest, Numeric) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                                Unsorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Eq{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -313,9 +302,9 @@ TEST_F(DataframeBytecodeTest, Numeric) {
     )");
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                                Unsorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Ge{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -329,17 +318,16 @@ TEST_F(DataframeBytecodeTest, Numeric) {
 }
 
 TEST_F(DataframeBytecodeTest, SortingOfFilters) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Uint32{}, NullStorage::NonNull{}, Sorted{},
+             HasDuplicates{}},
+      Column{Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}},
+      Column{Storage::String{}, NullStorage::NonNull{}, Sorted{},
+             HasDuplicates{}},
+      Column{Storage::String{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}});
   std::vector<FilterSpec> filters = {
       {0, 0, Le{}, std::nullopt}, {1, 0, Eq{}, std::nullopt},
       {0, 0, Eq{}, std::nullopt}, {4, 0, Le{}, std::nullopt},
@@ -373,9 +361,8 @@ TEST_F(DataframeBytecodeTest, StringFilter) {
   if constexpr (!regex::IsRegexSupported()) {
     GTEST_SKIP() << "Regex is not supported";
   }
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::String{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {
       {0, 0, Regex{}, std::nullopt},
   };
@@ -389,9 +376,8 @@ TEST_F(DataframeBytecodeTest, StringFilter) {
 }
 
 TEST_F(DataframeBytecodeTest, StringFilterGlob) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::String{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {
       {0, 0, Glob{}, std::nullopt},
   };
@@ -406,9 +392,9 @@ TEST_F(DataframeBytecodeTest, StringFilterGlob) {
 
 TEST_F(DataframeBytecodeTest, SparseNullFilters) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::SparseNull{},
+                                Unsorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
     RunBytecodeTest(cols, filters_isnull, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
@@ -420,9 +406,9 @@ TEST_F(DataframeBytecodeTest, SparseNullFilters) {
   }
 
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::SparseNull{},
+                                Unsorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters_isnotnull = {
         {0, 0, IsNotNull{}, std::nullopt},
     };
@@ -438,9 +424,9 @@ TEST_F(DataframeBytecodeTest, SparseNullFilters) {
 
 TEST_F(DataframeBytecodeTest, DenseNullFilters) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::DenseNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::DenseNull{},
+                                Unsorted{}, HasDuplicates{}});
 
     // Test IsNull
     std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
@@ -453,9 +439,9 @@ TEST_F(DataframeBytecodeTest, DenseNullFilters) {
                     /*cols_used=*/0);
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::DenseNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::DenseNull{},
+                                Unsorted{}, HasDuplicates{}});
 
     // Test IsNotNull
     std::vector<FilterSpec> filters_isnotnull = {
@@ -472,9 +458,9 @@ TEST_F(DataframeBytecodeTest, DenseNullFilters) {
 
 TEST_F(DataframeBytecodeTest, NonNullFilters) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                                Unsorted{}, HasDuplicates{}});
 
     // Test IsNull: Should result in an empty result set as the column is
     // NonNull
@@ -486,9 +472,9 @@ TEST_F(DataframeBytecodeTest, NonNullFilters) {
   }
 
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                                Unsorted{}, HasDuplicates{}});
 
     // Test IsNotNull: Should have no effect as the column is already NonNull
     std::vector<FilterSpec> filters_isnotnull = {
@@ -504,9 +490,9 @@ TEST_F(DataframeBytecodeTest, NonNullFilters) {
 TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
   // Test a standard filter (Eq) on a SparseNull column.
   // Expect bytecode to handle nulls first, then apply the filter.
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -526,9 +512,9 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
 TEST_F(DataframeBytecodeTest, StandardFilterOnDenseNull) {
   // Test a standard filter (Eq) on a DenseNull column.
   // Expect bytecode to handle nulls first, then apply the filter directly.
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::DenseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::DenseNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
@@ -545,11 +531,11 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnDenseNull) {
 
 TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
   // Test requesting a SparseNull column in the output
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Int64{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters;  // No filters
 
@@ -576,11 +562,11 @@ TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
 
 TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
   // Test requesting a DenseNull column in the output
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::DenseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Int64{}, NullStorage::DenseNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters;  // No filters
 
@@ -606,13 +592,13 @@ TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
 
 TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
   // Test requesting both a SparseNull and a DenseNull column
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Double{}, impl::NullStorage::DenseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Int64{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Double{}, NullStorage::DenseNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;  // No filters
 
   // cols_used_bitmap: 0b110 means use columns at index 1 (sparse) and 2
@@ -640,9 +626,9 @@ TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
 }
 
 TEST_F(DataframeBytecodeTest, Uint32SetIdSortedEqGeneration) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   SetIdSorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              SetIdSorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
   // Expect the specialized Uint32SetIdSortedEq bytecode for this combination
@@ -656,9 +642,8 @@ TEST_F(DataframeBytecodeTest, Uint32SetIdSortedEqGeneration) {
 }
 // Test sorting by a single Uint32 column, ascending.
 TEST_F(DataframeBytecodeTest, SortSingleUint32Asc) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -674,9 +659,8 @@ TEST_F(DataframeBytecodeTest, SortSingleUint32Asc) {
 
 // Test sorting by a single String column, descending.
 TEST_F(DataframeBytecodeTest, SortSingleStringDesc) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::String{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -695,11 +679,11 @@ TEST_F(DataframeBytecodeTest, SortSingleStringDesc) {
 
 // Test multi-column sorting (Stable Sort).
 TEST_F(DataframeBytecodeTest, SortMultiColumnStable) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Double{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Int64{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Double{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   // Sort specs: Primary Int64 DESC, Secondary Double ASC
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending},
@@ -718,11 +702,10 @@ TEST_F(DataframeBytecodeTest, SortMultiColumnStable) {
 
 // Test sorting combined with filtering.
 TEST_F(DataframeBytecodeTest, SortWithFilter) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Double{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Double{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Gt{}, std::nullopt}};
   std::vector<SortSpec> sorts = {{1, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -740,9 +723,9 @@ TEST_F(DataframeBytecodeTest, SortWithFilter) {
 
 // Test planning sort on a nullable column.
 TEST_F(DataframeBytecodeTest, SortNullableColumn) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Int32{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Int32{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -761,11 +744,11 @@ TEST_F(DataframeBytecodeTest, SortNullableColumn) {
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Int32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Int32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::String{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters;
   std::vector<DistinctSpec> distinct_specs = {{0}, {1}};
@@ -786,11 +769,11 @@ TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
 }
 
 TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Int64{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   LimitSpec spec;
@@ -812,9 +795,8 @@ TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationApplied) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<DistinctSpec> distinct_specs;
   std::vector<SortSpec> sort_specs = {{0, SortDirection::kAscending}};
@@ -833,9 +815,8 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationApplied) {
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimizationApplied_SingleAscNonNullSorted) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -847,11 +828,11 @@ TEST_F(DataframeBytecodeTest, SortOptimizationApplied_SingleAscNonNullSorted) {
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_MultipleSpecs) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Sorted{}, HasDuplicates{}},
+                       Column{Storage::Int32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending},
                                  {1, SortDirection::kAscending}};
@@ -868,9 +849,8 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_MultipleSpecs) {
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimization_Reverse) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -883,9 +863,8 @@ TEST_F(DataframeBytecodeTest, SortOptimization_Reverse) {
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_NullableColumn) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},
-                   Sorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::SparseNull{}, Sorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -904,9 +883,8 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_NullableColumn) {
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_UnsortedColumn) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -922,10 +900,10 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_UnsortedColumn) {
 
 TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
   auto bv = core::BitVector::CreateWithSize(0);
-  std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
-      impl::Storage::Uint32{},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Uint32{},
+             NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
+             Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters;
   std::vector<DistinctSpec> distinct_specs;
@@ -1076,9 +1054,8 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullUint32) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   // Expect LinearFilterEq because:
   // 1. Input is a Range (initially).
@@ -1094,9 +1071,8 @@ TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullUint32) {
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullString) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::String{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
@@ -1109,12 +1085,11 @@ TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullString) {
 
 TEST_F(DataframeBytecodeTest,
        PlanQuery_NoLinearFilterEq_IfInputNotRangeAfterSortedFilter) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{},
-                   NoDuplicates{}},  // col0, sorted, used to make input a Span
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}}  // col1, target for filter
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{},
+             NoDuplicates{}},  // col0, sorted, used to make input a Span
+      Column{Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}}  // col1, target for filter
   );
   std::vector<FilterSpec> filters = {
       {0, 0, Gt{}, std::nullopt},  // This filter makes indices_reg_ a Span
@@ -1135,9 +1110,8 @@ TEST_F(DataframeBytecodeTest,
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNotEqOperator) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Gt{}, std::nullopt}};  // Not Eq
   // Should use NonStringFilter because op is Gt, not Eq.
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -1151,9 +1125,9 @@ TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNotEqOperator) {
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNullableColumn) {
-  std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
-      impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},  // Nullable
-      Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Uint32{}, NullStorage::SparseNull{},  // Nullable
+             Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   // Should use NonStringFilter because column is nullable.
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -1689,4 +1663,4 @@ TEST(DataframeTest, SortedFilterWithDuplicatesAndRowCountOfZero) {
   EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 0u);
 }
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
