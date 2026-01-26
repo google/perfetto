@@ -273,3 +273,17 @@ message V8CodeMove {
 message V8CodeDefaults {
   optional uint32 tid = 1;
 }
+
+message V8ICEvent {
+  optional uint64 v8_isolate_iid = 1;
+  optional uint32 tid = 2;
+  optional uint64 pc = 3;
+  optional string type = 5;
+  optional bool keyed = 6;
+  optional uint64 map = 7;
+  optional string key = 8;
+  optional string old_state = 9;
+  optional string new_state = 10;
+  optional string modifier = 11;
+  optional string slow_stub_reason = 12;
+}

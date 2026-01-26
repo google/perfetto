@@ -76,6 +76,8 @@ class JitCache {
                                     uint64_t from_code_start,
                                     uint64_t to_code_start);
 
+  std::optional<tables::JitCodeTable::Id> FindCode(uint64_t addr) const;
+
   // Forward frame interning request.
   // MappingTracker allows other trackers to register ranges of memory for
   // which they need to control when a new frame is created. Jitted code can

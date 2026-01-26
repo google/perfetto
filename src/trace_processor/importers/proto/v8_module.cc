@@ -59,6 +59,7 @@ V8Module::V8Module(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kV8WasmCodeFieldNumber);
   RegisterForField(TracePacket::kV8RegExpCodeFieldNumber);
   RegisterForField(TracePacket::kV8CodeMoveFieldNumber);
+  RegisterForField(TracePacket::kV8IcEventFieldNumber);
 }
 
 V8Module::~V8Module() = default;
@@ -91,6 +92,9 @@ void V8Module::ParseTracePacketData(const TracePacket::Decoder& decoder,
       break;
     case TracePacket::kV8CodeMoveFieldNumber:
       ParseV8CodeMove(decoder.v8_code_move(), ts, data);
+      break;
+    case TracePacket::kV8IcEventFieldNumber:
+      ParseV8ICEvent(decoder.v8_ic_event(), ts, data);
       break;
     default:
       break;
@@ -267,6 +271,27 @@ void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
   }
 
   v8_tracker_->MoveCode(ts, *utid, *isolate_id, v8_code_move);
+}
+
+void V8Module::ParseV8ICEvent(protozero::ConstBytes bytes,
+                              int64_t ts,
+                              const TracePacketData& data) {
+  V8SequenceState& state =
+      *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
+  protos::pbzero::V8ICEvent::Decoder ic_event(bytes);
+
+  auto v8_isolate_id = state.GetOrInsertIsolate(ic_event.v8_isolate_iid());
+  if (!v8_isolate_id) {
+    return;
+  }
+
+  std::optional<UniqueTid> utid =
+      GetUtid(*data.sequence_state, *v8_isolate_id, ic_event);
+  if (!utid) {
+    return;
+  }
+
+  v8_tracker_->AddICEvent(ts, *utid, *v8_isolate_id, ic_event);
 }
 
 }  // namespace trace_processor
