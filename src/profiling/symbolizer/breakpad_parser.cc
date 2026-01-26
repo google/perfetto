@@ -32,11 +32,6 @@ bool SymbolComparator(const uint64_t i, const BreakpadParser::Symbol& sym) {
   return i < sym.start_address;
 }
 
-bool LineRecordComparator(const uint64_t i,
-                          const BreakpadParser::LineRecord& line_record) {
-  return i < line_record.start_address;
-}
-
 std::optional<std::string> GetFileContents(const std::string& file_path) {
   std::string file_contents;
   base::ScopedFile fd = base::OpenFile(file_path, O_RDONLY);
@@ -177,12 +172,15 @@ std::optional<std::string> BreakpadParser::GetPublicSymbol(
   return std::nullopt;
 }
 
-std::optional<std::tuple<std::string, size_t>>
+std::optional<std::tuple<std::string, uint32_t>>
 BreakpadParser::GetSourceLocation(uint64_t address) const {
   // Returns an iterator pointing to the first element where the line record's
   // start address is greater than |address|.
-  auto it = std::upper_bound(line_records_.begin(), line_records_.end(),
-                             address, &LineRecordComparator);
+  auto it = std::upper_bound(
+      line_records_.begin(), line_records_.end(), address,
+      [](const uint64_t i, const BreakpadParser::LineRecord& line_record) {
+        return i < line_record.start_address;
+      });
   // If the first line record's address is greater than |address| then |address|
   // is too low to appear in |line_records_|.
   if (it == line_records_.begin()) {
@@ -310,7 +308,7 @@ base::Status BreakpadParser::ParseFileRecord(base::StringView current_line) {
     return base::Status("FILE record is incomplete");
   }
 
-  std::optional<size_t> optional_file_number =
+  std::optional<uint32_t> optional_file_number =
       base::CStringToUInt32(words.cur_token());
   if (!optional_file_number) {
     return base::Status("File number should be integer");

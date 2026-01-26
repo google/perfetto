@@ -17,10 +17,10 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_BREAKPAD_PARSER_H_
 #define SRC_PROFILING_SYMBOLIZER_BREAKPAD_PARSER_H_
 
-#include <map>
 #include <optional>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -92,7 +92,7 @@ class BreakpadParser {
   std::optional<std::string> GetPublicSymbol(uint64_t address) const;
 
   // Returns source file name and line number for the corresponding code address
-  std::optional<std::tuple<std::string, size_t>> GetSourceLocation(
+  std::optional<std::tuple<std::string, uint32_t>> GetSourceLocation(
       uint64_t address) const;
 
   const std::vector<Symbol>& symbols_for_testing() const { return symbols_; }
@@ -117,7 +117,7 @@ class BreakpadParser {
   std::vector<Symbol> symbols_;
   std::vector<Symbol> public_symbols_;
   std::vector<LineRecord> line_records_;
-  std::map<size_t, std::string> source_files_;
+  std::unordered_map<uint32_t, std::string> source_files_;
   const std::string file_path_;
 };
 
