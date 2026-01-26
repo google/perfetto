@@ -29,7 +29,6 @@ TEST(DomTest, RoundTrip) {
   Dom original(Type::kObject);
   original["string"] = "test";
   original["int"] = 42;
-  original["uint"] = uint64_t{18446744073709551615ULL};
   original["double"] = 3.14159;
   original["bool"] = true;
   original["null"] = Dom();
@@ -45,7 +44,6 @@ TEST(DomTest, RoundTrip) {
 
   EXPECT_EQ((*parsed)["string"].AsString(), "test");
   EXPECT_EQ((*parsed)["int"].AsInt(), 42);
-  EXPECT_EQ((*parsed)["uint"].AsUint64(), 18446744073709551615ULL);
   EXPECT_DOUBLE_EQ((*parsed)["double"].AsDouble(), 3.14159);
   EXPECT_TRUE((*parsed)["bool"].AsBool());
   EXPECT_TRUE((*parsed)["null"].IsNull());

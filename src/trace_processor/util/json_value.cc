@@ -401,7 +401,7 @@ base::StatusOr<Dom> ParseRecursive(Iterator& iter) {
       ASSIGN_OR_RETURN(Dom child, ParseRecursive(iter));
       result[key] = std::move(child);
     }
-    return result;
+    return std::move(result);
   }
 
   // Handle arrays.
@@ -419,7 +419,7 @@ base::StatusOr<Dom> ParseRecursive(Iterator& iter) {
       ASSIGN_OR_RETURN(Dom child, ParseRecursive(iter));
       result.Append(std::move(child));
     }
-    return result;
+    return std::move(result);
   }
 
   return base::ErrStatus("Unknown JSON value type");
@@ -484,7 +484,7 @@ base::StatusOr<Dom> Parse(std::string_view json) {
     }
   }
 
-  return result;
+  return std::move(result);
 }
 
 }  // namespace perfetto::trace_processor::json
