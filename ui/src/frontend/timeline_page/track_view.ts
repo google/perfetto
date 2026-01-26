@@ -266,8 +266,9 @@ export class TrackView {
     rect: Rect2D,
     visibleWindow: HighPrecisionTimeSpan,
     colors: CanvasColors,
-    offscreenCanvas: OffscreenCanvas,
+    offscreenCanvas: OffscreenCanvas | HTMLCanvasElement,
     offscreenGl: WebGL2RenderingContext,
+    canvasOffset: {x: number; y: number},
   ) {
     const {node, renderer, verticalBounds} = this;
 
@@ -293,6 +294,12 @@ export class TrackView {
       return;
     }
 
+    // Combine the virtual canvas offset with the track's position
+    const trackOffset = {
+      x: canvasOffset.x + trackRect.left,
+      y: canvasOffset.y + trackRect.top,
+    };
+
     node.uri &&
       renderer.track.renderWebGL({
         trackUri: node.uri,
@@ -305,7 +312,7 @@ export class TrackView {
         colors,
         offscreenCanvas,
         offscreenGl,
-        canvasOffset: {x: trackRect.left, y: trackRect.top},
+        canvasOffset: trackOffset,
       });
   }
 
@@ -317,8 +324,8 @@ export class TrackView {
     perfStatsEnabled: boolean,
     trackPerfStats: WeakMap<TrackNode, PerfStats>,
     colors: CanvasColors,
-    offscreenCanvas: OffscreenCanvas,
-    offscreenGl: WebGL2RenderingContext,
+    webglCanvas?: HTMLCanvasElement,
+    webglCtx?: WebGL2RenderingContext,
   ) {
     // For each track we rendered in view(), render it to the canvas. We know the
     // vertical bounds, so we just need to combine it with the horizontal bounds
@@ -363,8 +370,8 @@ export class TrackView {
         ctx,
         timescale,
         colors,
-        offscreenCanvas,
-        offscreenGl,
+        offscreenCanvas: webglCanvas,
+        offscreenGl: webglCtx,
         canvasOffset: {x: trackRect.left, y: trackRect.top},
       });
 

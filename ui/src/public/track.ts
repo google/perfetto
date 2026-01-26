@@ -130,12 +130,12 @@ export interface TrackRenderContext extends TrackContext {
   readonly colors: CanvasColors;
 
   /**
-   * Optional offscreen WebGL canvas for accelerated rendering.
+   * Optional WebGL canvas for accelerated rendering.
    * Tracks can draw to this instead of ctx for batched rendering.
    * Content drawn here will be composited onto the main canvas after all
    * tracks have rendered.
    */
-  readonly offscreenCanvas?: OffscreenCanvas;
+  readonly offscreenCanvas?: OffscreenCanvas | HTMLCanvasElement;
   readonly offscreenGl?: WebGL2RenderingContext;
 
   /**

@@ -321,6 +321,7 @@ export class CpuSliceTrack implements TrackRenderer {
     offscreenGl,
     canvasOffset,
   }: TrackRenderContext): void {
+    console.log('CpuSliceTrack.renderWebGL called, gl:', !!offscreenGl, 'offset:', canvasOffset);
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
