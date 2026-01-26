@@ -48,11 +48,17 @@ export class PageManagerImpl implements PageManager {
     // such as the timeline page.
     return Array.from(this.previousPages.entries())
       .map(([key, {page, subpage}]) => {
-        const maybeRenderedPage = this.renderPageForRoute(page, subpage);
+        const isOpen = key === route.page;
+        const maybeRenderedPage = this.renderPageForRoute(
+          page,
+          subpage,
+          isOpen,
+        );
         // If either the route doesn't exist or requires a trace but the trace
         // is not loaded, fall back on the default route.
         const renderedPage =
-          maybeRenderedPage ?? assertExists(this.renderPageForRoute('/', ''));
+          maybeRenderedPage ??
+          assertExists(this.renderPageForRoute('/', '', isOpen));
         return [key, renderedPage];
       })
       .map(([key, page]) => {
@@ -62,11 +68,11 @@ export class PageManagerImpl implements PageManager {
 
   // Will return undefined if either: (1) the route does not exist; (2) the
   // route exists, it requires a trace, but there is no trace loaded.
-  private renderPageForRoute(page: string, subpage: string) {
+  private renderPageForRoute(page: string, subpage: string, open: boolean) {
     const handler = this.registry.tryGet(page);
     if (handler === undefined) {
       return undefined;
     }
-    return handler.render(subpage);
+    return handler.render(subpage, open);
   }
 }

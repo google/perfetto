@@ -30,6 +30,7 @@ import {Intent} from '../../widgets/common';
 import {Anchor} from '../../widgets/anchor';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
+import {FocusPage, FocusPageAttrs} from '../..//public/page';
 
 const RELEASE_PROCESS_URL =
   'https://perfetto.dev/docs/visualization/perfetto-ui-release-process';
@@ -116,12 +117,17 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
   }
 }
 
-export interface FlagsPageAttrs {
+export type FlagsPageAttrs = FocusPageAttrs & {
   readonly subpage?: string;
-}
+  readonly open?: boolean;
+};
 
-export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
+export class FlagsPage extends FocusPage<FlagsPageAttrs> {
   private filterText: string = '';
+
+  focus(vnode: m.VnodeDOM<FlagsPageAttrs>) {
+    vnode.dom.querySelector('input')?.focus();
+  }
 
   private renderEmptyState(isFiltering: boolean) {
     if (isFiltering) {
@@ -210,7 +216,6 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
           m(TextInput, {
             placeholder: 'Search...',
             value: this.filterText,
-            autofocus: true,
             leftIcon: 'search',
             oninput: (e: Event) => {
               const target = e.target as HTMLInputElement;

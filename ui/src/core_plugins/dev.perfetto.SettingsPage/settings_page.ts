@@ -31,13 +31,18 @@ import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
 import {Icons} from '../../base/semantic_icons';
+import {FocusPage, FocusPageAttrs} from '../..//public/page';
 
-export interface SettingsPageAttrs {
+export type SettingsPageAttrs = FocusPageAttrs & {
   readonly subpage?: string;
-}
+};
 
-export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
+export class SettingsPage extends FocusPage<SettingsPageAttrs> {
   private filterText = '';
+
+  focus(vnode: m.VnodeDOM<SettingsPageAttrs>) {
+    vnode.dom.querySelector('input')?.focus();
+  }
 
   view({attrs}: m.Vnode<SettingsPageAttrs>): m.Children {
     const app = AppImpl.instance;

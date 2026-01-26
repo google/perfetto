@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {HTMLInputAttrs} from '../widgets/common';
 
 /**
  * Allows to register custom page endpoints that response to given routes, e.g.
@@ -51,6 +52,36 @@ export interface PageHandler {
    * Called during each Mithril render cycle.
    *
    * @param subpage Optional subpage path segment after the main route
+   * @param isOpen Whether the page is currently the active page
    */
-  readonly render: (subpage: string | undefined) => m.Children;
+  readonly render: (subpage: string | undefined, open: boolean) => m.Children;
+}
+
+export type FocusPageAttrs = HTMLInputAttrs & {
+  readonly open?: boolean;
+};
+
+export abstract class FocusPage<T extends FocusPageAttrs>
+  implements m.ClassComponent<T>
+{
+  private wasOpen = false;
+
+  abstract view(vnode: m.Vnode<T, this>): m.Children | null | void;
+
+  oncreate(vnode: m.VnodeDOM<T>) {
+    this.wasOpen = vnode.attrs.open ?? false;
+    if (this.wasOpen) {
+      this.focus(vnode);
+    }
+  }
+
+  onupdate(vnode: m.VnodeDOM<T>) {
+    const isOpen = vnode.attrs.open ?? false;
+    if (isOpen && !this.wasOpen) {
+      this.focus(vnode);
+    }
+    this.wasOpen = isOpen;
+  }
+
+  abstract focus(vnode: m.VnodeDOM<T>): void;
 }

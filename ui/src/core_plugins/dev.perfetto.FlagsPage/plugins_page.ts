@@ -32,6 +32,7 @@ import {EmptyState} from '../../widgets/empty_state';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
 import {Icons} from '../../base/semantic_icons';
+import {FocusPage, FocusPageAttrs} from '../..//public/page';
 
 enum SortOrder {
   Name = 'name',
@@ -83,12 +84,16 @@ function sortText(sortOrder: SortOrder) {
   }
 }
 
-export interface PluginsPageAttrs {
+export type PluginsPageAttrs = FocusPageAttrs & {
   readonly subpage?: string;
-}
+};
 
-export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
+export class PluginsPage extends FocusPage<PluginsPageAttrs> {
   private filterText: string = '';
+
+  focus(vnode: m.VnodeDOM<PluginsPageAttrs>) {
+    vnode.dom.querySelector('input')?.focus();
+  }
 
   view({attrs}: m.Vnode<PluginsPageAttrs>): m.Children {
     const pluginManager = AppImpl.instance.plugins;
