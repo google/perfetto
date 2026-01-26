@@ -12,15 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This directory contains core data structures and algorithms used by the
-# trace processor. These are low-level primitives that can be shared across
-# different components like dataframe, graph, tree, and interval structures.
-
-group("core") {
+source_set("trees") {
+  sources = [
+    "tree_agg.cc",
+    "tree_agg.h",
+    "tree_builder_ops.cc",
+    "tree_builder_ops.h",
+    "tree_functions.cc",
+    "tree_functions.h",
+    "tree_utils.cc",
+    "tree_utils.h",
+  ]
   deps = [
-    "common",
-    "dataframe",
-    "interpreter",
-    "tree",
+    "../../../../../../gn:default_deps",
+    "../../../../../../gn:sqlite",
+    "../../../../../base",
+    "../../../../containers",
+    "../../../../core/common",
+    "../../../../core/dataframe",
+    "../../../../core/tree",
+    "../../../../core/util",
+    "../../../../sqlite",
+    "../../../engine",
   ]
 }

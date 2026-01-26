@@ -66,6 +66,11 @@ using testing::Pointee;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
 
+template <typename T>
+Span<T> ToSpan(Slab<T>& slab) {
+  return Span<T>(slab.begin(), slab.end());
+}
+
 class BytecodeInterpreterTest : public testing::Test {
  protected:
   template <typename... Ts>
@@ -2202,6 +2207,185 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq_ManyDuplicates) {
   const auto& result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 2u);
   EXPECT_EQ(result.e, 22u);
+}
+
+// =============================================================================
+// Tree Operation Tests
+// =============================================================================
+
+TEST_F(BytecodeInterpreterTest, MakeParentToChildTreeStructure_SimpleTree) {
+  // Tree structure:
+  //       0 (root)
+  //      / \
+  //     1   2
+  //    /
+  //   3
+  // parents: [kNoParent, 0, 0, 1]
+  constexpr uint32_t kNoParent = std::numeric_limits<uint32_t>::max();
+
+  Slab<uint32_t> parents_slab{kNoParent, 0, 0, 1};
+  Slab<uint32_t> orig_rows_slab{0, 1, 2, 3};
+
+  TreeStructure::ChildToParent c2p{ToSpan(parents_slab),
+                                   ToSpan(orig_rows_slab)};
+
+  // Pre-allocate output buffers.
+  auto offsets_slab = Slab<uint32_t>::Alloc(5);   // size + 1
+  auto children_slab = Slab<uint32_t>::Alloc(3);  // 3 non-root nodes
+  auto roots_slab = Slab<uint32_t>::Alloc(1);     // 1 root
+
+  TreeStructure::ParentToChild p2c{
+      ToSpan(offsets_slab),
+      ToSpan(children_slab),
+      ToSpan(roots_slab),
+  };
+
+  SetRegistersAndExecute(
+      "MakeParentToChildTreeStructure: [source_register=Register(0), "
+      "update_register=Register(1)]",
+      c2p, p2c);
+
+  const auto& result = GetRegister<TreeStructure::ParentToChild>(1);
+
+  EXPECT_THAT(result.roots, ElementsAre(0u));
+  EXPECT_THAT(result.offsets, ElementsAre(0u, 2u, 3u, 3u, 3u));
+  EXPECT_THAT(result.children, ElementsAre(1u, 2u, 3u));
+}
+
+TEST_F(BytecodeInterpreterTest, MakeParentToChildTreeStructure_EmptyTree) {
+  TreeStructure::ChildToParent c2p{
+      Span<uint32_t>::Empty(),
+      Span<uint32_t>::Empty(),
+  };
+  TreeStructure::ParentToChild p2c{
+      Span<uint32_t>::Empty(),
+      Span<uint32_t>::Empty(),
+      Span<uint32_t>::Empty(),
+  };
+
+  SetRegistersAndExecute(
+      "MakeParentToChildTreeStructure: [source_register=Register(0), "
+      "update_register=Register(1)]",
+      c2p, p2c);
+
+  const auto& result = GetRegister<TreeStructure::ParentToChild>(1);
+  EXPECT_THAT(result.roots, IsEmpty());
+  EXPECT_THAT(result.offsets, IsEmpty());
+  EXPECT_THAT(result.children, IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, FilterTree_KeepAll) {
+  // Tree: 0 -> 1 -> 2
+  constexpr uint32_t kNoParent = std::numeric_limits<uint32_t>::max();
+
+  // Build ChildToParent input.
+  Slab<uint32_t> parents_slab{kNoParent, 0, 1};
+  Slab<uint32_t> orig_rows_slab{100, 200, 300};
+
+  TreeStructure::ChildToParent c2p{ToSpan(parents_slab),
+                                   ToSpan(orig_rows_slab)};
+
+  // Build ParentToChild CSR.
+  Slab<uint32_t> offsets_slab{0, 1, 2, 2};
+  Slab<uint32_t> children_slab{1, 2};
+  Slab<uint32_t> roots_slab{0};
+
+  TreeStructure::ParentToChild p2c{
+      ToSpan(offsets_slab),
+      ToSpan(children_slab),
+      ToSpan(roots_slab),
+  };
+
+  // Filter bitvector: keep all nodes.
+  auto filter_bv = BitVector::FromSetBits(3, {0, 1, 2});
+  const BitVector* filter_ptr = &filter_bv;
+
+  SetRegistersAndExecute(
+      "FilterTree: [source_register=Register(0), "
+      "filter_register=Register(1), update_register=Register(2)]",
+      p2c, filter_ptr, c2p);
+
+  const auto& result = GetRegister<TreeStructure::ChildToParent>(2);
+
+  // All 3 nodes should remain.
+  EXPECT_THAT(result.parents, ElementsAre(kNoParent, 0u, 1u));
+  EXPECT_THAT(result.original_rows, ElementsAre(100u, 200u, 300u));
+}
+
+TEST_F(BytecodeInterpreterTest, FilterTree_RemoveMiddleNode) {
+  // Tree: 0 -> 1 -> 2
+  // Filter: keep 0 and 2, remove 1
+  // Result: 0 -> 2 (2 is reparented to 0)
+  constexpr uint32_t kNoParent = std::numeric_limits<uint32_t>::max();
+
+  Slab<uint32_t> parents_slab{kNoParent, 0, 1};
+  Slab<uint32_t> orig_rows_slab{100, 200, 300};
+
+  TreeStructure::ChildToParent c2p{ToSpan(parents_slab),
+                                   ToSpan(orig_rows_slab)};
+
+  Slab<uint32_t> offsets_slab{0, 1, 2, 2};
+  Slab<uint32_t> children_slab{1, 2};
+  Slab<uint32_t> roots_slab{0};
+
+  TreeStructure::ParentToChild p2c{
+      ToSpan(offsets_slab),
+      ToSpan(children_slab),
+      ToSpan(roots_slab),
+  };
+
+  // Node 1 not set (filtered out).
+  auto filter_bv = BitVector::FromSetBits(3, {0, 2});
+  const BitVector* filter_ptr = &filter_bv;
+
+  SetRegistersAndExecute(
+      "FilterTree: [source_register=Register(0), "
+      "filter_register=Register(1), update_register=Register(2)]",
+      p2c, filter_ptr, c2p);
+
+  const auto& result = GetRegister<TreeStructure::ChildToParent>(2);
+
+  // Only 2 nodes remain: node 0 is root, node 2 reparented to node 0.
+  EXPECT_THAT(result.parents, ElementsAre(kNoParent, 0u));
+  EXPECT_THAT(result.original_rows, ElementsAre(100u, 300u));
+}
+
+TEST_F(BytecodeInterpreterTest, FilterTree_RemoveRoot) {
+  // Tree: 0 -> 1 -> 2
+  // Filter: keep 1 and 2, remove root 0
+  // Result: 1 (new root) -> 2
+  constexpr uint32_t kNoParent = std::numeric_limits<uint32_t>::max();
+
+  Slab<uint32_t> parents_slab{kNoParent, 0, 1};
+  Slab<uint32_t> orig_rows_slab{100, 200, 300};
+
+  TreeStructure::ChildToParent c2p{ToSpan(parents_slab),
+                                   ToSpan(orig_rows_slab)};
+
+  Slab<uint32_t> offsets_slab{0, 1, 2, 2};
+  Slab<uint32_t> children_slab{1, 2};
+  Slab<uint32_t> roots_slab{0};
+
+  TreeStructure::ParentToChild p2c{
+      ToSpan(offsets_slab),
+      ToSpan(children_slab),
+      ToSpan(roots_slab),
+  };
+
+  // Node 0 not set (filtered out).
+  auto filter_bv = BitVector::FromSetBits(3, {1, 2});
+  const BitVector* filter_ptr = &filter_bv;
+
+  SetRegistersAndExecute(
+      "FilterTree: [source_register=Register(0), "
+      "filter_register=Register(1), update_register=Register(2)]",
+      p2c, filter_ptr, c2p);
+
+  const auto& result = GetRegister<TreeStructure::ChildToParent>(2);
+
+  // 2 nodes remain: node 1 becomes root, node 2 is its child.
+  EXPECT_THAT(result.parents, ElementsAre(kNoParent, 0u));
+  EXPECT_THAT(result.original_rows, ElementsAre(200u, 300u));
 }
 
 }  // namespace

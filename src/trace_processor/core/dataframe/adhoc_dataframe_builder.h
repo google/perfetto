@@ -118,6 +118,16 @@ class AdhocDataframeBuilder {
   using ColumnType = AdhocColumnType;
   using Options = AdhocDataframeBuilderOptions;
 
+  // Specifies how nulls are stored for a column.
+  enum class NullabilityType : uint8_t {
+    // Nulls are stored sparsely - no storage slot for null values.
+    // More memory efficient but doesn't support random access via GetCell.
+    kSparse,
+    // Nulls reserve a slot in storage with a placeholder value.
+    // Supports random access via GetCell.
+    kDense,
+  };
+
   // Constructs a AdhocDataframeBuilder.
   //
   // Args:
@@ -246,6 +256,7 @@ class AdhocDataframeBuilder {
   struct ColumnState {
     DataVariant data = std::nullopt;
     std::optional<core::BitVector> null_overlay;
+    NullabilityType nullability_type = NullabilityType::kSparse;
   };
   struct IntegerColumnSummary {
     bool is_id_sorted = true;
@@ -390,6 +401,34 @@ class AdhocDataframeBuilder {
       const core::FlexVector<uint32_t>& data);
 
   static void EnsureNullOverlayExists(ColumnState& state);
+
+  // For dense null columns, pushes placeholder values to storage.
+  PERFETTO_NO_INLINE static void PushPlaceholderValues(ColumnState& state,
+                                                       uint32_t count) {
+    switch (state.data.index()) {
+      case base::variant_index<DataVariant, std::nullopt_t>():
+        // No type yet - will be determined by first non-null value.
+        // For now, default to int64_t with 0 as placeholder.
+        state.data = core::FlexVector<int64_t>();
+        base::unchecked_get<core::FlexVector<int64_t>>(state.data)
+            .push_back_multiple(0, count);
+        break;
+      case base::variant_index<DataVariant, core::FlexVector<int64_t>>():
+        base::unchecked_get<core::FlexVector<int64_t>>(state.data)
+            .push_back_multiple(0, count);
+        break;
+      case base::variant_index<DataVariant, core::FlexVector<double>>():
+        base::unchecked_get<core::FlexVector<double>>(state.data)
+            .push_back_multiple(0.0, count);
+        break;
+      case base::variant_index<DataVariant, core::FlexVector<StringPool::Id>>():
+        base::unchecked_get<core::FlexVector<StringPool::Id>>(state.data)
+            .push_back_multiple(StringPool::Id::Null(), count);
+        break;
+      default:
+        PERFETTO_FATAL("Unexpected data type in column state.");
+    }
+  }
 
   // Returns true if the value is a definite duplicate.
   PERFETTO_ALWAYS_INLINE bool CheckDuplicate(int64_t value, size_t size) {

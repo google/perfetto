@@ -17,9 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_BIT_VECTOR_H_
 #define SRC_TRACE_PROCESSOR_CORE_UTIL_BIT_VECTOR_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
@@ -73,6 +75,20 @@ struct BitVector {
     }
     PERFETTO_DCHECK(size <= words.size() * 64u);
     return BitVector(std::move(words), size);
+  }
+
+  // Constructs a BitVector with the given size and sets the specified indices.
+  //
+  // size: The total number of bits in the vector.
+  // set_indices: List of indices to set to true.
+  static BitVector FromSetBits(uint64_t size,
+                               std::initializer_list<uint64_t> set_indices) {
+    BitVector bv = CreateWithSize(size);
+    for (uint64_t idx : set_indices) {
+      PERFETTO_DCHECK(idx < size);
+      bv.set(idx);
+    }
+    return bv;
   }
 
   // Adds a bit to the end of the vector.

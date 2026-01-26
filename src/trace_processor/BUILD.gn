@@ -352,6 +352,7 @@ perfetto_unittest_source_set("unittests") {
     "containers:unittests",
     "core/dataframe:unittests",
     "core/interpreter:unittests",
+    "core/tree:unittests",
     "core/util:unittests",
     "importers/android_bugreport:unittests",
     "importers/common:unittests",

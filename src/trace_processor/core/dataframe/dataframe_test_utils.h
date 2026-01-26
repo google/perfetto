@@ -42,6 +42,7 @@ struct TestRowFetcher : ValueFetcher {
     kInt64,
     kDouble,
     kString,
+    kBytes,
   };
 
   void SetRow(const std::vector<Value>& row_data) { current_row_ = &row_data; }

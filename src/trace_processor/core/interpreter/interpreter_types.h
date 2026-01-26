@@ -27,6 +27,7 @@
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::interpreter {
@@ -109,6 +110,18 @@ struct MaxOp {};
 // TypeSet combining Min and Max operations.
 using MinMaxOp = TypeSet<MinOp, MaxOp>;
 
+// Type tag for sum aggregation (child = parent + child).
+struct SumOp {};
+
+// Type tag for first/replace aggregation (child = parent, ignores child value).
+struct FirstOp {};
+
+// Type tag for last aggregation (child = child, ignores parent value).
+struct LastOp {};
+
+// TypeSet for propagate down operations.
+using PropagateOp = TypeSet<SumOp, MinOp, MaxOp, FirstOp, LastOp>;
+
 // TypeSet containing all the non-id storage types.
 using NonIdStorageType = TypeSet<Uint32, Int32, Int64, Double, String>;
 
@@ -184,6 +197,35 @@ struct CastFilterValueListResult {
   }
   CastFilterValueResult::Validity validity;
   ValueList value_list;
+};
+
+// Sentinel value for "no parent" in tree structures.
+inline constexpr uint32_t kTreeNoParent = UINT32_MAX;
+
+// Tree structure for lazy tree operations.
+//
+// Design decisions:
+// - NULL parent (root nodes) is represented as kTreeNoParent (UINT32_MAX).
+// - Memory for spans is owned externally by a persistent Tree object.
+// - Trees are always kept compact: no excess rows, always filtered down.
+// - After filtering, indices are dense 0..n-1; original_rows maps back to
+//   the original table rows.
+// - CSR (ParentToChild) must be rebuilt by caller after tree modifications.
+// - RwHandle semantics: reuse existing allocation in place.
+struct TreeStructure {
+  // Child-to-parent representation: for each node, stores its parent index.
+  struct ChildToParent {
+    Span<uint32_t> parents;        // Parent index for each node
+    Span<uint32_t> original_rows;  // Maps tree index -> original table row
+  };
+  // Parent-to-child representation: CSR format for efficient top-down
+  // traversal.
+  struct ParentToChild {
+    Span<uint32_t> offsets;   // Size = num_nodes + 1, children of node i are
+                              // in children[offsets[i]..offsets[i+1]]
+    Span<uint32_t> children;  // Concatenated child lists
+    Span<uint32_t> roots;     // Indices of root nodes (parent == UINT32_MAX)
+  };
 };
 
 }  // namespace perfetto::trace_processor::core::interpreter

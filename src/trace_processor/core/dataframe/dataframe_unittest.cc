@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/core/dataframe/dataframe.h"
 
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -29,7 +28,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe_test_utils.h"
@@ -39,30 +37,14 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_to_string.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/interpreter/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
-inline std::string TrimSpacePerLine(const std::string& s) {
-  std::string result;
-  result.reserve(s.size());
-  bool at_line_start = true;
-  for (char c : s) {
-    if (c == '\n') {
-      at_line_start = true;
-      result += c;
-    } else if (at_line_start && std::isspace(c)) {
-      // Skip whitespace at line start
-      continue;
-    } else {
-      at_line_start = false;
-      result += c;
-    }
-  }
-  return result;
-}
+using interpreter::EqualsIgnoringWhitespace;
 
 template <typename... Args>
 std::vector<Column> MakeColumnVector(Args&&... args) {
@@ -70,22 +52,6 @@ std::vector<Column> MakeColumnVector(Args&&... args) {
   container.reserve(sizeof...(Args));
   ((container.emplace_back(std::forward<Args>(args))), ...);
   return container;
-}
-
-// Custom matcher that compares strings ignoring all whitespace
-MATCHER_P(EqualsIgnoringWhitespace,
-          expected_str,
-          "equals (ignoring all whitespace)") {
-  std::string stripped_expected =
-      TrimSpacePerLine(base::TrimWhitespace(expected_str));
-  std::string stripped_actual = TrimSpacePerLine(base::TrimWhitespace(arg));
-  if (stripped_actual == stripped_expected) {
-    return true;
-  }
-  *result_listener << "after removing all whitespace:\nExpected:\n"
-                   << stripped_expected << "\nActual:\n"
-                   << stripped_actual;
-  return false;
 }
 
 // Test fixture for diff-based testing of bytecode generation

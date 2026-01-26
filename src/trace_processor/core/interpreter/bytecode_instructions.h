@@ -610,6 +610,74 @@ struct Reverse : Bytecode {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_1(RwHandle<Span<uint32_t>>, update_register);
 };
 
+// Creates a ChildToParent tree structure from table columns.
+// Converts id/parent_id columns into the internal tree representation,
+// mapping parent_id values to row indices.
+struct MakeChildToParentTreeStructure : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{5};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<StoragePtr>,
+                                     id_register,
+                                     ReadHandle<StoragePtr>,
+                                     parent_id_register,
+                                     RwHandle<TreeStructure::ChildToParent>,
+                                     update_register);
+};
+
+// Builds a CSR (Compressed Sparse Row) representation from ChildToParent.
+// Enables efficient top-down traversal. Also populates the roots list.
+struct MakeParentToChildTreeStructure : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{5};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<TreeStructure::ChildToParent>,
+                                     source_register,
+                                     RwHandle<TreeStructure::ParentToChild>,
+                                     update_register);
+};
+
+// Converts a span of indices to a bitvector for O(1) membership checks.
+// General utility, used by tree operations to convert filter results.
+struct IndexSpanToBitvector : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<Span<uint32_t>>,
+                                     source_register,
+                                     WriteHandle<BitVector>,
+                                     filter_register);
+};
+
+// Filters tree nodes, reparenting children of removed nodes to their nearest
+// surviving ancestor. Uses BFS from roots via CSR. Output ChildToParent is
+// compacted with dense indices 0..n-1.
+struct FilterTree : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{5};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<TreeStructure::ParentToChild>,
+                                     source_register,
+                                     ReadHandle<const BitVector*>,
+                                     filter_register,
+                                     RwHandle<TreeStructure::ChildToParent>,
+                                     update_register);
+};
+
+// Propagates values down the tree from roots to leaves using BFS.
+// For each node: update[child] = f(update[parent], update[child])
+// where f is the aggregate operation (Sum, Min, Max, First, Last).
+// Caller pre-initializes update_register with input values and root values.
+struct PropagateDownBase : TemplatedBytecode2<NonIdStorageType, PropagateOp> {
+  static constexpr Cost kCost = LinearPerRowCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<TreeStructure::ParentToChild>,
+                                     csr_register,
+                                     RwHandle<StoragePtr>,
+                                     update_register);
+};
+template <typename T, typename AggOp>
+struct PropagateDown : PropagateDownBase {
+  static_assert(NonIdStorageType::Contains<T>());
+  static_assert(PropagateOp::Contains<AggOp>());
+};
+
 // Bytecode ops that require FilterValueFetcher access.
 #define PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X) \
   X(CastFilterValue<Id>)                        \
@@ -759,7 +827,9 @@ struct Reverse : Bytecode {
   X(In<Int64>)                                         \
   X(In<Double>)                                        \
   X(In<String>)                                        \
-  X(Reverse)
+  X(Reverse)                                           \
+  X(MakeParentToChildTreeStructure)                    \
+  X(FilterTree)
 
 // Combined list of all bytecode instruction types.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \
