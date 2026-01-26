@@ -61,12 +61,15 @@ export type FocusPageAttrs = HTMLInputAttrs & {
   readonly open?: boolean;
 };
 
+/**
+ * Abstract class that tracks whether the current Page is open or not.
+ * Whenever the Page transitions from closed to open, the focus() methods is
+ * called.
+ */
 export abstract class FocusPage<T extends FocusPageAttrs>
   implements m.ClassComponent<T>
 {
   private wasOpen = false;
-
-  abstract view(vnode: m.Vnode<T, this>): m.Children | null | void;
 
   oncreate(vnode: m.VnodeDOM<T>) {
     this.wasOpen = vnode.attrs.open ?? false;
@@ -84,4 +87,5 @@ export abstract class FocusPage<T extends FocusPageAttrs>
   }
 
   abstract focus(vnode: m.VnodeDOM<T>): void;
+  abstract view(vnode: m.Vnode<T, this>): m.Children | null | void;
 }
