@@ -119,6 +119,7 @@ source_set("protozero_to_json") {
   ]
   deps = [
     ":descriptors",
+    ":json_serializer",
     "../../../gn:default_deps",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace/track_event:zero",
@@ -264,6 +265,25 @@ source_set("json_parser") {
   }
 }
 
+source_set("json_serializer") {
+  sources = [ "json_serializer.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
+source_set("simple_json_serializer") {
+  sources = [
+    "simple_json_serializer.cc",
+    "simple_json_serializer.h",
+  ]
+  deps = [
+    ":json_serializer",
+    "../../../gn:default_deps",
+  ]
+}
+
 source_set("json_writer") {
   sources = [
     "json_writer.cc",
@@ -372,11 +392,13 @@ source_set("unittests") {
     "debug_annotation_parser_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
+    "json_serializer_unittest.cc",
     "json_writer_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
     "protozero_to_text_unittests.cc",
+    "simple_json_serializer_unittest.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
     "tar_writer_unittest.cc",
@@ -395,12 +417,14 @@ source_set("unittests") {
     ":glob",
     ":gzip",
     ":json_parser",
+    ":json_serializer",
     ":json_writer",
     ":proto_profiler",
     ":proto_to_args_parser",
     ":protozero_to_json",
     ":protozero_to_text",
     ":regex",
+    ":simple_json_serializer",
     ":sql_argument",
     ":tar_writer",
     ":trace_blob_view_reader",
