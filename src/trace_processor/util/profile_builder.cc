@@ -37,7 +37,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"

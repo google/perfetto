@@ -28,8 +28,8 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/adhoc_dataframe_builder.h"
-#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/counter.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_bind.h"
@@ -87,8 +87,10 @@ struct CounterIntervals : public sqlite::Function<CounterIntervals> {
         CT::kDouble,  // next_value
         CT::kDouble,  // delta_value
     };
-    dataframe::AdhocDataframeBuilder builder(ret_col_names,
-                                             GetUserData(ctx)->pool, col_types);
+    dataframe::AdhocDataframeBuilder builder(
+        ret_col_names, GetUserData(ctx)->pool,
+        dataframe::AdhocDataframeBuilder::Options{
+            col_types, dataframe::NullabilityType::kSparseNullWithPopcount});
 
     auto* partitioned_counter = sqlite::value::Pointer<PartitionedCounter>(
         argv[2], PartitionedCounter::kName);
