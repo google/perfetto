@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/perf_counter_set_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -63,7 +64,8 @@ ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
                              TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
-      perf_sample_tracker_(context) {
+      perf_sample_tracker_(context),
+      perf_counter_set_tracker_(context) {
   RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber);
   RegisterForField(TracePacket::kPerfSampleFieldNumber);
   RegisterForField(TracePacket::kProfilePacketFieldNumber);
@@ -253,18 +255,33 @@ void ProfileModule::ParsePerfSample(
 
   // Populate the |perf_sample| table with everything except the recorded
   // counter values, which go to |counter|.
-  context_->event_tracker->PushCounter(
+  // Collect counter IDs for counter set association
+  std::vector<CounterId> counter_ids;
+
+  auto timebase_counter_id = context_->event_tracker->PushCounter(
       ts, static_cast<double>(sample.timebase_count()),
       sampling_stream.timebase_track_id);
+  if (timebase_counter_id) {
+    counter_ids.push_back(*timebase_counter_id);
+  }
 
   if (sample.has_follower_counts()) {
     auto track_it = sampling_stream.follower_track_ids.begin();
     auto track_end = sampling_stream.follower_track_ids.end();
     for (auto it = sample.follower_counts(); it && track_it != track_end;
          ++it, ++track_it) {
-      context_->event_tracker->PushCounter(ts, static_cast<double>(*it),
-                                           *track_it);
+      auto follower_counter_id = context_->event_tracker->PushCounter(
+          ts, static_cast<double>(*it), *track_it);
+      if (follower_counter_id) {
+        counter_ids.push_back(*follower_counter_id);
+      }
     }
+  }
+
+  // Create counter set if we have any counter IDs
+  std::optional<uint32_t> counter_set_id;
+  if (!counter_ids.empty()) {
+    counter_set_id = perf_counter_set_tracker_.AddCounterSet(counter_ids);
   }
 
   const UniqueTid utid =
@@ -295,9 +312,9 @@ void ProfileModule::ParsePerfSample(
     unwind_error_id = storage->InternString(
         ProfilePacketUtils::StringifyStackUnwindError(unwind_error));
   }
-  tables::PerfSampleTable::Row sample_row(ts, utid, sample.cpu(), cpu_mode_id,
-                                          cs_id, unwind_error_id,
-                                          sampling_stream.perf_session_id);
+  tables::PerfSampleTable::Row sample_row(
+      ts, utid, sample.cpu(), cpu_mode_id, cs_id, unwind_error_id,
+      sampling_stream.perf_session_id, counter_set_id);
   context_->storage->mutable_perf_sample_table()->Insert(sample_row);
 }
 

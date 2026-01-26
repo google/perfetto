@@ -2629,6 +2629,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/jit_tracker.h",
         "src/trace_processor/importers/proto/metadata_module.cc",
         "src/trace_processor/importers/proto/metadata_module.h",
+        "src/trace_processor/importers/proto/perf_counter_set_tracker.cc",
+        "src/trace_processor/importers/proto/perf_counter_set_tracker.h",
         "src/trace_processor/importers/proto/pigweed_detokenizer.cc",
         "src/trace_processor/importers/proto/pigweed_detokenizer.h",
         "src/trace_processor/importers/proto/pixel_modem_module.cc",
@@ -3169,6 +3171,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/math.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/perf_counter.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/perf_counter.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.cc",
@@ -3616,6 +3620,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_linux_perf_perf",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/linux/perf/counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/samples.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/spe.sql",
     ],

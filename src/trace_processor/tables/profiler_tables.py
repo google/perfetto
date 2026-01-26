@@ -31,6 +31,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
+from src.trace_processor.tables.counter_tables import COUNTER_TABLE
 from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 PROFILER_SMAPS_TABLE = Table(
@@ -463,6 +464,38 @@ PERF_SESSION_TABLE = Table(
             'cmdline': '''Command line used to collect the data.''',
         }))
 
+PERF_COUNTER_SET_TABLE = Table(
+    python_module=__file__,
+    class_name='PerfCounterSetTable',
+    sql_name='__intrinsic_perf_counter_set',
+    columns=[
+        C(
+            'perf_counter_set_id',
+            CppUint32(),
+            flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'counter_id',
+            CppTableId(COUNTER_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''Associates perf counter values with perf samples via set IDs.
+               Each set contains one or more counter values recorded at the
+               same sample point.''',
+        group='Callstack profilers',
+        columns={
+            'perf_counter_set_id':
+                '''Set ID that groups counter values for a single sample.
+                   Multiple rows share the same ID to form a set.''',
+            'counter_id':
+                '''Reference to the counter value in the counter table.''',
+        }))
+
 PERF_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='PerfSampleTable',
@@ -492,6 +525,12 @@ PERF_SAMPLE_TABLE = Table(
         ),
         C('unwind_error', CppOptional(CppString())),
         C('perf_session_id', CppTableId(PERF_SESSION_TABLE)),
+        C(
+            'counter_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''Samples from the traced_perf profiler.''',
@@ -515,7 +554,10 @@ PERF_SAMPLE_TABLE = Table(
                 frame at the point where unwinding stopped.''',
             'perf_session_id':
                 '''Distinguishes samples from different profiling
-                streams (i.e. multiple data sources).'''
+                streams (i.e. multiple data sources).''',
+            'counter_set_id':
+                '''References the set of counter values associated with this
+                   sample in __intrinsic_perf_counter_set.'''
         }))
 
 INSTRUMENTS_SAMPLE_TABLE = Table(
@@ -1154,6 +1196,7 @@ ALL_TABLES = [
     HEAP_PROFILE_ALLOCATION_TABLE,
     INSTRUMENTS_SAMPLE_TABLE,
     PACKAGE_LIST_TABLE,
+    PERF_COUNTER_SET_TABLE,
     PERF_SAMPLE_TABLE,
     PERF_SESSION_TABLE,
     PROFILER_SMAPS_TABLE,
