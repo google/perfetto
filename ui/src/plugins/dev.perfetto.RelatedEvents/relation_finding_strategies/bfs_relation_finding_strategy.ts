@@ -20,6 +20,7 @@ import {
 import {RelatedEvent} from '..';
 import {Time, time, duration} from '../../../base/time';
 import {Trace} from '../../../public/trace';
+
 interface DetailedEventInfo {
   eventName: string;
   eventTs: time;
