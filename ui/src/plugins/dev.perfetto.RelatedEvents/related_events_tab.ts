@@ -84,7 +84,6 @@ export abstract class RelatedEventsTabBase implements Tab {
       console.error('RelatedEventsTab: Failed to query dataset', e);
     } finally {
       this.isLoading = false;
-      m.redraw();
     }
   }
 
@@ -117,7 +116,6 @@ export abstract class RelatedEventsTabBase implements Tab {
       switchToCurrentSelectionTab: false,
       scrollToSelection: true,
     };
-    // Prefer selecting by Track URI if possible, otherwise fall back to SQL ID
     const trackUri = `/slice_${event.track_id}`;
     this.trace.selection.selectTrackEvent(trackUri, event.id, selectionOpts);
   }
