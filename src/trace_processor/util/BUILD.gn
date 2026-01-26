@@ -359,6 +359,7 @@ source_set("winscope_proto_mapping") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
+    "../containers",
     "../core/dataframe",
     "../storage:storage",
     "../tables",
