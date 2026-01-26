@@ -4077,6 +4077,8 @@ perfetto_cc_proto_descriptor(
 perfetto_filegroup(
     name = "src_trace_processor_trace_summary_trace_summary",
     srcs = [
+        "src/trace_processor/trace_summary/summarizer.cc",
+        "src/trace_processor/trace_summary/summarizer.h",
         "src/trace_processor/trace_summary/summary.cc",
         "src/trace_processor/trace_summary/summary.h",
     ],

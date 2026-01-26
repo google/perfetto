@@ -1253,10 +1253,20 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   if (!it) {
     return base::ErrStatus("Shared query with id '%s' not found", id.c_str());
   }
+  // Check if this query is already in queries_ (non-inlined case).
   auto sq = std::find_if(queries_.begin(), queries_.end(),
                          [&](const Query& sq) { return id == sq.id; });
   if (sq != queries_.end()) {
     return sq->table_name;
+  }
+  // Check if we've already created a state entry for this ID (inlined case).
+  // This prevents creating duplicate CTEs with collision suffixes when the
+  // same shared query is referenced multiple times.
+  for (const auto& s : state_) {
+    if (s.type == QueryType::kShared && s.id_from_proto &&
+        *s.id_from_proto == id) {
+      return s.table_name;
+    }
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},

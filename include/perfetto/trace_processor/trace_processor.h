@@ -237,20 +237,6 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // loaded by trace processor shell at runtime. The message is encoded as
   // DescriptorSet, defined in perfetto/trace_processor/trace_processor.proto.
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
-
-  // =================================================================
-  // |                        Experimental                           |
-  // =================================================================
-
-  // Analyzes a structured query and returns the generated SQL along with
-  // metadata. The `spec` contains a TraceSummarySpec with all queries (in its
-  // `query` field). Each query must have an `id` field set. The `query_id`
-  // specifies which query from the spec should be analyzed (must match one of
-  // the queries' id fields).
-  virtual base::Status AnalyzeStructuredQuery(
-      const TraceSummarySpecBytes& spec,
-      const std::string& query_id,
-      AnalyzedStructuredQuery* output) = 0;
 };
 
 }  // namespace perfetto::trace_processor

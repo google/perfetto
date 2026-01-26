@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -40,8 +41,13 @@ class DisableAndReadMetatraceResult;
 
 namespace trace_processor {
 
+class DescriptorPool;
 class Iterator;
 class TraceProcessor;
+
+namespace summary {
+class Summarizer;
+}  // namespace summary
 
 // This class handles the binary {,un}marshalling for the Trace Processor RPC
 // API (see protos/perfetto/trace_processor/trace_processor.proto).
@@ -164,6 +170,14 @@ class Rpc {
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;
+
+  // Manages Summarizer instances keyed by ID.
+  base::FlatHashMap<std::string, std::unique_ptr<summary::Summarizer>>
+      summarizers_;
+  // Counter for generating unique summarizer IDs.
+  uint64_t next_summarizer_id_ = 0;
+  // Descriptor pool for textproto generation in summarizers.
+  std::unique_ptr<DescriptorPool> summarizer_descriptor_pool_;
 };
 
 }  // namespace trace_processor

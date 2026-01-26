@@ -40,6 +40,9 @@ source_set("rpc") {
     "../../base:version",
     "../../protozero",
     "../../protozero:proto_ring_buffer",
+    "../trace_summary",
+    "../trace_summary:gen_cc_trace_summary_descriptor",
+    "../util:descriptors",
   ]
   public_deps = [
     "../../../include/perfetto/ext/trace_processor/rpc:query_result_serializer",
