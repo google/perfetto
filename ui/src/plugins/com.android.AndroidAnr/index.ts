@@ -188,12 +188,26 @@ export default class AndroidAnr implements PerfettoPlugin {
       trackNode.pin();
     }
 
-    // Construct the track URI. Typically, thread tracks use the format /slice_{track_id}.
-    const mainThreadTrackUri = `/slice_${anrInfo.mainThreadTrackId}`;
     const startTime = Time.fromRaw(BigInt(anrInfo.ts));
     const endTime = Time.fromRaw(BigInt(anrInfo.ts + anrInfo.dur));
 
     ctx.onTraceReady.addListener(async () => {
+      // Find the main thread track by its track ID via the track tags.
+      const mainThreadTrackNode = ctx.currentWorkspace.flatTracks.find(
+        (track) => {
+          if (!track.uri) {
+            return false;
+          }
+          const trackDesc = ctx.tracks.getTrack(track.uri);
+          return trackDesc?.tags?.trackIds?.includes(anrInfo.mainThreadTrackId);
+        },
+      );
+
+      if (!mainThreadTrackNode?.uri) {
+        return;
+      }
+      const mainThreadTrackUri = mainThreadTrackNode.uri;
+
       // 2. Scroll to the main thread track and focus into view
       ctx.scrollTo({
         track: {
