@@ -117,14 +117,16 @@ final class PerfettoTrackEventExtra {
   static final class NamedTrack implements PerfettoPointer {
     private final long mPtr;
     private final long mExtraPtr;
-    private final String mName;
     private final long mId;
+    private final String mName;
+    private final long mParentUuid;
 
     NamedTrack(long id, String name, long parentUuid, PerfettoNativeMemoryCleaner memoryCleaner) {
       mPtr = native_init(id, name, parentUuid);
       mExtraPtr = native_get_extra_ptr(mPtr);
-      mName = name;
       mId = id;
+      mName = name;
+      mParentUuid = parentUuid;
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
@@ -133,8 +135,16 @@ final class PerfettoTrackEventExtra {
       return mExtraPtr;
     }
 
+    public long getId() {
+      return mId;
+    }
+
     public String getName() {
       return mName;
+    }
+
+    public long getParentUuid() {
+      return mParentUuid;
     }
 
     @FastNative
