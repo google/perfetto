@@ -2754,9 +2754,10 @@ cc_test {
         ":perfetto_src_shared_lib_track_event_intern_map",
         ":perfetto_src_shared_lib_track_event_track_event",
         ":perfetto_src_trace_processor_containers_containers",
-        ":perfetto_src_trace_processor_dataframe_dataframe",
-        ":perfetto_src_trace_processor_dataframe_impl_impl",
-        ":perfetto_src_trace_processor_dataframe_specs",
+        ":perfetto_src_trace_processor_core_common_common",
+        ":perfetto_src_trace_processor_core_dataframe_dataframe",
+        ":perfetto_src_trace_processor_core_interpreter_interpreter",
+        ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -2765,6 +2766,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -14292,54 +14294,68 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/dataframe:dataframe
+// GN: //src/trace_processor/core/common:common
 filegroup {
-    name: "perfetto_src_trace_processor_dataframe_dataframe",
+    name: "perfetto_src_trace_processor_core_common_common",
+}
+
+// GN: //src/trace_processor/core/dataframe:dataframe
+filegroup {
+    name: "perfetto_src_trace_processor_core_dataframe_dataframe",
     srcs: [
-        "src/trace_processor/dataframe/adhoc_dataframe_builder.cc",
-        "src/trace_processor/dataframe/dataframe.cc",
-        "src/trace_processor/dataframe/typed_cursor.cc",
+        "src/trace_processor/core/dataframe/adhoc_dataframe_builder.cc",
+        "src/trace_processor/core/dataframe/dataframe.cc",
+        "src/trace_processor/core/dataframe/query_plan.cc",
+        "src/trace_processor/core/dataframe/typed_cursor.cc",
     ],
 }
 
-// GN: //src/trace_processor/dataframe/impl:bytecode_interpreter_test_utils
+// GN: //src/trace_processor/core/dataframe:unittests
 filegroup {
-    name: "perfetto_src_trace_processor_dataframe_impl_bytecode_interpreter_test_utils",
-}
-
-// GN: //src/trace_processor/dataframe/impl:impl
-filegroup {
-    name: "perfetto_src_trace_processor_dataframe_impl_impl",
+    name: "perfetto_src_trace_processor_core_dataframe_unittests",
     srcs: [
-        "src/trace_processor/dataframe/impl/query_plan.cc",
+        "src/trace_processor/core/dataframe/dataframe_unittest.cc",
+        "src/trace_processor/core/dataframe/runtime_dataframe_builder_unittest.cc",
     ],
 }
 
-// GN: //src/trace_processor/dataframe/impl:unittests
+// GN: //src/trace_processor/core/interpreter:bytecode_interpreter_test_utils
 filegroup {
-    name: "perfetto_src_trace_processor_dataframe_impl_unittests",
+    name: "perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
+}
+
+// GN: //src/trace_processor/core/interpreter:interpreter
+filegroup {
+    name: "perfetto_src_trace_processor_core_interpreter_interpreter",
     srcs: [
-        "src/trace_processor/dataframe/impl/bit_vector_unittest.cc",
-        "src/trace_processor/dataframe/impl/bytecode_interpreter_unittest.cc",
-        "src/trace_processor/dataframe/impl/flex_vector_unittest.cc",
-        "src/trace_processor/dataframe/impl/slab_unittest.cc",
-        "src/trace_processor/dataframe/impl/sort_unittest.cc",
+        "src/trace_processor/core/interpreter/bytecode_interpreter_impl.cc",
+        "src/trace_processor/core/interpreter/bytecode_to_string.cc",
     ],
 }
 
-// GN: //src/trace_processor/dataframe:specs
+// GN: //src/trace_processor/core/interpreter:unittests
 filegroup {
-    name: "perfetto_src_trace_processor_dataframe_specs",
+    name: "perfetto_src_trace_processor_core_interpreter_unittests",
+    srcs: [
+        "src/trace_processor/core/interpreter/bytecode_interpreter_unittest.cc",
+    ],
 }
 
-// GN: //src/trace_processor/dataframe:unittests
+// GN: //src/trace_processor/core/util:unittests
 filegroup {
-    name: "perfetto_src_trace_processor_dataframe_unittests",
+    name: "perfetto_src_trace_processor_core_util_unittests",
     srcs: [
-        "src/trace_processor/dataframe/dataframe_unittest.cc",
-        "src/trace_processor/dataframe/runtime_dataframe_builder_unittest.cc",
-        "src/trace_processor/dataframe/type_set_unittest.cc",
+        "src/trace_processor/core/util/bit_vector_unittest.cc",
+        "src/trace_processor/core/util/flex_vector_unittest.cc",
+        "src/trace_processor/core/util/slab_unittest.cc",
+        "src/trace_processor/core/util/sort_unittest.cc",
+        "src/trace_processor/core/util/type_set_unittest.cc",
     ],
+}
+
+// GN: //src/trace_processor/core/util:util
+filegroup {
+    name: "perfetto_src_trace_processor_core_util_util",
 }
 
 // GN: //src/trace_processor:demangle
@@ -14458,6 +14474,14 @@ filegroup {
 // GN: //src/trace_processor/importers/art_method:art_method_event
 filegroup {
     name: "perfetto_src_trace_processor_importers_art_method_art_method_event",
+}
+
+// GN: //src/trace_processor/importers/collapsed_stack:collapsed_stack
+filegroup {
+    name: "perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
+    srcs: [
+        "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.cc",
+    ],
 }
 
 // GN: //src/trace_processor/importers/common:common
@@ -15600,6 +15624,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/critical_blocking_calls.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/base.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/cuj_frame_counters.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/threads.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/desktop_mode.sql",
@@ -16098,9 +16123,10 @@ cc_library_static {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
         ":perfetto_src_trace_processor_containers_containers",
-        ":perfetto_src_trace_processor_dataframe_dataframe",
-        ":perfetto_src_trace_processor_dataframe_impl_impl",
-        ":perfetto_src_trace_processor_dataframe_specs",
+        ":perfetto_src_trace_processor_core_common_common",
+        ":perfetto_src_trace_processor_core_dataframe_dataframe",
+        ":perfetto_src_trace_processor_core_interpreter_interpreter",
+        ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -16109,6 +16135,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -18363,12 +18390,14 @@ cc_test {
         ":perfetto_src_trace_config_utils_unittests",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_containers_unittests",
-        ":perfetto_src_trace_processor_dataframe_dataframe",
-        ":perfetto_src_trace_processor_dataframe_impl_bytecode_interpreter_test_utils",
-        ":perfetto_src_trace_processor_dataframe_impl_impl",
-        ":perfetto_src_trace_processor_dataframe_impl_unittests",
-        ":perfetto_src_trace_processor_dataframe_specs",
-        ":perfetto_src_trace_processor_dataframe_unittests",
+        ":perfetto_src_trace_processor_core_common_common",
+        ":perfetto_src_trace_processor_core_dataframe_dataframe",
+        ":perfetto_src_trace_processor_core_dataframe_unittests",
+        ":perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
+        ":perfetto_src_trace_processor_core_interpreter_interpreter",
+        ":perfetto_src_trace_processor_core_interpreter_unittests",
+        ":perfetto_src_trace_processor_core_util_unittests",
+        ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -18378,6 +18407,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -19239,9 +19269,10 @@ cc_library_static {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
         ":perfetto_src_trace_processor_containers_containers",
-        ":perfetto_src_trace_processor_dataframe_dataframe",
-        ":perfetto_src_trace_processor_dataframe_impl_impl",
-        ":perfetto_src_trace_processor_dataframe_specs",
+        ":perfetto_src_trace_processor_core_common_common",
+        ":perfetto_src_trace_processor_core_dataframe_dataframe",
+        ":perfetto_src_trace_processor_core_interpreter_interpreter",
+        ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -19250,6 +19281,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
@@ -19737,9 +19769,10 @@ cc_binary_host {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
         ":perfetto_src_trace_processor_containers_containers",
-        ":perfetto_src_trace_processor_dataframe_dataframe",
-        ":perfetto_src_trace_processor_dataframe_impl_impl",
-        ":perfetto_src_trace_processor_dataframe_specs",
+        ":perfetto_src_trace_processor_core_common_common",
+        ":perfetto_src_trace_processor_core_dataframe_dataframe",
+        ":perfetto_src_trace_processor_core_interpreter_interpreter",
+        ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -19748,6 +19781,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
+        ":perfetto_src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",

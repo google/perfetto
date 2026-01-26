@@ -35,7 +35,7 @@ export default class implements PerfettoPlugin {
     const binderCounterBreakdowns = new BreakdownTracks({
       trace: ctx,
       trackTitle: `Binder ${perspective} Transaction Counts`,
-      modules: ['android.binder', 'android.binder_breakdown'],
+      modules: ['android.binder'],
       aggregationType: BreakdownTrackAggType.COUNT,
       aggregation: {
         columns: [
@@ -55,18 +55,7 @@ export default class implements PerfettoPlugin {
         tsCol: `${oppositePerspective}_ts`,
         durCol: `${oppositePerspective}_dur`,
       },
-      pivots: {
-        columns: ['reason_type', 'reason'],
-        tableName: 'android_binder_client_server_breakdown',
-        tsCol: 'ts',
-        durCol: 'dur',
-        joins: [
-          {
-            joinTableName: 'android_binder_client_server_breakdown',
-            joinColumns: ['binder_txn_id'],
-          },
-        ],
-      },
+      sortTracks: false,
     });
 
     ctx.defaultWorkspace.addChildInOrder(

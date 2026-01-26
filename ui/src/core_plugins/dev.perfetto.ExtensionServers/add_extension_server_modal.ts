@@ -27,7 +27,7 @@ import {loadManifest} from './extension_server';
 import {Stack} from '../../widgets/stack';
 import {EmptyState} from '../../widgets/empty_state';
 import {Section} from '../../widgets/section';
-import {debounce} from '../../frontend/rate_limiters';
+import {debounce} from '../../base/rate_limiters';
 
 interface GithubUserInput {
   type: 'github';

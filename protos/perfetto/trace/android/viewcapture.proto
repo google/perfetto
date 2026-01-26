@@ -48,5 +48,7 @@ message ViewCapture {
     optional int32 visibility = 19;
 
     optional float elevation = 20;
+    optional int32 content_description_iid = 21;
+    optional int32 text_iid = 22;
   }
 }

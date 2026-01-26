@@ -41,6 +41,15 @@ inline char Uppercase(char c) {
   return ('a' <= c && c <= 'z') ? static_cast<char>(c + ('A' - 'a')) : c;
 }
 
+// Returns true if the character is an ASCII whitespace character.
+// This is a locale-independent version that only considers ASCII whitespace:
+// space (0x20), tab (0x09), newline (0x0A), vertical tab (0x0B),
+// form feed (0x0C), and carriage return (0x0D).
+inline bool IsSpace(char c) {
+  return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' ||
+         c == '\r';
+}
+
 inline std::optional<uint32_t> CStringToUInt32(const char* s, int base = 10) {
   char* endptr = nullptr;
   auto value = static_cast<uint32_t>(strtoul(s, &endptr, base));
