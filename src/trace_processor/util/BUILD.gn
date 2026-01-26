@@ -310,13 +310,16 @@ source_set("simple_json_serializer") {
   ]
 }
 
-source_set("json_writer") {
+source_set("json_value") {
   sources = [
-    "json_writer.cc",
-    "json_writer.h",
+    "json_value.cc",
+    "json_value.h",
   ]
   deps = [
+    ":json_parser",
+    ":json_serializer",
     "../../../gn:default_deps",
+    "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
   ]
 }
@@ -418,7 +421,7 @@ source_set("unittests") {
     "glob_unittest.cc",
     "json_parser_unittest.cc",
     "json_serializer_unittest.cc",
-    "json_writer_unittest.cc",
+    "json_value_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
@@ -444,7 +447,7 @@ source_set("unittests") {
     ":gzip",
     ":json_parser",
     ":json_serializer",
-    ":json_writer",
+    ":json_value",
     ":proto_profiler",
     ":proto_to_args_parser",
     ":protozero_to_json",

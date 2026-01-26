@@ -70,13 +70,9 @@ source_set("export_json") {
     "tables",
     "types",
     "util:args_utils",
+    "util:json_value",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
-
-  # TODO: export_json.cc still uses jsoncpp directly and needs to be migrated.
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ "../../gn:jsoncpp" ]
-  }
 }
 
 source_set("metatrace") {
