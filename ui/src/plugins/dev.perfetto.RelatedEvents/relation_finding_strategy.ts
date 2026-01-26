@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Dataset, DatasetSchema} from '../../trace_processor/dataset';
+import {Dataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {duration, time} from '../../base/time';
@@ -32,15 +32,6 @@ export const RELATED_EVENT_SCHEMA = {
 export const RELATION_SCHEMA = {
   ...RELATED_EVENT_SCHEMA,
   depth: NUM,
-};
-
-export const EVENT_DETAILS_SCHEMA: DatasetSchema = {
-  id: NUM,
-  name: STR,
-  ts: LONG,
-  dur: LONG,
-  track_id: LONG,
-  arg_set_id: NUM,
 };
 
 export type EventContext = {
