@@ -98,7 +98,10 @@ class RuntimeDataframeBuilder {
       StringPool* pool,
       const std::vector<AdhocDataframeBuilder::ColumnType>& types = {})
       : coulumn_count_(static_cast<uint32_t>(names.size())),
-        builder_(std::move(names), pool, types),
+        builder_(std::move(names),
+                 pool,
+                 AdhocDataframeBuilder::Options{
+                     types, AdhocDataframeBuilder::Options::kSparseNull}),
         pool_(pool) {}
   ~RuntimeDataframeBuilder() = default;
 

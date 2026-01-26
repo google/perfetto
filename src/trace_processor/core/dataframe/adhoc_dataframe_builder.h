@@ -99,6 +99,16 @@ class AdhocDataframeBuilder {
     kDouble,
     kString,
   };
+  // Options to be provided to the builder.
+  struct Options {
+    // An optional vector of `ColumnType` specifying the types of the columns.
+    // If empty, types are inferred from the first non-null value added to each
+    // column. If provided, must match the size of `names`.
+    std::vector<ColumnType> types;
+
+    // Indicates the default option for nullable columns to be converted to.
+    enum { kSparseNull, kDenseNull } nullability_type = kSparseNull;
+  };
 
   // Constructs a AdhocDataframeBuilder.
   //
@@ -109,20 +119,22 @@ class AdhocDataframeBuilder {
   //         string values encountered during row addition. Must remain
   //         valid for the lifetime of the builder and the resulting
   //         Dataframe.
-  //  types: An optional vector of `ColumnType` specifying the types
-  //         of the columns. If empty, types are inferred from the first
-  //         non-null value added to each column. If provided, must match
-  //         the size of `names`.
+  //  options: Options to configure the builder. See `Options` struct for
+  //           details.
   AdhocDataframeBuilder(std::vector<std::string> names,
                         StringPool* pool,
-                        const std::vector<ColumnType>& types = {})
-      : string_pool_(pool), did_declare_types_(!types.empty()) {
-    PERFETTO_DCHECK(types.empty() || types.size() == names.size());
+                        const Options& options = Options{{},
+                                                         Options::kSparseNull})
+      : string_pool_(pool),
+        did_declare_types_(!options.types.empty()),
+        dense_null_(options.nullability_type == Options::kDenseNull) {
+    PERFETTO_DCHECK(options.types.empty() ||
+                    options.types.size() == names.size());
     for (uint32_t i = 0; i < names.size(); ++i) {
-      if (types.empty()) {
+      if (options.types.empty()) {
         column_states_.emplace_back();
       } else {
-        switch (types[i]) {
+        switch (options.types[i]) {
           case ColumnType::kInt64:
             column_states_.emplace_back(
                 ColumnState{core::FlexVector<int64_t>(), {}});
@@ -208,6 +220,29 @@ class AdhocDataframeBuilder {
       EnsureNullOverlayExists(state);
     }
     state.null_overlay->push_back_multiple(false, count);
+    if (dense_null_) {
+      // For dense null, we need to push placeholder values to the data storage
+      // since DenseNull stores all values (with nulls marked by the bitvector).
+      switch (state.data.index()) {
+        case base::variant_index<DataVariant, core::FlexVector<int64_t>>():
+          base::unchecked_get<core::FlexVector<int64_t>>(state.data)
+              .push_back_multiple(0, count);
+          break;
+        case base::variant_index<DataVariant, core::FlexVector<double>>():
+          base::unchecked_get<core::FlexVector<double>>(state.data)
+              .push_back_multiple(0.0, count);
+          break;
+        case base::variant_index<DataVariant,
+                                 core::FlexVector<StringPool::Id>>():
+          base::unchecked_get<core::FlexVector<StringPool::Id>>(state.data)
+              .push_back_multiple(StringPool::Id::Null(), count);
+          break;
+        default:
+          // For std::nullopt_t, we don't need to push anything as the column
+          // type hasn't been determined yet.
+          break;
+      }
+    }
   }
 
   // Finalizes the builder and attempts to construct the Dataframe.
@@ -237,7 +272,8 @@ class AdhocDataframeBuilder {
           non_null_row_count = 0;
           columns.emplace_back(std::make_shared<Column>(Column{
               Storage{core::FlexVector<uint32_t>()},
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
+              CreateNullStorageFromBitvector(std::move(state.null_overlay),
+                                             dense_null_),
               Unsorted{},
               HasDuplicates{},
           }));
@@ -272,7 +308,8 @@ class AdhocDataframeBuilder {
               GetSpecializedStorage(integer, summary);
           columns.emplace_back(std::make_shared<Column>(Column{
               std::move(integer),
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
+              CreateNullStorageFromBitvector(std::move(state.null_overlay),
+                                             dense_null_),
               GetIntegerSortStateFromProperties(summary),
               summary.is_nullable || summary.has_duplicates
                   ? DuplicateState{HasDuplicates{}}
@@ -293,7 +330,8 @@ class AdhocDataframeBuilder {
           }
           columns.emplace_back(std::make_shared<Column>(Column{
               Storage{std::move(data)},
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
+              CreateNullStorageFromBitvector(std::move(state.null_overlay),
+                                             dense_null_),
               is_sorted && !is_nullable ? SortState{Sorted{}}
                                         : SortState{Unsorted{}},
               HasDuplicates{},
@@ -318,7 +356,8 @@ class AdhocDataframeBuilder {
           }
           columns.emplace_back(std::make_shared<Column>(Column{
               Storage{std::move(data)},
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
+              CreateNullStorageFromBitvector(std::move(state.null_overlay),
+                                             dense_null_),
               is_sorted && !is_nullable ? SortState{Sorted{}}
                                         : SortState{Unsorted{}},
               HasDuplicates{},
@@ -495,9 +534,16 @@ class AdhocDataframeBuilder {
   }
 
   static NullStorage CreateNullStorageFromBitvector(
-      std::optional<core::BitVector> bit_vector) {
+      std::optional<core::BitVector> bit_vector,
+      bool dense_null) {
     if (bit_vector) {
-      return NullStorage{NullStorage::SparseNull{*std::move(bit_vector), {}}};
+      if (dense_null) {
+        return NullStorage{NullStorage::DenseNull{*std::move(bit_vector)}};
+      }
+      return NullStorage{NullStorage::SparseNull{
+          *std::move(bit_vector),
+          {},
+      }};
     }
     return NullStorage{NullStorage::NonNull{}};
   }
@@ -646,6 +692,7 @@ class AdhocDataframeBuilder {
   std::vector<std::string> column_names_;
   std::vector<ColumnState> column_states_;
   bool did_declare_types_ = false;
+  bool dense_null_ = false;
   base::Status current_status_ = base::OkStatus();
   core::BitVector duplicate_bit_vector_;
 };

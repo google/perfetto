@@ -73,8 +73,10 @@ struct Symbolize : public sqlite::Function<Symbolize> {
     std::vector<CT> col_types{
         CT::kString, CT::kString, CT::kInt64, CT::kInt64, CT::kInt64,
     };
-    dataframe::AdhocDataframeBuilder builder(col_names, user_data->pool,
-                                             col_types);
+    dataframe::AdhocDataframeBuilder builder(
+        col_names, user_data->pool,
+        dataframe::AdhocDataframeBuilder::Options{
+            col_types, dataframe::AdhocDataframeBuilder::Options::kDenseNull});
 
     profiling::LlvmSymbolizer* symbolizer = &user_data->symbolizer;
 
