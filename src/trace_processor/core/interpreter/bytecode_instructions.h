@@ -27,7 +27,7 @@
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/interpreter/bytecode_core.h"
+#include "src/trace_processor/core/interpreter/bytecode_instruction_macros.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/range.h"
@@ -819,22 +819,6 @@ PERFETTO_ALWAYS_INLINE constexpr uint32_t Index(const V1& f, const V2& s) {
         f.index(), s.index(), offset, Index<Start>(), Index<End>());
   }
   return Index<Start>() + offset;
-}
-
-// Converts a bytecode instruction to string representation.
-inline std::string ToString(const Bytecode& op) {
-#define PERFETTO_DATAFRAME_BYTECODE_CASE_TO_STRING(...)            \
-  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {      \
-    __VA_ARGS__ typed_op;                                          \
-    typed_op.option = op.option;                                   \
-    typed_op.args_buffer = op.args_buffer;                         \
-    return std::string(#__VA_ARGS__) + ": " + typed_op.ToString(); \
-  }
-  switch (op.option) {
-    PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_CASE_TO_STRING)
-    default:
-      PERFETTO_FATAL("Unknown opcode %u", op.option);
-  }
 }
 
 }  // namespace perfetto::trace_processor::core::interpreter
