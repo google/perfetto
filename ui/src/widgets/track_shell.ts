@@ -59,6 +59,13 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // Optional subtitle to display underneath the track name.
   readonly subtitle?: string;
 
+  // Optional highlight match info for search. When provided, the matching
+  // portion of the title will be highlighted.
+  readonly highlightMatch?: {start: number; length: number};
+
+  // Whether this track is the current search match (highlighted more strongly).
+  readonly isCurrentSearchMatch?: boolean;
+
   // Show dropdown arrow and make clickable. Defaults to false.
   readonly collapsible?: boolean;
 
@@ -79,6 +86,9 @@ export interface TrackShellAttrs extends HTMLAttrs {
 
   // Issues a scrollTo() on this DOM element at creation time. Default: false.
   readonly scrollToOnCreate?: boolean;
+
+  // Issues a scrollTo() on this DOM element on update. Use for dynamic scrolling.
+  readonly scrollTo?: boolean;
 
   // Style the component differently.
   readonly summary?: boolean;
@@ -102,9 +112,9 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // The ID of the plugin that created this track.
   readonly pluginId?: string;
 
-  // Render a lighter version of the track shell, with no buttons or chips, just
-  // the track title.
-  readonly lite?: boolean;
+  // If set, the track is rendered with absolute positioning at this top value.
+  // Used for virtual scrolling where we skip rendering offscreen tracks.
+  readonly absoluteTop?: number;
 
   // Called when the track is expanded or collapsed (when the node is clicked).
   onCollapsedChanged?(collapsed: boolean): void;
@@ -138,11 +148,22 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       ref,
       depth = 0,
       stickyTop = 0,
-      lite,
+      absoluteTop,
     } = attrs;
 
     const expanded = collapsible && !collapsed;
     const trackHeight = heightPx;
+
+    // When absoluteTop is set, use absolute positioning for virtual scrolling.
+    const positionStyle =
+      absoluteTop !== undefined
+        ? {
+            position: 'absolute' as const,
+            top: `${absoluteTop}px`,
+            left: 0,
+            right: 0,
+          }
+        : {};
 
     return m(
       '.pf-track',
@@ -152,6 +173,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           '--height': trackHeight,
           '--depth': clamp(depth, 0, 16),
           '--sticky-top': Math.max(0, stickyTop),
+          ...positionStyle,
         },
         ref,
       },
@@ -165,7 +187,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           ),
         },
         this.renderShell(attrs),
-        !lite && this.renderContent(attrs),
+        this.renderContent(attrs),
       ),
       hasChildren(vnode) && m('.pf-track__children', vnode.children),
     );
@@ -177,8 +199,8 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     }
   }
 
-  onupdate({dom}: m.VnodeDOM<TrackShellAttrs, this>) {
-    if (this.scrollIntoView) {
+  onupdate({dom, attrs}: m.VnodeDOM<TrackShellAttrs, this>) {
+    if (this.scrollIntoView || attrs.scrollTo) {
       dom.scrollIntoView({behavior: 'instant', block: 'nearest'});
       this.scrollIntoView = false;
     }
@@ -196,7 +218,6 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       onMoveInside = () => {},
       buttons,
       highlight,
-      lite,
       summary,
     } = attrs;
 
@@ -316,48 +337,47 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           target.classList.remove(dragBeforeClassName);
         },
       },
-      lite
-        ? attrs.title
-        : m(
-            '.pf-track__menubar',
-            collapsible
-              ? m(Button, {
-                  className: 'pf-track__collapse-button',
-                  compact: true,
-                  icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp,
-                })
-              : m('.pf-track__title-spacer'),
-            m(TrackTitle, {title: attrs.title}),
-            chips &&
-              m(
-                Stack,
-                {
-                  className: 'pf-track__chips',
-                  spacing: 'small',
-                  orientation: 'horizontal',
-                },
-                chips.map((chip) =>
-                  m(Chip, {label: chip, compact: true, rounded: true}),
-                ),
-              ),
-            m(
-              ButtonBar,
-              {
-                className: 'pf-track__buttons',
-                // Block button clicks from hitting the shell's on click event
-                onclick: (e: MouseEvent) => e.stopPropagation(),
-              },
-              buttons,
-              // Always render this one last
-              attrs.error && renderCrashButton(attrs.error, attrs.pluginId),
+      m(
+        '.pf-track__menubar',
+        collapsible
+          ? m(Button, {
+              className: 'pf-track__collapse-button',
+              compact: true,
+              icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp,
+            })
+          : m('.pf-track__title-spacer'),
+        m(TrackTitle, {
+          title: attrs.title,
+          highlightMatch: attrs.highlightMatch,
+          isCurrentSearchMatch: attrs.isCurrentSearchMatch,
+        }),
+        chips &&
+          m(
+            Stack,
+            {
+              className: 'pf-track__chips',
+              spacing: 'small',
+              orientation: 'horizontal',
+            },
+            chips.map((chip) =>
+              m(Chip, {label: chip, compact: true, rounded: true}),
             ),
-            attrs.subtitle &&
-              !showSubtitleInContent(attrs) &&
-              m(
-                '.pf-track__subtitle',
-                m(MiddleEllipsis, {text: attrs.subtitle}),
-              ),
           ),
+        m(
+          ButtonBar,
+          {
+            className: 'pf-track__buttons',
+            // Block button clicks from hitting the shell's on click event
+            onclick: (e: MouseEvent) => e.stopPropagation(),
+          },
+          buttons,
+          // Always render this one last
+          attrs.error && renderCrashButton(attrs.error, attrs.pluginId),
+        ),
+        attrs.subtitle &&
+          !showSubtitleInContent(attrs) &&
+          m('.pf-track__subtitle', m(MiddleEllipsis, {text: attrs.subtitle})),
+      ),
     );
   }
 
@@ -462,19 +482,45 @@ function renderCrashButton(error: Error, pluginId: string | undefined) {
 
 interface TrackTitleAttrs {
   readonly title: string;
+  readonly highlightMatch?: {start: number; length: number};
+  readonly isCurrentSearchMatch?: boolean;
 }
 
 class TrackTitle implements m.ClassComponent<TrackTitleAttrs> {
   private readonly trash = new DisposableStack();
 
   view({attrs}: m.Vnode<TrackTitleAttrs>) {
+    const {title, highlightMatch, isCurrentSearchMatch} = attrs;
+
+    // If we have a highlight match, render the title with highlighted portion
+    if (highlightMatch) {
+      const {start, length} = highlightMatch;
+      const before = title.slice(0, start);
+      const match = title.slice(start, start + length);
+      const after = title.slice(start + length);
+
+      return m(
+        '.pf-track__title',
+        {
+          className: classNames(
+            isCurrentSearchMatch && 'pf-track__title--current-match',
+          ),
+        },
+        before,
+        m('mark.pf-track__search-highlight', match),
+        after,
+        m('.pf-track__title-popup', title),
+      );
+    }
+
+    // Default: use MiddleEllipsis for normal rendering
     return m(
       MiddleEllipsis,
       {
         className: 'pf-track__title',
-        text: attrs.title,
+        text: title,
       },
-      m('.pf-track__title-popup', attrs.title),
+      m('.pf-track__title-popup', title),
     );
   }
 

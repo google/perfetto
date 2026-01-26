@@ -45,6 +45,7 @@ import {
 } from '../../base/zoned_interaction_handler';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {TraceImpl} from '../../core/trace_impl';
+import {trackMatchesFilter, TrackFilterState} from '../../core/track_manager';
 import {TrackNode} from '../../public/workspace';
 import {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -66,7 +67,7 @@ import {
   shiftDragPanInteraction,
   wheelNavigationInteraction,
 } from './timeline_interactions';
-import {TrackView} from './track_view';
+import {getTrackHeight, TrackView} from './track_view';
 import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
 import {EmptyState} from '../../widgets/empty_state';
@@ -112,14 +113,19 @@ export interface TrackTreeViewAttrs {
   // Default: false
   readonly scrollToNewTracks?: boolean;
 
-  // If supplied, each track will be run though this filter to work out whether
-  // to show it or not.
-  readonly trackFilter?: (track: TrackNode) => boolean;
+  // The criteria to use for filtering tracks.
+  readonly filterCriteria?: TrackFilterState;
 
   readonly filtersApplied?: boolean;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
+const SCROLL_CONTAINER_REF = 'scroll-container';
+
+interface CacheItem {
+  node: TrackNode;
+  depth: number;
+}
 
 export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private readonly trace: TraceImpl;
@@ -138,11 +144,74 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
 
+  private cache = {
+    items: [] as CacheItem[],
+    version: -1,
+    filterCriteria: undefined as TrackFilterState | undefined,
+    filterVersion: -1,
+  };
+
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
   }
 
   private hoveredTrackNode?: TrackNode;
+
+  private regenerateCache(
+    rootNode: TrackNode,
+    filterCriteria?: TrackFilterState,
+    filtersApplied?: boolean,
+  ) {
+    this.cache.items = [];
+    this.cache.version = rootNode.version;
+    this.cache.filterCriteria = filterCriteria;
+    this.cache.filterVersion = filterCriteria?.version ?? -1;
+
+    const filterMatches = (node: TrackNode): boolean => {
+      if (!filterCriteria || !filtersApplied) return true; // Filter ignored, show all tracks.
+      // If this track name matches filter, show it.
+      if (
+        trackMatchesFilter(
+          node,
+          filterCriteria,
+          this.trace.tracks.trackFilterCriteria,
+        )
+      ) {
+        return true;
+      }
+      // Also show if any of our children match.
+      if (node.children?.some(filterMatches)) return true;
+      return false;
+    };
+
+    const traverse = (node: TrackNode, depth: number) => {
+      // Skip nodes that don't match the filter and have no matching children.
+      if (!filterMatches(node)) {
+        return;
+      }
+
+      if (node.headless) {
+        // Headless nodes are invisible, just render children.
+        for (const child of node.children) {
+          traverse(child, depth);
+        }
+        return;
+      }
+
+      this.cache.items.push({node, depth});
+
+      if ((node.expanded || filtersApplied) && node.hasChildren) {
+        for (const child of node.children) {
+          traverse(child, depth + 1);
+        }
+      }
+    };
+
+    // Iterate over the root node's children (root node itself is not displayed)
+    for (const child of rootNode.children) {
+      traverse(child, 0);
+    }
+  }
 
   view({attrs}: m.Vnode<TrackTreeViewAttrs>): m.Children {
     const {
@@ -152,112 +221,96 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       canRemoveNodes,
       className,
       rootNode,
-      trackFilter,
+      filterCriteria,
       filtersApplied,
     } = attrs;
-    const renderedTracks = new Array<TrackView>();
-    let top = 0;
 
-    function filterMatches(node: TrackNode): boolean {
-      if (!trackFilter) return true; // Filter ignored, show all tracks.
-
-      // If this track name matches filter, show it.
-      if (trackFilter(node)) return true;
-
-      // Also show if any of our children match.
-      if (node.children?.some(filterMatches)) return true;
-
-      return false;
+    // 1. Check if cache needs regeneration
+    if (
+      rootNode.version !== this.cache.version ||
+      filterCriteria !== this.cache.filterCriteria ||
+      (filterCriteria && filterCriteria.version !== this.cache.filterVersion)
+    ) {
+      this.regenerateCache(rootNode, filterCriteria, filtersApplied);
     }
 
-    const renderTrack = (
-      node: TrackNode,
-      depth = 0,
-      stickyTop = 0,
-    ): {vnodes: m.Children; isVisible: boolean} => {
-      // Skip nodes that don't match the filter and have no matching children.
-      if (!filterMatches(node)) return {vnodes: false, isVisible: false};
+    const renderedTracks = new Array<TrackView>();
+    const trackVnodes: m.Children = [];
+    let top = 0;
 
-      if (node.headless) {
-        // Headless nodes are invisible, just render children.
-        const childNodes: m.Children = [];
-        let atLeastOneChildVisible = false;
-        for (const child of node.children) {
-          const {vnodes, isVisible} = renderTrack(child, depth, stickyTop);
-          childNodes.push(vnodes);
-          if (isVisible) {
-            atLeastOneChildVisible = true;
-          }
-        }
-        return {vnodes: childNodes, isVisible: atLeastOneChildVisible};
-      }
+    const useVirtualScrolling =
+      VIRTUAL_TRACK_SCROLLING.get() && this.canvasRect !== undefined;
 
-      const trackView = new TrackView(trace, node, top);
-      renderedTracks.push(trackView);
-
-      // Advance the global top position.
-      top += trackView.height;
-
-      // Advance the sticky top position for our children, if we are sticky.
-      const childStickyTop = node.isSummary
-        ? stickyTop + trackView.height
-        : stickyTop;
-
-      const childNodes: m.Children = [];
-      let atLeastOneChildVisible = false;
-      if ((node.expanded || filtersApplied) && node.hasChildren) {
-        for (const child of node.children) {
-          const {vnodes, isVisible} = renderTrack(
-            child,
-            depth + 1,
-            childStickyTop,
-          );
-          childNodes.push(vnodes);
-          if (isVisible) {
-            atLeastOneChildVisible = true;
-          }
-        }
-      }
-
-      const isTrackOnScreen = VIRTUAL_TRACK_SCROLLING.get()
-        ? this.canvasRect?.overlaps({
-            left: 0,
-            right: 1,
-            top: trackView.verticalBounds.top,
-            bottom: trackView.verticalBounds.bottom,
-          })
-        : true;
-
-      const isVisible = isTrackOnScreen || atLeastOneChildVisible;
-
-      const vnodes = trackView.renderDOM(
-        {
-          lite: !Boolean(isVisible),
-          scrollToOnCreate: scrollToNewTracks,
-          reorderable: canReorderNodes,
-          removable: canRemoveNodes,
-          stickyTop,
-          depth,
-          collapsible: !filtersApplied,
-          onTrackMouseOver: () => {
-            this.hoveredTrackNode = node;
-          },
-          onTrackMouseOut: () => {
-            this.hoveredTrackNode = undefined;
-          },
-        },
-        childNodes,
-      );
-
-      return {vnodes, isVisible};
+    // Check if a region overlaps with the visible canvas
+    const isOnScreen = (top: number, bottom: number): boolean => {
+      if (!useVirtualScrolling) return true;
+      return this.canvasRect!.overlaps({left: 0, right: 1, top, bottom});
     };
 
-    const trackVnodes = rootNode.children
-      .map((track) => renderTrack(track))
-      .map(({vnodes}) => vnodes);
+    // Maintain a stack of sticky headers for sticky positioning
+    const headerStack: {node: TrackNode; bottom: number}[] = [];
 
-    // If there are no truthy vnode values, show "empty state" placeholder.
-    if (trackVnodes.every((x) => !Boolean(x))) {
+    // 2. Iterate flat list, calculate heights, and determine visibility
+    for (const item of this.cache.items) {
+      const {node, depth} = item;
+
+      // Create a lightweight TrackView just to calculate height
+      // (The renderer might be needed for height calculation)
+      const trackView = new TrackView(trace, node, top);
+      const height = trackView.height;
+
+      // Update sticky header stack
+      while (headerStack.length > depth) {
+        headerStack.pop();
+      }
+      const stickyTop =
+        headerStack.length > 0 ? headerStack[headerStack.length - 1].bottom : 0;
+
+      if (node.isSummary) {
+        headerStack.push({node, bottom: stickyTop + height});
+      }
+
+      // Check visibility
+      if (isOnScreen(top, top + height)) {
+        renderedTracks.push(trackView);
+
+        const vnode = trackView.renderDOM(
+          {
+            scrollToOnCreate: scrollToNewTracks,
+            reorderable: canReorderNodes,
+            removable: canRemoveNodes,
+            stickyTop,
+            depth,
+            collapsible: !filtersApplied,
+            // With this optimization, we use absolute positioning for everything
+            // to avoid needing spacers.
+            absoluteTop: useVirtualScrolling ? top : undefined,
+            onTrackMouseOver: () => {
+              this.hoveredTrackNode = node;
+            },
+            onTrackMouseOut: () => {
+              this.hoveredTrackNode = undefined;
+            },
+          },
+          [], // Children are now rendered linearly, so no nested children passed here
+        );
+        trackVnodes.push(vnode);
+      }
+
+      top += height;
+    }
+
+    const totalHeight = top;
+
+    // Update the track search manager with the list of visible tracks
+    // Note: We used to pass only rendered tracks, but logically it should probably
+    // be all matching tracks in the cache? Or just the ones on screen?
+    // The previous implementation did: `renderedTracks.map((tv) => tv.node)` which
+    // implies only tracks ON SCREEN. Let's keep that behavior for now.
+    trace.trackSearch.setVisibleTracks(renderedTracks.map((tv) => tv.node));
+
+    // If there are no tracks, show "empty state" placeholder.
+    if (this.cache.items.length === 0) {
       if (filtersApplied) {
         // If we are filtering, show 'no matching tracks' empty state widget.
         return m(
@@ -287,6 +340,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     return m(
       VirtualOverlayCanvas,
       {
+        ref: SCROLL_CONTAINER_REF,
         onMount: (redrawCanvas) =>
           attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
         disableCanvasRedrawOnMithrilUpdates: true,
@@ -303,12 +357,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           );
 
           if (VIRTUAL_TRACK_SCROLLING.get()) {
-            // The VOC can ask us to redraw the canvas for any number of
-            // reasons, we're interested in the case where the canvas rect has
-            // moved (which indicates that the user has scrolled enough to
-            // warrant drawing more content). If so, we should redraw the DOM in
-            // order to keep the track nodes inside the viewport rendering in
-            // full-fat mode.
             if (
               this.canvasRect === undefined ||
               !this.canvasRect.equals(canvasRect)
@@ -319,7 +367,16 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           }
         },
       },
-      m('', {ref: TRACK_CONTAINER_REF}, trackVnodes),
+      m(
+        '',
+        {
+          ref: TRACK_CONTAINER_REF,
+          style: useVirtualScrolling
+            ? {position: 'relative', height: `${totalHeight}px`}
+            : undefined,
+        },
+        trackVnodes,
+      ),
       this.hoveredTrackNode && this.renderPopup(this.hoveredTrackNode),
     );
   }
@@ -374,6 +431,49 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           toHTMLElement(interactionTarget),
         );
       }
+    }
+
+    // Handle pending scroll-to-track requests. With virtual scrolling, the
+    // target track may be rendered as a spacer, so we scroll the container
+    // to the track's known vertical position instead of relying on DOM.
+    // Note: With the new flat-list optimization, if a track is off-screen it
+    // won't be in `renderedTracks`, so we might need to search the cache or
+    // scroll blindly?
+    // Actually `renderedTracks` only contains visible ones.
+    // If we want to scroll to a track that is NOT visible, we need to calculate
+    // its position.
+    const scrollToId = this.trace.tracks.scrollToTrackNodeId;
+    if (scrollToId !== undefined) {
+      // Find track in CACHE to calculate its position
+      let targetTop = 0;
+      let found = false;
+      let trackHeight = 0;
+
+      for (const item of this.cache.items) {
+        const height = getTrackHeight(
+          item.node,
+          item.node.uri
+            ? this.trace.tracks.getTrackFSM(item.node.uri)
+            : undefined,
+        );
+        if (item.node.id === scrollToId) {
+          found = true;
+          trackHeight = height;
+          break;
+        }
+        targetTop += height;
+      }
+
+      if (found) {
+        const scrollContainer = findRef(dom, SCROLL_CONTAINER_REF);
+        if (scrollContainer) {
+          const container = toHTMLElement(scrollContainer);
+          const viewportHeight = container.clientHeight;
+          const scrollTop = targetTop - (viewportHeight - trackHeight) / 2;
+          container.scrollTop = Math.max(0, scrollTop);
+        }
+      }
+      this.trace.tracks.scrollToTrackNodeId = undefined;
     }
   }
 

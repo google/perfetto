@@ -82,4 +82,7 @@ export class Icons {
   // Platform icons
   static readonly Android = 'android';
   static readonly Web = 'language';
+
+  static readonly Up = 'arrow_upward';
+  static readonly Down = 'arrow_downward';
 }
