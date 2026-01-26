@@ -16,6 +16,7 @@ import {
   bindEventListener,
   elementIsEditable,
   findRef,
+  isElementVisible,
   isOrContains,
   toHTMLElement,
 } from './dom_utils';
@@ -160,5 +161,41 @@ describe('bindEventListener', () => {
       disposable[Symbol.dispose]();
       disposable[Symbol.dispose]();
     }).not.toThrow();
+  });
+});
+
+describe('isElementVisible', () => {
+  let element: HTMLElement;
+  let parentElement: HTMLElement;
+
+  beforeEach(() => {
+    parentElement = document.createElement('div');
+    element = document.createElement('div');
+    document.body.appendChild(parentElement);
+    parentElement.appendChild(element);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(element);
+  });
+
+  test('visible element', () => {
+    parentElement.style.display = 'block';
+    expect(isElementVisible(element)).toBeTruthy();
+  });
+
+  test('display none', () => {
+    parentElement.style.display = 'none';
+    expect(isElementVisible(element)).toBeFalsy();
+  });
+
+  test('visibility hidden', () => {
+    parentElement.style.visibility = 'hidden';
+    expect(isElementVisible(element)).toBeFalsy();
+  });
+
+  test('content visibility hidden', () => {
+    parentElement.style.contentVisibility = 'hidden';
+    expect(isElementVisible(element)).toBeFalsy();
   });
 });

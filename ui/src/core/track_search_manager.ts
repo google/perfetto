@@ -35,11 +35,13 @@ export class TrackSearchManager {
   private _matches: TrackSearchMatch[] = [];
   private _currentMatchIndex = -1;
   private _isVisible = false;
+  private _searchCollapsed = false;
   private _trackManager?: TrackManagerImpl;
 
-  // The list of visible track nodes to search through.
+  // The list of track nodes to search through.
   // This is updated by TrackTreeView during rendering.
   private _visibleTracks: TrackNode[] = [];
+  private _allTracks: TrackNode[] = [];
 
   /**
    * Set the track manager reference for scrolling support.
@@ -78,13 +80,31 @@ export class TrackSearchManager {
     return this._isVisible;
   }
 
+  get searchCollapsed(): boolean {
+    return this._searchCollapsed;
+  }
+
+  set searchCollapsed(value: boolean) {
+    if (this._searchCollapsed !== value) {
+      this._searchCollapsed = value;
+      // Re-run search with the appropriate track list
+      if (this._searchTerm) {
+        this.performSearch(true /* preserveCurrentMatch */);
+      }
+      raf.scheduleFullRedraw();
+    }
+  }
+
   /**
-   * Updates the list of visible tracks to search through.
+   * Updates the list of tracks to search through.
    * Called by TrackTreeView during rendering.
+   * @param visibleTracks - Tracks that are currently visible (expanded)
+   * @param allTracks - All tracks including those inside collapsed groups
    */
-  setVisibleTracks(tracks: TrackNode[]): void {
-    this._visibleTracks = tracks;
-    // Re-run search with new visible tracks, preserving current match
+  setTracks(visibleTracks: TrackNode[], allTracks: TrackNode[]): void {
+    this._visibleTracks = visibleTracks;
+    this._allTracks = allTracks;
+    // Re-run search with new tracks, preserving current match
     if (this._searchTerm) {
       this.performSearch(true /* preserveCurrentMatch */);
     }
@@ -165,11 +185,13 @@ export class TrackSearchManager {
   }
 
   /**
-   * Scrolls to the current match.
+   * Scrolls to the current match, expanding parent groups if necessary.
    */
   scrollToCurrentMatch(): void {
     const match = this.currentMatch;
     if (match && this._trackManager) {
+      // Expand all parent groups so the track becomes visible
+      match.node.reveal();
       // Use the existing scroll-to-track mechanism
       this._trackManager.scrollToTrackNodeId = match.node.id;
     }
@@ -188,8 +210,11 @@ export class TrackSearchManager {
     }
 
     const searchTermLower = this._searchTerm.toLowerCase();
+    const tracksToSearch = this._searchCollapsed
+      ? this._allTracks
+      : this._visibleTracks;
 
-    for (const node of this._visibleTracks) {
+    for (const node of tracksToSearch) {
       const nameLower = node.name.toLowerCase();
       const matchIndex = nameLower.indexOf(searchTermLower);
 
