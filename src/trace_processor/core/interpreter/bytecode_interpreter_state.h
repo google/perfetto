@@ -23,10 +23,12 @@
 #include <limits>
 #include <utility>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 
@@ -94,7 +96,14 @@ struct InterpreterState {
   template <typename T>
   PERFETTO_ALWAYS_INLINE const auto* ReadStorageFromRegister(
       ReadHandle<StoragePtr> reg) {
-    return static_cast<const typename T::cpp_type*>(ReadFromRegister(reg).ptr);
+    // Id columns don't have storage - the row index IS the value.
+    if constexpr (std::is_same_v<T, Id>) {
+      base::ignore_result(reg);
+      return static_cast<const typename T::cpp_type*>(nullptr);
+    } else {
+      return static_cast<const typename T::cpp_type*>(
+          ReadFromRegister(reg).ptr);
+    }
   }
 
   // Writes a value to the specified register, handling type safety through
