@@ -17,7 +17,7 @@ import {Monitor} from '../../base/monitor';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertExists, assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
-import {drawIncompleteSlice} from '../../base/canvas_utils';
+// import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
 import m from 'mithril';
@@ -126,7 +126,7 @@ export class CpuSliceTrack implements TrackRenderer {
   private cachedPids?: Array<bigint | number>;
   private cachedRectCount = 0;
   private lastDataGeneration = -1;
-  private selectorBuffer?: Float32Array;
+  private selectorBuffer?: Int8Array;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -334,7 +334,7 @@ export class CpuSliceTrack implements TrackRenderer {
       this.cachedDisabledColors = new Float32Array(numRects * 6 * 4);
       this.cachedUtids = new Uint32Array(numRects);
       this.cachedPids = new Array(numRects);
-      this.selectorBuffer = new Float32Array(numRects * 6);
+      this.selectorBuffer = new Int8Array(numRects * 6);
 
       let posIdx = 0;
       for (let i = 0; i < numRects; i++) {
@@ -409,12 +409,12 @@ export class CpuSliceTrack implements TrackRenderer {
         const utid = this.cachedUtids[i];
         const pid = this.cachedPids[i];
 
-        let selector = 0.0; // base
+        let selector = 0; // base
         if (isHovering) {
           const isThreadHovered = hoveredUtid === utid;
           const isProcessHovered = hoveredPid !== undefined && pid === hoveredPid;
           if (!isThreadHovered) {
-            selector = isProcessHovered ? 1.0 : 2.0;
+            selector = isProcessHovered ? 1 : 2;
           }
         }
 
@@ -588,8 +588,8 @@ export class CpuSliceTrack implements TrackRenderer {
         vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
         gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
         v_color = a_baseColor;
-        if (a_selector > 0.5) v_color = a_variantColor;
-        if (a_selector > 1.5) v_color = a_disabledColor;
+        if (a_selector == 1.0) v_color = a_variantColor;
+        if (a_selector == 2.0) v_color = a_disabledColor;
       }
     `;
 
@@ -717,7 +717,7 @@ export class CpuSliceTrack implements TrackRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, selectorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, this.selectorBuffer!, gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(selectorLocation);
-    gl.vertexAttribPointer(selectorLocation, 1, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(selectorLocation, 1, gl.BYTE, false, 0, 0);
 
     gl.drawArrays(gl.TRIANGLES, 0, this.cachedRectCount * 6);
   }
@@ -847,7 +847,7 @@ export class CpuSliceTrack implements TrackRenderer {
 // real-time priorities. The pattern is created once as an offscreen canvas and
 // is kept cached inside the Context2D of the main canvas, without making
 // assumptions on the lifetime of the main canvas.
-function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
+export function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
   const mctx = mainCtx as CanvasRenderingContext2D & {
     sliceHatchedPattern?: CanvasPattern;
   };
