@@ -52,7 +52,7 @@ export interface PageHandler {
    * Called during each Mithril render cycle.
    *
    * @param subpage Optional subpage path segment after the main route
-   * @param isOpen Whether the page is currently the active page
+   * @param open Whether the page is currently the active page
    */
   readonly render: (subpage: string | undefined, open: boolean) => m.Children;
 }
