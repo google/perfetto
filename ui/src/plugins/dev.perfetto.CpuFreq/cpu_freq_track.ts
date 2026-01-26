@@ -293,6 +293,7 @@ export class CpuFreqTrack implements TrackRenderer {
     timescale,
     visibleWindow,
     colors,
+    rectRenderer,
   }: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -382,8 +383,10 @@ export class CpuFreqTrack implements TrackRenderer {
     }
 
     // Draw CPU idle rectangles that overlay the CPU freq graph.
-    ctx.fillStyle = `rgba(128,128,128, 0.2)`;
+    // We draw them with WebGL first, then clearRect punches holes in the
+    // Canvas 2D freq graph to reveal the WebGL rects behind.
     {
+      const idleColor = {r: 128, g: 128, b: 128, a: 0.4};
       for (let i = startIdx; i < endIdx; i++) {
         if (data.lastIdleValues[i] < 0) {
           continue;
@@ -403,8 +406,12 @@ export class CpuFreqTrack implements TrackRenderer {
         const width = xEnd - x;
         const height = calculateY(data.lastFreqKHz[i]) - zeroY;
 
+        // Draw with WebGL (will be behind Canvas 2D)
+        if (rectRenderer) {
+          rectRenderer.drawRect(x, zeroY, width, height, idleColor);
+        }
+        // Punch hole in Canvas 2D to reveal WebGL rect
         ctx.clearRect(x, zeroY, width, height);
-        ctx.fillRect(x, zeroY, width, height);
       }
     }
 

@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
-import {colorCompare} from '../../base/color';
 import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
@@ -47,6 +46,7 @@ export const SLICE_FLAGS_INSTANT = 2;
 
 // Slices smaller than this don't get any text:
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
+
 const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const SLICE_MIN_WIDTH_FADED_PX = 0.1;
 
@@ -433,6 +433,7 @@ export abstract class BaseSliceTrack<
     visibleWindow,
     timescale,
     colors,
+    rectRenderer,
   }: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
@@ -525,27 +526,42 @@ export abstract class BaseSliceTrack<
       }
     }
 
-    // Second pass: fill slices by color.
-    const vizSlicesByColor = vizSlices.slice();
-    if (!this.forceTimestampRenderOrder) {
-      vizSlicesByColor.sort((a, b) =>
-        colorCompare(a.colorScheme.base, b.colorScheme.base),
-      );
-    }
+    // Second pass: fill slices.
+    // Add chevron sprite to atlas if using WebGL for instant slices.
+    const chevronSprite = rectRenderer
+      ? rectRenderer.addSprite(
+          this.getChevronSprite(this.instantWidthPx, sliceHeight),
+        )
+      : undefined;
+
     let lastColor = undefined;
     for (const slice of vizSlices) {
       const color = slice.isHighlighted
         ? slice.colorScheme.variant
         : slice.colorScheme.base;
-      const colorString = color.cssString;
-      if (colorString !== lastColor) {
-        lastColor = colorString;
-        ctx.fillStyle = colorString;
-      }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
-        this.drawChevron(ctx, slice.x, y, sliceHeight);
+        if (rectRenderer && chevronSprite) {
+          // Use WebGL sprite rendering
+          rectRenderer.drawSprite(
+            slice.x,
+            y,
+            this.instantWidthPx,
+            sliceHeight,
+            color.rgba,
+            chevronSprite,
+          );
+        } else {
+          // Fallback to Canvas 2D
+          const colorString = color.cssString;
+          if (colorString !== lastColor) {
+            lastColor = colorString;
+            ctx.fillStyle = colorString;
+          }
+          this.drawChevron(ctx, slice.x, y, sliceHeight);
+        }
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
+        // Incomplete slices have special rendering - keep using Canvas 2D
         const w = CROP_INCOMPLETE_SLICE_FLAG.get()
           ? slice.w
           : Math.max(slice.w - 2, 2);
@@ -559,19 +575,29 @@ export abstract class BaseSliceTrack<
           !CROP_INCOMPLETE_SLICE_FLAG.get(),
         );
       } else {
+        // Regular slices - use WebGL when available
         const w = Math.max(
           slice.w,
           FADE_THIN_SLICES_FLAG.get()
             ? SLICE_MIN_WIDTH_FADED_PX
             : SLICE_MIN_WIDTH_PX,
         );
-        ctx.fillRect(slice.x, y, w, sliceHeight);
+        if (rectRenderer) {
+          rectRenderer.drawRect(slice.x, y, w, sliceHeight, color.rgba);
+        } else {
+          const colorString = color.cssString;
+          if (colorString !== lastColor) {
+            lastColor = colorString;
+            ctx.fillStyle = colorString;
+          }
+          ctx.fillRect(slice.x, y, w, sliceHeight);
+        }
       }
     }
 
     // Pass 2.5: Draw fillRatio light section.
     ctx.fillStyle = `#FFFFFF50`;
-    for (const slice of vizSlicesByColor) {
+    for (const slice of vizSlices) {
       // Can't draw fill ratio on incomplete or instant slices.
       if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
         continue;
@@ -928,7 +954,7 @@ export abstract class BaseSliceTrack<
   }
 
   protected drawChevron(
-    ctx: CanvasRenderingContext2D,
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     x: number,
     y: number,
     h: number,
@@ -951,6 +977,24 @@ export abstract class BaseSliceTrack<
     ctx.lineTo(midX, y); // Back to A.
     ctx.closePath();
     ctx.fill();
+  }
+
+  // Create a sprite canvas for WebGL rendering using drawChevron.
+  // The sprite is white on transparent - it will be tinted by the color.
+  private getChevronSprite(width: number, height: number): OffscreenCanvas {
+    // Don't cache - create fresh each time to avoid stale canvas issues
+    const dpr = window.devicePixelRatio;
+    const canvas = new OffscreenCanvas(
+      Math.ceil(width * dpr),
+      Math.ceil(height * dpr),
+    );
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = 'white';
+    this.drawChevron(ctx, 0, 0, height);
+
+    return canvas;
   }
 
   // This is a good default implementation for highlighting slices. By default

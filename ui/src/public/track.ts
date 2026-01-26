@@ -24,6 +24,7 @@ import {SourceDataset} from '../trace_processor/dataset';
 import {TrackNode} from './workspace';
 import {CanvasColors} from './canvas_colors';
 import {z} from 'zod';
+import {WebGLRenderer} from '../base/webgl_renderer';
 
 /**
  * Represents a snap point for the snap-to-boundaries feature.
@@ -128,6 +129,13 @@ export interface TrackRenderContext extends TrackContext {
    * Semantic colors which can vary depending on the current theme.
    */
   readonly colors: CanvasColors;
+
+  /**
+   * Simple immediate-mode rectangle renderer for WebGL.
+   * Call drawRect() to queue rectangles, they are batched and rendered
+   * efficiently. Call flush() when done to ensure all rectangles are drawn.
+   */
+  readonly rectRenderer?: WebGLRenderer;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -286,6 +294,11 @@ export interface TrackRenderer {
   /**
    * Required method used to render the track's content to the canvas, called
    * synchronously on every render cycle.
+   *
+   * Tracks can use ctx (Canvas 2D) for text and shapes, and rectRenderer
+   * (WebGL) for high-performance rectangle rendering. Both are available
+   * in the same render call, and the WebGL content will appear behind
+   * Canvas 2D content.
    */
   render(ctx: TrackRenderContext): void;
   onFullRedraw?(): void;

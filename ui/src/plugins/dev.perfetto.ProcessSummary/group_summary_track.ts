@@ -41,6 +41,7 @@ import {
 } from '../../trace_processor/sql_utils';
 import {Dataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
+import {WebGLRenderer} from '../../base/webgl_renderer';
 
 export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 
@@ -105,6 +106,15 @@ export class GroupSummaryTrack implements TrackRenderer {
   private mode: Mode = 'slices';
   private maxLanes: number = 1;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
+
+  // Cached colors per slice (computed once when data changes)
+  private cachedColors?: Array<{
+    base: {r: number; g: number; b: number; a: number};
+    variant: {r: number; g: number; b: number; a: number};
+    disabled: {r: number; g: number; b: number; a: number};
+  }>;
+  private cachedPids?: Array<bigint | undefined>;
+  private lastCachedDataGeneration = -1;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -422,7 +432,72 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
+  private cacheColors(data: Data): void {
+    const numSlices = data.starts.length;
+    this.cachedColors = new Array(numSlices);
+    this.cachedPids = new Array(numSlices);
+
+    for (let i = 0; i < numSlices; i++) {
+      const utid = data.utids[i];
+      const threadInfo = this.threads.get(utid);
+      const colorScheme =
+        this.mode === 'sched'
+          ? colorForThread(threadInfo)
+          : colorForTid(Number(this.config.pidForColor));
+
+      this.cachedColors[i] = {
+        base: colorScheme.base.rgba,
+        variant: colorScheme.variant.rgba,
+        disabled: colorScheme.disabled.rgba,
+      };
+      this.cachedPids[i] = threadInfo?.pid;
+    }
+  }
+
+  private renderSlices(
+    timescale: TimeScale,
+    data: Data,
+    rectRenderer: WebGLRenderer,
+  ): void {
+    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+    const hoveredUtid = this.trace.timeline.hoveredUtid;
+    const hoveredPid = this.trace.timeline.hoveredPid;
+    const isHovering = hoveredUtid !== undefined;
+
+    for (let i = 0; i < data.starts.length; i++) {
+      const tStart = Time.fromRaw(data.starts[i]);
+      const tEnd = Time.fromRaw(data.ends[i]);
+      const utid = data.utids[i];
+      const lane = data.lanes[i];
+
+      const rectStart = timescale.timeToPx(tStart);
+      const rectEnd = timescale.timeToPx(tEnd);
+      const rectWidth = Math.max(1, rectEnd - rectStart);
+
+      const y = MARGIN_TOP + laneHeight * lane + lane;
+
+      // Use cached colors
+      const colors = this.cachedColors![i];
+      let color;
+      if (this.mode === 'sched' && isHovering) {
+        const isThreadHovered = hoveredUtid === utid;
+        const isProcessHovered =
+          hoveredPid !== undefined && this.cachedPids![i] === hoveredPid;
+
+        if (!isThreadHovered) {
+          color = isProcessHovered ? colors.variant : colors.disabled;
+        } else {
+          color = colors.base;
+        }
+      } else {
+        color = colors.base;
+      }
+
+      rectRenderer.drawRect(rectStart, y, rectWidth, laneHeight, color);
+    }
+  }
+
+  render({ctx, size, timescale, rectRenderer}: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -438,55 +513,19 @@ export class GroupSummaryTrack implements TrackRenderer {
       timescale.timeToPx(data.end),
     );
 
-    assertTrue(data.starts.length === data.ends.length);
-    assertTrue(data.starts.length === data.utids.length);
+    // Render slices using WebGL if available
+    if (rectRenderer !== undefined) {
+      assertTrue(data.starts.length === data.ends.length);
+      assertTrue(data.starts.length === data.utids.length);
 
-    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
-
-    for (let i = 0; i < data.ends.length; i++) {
-      const tStart = Time.fromRaw(data.starts[i]);
-      const tEnd = Time.fromRaw(data.ends[i]);
-
-      // Cull slices that lie completely outside the visible window
-      if (!visibleWindow.overlaps(tStart, tEnd)) continue;
-
-      const utid = data.utids[i];
-      const lane = data.lanes[i];
-
-      const rectStart = Math.floor(timescale.timeToPx(tStart));
-      const rectEnd = Math.floor(timescale.timeToPx(tEnd));
-      const rectWidth = Math.max(1, rectEnd - rectStart);
-
-      let colorScheme;
-
-      if (this.mode === 'sched') {
-        // Scheduling mode: color by thread (utid)
-        const threadInfo = this.threads.get(utid);
-        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-        const pid = (threadInfo ? threadInfo.pid : -1) || -1;
-
-        const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-        const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-        const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-        colorScheme = colorForThread(threadInfo);
-
-        if (isHovering && !isThreadHovered) {
-          if (!isProcessHovered) {
-            ctx.fillStyle = colorScheme.disabled.cssString;
-          } else {
-            ctx.fillStyle = colorScheme.variant.cssString;
-          }
-        } else {
-          ctx.fillStyle = colorScheme.base.cssString;
-        }
-      } else {
-        // Slice mode: consistent color based on pidForColor
-        colorScheme = colorForTid(this.config.pidForColor);
-        ctx.fillStyle = colorScheme.base.cssString;
+      // Cache colors when data changes
+      const dataGeneration = data.starts.length + Number(data.resolution);
+      if (dataGeneration !== this.lastCachedDataGeneration) {
+        this.cacheColors(data);
+        this.lastCachedDataGeneration = dataGeneration;
       }
 
-      const y = MARGIN_TOP + laneHeight * lane + lane;
-      ctx.fillRect(rectStart, y, rectWidth, laneHeight);
+      this.renderSlices(timescale, data, rectRenderer);
     }
   }
 

@@ -48,6 +48,7 @@ import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
 import {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
+import {WebGLRenderer} from '../../base/webgl_renderer';
 import {
   COLOR_ACCENT,
   COLOR_BACKGROUND,
@@ -293,13 +294,22 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         className: classNames(className, 'pf-track-tree'),
         overflowY: 'auto',
         overflowX: 'hidden',
-        onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
+        enableWebGL: true,
+        onCanvasRedraw: ({
+          ctx,
+          virtualCanvasSize,
+          canvasRect,
+          webglCanvas,
+          webglCtx,
+        }) => {
           this.drawCanvas(
             ctx,
             virtualCanvasSize,
             renderedTracks,
             canvasRect,
             rootNode,
+            webglCanvas,
+            webglCtx,
           );
 
           if (VIRTUAL_TRACK_SCROLLING.get()) {
@@ -387,6 +397,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     renderedTracks: ReadonlyArray<TrackView>,
     floatingCanvasRect: Rect2D,
     rootNode: TrackNode,
+    webglCanvas?: HTMLCanvasElement,
+    webglCtx?: WebGL2RenderingContext,
   ) {
     const timelineRect = new Rect2D({
       left: TRACK_SHELL_WIDTH,
@@ -420,6 +432,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       COLOR_TIMELINE_OVERLAY,
     };
 
+    // Render all track content (WebGL rectangles + Canvas 2D text)
     const tracksOnCanvas = this.drawTracks(
       renderedTracks,
       floatingCanvasRect,
@@ -428,6 +441,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       timelineRect,
       visibleWindow,
       colors,
+      webglCanvas,
+      webglCtx,
     );
 
     renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
@@ -472,6 +487,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     }
   }
 
+  // Render all tracks - WebGL rectangles and Canvas 2D content in one pass
   private drawTracks(
     renderedTracks: ReadonlyArray<TrackView>,
     floatingCanvasRect: Rect2D,
@@ -480,7 +496,34 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     timelineRect: Rect2D,
     visibleWindow: HighPrecisionTimeSpan,
     colors: CanvasColors,
+    webglCanvas?: HTMLCanvasElement,
+    webglCtx?: WebGL2RenderingContext,
   ) {
+    // The 2D canvas context is translated by -canvasRect to allow tracks to
+    // draw at their virtual positions. Apply the same offset to WebGL.
+    const canvasOffset = {
+      x: -floatingCanvasRect.left,
+      y: -floatingCanvasRect.top,
+    };
+
+    // Set up WebGL scissor test if available (clips to timeline area)
+    if (webglCanvas && webglCtx) {
+      const dpr = window.devicePixelRatio;
+      const scissorX = Math.max(
+        0,
+        Math.round((timelineRect.left + canvasOffset.x) * dpr),
+      );
+      const scissorWidth = webglCanvas.width - scissorX;
+      webglCtx.enable(webglCtx.SCISSOR_TEST);
+      webglCtx.scissor(scissorX, 0, scissorWidth, webglCanvas.height);
+    }
+
+    // Create a single RectRenderer for all tracks - batches all rectangles
+    // into one draw call at the end
+    const rectRenderer = webglCtx
+      ? new WebGLRenderer(webglCtx, {x: 0, y: 0})
+      : undefined;
+
     let tracksOnCanvas = 0;
     for (const trackView of renderedTracks) {
       const {verticalBounds} = trackView;
@@ -491,6 +534,14 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           right: size.width,
         })
       ) {
+        // Update RectRenderer offset for this track's position
+        if (rectRenderer) {
+          rectRenderer.setOffset(
+            canvasOffset.x + timelineRect.left,
+            canvasOffset.y + verticalBounds.top,
+          );
+        }
+
         trackView.drawCanvas(
           ctx,
           timelineRect,
@@ -498,10 +549,21 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           this.perfStatsEnabled,
           this.trackPerfStats,
           colors,
+          rectRenderer,
         );
+
         ++tracksOnCanvas;
       }
     }
+
+    // Flush all rectangles from all tracks in one draw call
+    rectRenderer?.flush();
+
+    // Clean up WebGL state
+    if (webglCtx) {
+      webglCtx.disable(webglCtx.SCISSOR_TEST);
+    }
+
     return tracksOnCanvas;
   }
 
