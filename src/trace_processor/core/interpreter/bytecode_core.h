@@ -31,10 +31,10 @@ namespace perfetto::trace_processor::core::interpreter {
 // code and fixed-size buffer for arguments.
 struct Bytecode {
   uint32_t option = 0;                    // Opcode determining instruction type
-  std::array<uint8_t, 32> args_buffer{};  // Storage for instruction arguments
+  std::array<uint8_t, 36> args_buffer{};  // Storage for instruction arguments
 };
 static_assert(std::is_trivially_copyable_v<Bytecode>);
-static_assert(sizeof(Bytecode) <= 36);
+static_assert(sizeof(Bytecode) <= 40);
 
 // Indicates that the bytecode has a fixed cost.
 struct FixedCost {

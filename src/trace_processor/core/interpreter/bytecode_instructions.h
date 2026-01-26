@@ -18,18 +18,20 @@
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INSTRUCTIONS_H_
 
 #include <cstdint>
-#include <string>
 #include <variant>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_instruction_macros.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
@@ -48,7 +50,7 @@ struct InitRange : Bytecode {
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
                                      size,
-                                     reg::WriteHandle<Range>,
+                                     WriteHandle<Range>,
                                      dest_register);
 };
 
@@ -61,9 +63,9 @@ struct AllocateIndices : Bytecode {
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
                                      size,
-                                     reg::WriteHandle<Slab<uint32_t>>,
+                                     WriteHandle<Slab<uint32_t>>,
                                      dest_slab_register,
-                                     reg::WriteHandle<Span<uint32_t>>,
+                                     WriteHandle<Span<uint32_t>>,
                                      dest_span_register);
 };
 
@@ -74,9 +76,9 @@ struct Iota : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(reg::ReadHandle<Range>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<Range>,
                                      source_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 
@@ -89,7 +91,7 @@ struct CastFilterValueBase : TemplatedBytecode1<StorageType> {
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_3(FilterValueHandle,
                                      fval_handle,
-                                     reg::WriteHandle<CastFilterValueResult>,
+                                     WriteHandle<CastFilterValueResult>,
                                      write_register,
                                      NonNullOp,
                                      op);
@@ -106,13 +108,12 @@ struct CastFilterValueListBase : TemplatedBytecode1<StorageType> {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = FixedCost{1000};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(
-      FilterValueHandle,
-      fval_handle,
-      reg::WriteHandle<CastFilterValueListResult>,
-      write_register,
-      NonNullOp,
-      op);
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(FilterValueHandle,
+                                     fval_handle,
+                                     WriteHandle<CastFilterValueListResult>,
+                                     write_register,
+                                     NonNullOp,
+                                     op);
 };
 template <typename T>
 struct CastFilterValueList : CastFilterValueListBase {
@@ -131,19 +132,15 @@ struct SortedFilterBase
     }
     return LogPerRowCost{10};
   }
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
-                                     col,
-                                     reg::ReadHandle<CastFilterValueResult>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<CastFilterValueResult>,
                                      val_register,
-                                     reg::RwHandle<Range>,
+                                     RwHandle<Range>,
                                      update_register,
                                      BoundModifier,
                                      write_result_to);
 };
-
-// Specialized filter for sorted data with specific value type and range
-// operation.
 template <typename T, typename RangeOp>
 struct SortedFilter : SortedFilterBase {
   static_assert(TS1::Contains<T>());
@@ -158,11 +155,11 @@ struct Uint32SetIdSortedEq : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = FixedCost{100};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
-                                     col,
-                                     reg::ReadHandle<CastFilterValueResult>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<CastFilterValueResult>,
                                      val_register,
-                                     reg::RwHandle<Range>,
+                                     RwHandle<Range>,
                                      update_register);
 };
 
@@ -174,11 +171,13 @@ struct SpecializedStorageSmallValueEq : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = FixedCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
-                                     col,
-                                     reg::ReadHandle<CastFilterValueResult>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<const BitVector*>,
+                                     small_value_bv_register,
+                                     ReadHandle<Span<const uint32_t>>,
+                                     small_value_popcount_register,
+                                     ReadHandle<CastFilterValueResult>,
                                      val_register,
-                                     reg::RwHandle<Range>,
+                                     RwHandle<Range>,
                                      update_register);
 };
 
@@ -188,20 +187,19 @@ struct NonStringFilterBase : TemplatedBytecode2<NonStringType, NonStringOp> {
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
-                                     col,
-                                     reg::ReadHandle<CastFilterValueResult>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<CastFilterValueResult>,
                                      val_register,
-                                     reg::ReadHandle<Span<uint32_t>>,
+                                     ReadHandle<Span<uint32_t>>,
                                      source_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
-template <typename T, typename NonStringOp>
+template <typename T, typename Op>
 struct NonStringFilter : NonStringFilterBase {
   static_assert(TS1::Contains<T>());
-  static_assert(TS2::Contains<NonStringOp>());
+  static_assert(TS2::Contains<Op>());
 };
 
 // Filter operations on string columns.
@@ -211,13 +209,13 @@ struct StringFilterBase : TemplatedBytecode1<StringOp> {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{15};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
-                                     col,
-                                     reg::ReadHandle<CastFilterValueResult>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<CastFilterValueResult>,
                                      val_register,
-                                     reg::ReadHandle<Span<uint32_t>>,
+                                     ReadHandle<Span<uint32_t>>,
                                      source_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 template <typename Op>
@@ -232,9 +230,9 @@ struct StrideCopy : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{15};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Span<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<Span<uint32_t>>,
                                      source_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register,
                                      uint32_t,
                                      stride);
@@ -254,9 +252,9 @@ struct PrefixPopcount : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{20};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
-                                     col,
-                                     reg::WriteHandle<Slab<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<const BitVector*>,
+                                     null_bv_register,
+                                     WriteHandle<Slab<uint32_t>>,
                                      dest_register);
 };
 
@@ -276,13 +274,13 @@ struct TranslateSparseNullIndices : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
-                                     col,
-                                     reg::ReadHandle<Slab<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<const BitVector*>,
+                                     null_bv_register,
+                                     ReadHandle<Slab<uint32_t>>,
                                      popcount_register,
-                                     reg::ReadHandle<Span<uint32_t>>,
+                                     ReadHandle<Span<uint32_t>>,
                                      source_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 
@@ -293,9 +291,9 @@ struct NullFilterBase : TemplatedBytecode1<NullOp> {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
-                                     col,
-                                     reg::RwHandle<Span<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<const BitVector*>,
+                                     null_bv_register,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 
@@ -323,11 +321,11 @@ struct StrideTranslateAndCopySparseNullIndices : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(uint32_t,
-                                     col,
-                                     reg::ReadHandle<Slab<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(ReadHandle<const BitVector*>,
+                                     null_bv_register,
+                                     ReadHandle<Slab<uint32_t>>,
                                      popcount_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register,
                                      uint32_t,
                                      offset,
@@ -351,9 +349,9 @@ struct StrideCopyDenseNullIndices : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
-                                     col,
-                                     reg::RwHandle<Span<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<const BitVector*>,
+                                     null_bv_register,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register,
                                      uint32_t,
                                      offset,
@@ -367,7 +365,7 @@ struct AllocateRowLayoutBuffer : Bytecode {
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
                                      buffer_size,
-                                     reg::WriteHandle<Slab<uint8_t>>,
+                                     WriteHandle<Slab<uint8_t>>,
                                      dest_buffer_register);
 };
 
@@ -379,11 +377,13 @@ struct CopyToRowLayoutBase
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_8(uint32_t,
-                                     col,
-                                     reg::ReadHandle<Span<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_9(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<const BitVector*>,
+                                     null_bv_register,
+                                     ReadHandle<Span<uint32_t>>,
                                      source_indices_register,
-                                     reg::RwHandle<Slab<uint8_t>>,
+                                     RwHandle<Slab<uint8_t>>,
                                      dest_buffer_register,
                                      uint16_t,
                                      row_layout_offset,
@@ -391,9 +391,9 @@ struct CopyToRowLayoutBase
                                      row_layout_stride,
                                      uint32_t,
                                      invert_copied_bits,
-                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     ReadHandle<Slab<uint32_t>>,
                                      popcount_register,
-                                     reg::ReadHandle<reg::StringIdToRankMap>,
+                                     ReadHandle<StringIdToRankMap>,
                                      rank_map_register);
 };
 template <typename T, typename Nullability>
@@ -410,11 +410,11 @@ struct Distinct : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{7};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Slab<uint8_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<Slab<uint8_t>>,
                                      buffer_register,
                                      uint32_t,
                                      total_row_stride,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      indices_register);
 };
 
@@ -432,7 +432,7 @@ struct LimitOffsetIndices : Bytecode {
                                      offset_value,
                                      uint32_t,
                                      limit_value,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 
@@ -443,9 +443,9 @@ struct FindMinMaxIndexBase : TemplatedBytecode2<StorageType, MinMaxOp> {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{2};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
-                                     col,
-                                     reg::RwHandle<Span<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 template <typename T, typename Op>
@@ -454,23 +454,9 @@ struct FindMinMaxIndex : FindMinMaxIndexBase {
   static_assert(TS2::Contains<Op>());
 };
 
-// Given an index, creates a span of indices that point to the permutation
-// vector of the index.
-struct IndexPermutationVectorToSpan : Bytecode {
-  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
-  // is plucked from thin air and has no real foundation. Fix this by creating
-  // benchmarks and backing it up with actual data.
-  static constexpr Cost kCost = FixedCost{5};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
-                                     index,
-                                     reg::WriteHandle<Span<uint32_t>>,
-                                     write_register);
-};
-
-// Filters a column which is sorted by the given index with `update_register`
-// containing the span of permutation vector to consider. The span is updated
-// to only contain the indices which match the filter.
+// Filters a column which is sorted by the given index. `source_register`
+// contains the span of permutation vector to consider (read-only).
+// `dest_register` receives the filtered result (write-only).
 struct IndexedFilterEqBase
     : TemplatedBytecode2<NonIdStorageType, SparseNullCollapsedNullability> {
   // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
@@ -478,14 +464,18 @@ struct IndexedFilterEqBase
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LogPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
-                                     col,
-                                     reg::ReadHandle<CastFilterValueResult>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_6(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<const BitVector*>,
+                                     null_bv_register,
+                                     ReadHandle<CastFilterValueResult>,
                                      filter_value_reg,
-                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     ReadHandle<Slab<uint32_t>>,
                                      popcount_register,
-                                     reg::RwHandle<Span<uint32_t>>,
-                                     update_register);
+                                     ReadHandle<Span<uint32_t>>,
+                                     source_register,
+                                     WriteHandle<Span<uint32_t>>,
+                                     dest_register);
 };
 template <typename T, typename N>
 struct IndexedFilterEq : IndexedFilterEqBase {
@@ -502,11 +492,11 @@ struct CopySpanIntersectingRange : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Span<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<Span<uint32_t>>,
                                      source_register,
-                                     reg::ReadHandle<Range>,
+                                     ReadHandle<Range>,
                                      source_range_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 
@@ -517,7 +507,7 @@ struct InitRankMap : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = FixedCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(reg::WriteHandle<reg::StringIdToRankMap>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(WriteHandle<StringIdToRankMap>,
                                      dest_register);
 };
 
@@ -529,11 +519,11 @@ struct CollectIdIntoRankMap : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
-                                     col,
-                                     reg::ReadHandle<Span<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<Span<uint32_t>>,
                                      source_register,
-                                     reg::RwHandle<reg::StringIdToRankMap>,
+                                     RwHandle<StringIdToRankMap>,
                                      rank_map_register);
 };
 
@@ -546,7 +536,7 @@ struct FinalizeRanksInMap : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LogLinearPerRowCost{20};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(reg::RwHandle<reg::StringIdToRankMap>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(RwHandle<StringIdToRankMap>,
                                      update_register);
 };
 
@@ -557,11 +547,11 @@ struct SortRowLayout : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LogLinearPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Slab<uint8_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<Slab<uint8_t>>,
                                      buffer_register,
                                      uint32_t,
                                      total_row_stride,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      indices_register);
 };
 
@@ -574,16 +564,15 @@ struct LinearFilterEqBase : TemplatedBytecode1<NonIdStorageType> {
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{7};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(uint32_t,
-                                     col,
-                                     reg::ReadHandle<CastFilterValueResult>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<CastFilterValueResult>,
                                      filter_value_reg,
-                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     ReadHandle<Slab<uint32_t>>,
                                      popcount_register,
-                                     reg::ReadHandle<Range>,
+                                     ReadHandle<Range>,
                                      source_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 template <typename T>
@@ -597,14 +586,13 @@ struct InBase : TemplatedBytecode1<StorageType> {
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{10};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
-                                     col,
-                                     reg::ReadHandle<CastFilterValueListResult>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<CastFilterValueListResult>,
                                      value_list_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      source_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     RwHandle<Span<uint32_t>>,
                                      update_register);
 };
 template <typename T>
@@ -619,8 +607,7 @@ struct Reverse : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{2};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(reg::RwHandle<Span<uint32_t>>,
-                                     update_register);
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(RwHandle<Span<uint32_t>>, update_register);
 };
 
 // Bytecode ops that require FilterValueFetcher access.
@@ -746,7 +733,6 @@ struct Reverse : Bytecode {
   X(FindMinMaxIndex<Double, MaxOp>)                    \
   X(FindMinMaxIndex<String, MinOp>)                    \
   X(FindMinMaxIndex<String, MaxOp>)                    \
-  X(IndexPermutationVectorToSpan)                      \
   X(IndexedFilterEq<Uint32, NonNull>)                  \
   X(IndexedFilterEq<Uint32, SparseNull>)               \
   X(IndexedFilterEq<Uint32, DenseNull>)                \

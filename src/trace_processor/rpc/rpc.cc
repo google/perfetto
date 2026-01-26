@@ -368,34 +368,35 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       protozero::ConstBytes args = req.analyze_structured_query_args();
       protos::pbzero::AnalyzeStructuredQueryArgs::Decoder decoder(args.data,
                                                                   args.size);
+      std::vector<StructuredQueryBytes> queries;
+      for (auto it = decoder.queries(); it; ++it) {
+        StructuredQueryBytes n;
+        n.format = StructuredQueryBytes::Format::kBinaryProto;
+        n.ptr = it->data();
+        n.size = it->size();
+        queries.push_back(n);
+      }
 
-      // Extract the TraceSummarySpec containing the queries
-      protozero::ConstBytes spec_bytes = decoder.spec();
-      TraceSummarySpecBytes spec;
-      spec.format = TraceSummarySpecBytes::Format::kBinaryProto;
-      spec.ptr = spec_bytes.data;
-      spec.size = spec_bytes.size;
-
-      // Parse the query ID to analyze
-      std::string query_id = decoder.query_id().ToStdString();
-
-      AnalyzedStructuredQuery result;
-      base::Status status =
-          trace_processor_->AnalyzeStructuredQuery(spec, query_id, &result);
+      std::vector<AnalyzedStructuredQuery> analyzed_queries;
+      base::Status status = trace_processor_->AnalyzeStructuredQueries(
+          queries, &analyzed_queries);
       auto* analyze_result = resp->set_analyze_structured_query_result();
       if (!status.ok()) {
         analyze_result->set_error(status.message());
-      } else {
-        analyze_result->set_sql(result.sql);
-        analyze_result->set_textproto(result.textproto);
-        for (const std::string& m : result.modules) {
-          analyze_result->add_modules(m);
+      }
+
+      for (const auto& r : analyzed_queries) {
+        auto* query_res = analyze_result->add_results();
+        query_res->set_sql(r.sql);
+        query_res->set_textproto(r.textproto);
+        for (const std::string& m : r.modules) {
+          query_res->add_modules(m);
         }
-        for (const std::string& p : result.preambles) {
-          analyze_result->add_preambles(p);
+        for (const std::string& p : r.preambles) {
+          query_res->add_preambles(p);
         }
-        for (const std::string& c : result.columns) {
-          analyze_result->add_columns(c);
+        for (const std::string& c : r.columns) {
+          query_res->add_columns(c);
         }
       }
       resp.Send(rpc_response_fn_);

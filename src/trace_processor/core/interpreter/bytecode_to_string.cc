@@ -35,7 +35,7 @@ base::StackString<32> ArgToString(uint32_t value) {
   return base::StackString<32>("%u", value);
 }
 
-base::StackString<64> ArgToString(const reg::HandleBase& value) {
+base::StackString<64> ArgToString(const HandleBase& value) {
   return base::StackString<64>("Register(%u)", value.index);
 }
 
