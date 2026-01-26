@@ -131,9 +131,13 @@
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
+#include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/trace_reader_registry.h"
@@ -142,10 +146,10 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/gzip_utils.h"
-#include "src/trace_processor/util/json_utils.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/regex.h"
+#include "src/trace_processor/util/simple_json_parser.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -511,14 +515,12 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
         kCtraceTraceType);
     context()->reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
   }
-  if constexpr (json::IsJsonSupported()) {
-    context()->reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
-        kJsonTraceType);
-    context()
-        ->reader_registry
-        ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
-            kGeckoTraceType);
-  }
+  context()->reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
+      kJsonTraceType);
+  context()
+      ->reader_registry
+      ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
+          kGeckoTraceType);
   context()
       ->reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(
           kArtMethodTraceType);

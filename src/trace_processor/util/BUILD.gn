@@ -247,22 +247,15 @@ source_set("args_utils") {
   ]
 }
 
+# Header only part of the json_parser (just json_parser.h).
+# The old json_utils.cc/h files have been removed and replaced by json_args.cc/h.
 source_set("json_parser") {
-  sources = [
-    "json_parser.h",
-    "json_utils.cc",
-    "json_utils.h",
-  ]
+  sources = [ "json_parser.h" ]
   deps = [
     "../../../gn:default_deps",
-    "../containers",
-    "../importers/common",
-    "../storage",
-    "../types",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
   ]
-  if (enable_perfetto_trace_processor_json) {
-    public_deps = [ "../../../gn:jsoncpp" ]
-  }
 }
 
 # Header-only JSON streaming parser. No external dependencies.
@@ -271,17 +264,7 @@ source_set("simple_json_parser") {
     "simple_json_parser.cc",
     "simple_json_parser.h",
   ]
-  public_deps = [ ":json_parser_hdr" ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/base",
-    "../../../include/perfetto/ext/base",
-  ]
-}
-
-# Header only part of the json_parser (just json_parser.h).
-source_set("json_parser_hdr") {
-  sources = [ "json_parser.h" ]
+  public_deps = [ ":json_parser" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
@@ -296,7 +279,7 @@ source_set("json_args") {
     "json_args.h",
   ]
   deps = [
-    ":json_parser_hdr",
+    ":json_parser",
     ":simple_json_parser",
     "../../../gn:default_deps",
     "../../../include/perfetto/base",

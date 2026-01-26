@@ -238,7 +238,6 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_DemangleRust) {
   ASSERT_TRUE(it.Get(0).is_null());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")).ok());
   auto it = Query(
@@ -325,7 +324,6 @@ TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
 TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14357) {
   ASSERT_FALSE(LoadTrace("clusterfuzz_14357", 4096).ok());
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14730) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14730", 4096).ok());
