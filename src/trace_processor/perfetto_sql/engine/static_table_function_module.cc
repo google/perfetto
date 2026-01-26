@@ -211,8 +211,8 @@ int StaticTableFunctionModule::Column(sqlite3_vtab_cursor* cur,
 
   if (PERFETTO_LIKELY(idx < t->output_count)) {
     DataframeModule::SqliteResultCallback visitor{{}, ctx};
-    c->cursor->dataframe()->GetCell(c->current_row, static_cast<uint32_t>(raw_n),
-                                 visitor);
+    c->cursor->dataframe()->GetCell(c->current_row,
+                                    static_cast<uint32_t>(raw_n), visitor);
   } else if (PERFETTO_LIKELY(idx < t->output_count + t->arg_count)) {
     // TODO(lalitm): it may be more appropriate to keep a note of the arguments
     // which we passed in and return them here. Not doing this to because it
