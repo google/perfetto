@@ -58,6 +58,27 @@ const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 const CPU_SLICE_FLAGS_INCOMPLETE = 1;
 const CPU_SLICE_FLAGS_REALTIME = 2;
 
+// Cached WebGL program state (shared across instances for same GL context)
+let cachedGlProgram: {
+  gl: WebGLRenderingContext;
+  program: WebGLProgram;
+  positionLocation: number;
+  baseColorLocation: number;
+  variantColorLocation: number;
+  disabledColorLocation: number;
+  selectorLocation: number;
+  resolutionLocation: WebGLUniformLocation;
+  offsetLocation: WebGLUniformLocation;
+  dprLocation: WebGLUniformLocation;
+  timeScaleLocation: WebGLUniformLocation;
+  timePxOffsetLocation: WebGLUniformLocation;
+  positionBuffer: WebGLBuffer;
+  baseColorBuffer: WebGLBuffer;
+  variantColorBuffer: WebGLBuffer;
+  disabledColorBuffer: WebGLBuffer;
+  selectorBuffer: WebGLBuffer;
+} | undefined;
+
 interface CpuSliceHover {
   utid: number;
   count: number;
@@ -95,6 +116,17 @@ export class CpuSliceTrack implements TrackRenderer {
 
   private lastRowId = -1;
   private trackUuid = uuidv4Sql();
+
+  // Cached WebGL vertex data - positions and colors rebuilt when data changes
+  private cachedPositions?: Float32Array;
+  private cachedBaseColors?: Float32Array;
+  private cachedVariantColors?: Float32Array;
+  private cachedDisabledColors?: Float32Array;
+  private cachedUtids?: Uint32Array;
+  private cachedPids?: Array<bigint | number>;
+  private cachedRectCount = 0;
+  private lastDataGeneration = -1;
+  private selectorBuffer?: Float32Array;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -289,103 +321,190 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   renderSlices(
-    {ctx, timescale, size, visibleWindow}: TrackRenderContext,
+    {ctx, timescale, size, visibleWindow, offscreenGl, canvasOffset}: TrackRenderContext,
     data: Data,
   ): void {
     assertTrue(data.startQs.length === data.endQs.length);
     assertTrue(data.startQs.length === data.utids.length);
 
-    const visWindowEndPx = size.width;
+    const numRects = data.startQs.length;
 
+    // Helper to parse color from CSS string
+    const parseColor = (cssString: string) => {
+      const match = cssString.match(/rgb\((\d+)\s+(\d+)\s+(\d+)(?:\s*\/\s*([\d.]+))?\)/);
+      return {
+        r: match ? parseInt(match[1], 10) / 255 : 0.5,
+        g: match ? parseInt(match[2], 10) / 255 : 0.5,
+        b: match ? parseInt(match[3], 10) / 255 : 0.5,
+        a: match && match[4] ? parseFloat(match[4]) : 1.0,
+      };
+    };
+
+    // Check if we need to rebuild the vertex buffers (data changed)
+    const dataGeneration = numRects + data.lastRowId;
+    const needsRebuild = dataGeneration !== this.lastDataGeneration;
+
+    if (needsRebuild && numRects > 0) {
+      this.cachedPositions = new Float32Array(numRects * 6 * 2);
+      this.cachedBaseColors = new Float32Array(numRects * 6 * 4);
+      this.cachedVariantColors = new Float32Array(numRects * 6 * 4);
+      this.cachedDisabledColors = new Float32Array(numRects * 6 * 4);
+      this.cachedUtids = new Uint32Array(numRects);
+      this.cachedPids = new Array(numRects);
+      this.selectorBuffer = new Float32Array(numRects * 6);
+
+      let posIdx = 0;
+      for (let i = 0; i < numRects; i++) {
+        const tStart = data.startQs[i];
+        const tEnd = data.endQs[i];
+
+        // Store time as offset from data.start
+        const t1 = Number(tStart - data.start);
+        const t2 = Number(tEnd - data.start);
+
+        const y1 = MARGIN_TOP;
+        const y2 = MARGIN_TOP + RECT_HEIGHT;
+
+        this.cachedUtids[i] = data.utids[i];
+        const threadInfo = this.threads.get(data.utids[i]);
+        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+        this.cachedPids[i] = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
+
+        const colorScheme = colorForThread(threadInfo);
+        const base = parseColor(colorScheme.base.cssString);
+        const variant = parseColor(colorScheme.variant.cssString);
+        const disabled = parseColor(colorScheme.disabled.cssString);
+
+        // Triangle 1
+        this.cachedPositions[posIdx++] = t1;
+        this.cachedPositions[posIdx++] = y1;
+        this.cachedPositions[posIdx++] = t2;
+        this.cachedPositions[posIdx++] = y1;
+        this.cachedPositions[posIdx++] = t1;
+        this.cachedPositions[posIdx++] = y2;
+
+        // Triangle 2
+        this.cachedPositions[posIdx++] = t1;
+        this.cachedPositions[posIdx++] = y2;
+        this.cachedPositions[posIdx++] = t2;
+        this.cachedPositions[posIdx++] = y1;
+        this.cachedPositions[posIdx++] = t2;
+        this.cachedPositions[posIdx++] = y2;
+
+        // Write colors for all 6 vertices
+        const baseIdx = i * 6 * 4;
+        for (let v = 0; v < 6; v++) {
+          const offset = baseIdx + v * 4;
+          this.cachedBaseColors[offset] = base.r;
+          this.cachedBaseColors[offset + 1] = base.g;
+          this.cachedBaseColors[offset + 2] = base.b;
+          this.cachedBaseColors[offset + 3] = base.a;
+
+          this.cachedVariantColors[offset] = variant.r;
+          this.cachedVariantColors[offset + 1] = variant.g;
+          this.cachedVariantColors[offset + 2] = variant.b;
+          this.cachedVariantColors[offset + 3] = variant.a;
+
+          this.cachedDisabledColors[offset] = disabled.r;
+          this.cachedDisabledColors[offset + 1] = disabled.g;
+          this.cachedDisabledColors[offset + 2] = disabled.b;
+          this.cachedDisabledColors[offset + 3] = disabled.a;
+        }
+      }
+
+      this.cachedRectCount = numRects;
+      this.lastDataGeneration = dataGeneration;
+    }
+
+    // Build selector buffer every frame based on highlight state
+    if (this.cachedUtids && this.cachedPids && this.selectorBuffer) {
+      const hoveredUtid = this.trace.timeline.hoveredUtid;
+      const hoveredPid = this.trace.timeline.hoveredPid;
+      const isHovering = hoveredUtid !== undefined;
+
+      for (let i = 0; i < this.cachedRectCount; i++) {
+        const utid = this.cachedUtids[i];
+        const pid = this.cachedPids[i];
+
+        let selector = 0.0; // base
+        if (isHovering) {
+          const isThreadHovered = hoveredUtid === utid;
+          const isProcessHovered = hoveredPid !== undefined && pid === hoveredPid;
+          if (!isThreadHovered) {
+            selector = isProcessHovered ? 1.0 : 2.0;
+          }
+        }
+
+        const baseIdx = i * 6;
+        for (let v = 0; v < 6; v++) {
+          this.selectorBuffer[baseIdx + v] = selector;
+        }
+      }
+    }
+
+    // Draw rectangles using WebGL
+    if (offscreenGl && this.cachedPositions && this.cachedBaseColors &&
+        this.cachedVariantColors && this.cachedDisabledColors &&
+        this.selectorBuffer && this.cachedRectCount > 0) {
+      this.drawWebGLRects(offscreenGl, canvasOffset, timescale, data.start);
+    }
+
+    // Render text using Canvas 2D (on top of WebGL rectangles)
+    const visWindowEndPx = size.width;
     ctx.textAlign = 'center';
     ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     const timespan = visibleWindow.toTimeSpan();
-
     const startTime = timespan.start;
     const endTime = timespan.end;
 
     const rawStartIdx = data.endQs.findIndex((end) => end >= startTime);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
-
     const [, rawEndIdx] = searchSegment(data.startQs, endTime);
     const endIdx = rawEndIdx === -1 ? data.startQs.length : rawEndIdx;
+
+    const hoveredUtid = this.trace.timeline.hoveredUtid;
+    const hoveredPid = this.trace.timeline.hoveredPid;
+    const isHovering = hoveredUtid !== undefined;
 
     for (let i = startIdx; i < endIdx; i++) {
       const tStart = Time.fromRaw(data.startQs[i]);
       let tEnd = Time.fromRaw(data.endQs[i]);
       const utid = data.utids[i];
 
-      // If the last slice is incomplete, it should end with the end of the
-      // window, else it might spill over the window and the end would not be
-      // visible as a zigzag line.
-      if (
-        data.ids[i] === data.lastRowId &&
-        data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE
-      ) {
+      if (data.ids[i] === data.lastRowId && data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
         tEnd = endTime;
       }
+
       const rectStart = timescale.timeToPx(tStart);
       const rectEnd = timescale.timeToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
+
+      // Don't render text when we have less than 5px to play with.
+      if (rectWidth < 5) continue;
 
       const threadInfo = this.threads.get(utid);
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
-      const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-      const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-      const isProcessHovered = this.trace.timeline.hoveredPid === pid;
+      const isThreadHovered = hoveredUtid === utid;
+      const isProcessHovered = hoveredPid === pid;
       const colorScheme = colorForThread(threadInfo);
-      let color: Color;
+
       let textColor: Color;
       if (isHovering && !isThreadHovered) {
-        if (!isProcessHovered) {
-          color = colorScheme.disabled;
-          textColor = colorScheme.textDisabled;
-        } else {
-          color = colorScheme.variant;
-          textColor = colorScheme.textVariant;
-        }
+        textColor = isProcessHovered ? colorScheme.textVariant : colorScheme.textDisabled;
       } else {
-        color = colorScheme.base;
         textColor = colorScheme.textBase;
       }
-      ctx.fillStyle = color.cssString;
 
-      if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
-        drawIncompleteSlice(
-          ctx,
-          rectStart,
-          MARGIN_TOP,
-          rectWidth,
-          RECT_HEIGHT,
-          color,
-        );
-      } else {
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
-      }
-
-      // Don't render text when we have less than 5px to play with.
-      if (rectWidth < 5) continue;
-
-      // Stylize real-time threads. We don't do it when zoomed out as the
-      // fillRect is expensive.
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
-        ctx.fillStyle = getHatchedPattern(ctx);
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
-      }
-
-      // TODO: consider de-duplicating this code with the copied one from
-      // chrome_slices/frontend.ts.
       let title = `[utid:${utid}]`;
       let subTitle = '';
       if (threadInfo) {
         if (threadInfo.pid !== undefined && threadInfo.pid !== 0n) {
           let procName = threadInfo.procName ?? '';
           if (procName.startsWith('/')) {
-            // Remove folder paths from name
             procName = procName.substring(procName.lastIndexOf('/') + 1);
           }
           title = `${procName} [${threadInfo.pid}]`;
@@ -440,6 +559,164 @@ export class CpuSliceTrack implements TrackRenderer {
         }
       }
     }
+  }
+
+  private ensureGlProgram(gl: WebGLRenderingContext): typeof cachedGlProgram {
+    if (cachedGlProgram?.gl === gl) {
+      return cachedGlProgram;
+    }
+
+    const vsSource = `
+      attribute vec2 a_position;
+      attribute vec4 a_baseColor;
+      attribute vec4 a_variantColor;
+      attribute vec4 a_disabledColor;
+      attribute float a_selector;
+      varying vec4 v_color;
+      uniform vec2 u_resolution;
+      uniform vec2 u_offset;
+      uniform float u_dpr;
+      uniform float u_time_scale;
+      uniform float u_time_px_offset;
+      void main() {
+        float px_x = a_position.x * u_time_scale + u_time_px_offset;
+        float px_y = a_position.y;
+        vec2 pixelPos = (vec2(px_x, px_y) + u_offset) * u_dpr;
+        vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
+        gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+        v_color = a_baseColor;
+        if (a_selector > 0.5) v_color = a_variantColor;
+        if (a_selector > 1.5) v_color = a_disabledColor;
+      }
+    `;
+
+    const fsSource = `
+      precision mediump float;
+      varying vec4 v_color;
+      void main() {
+        gl_FragColor = v_color;
+      }
+    `;
+
+    const vertexShader = gl.createShader(gl.VERTEX_SHADER)!;
+    gl.shaderSource(vertexShader, vsSource);
+    gl.compileShader(vertexShader);
+
+    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)!;
+    gl.shaderSource(fragmentShader, fsSource);
+    gl.compileShader(fragmentShader);
+
+    const program = gl.createProgram()!;
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+
+    const positionLocation = gl.getAttribLocation(program, 'a_position');
+    const baseColorLocation = gl.getAttribLocation(program, 'a_baseColor');
+    const variantColorLocation = gl.getAttribLocation(program, 'a_variantColor');
+    const disabledColorLocation = gl.getAttribLocation(program, 'a_disabledColor');
+    const selectorLocation = gl.getAttribLocation(program, 'a_selector');
+    const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')!;
+    const offsetLocation = gl.getUniformLocation(program, 'u_offset')!;
+    const dprLocation = gl.getUniformLocation(program, 'u_dpr')!;
+    const timeScaleLocation = gl.getUniformLocation(program, 'u_time_scale')!;
+    const timePxOffsetLocation = gl.getUniformLocation(program, 'u_time_px_offset')!;
+
+    const positionBuffer = gl.createBuffer()!;
+    const baseColorBuffer = gl.createBuffer()!;
+    const variantColorBuffer = gl.createBuffer()!;
+    const disabledColorBuffer = gl.createBuffer()!;
+    const selectorBuffer = gl.createBuffer()!;
+
+    cachedGlProgram = {
+      gl,
+      program,
+      positionLocation,
+      baseColorLocation,
+      variantColorLocation,
+      disabledColorLocation,
+      selectorLocation,
+      resolutionLocation,
+      offsetLocation,
+      dprLocation,
+      timeScaleLocation,
+      timePxOffsetLocation,
+      positionBuffer,
+      baseColorBuffer,
+      variantColorBuffer,
+      disabledColorBuffer,
+      selectorBuffer,
+    };
+
+    return cachedGlProgram;
+  }
+
+  private drawWebGLRects(
+    gl: WebGLRenderingContext,
+    offset: {x: number; y: number},
+    timescale: TimeScale,
+    dataStart: time,
+  ): void {
+    const {
+      program,
+      positionLocation,
+      baseColorLocation,
+      variantColorLocation,
+      disabledColorLocation,
+      selectorLocation,
+      resolutionLocation,
+      offsetLocation,
+      dprLocation,
+      timeScaleLocation,
+      timePxOffsetLocation,
+      positionBuffer,
+      baseColorBuffer,
+      variantColorBuffer,
+      disabledColorBuffer,
+      selectorBuffer,
+    } = this.ensureGlProgram(gl)!;
+
+    gl.useProgram(program);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    const dpr = window.devicePixelRatio;
+    const timePerPx = timescale.timeSpan.duration / (timescale.pxBounds.right - timescale.pxBounds.left);
+    const timeScale = 1 / timePerPx;
+    const timePxOffset = timescale.timeToPx(dataStart);
+
+    gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
+    gl.uniform2f(offsetLocation, offset.x, offset.y);
+    gl.uniform1f(dprLocation, dpr);
+    gl.uniform1f(timeScaleLocation, timeScale);
+    gl.uniform1f(timePxOffsetLocation, timePxOffset);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.cachedPositions!, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, baseColorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.cachedBaseColors!, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(baseColorLocation);
+    gl.vertexAttribPointer(baseColorLocation, 4, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, variantColorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.cachedVariantColors!, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(variantColorLocation);
+    gl.vertexAttribPointer(variantColorLocation, 4, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, disabledColorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.cachedDisabledColors!, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(disabledColorLocation);
+    gl.vertexAttribPointer(disabledColorLocation, 4, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, selectorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.selectorBuffer!, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(selectorLocation);
+    gl.vertexAttribPointer(selectorLocation, 1, gl.FLOAT, false, 0, 0);
+
+    gl.drawArrays(gl.TRIANGLES, 0, this.cachedRectCount * 6);
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {

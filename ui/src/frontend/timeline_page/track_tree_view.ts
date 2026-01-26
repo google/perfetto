@@ -137,9 +137,35 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private canvasRect?: Rect2D;
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
+  private offscreenCanvas?: OffscreenCanvas;
+  private offscreenGl?: WebGLRenderingContext;
 
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
+  }
+
+  private ensureOffscreenCanvas(
+    width: number,
+    height: number,
+  ): {canvas: OffscreenCanvas; gl: WebGLRenderingContext} {
+    const dpr = window.devicePixelRatio;
+    const pxWidth = Math.ceil(width * dpr);
+    const pxHeight = Math.ceil(height * dpr);
+
+    if (
+      !this.offscreenCanvas ||
+      this.offscreenCanvas.width !== pxWidth ||
+      this.offscreenCanvas.height !== pxHeight
+    ) {
+      this.offscreenCanvas = new OffscreenCanvas(pxWidth, pxHeight);
+      this.offscreenGl = this.offscreenCanvas.getContext('webgl', {
+        alpha: true,
+        premultipliedAlpha: true,
+        antialias: true,
+      })!;
+      this.offscreenGl.viewport(0, 0, pxWidth, pxHeight);
+    }
+    return {canvas: this.offscreenCanvas, gl: this.offscreenGl!};
   }
 
   private hoveredTrackNode?: TrackNode;
@@ -420,6 +446,17 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       COLOR_TIMELINE_OVERLAY,
     };
 
+    // Prepare offscreen WebGL canvas for accelerated track rendering
+    const {canvas: offscreenCanvas, gl: offscreenGl} = this.ensureOffscreenCanvas(
+      size.width,
+      size.height,
+    );
+
+    // Clear WebGL canvas for this frame's rendering
+    offscreenGl.clearColor(0, 0, 0, 0);
+    offscreenGl.clear(offscreenGl.COLOR_BUFFER_BIT);
+
+    // Draw tracks (renders to both 2D canvas and WebGL canvas)
     const tracksOnCanvas = this.drawTracks(
       renderedTracks,
       floatingCanvasRect,
@@ -428,7 +465,13 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       timelineRect,
       visibleWindow,
       colors,
+      offscreenCanvas,
+      offscreenGl,
     );
+
+    // Copy WebGL canvas content to main canvas AFTER tracks have rendered,
+    // but BEFORE overlays so 2D overlays appear on top
+    ctx.drawImage(offscreenCanvas, 0, 0, size.width, size.height);
 
     renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
     this.drawHoveredNoteVertical(ctx, timescale, size);
@@ -480,6 +523,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     timelineRect: Rect2D,
     visibleWindow: HighPrecisionTimeSpan,
     colors: CanvasColors,
+    offscreenCanvas: OffscreenCanvas,
+    offscreenGl: WebGLRenderingContext,
   ) {
     let tracksOnCanvas = 0;
     for (const trackView of renderedTracks) {
@@ -498,6 +543,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           this.perfStatsEnabled,
           this.trackPerfStats,
           colors,
+          offscreenCanvas,
+          offscreenGl,
         );
         ++tracksOnCanvas;
       }

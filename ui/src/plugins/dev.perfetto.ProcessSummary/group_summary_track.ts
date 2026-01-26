@@ -98,6 +98,27 @@ function computeHover(
   return {utid, lane, count, pid};
 }
 
+// Cached WebGL program state (shared across instances for same GL context)
+let cachedGlProgram: {
+  gl: WebGLRenderingContext;
+  program: WebGLProgram;
+  positionLocation: number;
+  baseColorLocation: number;
+  variantColorLocation: number;
+  disabledColorLocation: number;
+  selectorLocation: number;
+  resolutionLocation: WebGLUniformLocation;
+  offsetLocation: WebGLUniformLocation;
+  dprLocation: WebGLUniformLocation;
+  timeScaleLocation: WebGLUniformLocation;
+  timePxOffsetLocation: WebGLUniformLocation;
+  positionBuffer: WebGLBuffer;
+  baseColorBuffer: WebGLBuffer;
+  variantColorBuffer: WebGLBuffer;
+  disabledColorBuffer: WebGLBuffer;
+  selectorBuffer: WebGLBuffer;
+} | undefined;
+
 export class GroupSummaryTrack implements TrackRenderer {
   private hover?: GroupSummaryHover;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
@@ -105,6 +126,18 @@ export class GroupSummaryTrack implements TrackRenderer {
   private mode: Mode = 'slices';
   private maxLanes: number = 1;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
+
+  // Cached WebGL vertex data - positions and colors rebuilt when data changes
+  private cachedPositions?: Float32Array;
+  private cachedBaseColors?: Float32Array; // base colors per vertex
+  private cachedVariantColors?: Float32Array; // highlighted colors per vertex
+  private cachedDisabledColors?: Float32Array; // disabled colors per vertex
+  private cachedUtids?: Int32Array; // utid per rectangle (for highlight check)
+  private cachedPids?: Array<bigint | undefined>; // pid per rectangle (for process highlight check)
+  private cachedRectCount = 0;
+  private lastDataGeneration = -1;
+  // Selector buffer rebuilt every frame (0.0 = base, 1.0 = variant, 2.0 = disabled)
+  private selectorBuffer?: Float32Array;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -422,7 +455,13 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
+  render({
+    ctx,
+    size,
+    timescale,
+    offscreenGl,
+    canvasOffset,
+  }: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -443,51 +482,355 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
 
-    for (let i = 0; i < data.ends.length; i++) {
-      const tStart = Time.fromRaw(data.starts[i]);
-      const tEnd = Time.fromRaw(data.ends[i]);
+    // Check if we need to rebuild the vertex buffer (data changed)
+    // Use a simple hash of the data to detect changes
+    const dataGeneration = data.starts.length + Number(data.resolution);
+    const needsRebuild = dataGeneration !== this.lastDataGeneration;
 
-      // Cull slices that lie completely outside the visible window
-      if (!visibleWindow.overlaps(tStart, tEnd)) continue;
+    if (needsRebuild) {
+      // Build vertex data with X as time offset (relative to data.start)
+      // and Y as pixel coordinates (relative to track origin)
+      // Time→pixel transformation happens in the shader via uniforms
+      const numRects = data.ends.length;
 
-      const utid = data.utids[i];
-      const lane = data.lanes[i];
+      // Build the positions array: (time_offset, y_pixel) for each vertex
+      this.cachedPositions = new Float32Array(numRects * 6 * 2);
+      // Cache utids for color lookup (one per rectangle)
+      this.cachedUtids = new Int32Array(numRects);
 
-      const rectStart = Math.floor(timescale.timeToPx(tStart));
-      const rectEnd = Math.floor(timescale.timeToPx(tEnd));
-      const rectWidth = Math.max(1, rectEnd - rectStart);
+      let posIdx = 0;
+      for (let i = 0; i < numRects; i++) {
+        const tStart = data.starts[i];
+        const tEnd = data.ends[i];
 
-      let colorScheme;
+        // Store time as offset from data.start (keeps values smaller for float precision)
+        const t1 = Number(tStart - data.start);
+        const t2 = Number(tEnd - data.start);
 
-      if (this.mode === 'sched') {
-        // Scheduling mode: color by thread (utid)
-        const threadInfo = this.threads.get(utid);
-        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-        const pid = (threadInfo ? threadInfo.pid : -1) || -1;
+        const lane = data.lanes[i];
+        const y1 = MARGIN_TOP + laneHeight * lane + lane;
+        const y2 = y1 + laneHeight;
 
-        const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-        const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-        const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-        colorScheme = colorForThread(threadInfo);
+        // Cache utid for this rectangle
+        this.cachedUtids[i] = data.utids[i];
 
-        if (isHovering && !isThreadHovered) {
-          if (!isProcessHovered) {
-            ctx.fillStyle = colorScheme.disabled.cssString;
-          } else {
-            ctx.fillStyle = colorScheme.variant.cssString;
-          }
-        } else {
-          ctx.fillStyle = colorScheme.base.cssString;
-        }
-      } else {
-        // Slice mode: consistent color based on pidForColor
-        colorScheme = colorForTid(this.config.pidForColor);
-        ctx.fillStyle = colorScheme.base.cssString;
+        // Triangle 1
+        this.cachedPositions[posIdx++] = t1;
+        this.cachedPositions[posIdx++] = y1;
+        this.cachedPositions[posIdx++] = t2;
+        this.cachedPositions[posIdx++] = y1;
+        this.cachedPositions[posIdx++] = t1;
+        this.cachedPositions[posIdx++] = y2;
+
+        // Triangle 2
+        this.cachedPositions[posIdx++] = t1;
+        this.cachedPositions[posIdx++] = y2;
+        this.cachedPositions[posIdx++] = t2;
+        this.cachedPositions[posIdx++] = y1;
+        this.cachedPositions[posIdx++] = t2;
+        this.cachedPositions[posIdx++] = y2;
       }
 
-      const y = MARGIN_TOP + laneHeight * lane + lane;
-      ctx.fillRect(rectStart, y, rectWidth, laneHeight);
+      this.cachedRectCount = numRects;
+      this.lastDataGeneration = dataGeneration;
+
+      // Pre-compute base, variant, and disabled colors for all rectangles
+      this.cachedBaseColors = new Float32Array(numRects * 6 * 4);
+      this.cachedVariantColors = new Float32Array(numRects * 6 * 4);
+      this.cachedDisabledColors = new Float32Array(numRects * 6 * 4);
+      this.cachedPids = new Array(numRects);
+
+      for (let i = 0; i < numRects; i++) {
+        const utid = this.cachedUtids[i];
+        const threadInfo = this.threads.get(utid);
+        const colorScheme =
+          this.mode === 'sched'
+            ? colorForThread(threadInfo)
+            : colorForTid(Number(this.config.pidForColor));
+
+        // Cache pid for this rectangle (used for process highlight check)
+        this.cachedPids[i] = threadInfo?.pid;
+
+        // Helper to parse color from CSS string
+        const parseColor = (cssString: string) => {
+          const match = cssString.match(/rgb\((\d+)\s+(\d+)\s+(\d+)(?:\s*\/\s*([\d.]+))?\)/);
+          return {
+            r: match ? parseInt(match[1], 10) / 255 : 0.5,
+            g: match ? parseInt(match[2], 10) / 255 : 0.5,
+            b: match ? parseInt(match[3], 10) / 255 : 0.5,
+            a: match && match[4] ? parseFloat(match[4]) : 1.0,
+          };
+        };
+
+        const base = parseColor(colorScheme.base.cssString);
+        const variant = parseColor(colorScheme.variant.cssString);
+        const disabled = parseColor(colorScheme.disabled.cssString);
+
+        // Write colors for all 6 vertices of this rectangle
+        const baseIdx = i * 6 * 4;
+        for (let v = 0; v < 6; v++) {
+          const offset = baseIdx + v * 4;
+          this.cachedBaseColors[offset] = base.r;
+          this.cachedBaseColors[offset + 1] = base.g;
+          this.cachedBaseColors[offset + 2] = base.b;
+          this.cachedBaseColors[offset + 3] = base.a;
+
+          this.cachedVariantColors[offset] = variant.r;
+          this.cachedVariantColors[offset + 1] = variant.g;
+          this.cachedVariantColors[offset + 2] = variant.b;
+          this.cachedVariantColors[offset + 3] = variant.a;
+
+          this.cachedDisabledColors[offset] = disabled.r;
+          this.cachedDisabledColors[offset + 1] = disabled.g;
+          this.cachedDisabledColors[offset + 2] = disabled.b;
+          this.cachedDisabledColors[offset + 3] = disabled.a;
+        }
+      }
+
+      // Allocate selector buffer (will be filled every frame)
+      this.selectorBuffer = new Float32Array(numRects * 6); // 1 float per vertex
     }
+
+    // Build selector buffer every frame based on highlight state
+    // Selector values: 0.0 = base, 1.0 = variant, 2.0 = disabled
+    if (this.cachedUtids && this.cachedPids && this.selectorBuffer) {
+      const hoveredUtid = this.trace.timeline.hoveredUtid;
+      const hoveredPid = this.trace.timeline.hoveredPid;
+      const isHovering = hoveredUtid !== undefined;
+
+      for (let i = 0; i < this.cachedRectCount; i++) {
+        const utid = this.cachedUtids[i];
+        const pid = this.cachedPids[i];
+
+        let selector = 0.0; // base (not hovering, or this thread is hovered)
+
+        if (this.mode === 'sched' && isHovering) {
+          const isThreadHovered = hoveredUtid === utid;
+          const isProcessHovered = hoveredPid !== undefined && pid === hoveredPid;
+
+          if (!isThreadHovered) {
+            if (isProcessHovered) {
+              selector = 1.0; // variant (process hovered, not this thread)
+            } else {
+              selector = 2.0; // disabled (something else hovered)
+            }
+          }
+          // else selector stays 0.0 (base) - this thread is hovered
+        }
+        // For slice mode, always use base color (selector = 0.0)
+
+        // Write selector for all 6 vertices of this rectangle
+        const baseIdx = i * 6;
+        for (let v = 0; v < 6; v++) {
+          this.selectorBuffer[baseIdx + v] = selector;
+        }
+      }
+    }
+
+    // Draw using cached buffers with current timescale transformation
+    if (offscreenGl && this.cachedPositions && this.cachedBaseColors &&
+        this.cachedVariantColors && this.cachedDisabledColors &&
+        this.selectorBuffer && this.cachedRectCount > 0) {
+      this.drawWebGLRects(offscreenGl, canvasOffset, timescale, data.start);
+    }
+  }
+
+  private ensureGlProgram(gl: WebGLRenderingContext): typeof cachedGlProgram {
+    // Return cached program if it's for the same GL context
+    if (cachedGlProgram?.gl === gl) {
+      return cachedGlProgram;
+    }
+
+    // Vertex shader with timescale transformation and palette-based coloring
+    // a_position.x is time offset (relative to data start, in nanoseconds as float)
+    // a_position.y is Y pixel coordinate (relative to track origin)
+    // a_baseColor is the normal color for this vertex
+    // a_variantColor is the process-highlighted color for this vertex
+    // a_disabledColor is the disabled color when something else is hovered
+    // a_selector: 0.0 = base, 1.0 = variant, 2.0 = disabled
+    const vsSource = `
+      attribute vec2 a_position;
+      attribute vec4 a_baseColor;
+      attribute vec4 a_variantColor;
+      attribute vec4 a_disabledColor;
+      attribute float a_selector;
+      varying vec4 v_color;
+      uniform vec2 u_resolution;
+      uniform vec2 u_offset;
+      uniform float u_dpr;
+      uniform float u_time_scale;
+      uniform float u_time_px_offset;
+      void main() {
+        // Transform time to pixel X, Y is already in pixels
+        float px_x = a_position.x * u_time_scale + u_time_px_offset;
+        float px_y = a_position.y;
+        vec2 pixelPos = (vec2(px_x, px_y) + u_offset) * u_dpr;
+        vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
+        gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+        // Select color based on selector: 0=base, 1=variant, 2=disabled
+        v_color = a_baseColor;
+        if (a_selector > 0.5) v_color = a_variantColor;
+        if (a_selector > 1.5) v_color = a_disabledColor;
+      }
+    `;
+
+    // Fragment shader using interpolated color from vertex shader
+    const fsSource = `
+      precision mediump float;
+      varying vec4 v_color;
+      void main() {
+        gl_FragColor = v_color;
+      }
+    `;
+
+    // Compile shaders
+    const vertexShader = gl.createShader(gl.VERTEX_SHADER)!;
+    gl.shaderSource(vertexShader, vsSource);
+    gl.compileShader(vertexShader);
+
+    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)!;
+    gl.shaderSource(fragmentShader, fsSource);
+    gl.compileShader(fragmentShader);
+
+    // Create program
+    const program = gl.createProgram()!;
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+
+    // Get locations
+    const positionLocation = gl.getAttribLocation(program, 'a_position');
+    const baseColorLocation = gl.getAttribLocation(program, 'a_baseColor');
+    const variantColorLocation = gl.getAttribLocation(program, 'a_variantColor');
+    const disabledColorLocation = gl.getAttribLocation(program, 'a_disabledColor');
+    const selectorLocation = gl.getAttribLocation(program, 'a_selector');
+    const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')!;
+    const offsetLocation = gl.getUniformLocation(program, 'u_offset')!;
+    const dprLocation = gl.getUniformLocation(program, 'u_dpr')!;
+    const timeScaleLocation = gl.getUniformLocation(program, 'u_time_scale')!;
+    const timePxOffsetLocation = gl.getUniformLocation(program, 'u_time_px_offset')!;
+
+    // Create reusable buffers
+    const positionBuffer = gl.createBuffer()!;
+    const baseColorBuffer = gl.createBuffer()!;
+    const variantColorBuffer = gl.createBuffer()!;
+    const disabledColorBuffer = gl.createBuffer()!;
+    const selectorBuffer = gl.createBuffer()!;
+
+    // Cache the program
+    cachedGlProgram = {
+      gl,
+      program,
+      positionLocation,
+      baseColorLocation,
+      variantColorLocation,
+      disabledColorLocation,
+      selectorLocation,
+      resolutionLocation,
+      offsetLocation,
+      dprLocation,
+      timeScaleLocation,
+      timePxOffsetLocation,
+      positionBuffer,
+      baseColorBuffer,
+      variantColorBuffer,
+      disabledColorBuffer,
+      selectorBuffer,
+    };
+
+    return cachedGlProgram;
+  }
+
+  private drawWebGLRects(
+    gl: WebGLRenderingContext,
+    offset: {x: number; y: number},
+    timescale: TimeScale,
+    dataStart: time,
+  ): void {
+    const {
+      program,
+      positionLocation,
+      baseColorLocation,
+      variantColorLocation,
+      disabledColorLocation,
+      selectorLocation,
+      resolutionLocation,
+      offsetLocation,
+      dprLocation,
+      timeScaleLocation,
+      timePxOffsetLocation,
+      positionBuffer,
+      baseColorBuffer,
+      variantColorBuffer,
+      disabledColorBuffer,
+      selectorBuffer,
+    } = this.ensureGlProgram(gl)!;
+
+    gl.useProgram(program);
+
+    // Enable alpha blending
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    const dpr = window.devicePixelRatio;
+
+    // Compute timescale transformation:
+    // px = time_offset * u_time_scale + u_time_px_offset
+    // where time_offset is relative to dataStart
+    //
+    // From TimeScale: px = pxBounds.left + (ts - timeSpan.start) / timePerPx
+    // If ts = dataStart + time_offset, then:
+    // px = pxBounds.left + (dataStart + time_offset - timeSpan.start) / timePerPx
+    // px = pxBounds.left + (dataStart - timeSpan.start) / timePerPx + time_offset / timePerPx
+    // px = time_offset * (1/timePerPx) + [pxBounds.left + (dataStart - timeSpan.start) / timePerPx]
+    //
+    // So: u_time_scale = 1 / timePerPx
+    //     u_time_px_offset = pxBounds.left + (dataStart - timeSpan.start) / timePerPx
+    //                      = timescale.timeToPx(dataStart)
+
+    const timePerPx = timescale.timeSpan.duration / (timescale.pxBounds.right - timescale.pxBounds.left);
+    const timeScale = 1 / timePerPx;
+    const timePxOffset = timescale.timeToPx(dataStart);
+
+    // Set uniforms
+    gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
+    gl.uniform2f(offsetLocation, offset.x, offset.y);
+    gl.uniform1f(dprLocation, dpr);
+    gl.uniform1f(timeScaleLocation, timeScale);
+    gl.uniform1f(timePxOffsetLocation, timePxOffset);
+
+    // Upload and bind position buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.cachedPositions!, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    // Upload and bind base color buffer (cached, rarely changes)
+    gl.bindBuffer(gl.ARRAY_BUFFER, baseColorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.cachedBaseColors!, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(baseColorLocation);
+    gl.vertexAttribPointer(baseColorLocation, 4, gl.FLOAT, false, 0, 0);
+
+    // Upload and bind variant color buffer (cached, rarely changes)
+    gl.bindBuffer(gl.ARRAY_BUFFER, variantColorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.cachedVariantColors!, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(variantColorLocation);
+    gl.vertexAttribPointer(variantColorLocation, 4, gl.FLOAT, false, 0, 0);
+
+    // Upload and bind disabled color buffer (cached, rarely changes)
+    gl.bindBuffer(gl.ARRAY_BUFFER, disabledColorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.cachedDisabledColors!, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(disabledColorLocation);
+    gl.vertexAttribPointer(disabledColorLocation, 4, gl.FLOAT, false, 0, 0);
+
+    // Upload and bind selector buffer (changes every frame)
+    gl.bindBuffer(gl.ARRAY_BUFFER, selectorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.selectorBuffer!, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(selectorLocation);
+    gl.vertexAttribPointer(selectorLocation, 1, gl.FLOAT, false, 0, 0);
+
+    // Draw all rectangles in one call
+    gl.drawArrays(gl.TRIANGLES, 0, this.cachedRectCount * 6);
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {

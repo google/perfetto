@@ -128,6 +128,22 @@ export interface TrackRenderContext extends TrackContext {
    * Semantic colors which can vary depending on the current theme.
    */
   readonly colors: CanvasColors;
+
+  /**
+   * Optional offscreen WebGL canvas for accelerated rendering.
+   * Tracks can draw to this instead of ctx for batched rendering.
+   * Content drawn here will be composited onto the main canvas after all
+   * tracks have rendered.
+   */
+  readonly offscreenCanvas?: OffscreenCanvas;
+  readonly offscreenGl?: WebGLRenderingContext;
+
+  /**
+   * The offset from the WebGL canvas origin to this track's origin.
+   * Since the 2D ctx is translated, tracks draw at (0,0), but WebGL needs
+   * explicit offsets. Coordinates are in CSS pixels (not physical pixels).
+   */
+  readonly canvasOffset: {x: number; y: number};
 }
 
 // A definition of a track, including a renderer implementation and metadata.
