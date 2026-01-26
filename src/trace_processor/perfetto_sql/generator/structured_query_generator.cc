@@ -266,6 +266,11 @@ class GeneratorImpl {
   base::FlatHashMap<std::string, std::nullptr_t>& referenced_modules_;
   std::vector<std::string>& preambles_;
   std::set<std::string> used_table_names_;
+  // Tracks shared query IDs that have already been added to state_ during
+  // this Generate() call. Maps query ID -> table name. This prevents the same
+  // shared query from being added multiple times when referenced multiple
+  // times within a single query graph.
+  base::FlatHashMap<std::string, std::string> shared_query_table_names_;
 };
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
@@ -1248,15 +1253,18 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   if (!it) {
     return base::ErrStatus("Shared query with id '%s' not found", id.c_str());
   }
-  auto sq = std::find_if(queries_.begin(), queries_.end(),
-                         [&](const Query& sq) { return id == sq.id; });
-  if (sq != queries_.end()) {
-    return sq->table_name;
+  // Check if this shared query has already been added to state_ during this
+  // Generate() call. This handles the case where the same shared query is
+  // referenced multiple times within a single query graph.
+  if (auto* existing = shared_query_table_names_.Find(id)) {
+    return *existing;
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},
                       state_.size(), state_index_, used_table_names_);
-  return state_.back().table_name;
+  const std::string& table_name = state_.back().table_name;
+  shared_query_table_names_.Insert(id, table_name);
+  return table_name;
 }
 
 std::string GeneratorImpl::NestedSource(protozero::ConstBytes bytes) {
