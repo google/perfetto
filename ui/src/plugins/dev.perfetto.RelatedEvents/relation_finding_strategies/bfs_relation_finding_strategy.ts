@@ -98,6 +98,8 @@ export class RuleBasedBfsStrategy implements RelationFindingStrategy {
         sliceId: currentEventId,
         name: currentEventDetails.eventName,
         args: currentEventDetails.eventArgs,
+        ts: currentEventDetails.eventTs,
+        dur: currentEventDetails.eventDur,
       };
 
       const directlyRelated = await this.getDirectlyRelatedEvents(
