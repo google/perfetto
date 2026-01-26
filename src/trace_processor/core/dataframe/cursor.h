@@ -154,6 +154,10 @@ class Cursor {
                                              const Column* const* column_ptrs,
                                              const Index* indexes) {
     switch (init.kind.index()) {
+      case RegisterInit::Type::GetTypeIndex<Id>():
+        // Id columns don't have actual storage - the row index IS the value.
+        // Return a nullptr StoragePtr which the interpreter knows to handle.
+        return interpreter::StoragePtr{nullptr, Id{}};
       case RegisterInit::Type::GetTypeIndex<Uint32>():
         return interpreter::StoragePtr{
             column_ptrs[init.source_index]->storage.unchecked_data<Uint32>(),
@@ -206,7 +210,8 @@ class Cursor {
             sve.prefix_popcount.data() + sve.prefix_popcount.size());
       }
       default:
-        return interpreter::Empty{};
+        PERFETTO_FATAL("Unhandled RegisterInit kind: %u",
+                       static_cast<uint32_t>(init.kind.index()));
     }
   }
 

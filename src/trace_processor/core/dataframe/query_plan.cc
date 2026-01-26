@@ -213,6 +213,9 @@ QueryPlanBuilder::QueryPlanBuilder(
   for (uint32_t i = 0; i < columns_.size(); ++i) {
     column_states_.emplace_back();
   }
+  for (uint32_t i = 0; i < indexes_.size(); ++i) {
+    index_states_.emplace_back();
+  }
   // Setup the maximum and estimated row counts.
   plan_.params.max_row_count = row_count;
   plan_.params.estimated_row_count = row_count;
@@ -724,12 +727,7 @@ void QueryPlanBuilder::IndexConstraints(
     std::vector<uint8_t>& specs_handled,
     uint32_t index_idx,
     const std::vector<uint32_t>& filter_specs) {
-  // Source register points to the immutable index permutation vector.
-  i::ReadHandle<Span<uint32_t>> source_reg{plan_.params.register_count++};
-  plan_.register_inits.emplace_back(RegisterInit{
-      source_reg.index, RegisterInit::Type{RegisterInit::IndexVector{}},
-      static_cast<uint16_t>(index_idx)});
-  // Dest register receives filtered results (pointing into source).
+  i::RwHandle<Span<uint32_t>> source_reg = IndexRegisterFor(index_idx);
   i::RwHandle<Span<uint32_t>> dest_reg{plan_.params.register_count++};
   for (uint32_t spec_idx : filter_specs) {
     FilterSpec& fs = specs[spec_idx];
@@ -765,7 +763,7 @@ void QueryPlanBuilder::IndexConstraints(
     }
     // After first filter, subsequent filters read from dest and write back to
     // dest.
-    source_reg = i::ReadHandle<Span<uint32_t>>{dest_reg.index};
+    source_reg = dest_reg;
     specs_handled[spec_idx] = true;
   }
 
@@ -1121,6 +1119,16 @@ QueryPlanBuilder::SmallValueEqPopcountRegisterFor(uint32_t col) {
   return GetOrCreateInitRegister<i::ReadHandle<Span<const uint32_t>>>(
       col, &ColumnState::small_value_eq_popcount_register,
       RegisterInit::SmallValueEqPopcount{});
+}
+
+i::RwHandle<Span<uint32_t>> QueryPlanBuilder::IndexRegisterFor(uint32_t pos) {
+  auto& reg = index_states_[pos].index_register;
+  if (!reg) {
+    reg = i::RwHandle<Span<uint32_t>>{plan_.params.register_count++};
+    plan_.register_inits.emplace_back(RegisterInit{
+        reg->index, RegisterInit::IndexVector{}, static_cast<uint16_t>(pos)});
+  }
+  return *reg;
 }
 
 bool QueryPlanBuilder::CanUseMinMaxOptimization(
