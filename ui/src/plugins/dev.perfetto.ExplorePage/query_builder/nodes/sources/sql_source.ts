@@ -81,8 +81,10 @@ class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
             if (canvas !== null) {
               canvas.focus();
             }
-            e.stopPropagation();
           }
+          // Stop propagation for all keyboard events to prevent them from
+          // reaching the graph (e.g., Delete/Backspace would delete the node)
+          e.stopPropagation();
         },
       },
       [

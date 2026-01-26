@@ -37,7 +37,7 @@ SELECT
   cuj_id,
   MIN(vsync) AS vsync_min,
   MAX(vsync) AS vsync_max
-FROM android_jank_cuj_sf_root_slice
+FROM _android_jank_cuj_sf_root_slice
 GROUP BY cuj_id;
 
 -- Calculates the frame boundaries based on when we *expected* the work on

@@ -32,6 +32,8 @@ import {AggregateColumn, AggregateFunction} from './model';
 interface AddColumnMenuContext {
   readonly dataSource: DataSource;
   readonly parameterKeyColumns: Set<string>;
+  // Optional callback to check if a column can be added
+  readonly canAddColumnForField?: (field: string) => boolean;
 }
 
 /**
@@ -71,13 +73,15 @@ function buildAddColumnMenuFromSchema(
     const fullPath = pathPrefix ? `${pathPrefix}.${columnName}` : columnName;
 
     if (isColumnDef(entry)) {
-      // Leaf column - clicking adds it (disabled if already visible)
+      // Leaf column - clicking adds it (disabled if already visible or not allowed)
       const title = entry.title ?? columnName;
       const isAlreadyVisible = columns.includes(fullPath);
+      const canAdd = context.canAddColumnForField?.(fullPath) ?? true;
+      const isDisabled = isAlreadyVisible || !canAdd;
       menuItems.push(
         m(MenuItem, {
           label: title,
-          disabled: isAlreadyVisible,
+          disabled: isDisabled,
           onclick: () => onSelect(fullPath),
         }),
       );
@@ -289,6 +293,12 @@ interface ColumnMenuAttrs {
   readonly dataSource: DataSource;
   readonly parameterKeyColumns: Set<string>;
 
+  // Optional add column control - defaults to true
+  readonly canAdd?: boolean;
+
+  // Optional callback to check if a specific column can be added
+  readonly canAddColumnForField?: (field: string) => boolean;
+
   // Optional remove button - if not provided, only "Add" is shown
   readonly canRemove?: boolean;
   readonly onRemove?: () => void;
@@ -306,6 +316,8 @@ interface ColumnMenuAttrs {
 export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
   view({attrs}: m.Vnode<ColumnMenuAttrs>): m.Children {
     const {
+      canAdd = true,
+      canAddColumnForField,
       canRemove,
       onRemove,
       schema,
@@ -325,17 +337,16 @@ export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
       0,
       visibleColumns,
       onAddColumn,
-      {dataSource, parameterKeyColumns},
+      {dataSource, parameterKeyColumns, canAddColumnForField},
     );
 
-    const items: m.Children[] = [];
-
     return [
-      m(
-        MenuItem,
-        {label: addLabel, icon: Icons.AddColumnRight},
-        addColumnSubmenu,
-      ),
+      canAdd &&
+        m(
+          MenuItem,
+          {label: addLabel, icon: Icons.AddColumnRight},
+          addColumnSubmenu,
+        ),
       onRemove &&
         m(MenuItem, {
           label: removeLabel,
@@ -344,8 +355,6 @@ export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
           onclick: onRemove,
         }),
     ];
-
-    return items;
   }
 }
 

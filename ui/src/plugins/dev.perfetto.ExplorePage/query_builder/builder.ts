@@ -128,6 +128,7 @@ import {NodeIssues} from './node_issues';
 import {DataExplorerEmptyState, RoundActionButton} from './widgets';
 import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
+import {Column} from '../../../components/widgets/datagrid/model';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {getAllDownstreamNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
@@ -194,6 +195,7 @@ export interface BuilderAttrs {
     filter: UIFilter | UIFilter[],
     filterOperator?: 'AND' | 'OR',
   ) => void;
+  readonly onColumnAdd?: (node: QueryNode, column: Column) => void;
 
   // Import / Export JSON
   readonly onImport: () => void;
@@ -430,6 +432,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               node: selectedNode,
               response: this.response,
               dataSource: this.dataSource,
+              sqlModules: attrs.sqlModules,
               isQueryRunning: this.isQueryRunning,
               isAnalyzing: this.isAnalyzing,
               onchange: () => {
@@ -438,6 +441,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               onFilterAdd: (filter, filterOperator) => {
                 attrs.onFilterAdd(selectedNode, filter, filterOperator);
               },
+              onColumnAdd: attrs.onColumnAdd
+                ? (column) => attrs.onColumnAdd?.(selectedNode, column)
+                : undefined,
               isFullScreen:
                 this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
               onFullScreenToggle: () => {

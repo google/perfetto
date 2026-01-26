@@ -20,6 +20,7 @@ import {
   ColumnSchema,
   SchemaRegistry,
 } from '../../../components/widgets/datagrid/datagrid_schema';
+import {Column} from '../../../components/widgets/datagrid/model';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
@@ -27,11 +28,12 @@ import {Query, QueryNode} from '../query_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {findErrors} from './query_builder_utils';
+import {findErrors, isAQuery} from './query_builder_utils';
 import {UIFilter, normalizeDataGridFilter} from './operations/filter';
 import {DataExplorerEmptyState} from './widgets';
 import {Trace} from '../../../public/trace';
 import {Timestamp} from '../../../components/widgets/timestamp';
+import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
@@ -66,6 +68,7 @@ export interface DataExplorerAttrs {
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
   readonly dataSource?: DataSource;
+  readonly sqlModules: SqlModules;
   readonly isQueryRunning: boolean;
   readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
@@ -77,6 +80,7 @@ export interface DataExplorerAttrs {
     filter: UIFilter | UIFilter[],
     filterOperator?: 'AND' | 'OR',
   ) => void;
+  readonly onColumnAdd?: (column: Column) => void;
 }
 
 // Create cell renderer for timestamp columns
@@ -271,6 +275,9 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     // invalid column names). These are stored separately from validation errors
     // so they survive validate() calls during rendering.
     if (attrs.node.state.issues?.executionError) {
+      // Get the SQL that caused the error (query is preserved during error)
+      const failingSql = isAQuery(attrs.query) ? attrs.query.sql : undefined;
+
       return m(
         DataExplorerEmptyState,
         {
@@ -278,16 +285,34 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           variant: 'warning',
           title: attrs.node.state.issues.executionError.message,
         },
-        m(Button, {
-          label: 'Retry',
-          icon: 'refresh',
-          intent: Intent.Primary,
-          onclick: () => {
-            // Clear the execution error and re-run the query
-            attrs.node.state.issues?.clearExecutionError();
-            attrs.onExecute();
-          },
-        }),
+        [
+          // Show the failing SQL if available
+          failingSql &&
+            m('.pf-failing-sql', [
+              m('.pf-failing-sql__header', [
+                m('.pf-failing-sql__label', 'Failed SQL:'),
+                m(Button, {
+                  icon: 'content_copy',
+                  compact: true,
+                  title: 'Copy SQL to clipboard',
+                  onclick: () => {
+                    navigator.clipboard.writeText(failingSql);
+                  },
+                }),
+              ]),
+              m('pre.pf-failing-sql__code', failingSql),
+            ]),
+          m(Button, {
+            label: 'Retry',
+            icon: 'refresh',
+            intent: Intent.Primary,
+            onclick: () => {
+              // Clear the execution error and re-run the query
+              attrs.node.state.issues?.clearExecutionError();
+              attrs.onExecute();
+            },
+          }),
+        ],
       );
     }
 
@@ -341,7 +366,15 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
 
       // Build schema directly
       const columnSchema: ColumnSchema = {};
-      for (const c of attrs.response.columns) {
+      const schema: SchemaRegistry = {data: columnSchema};
+
+      // Get sqlModules from attrs (centralized, not from node state)
+      const {sqlModules} = attrs;
+
+      // Capture columns for use in closures
+      const responseColumns = attrs.response.columns;
+
+      for (const c of responseColumns) {
         let cellRenderer: CellRenderer | undefined;
         let columnType: ColumnType | undefined;
 
@@ -365,7 +398,98 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
 
         columnSchema[c] = {cellRenderer, columnType};
       }
-      const schema: SchemaRegistry = {data: columnSchema};
+
+      // Build menu items for joinid columns (add columns from related tables)
+      // Get existing column names from the node's schema for filtering
+      const existingColumnNames = new Set(
+        attrs.node.finalCols.map((col) => col.name),
+      );
+
+      const buildJoinidMenuItems = (): m.Children => {
+        if (sqlModules === undefined) return undefined;
+
+        // Group joinid columns by target table name
+        const tableToJoinidColumns = new Map<
+          string,
+          Array<{joinidColumn: string; targetTable: string}>
+        >();
+
+        for (const c of responseColumns) {
+          const columnInfo = getColumnInfo(attrs.node, c);
+          if (columnInfo?.column.type?.kind === 'joinid') {
+            const targetTableName = columnInfo.column.type.source.table;
+            if (!tableToJoinidColumns.has(targetTableName)) {
+              tableToJoinidColumns.set(targetTableName, []);
+            }
+            tableToJoinidColumns.get(targetTableName)!.push({
+              joinidColumn: c,
+              targetTable: targetTableName,
+            });
+          }
+        }
+
+        const tableSubmenus: m.Children[] = [];
+
+        // Build submenus for each target table
+        for (const [tableName, joinidColumns] of tableToJoinidColumns) {
+          const targetTable = sqlModules.getTable(tableName);
+          if (targetTable === undefined) continue;
+
+          // Helper to build column menu items for a specific joinid column
+          const buildColumnItems = (joinidColumn: string): m.Children[] => {
+            return targetTable.columns.map((col) => {
+              const field = `${joinidColumn}.${col.name}`;
+              const isDisabled = existingColumnNames.has(col.name);
+              return m(MenuItem, {
+                label: col.name,
+                disabled: isDisabled,
+                onclick: isDisabled
+                  ? undefined
+                  : () => {
+                      attrs.onColumnAdd?.({
+                        id: field,
+                        field,
+                      });
+                    },
+              });
+            });
+          };
+
+          if (joinidColumns.length === 1) {
+            // Single joinid column - show columns directly under "From {table}"
+            tableSubmenus.push(
+              m(
+                MenuItem,
+                {label: `From ${tableName}`},
+                buildColumnItems(joinidColumns[0].joinidColumn),
+              ),
+            );
+          } else {
+            // Multiple joinid columns - show "via [column]" submenus under "From {table}"
+            const viaSubmenus = joinidColumns.map(({joinidColumn}) =>
+              m(
+                MenuItem,
+                {label: `via ${joinidColumn}`},
+                buildColumnItems(joinidColumn),
+              ),
+            );
+            tableSubmenus.push(
+              m(MenuItem, {label: `From ${tableName}`}, viaSubmenus),
+            );
+          }
+        }
+
+        // Wrap all table submenus under a single "Add columns" menu item
+        if (tableSubmenus.length === 0) {
+          return undefined;
+        }
+
+        return m(
+          MenuItem,
+          {label: 'Add column', icon: Icons.AddColumnRight},
+          tableSubmenus,
+        );
+      };
 
       return [
         warning,
@@ -380,6 +504,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           data: attrs.dataSource,
           enablePivotControls: false,
           structuredQueryCompatMode: true,
+          canAddColumns: false,
+          canRemoveColumns: false,
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty
           // array.
@@ -417,6 +543,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             }
             attrs.onchange?.();
           },
+          addColumnMenuItems: buildJoinidMenuItems,
         }),
       ];
     }

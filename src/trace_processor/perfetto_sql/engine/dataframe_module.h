@@ -21,15 +21,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "src/trace_processor/dataframe/cursor.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
+#include "src/trace_processor/core/dataframe/cursor.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
