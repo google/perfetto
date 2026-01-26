@@ -330,17 +330,6 @@ export class CpuSliceTrack implements TrackRenderer {
 
     const numRects = data.startQs.length;
 
-    // Helper to parse color from CSS string
-    const parseColor = (cssString: string) => {
-      const match = cssString.match(/rgb\((\d+)\s+(\d+)\s+(\d+)(?:\s*\/\s*([\d.]+))?\)/);
-      return {
-        r: match ? parseInt(match[1], 10) / 255 : 0.5,
-        g: match ? parseInt(match[2], 10) / 255 : 0.5,
-        b: match ? parseInt(match[3], 10) / 255 : 0.5,
-        a: match && match[4] ? parseFloat(match[4]) : 1.0,
-      };
-    };
-
     // Check if we need to rebuild the vertex buffers (data changed)
     // Include data.start because positions are stored relative to it
     const dataGeneration = numRects + data.lastRowId;
@@ -381,9 +370,9 @@ export class CpuSliceTrack implements TrackRenderer {
         this.cachedPids[i] = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
         const colorScheme = colorForThread(threadInfo);
-        const base = parseColor(colorScheme.base.cssString);
-        const variant = parseColor(colorScheme.variant.cssString);
-        const disabled = parseColor(colorScheme.disabled.cssString);
+        const base = colorScheme.base.rgba;
+        const variant = colorScheme.variant.rgba;
+        const disabled = colorScheme.disabled.rgba;
 
         // 4 vertices per quad: TL, TR, BL, BR
         const baseVertex = i * 4;
@@ -405,24 +394,25 @@ export class CpuSliceTrack implements TrackRenderer {
         this.cachedIndices[idxIdx++] = baseVertex + 3; // BR
 
         // Write colors and flags for all 4 vertices
+        // RGB values are 0-255 from rgba, normalize to 0-1 for WebGL
         const colorBaseIdx = i * 4 * 4;
         const flagsBaseIdx = i * 4;
         const flags = data.flags[i];
         for (let v = 0; v < 4; v++) {
           const offset = colorBaseIdx + v * 4;
-          this.cachedBaseColors[offset] = base.r;
-          this.cachedBaseColors[offset + 1] = base.g;
-          this.cachedBaseColors[offset + 2] = base.b;
+          this.cachedBaseColors[offset] = base.r / 255;
+          this.cachedBaseColors[offset + 1] = base.g / 255;
+          this.cachedBaseColors[offset + 2] = base.b / 255;
           this.cachedBaseColors[offset + 3] = base.a;
 
-          this.cachedVariantColors[offset] = variant.r;
-          this.cachedVariantColors[offset + 1] = variant.g;
-          this.cachedVariantColors[offset + 2] = variant.b;
+          this.cachedVariantColors[offset] = variant.r / 255;
+          this.cachedVariantColors[offset + 1] = variant.g / 255;
+          this.cachedVariantColors[offset + 2] = variant.b / 255;
           this.cachedVariantColors[offset + 3] = variant.a;
 
-          this.cachedDisabledColors[offset] = disabled.r;
-          this.cachedDisabledColors[offset + 1] = disabled.g;
-          this.cachedDisabledColors[offset + 2] = disabled.b;
+          this.cachedDisabledColors[offset] = disabled.r / 255;
+          this.cachedDisabledColors[offset + 1] = disabled.g / 255;
+          this.cachedDisabledColors[offset + 2] = disabled.b / 255;
           this.cachedDisabledColors[offset + 3] = disabled.a;
 
           this.cachedFlags[flagsBaseIdx + v] = flags;

@@ -563,38 +563,28 @@ export class GroupSummaryTrack implements TrackRenderer {
         // Cache pid for this rectangle (used for process highlight check)
         this.cachedPids[i] = threadInfo?.pid;
 
-        // Helper to parse color from CSS string
-        const parseColor = (cssString: string) => {
-          const match = cssString.match(/rgb\((\d+)\s+(\d+)\s+(\d+)(?:\s*\/\s*([\d.]+))?\)/);
-          return {
-            r: match ? parseInt(match[1], 10) / 255 : 0.5,
-            g: match ? parseInt(match[2], 10) / 255 : 0.5,
-            b: match ? parseInt(match[3], 10) / 255 : 0.5,
-            a: match && match[4] ? parseFloat(match[4]) : 1.0,
-          };
-        };
-
-        const base = parseColor(colorScheme.base.cssString);
-        const variant = parseColor(colorScheme.variant.cssString);
-        const disabled = parseColor(colorScheme.disabled.cssString);
+        const base = colorScheme.base.rgba;
+        const variant = colorScheme.variant.rgba;
+        const disabled = colorScheme.disabled.rgba;
 
         // Write colors for all 4 vertices of this rectangle
+        // RGB values are 0-255 from rgba, normalize to 0-1 for WebGL
         const baseIdx = i * 4 * 4;
         for (let v = 0; v < 4; v++) {
           const offset = baseIdx + v * 4;
-          this.cachedBaseColors[offset] = base.r;
-          this.cachedBaseColors[offset + 1] = base.g;
-          this.cachedBaseColors[offset + 2] = base.b;
+          this.cachedBaseColors[offset] = base.r / 255;
+          this.cachedBaseColors[offset + 1] = base.g / 255;
+          this.cachedBaseColors[offset + 2] = base.b / 255;
           this.cachedBaseColors[offset + 3] = base.a;
 
-          this.cachedVariantColors[offset] = variant.r;
-          this.cachedVariantColors[offset + 1] = variant.g;
-          this.cachedVariantColors[offset + 2] = variant.b;
+          this.cachedVariantColors[offset] = variant.r / 255;
+          this.cachedVariantColors[offset + 1] = variant.g / 255;
+          this.cachedVariantColors[offset + 2] = variant.b / 255;
           this.cachedVariantColors[offset + 3] = variant.a;
 
-          this.cachedDisabledColors[offset] = disabled.r;
-          this.cachedDisabledColors[offset + 1] = disabled.g;
-          this.cachedDisabledColors[offset + 2] = disabled.b;
+          this.cachedDisabledColors[offset] = disabled.r / 255;
+          this.cachedDisabledColors[offset + 1] = disabled.g / 255;
+          this.cachedDisabledColors[offset + 2] = disabled.b / 255;
           this.cachedDisabledColors[offset + 3] = disabled.a;
         }
       }

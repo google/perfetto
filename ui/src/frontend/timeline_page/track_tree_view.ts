@@ -162,6 +162,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         alpha: true,
         premultipliedAlpha: true,
         antialias: true,
+        desynchronized: true,
       })!;
       this.offscreenGl.viewport(0, 0, pxWidth, pxHeight);
     }
@@ -469,8 +470,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     );
 
     // Ensure WebGL commands are submitted before copying
+    // Note: flush() ensures commands are queued; drawImage() handles sync implicitly
     offscreenGl.flush();
-    offscreenGl.finish();
 
     // Copy WebGL canvas content to main canvas
     ctx.drawImage(offscreenCanvas, 0, 0, size.width, size.height);

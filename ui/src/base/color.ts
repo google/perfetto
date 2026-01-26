@@ -45,8 +45,19 @@ interface HSL {
 // Also, because these objects are immutable, it's expected that readonly
 // properties such as |cssString| are efficient, as they can be computed at
 // creation time, so they may be used in the hot path (render loop).
+// RGB color with values in the range 0-255 for r, g, b and 0-1 for alpha.
+export interface RGBA {
+  readonly r: number;
+  readonly g: number;
+  readonly b: number;
+  readonly a: number;
+}
+
 export interface Color {
   readonly cssString: string;
+
+  // RGB values (0-255 for r, g, b; 0-1 for alpha).
+  readonly rgba: RGBA;
 
   // The perceived brightness of the color using a weighted average of the
   // r, g and b channels based on human perception.
@@ -134,6 +145,7 @@ abstract class HSLColorBase<T extends Color> {
 // Describes a color defined in standard HSL color space.
 export class HSLColor extends HSLColorBase<HSLColor> implements Color {
   readonly cssString: string;
+  readonly rgba: RGBA;
   readonly perceivedBrightness: number;
 
   // Values are in the range:
@@ -146,6 +158,7 @@ export class HSLColor extends HSLColorBase<HSLColor> implements Color {
 
     const [r, g, b] = hslToRgb(...this.hsl);
 
+    this.rgba = {r, g, b, a: this.alpha ?? 1};
     this.perceivedBrightness = perceivedBrightness(r, g, b);
 
     if (this.alpha === undefined) {
@@ -164,6 +177,7 @@ export class HSLColor extends HSLColorBase<HSLColor> implements Color {
 // See: https://www.hsluv.org/
 export class HSLuvColor extends HSLColorBase<HSLuvColor> implements Color {
   readonly cssString: string;
+  readonly rgba: RGBA;
   readonly perceivedBrightness: number;
 
   constructor(hsl: ColorTuple | HSL, alpha?: number) {
@@ -174,6 +188,7 @@ export class HSLuvColor extends HSLColorBase<HSLuvColor> implements Color {
     const g = Math.floor(rgb[1] * 255);
     const b = Math.floor(rgb[2] * 255);
 
+    this.rgba = {r, g, b, a: this.alpha ?? 1};
     this.perceivedBrightness = perceivedBrightness(r, g, b);
 
     if (this.alpha === undefined) {
