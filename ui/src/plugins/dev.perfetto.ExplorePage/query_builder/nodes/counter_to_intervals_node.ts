@@ -167,6 +167,7 @@ export class CounterToIntervalsNode implements QueryNode {
   clone(): QueryNode {
     const stateCopy: CounterToIntervalsNodeState = {
       onchange: this.state.onchange,
+      sqlModules: this.state.sqlModules,
     };
     return new CounterToIntervalsNode(stateCopy);
   }

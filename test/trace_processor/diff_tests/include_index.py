@@ -176,6 +176,7 @@ from diff_tests.syntax.filtering_tests import PerfettoFiltering
 from diff_tests.syntax.function_tests import PerfettoFunction
 from diff_tests.syntax.include_tests import PerfettoInclude
 from diff_tests.syntax.macro_tests import PerfettoMacro
+from diff_tests.syntax.structured_query_tests import StructuredQueryTests
 from diff_tests.syntax.table_function_tests import PerfettoTableFunction
 from diff_tests.syntax.table_tests import PerfettoTable
 from diff_tests.syntax.view_tests import PerfettoView
@@ -352,6 +353,7 @@ def fetch_all_diff_tests(
       PerfettoTable,
       PerfettoTableFunction,
       PerfettoView,
+      StructuredQueryTests,
   ]
 
   tables_tests = [

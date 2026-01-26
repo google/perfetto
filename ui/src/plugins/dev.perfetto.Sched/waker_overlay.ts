@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncLimiter} from '../../base/async_limiter';
 import {canvasSave, drawDoubleHeadedArrow} from '../../base/canvas_utils';
 import {Size2D} from '../../base/geom';
+import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
 import {Duration, time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
@@ -35,10 +35,11 @@ const DIAMOND_SIZE = 8;
 const ARROW_HEIGHT = 12;
 
 export class WakerOverlay implements Overlay {
-  private readonly limiter = new AsyncLimiter();
   private readonly trace: Trace;
-  private readonly wakeupCache = new WeakMap<Selection, SchedWakeupInfo>();
-  private cachedSelection?: Selection;
+  private readonly queue = new SerialTaskQueue();
+  private readonly wakeupSlot = new QuerySlot<SchedWakeupInfo | undefined>(
+    this.queue,
+  );
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -55,24 +56,17 @@ export class WakerOverlay implements Overlay {
 
     // Get out if selection is not a CPU slice.
     if (!this.cpuSliceTrackSelected(selection)) {
-      this.cachedSelection = undefined;
       return;
     }
 
-    // Compare the current selection with the cached one to determine if it has
-    // changed and we need to start loading new wakeup info.
-    if (this.cachedSelection !== selection) {
-      this.cachedSelection = selection;
-      this.limiter.schedule(async () => {
-        const wakeupInfo = await this.loadWakeupInfo(selection);
-        if (!wakeupInfo) return;
-        this.wakeupCache.set(selection, wakeupInfo);
-      });
-    }
+    // Declaratively fetch wakeup info - QuerySlot handles caching and scheduling
+    const result = this.wakeupSlot.use({
+      key: {eventId: selection.eventId},
+      queryFn: () => this.loadWakeupInfo(selection),
+    });
 
-    // Check if we have the wakeup info cached, get out if not.
-    const wakeup = this.wakeupCache.get(selection);
-    if (!wakeup || !wakeup.wakeupTs) {
+    const wakeup = result.data;
+    if (!wakeup?.wakeupTs) {
       return;
     }
 

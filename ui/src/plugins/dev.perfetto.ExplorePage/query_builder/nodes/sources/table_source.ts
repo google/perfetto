@@ -209,7 +209,7 @@ export class TableSourceNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: NodeTitle(this.state.sqlTable?.name ?? ''),
+      content: NodeTitle('Table ' + (this.state.sqlTable?.name ?? '')),
     };
   }
 

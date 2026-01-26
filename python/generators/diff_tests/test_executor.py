@@ -23,7 +23,8 @@ from typing import Any, List
 from google.protobuf import text_format
 
 from python.generators.diff_tests.testing import (BinaryProto, Metric,
-                                                  MetricV2SpecTextproto)
+                                                  MetricV2SpecTextproto,
+                                                  StructuredQuery)
 from python.generators.diff_tests.models import TestCase, TestResult
 from python.generators.diff_tests.utils import ProtoManager, get_env
 
@@ -275,5 +276,70 @@ class MetricV2TestExecutor(TestExecutor):
 
       if not self.keep_input:
         os.remove(tmp_spec_file.name)
+    os.remove(tmp_perf_file.name)
+    return result
+
+
+class StructuredQueryTestExecutor(TestExecutor):
+  """Executor for structured query tests."""
+
+  def __init__(self, trace_processor_path: str,
+               override_sql_package_paths: List[str], keep_input: bool):
+    super().__init__(trace_processor_path, override_sql_package_paths)
+    self.keep_input = keep_input
+
+  def _execute_and_analyze(self, test: TestCase, trace_path: str,
+                           cmd: List[str], perf_file_path: str):
+    (stdout, stderr), returncode = self._execute_trace_processor(cmd)
+    actual = stdout.decode('utf8')
+
+    with open(perf_file_path, 'r') as f:
+      return TestResult(test, trace_path, cmd, test.expected_str, actual,
+                        stderr.decode('utf8'), returncode,
+                        [line for line in f.readlines()])
+
+  def run(self, test: TestCase, trace_path: str) -> TestResult:
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp_perf_file:
+      assert isinstance(test.blueprint.query, StructuredQuery)
+
+      # Handle spec file vs textproto
+      tmp_spec_file = None
+      if test.spec_textproto is not None:
+        # Write textproto to a temporary file
+        tmp_spec_file = tempfile.NamedTemporaryFile(
+            mode='w+', suffix='.textproto', delete=False)
+        tmp_spec_file.write(test.spec_textproto)
+        tmp_spec_file.close()
+        spec_file_path = tmp_spec_file.name
+      else:
+        assert test.spec_file_path is not None
+        spec_file_path = test.spec_file_path
+
+      try:
+        cmd = [
+            self.trace_processor_path,
+            '--analyze-trace-proto-content',
+            '--crop-track-events',
+            '--extra-checks',
+            '--structured-query-spec',
+            spec_file_path,
+            '--structured-query-id',
+            test.blueprint.query.query_id,
+            '--perf-file',
+            tmp_perf_file.name,
+            trace_path,
+        ]
+        if test.register_files_dir:
+          cmd += ['--register-files-dir', test.register_files_dir]
+        for sql_package_path in self.override_sql_package_paths:
+          cmd += ['--override-sql-package', sql_package_path]
+
+        result = self._execute_and_analyze(test, trace_path, cmd,
+                                           tmp_perf_file.name)
+      finally:
+        # Clean up temporary spec file if we created one
+        if tmp_spec_file is not None and not self.keep_input:
+          os.remove(tmp_spec_file.name)
+
     os.remove(tmp_perf_file.name)
     return result

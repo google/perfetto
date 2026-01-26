@@ -99,7 +99,7 @@ export class SortNode implements QueryNode {
       .join(', ');
 
     return {
-      content: m('div', label),
+      content: m('div', `Sort by ${label}`),
     };
   }
 
@@ -258,6 +258,7 @@ export class SortNode implements QueryNode {
       filters: this.state.filters?.map((f) => ({...f})),
       filterOperator: this.state.filterOperator,
       onchange: this.state.onchange,
+      sqlModules: this.state.sqlModules,
     };
     return new SortNode(stateCopy);
   }
@@ -266,7 +267,8 @@ export class SortNode implements QueryNode {
     if (this.primaryInput === undefined) return undefined;
 
     if (this.sortCols.length === 0) {
-      return this.primaryInput.getStructuredQuery();
+      // No sortable columns - return passthrough to maintain reference chain
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
     }
 
     const criteria: BuilderSortCriterion[] = [];
@@ -283,7 +285,8 @@ export class SortNode implements QueryNode {
     }
 
     if (criteria.length === 0) {
-      return this.primaryInput.getStructuredQuery();
+      // No valid sort criteria - return passthrough to maintain reference chain
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
     }
 
     return StructuredQueryBuilder.withOrderBy(

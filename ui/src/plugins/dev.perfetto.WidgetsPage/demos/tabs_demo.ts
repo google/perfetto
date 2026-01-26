@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../../base/semantic_icons';
 import {Tabs, TabsTab} from '../../../widgets/tabs';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
@@ -20,7 +21,7 @@ export function renderTabs(): m.Children {
   return [
     m(
       '.pf-widget-intro',
-      m('h1', 'TabBar'),
+      m('h1', 'Tabs'),
       m(
         'p',
         'A simple tab bar widget with tab handles and gated content. ' +
@@ -33,6 +34,7 @@ export function renderTabs(): m.Children {
           {
             key: 'tab1',
             title: 'First Tab',
+            leftIcon: opts.showIcons ? Icons.Info : undefined,
             content: m(
               '',
               {style: {padding: '16px'}},
@@ -42,22 +44,24 @@ export function renderTabs(): m.Children {
           {
             key: 'tab2',
             title: 'Second Tab',
+            leftIcon: opts.showIcons ? Icons.Chart : undefined,
             content: m(
               '',
               {style: {padding: '16px'}},
               'Content for the second tab. Switch between tabs to see the content change.',
             ),
-            closable: opts.closable,
+            closeButton: opts.closeButton,
           },
           {
             key: 'tab3',
             title: 'Third Tab',
+            leftIcon: opts.showIcons ? Icons.Search : undefined,
             content: m(
               '',
               {style: {padding: '16px'}},
               'Content for the third tab. The tab bar uses the Gate component to efficiently manage content visibility.',
             ),
-            closable: opts.closable,
+            closeButton: opts.closeButton,
           },
         ];
 
@@ -72,7 +76,7 @@ export function renderTabs(): m.Children {
           },
           m(Tabs, {
             tabs,
-            onTabClose: opts.closable
+            onTabClose: opts.closeButton
               ? (key) => {
                   console.log(`Close tab: ${key}`);
                 }
@@ -81,7 +85,8 @@ export function renderTabs(): m.Children {
         );
       },
       initialOpts: {
-        closable: false,
+        closeButton: false,
+        showIcons: true,
       },
     }),
   ];

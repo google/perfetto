@@ -56,7 +56,16 @@ import {SwitchComponent, IfComponent} from './computed_column_components';
 import {AddColumnsSuggestionModal} from './add_columns_suggestion_modal';
 import {AddColumnsConfigurationModal} from './add_columns_configuration_modal';
 import {renderTypeSelector} from './modify_columns_utils';
+import {FunctionWithModule} from '../function_list';
 import {Icon} from '../../../../widgets/icon';
+import {
+  FunctionModalState,
+  createFunctionModalState,
+  isFunctionModalValid,
+  createFunctionColumn,
+  FunctionSelectStep,
+  FunctionConfigureStep,
+} from './add_columns_function_modal';
 
 // Re-export types for backwards compatibility
 export {NewColumn, AddColumnsNodeState} from './add_columns_types';
@@ -438,28 +447,43 @@ export class AddColumnsNode implements QueryNode {
 
     // Add joined columns
     if (hasConnectedNode && hasSelectedColumns) {
+      items.push(m('div', 'Add columns from input node:'));
+      const columns = [];
       for (const col of this.state.selectedColumns ?? []) {
         const alias = this.state.columnAliases?.get(col);
         const displayName = alias || col;
-        items.push(m('div', [ColumnName(displayName), ': column from input']));
+        columns.push(displayName);
       }
+      items.push(
+        m('div', [
+          ...columns.flatMap((c, i) =>
+            i === 0 ? [ColumnName(c)] : [', ', ColumnName(c)],
+          ),
+        ]),
+      );
     }
 
     // Add computed columns
-    for (const col of this.state.computedColumns ?? []) {
-      const name = col.name || '(unnamed)';
-      let description = '';
-
-      if (col.type === 'switch') {
-        description = `SWITCH ON ${col.switchOn || '(not set)'}`;
-      } else if (col.type === 'if') {
-        const firstCondition = col.clauses?.[0]?.if || '(empty)';
-        description = `if ${firstCondition}`;
-      } else {
-        description = col.expression || '(empty)';
+    if (hasComputedColumns) {
+      if (hasConnectedNode && hasSelectedColumns) {
+        items.push(m('.pf-section-spacer'));
       }
+      items.push(m('div', 'Add computed columns:'));
+      for (const col of this.state.computedColumns ?? []) {
+        const name = col.name || '(unnamed)';
+        let description = '';
 
-      items.push(m('div', [ColumnName(name), `: ${description}`]));
+        if (col.type === 'switch') {
+          description = `SWITCH ON ${col.switchOn || '(not set)'}`;
+        } else if (col.type === 'if') {
+          const firstCondition = col.clauses?.[0]?.if || '(empty)';
+          description = `if ${firstCondition}`;
+        } else {
+          description = col.expression || '(empty)';
+        }
+
+        items.push(m('div', [ColumnName(name), `: ${description}`]));
+      }
     }
 
     return {
@@ -512,6 +536,13 @@ export class AddColumnsNode implements QueryNode {
             title: hasArgSetId
               ? 'Add a column from args'
               : 'Source must have an arg_set_id column',
+          }),
+          m(Button, {
+            label: 'Apply function',
+            icon: 'function',
+            onclick: () => this.showFunctionModal(),
+            variant: ButtonVariant.Outlined,
+            title: 'Apply a stdlib function to create a new column',
           }),
         ),
       },
@@ -936,6 +967,144 @@ export class AddColumnsNode implements QueryNode {
     });
   }
 
+  private showFunctionModal(columnIndex?: number) {
+    const modalKey = 'add-function-modal';
+    const isEditing = columnIndex !== undefined;
+    const existingColumn = isEditing
+      ? this.state.computedColumns?.[columnIndex]
+      : undefined;
+
+    // Create modal state using the helper
+    const modalState: FunctionModalState = createFunctionModalState(
+      isEditing,
+      existingColumn,
+      this.state.sqlModules,
+    );
+
+    // Generate a unique column name by appending a number suffix if needed
+    const generateUniqueColumnName = (baseName: string): string => {
+      let candidate = baseName;
+      let suffix = 2;
+      while (this.getColumnNameError(candidate, columnIndex) !== undefined) {
+        candidate = `${baseName}_${suffix}`;
+        suffix++;
+      }
+      return candidate;
+    };
+
+    const getColumnNameError = (name: string): string | undefined => {
+      if (!name.trim()) return undefined;
+      return this.getColumnNameError(name.trim(), columnIndex);
+    };
+
+    const handleFunctionSelect = (fnWithModule: FunctionWithModule) => {
+      modalState.selectedFunctionWithModule = fnWithModule;
+      // Initialize arg bindings
+      modalState.argBindings = fnWithModule.fn.args.map((arg) => ({
+        argName: arg.name,
+        value: '',
+        isCustomExpression: false,
+      }));
+      // Auto-generate unique column name
+      modalState.columnName = generateUniqueColumnName(
+        fnWithModule.fn.name.toLowerCase(),
+      );
+      modalState.step = 'configure';
+      // Re-show modal to update buttons (redrawModal only updates content)
+      showModalForStep();
+    };
+
+    const showModalForStep = () => {
+      showModal({
+        title:
+          modalState.step === 'select'
+            ? 'Select a Function'
+            : isEditing
+              ? 'Edit Function Column'
+              : `Configure: ${modalState.selectedFunctionWithModule?.fn.name}`,
+        key: modalKey,
+        vAlign: 'TOP',
+        className: 'pf-function-selection-modal',
+        content: () => {
+          if (modalState.step === 'select') {
+            return m(FunctionSelectStep, {
+              sqlModules: this.state.sqlModules!,
+              searchQuery: modalState.searchQuery,
+              selectedFunction: modalState.selectedFunctionWithModule?.fn.name,
+              onSearchQueryChange: (query) => {
+                modalState.searchQuery = query;
+                redrawModal();
+              },
+              onFunctionSelect: handleFunctionSelect,
+            });
+          }
+
+          // Configure step
+          return m(FunctionConfigureStep, {
+            selectedFunctionWithModule: modalState.selectedFunctionWithModule!,
+            argBindings: modalState.argBindings,
+            columnName: modalState.columnName,
+            columnNameError: getColumnNameError(modalState.columnName),
+            sourceCols: this.sourceCols,
+            onArgBindingChange: (argIndex, binding) => {
+              modalState.argBindings[argIndex] = binding;
+              redrawModal();
+            },
+            onColumnNameChange: (name) => {
+              modalState.columnName = name;
+              redrawModal();
+            },
+          });
+        },
+        buttons: [
+          // Back button only in configure step
+          ...(modalState.step === 'configure'
+            ? [
+                {
+                  text: 'Back',
+                  action: () => {
+                    modalState.step = 'select';
+                    showModalForStep();
+                  },
+                },
+              ]
+            : []),
+          {
+            text: 'Cancel',
+            action: () => {},
+          },
+          {
+            text: isEditing ? 'Save' : 'Add',
+            primary: true,
+            disabled: () =>
+              !isFunctionModalValid(modalState, getColumnNameError),
+            action: () => {
+              const newColumn = createFunctionColumn(modalState);
+              if (!newColumn) return;
+
+              if (isEditing && columnIndex !== undefined) {
+                const newComputedColumns = [
+                  ...(this.state.computedColumns ?? []),
+                ];
+                newComputedColumns[columnIndex] = newColumn;
+                this.state.computedColumns = newComputedColumns;
+              } else {
+                this.state.computedColumns = [
+                  ...(this.state.computedColumns ?? []),
+                  newColumn,
+                ];
+              }
+              this.state.onchange?.();
+              closeModal(modalKey);
+            },
+          },
+        ],
+      });
+    };
+
+    showModalForStep();
+  }
+
   private renderAddedColumnsList(): m.Child {
     const hasConnectedNode = this.rightNode !== undefined;
     const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
@@ -962,21 +1131,27 @@ export class AddColumnsNode implements QueryNode {
           ? 'alt_route'
           : col.type === 'if'
             ? 'help_outline'
-            : 'functions';
+            : col.type === 'function'
+              ? 'function'
+              : 'functions';
       const typeName =
         col.type === 'switch'
           ? 'Switch'
           : col.type === 'if'
             ? 'If'
-            : 'Expression';
+            : col.type === 'function'
+              ? 'Function'
+              : 'Expression';
 
       // Show the expression/preview for the column
       const description =
         col.type === 'switch' || col.type === 'if'
           ? typeName
-          : col.expression
-            ? `${typeName}: ${col.expression}`
-            : `${typeName} (empty)`;
+          : col.type === 'function'
+            ? `${typeName}: ${col.functionName ?? col.expression}`
+            : col.expression
+              ? `${typeName}: ${col.expression}`
+              : `${typeName} (empty)`;
 
       items.push(
         this.renderComputedColumnListItem(col, index, icon, description),
@@ -1089,6 +1264,8 @@ export class AddColumnsNode implements QueryNode {
               this.showSwitchModal(index);
             } else if (col.type === 'if') {
               this.showIfModal(index);
+            } else if (col.type === 'function') {
+              this.showFunctionModal(index);
             } else {
               this.showExpressionModal(index);
             }
@@ -1375,6 +1552,7 @@ export class AddColumnsNode implements QueryNode {
       filters: this.state.filters?.map((f) => ({...f})),
       filterOperator: this.state.filterOperator,
       onchange: this.state.onchange,
+      sqlModules: this.state.sqlModules,
     };
     return new AddColumnsNode(stateCopy);
   }
@@ -1395,9 +1573,12 @@ export class AddColumnsNode implements QueryNode {
         });
       }
 
-      // If there are no computed columns, just pass through
+      // If there are no computed columns, return passthrough to maintain reference chain
       if (computedColumns.length === 0) {
-        return this.primaryInput.getStructuredQuery();
+        return StructuredQueryBuilder.passthrough(
+          this.primaryInput,
+          this.nodeId,
+        );
       }
 
       // Build column specifications including existing columns and computed columns
@@ -1466,8 +1647,8 @@ export class AddColumnsNode implements QueryNode {
       };
     } else if (joinColumns.length > 0) {
       // If we have JOIN columns but no condition, this is an invalid state
-      // Fall back to just returning the base query
-      return this.primaryInput.getStructuredQuery();
+      // Return passthrough to maintain reference chain
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
     }
 
     // Collect referenced modules from computed columns
@@ -1475,14 +1656,16 @@ export class AddColumnsNode implements QueryNode {
       ?.map((col) => col.module)
       .filter((mod): mod is string => mod !== undefined);
 
+    // If no columns to add (neither JOIN columns nor computed columns), return passthrough
+    if (joinColumns.length === 0 && computedColumns.length === 0) {
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
+    }
+
     // Get all base columns from the source (needed when we have JOIN or computed columns)
-    const allBaseColumns: ColumnSpec[] =
-      joinColumns.length > 0 || computedColumns.length > 0
-        ? this.sourceCols.map((col) => ({
-            columnNameOrExpression: col.column.name,
-            alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
-          }))
-        : [];
+    const allBaseColumns: ColumnSpec[] = this.sourceCols.map((col) => ({
+      columnNameOrExpression: col.column.name,
+      alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
+    }));
 
     // Use the builder to handle the complexity of composing JOIN + computed columns
     return StructuredQueryBuilder.withAddColumnsAndExpressions(
@@ -1544,6 +1727,8 @@ export class AddColumnsNode implements QueryNode {
           : undefined,
         elseValue: c.elseValue,
         sqlType: c.sqlType,
+        functionName: c.functionName,
+        functionArgs: c.functionArgs,
       })),
     };
   }

@@ -174,7 +174,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base",
       "../base:clock_snapshots",
       "../protozero",
-      "dataframe",
+      "core/dataframe",
       "importers/android_bugreport",
       "importers/archive",
       "importers/art_hprof",
@@ -253,9 +253,11 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base",
       "../base:version",
       "metrics",
+      "perfetto_sql/generator",
       "rpc",
       "rpc:stdiod",
       "sqlite",
+      "trace_summary",
       "util:stdlib",
     ]
     if (enable_perfetto_trace_processor_linenoise) {
@@ -348,8 +350,9 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":top_level_unittests",
     "containers:unittests",
-    "dataframe:unittests",
-    "dataframe/impl:unittests",
+    "core/dataframe:unittests",
+    "core/interpreter:unittests",
+    "core/util:unittests",
     "importers/android_bugreport:unittests",
     "importers/common:unittests",
     "importers/ftrace:unittests",

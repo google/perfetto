@@ -28,9 +28,9 @@ from python.generators.diff_tests.utils import (ColorFormatter, ProtoManager,
                                                 get_trace_descriptor_path,
                                                 write_diff)
 from python.generators.diff_tests.trace_generator import generate_trace_file
-from python.generators.diff_tests.test_executor import (QueryTestExecutor,
-                                                        MetricTestExecutor,
-                                                        MetricV2TestExecutor)
+from python.generators.diff_tests.test_executor import (
+    QueryTestExecutor, MetricTestExecutor, MetricV2TestExecutor,
+    StructuredQueryTestExecutor)
 from python.generators.diff_tests.test_loader import TestLoader
 
 
@@ -175,6 +175,11 @@ class DiffTestsRunner:
           self.config.override_sql_package_paths, self.config.keep_input,
           ProtoManager([self.config.summary_descriptor]).create_message,
           ProtoManager([self.config.summary_descriptor]).create_message)
+      result = executor.run(test, trace_path)
+    elif test.type == TestType.STRUCTURED_QUERY:
+      executor = StructuredQueryTestExecutor(
+          self.config.trace_processor_path,
+          self.config.override_sql_package_paths, self.config.keep_input)
       result = executor.run(test, trace_path)
     else:
       assert False
