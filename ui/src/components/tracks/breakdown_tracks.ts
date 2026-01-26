@@ -441,7 +441,15 @@ export class BreakdownTracks {
               ${filtersClause}
             `,
           }),
-          detailsPanel: this.props.detailsPanel ? (row: {id: number; ts: bigint; dur: bigint | null; name: string}) => new (this.props.detailsPanel!)(this.props.trace, BigInt(row.id)) : undefined,
+          detailsPanel: this.props.detailsPanel
+            ? (row: {
+                id: number;
+                ts: bigint;
+                dur: bigint | null;
+                name: string;
+              }) =>
+                new this.props.detailsPanel!(this.props.trace, BigInt(row.id))
+            : undefined,
         });
       },
     );

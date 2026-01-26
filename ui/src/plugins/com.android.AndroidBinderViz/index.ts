@@ -18,13 +18,24 @@ import {
 } from '../../components/tracks/breakdown_tracks';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import {BinderSliceDetailsPanel} from './details_panel';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidBinderViz';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await this.createBinderTransactionTrack(ctx, 'server', 'client', 'binder_txn_id');
-    await this.createBinderTransactionTrack(ctx, 'client', 'server', 'binder_reply_id');
+    await this.createBinderTransactionTrack(
+      ctx,
+      'server',
+      'client',
+      'binder_txn_id',
+    );
+    await this.createBinderTransactionTrack(
+      ctx,
+      'client',
+      'server',
+      'binder_reply_id',
+    );
   }
 
   async createBinderTransactionTrack(
@@ -58,7 +69,7 @@ export default class implements PerfettoPlugin {
       },
       sliceIdColumn: sliceIdColumn,
       sortTracks: false,
-      detailsPanel: (await import('./details_panel')).BinderTransactionDetailsPanel,
+      detailsPanel: BinderSliceDetailsPanel,
     });
 
     ctx.defaultWorkspace.addChildInOrder(

@@ -1,5 +1,4 @@
-
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,17 +20,13 @@ import {SliceRef} from '../../components/widgets/slice';
 import {getSlice, SliceDetails} from '../../components/sql_utils/slice';
 import {renderDetails} from '../../components/details/slice_details';
 import {Engine} from '../../trace_processor/engine';
-import {NUM, STR_NULL} from '../../trace_processor/query_result';
+import {STR_NULL} from '../../trace_processor/query_result';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Section} from '../../widgets/section';
 
 // Define an interface for the binder transaction details
 interface BinderTxnDetails {
-  sliceType: string;
-  clientSliceId: SliceSqlId;
-  serverSliceId?: SliceSqlId;
-  clientProcess?: string;
-  serverProcess?: string;
+  side: string;
   interfaceName?: string;
   methodName?: string;
 }
@@ -39,14 +34,10 @@ interface BinderTxnDetails {
 async function getBinderTxnDetails(
   engine: Engine,
   id: SliceSqlId,
-): Promise<BinderTxnDetails|undefined> {
+): Promise<BinderTxnDetails | undefined> {
   const queryResult = await engine.query(`
     SELECT
-      IF(binder_txn_id = ${id}, 'Client', IF(binder_reply_id = ${id}, 'Server', '')) as sliceType,
-      binder_txn_id as clientSliceId,
-      binder_reply_id as serverSliceId,
-      client_process as clientProcess,
-      server_process as serverProcess,
+      IF(binder_txn_id = ${id}, 'Client', IF(binder_reply_id = ${id}, 'Server', '')) as side,
       interface as interfaceName,
       method_name as methodName
     FROM android_binder_txns
@@ -54,22 +45,14 @@ async function getBinderTxnDetails(
   `);
 
   const it = queryResult.iter({
-    sliceType: STR_NULL,
-    clientSliceId: NUM,
-    serverSliceId: NUM,
-    clientProcess: STR_NULL,
-    serverProcess: STR_NULL,
+    side: STR_NULL,
     interfaceName: STR_NULL,
     methodName: STR_NULL,
   });
 
   if (it.valid()) {
     return {
-      sliceType: it.sliceType || 'Unknown',
-      clientSliceId: asSliceSqlId(it.clientSliceId),
-      serverSliceId: asSliceSqlId(it.serverSliceId),
-      clientProcess: it.clientProcess ?? undefined,
-      serverProcess: it.serverProcess ?? undefined,
+      side: it.side || 'Unknown',
       interfaceName: it.interfaceName ?? undefined,
       methodName: it.methodName ?? undefined,
     };
@@ -77,9 +60,9 @@ async function getBinderTxnDetails(
   return undefined;
 }
 
-export class BinderTransactionDetailsPanel implements TrackEventDetailsPanel {
-  private sliceDetails: SliceDetails|undefined;
-  private binderTxnDetails: BinderTxnDetails|undefined;
+export class BinderSliceDetailsPanel implements TrackEventDetailsPanel {
+  private sliceDetails: SliceDetails | undefined;
+  private binderTxnDetails: BinderTxnDetails | undefined;
   private isLoading = true;
 
   constructor(
@@ -87,11 +70,10 @@ export class BinderTransactionDetailsPanel implements TrackEventDetailsPanel {
     private readonly id: bigint,
   ) {
     const sliceId = asSliceSqlId(Number(this.id));
-    Promise
-      .all([
-        getSlice(this.trace.engine, sliceId),
-        getBinderTxnDetails(this.trace.engine, sliceId),
-      ])
+    Promise.all([
+      getSlice(this.trace.engine, sliceId),
+      getBinderTxnDetails(this.trace.engine, sliceId),
+    ])
       .then(([slice, binderTxn]) => {
         this.sliceDetails = slice;
         this.binderTxnDetails = binderTxn;
@@ -114,14 +96,15 @@ export class BinderTransactionDetailsPanel implements TrackEventDetailsPanel {
       return m('.details-panel', m('h2', 'Slice not found'));
     }
 
-    const sliceType = this.binderTxnDetails?.sliceType;
-    const clientSliceId = this.binderTxnDetails?.clientSliceId;
-    const serverSliceId = this.binderTxnDetails?.serverSliceId;
-    const title = this.sliceDetails?.name;
+    const side = this.binderTxnDetails?.side;
+    const sliceId = this.sliceDetails?.id;
+    const name = this.sliceDetails?.name;
 
     return m(
       '.details-panel',
-      m(Section, {title: sliceType + " " + title},
+      m(
+        Section,
+        {title: side + ' ' + name},
         this.binderTxnDetails &&
           m(
             Tree,
@@ -133,32 +116,16 @@ export class BinderTransactionDetailsPanel implements TrackEventDetailsPanel {
               left: 'Method',
               right: this.binderTxnDetails.methodName,
             }),
-            sliceType === 'Client' && m(TreeNode, {
-              left: 'Client Process',
-              right: this.binderTxnDetails.clientProcess,
-            }),
-            sliceType === 'Client' && clientSliceId && m(TreeNode, {
-              left: 'Client slice',
+            m(TreeNode, {
+              left: side + ' slice',
               right: m(SliceRef, {
                 trace: this.trace,
-                id: clientSliceId,
-                name: `slice[${clientSliceId}]`,
-              }),
-            }),
-            sliceType === 'Server' && m(TreeNode, {
-              left: 'Server Process',
-              right: this.binderTxnDetails.serverProcess,
-            }),
-            sliceType === 'Server' && serverSliceId && m(TreeNode, {
-              left: 'Server slice',
-              right: m(SliceRef, {
-                trace: this.trace,
-                id: serverSliceId,
-                name: `slice[${serverSliceId}]`,
+                id: sliceId,
+                name: `slice[${sliceId}]`,
               }),
             }),
           ),
-        ),
+      ),
       renderDetails(this.trace, this.sliceDetails),
     );
   }
