@@ -13,12 +13,7 @@
 // limitations under the License.
 
 import {ExplorePageState} from './explore_page';
-import {
-  QueryNode,
-  NodeType,
-  singleNodeOperation,
-  ensureCounterAbove,
-} from './query_node';
+import {QueryNode, NodeType, singleNodeOperation} from './query_node';
 import {getAllNodes as getAllNodesUtil} from './query_builder/graph_utils';
 import {
   TableSourceNode,
@@ -416,9 +411,6 @@ export function deserializeState(
     (node as {nodeId: string}).nodeId = serializedNode.nodeId;
     nodes.set(serializedNode.nodeId, node);
   }
-
-  // Ensure the global node counter is above all loaded IDs to prevent collisions
-  ensureCounterAbove(serializedGraph.nodes.map((n) => n.nodeId));
 
   // Second pass: set forward links (nextNodes)
   for (const serializedNode of serializedGraph.nodes) {

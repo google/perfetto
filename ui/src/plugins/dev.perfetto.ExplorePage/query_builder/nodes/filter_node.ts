@@ -470,11 +470,7 @@ export class FilterNode implements QueryNode {
     if (mode === 'freeform') {
       // Use SQL expression for freeform filtering
       if (!this.state.sqlExpression || this.state.sqlExpression.trim() === '') {
-        // No filter expression - return passthrough to maintain reference chain
-        return StructuredQueryBuilder.passthrough(
-          this.primaryInput,
-          this.nodeId,
-        );
+        return this.primaryInput.getStructuredQuery();
       }
 
       // Create a filter group with just the SQL expression
@@ -497,8 +493,7 @@ export class FilterNode implements QueryNode {
       this.state.filters?.filter((f) => this.isFilterValid(f)) ?? [];
 
     if (validFilters.length === 0) {
-      // No valid filters - return passthrough to maintain reference chain
-      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
+      return this.primaryInput.getStructuredQuery();
     }
 
     const filtersProto = createExperimentalFiltersProto(
@@ -508,8 +503,7 @@ export class FilterNode implements QueryNode {
     );
 
     if (filtersProto === undefined) {
-      // No valid filters proto - return passthrough to maintain reference chain
-      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
+      return this.primaryInput.getStructuredQuery();
     }
 
     return StructuredQueryBuilder.withFilter(
