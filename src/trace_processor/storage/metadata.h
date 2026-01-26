@@ -119,7 +119,8 @@ enum class KeyType : size_t {
 
 #define PERFETTO_TP_META_TYPE_NAME(_, name, ...) name
 constexpr char const* kKeyTypeNames[] = {
-    PERFETTO_TP_METADATA_KEY_TYPES(PERFETTO_TP_META_TYPE_NAME)};
+    PERFETTO_TP_METADATA_KEY_TYPES(PERFETTO_TP_META_TYPE_NAME)
+};
 
 #define PERFETTO_TP_META_SCOPE_ENUM(varname, ...) varname
 enum class Scope : size_t {

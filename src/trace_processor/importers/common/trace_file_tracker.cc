@@ -59,7 +59,7 @@ void TraceFileTracker::SetSize(tables::TraceFileTable::Id id, uint64_t size) {
 
 void TraceFileTracker::StartParsing(tables::TraceFileTable::Id id,
                                     TraceType trace_type) {
-  parsing_stack_.push_back({id, false});
+  parsing_stack_.push_back({id, /*has_children=*/false});
   auto row = *context_->storage->mutable_trace_file_table()->FindById(id);
   row.set_trace_type(
       context_->storage->InternString(TraceTypeToString(trace_type)));
@@ -74,12 +74,16 @@ void TraceFileTracker::DoneParsing(tables::TraceFileTable::Id id, size_t size) {
   row.set_size(static_cast<int64_t>(size));
 
   if (!has_children) {
-    context_->metadata_tracker->SetMetadata(metadata::trace_type,
-                                            Variadic::String(row.trace_type()),
-                                            std::nullopt, id.value);
-    context_->metadata_tracker->SetMetadata(metadata::trace_size_bytes,
-                                            Variadic::Integer(row.size()),
-                                            std::nullopt, id.value);
+    // TraceFileTracker is a global service using the root context, which lacks
+    // a specific trace identity (context->trace_id() is nullopt). To ensure
+    // these metadata items are correctly associated with the leaf trace they
+    // describe, we must explicitly pass the trace_file ID as the trace_id.
+    context_->metadata_tracker->SetMetadata(
+        metadata::trace_type, Variadic::String(row.trace_type()),
+        /*machine_id=*/std::nullopt, /*trace_id=*/id.value);
+    context_->metadata_tracker->SetMetadata(
+        metadata::trace_size_bytes, Variadic::Integer(row.size()),
+        /*machine_id=*/std::nullopt, /*trace_id=*/id.value);
   }
 }
 

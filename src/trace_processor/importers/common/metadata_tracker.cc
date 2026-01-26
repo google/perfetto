@@ -139,7 +139,9 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key,
         // allowing sibling traces (which are NOT descendants of each other) to
         // have their own separate entries if they provide their own UUIDs.
         if (key == metadata::trace_uuid && trace_id.has_value()) {
-          if (IsAncestor(context_->storage.get(), it.trace_id(), *trace_id)) {
+          if (IsAncestor(context_->storage.get(),
+                         /*possible_parent=*/it.trace_id(),
+                         /*child=*/*trace_id)) {
             // Hijack the row from the ancestor container.
             it.set_trace_id(trace_id);
             WriteValue(it.row_number().row_number(), value);
@@ -177,20 +179,10 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
 
   std::optional<tables::MetadataTable::RowReference> row;
   for (auto it = metadata_table.IterateRows(); it; ++it) {
-    if (key_id == it.name()) {
-      if (it.machine_id() == machine_id && it.trace_id() == trace_id) {
-        row = it.ToRowReference();
-        break;
-      }
-      // For trace_uuid, return the first entry if it's an ancestor of the
-      // current context. This ensures GetMetadata(trace_uuid) works even
-      // before promotion.
-      if (key == metadata::trace_uuid && trace_id.has_value()) {
-        if (IsAncestor(context_->storage.get(), it.trace_id(), *trace_id)) {
-          row = it.ToRowReference();
-          break;
-        }
-      }
+    if (key_id == it.name() && it.machine_id() == machine_id &&
+        it.trace_id() == trace_id) {
+      row = it.ToRowReference();
+      break;
     }
   }
   if (!row.has_value()) {

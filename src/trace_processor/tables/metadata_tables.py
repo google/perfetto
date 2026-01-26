@@ -671,24 +671,12 @@ METADATA_TABLE = Table(
         doc='''''',
         group='Metadata',
         columns={
-            'name':
-                '''''',
-            'key_type':
-                '''''',
-            'int_value':
-                '''''',
-            'str_value':
-                '''''',
-            'machine_id':
-                '''
-                  Machine identifier, non-null for metadata items with machine
-                  scope.
-                ''',
-            'trace_id':
-                '''
-                  Trace identifier, non-null for metadata items with trace
-                  scope.
-                ''',
+            'name': '''''',
+            'key_type': '''''',
+            'int_value': '''''',
+            'str_value': '''''',
+            'machine_id': '''''',
+            'trace_id': '''''',
         }))
 
 FILEDESCRIPTOR_TABLE = Table(
