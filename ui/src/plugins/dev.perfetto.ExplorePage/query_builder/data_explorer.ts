@@ -33,6 +33,7 @@ import {UIFilter, normalizeDataGridFilter} from './operations/filter';
 import {DataExplorerEmptyState} from './widgets';
 import {Trace} from '../../../public/trace';
 import {Timestamp} from '../../../components/widgets/timestamp';
+import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
@@ -67,6 +68,7 @@ export interface DataExplorerAttrs {
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
   readonly dataSource?: DataSource;
+  readonly sqlModules: SqlModules;
   readonly isQueryRunning: boolean;
   readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
@@ -366,8 +368,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       const columnSchema: ColumnSchema = {};
       const schema: SchemaRegistry = {data: columnSchema};
 
-      // Get sqlModules from node state (if available)
-      const {sqlModules} = attrs.node.state;
+      // Get sqlModules from attrs (centralized, not from node state)
+      const {sqlModules} = attrs;
 
       // Capture columns for use in closures
       const responseColumns = attrs.response.columns;
