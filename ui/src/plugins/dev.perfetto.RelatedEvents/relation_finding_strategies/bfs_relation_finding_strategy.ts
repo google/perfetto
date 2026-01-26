@@ -43,15 +43,6 @@ interface DetailedEventInfo {
   eventArgs: Map<string, string>;
 }
 
-const EVENT_DETAILS_SCHEMA = {
-  id: NUM,
-  name: STR,
-  ts: LONG,
-  dur: LONG,
-  track_id: NUM,
-  arg_set_id: NUM,
-};
-
 export class RuleBasedBfsStrategy implements RelationFindingStrategy {
   constructor(private rules: RelationRule[]) {}
 
@@ -231,7 +222,10 @@ export class RuleBasedBfsStrategy implements RelationFindingStrategy {
   ): Promise<Map<number, DetailedEventInfo>> {
     if (!dataset || sliceIds.length === 0) return new Map();
 
-    const trackBaseQuery = dataset.query(EVENT_DETAILS_SCHEMA);
+    const trackBaseQuery = dataset.query({
+      ...RELATED_EVENT_SCHEMA,
+      arg_set_id: NUM,
+    });
     const idList = sliceIds.join(',');
     const sql = `
         SELECT

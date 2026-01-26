@@ -19,6 +19,7 @@ import {
 } from '../../../trace_processor/dataset';
 import {
   EventContext,
+  RELATED_EVENT_SCHEMA,
   RelationFindingStrategy,
   RelationRule,
 } from '../relation_finding_strategy';
@@ -33,15 +34,6 @@ interface DetailedEventInfo {
   trackId: number;
   eventArgs: Map<string, string>;
 }
-
-const EVENT_DETAILS_SCHEMA = {
-  id: NUM,
-  name: STR,
-  ts: LONG,
-  dur: LONG,
-  track_id: NUM,
-  arg_set_id: NUM,
-};
 
 export class BasicRelationFindingStrategy implements RelationFindingStrategy {
   constructor(private rules: RelationRule[]) {}
@@ -107,7 +99,10 @@ export class BasicRelationFindingStrategy implements RelationFindingStrategy {
     sliceId: number,
     dataset: Dataset,
   ): Promise<Map<number, DetailedEventInfo>> {
-    const trackBaseQuery = dataset.query(EVENT_DETAILS_SCHEMA);
+    const trackBaseQuery = dataset.query({
+      ...RELATED_EVENT_SCHEMA,
+      arg_set_id: NUM,
+    });
     const sql = `
         SELECT
             b.id,
