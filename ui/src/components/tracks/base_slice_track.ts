@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
-import {colorCompare} from '../../base/color';
 import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
@@ -39,6 +38,8 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
+import {deferToBackground, yieldBackgroundTask} from '../../base/utils';
+import {RECT_FLAG_FADEOUT} from '../../base/timeline_renderer';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -47,6 +48,7 @@ export const SLICE_FLAGS_INSTANT = 2;
 
 // Slices smaller than this don't get any text:
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
+
 const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const SLICE_MIN_WIDTH_FADED_PX = 0.1;
 
@@ -112,6 +114,7 @@ function filterVisibleSlices<S extends Slice>(
   // The last visible slice is simpler, since the slices are sorted
   // by timestamp you can binary search for the last slice such
   // that slice.start <= end.
+  return slices;
 
   return slices.filter((slice) => slice.startNs <= end && slice.endNs >= start);
 }
@@ -143,6 +146,9 @@ export type BaseRow = typeof BASE_ROW;
 interface SliceInternal {
   x: number;
   w: number;
+  // Cached time-relative values for GPU rendering (computed once when data loads)
+  relativeStartNs: number; // Start time relative to cache window start
+  durationNs: number; // Duration in nanoseconds
 }
 
 // We use this to avoid exposing subclasses to the properties that live on
@@ -206,6 +212,12 @@ export abstract class BaseSliceTrack<
 
   // Computed layout.
   private computedTrackHeight = 0;
+
+  // Reusable typed arrays for bulk WebGL rendering
+  private topLeft?: Float32Array;
+  private bottomRight?: Float32Array;
+  private rectColors?: Uint8Array;
+  private rectFlags?: Uint8Array;
 
   private readonly trash: AsyncDisposableStack;
 
@@ -368,7 +380,8 @@ export abstract class BaseSliceTrack<
     const incomplete = new Array<CastInternal<SliceT>>(queryRes.numRows());
     const it = queryRes.iter(this.rowSpec);
     for (let i = 0; it.valid(); it.next(), ++i) {
-      incomplete[i] = this.rowToSliceInternal(it);
+      // Incomplete slices use Canvas 2D, not WebGL, so cacheStart doesn't matter
+      incomplete[i] = this.rowToSliceInternal(it, Time.ZERO);
     }
     this.onUpdatedSlices(incomplete);
     this.incomplete = incomplete;
@@ -423,7 +436,7 @@ export abstract class BaseSliceTrack<
     );
 
     // If the visible time range is outside the cached area, requests
-    // asynchronously new data from the SQL engine.
+    // new data from the SQL engine during idle time.
     await this.maybeRequestData(rawSlicesKey);
   }
 
@@ -433,6 +446,7 @@ export abstract class BaseSliceTrack<
     visibleWindow,
     timescale,
     colors,
+    timelineRenderer,
   }: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
@@ -525,53 +539,132 @@ export abstract class BaseSliceTrack<
       }
     }
 
-    // Second pass: fill slices by color.
-    const vizSlicesByColor = vizSlices.slice();
-    if (!this.forceTimestampRenderOrder) {
-      vizSlicesByColor.sort((a, b) =>
-        colorCompare(a.colorScheme.base, b.colorScheme.base),
-      );
+    // Count batchable slices for WebGL (regular + non-cropped incomplete)
+    let batchableSliceCount = 0;
+    for (const slice of vizSlices) {
+      if (slice.flags & SLICE_FLAGS_INSTANT) {
+        // Instant slices are billboards, not in the rect batch
+        continue;
+      }
+      // Cropped incomplete slices use Canvas 2D for the jagged edge visual
+      if (
+        slice.flags & SLICE_FLAGS_INCOMPLETE &&
+        CROP_INCOMPLETE_SLICE_FLAG.get()
+      ) {
+        continue;
+      }
+      batchableSliceCount++;
     }
+
+    // Ensure arrays are large enough for batchable slices
+    if (!this.topLeft || this.topLeft.length < batchableSliceCount * 2) {
+      this.topLeft = new Float32Array(batchableSliceCount * 2);
+      this.bottomRight = new Float32Array(batchableSliceCount * 2);
+      this.rectColors = new Uint8Array(batchableSliceCount * 4);
+      this.rectFlags = new Uint8Array(batchableSliceCount);
+    }
+
+    const topLeft = this.topLeft;
+    const bottomRight = this.bottomRight;
+    const rectColors = this.rectColors;
+    const rectFlags = this.rectFlags;
+    let rectIndex = 0;
+
+    // Push time transform for WebGL rendering (used by both sprites and rects).
+    // The transform is popped when sliceTransform goes out of scope.
+    using sliceTransform = timelineRenderer.pushTransform({
+      offsetX: timescale.timeToPx(this.slicesKey.start),
+      offsetY: 0,
+      scaleX: timescale.durationToPx(1n),
+      scaleY: 1,
+    });
+    void sliceTransform; // Suppress unused variable warning
+
     let lastColor = undefined;
     for (const slice of vizSlices) {
       const color = slice.isHighlighted
         ? slice.colorScheme.variant
         : slice.colorScheme.base;
-      const colorString = color.cssString;
-      if (colorString !== lastColor) {
-        lastColor = colorString;
-        ctx.fillStyle = colorString;
-      }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
-        this.drawChevron(ctx, slice.x, y, sliceHeight);
-      } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
-        const w = CROP_INCOMPLETE_SLICE_FLAG.get()
-          ? slice.w
-          : Math.max(slice.w - 2, 2);
-        drawIncompleteSlice(
-          ctx,
-          slice.x,
+        // Use WebGL sprite rendering - x is in time units, centered horizontally
+        const rgba = color.rgba;
+        timelineRenderer.drawBillboard(
+          slice.relativeStartNs,
           y,
-          w,
+          this.instantWidthPx,
           sliceHeight,
-          color,
-          !CROP_INCOMPLETE_SLICE_FLAG.get(),
+          {r: rgba.r, g: rgba.g, b: rgba.b, a: Math.round(rgba.a * 255)},
+          (c, x, y, w, h) =>
+            this.drawChevron(c, x + (w - CHEVRON_WIDTH_PX) / 2, y, h),
         );
+      } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
+        if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
+          // Cropped incomplete slices use Canvas 2D for the jagged edge visual
+          drawIncompleteSlice(ctx, slice.x, y, slice.w, sliceHeight, color, false);
+        } else {
+          // Non-cropped incomplete slices extend to infinity - use WebGL
+          // Compute relative start time (incomplete slices use Time.ZERO as base)
+          const relativeStart = Number(slice.startNs - this.slicesKey.start);
+          if (topLeft && bottomRight && rectColors && rectFlags) {
+            topLeft[rectIndex * 2] = relativeStart;
+            topLeft[rectIndex * 2 + 1] = y;
+            // Use +Infinity for right edge - renderer extends to canvas edge
+            bottomRight[rectIndex * 2] = Infinity;
+            bottomRight[rectIndex * 2 + 1] = y + sliceHeight;
+            rectColors[rectIndex * 4] = color.rgba.r;
+            rectColors[rectIndex * 4 + 1] = color.rgba.g;
+            rectColors[rectIndex * 4 + 2] = color.rgba.b;
+            rectColors[rectIndex * 4 + 3] = Math.round(color.rgba.a * 255);
+            rectFlags[rectIndex] = RECT_FLAG_FADEOUT;
+            rectIndex++;
+          }
+        }
       } else {
-        const w = Math.max(
-          slice.w,
-          FADE_THIN_SLICES_FLAG.get()
-            ? SLICE_MIN_WIDTH_FADED_PX
-            : SLICE_MIN_WIDTH_PX,
-        );
-        ctx.fillRect(slice.x, y, w, sliceHeight);
+        // Regular slices - use WebGL when available
+        if (topLeft && bottomRight && rectColors && rectFlags) {
+          // Batch for WebGL using precomputed time-relative values
+          topLeft[rectIndex * 2] = slice.relativeStartNs;
+          topLeft[rectIndex * 2 + 1] = y;
+          bottomRight[rectIndex * 2] = slice.relativeStartNs + slice.durationNs;
+          bottomRight[rectIndex * 2 + 1] = y + sliceHeight;
+          rectColors[rectIndex * 4] = color.rgba.r;
+          rectColors[rectIndex * 4 + 1] = color.rgba.g;
+          rectColors[rectIndex * 4 + 2] = color.rgba.b;
+          rectColors[rectIndex * 4 + 3] = Math.round(color.rgba.a * 255);
+          rectFlags[rectIndex] = 0;
+          rectIndex++;
+        } else {
+          const w = Math.max(
+            slice.w,
+            FADE_THIN_SLICES_FLAG.get()
+              ? SLICE_MIN_WIDTH_FADED_PX
+              : SLICE_MIN_WIDTH_PX,
+          );
+          const colorString = color.cssString;
+          if (colorString !== lastColor) {
+            lastColor = colorString;
+            ctx.fillStyle = colorString;
+          }
+          ctx.fillRect(slice.x, y, w, sliceHeight);
+        }
       }
+    }
+
+    // Flush batched regular slices to WebGL
+    if (topLeft && bottomRight && rectColors && rectFlags && rectIndex > 0) {
+      timelineRenderer.drawRects(
+        topLeft,
+        bottomRight,
+        rectColors,
+        rectIndex,
+        rectFlags,
+      );
     }
 
     // Pass 2.5: Draw fillRatio light section.
     ctx.fillStyle = `#FFFFFF50`;
-    for (const slice of vizSlicesByColor) {
+    for (const slice of vizSlices) {
       // Can't draw fill ratio on incomplete or instant slices.
       if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
         continue;
@@ -696,25 +789,14 @@ export abstract class BaseSliceTrack<
   }
 
   // This method figures out if the visible window is outside the bounds of
-  // the cached data and if so issues new queries (i.e. sorta subsumes the
-  // onBoundsChange).
-  private async maybeRequestData(rawSlicesKey: CacheKey) {
+  // the cached data and if so issues new queries. Uses requestIdleCallback
+  // to defer work to idle time, avoiding frame drops.
+  private async maybeRequestData(rawSlicesKey: CacheKey): Promise<void> {
     if (rawSlicesKey.isCoveredBy(this.slicesKey)) {
       return; // We have the data already, no need to re-query
     }
 
-    // Determine the cache key:
     const slicesKey = rawSlicesKey.normalize();
-    if (!rawSlicesKey.isCoveredBy(slicesKey)) {
-      throw new Error(
-        `Normalization error ${slicesKey.toString()} ${rawSlicesKey.toString()}`,
-      );
-    }
-
-    // Here convert each row to a Slice. We do what we can do
-    // generically in the base class, and delegate the rest to the impl
-    // via that rowToSlice() abstract call.
-    const slices = new Array<CastInternal<SliceT>>();
 
     // The mipmap virtual table will error out when passed a 0 length time span.
     const resolution = slicesKey.bucketSize;
@@ -737,20 +819,28 @@ export abstract class BaseSliceTrack<
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
-    const it = queryRes.iter(this.rowSpec);
+    let idle = await deferToBackground();
 
+    // Iterate over results, yielding to idle callbacks when time runs out.
+    // Check every 100 iterations to amortize the cost of timeRemaining().
+    const it = queryRes.iter(this.rowSpec);
+    const slices = new Array<CastInternal<SliceT>>();
     let maxDataDepth = this.maxDataDepth;
-    for (let i = 0; it.valid(); it.next(), ++i) {
-      if (it.dur === -1n) {
-        continue;
+    let i = 0;
+
+    while (it.valid()) {
+      if (++i % 100 === 0 && idle.timeRemaining() <= 0) {
+        idle = await yieldBackgroundTask();
       }
 
-      maxDataDepth = Math.max(maxDataDepth, it.depth);
-      // Construct the base slice. The Impl will construct and return
-      // the full derived T["slice"] (e.g. CpuSlice) in the
-      // rowToSlice() method.
-      slices.push(this.rowToSliceInternal(it));
+      if (it.dur !== -1n) {
+        maxDataDepth = Math.max(maxDataDepth, it.depth);
+        slices.push(this.rowToSliceInternal(it, slicesKey.start));
+      }
+      it.next();
     }
+
+    // Iteration complete - finalize the data.
     for (const incomplete of this.incomplete) {
       maxDataDepth = Math.max(maxDataDepth, incomplete.depth);
     }
@@ -763,7 +853,10 @@ export abstract class BaseSliceTrack<
     raf.scheduleCanvasRedraw();
   }
 
-  private rowToSliceInternal(row: RowT): CastInternal<SliceT> {
+  private rowToSliceInternal(
+    row: RowT,
+    cacheStart: time,
+  ): CastInternal<SliceT> {
     const slice = this.rowToSlice(row);
 
     // If this is a more updated version of the selected slice throw
@@ -776,6 +869,9 @@ export abstract class BaseSliceTrack<
       ...slice,
       x: -1,
       w: -1,
+      // Precompute time-relative values for GPU rendering
+      relativeStartNs: Number(slice.startNs - cacheStart),
+      durationNs: Number(slice.durNs),
     };
   }
 
@@ -928,7 +1024,7 @@ export abstract class BaseSliceTrack<
   }
 
   protected drawChevron(
-    ctx: CanvasRenderingContext2D,
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     x: number,
     y: number,
     h: number,

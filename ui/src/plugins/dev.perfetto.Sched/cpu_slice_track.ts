@@ -14,10 +14,9 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Monitor} from '../../base/monitor';
-import {search, searchEq, searchSegment} from '../../base/binary_search';
-import {assertExists, assertTrue} from '../../base/logging';
+import {searchEq} from '../../base/binary_search';
+import {assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
-import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
 import m from 'mithril';
@@ -37,18 +36,33 @@ import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
+import {
+  TimelineRenderer,
+  RECT_FLAG_HATCHED,
+  RECT_FLAG_FADEOUT,
+} from '../../base/timeline_renderer';
+import {deferToBackground, yieldBackgroundTask} from '../../base/utils';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
   counts: Float64Array;
   ids: Float64Array;
-  startQs: BigInt64Array;
-  endQs: BigInt64Array;
   tses: BigInt64Array;
   durs: BigInt64Array;
   utids: Uint32Array;
   flags: Uint8Array;
   lastRowId: number;
+  colors: Uint8Array;
+  colorsVariant: Uint8Array;
+  colorsDisabled: Uint8Array;
+
+  // Pre-computed WebGL buffers (computed once in onBoundsChange)
+  // topLeft/bottomRight x values are time offsets from data.start
+  // topLeft/bottomRight y values are pixel positions
+  topLeft: Float32Array; // (x=startOffset, y=MARGIN_TOP) pairs
+  bottomRight: Float32Array; // (x=endOffset, y=MARGIN_TOP+RECT_HEIGHT) pairs
+  rectFlags: Uint8Array; // WebGL-ready flags (RECT_FLAG_HATCHED)
+  pids: Array<bigint | number>; // Cached PIDs for hover logic
 }
 
 const MARGIN_TOP = 3;
@@ -76,9 +90,15 @@ function computeHover(
   if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) return undefined;
 
   const t = timescale.pxToHpTime(x);
-  for (let i = 0; i < data.startQs.length; i++) {
-    const tStart = Time.fromRaw(data.startQs[i]);
-    const tEnd = Time.fromRaw(data.endQs[i]);
+  const numSlices = data.topLeft.length / 2;
+  for (let i = 0; i < numSlices; i++) {
+    // topLeft/bottomRight x values are offsets from data.start, add it back
+    const tStart = Time.fromRaw(
+      data.start + BigInt(Math.round(data.topLeft[i * 2])),
+    );
+    const tEnd = Time.fromRaw(
+      data.start + BigInt(Math.round(data.bottomRight[i * 2])),
+    );
     if (t.containedWithin(tStart, tEnd)) {
       const utid = data.utids[i];
       const count = data.counts[i];
@@ -95,6 +115,9 @@ export class CpuSliceTrack implements TrackRenderer {
 
   private lastRowId = -1;
   private trackUuid = uuidv4Sql();
+
+  // Reusable typed array for per-frame color selection during hover
+  private rectColors?: Uint8Array;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -172,8 +195,8 @@ export class CpuSliceTrack implements TrackRenderer {
 
     const queryRes = await this.trace.engine.query(`
       select
-        (z.ts / ${resolution}) * ${resolution} as tsQ,
-        (((z.ts + z.dur) / ${resolution}) + 1) * ${resolution} as tsEndQ,
+        ((z.ts / ${resolution}) * ${resolution}) - ${start} as startOffset,
+        ((((z.ts + z.dur) / ${resolution}) + 1) * ${resolution}) - ${start} as endOffset,
         z.count,
         s.ts,
         s.dur,
@@ -185,6 +208,9 @@ export class CpuSliceTrack implements TrackRenderer {
       cross join sched s using (id)
     `);
 
+    // Defer to idle time before processing results.
+    let idle = await deferToBackground();
+
     const numRows = queryRes.numRows();
     const slices: Data = {
       start,
@@ -194,18 +220,24 @@ export class CpuSliceTrack implements TrackRenderer {
       lastRowId: this.lastRowId,
       counts: new Float64Array(numRows),
       ids: new Float64Array(numRows),
-      startQs: new BigInt64Array(numRows),
-      endQs: new BigInt64Array(numRows),
       tses: new BigInt64Array(numRows),
       durs: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
       flags: new Uint8Array(numRows),
+      colors: new Uint8Array(numRows * 4), // 4 channels per slice
+      colorsVariant: new Uint8Array(numRows * 4), // 4 channels per slice
+      colorsDisabled: new Uint8Array(numRows * 4), // 4 channels per slice
+      // Pre-computed WebGL buffers
+      topLeft: new Float32Array(numRows * 2),
+      bottomRight: new Float32Array(numRows * 2),
+      rectFlags: new Uint8Array(numRows),
+      pids: new Array(numRows),
     };
 
     const it = queryRes.iter({
       count: NUM,
-      tsQ: LONG,
-      tsEndQ: LONG,
+      startOffset: NUM,
+      endOffset: NUM,
       ts: LONG,
       dur: LONG,
       utid: NUM,
@@ -213,10 +245,15 @@ export class CpuSliceTrack implements TrackRenderer {
       isIncomplete: NUM,
       isRealtime: NUM,
     });
+
+    // Iterate over results, yielding to idle callbacks when time runs out.
+    // Check every 32 iterations to amortize the cost of timeRemaining().
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 100 === 0 && idle.timeRemaining() <= 0) {
+        idle = await yieldBackgroundTask();
+      }
+
       slices.counts[row] = it.count;
-      slices.startQs[row] = it.tsQ;
-      slices.endQs[row] = it.tsEndQ;
       slices.tses[row] = it.ts;
       slices.durs[row] = it.dur;
       slices.utids[row] = it.utid;
@@ -229,6 +266,48 @@ export class CpuSliceTrack implements TrackRenderer {
       if (it.isRealtime) {
         slices.flags[row] |= CPU_SLICE_FLAGS_REALTIME;
       }
+
+      const threadInfo = this.threads.get(it.utid);
+      const colorScheme = colorForThread(threadInfo);
+      const colorRowOffset = row * 4;
+
+      const colorBase = colorScheme.base.rgba;
+      slices.colors[colorRowOffset] = colorBase.r;
+      slices.colors[colorRowOffset + 1] = colorBase.g;
+      slices.colors[colorRowOffset + 2] = colorBase.b;
+      slices.colors[colorRowOffset + 3] = colorBase.a * 255; // alpha is 0-1, convert to 0-255
+
+      const colorVariant = colorScheme.variant.rgba;
+      slices.colorsVariant[colorRowOffset] = colorVariant.r;
+      slices.colorsVariant[colorRowOffset + 1] = colorVariant.g;
+      slices.colorsVariant[colorRowOffset + 2] = colorVariant.b;
+      slices.colorsVariant[colorRowOffset + 3] = colorVariant.a * 255;
+
+      const colorDisabled = colorScheme.disabled.rgba;
+      slices.colorsDisabled[colorRowOffset] = colorDisabled.r;
+      slices.colorsDisabled[colorRowOffset + 1] = colorDisabled.g;
+      slices.colorsDisabled[colorRowOffset + 2] = colorDisabled.b;
+      slices.colorsDisabled[colorRowOffset + 3] = colorDisabled.a * 255;
+
+      // Pre-compute WebGL buffers
+      // topLeft: x = left time offset, y = top pixels
+      slices.topLeft[row * 2] = it.startOffset;
+      slices.topLeft[row * 2 + 1] = MARGIN_TOP;
+
+      // bottomRight: x = right time offset, y = bottom pixels
+      slices.bottomRight[row * 2] = it.endOffset;
+      slices.bottomRight[row * 2 + 1] = MARGIN_TOP + RECT_HEIGHT;
+
+      // rectFlags: map CPU_SLICE_FLAGS_REALTIME to RECT_FLAG_HATCHED,
+      // incomplete slices get fadeout effect
+      let rectFlags = it.isRealtime ? RECT_FLAG_HATCHED : 0;
+      if (it.isIncomplete) {
+        rectFlags |= RECT_FLAG_FADEOUT;
+      }
+      slices.rectFlags[row] = rectFlags;
+
+      // Cache PID for hover logic
+      slices.pids[row] = threadInfo?.pid ?? -1;
     }
     return slices;
   }
@@ -266,8 +345,74 @@ export class CpuSliceTrack implements TrackRenderer {
     }
   }
 
+  private renderSlices(
+    timescale: TimeScale,
+    data: Data,
+    timelineRenderer: TimelineRenderer,
+  ): void {
+    const numSlices = data.topLeft.length / 2;
+
+    // Push the time-to-pixel transform for the following draw calls.
+    // scaleX = pixels per time unit, offsetX = pixel position of data.start
+    using _ = timelineRenderer.pushTransform({
+      offsetX: timescale.timeToPx(Time.fromRaw(data.start)),
+      offsetY: 0,
+      scaleX: timescale.durationToPx(1n),
+      scaleY: 1,
+    });
+
+    const hoveredUtid = this.trace.timeline.hoveredUtid;
+    const hoveredPid = this.trace.timeline.hoveredPid;
+    const isHovering = hoveredUtid !== undefined;
+
+    // Pick which color buffer to use based on hover state
+    let colors: Uint8Array;
+    if (!isHovering) {
+      // Fast path: no hover, use base colors directly
+      colors = data.colors;
+    } else {
+      // Slow path: need to pick colors per-slice based on hover
+      // Ensure our temp color buffer is large enough
+      if (!this.rectColors || this.rectColors.length < numSlices * 4) {
+        this.rectColors = new Uint8Array(numSlices * 4);
+      }
+      colors = this.rectColors;
+
+      for (let i = 0; i < numSlices; i++) {
+        const utid = data.utids[i];
+        const pid = data.pids[i];
+        const isThreadHovered = hoveredUtid === utid;
+        const isProcessHovered = hoveredPid !== undefined && pid === hoveredPid;
+
+        const colorOffset = i * 4;
+        let srcColors: Uint8Array;
+        if (isThreadHovered) {
+          srcColors = data.colors;
+        } else if (isProcessHovered) {
+          srcColors = data.colorsVariant;
+        } else {
+          srcColors = data.colorsDisabled;
+        }
+
+        // Update colors buffer using .set()
+        colors.set(
+          srcColors.subarray(colorOffset, colorOffset + 4),
+          colorOffset,
+        );
+      }
+    }
+
+    timelineRenderer.drawRects(
+      data.topLeft,
+      data.bottomRight,
+      colors,
+      numSlices,
+      data.rectFlags,
+    );
+  }
+
   render(trackCtx: TrackRenderContext): void {
-    const {ctx, size, timescale} = trackCtx;
+    const {ctx, size, timescale, visibleWindow, timelineRenderer} = trackCtx;
 
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -285,107 +430,96 @@ export class CpuSliceTrack implements TrackRenderer {
       timescale.timeToPx(data.end),
     );
 
-    this.renderSlices(trackCtx, data);
-  }
+    this.renderSlices(timescale, data, timelineRenderer);
 
-  renderSlices(
-    {ctx, timescale, size, visibleWindow}: TrackRenderContext,
-    data: Data,
-  ): void {
-    assertTrue(data.startQs.length === data.endQs.length);
-    assertTrue(data.startQs.length === data.utids.length);
-
+    // Render text using Canvas 2D (on top of WebGL rectangles)
     const visWindowEndPx = size.width;
-
     ctx.textAlign = 'center';
     ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     const timespan = visibleWindow.toTimeSpan();
-
     const startTime = timespan.start;
     const endTime = timespan.end;
 
-    const rawStartIdx = data.endQs.findIndex((end) => end >= startTime);
-    const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
+    // Find visible slice range using topLeft/bottomRight x values
+    // Convert absolute times to offsets for comparison
+    const startOffset = Number(startTime - data.start);
+    const endOffset = Number(endTime - data.start);
+    const numSlices = data.topLeft.length / 2;
+    let startIdx = 0;
+    for (let i = 0; i < numSlices; i++) {
+      if (data.bottomRight[i * 2] >= startOffset) {
+        startIdx = i;
+        break;
+      }
+    }
+    let endIdx = numSlices;
+    for (let i = numSlices - 1; i >= 0; i--) {
+      if (data.topLeft[i * 2] <= endOffset) {
+        endIdx = i + 1;
+        break;
+      }
+    }
 
-    const [, rawEndIdx] = searchSegment(data.startQs, endTime);
-    const endIdx = rawEndIdx === -1 ? data.startQs.length : rawEndIdx;
+    const hoveredUtid = this.trace.timeline.hoveredUtid;
+    const hoveredPid = this.trace.timeline.hoveredPid;
+    const isHovering = hoveredUtid !== undefined;
+
+    // Compute transform once for efficient duration->px conversion
+    const pxPerTime = timescale.durationToPx(1n);
+    const pxOffset = timescale.timeToPx(Time.fromRaw(data.start));
 
     for (let i = startIdx; i < endIdx; i++) {
-      const tStart = Time.fromRaw(data.startQs[i]);
-      let tEnd = Time.fromRaw(data.endQs[i]);
       const utid = data.utids[i];
 
-      // If the last slice is incomplete, it should end with the end of the
-      // window, else it might spill over the window and the end would not be
-      // visible as a zigzag line.
-      if (
+      // Use cached duration for regular slices, compute for incomplete
+      const isIncomplete =
         data.ids[i] === data.lastRowId &&
-        data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE
-      ) {
-        tEnd = endTime;
-      }
-      const rectStart = timescale.timeToPx(tStart);
-      const rectEnd = timescale.timeToPx(tEnd);
-      const rectWidth = Math.max(1, rectEnd - rectStart);
+        (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) !== 0;
 
-      const threadInfo = this.threads.get(utid);
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
+      let rectWidth: number;
+      let rectStart: number;
+      let rectEnd: number;
 
-      const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-      const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-      const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-      const colorScheme = colorForThread(threadInfo);
-      let color: Color;
-      let textColor: Color;
-      if (isHovering && !isThreadHovered) {
-        if (!isProcessHovered) {
-          color = colorScheme.disabled;
-          textColor = colorScheme.textDisabled;
-        } else {
-          color = colorScheme.variant;
-          textColor = colorScheme.textVariant;
-        }
+      if (isIncomplete) {
+        // Incomplete slice extends to viewport end
+        rectStart = pxOffset + data.topLeft[i * 2] * pxPerTime;
+        rectEnd = timescale.timeToPx(endTime);
+        rectWidth = rectEnd - rectStart;
       } else {
-        color = colorScheme.base;
-        textColor = colorScheme.textBase;
-      }
-      ctx.fillStyle = color.cssString;
-
-      if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
-        drawIncompleteSlice(
-          ctx,
-          rectStart,
-          MARGIN_TOP,
-          rectWidth,
-          RECT_HEIGHT,
-          color,
-        );
-      } else {
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+        // Use cached values for efficient computation
+        rectStart = pxOffset + data.topLeft[i * 2] * pxPerTime;
+        rectEnd = pxOffset + data.bottomRight[i * 2] * pxPerTime;
+        rectWidth = rectEnd - rectStart;
       }
 
       // Don't render text when we have less than 5px to play with.
       if (rectWidth < 5) continue;
 
-      // Stylize real-time threads. We don't do it when zoomed out as the
-      // fillRect is expensive.
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
-        ctx.fillStyle = getHatchedPattern(ctx);
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+      const threadInfo = this.threads.get(utid);
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
+
+      const isThreadHovered = hoveredUtid === utid;
+      const isProcessHovered = hoveredPid === pid;
+      const colorScheme = colorForThread(threadInfo);
+
+      let textColor: Color;
+      if (isHovering && !isThreadHovered) {
+        textColor = isProcessHovered
+          ? colorScheme.textVariant
+          : colorScheme.textDisabled;
+      } else {
+        textColor = colorScheme.textBase;
       }
 
-      // TODO: consider de-duplicating this code with the copied one from
-      // chrome_slices/frontend.ts.
       let title = `[utid:${utid}]`;
       let subTitle = '';
       if (threadInfo) {
         if (threadInfo.pid !== undefined && threadInfo.pid !== 0n) {
           let procName = threadInfo.procName ?? '';
           if (procName.startsWith('/')) {
-            // Remove folder paths from name
             procName = procName.substring(procName.lastIndexOf('/') + 1);
           }
           title = `${procName} [${threadInfo.pid}]`;
@@ -418,12 +552,11 @@ export class CpuSliceTrack implements TrackRenderer {
       if (selection.trackUri === this.uri) {
         const [startIndex, endIndex] = searchEq(data.ids, selection.eventId);
         if (startIndex !== endIndex) {
-          const tStart = Time.fromRaw(data.startQs[startIndex]);
-          const tEnd = Time.fromRaw(data.endQs[startIndex]);
           const utid = data.utids[startIndex];
           const color = colorForThread(this.threads.get(utid));
-          const rectStart = timescale.timeToPx(tStart);
-          const rectEnd = timescale.timeToPx(tEnd);
+          const rectStart = pxOffset + data.topLeft[startIndex * 2] * pxPerTime;
+          const rectEnd =
+            pxOffset + data.bottomRight[startIndex * 2] * pxPerTime;
           const rectWidth = Math.max(1, rectEnd - rectStart);
 
           // Draw a rectangle around the slice that is currently selected.
@@ -465,8 +598,18 @@ export class CpuSliceTrack implements TrackRenderer {
   onMouseClick({x, timescale}: TrackMouseEvent) {
     const data = this.fetcher.data;
     if (data === undefined) return false;
-    const time = timescale.pxToHpTime(x);
-    const index = search(data.startQs, time.toTime());
+    const time = timescale.pxToHpTime(x).toTime();
+    const numSlices = data.topLeft.length / 2;
+    let index = -1;
+    for (let i = 0; i < numSlices; i++) {
+      // topLeft/bottomRight x values are offsets from data.start
+      const tStart = data.start + BigInt(Math.round(data.topLeft[i * 2]));
+      const tEnd = data.start + BigInt(Math.round(data.bottomRight[i * 2]));
+      if (tStart <= time && time < tEnd) {
+        index = i;
+        break;
+      }
+    }
     const id = index === -1 ? undefined : data.ids[index];
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.hover === undefined) return false;
@@ -547,7 +690,8 @@ export class CpuSliceTrack implements TrackRenderer {
     };
 
     // Iterate through all slices in the cached data
-    for (let i = 0; i < data.startQs.length; i++) {
+    const numSlices = data.topLeft.length / 2;
+    for (let i = 0; i < numSlices; i++) {
       // Check start boundary
       checkBoundary(Time.fromRaw(data.tses[i]));
 
@@ -561,27 +705,4 @@ export class CpuSliceTrack implements TrackRenderer {
   detailsPanel() {
     return new SchedSliceDetailsPanel(this.trace, this.threads);
   }
-}
-
-// Creates a diagonal hatched pattern to be used for distinguishing slices with
-// real-time priorities. The pattern is created once as an offscreen canvas and
-// is kept cached inside the Context2D of the main canvas, without making
-// assumptions on the lifetime of the main canvas.
-function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
-  const mctx = mainCtx as CanvasRenderingContext2D & {
-    sliceHatchedPattern?: CanvasPattern;
-  };
-  if (mctx.sliceHatchedPattern !== undefined) return mctx.sliceHatchedPattern;
-  const canvas = document.createElement('canvas');
-  const SIZE = 8;
-  canvas.width = canvas.height = SIZE;
-  const ctx = assertExists(canvas.getContext('2d'));
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.beginPath();
-  ctx.lineWidth = 1;
-  ctx.moveTo(0, SIZE);
-  ctx.lineTo(SIZE, 0);
-  ctx.stroke();
-  mctx.sliceHatchedPattern = assertExists(mctx.createPattern(canvas, 'repeat'));
-  return mctx.sliceHatchedPattern;
 }
