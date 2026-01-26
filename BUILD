@@ -430,6 +430,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_parser",
+        ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
@@ -635,6 +636,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_parser",
+        ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
@@ -4166,6 +4168,14 @@ perfetto_filegroup(
         "src/trace_processor/util/json_parser.h",
         "src/trace_processor/util/json_utils.cc",
         "src/trace_processor/util/json_utils.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:json_serializer
+perfetto_filegroup(
+    name = "src_trace_processor_util_json_serializer",
+    srcs = [
+        "src/trace_processor/util/json_serializer.h",
     ],
 )
 
@@ -8122,6 +8132,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_parser",
+        ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
@@ -8354,6 +8365,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_parser",
+        ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
