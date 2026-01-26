@@ -136,7 +136,7 @@ export interface TrackRenderContext extends TrackContext {
    * tracks have rendered.
    */
   readonly offscreenCanvas?: OffscreenCanvas;
-  readonly offscreenGl?: WebGLRenderingContext;
+  readonly offscreenGl?: WebGL2RenderingContext;
 
   /**
    * The offset from the WebGL canvas origin to this track's origin.

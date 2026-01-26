@@ -100,7 +100,7 @@ function computeHover(
 
 // Cached WebGL program state (shared across instances for same GL context)
 let cachedGlProgram: {
-  gl: WebGLRenderingContext;
+  gl: WebGL2RenderingContext;
   program: WebGLProgram;
   positionLocation: number;
   baseColorLocation: number;
@@ -643,7 +643,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     );
   }
 
-  private ensureGlProgram(gl: WebGLRenderingContext): typeof cachedGlProgram {
+  private ensureGlProgram(gl: WebGL2RenderingContext): typeof cachedGlProgram {
     // Return cached program if it's for the same GL context
     if (cachedGlProgram?.gl === gl) {
       return cachedGlProgram;
@@ -656,13 +656,13 @@ export class GroupSummaryTrack implements TrackRenderer {
     // a_variantColor is the process-highlighted color for this vertex
     // a_disabledColor is the disabled color when something else is hovered
     // a_selector: 0.0 = base, 1.0 = variant, 2.0 = disabled
-    const vsSource = `
-      attribute vec2 a_position;
-      attribute vec4 a_baseColor;
-      attribute vec4 a_variantColor;
-      attribute vec4 a_disabledColor;
-      attribute float a_selector;
-      varying vec4 v_color;
+    const vsSource = `#version 300 es
+      in vec2 a_position;
+      in vec4 a_baseColor;
+      in vec4 a_variantColor;
+      in vec4 a_disabledColor;
+      in float a_selector;
+      out vec4 v_color;
       uniform vec2 u_resolution;
       uniform vec2 u_offset;
       uniform float u_dpr;
@@ -683,11 +683,12 @@ export class GroupSummaryTrack implements TrackRenderer {
     `;
 
     // Fragment shader using interpolated color from vertex shader
-    const fsSource = `
+    const fsSource = `#version 300 es
       precision mediump float;
-      varying vec4 v_color;
+      in vec4 v_color;
+      out vec4 fragColor;
       void main() {
-        gl_FragColor = v_color;
+        fragColor = v_color;
       }
     `;
 
@@ -695,16 +696,25 @@ export class GroupSummaryTrack implements TrackRenderer {
     const vertexShader = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vertexShader, vsSource);
     gl.compileShader(vertexShader);
+    if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+      console.error('Vertex shader compilation failed:', gl.getShaderInfoLog(vertexShader));
+    }
 
     const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fragmentShader, fsSource);
     gl.compileShader(fragmentShader);
+    if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+      console.error('Fragment shader compilation failed:', gl.getShaderInfoLog(fragmentShader));
+    }
 
     // Create program
     const program = gl.createProgram()!;
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('Shader program linking failed:', gl.getProgramInfoLog(program));
+    }
 
     // Get locations
     const positionLocation = gl.getAttribLocation(program, 'a_position');
@@ -750,7 +760,7 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   private drawWebGLRects(
-    gl: WebGLRenderingContext,
+    gl: WebGL2RenderingContext,
     offset: {x: number; y: number},
     timescale: TimeScale,
     dataStart: time,

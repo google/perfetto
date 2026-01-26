@@ -267,7 +267,7 @@ export class TrackView {
     visibleWindow: HighPrecisionTimeSpan,
     colors: CanvasColors,
     offscreenCanvas: OffscreenCanvas,
-    offscreenGl: WebGLRenderingContext,
+    offscreenGl: WebGL2RenderingContext,
   ) {
     const {node, renderer, verticalBounds} = this;
 
@@ -318,7 +318,7 @@ export class TrackView {
     trackPerfStats: WeakMap<TrackNode, PerfStats>,
     colors: CanvasColors,
     offscreenCanvas: OffscreenCanvas,
-    offscreenGl: WebGLRenderingContext,
+    offscreenGl: WebGL2RenderingContext,
   ) {
     // For each track we rendered in view(), render it to the canvas. We know the
     // vertical bounds, so we just need to combine it with the horizontal bounds

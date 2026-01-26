@@ -138,7 +138,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
   private offscreenCanvas?: OffscreenCanvas;
-  private offscreenGl?: WebGLRenderingContext;
+  private offscreenGl?: WebGL2RenderingContext;
 
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
@@ -147,7 +147,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private ensureOffscreenCanvas(
     width: number,
     height: number,
-  ): {canvas: OffscreenCanvas; gl: WebGLRenderingContext} {
+  ): {canvas: OffscreenCanvas; gl: WebGL2RenderingContext} {
     const dpr = window.devicePixelRatio;
     const pxWidth = Math.ceil(width * dpr);
     const pxHeight = Math.ceil(height * dpr);
@@ -158,7 +158,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       this.offscreenCanvas.height !== pxHeight
     ) {
       this.offscreenCanvas = new OffscreenCanvas(pxWidth, pxHeight);
-      this.offscreenGl = this.offscreenCanvas.getContext('webgl', {
+      this.offscreenGl = this.offscreenCanvas.getContext('webgl2', {
         alpha: true,
         premultipliedAlpha: true,
         antialias: true,
@@ -535,7 +535,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     visibleWindow: HighPrecisionTimeSpan,
     colors: CanvasColors,
     offscreenCanvas: OffscreenCanvas,
-    offscreenGl: WebGLRenderingContext,
+    offscreenGl: WebGL2RenderingContext,
   ) {
     for (const trackView of renderedTracks) {
       const {verticalBounds} = trackView;
@@ -567,7 +567,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     visibleWindow: HighPrecisionTimeSpan,
     colors: CanvasColors,
     offscreenCanvas: OffscreenCanvas,
-    offscreenGl: WebGLRenderingContext,
+    offscreenGl: WebGL2RenderingContext,
   ) {
     let tracksOnCanvas = 0;
     for (const trackView of renderedTracks) {

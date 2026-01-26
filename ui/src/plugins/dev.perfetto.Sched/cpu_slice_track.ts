@@ -60,7 +60,7 @@ const CPU_SLICE_FLAGS_REALTIME = 2;
 
 // Cached WebGL program state (shared across instances for same GL context)
 let cachedGlProgram: {
-  gl: WebGLRenderingContext;
+  gl: WebGL2RenderingContext;
   program: WebGLProgram;
   positionLocation: number;
   baseColorLocation: number;
@@ -564,18 +564,18 @@ export class CpuSliceTrack implements TrackRenderer {
     }
   }
 
-  private ensureGlProgram(gl: WebGLRenderingContext): typeof cachedGlProgram {
+  private ensureGlProgram(gl: WebGL2RenderingContext): typeof cachedGlProgram {
     if (cachedGlProgram?.gl === gl) {
       return cachedGlProgram;
     }
 
-    const vsSource = `
-      attribute vec2 a_position;
-      attribute vec4 a_baseColor;
-      attribute vec4 a_variantColor;
-      attribute vec4 a_disabledColor;
-      attribute float a_selector;
-      varying vec4 v_color;
+    const vsSource = `#version 300 es
+      in vec2 a_position;
+      in vec4 a_baseColor;
+      in vec4 a_variantColor;
+      in vec4 a_disabledColor;
+      in int a_selector;
+      out vec4 v_color;
       uniform vec2 u_resolution;
       uniform vec2 u_offset;
       uniform float u_dpr;
@@ -588,31 +588,41 @@ export class CpuSliceTrack implements TrackRenderer {
         vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
         gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
         v_color = a_baseColor;
-        if (a_selector == 1.0) v_color = a_variantColor;
-        if (a_selector == 2.0) v_color = a_disabledColor;
+        if (a_selector == 1) v_color = a_variantColor;
+        if (a_selector == 2) v_color = a_disabledColor;
       }
     `;
 
-    const fsSource = `
+    const fsSource = `#version 300 es
       precision mediump float;
-      varying vec4 v_color;
+      in vec4 v_color;
+      out vec4 fragColor;
       void main() {
-        gl_FragColor = v_color;
+        fragColor = v_color;
       }
     `;
 
     const vertexShader = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vertexShader, vsSource);
     gl.compileShader(vertexShader);
+    if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+      console.error('Vertex shader compilation failed:', gl.getShaderInfoLog(vertexShader));
+    }
 
     const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fragmentShader, fsSource);
     gl.compileShader(fragmentShader);
+    if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+      console.error('Fragment shader compilation failed:', gl.getShaderInfoLog(fragmentShader));
+    }
 
     const program = gl.createProgram()!;
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('Shader program linking failed:', gl.getProgramInfoLog(program));
+    }
 
     const positionLocation = gl.getAttribLocation(program, 'a_position');
     const baseColorLocation = gl.getAttribLocation(program, 'a_baseColor');
@@ -655,7 +665,7 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   private drawWebGLRects(
-    gl: WebGLRenderingContext,
+    gl: WebGL2RenderingContext,
     offset: {x: number; y: number},
     timescale: TimeScale,
     dataStart: time,
@@ -717,7 +727,7 @@ export class CpuSliceTrack implements TrackRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, selectorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, this.selectorBuffer!, gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(selectorLocation);
-    gl.vertexAttribPointer(selectorLocation, 1, gl.BYTE, false, 0, 0);
+    gl.vertexAttribIPointer(selectorLocation, 1, gl.BYTE, 0, 0);
 
     gl.drawArrays(gl.TRIANGLES, 0, this.cachedRectCount * 6);
   }
