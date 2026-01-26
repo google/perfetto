@@ -99,7 +99,10 @@ export class BasicRelationFindingStrategy implements RelationFindingStrategy {
     sliceId: number,
     dataset: Dataset,
   ): Promise<Map<number, DetailedEventInfo>> {
-    const trackBaseQuery = dataset.query({...RELATED_EVENT_SCHEMA, arg_set_id: NUM});
+    const trackBaseQuery = dataset.query({
+      ...RELATED_EVENT_SCHEMA,
+      arg_set_id: NUM,
+    });
     const sql = `
         SELECT
             b.id,

@@ -222,7 +222,10 @@ export class RuleBasedBfsStrategy implements RelationFindingStrategy {
   ): Promise<Map<number, DetailedEventInfo>> {
     if (!dataset || sliceIds.length === 0) return new Map();
 
-    const trackBaseQuery = dataset.query({...RELATED_EVENT_SCHEMA, arg_set_id: NUM});
+    const trackBaseQuery = dataset.query({
+      ...RELATED_EVENT_SCHEMA,
+      arg_set_id: NUM,
+    });
     const idList = sliceIds.join(',');
     const sql = `
         SELECT
