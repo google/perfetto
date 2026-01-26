@@ -26,8 +26,8 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 
 namespace perfetto::trace_processor {
 
