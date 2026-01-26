@@ -27,6 +27,7 @@ import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
+import {TrackSearchManager} from '../../core/track_search_manager';
 import {HotkeyContext} from '../../widgets/hotkey_context';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {setTrackShellWidth, TRACK_SHELL_WIDTH} from '../css_constants';
@@ -58,6 +59,7 @@ interface TimelinePageAttrs {
 
 class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private readonly trash = new DisposableStack();
+  private readonly trackSearch = new TrackSearchManager();
   private timelineBounds?: Rect2D;
   private pinnedTracksHeight: number | 'auto' = 'auto';
 
@@ -68,8 +70,8 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       {
         hotkeys: [
           {
-            hotkey: 'Mod+F',
-            callback: () => trace.trackSearch.show(),
+            hotkey: '!Mod+F',
+            callback: () => this.trackSearch.show(),
           },
         ],
         focusable: false, // Global hotkey, works without element focus
@@ -79,16 +81,16 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         TabPanel,
         {trace},
         this.renderMinimap(trace),
-        this.renderTrackSearchPanel(trace),
+        this.renderTrackSearchPanel(),
         this.renderTimeline(trace),
       ),
     );
   }
 
-  private renderTrackSearchPanel(trace: TraceImpl): m.Children {
+  private renderTrackSearchPanel(): m.Children {
     return (
-      trace.trackSearch.isVisible &&
-      m(TrackSearchPanel, {searchManager: trace.trackSearch})
+      this.trackSearch.isVisible &&
+      m(TrackSearchPanel, {searchManager: this.trackSearch})
     );
   }
 
@@ -164,6 +166,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           rootNode: trace.currentWorkspace.pinnedTracksNode,
           canReorderNodes: true,
           scrollToNewTracks: true,
+          trackSearch: this.trackSearch,
         }),
       ),
       m(ResizeHandle, {
@@ -191,11 +194,15 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       canReorderNodes: trace.currentWorkspace.userEditable,
       canRemoveNodes: trace.currentWorkspace.userEditable,
       trackFilter: (track) => trackMatchesFilter(trace, track),
+      trackSearch: this.trackSearch,
     });
   }
 
   oncreate(vnode: m.VnodeDOM<TimelinePageAttrs>) {
     const {attrs, dom} = vnode;
+
+    // Connect track search manager to tracks for scrolling support
+    this.trackSearch.setTrackManager(attrs.trace.tracks);
 
     // Handles WASD keybindings to pan & zoom
     const panZoomHandler = new KeyboardNavigationHandler({

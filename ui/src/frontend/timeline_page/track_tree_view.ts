@@ -45,6 +45,7 @@ import {
 } from '../../base/zoned_interaction_handler';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {TraceImpl} from '../../core/trace_impl';
+import {TrackSearchManager} from '../../core/track_search_manager';
 import {TrackNode} from '../../public/workspace';
 import {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -149,6 +150,9 @@ export interface TrackTreeViewAttrs {
   readonly trackFilter?: (track: TrackNode) => boolean;
 
   readonly filtersApplied?: boolean;
+
+  // Track search manager for highlighting search matches.
+  readonly trackSearch?: TrackSearchManager;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -190,6 +194,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       rootNode,
       trackFilter,
       filtersApplied,
+      trackSearch,
     } = attrs;
     const renderedTracks = new Array<TrackView>();
     let top = 0;
@@ -204,6 +209,22 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       if (node.children?.some(filterMatches)) return true;
 
       return false;
+    }
+
+    // Collect all track nodes recursively, including those inside collapsed
+    // groups. Used for search-in-collapsed functionality.
+    function collectAllTracks(node: TrackNode, result: TrackNode[]): void {
+      if (node.headless) {
+        // Headless nodes are invisible, just collect children.
+        for (const child of node.children) {
+          collectAllTracks(child, result);
+        }
+        return;
+      }
+      result.push(node);
+      for (const child of node.children) {
+        collectAllTracks(child, result);
+      }
     }
 
     const useVirtualScrolling =
@@ -307,6 +328,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           // Only use absolute positioning for root-level tracks
           absoluteTop:
             useVirtualScrolling && isRootLevel ? trackAbsoluteTop : undefined,
+          trackSearch,
           onTrackMouseOver: () => {
             this.hoveredTrackNode = node;
           },
@@ -330,8 +352,15 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       totalHeight += result.subtreeHeight;
     }
 
-    // Update the track search manager with the list of visible tracks
-    trace.trackSearch.setVisibleTracks(renderedTracks.map((tv) => tv.node));
+    // Update the track search manager with the list of tracks.
+    // Visible tracks are those that are rendered (expanded).
+    // All tracks includes those inside collapsed groups.
+    if (trackSearch) {
+      const visibleTracks = renderedTracks.map((tv) => tv.node);
+      const allTracks: TrackNode[] = [];
+      collectAllTracks(rootNode, allTracks);
+      trackSearch.setTracks(visibleTracks, allTracks);
+    }
 
     // Store for scroll-to-track in onupdate
     this.renderedTracks = renderedTracks;

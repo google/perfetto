@@ -34,6 +34,7 @@ import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackWrapper} from '../../core/track_manager';
+import {TrackSearchManager} from '../../core/track_search_manager';
 import {TrackRenderer, Track} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
@@ -86,6 +87,8 @@ export interface TrackViewAttrs {
   // If set, the track is rendered with absolute positioning at this top value.
   // Used for virtual scrolling where we skip rendering offscreen tracks.
   readonly absoluteTop?: number;
+  // Track search manager for highlighting search matches.
+  readonly trackSearch?: TrackSearchManager;
   onTrackMouseOver(): void;
   onTrackMouseOut(): void;
 }
@@ -170,9 +173,9 @@ export class TrackView {
     }
 
     // Get search highlight info from the track search manager
-    const trackSearch = this.trace.trackSearch;
-    const highlightMatch = trackSearch.getMatchForTrack(node);
-    const isCurrentSearchMatch = trackSearch.isCurrentMatch(node);
+    const {trackSearch} = attrs;
+    const highlightMatch = trackSearch?.getMatchForTrack(node);
+    const isCurrentSearchMatch = trackSearch?.isCurrentMatch(node) ?? false;
 
     return m(
       TrackShell,

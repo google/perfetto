@@ -123,6 +123,14 @@ export function currentTargetOffset(e: MouseEvent): Vector2D {
   return new Vector2D({x: e.offsetX, y: e.offsetY});
 }
 
+// Returns true if the element is visible (not hidden via display:none,
+// visibility:hidden, or content-visibility:hidden).
+// Uses checkVisibility() API (Chrome 105+, Firefox 106+, Safari 17.4+) with
+// fallback to offsetParent check for older browsers.
+export function isElementVisible(element: HTMLElement): boolean {
+  return element.checkVisibility?.() ?? element.offsetParent !== null;
+}
+
 // Adds an event listener to a DOM element, returning a disposable to remove it.
 export function bindEventListener<K extends keyof HTMLElementEventMap>(
   element: EventTarget,

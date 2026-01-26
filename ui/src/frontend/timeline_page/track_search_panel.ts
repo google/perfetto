@@ -58,6 +58,14 @@ export class TrackSearchPanel
       m(
         '.pf-track-search-panel__buttons',
         m(Button, {
+          icon: 'unfold_more',
+          title: 'Search in collapsed groups',
+          active: searchManager.searchCollapsed,
+          onclick: () => {
+            searchManager.searchCollapsed = !searchManager.searchCollapsed;
+          },
+        }),
+        m(Button, {
           icon: Icons.Up,
           title: 'Previous match (Shift+Enter)',
           disabled: searchManager.matchCount === 0,
