@@ -76,7 +76,7 @@ struct Symbolize : public sqlite::Function<Symbolize> {
     dataframe::AdhocDataframeBuilder builder(
         col_names, user_data->pool,
         dataframe::AdhocDataframeBuilder::Options{
-            col_types, dataframe::AdhocDataframeBuilder::Options::kDenseNull});
+            col_types, dataframe::NullabilityType::kSparseNullWithPopcount});
 
     profiling::LlvmSymbolizer* symbolizer = &user_data->symbolizer;
 

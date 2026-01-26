@@ -100,8 +100,8 @@ class RuntimeDataframeBuilder {
       : coulumn_count_(static_cast<uint32_t>(names.size())),
         builder_(std::move(names),
                  pool,
-                 AdhocDataframeBuilder::Options{
-                     types, AdhocDataframeBuilder::Options::kSparseNull}),
+                 AdhocDataframeBuilder::Options{types,
+                                                NullabilityType::kSparseNull}),
         pool_(pool) {}
   ~RuntimeDataframeBuilder() = default;
 
