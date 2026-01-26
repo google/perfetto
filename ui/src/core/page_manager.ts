@@ -55,9 +55,11 @@ export class PageManagerImpl implements PageManager {
         const renderedPage =
           maybeRenderedPage ??
           assertExists(this.renderPageForRoute('/', '', open));
-        return [key, m(Gate, {open}, renderedPage)];
+        return {open, renderedPage};
       },
-    );
+    ).map(({open, renderedPage}) => {
+        return m(Gate, {open}, renderedPage);
+    });
   }
 
   // Will return undefined if either: (1) the route does not exist; (2) the
