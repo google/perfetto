@@ -22,6 +22,7 @@ import {OverviewTab, OverviewData, loadOverviewData} from './tabs/overview';
 import {ConfigTab, ConfigData, loadConfigData} from './tabs/config';
 import {AndroidTab, AndroidData, loadAndroidData} from './tabs/android';
 import {MachinesTab, MachinesData, loadMachinesData} from './tabs/machines';
+import {TracesTab, TracesData, loadTracesData} from './tabs/traces';
 import {
   ImportErrorsTab,
   ImportErrorsData,
@@ -53,6 +54,7 @@ interface AllTabData {
   config: ConfigData;
   android: AndroidData;
   machines: MachinesData;
+  traces: TracesData;
   importErrors: ImportErrorsData;
   traceErrors: TraceErrorsData;
   dataLosses: DataLossesData;
@@ -123,6 +125,10 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
         return m(AndroidTab, {
           data: this.tabData.android,
         });
+      case 'traces':
+        return m(TracesTab, {
+          data: this.tabData.traces,
+        });
       case 'machines':
         return m(MachinesTab, {
           data: this.tabData.machines,
@@ -157,6 +163,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
       config: await loadConfigData(engine),
       android: await loadAndroidData(engine),
       machines: await loadMachinesData(engine),
+      traces: await loadTracesData(engine),
       importErrors: await loadImportErrorsData(engine),
       traceErrors: await loadTraceErrorsData(engine),
       dataLosses: await loadDataLossesData(engine),
@@ -168,7 +175,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
 
   private getTabs(): TabOption[] {
     const tabs: TabOption[] = [{key: 'overview', title: 'Overview'}];
-    if (this.tabData?.config?.configText) {
+    if ((this.tabData?.config?.configs?.length ?? 0) > 0) {
       tabs.push({key: 'config', title: 'Trace Config'});
     }
     if ((this.tabData?.overview?.importErrors ?? 0) > 0) {
@@ -188,6 +195,9 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
       (this.tabData?.android?.gameInterventions?.length ?? 0) > 0;
     if (hasAndroid) {
       tabs.push({key: 'android', title: 'Android'});
+    }
+    if ((this.tabData?.overview?.traceCount ?? 0) > 1) {
+      tabs.push({key: 'traces', title: 'Traces'});
     }
     if ((this.tabData?.machines?.machineCount ?? 0) > 1) {
       tabs.push({key: 'machines', title: 'Machines'});
