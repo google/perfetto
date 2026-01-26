@@ -12,6 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Type declaration for the Scheduler API (not yet in TypeScript's lib.dom.d.ts)
+declare global {
+  interface Scheduler {
+    yield(): Promise<void>;
+    postTask(
+      callback: (args: void) => void,
+      options?: {priority: 'user-blocking' | 'user-visible' | 'background'},
+    ): Promise<void>;
+  }
+  // eslint-disable-next-line no-var
+  var scheduler: Scheduler | undefined;
+}
+
 // Return true if value is not nullish - i.e. not null or undefined
 // Allows doing the following
 //   exists(val) && m('div', val)
@@ -102,4 +115,49 @@ export const maybeUndefined = <T>(value: T) => value as T | undefined;
 // Check if the value a number or a bigint
 export function isNumeric(value: unknown): value is number | bigint {
   return typeof value === 'number' || typeof value === 'bigint';
+}
+
+const WORK_BUDGET = 4;
+
+export interface Deadline {
+  readonly timeRemaining: () => number;
+}
+
+// export function ensure<T>(value: T): asserts value is NonNullable<T> {
+//   assert(value !== null && value !== undefined);
+// }
+
+export function ensure<T>(value: T): asserts value is NonNullable<T> {
+  if (value === null || value === undefined) {
+    throw new Error('Expected value to be null or undefined');
+  }
+}
+
+export async function deferToBackground(): Promise<Deadline> {
+  ensure(globalThis.scheduler);
+
+  const scheduler = globalThis.scheduler;
+  return await new Promise<Deadline>((r) => {
+    scheduler.postTask(
+      () => {
+        // Task has started executing so reset our budget
+        const deadline = performance.now() + WORK_BUDGET;
+        r({
+          timeRemaining: () => deadline - performance.now(),
+        });
+      },
+      {priority: 'background'},
+    );
+  });
+}
+
+export async function yieldBackgroundTask(): Promise<Deadline> {
+  ensure(globalThis.scheduler);
+  await globalThis.scheduler.yield();
+
+  // Task has started executing so reset our budget
+  const deadline = performance.now() + WORK_BUDGET;
+  return {
+    timeRemaining: () => deadline - performance.now(),
+  };
 }

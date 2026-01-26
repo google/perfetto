@@ -49,6 +49,7 @@ import {showModal} from '../../widgets/modal';
 import {Popup} from '../../widgets/popup';
 import {CanvasColors} from '../../public/canvas_colors';
 import {CodeSnippet} from '../../widgets/code_snippet';
+import {TimelineRenderer} from '../../base/timeline_renderer';
 
 export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
 export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
@@ -261,6 +262,7 @@ export class TrackView {
     );
   }
 
+  // Render the track - both WebGL rectangles and Canvas 2D content
   drawCanvas(
     ctx: CanvasRenderingContext2D,
     rect: Rect2D,
@@ -268,6 +270,7 @@ export class TrackView {
     perfStatsEnabled: boolean,
     trackPerfStats: WeakMap<TrackNode, PerfStats>,
     colors: CanvasColors,
+    timelineRenderer: TimelineRenderer,
   ) {
     // For each track we rendered in view(), render it to the canvas. We know the
     // vertical bounds, so we just need to combine it with the horizontal bounds
@@ -286,7 +289,7 @@ export class TrackView {
     // translate the canvas and create a new timescale.
     using _ = canvasSave(ctx);
     canvasClip(ctx, trackRect);
-    ctx.translate(trackRect.left, trackRect.top);
+    // ctx.translate(trackRect.left, trackRect.top);
 
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
@@ -301,6 +304,16 @@ export class TrackView {
       return;
     }
 
+    // Set up CanvasRenderer transform for this track.
+    // The base canvas offset is already applied by createCanvasRenderer.
+    // The transform is popped when trackTransform goes out of scope.
+    using _trackTransform = timelineRenderer.pushTransform({
+      offsetX: trackRect.left,
+      offsetY: trackRect.top,
+      scaleX: 1,
+      scaleY: 1,
+    });
+
     const start = performance.now();
     node.uri &&
       renderer?.render({
@@ -312,6 +325,7 @@ export class TrackView {
         ctx,
         timescale,
         colors,
+        timelineRenderer,
       });
 
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);
