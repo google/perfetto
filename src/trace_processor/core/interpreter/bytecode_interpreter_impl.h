@@ -1360,6 +1360,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
       state.ReadFromRegister(bytecode.arg<B::source_register>());
   Span<uint32_t> dest(source.b, source.e);
   if (!HandleInvalidCastFilterValueResult(filter_value.validity, dest)) {
+    state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
     return;
   }
   using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;

@@ -199,12 +199,11 @@ struct QueryPlanImpl {
     }
     {
       for (size_t i = 0; i < register_inits_size; ++i) {
-        alignas(RegisterInit) char buf[sizeof(RegisterInit)];
-        memcpy(buf, p, sizeof(RegisterInit));
-        p += sizeof(RegisterInit);
-        res.register_inits.emplace_back(
-            *reinterpret_cast<const RegisterInit*>(buf));
+        res.register_inits.emplace_back();
       }
+      memcpy(res.register_inits.data(), p,
+             register_inits_size * sizeof(RegisterInit));
+      p += register_inits_size * sizeof(RegisterInit);
     }
     PERFETTO_CHECK(p == raw_data->data() + raw_data->size());
     return res;
@@ -285,7 +284,10 @@ class QueryPlanBuilder {
                                         ZeroRowCount,
                                         LimitOffsetRowCount>;
 
-  // State information for a column during query planning.
+  struct IndexState {
+    std::optional<interpreter::RwHandle<Span<uint32_t>>> index_register;
+  };
+
   struct ColumnState {
     std::optional<interpreter::RwHandle<Slab<uint32_t>>> prefix_popcount;
     std::optional<interpreter::RwHandle<interpreter::StoragePtr>>
@@ -419,6 +421,9 @@ class QueryPlanBuilder {
                                  StateField ColumnState::* field,
                                  InitType init_type);
 
+  // Returns the index register for the given position.
+  interpreter::RwHandle<Span<uint32_t>> IndexRegisterFor(uint32_t pos);
+
   // Returns the null bitvector register for the given column.
   interpreter::ReadHandle<const BitVector*> NullBitvectorRegisterFor(
       uint32_t col);
@@ -479,6 +484,9 @@ class QueryPlanBuilder {
 
   // The query plan being built.
   QueryPlanImpl plan_;
+
+  // State information for each index during planning.
+  std::vector<IndexState> index_states_;
 
   // State information for each column during planning.
   std::vector<ColumnState> column_states_;

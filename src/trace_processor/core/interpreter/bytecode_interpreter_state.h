@@ -96,14 +96,9 @@ struct InterpreterState {
   template <typename T>
   PERFETTO_ALWAYS_INLINE const auto* ReadStorageFromRegister(
       ReadHandle<StoragePtr> reg) {
-    // Id columns don't have storage - the row index IS the value.
-    if constexpr (std::is_same_v<T, Id>) {
-      base::ignore_result(reg);
-      return static_cast<const typename T::cpp_type*>(nullptr);
-    } else {
-      return static_cast<const typename T::cpp_type*>(
-          ReadFromRegister(reg).ptr);
-    }
+    // For Id columns, the register contains a StoragePtr with nullptr.
+    // The caller is expected to handle this case (the row index IS the value).
+    return static_cast<const typename T::cpp_type*>(ReadFromRegister(reg).ptr);
   }
 
   // Writes a value to the specified register, handling type safety through
