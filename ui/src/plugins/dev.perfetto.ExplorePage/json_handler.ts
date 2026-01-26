@@ -295,9 +295,12 @@ function createNodeInstance(
         ),
       );
     case NodeType.kAggregation:
-      return new AggregationNode(
-        AggregationNode.deserializeState(state as AggregationSerializedState),
-      );
+      return new AggregationNode({
+        ...AggregationNode.deserializeState(
+          state as AggregationSerializedState,
+        ),
+        sqlModules,
+      });
     case NodeType.kModifyColumns:
       return new ModifyColumnsNode(
         ModifyColumnsNode.deserializeState(
@@ -313,43 +316,58 @@ function createNodeInstance(
         ),
       );
     case NodeType.kLimitAndOffset:
-      return new LimitAndOffsetNode(
-        LimitAndOffsetNode.deserializeState(state as LimitAndOffsetNodeState),
-      );
+      return new LimitAndOffsetNode({
+        ...LimitAndOffsetNode.deserializeState(
+          state as LimitAndOffsetNodeState,
+        ),
+        sqlModules,
+      });
     case NodeType.kSort:
-      return new SortNode(SortNode.deserializeState(state as SortNodeState));
+      return new SortNode({
+        ...SortNode.deserializeState(state as SortNodeState),
+        sqlModules,
+      });
     case NodeType.kFilter:
-      return new FilterNode(
-        FilterNode.deserializeState(state as FilterNodeState),
-      );
+      return new FilterNode({
+        ...FilterNode.deserializeState(state as FilterNodeState),
+        sqlModules,
+      });
     case NodeType.kIntervalIntersect:
-      return new IntervalIntersectNode(
-        IntervalIntersectNode.deserializeState(
+      return new IntervalIntersectNode({
+        ...IntervalIntersectNode.deserializeState(
           state as IntervalIntersectSerializedState,
         ),
-      );
+        sqlModules,
+      });
     case NodeType.kJoin:
-      return new JoinNode(
-        JoinNode.deserializeState(state as JoinSerializedState),
-      );
+      return new JoinNode({
+        ...JoinNode.deserializeState(state as JoinSerializedState),
+        sqlModules,
+      });
     case NodeType.kCreateSlices:
-      return new CreateSlicesNode(
-        CreateSlicesNode.deserializeState(state as CreateSlicesSerializedState),
-      );
+      return new CreateSlicesNode({
+        ...CreateSlicesNode.deserializeState(
+          state as CreateSlicesSerializedState,
+        ),
+        sqlModules,
+      });
     case NodeType.kUnion:
-      return new UnionNode(
-        UnionNode.deserializeState(state as UnionSerializedState),
-      );
+      return new UnionNode({
+        ...UnionNode.deserializeState(state as UnionSerializedState),
+        sqlModules,
+      });
     case NodeType.kFilterDuring:
-      return new FilterDuringNode(
-        FilterDuringNode.deserializeState(state as FilterDuringNodeState),
-      );
+      return new FilterDuringNode({
+        ...FilterDuringNode.deserializeState(state as FilterDuringNodeState),
+        sqlModules,
+      });
     case NodeType.kCounterToIntervals:
-      return new CounterToIntervalsNode(
-        CounterToIntervalsNode.deserializeState(
+      return new CounterToIntervalsNode({
+        ...CounterToIntervalsNode.deserializeState(
           state as CounterToIntervalsNodeState,
         ),
-      );
+        sqlModules,
+      });
     default:
       throw new Error(`Unknown node type: ${serializedNode.type}`);
   }

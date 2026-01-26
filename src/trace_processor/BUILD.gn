@@ -350,9 +350,9 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":top_level_unittests",
     "containers:unittests",
-    "core/common:unittests",
     "core/dataframe:unittests",
-    "core/dataframe/impl:unittests",
+    "core/interpreter:unittests",
+    "core/util:unittests",
     "importers/android_bugreport:unittests",
     "importers/common:unittests",
     "importers/ftrace:unittests",
