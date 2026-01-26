@@ -468,6 +468,10 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       offscreenGl,
     );
 
+    // Ensure WebGL commands are submitted before copying
+    offscreenGl.flush();
+    offscreenGl.finish();
+
     // Copy WebGL canvas content to main canvas
     ctx.drawImage(offscreenCanvas, 0, 0, size.width, size.height);
 

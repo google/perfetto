@@ -133,6 +133,7 @@ export class GroupSummaryTrack implements TrackRenderer {
   private cachedPids?: Array<bigint | undefined>; // pid per rectangle (for process highlight check)
   private cachedRectCount = 0;
   private lastDataGeneration = -1;
+  private lastDataStart?: time; // track data window start for cache invalidation
   // Selector buffer rebuilt when hover state changes
   private selectorBuffer?: Float32Array;
   // Track when buffers were uploaded to GPU to avoid redundant uploads
@@ -483,11 +484,15 @@ export class GroupSummaryTrack implements TrackRenderer {
     const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
 
     // Check if we need to rebuild the vertex buffer (data changed)
-    // Use a simple hash of the data to detect changes
+    // Include data.start because positions are stored relative to it
     const dataGeneration = data.starts.length + Number(data.resolution);
-    const needsRebuild = dataGeneration !== this.lastDataGeneration;
+    const needsRebuild = dataGeneration !== this.lastDataGeneration ||
+                         data.start !== this.lastDataStart;
 
     if (needsRebuild) {
+      // Reset buffer upload tracking - any rebuild needs GPU upload
+      this.buffersUploadedForGeneration = -1;
+
       // Build vertex data with X as time offset (relative to data.start)
       // and Y as pixel coordinates (relative to track origin)
       // Time→pixel transformation happens in the shader via uniforms
@@ -597,6 +602,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       // Allocate selector buffer (will be filled every frame)
       // 4 vertices per quad
       this.selectorBuffer = new Float32Array(numRects * 4);
+      this.lastDataStart = data.start;
     }
 
     // Build selector buffer only when hover state changes

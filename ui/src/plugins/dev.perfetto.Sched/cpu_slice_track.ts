@@ -68,6 +68,7 @@ let cachedGlProgram: {
   variantColorLocation: number;
   disabledColorLocation: number;
   selectorLocation: number;
+  flagsLocation: number;
   resolutionLocation: WebGLUniformLocation;
   offsetLocation: WebGLUniformLocation;
   dprLocation: WebGLUniformLocation;
@@ -122,8 +123,10 @@ export class CpuSliceTrack implements TrackRenderer {
   private cachedIndices?: Uint16Array;
   private cachedUtids?: Uint32Array;
   private cachedPids?: Array<bigint | number>;
+  private cachedFlags?: Int8Array; // flags per vertex (RT flag etc)
   private cachedRectCount = 0;
   private lastDataGeneration = -1;
+  private lastDataStart?: time; // track data window start for cache invalidation
   private selectorBuffer?: Int8Array;
   // Track when buffers were uploaded to GPU to avoid redundant uploads
   private buffersUploadedForGeneration = -1;
@@ -139,6 +142,7 @@ export class CpuSliceTrack implements TrackRenderer {
     variantColorBuffer: WebGLBuffer;
     disabledColorBuffer: WebGLBuffer;
     selectorBuffer: WebGLBuffer;
+    flagsBuffer: WebGLBuffer;
     indexBuffer: WebGLBuffer;
   };
 
@@ -338,10 +342,15 @@ export class CpuSliceTrack implements TrackRenderer {
     };
 
     // Check if we need to rebuild the vertex buffers (data changed)
+    // Include data.start because positions are stored relative to it
     const dataGeneration = numRects + data.lastRowId;
-    const needsRebuild = dataGeneration !== this.lastDataGeneration;
+    const needsRebuild = dataGeneration !== this.lastDataGeneration ||
+                         data.start !== this.lastDataStart;
 
     if (needsRebuild && numRects > 0) {
+      // Reset buffer upload tracking - any rebuild needs GPU upload
+      this.buffersUploadedForGeneration = -1;
+
       // 4 vertices per quad (indexed drawing) instead of 6
       this.cachedPositions = new Float32Array(numRects * 4 * 2);
       this.cachedBaseColors = new Float32Array(numRects * 4 * 4);
@@ -350,6 +359,7 @@ export class CpuSliceTrack implements TrackRenderer {
       this.cachedIndices = new Uint16Array(numRects * 6);
       this.cachedUtids = new Uint32Array(numRects);
       this.cachedPids = new Array(numRects);
+      this.cachedFlags = new Int8Array(numRects * 4);
       this.selectorBuffer = new Int8Array(numRects * 4);
 
       let posIdx = 0;
@@ -394,8 +404,10 @@ export class CpuSliceTrack implements TrackRenderer {
         this.cachedIndices[idxIdx++] = baseVertex + 1; // TR
         this.cachedIndices[idxIdx++] = baseVertex + 3; // BR
 
-        // Write colors for all 4 vertices
+        // Write colors and flags for all 4 vertices
         const colorBaseIdx = i * 4 * 4;
+        const flagsBaseIdx = i * 4;
+        const flags = data.flags[i];
         for (let v = 0; v < 4; v++) {
           const offset = colorBaseIdx + v * 4;
           this.cachedBaseColors[offset] = base.r;
@@ -412,11 +424,14 @@ export class CpuSliceTrack implements TrackRenderer {
           this.cachedDisabledColors[offset + 1] = disabled.g;
           this.cachedDisabledColors[offset + 2] = disabled.b;
           this.cachedDisabledColors[offset + 3] = disabled.a;
+
+          this.cachedFlags[flagsBaseIdx + v] = flags;
         }
       }
 
       this.cachedRectCount = numRects;
       this.lastDataGeneration = dataGeneration;
+      this.lastDataStart = data.start;
     }
 
     // Build selector buffer only when hover state changes
@@ -603,7 +618,9 @@ export class CpuSliceTrack implements TrackRenderer {
       in vec4 a_variantColor;
       in vec4 a_disabledColor;
       in int a_selector;
+      in int a_flags;
       out vec4 v_color;
+      flat out int v_flags;
       uniform vec2 u_resolution;
       uniform vec2 u_offset;
       uniform float u_dpr;
@@ -618,15 +635,27 @@ export class CpuSliceTrack implements TrackRenderer {
         v_color = a_baseColor;
         if (a_selector == 1) v_color = a_variantColor;
         if (a_selector == 2) v_color = a_disabledColor;
+        v_flags = a_flags;
       }
     `;
 
     const fsSource = `#version 300 es
       precision mediump float;
       in vec4 v_color;
+      flat in int v_flags;
       out vec4 fragColor;
       void main() {
         fragColor = v_color;
+        // RT flag is bit 1 (value 2) - render diagonal stripes
+        if ((v_flags & 2) != 0) {
+          // Create diagonal stripe pattern using fragment coordinates
+          // Stripe width of 8 pixels, matching the Canvas 2D pattern
+          float stripe = mod(gl_FragCoord.x + gl_FragCoord.y, 8.0);
+          // Draw white stripe with 30% opacity when in stripe region (1px wide)
+          if (stripe < 1.0) {
+            fragColor = mix(fragColor, vec4(1.0, 1.0, 1.0, 1.0), 0.3);
+          }
+        }
       }
     `;
 
@@ -657,6 +686,7 @@ export class CpuSliceTrack implements TrackRenderer {
     const variantColorLocation = gl.getAttribLocation(program, 'a_variantColor');
     const disabledColorLocation = gl.getAttribLocation(program, 'a_disabledColor');
     const selectorLocation = gl.getAttribLocation(program, 'a_selector');
+    const flagsLocation = gl.getAttribLocation(program, 'a_flags');
     const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')!;
     const offsetLocation = gl.getUniformLocation(program, 'u_offset')!;
     const dprLocation = gl.getUniformLocation(program, 'u_dpr')!;
@@ -671,6 +701,7 @@ export class CpuSliceTrack implements TrackRenderer {
       variantColorLocation,
       disabledColorLocation,
       selectorLocation,
+      flagsLocation,
       resolutionLocation,
       offsetLocation,
       dprLocation,
@@ -693,6 +724,7 @@ export class CpuSliceTrack implements TrackRenderer {
       variantColorBuffer: gl.createBuffer()!,
       disabledColorBuffer: gl.createBuffer()!,
       selectorBuffer: gl.createBuffer()!,
+      flagsBuffer: gl.createBuffer()!,
       indexBuffer: gl.createBuffer()!,
     };
     // Reset upload tracking since we have new buffers
@@ -714,6 +746,7 @@ export class CpuSliceTrack implements TrackRenderer {
       variantColorLocation,
       disabledColorLocation,
       selectorLocation,
+      flagsLocation,
       resolutionLocation,
       offsetLocation,
       dprLocation,
@@ -727,6 +760,7 @@ export class CpuSliceTrack implements TrackRenderer {
       variantColorBuffer,
       disabledColorBuffer,
       selectorBuffer,
+      flagsBuffer,
       indexBuffer,
     } = this.ensureBuffers(gl);
 
@@ -784,6 +818,14 @@ export class CpuSliceTrack implements TrackRenderer {
     }
     gl.enableVertexAttribArray(selectorLocation);
     gl.vertexAttribIPointer(selectorLocation, 1, gl.BYTE, 0, 0);
+
+    // Flags buffer (RT flag etc) - static, only upload when data changes
+    gl.bindBuffer(gl.ARRAY_BUFFER, flagsBuffer);
+    if (needsStaticUpload) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.cachedFlags!, gl.STATIC_DRAW);
+    }
+    gl.enableVertexAttribArray(flagsLocation);
+    gl.vertexAttribIPointer(flagsLocation, 1, gl.BYTE, 0, 0);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     if (needsStaticUpload) {
