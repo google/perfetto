@@ -456,8 +456,23 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     offscreenGl.clearColor(0, 0, 0, 0);
     offscreenGl.clear(offscreenGl.COLOR_BUFFER_BIT);
 
-    // Draw tracks (renders to both 2D canvas and WebGL canvas)
-    const tracksOnCanvas = this.drawTracks(
+    // Phase 1: WebGL rendering for all tracks (before copy)
+    this.drawTracksWebGL(
+      renderedTracks,
+      floatingCanvasRect,
+      size,
+      timelineRect,
+      visibleWindow,
+      colors,
+      offscreenCanvas,
+      offscreenGl,
+    );
+
+    // Copy WebGL canvas content to main canvas
+    ctx.drawImage(offscreenCanvas, 0, 0, size.width, size.height);
+
+    // Phase 2: Canvas 2D rendering for all tracks (after copy)
+    const tracksOnCanvas = this.drawTracks2D(
       renderedTracks,
       floatingCanvasRect,
       size,
@@ -468,10 +483,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       offscreenCanvas,
       offscreenGl,
     );
-
-    // Copy WebGL canvas content to main canvas AFTER tracks have rendered,
-    // but BEFORE overlays so 2D overlays appear on top
-    ctx.drawImage(offscreenCanvas, 0, 0, size.width, size.height);
 
     renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
     this.drawHoveredNoteVertical(ctx, timescale, size);
@@ -515,7 +526,39 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     }
   }
 
-  private drawTracks(
+  // First pass: WebGL rendering only (called before copy)
+  private drawTracksWebGL(
+    renderedTracks: ReadonlyArray<TrackView>,
+    floatingCanvasRect: Rect2D,
+    size: Size2D,
+    timelineRect: Rect2D,
+    visibleWindow: HighPrecisionTimeSpan,
+    colors: CanvasColors,
+    offscreenCanvas: OffscreenCanvas,
+    offscreenGl: WebGLRenderingContext,
+  ) {
+    for (const trackView of renderedTracks) {
+      const {verticalBounds} = trackView;
+      if (
+        floatingCanvasRect.overlaps({
+          ...verticalBounds,
+          left: 0,
+          right: size.width,
+        })
+      ) {
+        trackView.drawWebGL(
+          timelineRect,
+          visibleWindow,
+          colors,
+          offscreenCanvas,
+          offscreenGl,
+        );
+      }
+    }
+  }
+
+  // Second pass: Canvas 2D rendering only (called after copy)
+  private drawTracks2D(
     renderedTracks: ReadonlyArray<TrackView>,
     floatingCanvasRect: Rect2D,
     size: Size2D,
@@ -536,7 +579,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           right: size.width,
         })
       ) {
-        trackView.drawCanvas(
+        trackView.drawCanvas2D(
           ctx,
           timelineRect,
           visibleWindow,

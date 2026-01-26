@@ -455,9 +455,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  render({
-    ctx,
-    size,
+  renderWebGL({
     timescale,
     offscreenGl,
     canvasOffset,
@@ -465,17 +463,6 @@ export class GroupSummaryTrack implements TrackRenderer {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
-
-    // If the cached trace slices don't fully cover the visible time range,
-    // show a gray rectangle with a "Loading..." label.
-    checkerboardExcept(
-      ctx,
-      this.getHeight(),
-      0,
-      size.width,
-      timescale.timeToPx(data.start),
-      timescale.timeToPx(data.end),
-    );
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
@@ -633,6 +620,27 @@ export class GroupSummaryTrack implements TrackRenderer {
         this.selectorBuffer && this.cachedRectCount > 0) {
       this.drawWebGLRects(offscreenGl, canvasOffset, timescale, data.start);
     }
+  }
+
+  render({
+    ctx,
+    size,
+    timescale,
+  }: TrackRenderContext): void {
+    const data = this.fetcher.data;
+
+    if (data === undefined) return; // Can't possibly draw anything.
+
+    // If the cached trace slices don't fully cover the visible time range,
+    // show a gray rectangle with a "Loading..." label.
+    checkerboardExcept(
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      timescale.timeToPx(data.start),
+      timescale.timeToPx(data.end),
+    );
   }
 
   private ensureGlProgram(gl: WebGLRenderingContext): typeof cachedGlProgram {

@@ -300,8 +300,19 @@ export interface TrackRenderer {
   onDestroy?(): Promise<void>;
 
   /**
+   * Optional method for WebGL rendering, called before the WebGL canvas is
+   * copied to the main canvas. Use this for hardware-accelerated rendering
+   * of rectangles and other primitives.
+   *
+   * This is called for ALL tracks before the copy, ensuring WebGL content
+   * doesn't overwrite Canvas 2D content from other tracks.
+   */
+  renderWebGL?(ctx: TrackRenderContext): void;
+
+  /**
    * Required method used to render the track's content to the canvas, called
-   * synchronously on every render cycle.
+   * synchronously on every render cycle. This is called AFTER the WebGL canvas
+   * has been copied, so Canvas 2D content (text, etc.) will appear on top.
    */
   render(ctx: TrackRenderContext): void;
   onFullRedraw?(): void;

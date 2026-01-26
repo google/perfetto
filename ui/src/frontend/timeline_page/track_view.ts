@@ -261,7 +261,56 @@ export class TrackView {
     );
   }
 
-  drawCanvas(
+  // Phase 1: WebGL rendering only (before copy)
+  drawWebGL(
+    rect: Rect2D,
+    visibleWindow: HighPrecisionTimeSpan,
+    colors: CanvasColors,
+    offscreenCanvas: OffscreenCanvas,
+    offscreenGl: WebGLRenderingContext,
+  ) {
+    const {node, renderer, verticalBounds} = this;
+
+    if (node.isSummary && node.expanded) return;
+    if (renderer?.getError()) return;
+    if (!renderer?.track.renderWebGL) return; // Skip if track doesn't use WebGL
+
+    const trackRect = new Rect2D({
+      ...rect,
+      ...verticalBounds,
+    });
+
+    const timescale = new TimeScale(visibleWindow, {
+      left: 0,
+      right: trackRect.width,
+    });
+
+    const maybeNewResolution = calculateResolution(
+      visibleWindow,
+      trackRect.width,
+    );
+    if (!maybeNewResolution.ok) {
+      return;
+    }
+
+    node.uri &&
+      renderer.track.renderWebGL({
+        trackUri: node.uri,
+        trackNode: node,
+        visibleWindow,
+        size: trackRect,
+        resolution: maybeNewResolution.value,
+        ctx: undefined as unknown as CanvasRenderingContext2D, // Not used for WebGL
+        timescale,
+        colors,
+        offscreenCanvas,
+        offscreenGl,
+        canvasOffset: {x: trackRect.left, y: trackRect.top},
+      });
+  }
+
+  // Phase 2: Canvas 2D rendering only (after WebGL copy)
+  drawCanvas2D(
     ctx: CanvasRenderingContext2D,
     rect: Rect2D,
     visibleWindow: HighPrecisionTimeSpan,

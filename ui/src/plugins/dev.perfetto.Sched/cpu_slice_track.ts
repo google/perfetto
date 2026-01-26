@@ -298,32 +298,15 @@ export class CpuSliceTrack implements TrackRenderer {
     }
   }
 
-  render(trackCtx: TrackRenderContext): void {
-    const {ctx, size, timescale} = trackCtx;
-
-    // TODO: fonts and colors should come from the CSS and not hardcoded here.
+  renderWebGL({
+    timescale,
+    offscreenGl,
+    canvasOffset,
+  }: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
 
-    // If the cached trace slices don't fully cover the visible time range,
-    // show a gray rectangle with a "Loading..." label.
-    checkerboardExcept(
-      ctx,
-      this.getHeight(),
-      0,
-      size.width,
-      timescale.timeToPx(data.start),
-      timescale.timeToPx(data.end),
-    );
-
-    this.renderSlices(trackCtx, data);
-  }
-
-  renderSlices(
-    {ctx, timescale, size, visibleWindow, offscreenGl, canvasOffset}: TrackRenderContext,
-    data: Data,
-  ): void {
     assertTrue(data.startQs.length === data.endQs.length);
     assertTrue(data.startQs.length === data.utids.length);
 
@@ -448,6 +431,26 @@ export class CpuSliceTrack implements TrackRenderer {
         this.selectorBuffer && this.cachedRectCount > 0) {
       this.drawWebGLRects(offscreenGl, canvasOffset, timescale, data.start);
     }
+  }
+
+  render(trackCtx: TrackRenderContext): void {
+    const {ctx, size, timescale, visibleWindow} = trackCtx;
+
+    // TODO: fonts and colors should come from the CSS and not hardcoded here.
+    const data = this.fetcher.data;
+
+    if (data === undefined) return; // Can't possibly draw anything.
+
+    // If the cached trace slices don't fully cover the visible time range,
+    // show a gray rectangle with a "Loading..." label.
+    checkerboardExcept(
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      timescale.timeToPx(data.start),
+      timescale.timeToPx(data.end),
+    );
 
     // Render text using Canvas 2D (on top of WebGL rectangles)
     const visWindowEndPx = size.width;
