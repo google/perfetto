@@ -157,19 +157,19 @@ ORDER BY
 -- mipmap of the startup slices. The mipmap provides a summarized view of the
 -- startup, with a resolution of 1 ms. The table contains merged slices
 -- representing the dominant event in each time bucket.
-CREATE PERFETTO TABLE android_startup_mipmap_1ms (
+CREATE PERFETTO TABLE _android_startup_mipmap_1ms (
   -- timestamp of the merged slice
   ts TIMESTAMP,
   -- duration of the merged slice
-  dur LONG,
+  dur DURATION,
   -- unique startup id
-  startup_id LONG,
+  startup_id JOINID(android_startups.startup_id),
   -- package name
   package STRING,
   -- startup type
   startup_type STRING,
   -- original startup duration
-  startup_dur LONG,
+  startup_dur DURATION,
   -- slice name of the dominant event
   name STRING,
   -- thread state of the dominant event
