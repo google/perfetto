@@ -117,6 +117,7 @@ let cachedGlProgram: {
   variantColorBuffer: WebGLBuffer;
   disabledColorBuffer: WebGLBuffer;
   selectorBuffer: WebGLBuffer;
+  indexBuffer: WebGLBuffer;
 } | undefined;
 
 export class GroupSummaryTrack implements TrackRenderer {
@@ -132,6 +133,7 @@ export class GroupSummaryTrack implements TrackRenderer {
   private cachedBaseColors?: Float32Array; // base colors per vertex
   private cachedVariantColors?: Float32Array; // highlighted colors per vertex
   private cachedDisabledColors?: Float32Array; // disabled colors per vertex
+  private cachedIndices?: Uint16Array; // index buffer for indexed drawing
   private cachedUtids?: Int32Array; // utid per rectangle (for highlight check)
   private cachedPids?: Array<bigint | undefined>; // pid per rectangle (for process highlight check)
   private cachedRectCount = 0;
@@ -481,11 +483,14 @@ export class GroupSummaryTrack implements TrackRenderer {
       const numRects = data.ends.length;
 
       // Build the positions array: (time_offset, y_pixel) for each vertex
-      this.cachedPositions = new Float32Array(numRects * 6 * 2);
+      // Using 4 vertices per quad with indexed drawing
+      this.cachedPositions = new Float32Array(numRects * 4 * 2);
+      this.cachedIndices = new Uint16Array(numRects * 6);
       // Cache utids for color lookup (one per rectangle)
       this.cachedUtids = new Int32Array(numRects);
 
       let posIdx = 0;
+      let idxIdx = 0;
       for (let i = 0; i < numRects; i++) {
         const tStart = data.starts[i];
         const tEnd = data.ends[i];
@@ -501,30 +506,34 @@ export class GroupSummaryTrack implements TrackRenderer {
         // Cache utid for this rectangle
         this.cachedUtids[i] = data.utids[i];
 
-        // Triangle 1
-        this.cachedPositions[posIdx++] = t1;
+        // 4 vertices per quad: TL, TR, BL, BR
+        const baseVertex = i * 4;
+        this.cachedPositions[posIdx++] = t1; // TL
         this.cachedPositions[posIdx++] = y1;
-        this.cachedPositions[posIdx++] = t2;
+        this.cachedPositions[posIdx++] = t2; // TR
         this.cachedPositions[posIdx++] = y1;
-        this.cachedPositions[posIdx++] = t1;
+        this.cachedPositions[posIdx++] = t1; // BL
+        this.cachedPositions[posIdx++] = y2;
+        this.cachedPositions[posIdx++] = t2; // BR
         this.cachedPositions[posIdx++] = y2;
 
-        // Triangle 2
-        this.cachedPositions[posIdx++] = t1;
-        this.cachedPositions[posIdx++] = y2;
-        this.cachedPositions[posIdx++] = t2;
-        this.cachedPositions[posIdx++] = y1;
-        this.cachedPositions[posIdx++] = t2;
-        this.cachedPositions[posIdx++] = y2;
+        // 6 indices for 2 triangles: (TL, TR, BL), (BL, TR, BR)
+        this.cachedIndices[idxIdx++] = baseVertex + 0; // TL
+        this.cachedIndices[idxIdx++] = baseVertex + 1; // TR
+        this.cachedIndices[idxIdx++] = baseVertex + 2; // BL
+        this.cachedIndices[idxIdx++] = baseVertex + 2; // BL
+        this.cachedIndices[idxIdx++] = baseVertex + 1; // TR
+        this.cachedIndices[idxIdx++] = baseVertex + 3; // BR
       }
 
       this.cachedRectCount = numRects;
       this.lastDataGeneration = dataGeneration;
 
       // Pre-compute base, variant, and disabled colors for all rectangles
-      this.cachedBaseColors = new Float32Array(numRects * 6 * 4);
-      this.cachedVariantColors = new Float32Array(numRects * 6 * 4);
-      this.cachedDisabledColors = new Float32Array(numRects * 6 * 4);
+      // 4 vertices per quad
+      this.cachedBaseColors = new Float32Array(numRects * 4 * 4);
+      this.cachedVariantColors = new Float32Array(numRects * 4 * 4);
+      this.cachedDisabledColors = new Float32Array(numRects * 4 * 4);
       this.cachedPids = new Array(numRects);
 
       for (let i = 0; i < numRects; i++) {
@@ -553,9 +562,9 @@ export class GroupSummaryTrack implements TrackRenderer {
         const variant = parseColor(colorScheme.variant.cssString);
         const disabled = parseColor(colorScheme.disabled.cssString);
 
-        // Write colors for all 6 vertices of this rectangle
-        const baseIdx = i * 6 * 4;
-        for (let v = 0; v < 6; v++) {
+        // Write colors for all 4 vertices of this rectangle
+        const baseIdx = i * 4 * 4;
+        for (let v = 0; v < 4; v++) {
           const offset = baseIdx + v * 4;
           this.cachedBaseColors[offset] = base.r;
           this.cachedBaseColors[offset + 1] = base.g;
@@ -575,7 +584,8 @@ export class GroupSummaryTrack implements TrackRenderer {
       }
 
       // Allocate selector buffer (will be filled every frame)
-      this.selectorBuffer = new Float32Array(numRects * 6); // 1 float per vertex
+      // 4 vertices per quad
+      this.selectorBuffer = new Float32Array(numRects * 4);
     }
 
     // Build selector buffer every frame based on highlight state
@@ -606,9 +616,9 @@ export class GroupSummaryTrack implements TrackRenderer {
         }
         // For slice mode, always use base color (selector = 0.0)
 
-        // Write selector for all 6 vertices of this rectangle
-        const baseIdx = i * 6;
-        for (let v = 0; v < 6; v++) {
+        // Write selector for all 4 vertices of this rectangle
+        const baseIdx = i * 4;
+        for (let v = 0; v < 4; v++) {
           this.selectorBuffer[baseIdx + v] = selector;
         }
       }
@@ -617,7 +627,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     // Draw using cached buffers with current timescale transformation
     if (offscreenGl && this.cachedPositions && this.cachedBaseColors &&
         this.cachedVariantColors && this.cachedDisabledColors &&
-        this.selectorBuffer && this.cachedRectCount > 0) {
+        this.cachedIndices && this.selectorBuffer && this.cachedRectCount > 0) {
       this.drawWebGLRects(offscreenGl, canvasOffset, timescale, data.start);
     }
   }
@@ -734,6 +744,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     const variantColorBuffer = gl.createBuffer()!;
     const disabledColorBuffer = gl.createBuffer()!;
     const selectorBuffer = gl.createBuffer()!;
+    const indexBuffer = gl.createBuffer()!;
 
     // Cache the program
     cachedGlProgram = {
@@ -754,6 +765,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       variantColorBuffer,
       disabledColorBuffer,
       selectorBuffer,
+      indexBuffer,
     };
 
     return cachedGlProgram;
@@ -782,6 +794,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       variantColorBuffer,
       disabledColorBuffer,
       selectorBuffer,
+      indexBuffer,
     } = this.ensureGlProgram(gl)!;
 
     gl.useProgram(program);
@@ -847,8 +860,12 @@ export class GroupSummaryTrack implements TrackRenderer {
     gl.enableVertexAttribArray(selectorLocation);
     gl.vertexAttribPointer(selectorLocation, 1, gl.FLOAT, false, 0, 0);
 
-    // Draw all rectangles in one call
-    gl.drawArrays(gl.TRIANGLES, 0, this.cachedRectCount * 6);
+    // Upload and bind index buffer
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.cachedIndices!, gl.STATIC_DRAW);
+
+    // Draw all rectangles using indexed drawing
+    gl.drawElements(gl.TRIANGLES, this.cachedRectCount * 6, gl.UNSIGNED_SHORT, 0);
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
