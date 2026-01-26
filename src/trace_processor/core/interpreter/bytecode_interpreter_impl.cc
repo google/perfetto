@@ -23,12 +23,18 @@
 #include <optional>
 #include <string_view>
 #include <unordered_set>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/interpreter/bytecode_instructions.h"
+#include "src/trace_processor/core/interpreter/bytecode_interpreter_state.h"
+#include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/sort.h"
 #include "src/trace_processor/core/util/span.h"
@@ -231,6 +237,131 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
   }
   return ops::Filter(data, begin, end, output, regex.value(),
                      RegexComparator{string_pool});
+}
+
+void MakeParentToChildTreeStructure(
+    InterpreterState& state,
+    const struct MakeParentToChildTreeStructure& bytecode) {
+  using B = struct MakeParentToChildTreeStructure;
+
+  const TreeStructure::ChildToParent& c2p =
+      state.ReadFromRegister(bytecode.arg<B::source_register>());
+  TreeStructure::ParentToChild& p2c =
+      state.ReadFromRegister(bytecode.arg<B::update_register>());
+
+  auto size = static_cast<uint32_t>(c2p.parents.size());
+  if (size == 0) {
+    p2c.roots.e = p2c.roots.b;
+    p2c.offsets.e = p2c.offsets.b;
+    p2c.children.e = p2c.children.b;
+    return;
+  }
+
+  // First pass: count children for each node and collect roots.
+  uint32_t* counts = p2c.offsets.b;
+  memset(counts, 0, size * sizeof(uint32_t));
+  p2c.roots.e = p2c.roots.b;
+  for (uint32_t i = 0; i < size; ++i) {
+    uint32_t parent = c2p.parents.b[i];
+    if (parent == kTreeNoParent) {
+      *p2c.roots.e++ = i;
+    } else {
+      ++counts[parent];
+    }
+  }
+
+  // Second pass: convert counts to offsets (exclusive prefix sum) in-place.
+  uint32_t running_sum = 0;
+  for (uint32_t i = 0; i < size; ++i) {
+    uint32_t count = counts[i];
+    counts[i] = running_sum;
+    running_sum += count;
+  }
+  counts[size] = running_sum;
+  p2c.offsets.e = counts + size + 1;
+
+  // Third pass: populate children array using offsets as write cursors.
+  uint32_t* offsets = p2c.offsets.b;
+  p2c.children.e = p2c.children.b + running_sum;
+  for (uint32_t i = 0; i < size; ++i) {
+    uint32_t parent = c2p.parents.b[i];
+    if (parent != kTreeNoParent) {
+      p2c.children.b[offsets[parent]++] = i;
+    }
+  }
+
+  // Fourth pass: restore offsets (third pass left offsets[i] = original[i+1]).
+  for (uint32_t i = size; i > 0; --i) {
+    offsets[i] = offsets[i - 1];
+  }
+  offsets[0] = 0;
+}
+
+void FilterTree(InterpreterState& state, const struct FilterTree& bytecode) {
+  using B = struct FilterTree;
+  const auto& p2c = state.ReadFromRegister(bytecode.arg<B::source_register>());
+  const BitVector* filter_bv =
+      state.ReadFromRegister(bytecode.arg<B::filter_register>());
+  auto& c2p = state.ReadFromRegister(bytecode.arg<B::update_register>());
+
+  uint32_t size = static_cast<uint32_t>(c2p.parents.size());
+  if (size == 0 || !filter_bv) {
+    return;
+  }
+
+  uint32_t* parents = c2p.parents.b;
+  uint32_t* orig_rows = c2p.original_rows.b;
+
+  constexpr uint32_t kNoParent = kTreeNoParent;
+
+  // DFS: for each node, pass down the nearest surviving ancestor's new_idx.
+  // When a node survives, it becomes the new ancestor for its children.
+  struct Entry {
+    uint32_t idx;
+    uint32_t ancestor;
+  };
+  FlexVector<Entry> stack;
+  FlexVector<Entry> survivors;
+
+  // Push roots in reverse order for correct traversal order.
+  for (auto ri = static_cast<uint32_t>(p2c.roots.size()); ri > 0; --ri) {
+    stack.push_back({p2c.roots.b[ri - 1], kNoParent});
+  }
+
+  while (!stack.empty()) {
+    Entry entry = stack.back();
+    stack.pop_back();
+
+    uint32_t new_ancestor = entry.ancestor;
+    if (filter_bv->is_set(entry.idx)) {
+      new_ancestor = static_cast<uint32_t>(survivors.size());
+      survivors.push_back({entry.idx, entry.ancestor});
+    }
+
+    // Push children in reverse order.
+    uint32_t cs = p2c.offsets.b[entry.idx];
+    uint32_t ce = p2c.offsets.b[entry.idx + 1];
+    for (uint32_t ci = ce; ci > cs; --ci) {
+      stack.push_back({p2c.children.b[ci - 1], new_ancestor});
+    }
+  }
+
+  // Write output in-place.
+  uint32_t num_survivors = static_cast<uint32_t>(survivors.size());
+
+  // Save orig_rows values before overwriting.
+  for (uint32_t i = 0; i < num_survivors; ++i) {
+    survivors[i].idx = orig_rows[survivors[i].idx];
+  }
+
+  // Write output arrays.
+  for (uint32_t i = 0; i < num_survivors; ++i) {
+    parents[i] = survivors[i].ancestor;
+    orig_rows[i] = survivors[i].idx;
+  }
+
+  c2p.parents.e = parents + num_survivors;
+  c2p.original_rows.e = orig_rows + num_survivors;
 }
 
 }  // namespace perfetto::trace_processor::core::interpreter::ops

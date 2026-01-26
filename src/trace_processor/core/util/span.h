@@ -31,6 +31,8 @@ struct Span {
   T* b;
   T* e;
 
+  static Span Empty() { return Span(nullptr, nullptr); }
+
   Span(T* _b, T* _e) : b(_b), e(_e) {}
 
   T* begin() const { return b; }

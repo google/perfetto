@@ -52,6 +52,8 @@
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_column.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
@@ -90,11 +92,12 @@ namespace perfetto::trace_processor {
 namespace {
 
 struct SqliteStmtValueFetcher : public dataframe::ValueFetcher {
-  using Type = int;
-  [[maybe_unused]] static constexpr Type kInt64 = SQLITE_INTEGER;
-  [[maybe_unused]] static constexpr Type kDouble = SQLITE_FLOAT;
-  [[maybe_unused]] static constexpr Type kString = SQLITE_TEXT;
-  [[maybe_unused]] static constexpr Type kNull = SQLITE_NULL;
+  using Type = sqlite::Type;
+  [[maybe_unused]] static constexpr Type kInt64 = sqlite::Type::kInteger;
+  [[maybe_unused]] static constexpr Type kDouble = sqlite::Type::kFloat;
+  [[maybe_unused]] static constexpr Type kString = sqlite::Type::kText;
+  [[maybe_unused]] static constexpr Type kNull = sqlite::Type::kNull;
+  [[maybe_unused]] static constexpr Type kBytes = sqlite::Type::kBlob;
 
   [[maybe_unused]] int64_t GetInt64Value(uint32_t i) const {
     return sqlite3_column_int64(stmt_, int(i));
@@ -120,24 +123,25 @@ struct SqliteStmtValueFetcher : public dataframe::ValueFetcher {
 // Similar to SqliteStmtValueFetcher but for validating views have the correct
 // types. Will ignore blobs and treat them as nulls.
 struct SqliteStmtValueViewFetcher : public dataframe::ValueFetcher {
-  using Type = int;
-  [[maybe_unused]] static constexpr Type kInt64 = SQLITE_INTEGER;
-  [[maybe_unused]] static constexpr Type kDouble = SQLITE_FLOAT;
-  [[maybe_unused]] static constexpr Type kString = SQLITE_TEXT;
-  [[maybe_unused]] static constexpr Type kNull = SQLITE_NULL;
+  using Type = sqlite::Type;
+  [[maybe_unused]] static constexpr Type kInt64 = sqlite::Type::kInteger;
+  [[maybe_unused]] static constexpr Type kDouble = sqlite::Type::kFloat;
+  [[maybe_unused]] static constexpr Type kString = sqlite::Type::kText;
+  [[maybe_unused]] static constexpr Type kNull = sqlite::Type::kNull;
+  [[maybe_unused]] static constexpr Type kBytes = sqlite::Type::kBlob;
 
   [[maybe_unused]] int64_t GetInt64Value(uint32_t i) const {
-    return sqlite3_column_int64(stmt_, int(i));
+    return sqlite::column::Int64(stmt_, i);
   }
   [[maybe_unused]] double GetDoubleValue(uint32_t i) const {
-    return sqlite3_column_double(stmt_, int(i));
+    return sqlite::column::Double(stmt_, i);
   }
   [[maybe_unused]] const char* GetStringValue(uint32_t i) const {
-    return reinterpret_cast<const char*>(sqlite3_column_text(stmt_, int(i)));
+    return sqlite::column::Text(stmt_, i);
   }
   [[maybe_unused]] Type GetValueType(uint32_t i) const {
-    int type = sqlite3_column_type(stmt_, int(i));
-    return type == SQLITE_BLOB ? SQLITE_NULL : static_cast<Type>(type);
+    auto type = sqlite::column::Type(stmt_, i);
+    return type == kBytes ? kNull : type;
   }
   [[maybe_unused]] static bool IteratorInit(uint32_t) {
     PERFETTO_FATAL("Unsupported");

@@ -39,6 +39,19 @@ source_set("interpreter") {
   ]
 }
 
+source_set("test_utils") {
+  testonly = true
+  sources = [
+    "test_utils.cc",
+    "test_utils.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../base",
+  ]
+}
+
 source_set("bytecode_interpreter_test_utils") {
   testonly = true
   sources = [ "bytecode_interpreter_test_utils.h" ]

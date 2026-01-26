@@ -1592,6 +1592,14 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
   indices.e = indices.b + 1;
 }
 
+// Builds CSR (Compressed Sparse Row) from ChildToParent structure.
+void MakeParentToChildTreeStructure(
+    InterpreterState& state,
+    const struct MakeParentToChildTreeStructure& bytecode);
+
+// Filters tree nodes, reparenting children of removed nodes.
+void FilterTree(InterpreterState& state, const struct FilterTree& bytecode);
+
 }  // namespace ops
 
 // Macros for generating case statements that dispatch to ops:: free functions.

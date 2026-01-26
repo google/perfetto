@@ -19,6 +19,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <initializer_list>
 #include <type_traits>
 
 #include "perfetto/ext/base/utils.h"
@@ -68,6 +70,12 @@ class Slab {
     return Slab(
         static_cast<T*>(base::AlignedAlloc(alignof(T), size * sizeof(T))),
         size);
+  }
+
+  // Constructs a slab from an initializer list.
+  Slab(std::initializer_list<T> init)
+      : Slab(Alloc(static_cast<uint64_t>(init.size()))) {
+    memcpy(data_.get(), init.begin(), init.size() * sizeof(T));
   }
 
   // Returns a pointer to the underlying data.

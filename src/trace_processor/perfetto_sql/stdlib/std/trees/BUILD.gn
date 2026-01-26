@@ -12,15 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This directory contains core data structures and algorithms used by the
-# trace processor. These are low-level primitives that can be shared across
-# different components like dataframe, graph, tree, and interval structures.
+import("../../../../../../gn/perfetto_sql.gni")
 
-group("core") {
-  deps = [
-    "common",
-    "dataframe",
-    "interpreter",
-    "tree",
-  ]
+perfetto_sql_source_set("trees") {
+  sources = [ "table_conversion.sql" ]
 }

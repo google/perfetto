@@ -29,6 +29,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
@@ -80,6 +81,8 @@ namespace perfetto::trace_processor::core::dataframe {
 // ```
 class RuntimeDataframeBuilder {
  public:
+  using NullabilityType = AdhocDataframeBuilder::NullabilityType;
+
   // Constructs a RuntimeDataframeBuilder.
   //
   // Args:
@@ -167,6 +170,8 @@ class RuntimeDataframeBuilder {
         case ValueFetcherImpl::kNull:
           builder_.PushNull(i);
           break;
+        case ValueFetcherImpl::kBytes:
+          PERFETTO_FATAL("Bytes type not supported in RuntimeDataframeBuilder");
       }
     }
     return true;

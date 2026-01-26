@@ -96,7 +96,10 @@ source_set("functions") {
     "../../parser",
     "../types",
   ]
-  public_deps = [ ":interface" ]
+  public_deps = [
+    ":interface",
+    "trees",
+  ]
   if (enable_perfetto_llvm_symbolizer) {
     sources += [
       "symbolize.cc",

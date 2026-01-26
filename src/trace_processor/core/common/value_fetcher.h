@@ -36,6 +36,7 @@ struct ValueFetcher {
   static const Type kDouble;
   static const Type kString;
   static const Type kNull;
+  static const Type Bytes;
 
   // Functions for operating on scalar values. The caller should know that
   // the value at the give index is a scalar and not an iterator.

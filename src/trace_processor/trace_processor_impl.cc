@@ -105,6 +105,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
@@ -1334,6 +1335,12 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   {
     base::Status status = RegisterGraphTraversalFunctions(
         *engine, *storage->mutable_string_pool());
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status =
+        RegisterTreeFunctions(*engine, *storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
