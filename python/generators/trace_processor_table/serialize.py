@@ -52,7 +52,7 @@ class ColumnSerializer:
 
   def row_insert_arg_value(self) -> Optional[str]:
     """Generates the C++ code to access this column's value from a Row object,
-    for use in the Dataframe::InsertUnchecked call."""
+    for use in the dataframe::InsertUnchecked call."""
     if self.is_implicit_id:
       return f'std::monostate()'
     if self.is_optional and self.is_id_type and not self.is_no_transform_id:
@@ -582,7 +582,8 @@ class {self.table_name} {{
   {self.row_struct()}
 
   explicit {self.table_name}(StringPool* pool)
-      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {{}}
+      : dataframe_(
+        dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {{}}
 
   template <typename = void>
   IdAndRow Insert(const Row& row) {{
@@ -671,9 +672,9 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/tables/macros_internal.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/dataframe/typed_cursor.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "{fwd_header_str}"
 
 {include_paths_str}
