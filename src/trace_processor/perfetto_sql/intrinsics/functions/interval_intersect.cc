@@ -281,7 +281,7 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
         dataframe::AdhocDataframeBuilder builder(
             ret_col_names, GetUserData(ctx)->pool,
             dataframe::AdhocDataframeBuilder::Options{
-                {}, dataframe::AdhocDataframeBuilder::Options::kDenseNull});
+                {}, dataframe::NullabilityType::kSparseNullWithPopcount});
         SQLITE_ASSIGN_OR_RETURN(ctx, dataframe::Dataframe ret_table,
                                 std::move(builder).Build());
         return sqlite::result::UniquePointer(
@@ -309,7 +309,7 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
     dataframe::AdhocDataframeBuilder builder(
         ret_col_names, GetUserData(ctx)->pool,
         dataframe::AdhocDataframeBuilder::Options{
-            col_types, dataframe::AdhocDataframeBuilder::Options::kDenseNull});
+            col_types, dataframe::NullabilityType::kSparseNullWithPopcount});
     auto t_least_partitions =
         static_cast<uint32_t>(std::distance(t_partitions.begin(), min_el));
 

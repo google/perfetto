@@ -499,14 +499,14 @@ base::StatusOr<dataframe::Dataframe> GraphAggregatingScanner::Run() {
   dataframe::AdhocDataframeBuilder res(
       inits.column_names, pool,
       dataframe::AdhocDataframeBuilder::Options{
-          {}, dataframe::AdhocDataframeBuilder::Options::kDenseNull});
+          {}, dataframe::NullabilityType::kSparseNullWithPopcount});
   uint32_t max_depth = DfsAndComputeMaxDepth(InitializeStateFromMaxNode());
 
   for (uint32_t i = 0; i < max_depth + 1; ++i) {
     tables_per_depth.emplace_back(DepthTable{dataframe::AdhocDataframeBuilder(
         inits.column_names, pool,
         dataframe::AdhocDataframeBuilder::Options{
-            {}, dataframe::AdhocDataframeBuilder::Options::kDenseNull})});
+            {}, dataframe::NullabilityType::kSparseNullWithPopcount})});
   }
 
   RETURN_IF_ERROR(PushDownStartingAggregates(res));
@@ -584,7 +584,7 @@ struct GraphAggregatingScan : public sqlite::Function<GraphAggregatingScan> {
           dataframe::AdhocDataframeBuilder(
               col_names, user_data->pool,
               dataframe::AdhocDataframeBuilder::Options{
-                  {}, dataframe::AdhocDataframeBuilder::Options::kDenseNull})
+                  {}, dataframe::NullabilityType::kSparseNullWithPopcount})
               .Build());
       return sqlite::result::UniquePointer(
           ctx, std::make_unique<dataframe::Dataframe>(std::move(table)),
@@ -655,7 +655,7 @@ struct GraphScan : public sqlite::Function<GraphScan> {
     dataframe::AdhocDataframeBuilder out(
         col_names, user_data->pool,
         dataframe::AdhocDataframeBuilder::Options{
-            {}, dataframe::AdhocDataframeBuilder::Options::kDenseNull});
+            {}, dataframe::NullabilityType::kSparseNullWithPopcount});
     if (!init) {
       SQLITE_ASSIGN_OR_RETURN(ctx, auto table, std::move(out).Build());
       return sqlite::result::UniquePointer(
@@ -679,7 +679,7 @@ struct GraphScan : public sqlite::Function<GraphScan> {
       dataframe::AdhocDataframeBuilder step(
           init->column_names, user_data->pool,
           dataframe::AdhocDataframeBuilder::Options{
-              {}, dataframe::AdhocDataframeBuilder::Options::kDenseNull});
+              {}, dataframe::NullabilityType::kSparseNullWithPopcount});
       SQLITE_RETURN_IF_ERROR(
           ctx,
           InitToOutputAndStepTable(user_data->pool, *init, graph, step, out));
@@ -706,7 +706,7 @@ struct GraphScan : public sqlite::Function<GraphScan> {
       dataframe::AdhocDataframeBuilder step(
           init->column_names, user_data->pool,
           dataframe::AdhocDataframeBuilder::Options{
-              {}, dataframe::AdhocDataframeBuilder::Options::kDenseNull});
+              {}, dataframe::NullabilityType::kSparseNullWithPopcount});
       SQLITE_RETURN_IF_ERROR(
           ctx, SqliteToOutputAndStepTable(user_data->pool, agg_stmt, graph,
                                           step, out));
