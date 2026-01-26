@@ -132,9 +132,9 @@ class TraceProcessorImpl : public TraceProcessor,
   // |  Experimental   |
   // ===================
 
-  base::Status AnalyzeStructuredQuery(const TraceSummarySpecBytes& spec,
-                                      const std::string& query_id,
-                                      AnalyzedStructuredQuery* output) override;
+  base::Status AnalyzeStructuredQueries(
+      const std::vector<StructuredQueryBytes>&,
+      std::vector<AnalyzedStructuredQuery>*) override;
 
  private:
   // Needed for iterators to be able to access the context.
