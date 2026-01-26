@@ -46,24 +46,18 @@ export class PageManagerImpl implements PageManager {
     // scrolling position is retained between page flips, which can be handy
     // when quickly switching between pages that have long scrolling content
     // such as the timeline page.
-    return Array.from(this.previousPages.entries())
-      .map(([key, {page, subpage}]) => {
-        const isOpen = key === route.page;
-        const maybeRenderedPage = this.renderPageForRoute(
-          page,
-          subpage,
-          isOpen,
-        );
+    return Array.from(this.previousPages.entries()).map(
+      ([key, {page, subpage}]) => {
+        const open = key === route.page;
+        const maybeRenderedPage = this.renderPageForRoute(page, subpage, open);
         // If either the route doesn't exist or requires a trace but the trace
         // is not loaded, fall back on the default route.
         const renderedPage =
           maybeRenderedPage ??
-          assertExists(this.renderPageForRoute('/', '', isOpen));
-        return [key, renderedPage];
-      })
-      .map(([key, page]) => {
-        return m(Gate, {open: key === route.page}, page);
-      });
+          assertExists(this.renderPageForRoute('/', '', open));
+        return [key, m(Gate, {open}, renderedPage)];
+      },
+    );
   }
 
   // Will return undefined if either: (1) the route does not exist; (2) the
