@@ -99,6 +99,7 @@ function computeHover(
 }
 
 // Cached WebGL program state (shared across instances for same GL context)
+// Only program and attribute/uniform locations are shared - buffers are per-instance
 let cachedGlProgram: {
   gl: WebGL2RenderingContext;
   program: WebGLProgram;
@@ -112,12 +113,6 @@ let cachedGlProgram: {
   dprLocation: WebGLUniformLocation;
   timeScaleLocation: WebGLUniformLocation;
   timePxOffsetLocation: WebGLUniformLocation;
-  positionBuffer: WebGLBuffer;
-  baseColorBuffer: WebGLBuffer;
-  variantColorBuffer: WebGLBuffer;
-  disabledColorBuffer: WebGLBuffer;
-  selectorBuffer: WebGLBuffer;
-  indexBuffer: WebGLBuffer;
 } | undefined;
 
 export class GroupSummaryTrack implements TrackRenderer {
@@ -138,8 +133,24 @@ export class GroupSummaryTrack implements TrackRenderer {
   private cachedPids?: Array<bigint | undefined>; // pid per rectangle (for process highlight check)
   private cachedRectCount = 0;
   private lastDataGeneration = -1;
-  // Selector buffer rebuilt every frame (0.0 = base, 1.0 = variant, 2.0 = disabled)
+  // Selector buffer rebuilt when hover state changes
   private selectorBuffer?: Float32Array;
+  // Track when buffers were uploaded to GPU to avoid redundant uploads
+  private buffersUploadedForGeneration = -1;
+  private lastHoveredUtid?: number;
+  private lastHoveredPid?: bigint;
+  private selectorBufferDirty = false;
+
+  // Per-instance WebGL buffers (not shared across tracks)
+  private glBuffers?: {
+    gl: WebGL2RenderingContext;
+    positionBuffer: WebGLBuffer;
+    baseColorBuffer: WebGLBuffer;
+    variantColorBuffer: WebGLBuffer;
+    disabledColorBuffer: WebGLBuffer;
+    selectorBuffer: WebGLBuffer;
+    indexBuffer: WebGLBuffer;
+  };
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -588,11 +599,14 @@ export class GroupSummaryTrack implements TrackRenderer {
       this.selectorBuffer = new Float32Array(numRects * 4);
     }
 
-    // Build selector buffer every frame based on highlight state
-    // Selector values: 0.0 = base, 1.0 = variant, 2.0 = disabled
-    if (this.cachedUtids && this.cachedPids && this.selectorBuffer) {
-      const hoveredUtid = this.trace.timeline.hoveredUtid;
-      const hoveredPid = this.trace.timeline.hoveredPid;
+    // Build selector buffer only when hover state changes
+    const hoveredUtid = this.trace.timeline.hoveredUtid;
+    const hoveredPid = this.trace.timeline.hoveredPid;
+    const hoverChanged = hoveredUtid !== this.lastHoveredUtid ||
+                         hoveredPid !== this.lastHoveredPid ||
+                         needsRebuild;
+
+    if (hoverChanged && this.cachedUtids && this.cachedPids && this.selectorBuffer) {
       const isHovering = hoveredUtid !== undefined;
 
       for (let i = 0; i < this.cachedRectCount; i++) {
@@ -622,6 +636,9 @@ export class GroupSummaryTrack implements TrackRenderer {
           this.selectorBuffer[baseIdx + v] = selector;
         }
       }
+      this.lastHoveredUtid = hoveredUtid;
+      this.lastHoveredPid = hoveredPid;
+      this.selectorBufferDirty = true;
     }
 
     // Draw using cached buffers with current timescale transformation
@@ -738,15 +755,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     const timeScaleLocation = gl.getUniformLocation(program, 'u_time_scale')!;
     const timePxOffsetLocation = gl.getUniformLocation(program, 'u_time_px_offset')!;
 
-    // Create reusable buffers
-    const positionBuffer = gl.createBuffer()!;
-    const baseColorBuffer = gl.createBuffer()!;
-    const variantColorBuffer = gl.createBuffer()!;
-    const disabledColorBuffer = gl.createBuffer()!;
-    const selectorBuffer = gl.createBuffer()!;
-    const indexBuffer = gl.createBuffer()!;
-
-    // Cache the program
+    // Cache the program (buffers are per-instance, not cached here)
     cachedGlProgram = {
       gl,
       program,
@@ -760,15 +769,31 @@ export class GroupSummaryTrack implements TrackRenderer {
       dprLocation,
       timeScaleLocation,
       timePxOffsetLocation,
-      positionBuffer,
-      baseColorBuffer,
-      variantColorBuffer,
-      disabledColorBuffer,
-      selectorBuffer,
-      indexBuffer,
     };
 
     return cachedGlProgram;
+  }
+
+  private ensureBuffers(
+    gl: WebGL2RenderingContext,
+  ): NonNullable<typeof this.glBuffers> {
+    if (this.glBuffers?.gl === gl) {
+      return this.glBuffers;
+    }
+    // Create new buffers for this instance
+    this.glBuffers = {
+      gl,
+      positionBuffer: gl.createBuffer()!,
+      baseColorBuffer: gl.createBuffer()!,
+      variantColorBuffer: gl.createBuffer()!,
+      disabledColorBuffer: gl.createBuffer()!,
+      selectorBuffer: gl.createBuffer()!,
+      indexBuffer: gl.createBuffer()!,
+    };
+    // Reset upload tracking since we have new buffers
+    this.buffersUploadedForGeneration = -1;
+    this.selectorBufferDirty = true;
+    return this.glBuffers;
   }
 
   private drawWebGLRects(
@@ -789,13 +814,16 @@ export class GroupSummaryTrack implements TrackRenderer {
       dprLocation,
       timeScaleLocation,
       timePxOffsetLocation,
+    } = this.ensureGlProgram(gl)!;
+
+    const {
       positionBuffer,
       baseColorBuffer,
       variantColorBuffer,
       disabledColorBuffer,
       selectorBuffer,
       indexBuffer,
-    } = this.ensureGlProgram(gl)!;
+    } = this.ensureBuffers(gl);
 
     gl.useProgram(program);
 
@@ -830,39 +858,51 @@ export class GroupSummaryTrack implements TrackRenderer {
     gl.uniform1f(timeScaleLocation, timeScale);
     gl.uniform1f(timePxOffsetLocation, timePxOffset);
 
-    // Upload and bind position buffer
+    // Only upload static buffers when data has changed
+    const needsStaticUpload = this.buffersUploadedForGeneration !== this.lastDataGeneration;
+
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, this.cachedPositions!, gl.DYNAMIC_DRAW);
+    if (needsStaticUpload) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.cachedPositions!, gl.STATIC_DRAW);
+    }
     gl.enableVertexAttribArray(positionLocation);
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-    // Upload and bind base color buffer (cached, rarely changes)
     gl.bindBuffer(gl.ARRAY_BUFFER, baseColorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, this.cachedBaseColors!, gl.STATIC_DRAW);
+    if (needsStaticUpload) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.cachedBaseColors!, gl.STATIC_DRAW);
+    }
     gl.enableVertexAttribArray(baseColorLocation);
     gl.vertexAttribPointer(baseColorLocation, 4, gl.FLOAT, false, 0, 0);
 
-    // Upload and bind variant color buffer (cached, rarely changes)
     gl.bindBuffer(gl.ARRAY_BUFFER, variantColorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, this.cachedVariantColors!, gl.STATIC_DRAW);
+    if (needsStaticUpload) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.cachedVariantColors!, gl.STATIC_DRAW);
+    }
     gl.enableVertexAttribArray(variantColorLocation);
     gl.vertexAttribPointer(variantColorLocation, 4, gl.FLOAT, false, 0, 0);
 
-    // Upload and bind disabled color buffer (cached, rarely changes)
     gl.bindBuffer(gl.ARRAY_BUFFER, disabledColorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, this.cachedDisabledColors!, gl.STATIC_DRAW);
+    if (needsStaticUpload) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.cachedDisabledColors!, gl.STATIC_DRAW);
+    }
     gl.enableVertexAttribArray(disabledColorLocation);
     gl.vertexAttribPointer(disabledColorLocation, 4, gl.FLOAT, false, 0, 0);
 
-    // Upload and bind selector buffer (changes every frame)
+    // Selector buffer - only upload when hover state changed
     gl.bindBuffer(gl.ARRAY_BUFFER, selectorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, this.selectorBuffer!, gl.DYNAMIC_DRAW);
+    if (this.selectorBufferDirty) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.selectorBuffer!, gl.DYNAMIC_DRAW);
+      this.selectorBufferDirty = false;
+    }
     gl.enableVertexAttribArray(selectorLocation);
     gl.vertexAttribPointer(selectorLocation, 1, gl.FLOAT, false, 0, 0);
 
-    // Upload and bind index buffer
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.cachedIndices!, gl.STATIC_DRAW);
+    if (needsStaticUpload) {
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.cachedIndices!, gl.STATIC_DRAW);
+      this.buffersUploadedForGeneration = this.lastDataGeneration;
+    }
 
     // Draw all rectangles using indexed drawing
     gl.drawElements(gl.TRIANGLES, this.cachedRectCount * 6, gl.UNSIGNED_SHORT, 0);
