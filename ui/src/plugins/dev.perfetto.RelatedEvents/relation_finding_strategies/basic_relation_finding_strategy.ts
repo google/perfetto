@@ -66,6 +66,8 @@ export class BasicRelationFindingStrategy implements RelationFindingStrategy {
       sliceId: initialEventId,
       name: initialEventDetails.eventName,
       args: initialEventDetails.eventArgs,
+      ts: initialEventDetails.eventTs,
+      dur: initialEventDetails.eventDur,
     };
 
     const relatedDatasets: Dataset[] = this.rules.flatMap((rule) =>
@@ -73,11 +75,11 @@ export class BasicRelationFindingStrategy implements RelationFindingStrategy {
     );
 
     relatedDatasets.push(
-        new SourceDataset({
-          ...initialDataset,
-          filter: {col: 'id', eq: initialEventId},
-        }),
-      );
+      new SourceDataset({
+        ...initialDataset,
+        filter: {col: 'id', eq: initialEventId},
+      }),
+    );
 
     if (relatedDatasets.length === 0) return undefined;
 

@@ -15,6 +15,7 @@
 import {Dataset, DatasetSchema} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
+import {duration, time} from '../../base/time';
 
 // ---------------------------------------------------
 // Strategy interface
@@ -46,6 +47,8 @@ export type EventContext = {
   sliceId: number;
   name: string;
   args: Map<string, string>;
+  ts: time;
+  dur: duration;
 };
 
 export interface RelationRule {
