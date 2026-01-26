@@ -137,7 +137,7 @@ source_set("v8_profile_parser") {
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
-    "../../util:json_parser_hdr",
+    "../../util:json_parser",
     "../../util:simple_json_parser",
   ]
 }

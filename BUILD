@@ -359,6 +359,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
+        ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
         ":src_trace_processor_importers_ftrace_ftrace_descriptors",
@@ -429,9 +430,9 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
-        ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -439,6 +440,8 @@ perfetto_cc_library(
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_regex",
+        ":src_trace_processor_util_simple_json_parser",
+        ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_trace_blob_view_reader",
@@ -563,6 +566,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
+        ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
         ":src_trace_processor_importers_ftrace_ftrace_descriptors",
@@ -635,9 +639,9 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
-        ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -645,6 +649,8 @@ perfetto_cc_library(
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_regex",
+        ":src_trace_processor_util_simple_json_parser",
+        ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_trace_blob_view_reader",
@@ -2242,6 +2248,15 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_common_synthetic_tid_hdr",
     srcs = [
         "src/trace_processor/importers/common/synthetic_tid.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/common:v8_profile_parser
+perfetto_filegroup(
+    name = "src_trace_processor_importers_common_v8_profile_parser",
+    srcs = [
+        "src/trace_processor/importers/common/v8_profile_parser.cc",
+        "src/trace_processor/importers/common/v8_profile_parser.h",
     ],
 )
 
@@ -4163,13 +4178,20 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:json_args
+perfetto_filegroup(
+    name = "src_trace_processor_util_json_args",
+    srcs = [
+        "src/trace_processor/util/json_args.cc",
+        "src/trace_processor/util/json_args.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:json_parser
 perfetto_filegroup(
     name = "src_trace_processor_util_json_parser",
     srcs = [
         "src/trace_processor/util/json_parser.h",
-        "src/trace_processor/util/json_utils.cc",
-        "src/trace_processor/util/json_utils.h",
     ],
 )
 
@@ -4178,15 +4200,6 @@ perfetto_filegroup(
     name = "src_trace_processor_util_json_serializer",
     srcs = [
         "src/trace_processor/util/json_serializer.h",
-    ],
-)
-
-# GN target: //src/trace_processor/util:json_writer
-perfetto_filegroup(
-    name = "src_trace_processor_util_json_writer",
-    srcs = [
-        "src/trace_processor/util/json_writer.cc",
-        "src/trace_processor/util/json_writer.h",
     ],
 )
 
@@ -4253,6 +4266,24 @@ perfetto_filegroup(
     name = "src_trace_processor_util_regex",
     srcs = [
         "src/trace_processor/util/regex.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:simple_json_parser
+perfetto_filegroup(
+    name = "src_trace_processor_util_simple_json_parser",
+    srcs = [
+        "src/trace_processor/util/simple_json_parser.cc",
+        "src/trace_processor/util/simple_json_parser.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:simple_json_serializer
+perfetto_filegroup(
+    name = "src_trace_processor_util_simple_json_serializer",
+    srcs = [
+        "src/trace_processor/util/simple_json_serializer.cc",
+        "src/trace_processor/util/simple_json_serializer.h",
     ],
 )
 
@@ -8064,6 +8095,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
+        ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
         ":src_trace_processor_importers_ftrace_ftrace_descriptors",
@@ -8133,9 +8165,9 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
-        ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -8143,6 +8175,8 @@ perfetto_cc_library(
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_regex",
+        ":src_trace_processor_util_simple_json_parser",
+        ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_trace_blob_view_reader",
@@ -8297,6 +8331,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
+        ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
         ":src_trace_processor_importers_ftrace_ftrace_descriptors",
@@ -8366,9 +8401,9 @@ perfetto_cc_binary(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
-        ":src_trace_processor_util_json_writer",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -8376,6 +8411,8 @@ perfetto_cc_binary(
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_regex",
+        ":src_trace_processor_util_simple_json_parser",
+        ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_tar_writer",
