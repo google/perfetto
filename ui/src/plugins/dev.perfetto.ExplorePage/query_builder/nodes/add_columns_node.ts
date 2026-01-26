@@ -1573,9 +1573,12 @@ export class AddColumnsNode implements QueryNode {
         });
       }
 
-      // If there are no computed columns, just pass through
+      // If there are no computed columns, return passthrough to maintain reference chain
       if (computedColumns.length === 0) {
-        return this.primaryInput.getStructuredQuery();
+        return StructuredQueryBuilder.passthrough(
+          this.primaryInput,
+          this.nodeId,
+        );
       }
 
       // Build column specifications including existing columns and computed columns
@@ -1644,8 +1647,8 @@ export class AddColumnsNode implements QueryNode {
       };
     } else if (joinColumns.length > 0) {
       // If we have JOIN columns but no condition, this is an invalid state
-      // Fall back to just returning the base query
-      return this.primaryInput.getStructuredQuery();
+      // Return passthrough to maintain reference chain
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
     }
 
     // Collect referenced modules from computed columns
@@ -1653,14 +1656,16 @@ export class AddColumnsNode implements QueryNode {
       ?.map((col) => col.module)
       .filter((mod): mod is string => mod !== undefined);
 
+    // If no columns to add (neither JOIN columns nor computed columns), return passthrough
+    if (joinColumns.length === 0 && computedColumns.length === 0) {
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
+    }
+
     // Get all base columns from the source (needed when we have JOIN or computed columns)
-    const allBaseColumns: ColumnSpec[] =
-      joinColumns.length > 0 || computedColumns.length > 0
-        ? this.sourceCols.map((col) => ({
-            columnNameOrExpression: col.column.name,
-            alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
-          }))
-        : [];
+    const allBaseColumns: ColumnSpec[] = this.sourceCols.map((col) => ({
+      columnNameOrExpression: col.column.name,
+      alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
+    }));
 
     // Use the builder to handle the complexity of composing JOIN + computed columns
     return StructuredQueryBuilder.withAddColumnsAndExpressions(
