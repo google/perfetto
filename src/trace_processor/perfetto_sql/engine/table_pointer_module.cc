@@ -19,16 +19,12 @@
 #include <sqlite3.h>
 #include <array>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -189,25 +185,18 @@ int TablePointerModule::Filter(sqlite3_vtab_cursor* cur,
     }
     c->bound_col_to_table_index[c->col_count++] = *idx;
   }
-  std::vector<dataframe::FilterSpec> specs;
-  SQLITE_ASSIGN_OR_RETURN(
-      c->pVtab, auto plan,
-      c->dataframe->PlanQuery(specs, {}, {}, {},
-                              std::numeric_limits<uint64_t>::max()));
-  c->dataframe->PrepareCursor(plan, c->cursor);
-
-  DataframeModule::SqliteValueFetcher fetcher{{}, {}, nullptr};
-  c->cursor.Execute(fetcher);
+  c->current_row = 0;
   return SQLITE_OK;
 }
 
 int TablePointerModule::Next(sqlite3_vtab_cursor* cur) {
-  GetCursor(cur)->cursor.Next();
+  ++GetCursor(cur)->current_row;
   return SQLITE_OK;
 }
 
 int TablePointerModule::Eof(sqlite3_vtab_cursor* cur) {
-  return GetCursor(cur)->cursor.Eof();
+  auto* c = GetCursor(cur);
+  return c->current_row >= c->dataframe->row_count();
 }
 
 int TablePointerModule::Column(sqlite3_vtab_cursor* cur,
@@ -215,8 +204,9 @@ int TablePointerModule::Column(sqlite3_vtab_cursor* cur,
                                int raw_n) {
   auto* c = GetCursor(cur);
   DataframeModule::SqliteResultCallback visitor{{}, ctx};
-  c->cursor.Cell(c->bound_col_to_table_index[static_cast<uint32_t>(raw_n)],
-                 visitor);
+  c->dataframe->GetCell(
+      c->current_row, c->bound_col_to_table_index[static_cast<uint32_t>(raw_n)],
+      visitor);
   return SQLITE_OK;
 }
 

@@ -496,12 +496,17 @@ base::StatusOr<dataframe::Dataframe> GraphAggregatingScanner::Run() {
   //      query and also CREATE PERFETTO TABLE: the code here is very similar to
   //      the code in PerfettoSqlEngine.
 
-  dataframe::AdhocDataframeBuilder res(inits.column_names, pool);
+  dataframe::AdhocDataframeBuilder res(
+      inits.column_names, pool,
+      dataframe::AdhocDataframeBuilder::Options{
+          {}, dataframe::NullabilityType::kSparseNullWithPopcount});
   uint32_t max_depth = DfsAndComputeMaxDepth(InitializeStateFromMaxNode());
 
   for (uint32_t i = 0; i < max_depth + 1; ++i) {
-    tables_per_depth.emplace_back(
-        DepthTable{dataframe::AdhocDataframeBuilder(inits.column_names, pool)});
+    tables_per_depth.emplace_back(DepthTable{dataframe::AdhocDataframeBuilder(
+        inits.column_names, pool,
+        dataframe::AdhocDataframeBuilder::Options{
+            {}, dataframe::NullabilityType::kSparseNullWithPopcount})});
   }
 
   RETURN_IF_ERROR(PushDownStartingAggregates(res));
@@ -576,7 +581,11 @@ struct GraphAggregatingScan : public sqlite::Function<GraphAggregatingScan> {
     if (!init) {
       SQLITE_ASSIGN_OR_RETURN(
           ctx, auto table,
-          dataframe::AdhocDataframeBuilder(col_names, user_data->pool).Build());
+          dataframe::AdhocDataframeBuilder(
+              col_names, user_data->pool,
+              dataframe::AdhocDataframeBuilder::Options{
+                  {}, dataframe::NullabilityType::kSparseNullWithPopcount})
+              .Build());
       return sqlite::result::UniquePointer(
           ctx, std::make_unique<dataframe::Dataframe>(std::move(table)),
           "TABLE");
@@ -643,7 +652,10 @@ struct GraphScan : public sqlite::Function<GraphScan> {
 
     const auto* init = sqlite::value::Pointer<perfetto_sql::RowDataframe>(
         argv[1], "ROW_DATAFRAME");
-    dataframe::AdhocDataframeBuilder out(col_names, user_data->pool);
+    dataframe::AdhocDataframeBuilder out(
+        col_names, user_data->pool,
+        dataframe::AdhocDataframeBuilder::Options{
+            {}, dataframe::NullabilityType::kSparseNullWithPopcount});
     if (!init) {
       SQLITE_ASSIGN_OR_RETURN(ctx, auto table, std::move(out).Build());
       return sqlite::result::UniquePointer(
@@ -664,8 +676,10 @@ struct GraphScan : public sqlite::Function<GraphScan> {
 
     std::optional<dataframe::Dataframe> step_table;
     {
-      dataframe::AdhocDataframeBuilder step(init->column_names,
-                                            user_data->pool);
+      dataframe::AdhocDataframeBuilder step(
+          init->column_names, user_data->pool,
+          dataframe::AdhocDataframeBuilder::Options{
+              {}, dataframe::NullabilityType::kSparseNullWithPopcount});
       SQLITE_RETURN_IF_ERROR(
           ctx,
           InitToOutputAndStepTable(user_data->pool, *init, graph, step, out));
@@ -689,8 +703,10 @@ struct GraphScan : public sqlite::Function<GraphScan> {
             base::StackString<1024>("Failed to bind pointer %d", err).c_str());
       }
 
-      dataframe::AdhocDataframeBuilder step(init->column_names,
-                                            user_data->pool);
+      dataframe::AdhocDataframeBuilder step(
+          init->column_names, user_data->pool,
+          dataframe::AdhocDataframeBuilder::Options{
+              {}, dataframe::NullabilityType::kSparseNullWithPopcount});
       SQLITE_RETURN_IF_ERROR(
           ctx, SqliteToOutputAndStepTable(user_data->pool, agg_stmt, graph,
                                           step, out));

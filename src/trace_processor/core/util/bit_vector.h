@@ -200,11 +200,14 @@ struct BitVector {
   // Returns a Slab containing the prefix sum counts.
   PERFETTO_ALWAYS_INLINE Slab<uint32_t> PrefixPopcount() const {
     Slab<uint32_t> res = Slab<uint32_t>::Alloc((size_ + 63ull) / 64ull);
-    uint32_t accum = 0;
-    for (uint32_t i = 0; i < (size_ + 63ull) / 64ull; ++i) {
-      res[i] = accum;
-      accum += static_cast<uint32_t>(PERFETTO_POPCOUNT(words_[i]));
-    }
+    ComputePrefixPopcount(res.data());
+    return res;
+  }
+
+  // Same as PrefixPopcount but returns a FlexVector instead of a Slab.
+  PERFETTO_ALWAYS_INLINE FlexVector<uint32_t> PrefixPopcountFlexVector() const {
+    auto res = FlexVector<uint32_t>::CreateWithSize((size_ + 63ull) / 64ull);
+    ComputePrefixPopcount(res.data());
     return res;
   }
 
@@ -225,6 +228,15 @@ struct BitVector {
   // Constructor used by Alloc.
   explicit BitVector(FlexVector<uint64_t> data, uint64_t size)
       : words_(std::move(data)), size_(size) {}
+
+  // Helper to compute prefix popcount into an output buffer.
+  PERFETTO_ALWAYS_INLINE void ComputePrefixPopcount(uint32_t* out) const {
+    uint32_t accum = 0;
+    for (uint32_t i = 0; i < (size_ + 63ull) / 64ull; ++i) {
+      out[i] = accum;
+      accum += static_cast<uint32_t>(PERFETTO_POPCOUNT(words_[i]));
+    }
+  }
 
   // The underlying storage as 64-bit words.
   FlexVector<uint64_t> words_;
