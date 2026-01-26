@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Duration, Time} from '../../base/time';
 import {Dataset, SourceDataset} from '../../trace_processor/dataset';
 import {
   EventContext,
@@ -135,8 +136,8 @@ export class InputConsumerRule implements RelationRule {
             src: `
               SELECT DISTINCT id, name, ts, dur, track_id, 'cookie_to_seq' as relation
               FROM slice
-              WHERE name GLOB '*seq=${seqHex}*' 
-                AND (name GLOB 'sendMessage(*type=MOTION*' OR name GLOB 'receiveMessage(*type=MOTION*')
+              WHERE name GLOB '*seq=${seqHex}*'
+                AND (name GLOB 'sendMessage(*type=MOTION*')
             `,
             schema: RELATED_EVENT_SCHEMA,
           }),
@@ -152,6 +153,20 @@ export class ChoreographerRule implements RelationRule {
     const datasets: Dataset[] = [];
 
     if (ctx.name.startsWith('deliverInputEvent src')) {
+      const idMatch = ctx.name.match(/id=(0x[0-9a-fA-F]+)/);
+      if (idMatch) {
+        const id = idMatch[1];
+        datasets.push(
+          new SourceDataset({
+            src: `
+            SELECT id, name, ts, dur, track_id, 'id_match' as relation
+            FROM slice
+            WHERE name GLOB 'prepareDispatchCycleLocked(*id=${id}*'
+          `,
+            schema: RELATED_EVENT_SCHEMA,
+          }),
+        );
+      }
       datasets.push(
         new SourceDataset({
           src: `
@@ -189,9 +204,61 @@ export class ChoreographerRule implements RelationRule {
   }
 }
 
+export class TwoshayInputRule implements RelationRule {
+  getRelatedEventsAsDataset(ctx: EventContext): Dataset[] {
+    // 5ms search window to prevent full table scans
+    const SEARCH_WINDOW_NS = Duration.fromRaw(5_000_000n);
+
+    // 1. From Twoshay -> InputReader (Look FORWARD)
+    // "Find the first InputReader event that happens after this twoshay event"
+    if (ctx.name.includes('algo->processFrame')) {
+      return [
+        new SourceDataset({
+          src: `
+            SELECT
+              id, name, ts, dur, track_id,
+              'next_input_reader' as relation
+            FROM slice
+            WHERE name GLOB '*UnwantedInteraction*'
+              AND ts >= ${ctx.ts}
+              AND ts <= ${Time.add(ctx.ts, SEARCH_WINDOW_NS)}
+            ORDER BY ts ASC
+            LIMIT 1
+          `,
+          schema: RELATED_EVENT_SCHEMA,
+        }),
+      ];
+    }
+
+    // 2. From InputReader -> Twoshay (Look BACKWARD)
+    // "Find the most recent twoshay event that happened before this InputReader"
+    if (ctx.name.includes('UnwantedInteraction')) {
+      return [
+        new SourceDataset({
+          src: `
+            SELECT
+              id, name, ts, dur, track_id,
+              'prev_twoshay' as relation
+            FROM slice
+            WHERE name GLOB 'algo->processFrame*'
+              AND ts <= ${ctx.ts}
+              AND ts >= ${Time.sub(ctx.ts, SEARCH_WINDOW_NS)}
+            ORDER BY ts DESC
+            LIMIT 1
+          `,
+          schema: RELATED_EVENT_SCHEMA,
+        }),
+      ];
+    }
+
+    return [];
+  }
+}
+
 export const ANDROID_INPUT_RULES: RelationRule[] = [
   new InputIdRule(),
   new InputSequenceRule(),
   new InputConsumerRule(),
   new ChoreographerRule(),
+  new TwoshayInputRule(),
 ];

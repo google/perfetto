@@ -323,7 +323,8 @@ export class RelatedInputEventsTab extends RelatedEventsTabBase {
     const columns = Array.from(this.lifecycles.entries()).map(
       ([channel, events]) => {
         const startTime = events[0].ts;
-        const endTime = events[events.length - 1].ts;
+        const endTime =
+          events[events.length - 1].ts + events[events.length - 1].dur;
         const totalLatency = Duration.humanise(endTime - startTime);
 
         const isSelected = this.selectedChannel === channel;
