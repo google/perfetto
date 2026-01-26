@@ -73,9 +73,8 @@ export function findWarnings(
 // ============================================================================
 
 /**
- * Builds an array of structured queries by walking the entire graph from the final node.
- * Uses DFS post-order traversal to visit ALL input nodes (primary and secondary).
- * Returns queries in dependency order (roots first, final node last).
+ * Builds an array of structured queries by walking up the graph from the final node.
+ * Returns queries in root-to-leaf order (reversed from traversal order).
  */
 function getStructuredQueries(
   finalNode: QueryNode,
@@ -85,62 +84,40 @@ function getStructuredQueries(
       `Cannot get structured queries: node ${finalNode.nodeId} has no finalCols`,
     );
   }
-
-  // Use DFS post-order traversal to ensure dependencies come before dependents
-  const visited = new Set<string>();
-  const orderedNodes: QueryNode[] = [];
-
-  // Recursive DFS helper that adds nodes in post-order (children before parents)
-  function dfsPostOrder(node: QueryNode): Error | undefined {
-    if (visited.has(node.nodeId)) {
-      return undefined;
-    }
-    visited.add(node.nodeId);
-
-    // Validate the node
-    if (!node.validate()) {
+  const revStructuredQueries: protos.PerfettoSqlStructuredQuery[] = [];
+  let curNode: QueryNode | undefined = finalNode;
+  while (curNode) {
+    const curSq = curNode.getStructuredQuery();
+    if (curSq === undefined) {
       return new Error(
-        `Cannot get structured queries: node ${node.nodeId} failed validation`,
+        `Cannot get structured queries: node ${curNode.nodeId} returned undefined from getStructuredQuery()`,
       );
     }
+    revStructuredQueries.push(curSq);
 
-    // Visit all inputs first (primary and secondary)
-    const inputs: QueryNode[] = [];
-    if (node.primaryInput) {
-      inputs.push(node.primaryInput);
-    }
-    if (node.secondaryInputs) {
-      for (const [, inputNode] of node.secondaryInputs.connections) {
-        inputs.push(inputNode);
+    // Navigate up the graph - prefer primaryInput, fall back to first secondary
+    let inputNode: QueryNode | undefined = curNode.primaryInput;
+    if (!inputNode && curNode.secondaryInputs) {
+      // No primary input - follow first secondary input (arbitrary choice for traversal)
+      const connections: Map<number, QueryNode> =
+        curNode.secondaryInputs.connections;
+      if (connections.size > 0) {
+        inputNode = connections.get(0);
       }
     }
 
-    for (const inputNode of inputs) {
-      const error = dfsPostOrder(inputNode);
-      if (error) return error;
+    if (inputNode) {
+      if (!inputNode.validate()) {
+        return new Error(
+          `Cannot get structured queries: input node ${inputNode.nodeId} failed validation`,
+        );
+      }
+      curNode = inputNode;
+    } else {
+      curNode = undefined;
     }
-
-    // Add this node after all its inputs (post-order)
-    orderedNodes.push(node);
-    return undefined;
   }
-
-  const error = dfsPostOrder(finalNode);
-  if (error) return error;
-
-  // Build structured queries from the ordered nodes (already in dependency order)
-  const structuredQueries: protos.PerfettoSqlStructuredQuery[] = [];
-  for (const node of orderedNodes) {
-    const sq = node.getStructuredQuery();
-    if (sq === undefined) {
-      return new Error(
-        `Cannot get structured queries: node ${node.nodeId} returned undefined from getStructuredQuery()`,
-      );
-    }
-    structuredQueries.push(sq);
-  }
-
-  return structuredQueries;
+  return revStructuredQueries.reverse();
 }
 
 /**
@@ -210,42 +187,41 @@ export async function analyzeNode(
     return structuredQueries;
   }
 
-  if (structuredQueries.length === 0) {
-    return new Error('No structured queries to analyze');
-  }
-
-  // Build a TraceSummarySpec containing all the queries
-  const spec = new protos.TraceSummarySpec();
-  spec.query = structuredQueries;
-
-  // Use the node's ID as the query ID to analyze. The node's ID is set as the
-  // query's id field when the node builds its structured query, and it's
-  // guaranteed to be the last query in the array (due to DFS post-order).
-  const queryId = node.nodeId;
-
-  const res = await engine.analyzeStructuredQuery(spec, queryId);
+  const res = await engine.analyzeStructuredQuery(structuredQueries);
   if (res.error !== undefined && res.error !== null && res.error !== '') {
     return new Error(res.error);
   }
-  if (res.sql === null || res.sql === undefined) {
+  if (res.results.length === 0) {
+    return new Error('No structured query results');
+  }
+  if (res.results.length !== structuredQueries.length) {
+    return new Error(
+      `Wrong structured query results. Asked for ${
+        structuredQueries.length
+      }, received ${res.results.length}`,
+    );
+  }
+
+  const lastRes = res.results[res.results.length - 1];
+  if (lastRes.sql === null || lastRes.sql === undefined) {
     return new Error(
       `analyzeNode: engine returned no SQL for node ${node.nodeId}`,
     );
   }
   if (
-    res.textproto === undefined ||
-    res.textproto === null ||
-    res.textproto === ''
+    lastRes.textproto === undefined ||
+    lastRes.textproto === null ||
+    lastRes.textproto === ''
   ) {
     return new Error('No textproto in structured query results');
   }
 
   const sql: Query = {
-    sql: res.sql,
-    textproto: res.textproto ?? '',
-    modules: res.modules ?? [],
-    preambles: res.preambles ?? [],
-    columns: res.columns ?? [],
+    sql: lastRes.sql,
+    textproto: lastRes.textproto ?? '',
+    modules: lastRes.modules ?? [],
+    preambles: lastRes.preambles ?? [],
+    columns: lastRes.columns ?? [],
   };
   return sql;
 }
