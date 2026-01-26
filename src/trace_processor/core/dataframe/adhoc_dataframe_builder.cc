@@ -116,8 +116,7 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
         }));
         break;
       case base::variant_index<DataVariant, core::FlexVector<int64_t>>(): {
-        auto& data =
-            base::unchecked_get<core::FlexVector<int64_t>>(state.data);
+        auto& data = base::unchecked_get<core::FlexVector<int64_t>>(state.data);
         non_null_row_count = data.size();
         duplicate_bit_vector_.clear();
 
