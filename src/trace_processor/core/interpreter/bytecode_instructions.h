@@ -173,7 +173,7 @@ struct SpecializedStorageSmallValueEq : Bytecode {
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<const BitVector*>,
                                      small_value_bv_register,
-                                     ReadHandle<Span<uint32_t>>,
+                                     ReadHandle<Span<const uint32_t>>,
                                      small_value_popcount_register,
                                      ReadHandle<CastFilterValueResult>,
                                      val_register,
@@ -474,7 +474,7 @@ struct IndexedFilterEqBase
                                      popcount_register,
                                      ReadHandle<Span<uint32_t>>,
                                      source_register,
-                                     RwHandle<Span<uint32_t>>,
+                                     WriteHandle<Span<uint32_t>>,
                                      dest_register);
 };
 template <typename T, typename N>

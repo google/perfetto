@@ -1330,7 +1330,7 @@ IndexToStorageIndex(uint32_t index,
                     const BitVector* const* bv_ptr,
                     const Slab<uint32_t>* popcnt) {
   if constexpr (std::is_same_v<N, NonNull>) {
-    base::ignore_result(popcnt);
+    base::ignore_result(bv_ptr, popcnt);
     return index;
   } else if constexpr (std::is_same_v<N, SparseNull>) {
     const BitVector* bv = *bv_ptr;
@@ -1358,7 +1358,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
       state.ReadFromRegister(bytecode.arg<B::filter_value_reg>());
   const auto& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
-  auto& dest = state.ReadFromRegister(bytecode.arg<B::dest_register>());
+  Span<uint32_t> dest(source.b, source.e);
   if (!HandleInvalidCastFilterValueResult(filter_value.validity, dest)) {
     return;
   }
@@ -1394,6 +1394,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
           return val_arg < data[storage_idx];
         }
       });
+  state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
 inline PERFETTO_ALWAYS_INLINE void Uint32SetIdSortedEq(
@@ -1441,7 +1442,7 @@ inline PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
   auto val = base::unchecked_get<ValueType>(cast_result.value);
   const BitVector* bv =
       state.ReadFromRegister(bytecode.arg<B::small_value_bv_register>());
-  const Span<uint32_t>& popcount =
+  const Span<const uint32_t>& popcount =
       state.ReadFromRegister(bytecode.arg<B::small_value_popcount_register>());
 
   uint32_t k =

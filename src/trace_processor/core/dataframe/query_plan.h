@@ -109,12 +109,11 @@ struct QueryPlanImpl {
   // Serializes the query plan to a Base64-encoded string.
   // This allows plans to be stored or transmitted between processes.
   std::string Serialize() const {
-    size_t size = sizeof(params) + sizeof(size_t) +
-                  (bytecode.size() * sizeof(interpreter::Bytecode)) +
-                  sizeof(size_t) +
-                  (col_to_output_offset.size() * sizeof(uint32_t)) +
-                  sizeof(size_t) +
-                  (register_inits.size() * sizeof(RegisterInit));
+    size_t size =
+        sizeof(params) + sizeof(size_t) +
+        (bytecode.size() * sizeof(interpreter::Bytecode)) + sizeof(size_t) +
+        (col_to_output_offset.size() * sizeof(uint32_t)) + sizeof(size_t) +
+        (register_inits.size() * sizeof(RegisterInit));
     std::string res(size, '\0');
     char* p = res.data();
     {
@@ -294,7 +293,7 @@ class QueryPlanBuilder {
     std::optional<interpreter::ReadHandle<const BitVector*>> null_bv_register;
     std::optional<interpreter::ReadHandle<const BitVector*>>
         small_value_eq_bv_register;
-    std::optional<interpreter::ReadHandle<Span<uint32_t>>>
+    std::optional<interpreter::ReadHandle<Span<const uint32_t>>>
         small_value_eq_popcount_register;
   };
 
@@ -429,7 +428,7 @@ class QueryPlanBuilder {
       uint32_t col);
 
   // Returns the SmallValueEq popcount register for the given column.
-  interpreter::ReadHandle<Span<uint32_t>> SmallValueEqPopcountRegisterFor(
+  interpreter::ReadHandle<Span<const uint32_t>> SmallValueEqPopcountRegisterFor(
       uint32_t col);
 
   interpreter::ReadHandle<interpreter::CastFilterValueResult> CastFilterValue(

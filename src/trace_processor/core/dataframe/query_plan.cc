@@ -726,9 +726,9 @@ void QueryPlanBuilder::IndexConstraints(
     const std::vector<uint32_t>& filter_specs) {
   // Source register points to the immutable index permutation vector.
   i::ReadHandle<Span<uint32_t>> source_reg{plan_.params.register_count++};
-  plan_.register_inits.emplace_back(
-      RegisterInit{source_reg.index, RegisterInit::Type{RegisterInit::IndexVector{}},
-                   static_cast<uint16_t>(index_idx)});
+  plan_.register_inits.emplace_back(RegisterInit{
+      source_reg.index, RegisterInit::Type{RegisterInit::IndexVector{}},
+      static_cast<uint16_t>(index_idx)});
   // Dest register receives filtered results (pointing into source).
   i::RwHandle<Span<uint32_t>> dest_reg{plan_.params.register_count++};
   for (uint32_t spec_idx : filter_specs) {
@@ -1098,8 +1098,7 @@ Handle QueryPlanBuilder::GetOrCreateInitRegister(
   if (!reg) {
     reg = Handle{plan_.params.register_count++};
     plan_.register_inits.emplace_back(RegisterInit{
-        reg->index, RegisterInit::Type{init_type},
-        static_cast<uint16_t>(col)});
+        reg->index, RegisterInit::Type{init_type}, static_cast<uint16_t>(col)});
   }
   return *reg;
 }
@@ -1117,9 +1116,9 @@ i::ReadHandle<const BitVector*> QueryPlanBuilder::SmallValueEqBvRegisterFor(
       RegisterInit::SmallValueEqBitvector{});
 }
 
-i::ReadHandle<Span<uint32_t>> QueryPlanBuilder::SmallValueEqPopcountRegisterFor(
-    uint32_t col) {
-  return GetOrCreateInitRegister<i::ReadHandle<Span<uint32_t>>>(
+i::ReadHandle<Span<const uint32_t>>
+QueryPlanBuilder::SmallValueEqPopcountRegisterFor(uint32_t col) {
+  return GetOrCreateInitRegister<i::ReadHandle<Span<const uint32_t>>>(
       col, &ColumnState::small_value_eq_popcount_register,
       RegisterInit::SmallValueEqPopcount{});
 }
