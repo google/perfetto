@@ -265,6 +265,49 @@ source_set("json_parser") {
   }
 }
 
+# Header-only JSON streaming parser. No external dependencies.
+source_set("simple_json_parser") {
+  sources = [
+    "simple_json_parser.cc",
+    "simple_json_parser.h",
+  ]
+  public_deps = [ ":json_parser_hdr" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
+# Header only part of the json_parser (just json_parser.h).
+source_set("json_parser_hdr") {
+  sources = [ "json_parser.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
+# JSON args flattening using the streaming parser. No jsoncpp dependency.
+source_set("json_args") {
+  sources = [
+    "json_args.cc",
+    "json_args.h",
+  ]
+  deps = [
+    ":json_parser_hdr",
+    ":simple_json_parser",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+    "../containers",
+    "../importers/common",
+    "../storage",
+    "../types",
+  ]
+}
+
 source_set("json_serializer") {
   sources = [ "json_serializer.h" ]
   deps = [
@@ -398,6 +441,7 @@ source_set("unittests") {
     "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
     "protozero_to_text_unittests.cc",
+    "simple_json_parser_unittest.cc",
     "simple_json_serializer_unittest.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
@@ -424,6 +468,7 @@ source_set("unittests") {
     ":protozero_to_json",
     ":protozero_to_text",
     ":regex",
+    ":simple_json_parser",
     ":simple_json_serializer",
     ":sql_argument",
     ":tar_writer",
