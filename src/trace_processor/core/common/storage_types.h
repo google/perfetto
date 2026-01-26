@@ -17,6 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_STORAGE_TYPES_H_
 #define SRC_TRACE_PROCESSOR_CORE_COMMON_STORAGE_TYPES_H_
 
+#include <cstdint>
+
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core {
@@ -25,22 +28,34 @@ namespace perfetto::trace_processor::core {
 // the value. This allows for zero memory overhead as values don't need to be
 // explicitly stored. Operations on column with this type can be highly
 // optimized.
-struct Id {};
+struct Id {
+  using cpp_type = void;
+};
 
 // Represents values where the value is a 32-bit unsigned integer.
-struct Uint32 {};
+struct Uint32 {
+  using cpp_type = uint32_t;
+};
 
 // Represents values where the value is a 32-bit signed integer.
-struct Int32 {};
+struct Int32 {
+  using cpp_type = int32_t;
+};
 
 // Represents values where the value is a 64-bit signed integer.
-struct Int64 {};
+struct Int64 {
+  using cpp_type = int64_t;
+};
 
 // Represents values where the value is a double.
-struct Double {};
+struct Double {
+  using cpp_type = double;
+};
 
 // Represents values where the value is a string.
-struct String {};
+struct String {
+  using cpp_type = StringPool::Id;
+};
 
 // TypeSet of all possible storage value types.
 using StorageType = core::TypeSet<Id, Uint32, Int32, Int64, Double, String>;

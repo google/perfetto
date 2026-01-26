@@ -35,7 +35,6 @@ source_set("interpreter") {
     "../../util:glob",
     "../../util:regex",
     "../common",
-    "../dataframe:types",
     "../util",
   ]
 }
@@ -49,7 +48,7 @@ source_set("bytecode_interpreter_test_utils") {
     "../../../base",
     "../../containers",
     "../common",
-    "../dataframe:specs",
+    "../dataframe",
     "../util",
   ]
 }
@@ -65,7 +64,8 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../containers",
     "../../util:regex",
-    "../dataframe:specs",
+    "../common",
+    "../dataframe",
     "../util",
   ]
 }
@@ -81,6 +81,8 @@ if (enable_perfetto_benchmarks) {
       "../../../../gn:default_deps",
       "../../../base",
       "../../containers",
+      "../common",
+      "../dataframe",
       "../util",
     ]
   }
