@@ -212,11 +212,12 @@ const uint64_t kMockThermalTemp = 25000;
 const char kMockThermalType[] = "TSR0";
 const uint64_t kMockCpuIdleStateTime = 10000;
 const char kMockCpuIdleStateName[] = "MOCK_STATE_NAME";
-const uint64_t kMockIntelGpuFreq = 300;
-const uint64_t kMockAdrenoGpuFreq = 400'000'000;
-// kMockAMDGpuFreq whitespace is intentional.
+const char kMockIntelI915GpuFreq[] = "300";
+const char kMockIntelXeGpuFreq[] = "500";
+const char kMockAdrenoGpuFreq[] = "400000000";
+// kMockAmdGpuFreq whitespace is intentional.
 // clang-format off
-const char kMockAMDGpuFreq[] = R"(
+const char kMockAmdGpuFreq[] = R"(
 0: 200Mhz 
 1: 400Mhz *
 2: 2000Mhz 
@@ -272,6 +273,26 @@ base::ScopedFile MockOpenReadOnly(const char* path) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockDiskStat, strlen(kMockDiskStat), 0), 0);
   } else if (base::StartsWith(path, "/proc/pressure/")) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockPsi, strlen(kMockPsi), 0), 0);
+  } else if (base::StartsWith(path, "/sys/class/drm/card0")) {
+    if (base::StartsWith(path, "/sys/class/drm/card0/device/tile0/gt0")) {
+      EXPECT_GT(pwrite(tmp_.fd(), kMockIntelXeGpuFreq,
+                       strlen(kMockIntelXeGpuFreq), 0),
+                0);
+    } else if (base::StartsWith(path, "/sys/class/drm/card0/gt_")) {
+      EXPECT_GT(pwrite(tmp_.fd(), kMockIntelI915GpuFreq,
+                       strlen(kMockIntelI915GpuFreq), 0),
+                0);
+    } else if (base::StartsWith(path, "/sys/class/drm/card0/device/pp")) {
+      EXPECT_GT(pwrite(tmp_.fd(), kMockAmdGpuFreq, strlen(kMockAmdGpuFreq), 0),
+                0);
+    } else {
+      return base::ScopedFile();
+    }
+  } else if (std::string_view(path) ==
+             "/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq") {
+    EXPECT_GT(
+        pwrite(tmp_.fd(), kMockAdrenoGpuFreq, strlen(kMockAdrenoGpuFreq), 0),
+        0);
   } else {
     PERFETTO_FATAL("Unexpected file opened %s", path);
   }
@@ -590,75 +611,23 @@ TEST_F(SysStatsDataSourceTest, CpuIdleStates) {
   }
 }
 
-TEST_F(SysStatsDataSourceTest, IntelGpuFrequency) {
+TEST_F(SysStatsDataSourceTest, GpuFrequency) {
   DataSourceConfig config;
   protos::gen::SysStatsConfig sys_cfg;
   sys_cfg.set_gpufreq_period_ms(10);
   config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
   auto data_source = GetSysStatsDataSource(config);
 
-  // Ignore other GPU freq calls.
-  EXPECT_CALL(*data_source,
-              ReadFileToUInt64("/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq"));
-  EXPECT_CALL(*data_source,
-              ReadFileToUInt64("/sys/class/drm/card0/gt_act_freq_mhz"))
-      .WillRepeatedly(Return(std::optional<uint64_t>(kMockIntelGpuFreq)));
-
   WaitTick(data_source.get());
 
   protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
   ASSERT_TRUE(packet.has_sys_stats());
   const auto& sys_stats = packet.sys_stats();
-  EXPECT_EQ(sys_stats.gpufreq_mhz_size(), 1);
-  uint32_t intel_gpufreq = 300;
-  EXPECT_EQ(sys_stats.gpufreq_mhz()[0], intel_gpufreq);
-}
-
-TEST_F(SysStatsDataSourceTest, AMDGpuFrequency) {
-  DataSourceConfig config;
-  protos::gen::SysStatsConfig sys_cfg;
-  sys_cfg.set_gpufreq_period_ms(10);
-  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
-  auto data_source = GetSysStatsDataSource(config);
-
-  // Ignore other GPU freq calls.
-  EXPECT_CALL(*data_source,
-              ReadFileToUInt64("/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq"));
-  EXPECT_CALL(*data_source,
-              ReadFileToUInt64("/sys/class/drm/card0/gt_act_freq_mhz"));
-  EXPECT_CALL(*data_source,
-              ReadFileToString("/sys/class/drm/card0/device/pp_dpm_sclk"))
-      .WillRepeatedly(Return(std::optional<std::string>(kMockAMDGpuFreq)));
-
-  WaitTick(data_source.get());
-
-  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
-  ASSERT_TRUE(packet.has_sys_stats());
-  const auto& sys_stats = packet.sys_stats();
-  EXPECT_EQ(sys_stats.gpufreq_mhz_size(), 1);
-  uint32_t amd_gpufreq = 400;
-  EXPECT_EQ(sys_stats.gpufreq_mhz()[0], amd_gpufreq);
-}
-
-TEST_F(SysStatsDataSourceTest, AdrenoGpuFrequency) {
-  DataSourceConfig config;
-  protos::gen::SysStatsConfig sys_cfg;
-  sys_cfg.set_gpufreq_period_ms(10);
-  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
-  auto data_source = GetSysStatsDataSource(config);
-
-  EXPECT_CALL(*data_source,
-              ReadFileToUInt64("/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq"))
-      .WillRepeatedly(Return(std::optional<uint64_t>(kMockAdrenoGpuFreq)));
-
-  WaitTick(data_source.get());
-
-  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
-  ASSERT_TRUE(packet.has_sys_stats());
-  const auto& sys_stats = packet.sys_stats();
-  EXPECT_EQ(sys_stats.gpufreq_mhz_size(), 1);
-  uint32_t adreno_gpufreq = 400;
-  EXPECT_EQ(sys_stats.gpufreq_mhz()[0], adreno_gpufreq);
+  ASSERT_EQ(sys_stats.gpufreq_mhz_size(), 4);
+  EXPECT_EQ(sys_stats.gpufreq_mhz()[0], 400u);
+  EXPECT_EQ(sys_stats.gpufreq_mhz()[1], 500u);
+  EXPECT_EQ(sys_stats.gpufreq_mhz()[2], 300u);
+  EXPECT_EQ(sys_stats.gpufreq_mhz()[3], 400u);
 }
 
 TEST_F(SysStatsDataSourceTest, DevfreqAll) {
