@@ -1398,7 +1398,6 @@ export class AddColumnsNode implements QueryNode {
     if (col.type === 'switch') {
       return m(
         Form,
-        nameError && m(Callout, {icon: 'error'}, nameError),
         m(FormSection, {label: 'Column Name'}, [
           m(TextInput, {
             placeholder: 'Enter column name',
@@ -1408,6 +1407,7 @@ export class AddColumnsNode implements QueryNode {
               redrawModal();
             },
           }),
+          nameError && m(Callout, {icon: 'error'}, nameError),
         ]),
         m(SwitchComponent, {
           column: col,
@@ -1422,7 +1422,6 @@ export class AddColumnsNode implements QueryNode {
     if (col.type === 'if') {
       return m(
         Form,
-        nameError && m(Callout, {icon: 'error'}, nameError),
         m(FormSection, {label: 'Column Name'}, [
           m(TextInput, {
             placeholder: 'Enter column name',
@@ -1432,6 +1431,7 @@ export class AddColumnsNode implements QueryNode {
               redrawModal();
             },
           }),
+          nameError && m(Callout, {icon: 'error'}, nameError),
         ]),
         m(IfComponent, {
           column: col,
@@ -1444,7 +1444,6 @@ export class AddColumnsNode implements QueryNode {
 
     return m(
       Form,
-      nameError && m(Callout, {icon: 'error'}, nameError),
       m(
         'p',
         'Create a computed column using any SQL expression. Example: ',
@@ -1470,6 +1469,7 @@ export class AddColumnsNode implements QueryNode {
           placeholder: 'Enter column name (e.g., dur_ms)',
           value: col.name,
         }),
+        nameError && m(Callout, {icon: 'error'}, nameError),
       ]),
     );
   }
