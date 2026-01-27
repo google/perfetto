@@ -103,7 +103,30 @@ class SysStatsDataSource : public ProbesDataSource {
   void ReadThermalZones(protos::pbzero::SysStats* sys_stats);
   void ReadCpuIdleStates(protos::pbzero::SysStats* sys_stats);
   void ReadGpuFrequency(protos::pbzero::SysStats* sys_stats);
+  void ReadCgroup(protos::pbzero::SysStats* sys_stats);
   std::optional<uint64_t> ReadAMDGpuFreq();
+
+  // Cgroup parsing and processing helper methods
+  void ReadCgroupFile(protos::pbzero::SysStats* sys_stats,
+                      const std::string& cgroup_path,
+                      const std::string& file_name,
+                      bool log_errors);
+  void ParseCgroupCpuStat(protos::pbzero::SysStats* sys_stats,
+                          char* buf,
+                          size_t rsize,
+                          const std::string& cgroup_path);
+  void ParseCgroupMemoryStat(protos::pbzero::SysStats* sys_stats,
+                             char* buf,
+                             size_t rsize,
+                             const std::string& cgroup_path);
+  void ParseCgroupSingleValue(protos::pbzero::SysStats* sys_stats,
+                              char* buf,
+                              const std::string& file_name,
+                              const std::string& cgroup_path);
+  void ParseCgroupIoStat(protos::pbzero::SysStats* sys_stats,
+                         char* buf,
+                         size_t rsize,
+                         const std::string& cgroup_path);
 
   size_t ReadFile(base::ScopedFile*, const char* path);
 
@@ -136,8 +159,15 @@ class SysStatsDataSource : public ProbesDataSource {
   uint32_t thermal_ticks_ = 0;
   uint32_t cpuidle_ticks_ = 0;
   uint32_t gpufreq_ticks_ = 0;
+  uint32_t cgroup_ticks_ = 0;
 
   std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
+
+  // Cgroup monitoring state and configuration
+  std::map<const char*, int, CStrCmp> cgroup_counters_;
+  std::vector<std::string> cgroup_paths_;
+  bool cgroup_error_logged_ = false;
+  OpenFunction open_fn_;
 
   base::WeakPtrFactory<SysStatsDataSource> weak_factory_;  // Keep last.
 };

@@ -384,6 +384,88 @@ inline std::vector<const char*> BuildVmstatCounterNames() {
   return v;
 }
 
+constexpr KeyAndId kCgroupKeys[] = {
+    {"CgroupUnspecified", protos::pbzero::CgroupCounters::CGROUP_UNSPECIFIED},
+
+    // CPU stats from cpu.stat
+    {"usage_usec", protos::pbzero::CgroupCounters::CGROUP_CPU_USAGE_USEC},
+    {"user_usec", protos::pbzero::CgroupCounters::CGROUP_CPU_USER_USEC},
+    {"system_usec", protos::pbzero::CgroupCounters::CGROUP_CPU_SYSTEM_USEC},
+    {"nr_periods", protos::pbzero::CgroupCounters::CGROUP_CPU_NR_PERIODS},
+    {"nr_throttled", protos::pbzero::CgroupCounters::CGROUP_CPU_NR_THROTTLED},
+    {"throttled_usec",
+     protos::pbzero::CgroupCounters::CGROUP_CPU_THROTTLED_USEC},
+
+    // Memory stats from memory.stat
+    {"anon", protos::pbzero::CgroupCounters::CGROUP_MEMORY_ANON},
+    {"file", protos::pbzero::CgroupCounters::CGROUP_MEMORY_FILE},
+    {"kernel_stack",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_KERNEL_STACK},
+    {"pagetables", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PAGETABLES},
+    {"percpu", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PERCPU},
+    {"sock", protos::pbzero::CgroupCounters::CGROUP_MEMORY_SOCK},
+    {"shmem", protos::pbzero::CgroupCounters::CGROUP_MEMORY_SHMEM},
+    {"file_mapped", protos::pbzero::CgroupCounters::CGROUP_MEMORY_FILE_MAPPED},
+    {"file_dirty", protos::pbzero::CgroupCounters::CGROUP_MEMORY_FILE_DIRTY},
+    {"file_writeback",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_FILE_WRITEBACK},
+    {"swapcached", protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAPCACHED},
+    {"anon_thp", protos::pbzero::CgroupCounters::CGROUP_MEMORY_ANON_THPS},
+    {"file_thp", protos::pbzero::CgroupCounters::CGROUP_MEMORY_FILE_THPS},
+    {"shmem_thp", protos::pbzero::CgroupCounters::CGROUP_MEMORY_SHMEM_THPS},
+    {"inactive_anon",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_INACTIVE_ANON},
+    {"active_anon", protos::pbzero::CgroupCounters::CGROUP_MEMORY_ACTIVE_ANON},
+    {"inactive_file",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_INACTIVE_FILE},
+    {"active_file", protos::pbzero::CgroupCounters::CGROUP_MEMORY_ACTIVE_FILE},
+    {"unevictable", protos::pbzero::CgroupCounters::CGROUP_MEMORY_UNEVICTABLE},
+    {"slab_reclaimable",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_SLAB_RECLAIMABLE},
+    {"slab_unreclaimable",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_SLAB_UNRECLAIMABLE},
+    {"slab", protos::pbzero::CgroupCounters::CGROUP_MEMORY_SLAB},
+    {"workingset_refault_anon",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_WORKINGSET_REFAULT_ANON},
+    {"workingset_refault_file",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_WORKINGSET_REFAULT_FILE},
+    {"workingset_activate_anon",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_WORKINGSET_ACTIVATE_ANON},
+    {"workingset_activate_file",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_WORKINGSET_ACTIVATE_FILE},
+    {"workingset_restore_anon",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_WORKINGSET_RESTORE_ANON},
+    {"workingset_restore_file",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_WORKINGSET_RESTORE_FILE},
+    {"workingset_nodereclaim",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_WORKINGSET_NODERECLAIM},
+    {"pgfault", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PGFAULT},
+    {"pgmajfault", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PGMAJFAULT},
+    {"pgrefill", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PGREFILL},
+    {"pgscan", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PGSCAN},
+    {"pgsteal", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PGSTEAL},
+    {"pgactivate", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PGACTIVATE},
+    {"pgdeactivate",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_PGDEACTIVATE},
+    {"pglazyfree", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PGLAZYFREE},
+    {"pglazyfreed", protos::pbzero::CgroupCounters::CGROUP_MEMORY_PGLAZYFREED},
+    {"thp_fault_alloc",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_THP_FAULT_ALLOC},
+    {"thp_collapse_alloc",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_THP_COLLAPSE_ALLOC},
+};
+
+inline std::vector<const char*> BuildCgroupCounterNames() {
+  int max_id = 0;
+  for (size_t i = 0; i < base::ArraySize(kCgroupKeys); i++)
+    max_id = std::max(max_id, kCgroupKeys[i].id);
+  std::vector<const char*> v;
+  v.resize(static_cast<size_t>(max_id) + 1);
+  for (size_t i = 0; i < base::ArraySize(kCgroupKeys); i++)
+    v[static_cast<size_t>(kCgroupKeys[i].id)] = kCgroupKeys[i].str;
+  return v;
+}
+
 }  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_EXT_TRACED_SYS_STATS_COUNTERS_H_
