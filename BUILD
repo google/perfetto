@@ -433,6 +433,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
+        ":src_trace_processor_util_json_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -531,8 +532,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.jsoncpp +
-           PERFETTO_CONFIG.deps.sqlite +
+           ] + PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
@@ -642,6 +642,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
+        ":src_trace_processor_util_json_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -743,8 +744,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.jsoncpp +
-           PERFETTO_CONFIG.deps.linenoise +
+           ] + PERFETTO_CONFIG.deps.linenoise +
            PERFETTO_CONFIG.deps.protobuf_full +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
@@ -4200,6 +4200,15 @@ perfetto_filegroup(
     name = "src_trace_processor_util_json_serializer",
     srcs = [
         "src/trace_processor/util/json_serializer.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:json_value
+perfetto_filegroup(
+    name = "src_trace_processor_util_json_value",
+    srcs = [
+        "src/trace_processor/util/json_value.cc",
+        "src/trace_processor/util/json_value.h",
     ],
 )
 
@@ -8168,6 +8177,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
+        ":src_trace_processor_util_json_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -8266,8 +8276,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.jsoncpp +
-           PERFETTO_CONFIG.deps.sqlite +
+           ] + PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
@@ -8404,6 +8413,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
+        ":src_trace_processor_util_json_value",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -8494,8 +8504,7 @@ perfetto_cc_binary(
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_traceconv_gen_cc_trace_descriptor",
                ":src_traceconv_gen_cc_winscope_descriptor",
-           ] + PERFETTO_CONFIG.deps.jsoncpp +
-           PERFETTO_CONFIG.deps.sqlite +
+           ] + PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
