@@ -135,7 +135,7 @@ export interface TrackRenderContext extends TrackContext {
    * Call drawRect() to queue rectangles, they are batched and rendered
    * efficiently. Call flush() when done to ensure all rectangles are drawn.
    */
-  readonly rectRenderer?: WebGLRenderer;
+  readonly canvasRenderer?: WebGLRenderer;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -295,7 +295,7 @@ export interface TrackRenderer {
    * Required method used to render the track's content to the canvas, called
    * synchronously on every render cycle.
    *
-   * Tracks can use ctx (Canvas 2D) for text and shapes, and rectRenderer
+   * Tracks can use ctx (Canvas 2D) for text and shapes, and canvasRenderer
    * (WebGL) for high-performance rectangle rendering. Both are available
    * in the same render call, and the WebGL content will appear behind
    * Canvas 2D content.

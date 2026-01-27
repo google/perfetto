@@ -293,7 +293,7 @@ export class CpuFreqTrack implements TrackRenderer {
     timescale,
     visibleWindow,
     colors,
-    rectRenderer,
+    canvasRenderer,
   }: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -407,8 +407,8 @@ export class CpuFreqTrack implements TrackRenderer {
         const height = calculateY(data.lastFreqKHz[i]) - zeroY;
 
         // Draw with WebGL (will be behind Canvas 2D)
-        if (rectRenderer) {
-          rectRenderer.drawRect(x, zeroY, width, height, idleColor);
+        if (canvasRenderer) {
+          canvasRenderer.drawRect(x, zeroY, width, height, idleColor);
         }
         // Punch hole in Canvas 2D to reveal WebGL rect
         ctx.clearRect(x, zeroY, width, height);

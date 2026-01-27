@@ -23,7 +23,7 @@ const MAX_RECTS = 10000; // Max rectangles per flush
 export const RECT_FLAG_HATCHED = 1; // Draw diagonal crosshatch pattern
 export const RECT_FLAG_SPRITE = 2; // Use sprite texture instead of solid color
 
-// Cached WebGL program (shared across all RectRenderer instances)
+// Cached WebGL program (shared across all WebGLRenderer instances)
 let cachedProgram:
   | {
       gl: WebGL2RenderingContext;

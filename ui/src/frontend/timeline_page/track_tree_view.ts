@@ -520,7 +520,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     // Create a single RectRenderer for all tracks - batches all rectangles
     // into one draw call at the end
-    const rectRenderer = webglCtx
+    const canvasRenderer = webglCtx
       ? new WebGLRenderer(webglCtx, {x: 0, y: 0})
       : undefined;
 
@@ -535,8 +535,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         })
       ) {
         // Update RectRenderer offset for this track's position
-        if (rectRenderer) {
-          rectRenderer.setOffset(
+        if (canvasRenderer) {
+          canvasRenderer.setOffset(
             canvasOffset.x + timelineRect.left,
             canvasOffset.y + verticalBounds.top,
           );
@@ -549,7 +549,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           this.perfStatsEnabled,
           this.trackPerfStats,
           colors,
-          rectRenderer,
+          canvasRenderer,
         );
 
         ++tracksOnCanvas;
@@ -557,7 +557,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     }
 
     // Flush all rectangles from all tracks in one draw call
-    rectRenderer?.flush();
+    canvasRenderer?.flush();
 
     // Clean up WebGL state
     if (webglCtx) {

@@ -433,7 +433,7 @@ export abstract class BaseSliceTrack<
     visibleWindow,
     timescale,
     colors,
-    rectRenderer,
+    canvasRenderer,
   }: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
@@ -528,8 +528,8 @@ export abstract class BaseSliceTrack<
 
     // Second pass: fill slices.
     // Add chevron sprite to atlas if using WebGL for instant slices.
-    const chevronSprite = rectRenderer
-      ? rectRenderer.addSprite(
+    const chevronSprite = canvasRenderer
+      ? canvasRenderer.addSprite(
           this.getChevronSprite(this.instantWidthPx, sliceHeight),
         )
       : undefined;
@@ -541,9 +541,9 @@ export abstract class BaseSliceTrack<
         : slice.colorScheme.base;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
-        if (rectRenderer && chevronSprite) {
+        if (canvasRenderer && chevronSprite) {
           // Use WebGL sprite rendering
-          rectRenderer.drawSprite(
+          canvasRenderer.drawSprite(
             slice.x,
             y,
             this.instantWidthPx,
@@ -582,8 +582,8 @@ export abstract class BaseSliceTrack<
             ? SLICE_MIN_WIDTH_FADED_PX
             : SLICE_MIN_WIDTH_PX,
         );
-        if (rectRenderer) {
-          rectRenderer.drawRect(slice.x, y, w, sliceHeight, color.rgba);
+        if (canvasRenderer) {
+          canvasRenderer.drawRect(slice.x, y, w, sliceHeight, color.rgba);
         } else {
           const colorString = color.cssString;
           if (colorString !== lastColor) {

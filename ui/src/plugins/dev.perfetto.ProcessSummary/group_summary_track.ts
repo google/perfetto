@@ -457,7 +457,7 @@ export class GroupSummaryTrack implements TrackRenderer {
   private renderSlices(
     timescale: TimeScale,
     data: Data,
-    rectRenderer: WebGLRenderer,
+    canvasRenderer: WebGLRenderer,
   ): void {
     const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
     const hoveredUtid = this.trace.timeline.hoveredUtid;
@@ -493,11 +493,11 @@ export class GroupSummaryTrack implements TrackRenderer {
         color = colors.base;
       }
 
-      rectRenderer.drawRect(rectStart, y, rectWidth, laneHeight, color);
+      canvasRenderer.drawRect(rectStart, y, rectWidth, laneHeight, color);
     }
   }
 
-  render({ctx, size, timescale, rectRenderer}: TrackRenderContext): void {
+  render({ctx, size, timescale, canvasRenderer}: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -514,7 +514,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     );
 
     // Render slices using WebGL if available
-    if (rectRenderer !== undefined) {
+    if (canvasRenderer !== undefined) {
       assertTrue(data.starts.length === data.ends.length);
       assertTrue(data.starts.length === data.utids.length);
 
@@ -525,7 +525,7 @@ export class GroupSummaryTrack implements TrackRenderer {
         this.lastCachedDataGeneration = dataGeneration;
       }
 
-      this.renderSlices(timescale, data, rectRenderer);
+      this.renderSlices(timescale, data, canvasRenderer);
     }
   }
 

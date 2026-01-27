@@ -270,7 +270,7 @@ export class TrackView {
     perfStatsEnabled: boolean,
     trackPerfStats: WeakMap<TrackNode, PerfStats>,
     colors: CanvasColors,
-    rectRenderer?: WebGLRenderer,
+    canvasRenderer?: WebGLRenderer,
   ) {
     // For each track we rendered in view(), render it to the canvas. We know the
     // vertical bounds, so we just need to combine it with the horizontal bounds
@@ -315,7 +315,7 @@ export class TrackView {
         ctx,
         timescale,
         colors,
-        rectRenderer,
+        canvasRenderer,
       });
 
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);

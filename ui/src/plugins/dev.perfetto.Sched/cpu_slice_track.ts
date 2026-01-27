@@ -298,7 +298,7 @@ export class CpuSliceTrack implements TrackRenderer {
   private renderSlices(
     timescale: TimeScale,
     data: Data,
-    rectRenderer: WebGLRenderer,
+    canvasRenderer: WebGLRenderer,
   ): void {
     const hoveredUtid = this.trace.timeline.hoveredUtid;
     const hoveredPid = this.trace.timeline.hoveredPid;
@@ -333,7 +333,7 @@ export class CpuSliceTrack implements TrackRenderer {
       // Use hatching for real-time priority slices
       const flags =
         data.flags[i] & CPU_SLICE_FLAGS_REALTIME ? RECT_FLAG_HATCHED : 0;
-      rectRenderer.drawRect(
+      canvasRenderer.drawRect(
         rectStart,
         MARGIN_TOP,
         rectWidth,
@@ -345,7 +345,7 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   render(trackCtx: TrackRenderContext): void {
-    const {ctx, size, timescale, visibleWindow, rectRenderer} = trackCtx;
+    const {ctx, size, timescale, visibleWindow, canvasRenderer} = trackCtx;
 
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -364,7 +364,7 @@ export class CpuSliceTrack implements TrackRenderer {
     );
 
     // Render rectangles using WebGL if available
-    if (rectRenderer !== undefined) {
+    if (canvasRenderer !== undefined) {
       assertTrue(data.startQs.length === data.endQs.length);
       assertTrue(data.startQs.length === data.utids.length);
 
@@ -375,7 +375,7 @@ export class CpuSliceTrack implements TrackRenderer {
         this.lastCachedDataGeneration = dataGeneration;
       }
 
-      this.renderSlices(timescale, data, rectRenderer);
+      this.renderSlices(timescale, data, canvasRenderer);
     }
 
     // Render text using Canvas 2D (on top of WebGL rectangles)
