@@ -38,7 +38,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
-import {deferToRic} from '../../base/utils';
+import {deferToBackground, yieldBackgroundTask} from '../../base/utils';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -733,7 +733,7 @@ export abstract class BaseSliceTrack<
     const slicesKey = rawSlicesKey.normalize();
 
     // Defer to idle time before starting the query.
-    let idle = await deferToRic();
+    let idle = await deferToBackground();
 
     // The mipmap virtual table will error out when passed a 0 length time span.
     const resolution = slicesKey.bucketSize;
@@ -764,8 +764,8 @@ export abstract class BaseSliceTrack<
     let i = 0;
 
     while (it.valid()) {
-      if (++i % 100 === 0 && idle.timesUp) {
-        idle = await deferToRic();
+      if (++i % 100 === 0 && idle.timeRemaining() <= 0) {
+        idle = await yieldBackgroundTask();
       }
 
       if (it.dur !== -1n) {

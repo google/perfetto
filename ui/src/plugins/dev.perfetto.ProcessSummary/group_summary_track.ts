@@ -47,7 +47,7 @@ import {
   CancellationSignal,
 } from '../../base/query_slot';
 import {raf} from '../../core/raf_scheduler';
-import {deferToRic} from '../../base/utils';
+import {deferToBackground, yieldBackgroundTask} from '../../base/utils';
 
 export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 
@@ -359,7 +359,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     };
 
     // Defer to idle time before iterating over results.
-    let idle = await deferToRic();
+    let idle = await deferToBackground();
 
     const it = queryRes.iter({
       count: NUM,
@@ -378,8 +378,8 @@ export class GroupSummaryTrack implements TrackRenderer {
           console.log('Fetch data cancelled');
           return QUERY_CANCELLED;
         }
-        if (idle.timesUp) {
-          idle = await deferToRic();
+        if (idle.timeRemaining() <= 0) {
+          idle = await yieldBackgroundTask();
         }
       }
 

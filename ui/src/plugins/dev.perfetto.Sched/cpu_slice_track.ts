@@ -37,7 +37,7 @@ import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {WebGLRenderer, RECT_FLAG_HATCHED} from '../../base/webgl_renderer';
-import {deferToRic} from '../../base/utils';
+import {deferToBackground, yieldBackgroundTask} from '../../base/utils';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -213,7 +213,7 @@ export class CpuSliceTrack implements TrackRenderer {
     };
 
     // Defer to idle time before iterating over results.
-    let idle = await deferToRic();
+    let idle = await deferToBackground();
 
     const it = queryRes.iter({
       count: NUM,
@@ -230,8 +230,8 @@ export class CpuSliceTrack implements TrackRenderer {
     // Iterate over results, yielding to idle callbacks when time runs out.
     // Check every 32 iterations to amortize the cost of timeRemaining().
     for (let row = 0; it.valid(); it.next(), row++) {
-      if (row % 100 === 0 && idle.timesUp) {
-        idle = await deferToRic();
+      if (row % 100 === 0 && idle.timeRemaining() <= 0) {
+        idle = await yieldBackgroundTask();
       }
 
       slices.counts[row] = it.count;
