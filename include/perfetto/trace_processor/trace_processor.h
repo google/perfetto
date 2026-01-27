@@ -242,15 +242,9 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // |                        Experimental                           |
   // =================================================================
 
-  // Analyzes a structured query and returns the generated SQL along with
-  // metadata. The `spec` contains a TraceSummarySpec with all queries (in its
-  // `query` field). Each query must have an `id` field set. The `query_id`
-  // specifies which query from the spec should be analyzed (must match one of
-  // the queries' id fields).
-  virtual base::Status AnalyzeStructuredQuery(
-      const TraceSummarySpecBytes& spec,
-      const std::string& query_id,
-      AnalyzedStructuredQuery* output) = 0;
+  virtual base::Status AnalyzeStructuredQueries(
+      const std::vector<StructuredQueryBytes>& queries,
+      std::vector<AnalyzedStructuredQuery>* output) = 0;
 };
 
 }  // namespace perfetto::trace_processor

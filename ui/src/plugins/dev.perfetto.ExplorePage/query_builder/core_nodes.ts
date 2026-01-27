@@ -80,7 +80,6 @@ export function registerCoreNodes() {
         // Return an array of states, one for each selected table
         return selections.map((selection) => ({
           sqlTable: selection.sqlTable,
-          sqlModules,
         }));
       }
       return null;

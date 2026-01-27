@@ -922,7 +922,7 @@ base::Status Summarize(TraceProcessor* processor,
   perfetto_sql::generator::StructuredQueryGenerator generator;
   for (const auto& spec : spec_decoders) {
     for (auto it = spec.query(); it; ++it) {
-      ASSIGN_OR_RETURN(std::ignore, generator.AddQuery(it->data(), it->size()));
+      RETURN_IF_ERROR(generator.AddQuery(it->data(), it->size()));
     }
   }
 
@@ -1076,10 +1076,10 @@ base::Status ExecuteStructuredQuery(
   for (const auto& spec : spec_decoders) {
     for (auto query_it = spec.query(); query_it; ++query_it) {
       protozero::ConstBytes query_bytes = *query_it;
-      auto result = generator.AddQuery(query_bytes.data, query_bytes.size);
-      if (!result.ok()) {
+      auto status = generator.AddQuery(query_bytes.data, query_bytes.size);
+      if (!status.ok()) {
         return base::ErrStatus("Failed to add query from spec: %s",
-                               result.status().message().c_str());
+                               status.message().c_str());
       }
     }
   }

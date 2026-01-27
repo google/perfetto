@@ -234,7 +234,7 @@ CREATE PERFETTO TABLE android_input_events (
   frame_id LONG
 ) AS
 WITH
-  dispatch AS MATERIALIZED (
+  dispatch AS (
     SELECT
       *
     FROM _input_message_sent
@@ -244,7 +244,7 @@ WITH
       event_seq,
       event_channel
   ),
-  receive AS MATERIALIZED (
+  receive AS (
     SELECT
       *,
       replace(event_channel, '(client)', '(server)') AS dispatch_event_channel
@@ -255,7 +255,7 @@ WITH
       event_seq,
       dispatch_event_channel
   ),
-  finish AS MATERIALIZED (
+  finish AS (
     SELECT
       *,
       replace(event_channel, '(client)', '(server)') AS dispatch_event_channel
@@ -266,7 +266,7 @@ WITH
       event_seq,
       dispatch_event_channel
   ),
-  finish_ack AS MATERIALIZED (
+  finish_ack AS (
     SELECT
       *
     FROM _input_message_received

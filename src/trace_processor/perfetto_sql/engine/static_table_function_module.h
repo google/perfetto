@@ -25,8 +25,6 @@
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/core/dataframe/cursor.h"
-#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
@@ -63,8 +61,7 @@ struct StaticTableFunctionModule : sqlite::Module<StaticTableFunctionModule> {
   };
   struct Cursor : sqlite::Module<StaticTableFunctionModule>::Cursor {
     std::unique_ptr<StaticTableFunction::Cursor> cursor;
-    dataframe::Cursor<DataframeModule::SqliteValueFetcher> df_cursor;
-    std::vector<dataframe::FilterSpec> filters;
+    uint32_t current_row = 0;
     std::vector<SqlValue> values;
   };
 

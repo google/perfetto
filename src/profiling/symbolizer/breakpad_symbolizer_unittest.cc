@@ -90,5 +90,78 @@ TEST(BreakpadSymbolizerTest, SymbolFrames) {
   EXPECT_TRUE(frames[7][0].function_name.empty());
 }
 
+// Test file contents with FILE and LINE records for source location tests.
+// Each FUNC record is followed by LINE records that map address ranges to
+// source file locations.
+constexpr char kSourceLocationTestContents[] =
+    "MODULE mac x86_64 A68BC89F12C foo.so\n"
+    "FILE 0 /path/to/foo.cc\n"
+    "FILE 1 /path/to/bar.cc\n"
+    "FILE 2 /path/to/baz.cc\n"
+    "FUNC 1010 23 0 foo_foo()\n"
+    "1010 10 10 0\n"
+    "1020 13 20 0\n"
+    "FUNC 1040 84 0 bar_bar_bar()\n"
+    "1040 40 100 1\n"
+    "1080 44 150 1\n"
+    "FUNC 10d0 6b 0 foo::bar()\n"
+    "10d0 30 200 2\n"
+    "1100 3b 250 2\n";
+constexpr ssize_t kSourceLocationTestLength =
+    base::ArraySize(kSourceLocationTestContents);
+
+TEST(BreakpadSymbolizerTest, SourceLocationInFrames) {
+  base::TempFile test_file = base::TempFile::Create();
+  ASSERT_TRUE(*test_file);
+  ssize_t written = base::WriteAll(test_file.fd(), kSourceLocationTestContents,
+                                   kSourceLocationTestLength);
+  ASSERT_EQ(written, kSourceLocationTestLength);
+  constexpr char kTestDir[] = "Unused";
+  BreakpadSymbolizer symbolizer(kTestDir);
+  symbolizer.SetBreakpadFileForTesting(test_file.path());
+  // Test addresses that fall within line record ranges.
+  std::vector<uint64_t> addresses = {0x1010u, 0x1050u, 0x10e0u};
+  Symbolizer::Environment env;
+  std::vector<std::vector<SymbolizedFrame>> frames =
+      symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
+  ASSERT_EQ(frames.size(), 3u);
+
+  // First frame: address 0x1010 maps to foo.cc line 10.
+  EXPECT_EQ(frames[0][0].function_name, "foo_foo()");
+  EXPECT_EQ(frames[0][0].file_name, "/path/to/foo.cc");
+  EXPECT_EQ(frames[0][0].line, 10u);
+
+  // Second frame: address 0x1050 maps to bar.cc line 100.
+  EXPECT_EQ(frames[1][0].function_name, "bar_bar_bar()");
+  EXPECT_EQ(frames[1][0].file_name, "/path/to/bar.cc");
+  EXPECT_EQ(frames[1][0].line, 100u);
+
+  // Third frame: address 0x10e0 maps to baz.cc line 200.
+  EXPECT_EQ(frames[2][0].function_name, "foo::bar()");
+  EXPECT_EQ(frames[2][0].file_name, "/path/to/baz.cc");
+  EXPECT_EQ(frames[2][0].line, 200u);
+}
+
+TEST(BreakpadSymbolizerTest, SourceLocationNotFound) {
+  base::TempFile test_file = base::TempFile::Create();
+  ASSERT_TRUE(*test_file);
+  ssize_t written =
+      base::WriteAll(test_file.fd(), kTestFileContents, kTestFileLength);
+  ASSERT_EQ(written, kTestFileLength);
+  constexpr char kTestDir[] = "Unused";
+  BreakpadSymbolizer symbolizer(kTestDir);
+  symbolizer.SetBreakpadFileForTesting(test_file.path());
+  // The original test file has no FILE records, so source location should be
+  // empty even when the function name is found.
+  std::vector<uint64_t> addresses = {0x1010u};
+  Symbolizer::Environment env;
+  std::vector<std::vector<SymbolizedFrame>> frames =
+      symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
+  ASSERT_EQ(frames.size(), 1u);
+  EXPECT_EQ(frames[0][0].function_name, "foo_foo()");
+  EXPECT_TRUE(frames[0][0].file_name.empty());
+  EXPECT_EQ(frames[0][0].line, 0u);
+}
+
 }  // namespace
 }  // namespace perfetto::profiling
