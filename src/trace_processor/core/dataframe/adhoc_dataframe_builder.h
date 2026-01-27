@@ -134,6 +134,32 @@ class AdhocDataframeBuilder {
                         const Options& options = Options{});
   ~AdhocDataframeBuilder() = default;
 
+  // Creates a builder to extend an existing dataframe with additional columns.
+  //
+  // The existing columns from `df` are preserved as-is, and the new columns
+  // specified in `extra_column_names` can have values pushed to them.
+  // Only the extra columns (indices starting from df.column_count()) can
+  // have values pushed to them.
+  //
+  // Args:
+  //   df: The dataframe to extend. Ownership is taken via move.
+  //   extra_column_names: Names for the new columns to add.
+  //   pool: StringPool for interning strings.
+  //   options: Builder options (applies only to new columns).
+  //
+  // Example:
+  //   auto builder = AdhocDataframeBuilder::Extend(
+  //       std::move(df), {"_tree_id", "_tree_parent_id"}, &pool);
+  //   for (uint32_t i = 0; i < original_row_count; ++i) {
+  //     builder.PushNonNull(original_col_count + 0, tree_ids[i]);
+  //     builder.PushNonNull(original_col_count + 1, parent_ids[i]);
+  //   }
+  //   auto result = std::move(builder).Build();
+  static AdhocDataframeBuilder Extend(Dataframe&& df,
+                                      std::vector<std::string> extra_column_names,
+                                      StringPool* pool,
+                                      const Options& options = Options{});
+
   // Movable but not copyable
   AdhocDataframeBuilder(AdhocDataframeBuilder&&) noexcept = default;
   AdhocDataframeBuilder& operator=(AdhocDataframeBuilder&&) noexcept = default;
@@ -453,6 +479,13 @@ class AdhocDataframeBuilder {
   bool did_declare_types_ = false;
   base::Status current_status_ = base::OkStatus();
   core::BitVector duplicate_bit_vector_;
+
+  // For Extend(): columns from the original dataframe that are preserved as-is.
+  std::vector<std::shared_ptr<Column>> existing_columns_;
+
+  // For Extend(): row count from the original dataframe.
+  // Used to validate that new columns have the correct number of rows.
+  uint32_t existing_row_count_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

@@ -71,6 +71,29 @@ AdhocDataframeBuilder::AdhocDataframeBuilder(std::vector<std::string> names,
   }
 }
 
+// static
+AdhocDataframeBuilder AdhocDataframeBuilder::Extend(
+    Dataframe&& df,
+    std::vector<std::string> extra_column_names,
+    StringPool* pool,
+    const Options& options) {
+  AdhocDataframeBuilder builder(std::move(extra_column_names), pool, options);
+
+  // Move existing columns from the dataframe.
+  builder.existing_columns_ = std::move(df.columns_);
+  builder.existing_row_count_ = df.row_count_;
+
+  // Prepend existing column names to the builder's column names.
+  std::vector<std::string> all_names = std::move(df.column_names_);
+  all_names.reserve(all_names.size() + builder.column_names_.size());
+  for (auto& name : builder.column_names_) {
+    all_names.emplace_back(std::move(name));
+  }
+  builder.column_names_ = std::move(all_names);
+
+  return builder;
+}
+
 void AdhocDataframeBuilder::AddPlaceholderValue(uint32_t col, uint32_t count) {
   auto& state = column_states_[col];
   if (!state.storage) {
@@ -88,11 +111,31 @@ void AdhocDataframeBuilder::AddPlaceholderValue(uint32_t col, uint32_t count) {
 }
 
 base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
-  uint64_t row_count = std::numeric_limits<uint64_t>::max();
   RETURN_IF_ERROR(current_status_);
+
+  // Determine if we're in extend mode (have existing columns from a dataframe).
+  const bool is_extend = !existing_columns_.empty();
+  const uint32_t existing_col_count =
+      static_cast<uint32_t>(existing_columns_.size());
+
+  // Initialize row_count from existing dataframe if extending, otherwise track
+  // it from new columns.
+  uint64_t row_count = is_extend ? existing_row_count_
+                                 : std::numeric_limits<uint64_t>::max();
+
+  // Build the output columns vector.
   std::vector<std::shared_ptr<Column>> columns;
-  for (uint32_t i = 0; i < column_names_.size(); ++i) {
+  columns.reserve(column_names_.size());
+
+  // First, add existing columns (if any).
+  for (auto& col : existing_columns_) {
+    columns.emplace_back(std::move(col));
+  }
+
+  // Then, build new columns from column_states_.
+  for (uint32_t i = 0; i < column_states_.size(); ++i) {
     auto& state = column_states_[i];
+    const uint32_t col_idx = existing_col_count + i;
     size_t non_null_row_count;
     if (!state.storage) {
       non_null_row_count = 0;
@@ -180,7 +223,7 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
           HasDuplicates{},
       }));
     } else {
-      PERFETTO_FATAL("Unexpected storage type in column %u", i);
+      PERFETTO_FATAL("Unexpected storage type in column %u", col_idx);
     }
     uint64_t current_row_count =
         state.null_overlay ? state.null_overlay->size() : non_null_row_count;
@@ -189,19 +232,22 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
       return base::ErrStatus(
           "Row count mismatch in column '%s'. Expected %" PRIu64
           ", got %" PRIu64 ".",
-          column_names_[i].c_str(), row_count, current_row_count);
+          column_names_[col_idx].c_str(), row_count, current_row_count);
     }
     row_count = current_row_count;
   }
   if (row_count == std::numeric_limits<uint64_t>::max()) {
     row_count = 0;
   }
-  // Create an implicit id column for acting as a primary key even if there
-  // are no other id columns.
-  column_names_.emplace_back("_auto_id");
-  columns.emplace_back(std::make_shared<Column>(
-      Column{Storage{Storage::Id{static_cast<uint32_t>(row_count)}},
-             NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
+
+  // Only add implicit _auto_id column when not extending (original dataframe
+  // already has one).
+  if (!is_extend) {
+    column_names_.emplace_back("_auto_id");
+    columns.emplace_back(std::make_shared<Column>(
+        Column{Storage{Storage::Id{static_cast<uint32_t>(row_count)}},
+               NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
+  }
   return Dataframe(true, std::move(column_names_), std::move(columns),
                    static_cast<uint32_t>(row_count), string_pool_);
 }
