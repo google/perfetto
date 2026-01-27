@@ -512,6 +512,25 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       y: -floatingCanvasRect.top,
     };
 
+    // Set up scissor test to clip to the timeline area (like canvasClip for 2D)
+    // We need to prevent tracks from drawing into the track shell area on the left.
+    // The scissor rect is in physical pixels with Y origin at bottom-left.
+    const dpr = window.devicePixelRatio;
+    const canvasWidth = offscreenCanvas.width;
+    const canvasHeight = offscreenCanvas.height;
+
+    // X: clip from timelineRect.left (TRACK_SHELL_WIDTH) to the right edge
+    // Adjusted for the canvas offset (virtual canvas position)
+    const scissorX = Math.max(0, Math.round((timelineRect.left + canvasOffset.x) * dpr));
+    const scissorWidth = canvasWidth - scissorX;
+
+    // Y: full canvas height (no vertical clipping needed as tracks are already filtered)
+    const scissorY = 0;
+    const scissorHeight = canvasHeight;
+
+    offscreenGl.enable(offscreenGl.SCISSOR_TEST);
+    offscreenGl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
+
     for (const trackView of renderedTracks) {
       const {verticalBounds} = trackView;
       if (
@@ -531,6 +550,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         );
       }
     }
+
+    offscreenGl.disable(offscreenGl.SCISSOR_TEST);
   }
 
   // Second pass: Canvas 2D rendering only (called after copy)

@@ -69,6 +69,7 @@ let cachedGlProgram: {
   disabledColorLocation: number;
   selectorLocation: number;
   flagsLocation: number;
+  localCoordLocation: number;
   resolutionLocation: WebGLUniformLocation;
   offsetLocation: WebGLUniformLocation;
   dprLocation: WebGLUniformLocation;
@@ -124,6 +125,7 @@ export class CpuSliceTrack implements TrackRenderer {
   private cachedUtids?: Uint32Array;
   private cachedPids?: Array<bigint | number>;
   private cachedFlags?: Int8Array; // flags per vertex (RT flag etc)
+  private cachedLocalCoords?: Float32Array; // 2D local coords: (localY, leftEdgeTime) per vertex
   private cachedRectCount = 0;
   private lastDataGeneration = -1;
   private lastDataStart?: time; // track data window start for cache invalidation
@@ -143,6 +145,7 @@ export class CpuSliceTrack implements TrackRenderer {
     disabledColorBuffer: WebGLBuffer;
     selectorBuffer: WebGLBuffer;
     flagsBuffer: WebGLBuffer;
+    localCoordsBuffer: WebGLBuffer;
     indexBuffer: WebGLBuffer;
   };
 
@@ -321,7 +324,6 @@ export class CpuSliceTrack implements TrackRenderer {
     offscreenGl,
     canvasOffset,
   }: TrackRenderContext): void {
-    console.log('CpuSliceTrack.renderWebGL called, gl:', !!offscreenGl, 'offset:', canvasOffset);
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -350,6 +352,7 @@ export class CpuSliceTrack implements TrackRenderer {
       this.cachedUtids = new Uint32Array(numRects);
       this.cachedPids = new Array(numRects);
       this.cachedFlags = new Int8Array(numRects * 4);
+      this.cachedLocalCoords = new Float32Array(numRects * 4 * 2); // 2 floats per vertex (localY, leftEdgeTime)
       this.selectorBuffer = new Int8Array(numRects * 4);
 
       let posIdx = 0;
@@ -393,6 +396,20 @@ export class CpuSliceTrack implements TrackRenderer {
         this.cachedIndices[idxIdx++] = baseVertex + 2; // BL
         this.cachedIndices[idxIdx++] = baseVertex + 1; // TR
         this.cachedIndices[idxIdx++] = baseVertex + 3; // BR
+
+        // Local coordinates within quad for diagonal stripe patterns
+        // Each vertex stores (localY, leftEdgeTime) where:
+        // - localY: 0 at top, RECT_HEIGHT at bottom
+        // - leftEdgeTime: t1 (same for all 4 vertices, used to compute localX in shader)
+        const localBaseIdx = i * 4 * 2;
+        this.cachedLocalCoords[localBaseIdx + 0] = 0;           // TL: localY
+        this.cachedLocalCoords[localBaseIdx + 1] = t1;          // TL: leftEdgeTime
+        this.cachedLocalCoords[localBaseIdx + 2] = 0;           // TR: localY
+        this.cachedLocalCoords[localBaseIdx + 3] = t1;          // TR: leftEdgeTime
+        this.cachedLocalCoords[localBaseIdx + 4] = RECT_HEIGHT; // BL: localY
+        this.cachedLocalCoords[localBaseIdx + 5] = t1;          // BL: leftEdgeTime
+        this.cachedLocalCoords[localBaseIdx + 6] = RECT_HEIGHT; // BR: localY
+        this.cachedLocalCoords[localBaseIdx + 7] = t1;          // BR: leftEdgeTime
 
         // Write colors and flags for all 4 vertices
         // RGB values are 0-255 from rgba, normalize to 0-1 for WebGL
@@ -610,7 +627,9 @@ export class CpuSliceTrack implements TrackRenderer {
       in vec4 a_disabledColor;
       in int a_selector;
       in int a_flags;
+      in vec2 a_localCoord;  // (localY, leftEdgeTime) for diagonal stripe pattern
       out vec4 v_color;
+      out vec2 v_localPos;   // (localX, localY) in pixels within quad
       flat out int v_flags;
       uniform vec2 u_resolution;
       uniform vec2 u_offset;
@@ -627,22 +646,28 @@ export class CpuSliceTrack implements TrackRenderer {
         if (a_selector == 1) v_color = a_variantColor;
         if (a_selector == 2) v_color = a_disabledColor;
         v_flags = a_flags;
+        // Compute local pixel position within quad for diagonal stripes
+        float leftEdgePx = a_localCoord.y * u_time_scale + u_time_px_offset;
+        float localX = (px_x - leftEdgePx) * u_dpr;
+        float localY = a_localCoord.x * u_dpr;
+        v_localPos = vec2(localX, localY);
       }
     `;
 
     const fsSource = `#version 300 es
       precision mediump float;
       in vec4 v_color;
+      in vec2 v_localPos;  // (localX, localY) in pixels within quad
       flat in int v_flags;
       out vec4 fragColor;
       void main() {
         fragColor = v_color;
         // RT flag is bit 1 (value 2) - render diagonal stripes
         if ((v_flags & 2) != 0) {
-          // Create diagonal stripe pattern using fragment coordinates
-          // Stripe width of 8 pixels, matching the Canvas 2D pattern
-          float stripe = mod(gl_FragCoord.x + gl_FragCoord.y, 8.0);
-          // Draw white stripe with 30% opacity when in stripe region (1px wide)
+          // Create diagonal stripe pattern using local position within quad
+          // Stripes go from top-left to bottom-right
+          float stripe = mod(v_localPos.x + v_localPos.y, 8.0);
+          // Draw white stripe with 30% opacity
           if (stripe < 1.0) {
             fragColor = mix(fragColor, vec4(1.0, 1.0, 1.0, 1.0), 0.3);
           }
@@ -678,6 +703,7 @@ export class CpuSliceTrack implements TrackRenderer {
     const disabledColorLocation = gl.getAttribLocation(program, 'a_disabledColor');
     const selectorLocation = gl.getAttribLocation(program, 'a_selector');
     const flagsLocation = gl.getAttribLocation(program, 'a_flags');
+    const localCoordLocation = gl.getAttribLocation(program, 'a_localCoord');
     const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')!;
     const offsetLocation = gl.getUniformLocation(program, 'u_offset')!;
     const dprLocation = gl.getUniformLocation(program, 'u_dpr')!;
@@ -693,6 +719,7 @@ export class CpuSliceTrack implements TrackRenderer {
       disabledColorLocation,
       selectorLocation,
       flagsLocation,
+      localCoordLocation,
       resolutionLocation,
       offsetLocation,
       dprLocation,
@@ -716,6 +743,7 @@ export class CpuSliceTrack implements TrackRenderer {
       disabledColorBuffer: gl.createBuffer()!,
       selectorBuffer: gl.createBuffer()!,
       flagsBuffer: gl.createBuffer()!,
+      localCoordsBuffer: gl.createBuffer()!,
       indexBuffer: gl.createBuffer()!,
     };
     // Reset upload tracking since we have new buffers
@@ -738,6 +766,7 @@ export class CpuSliceTrack implements TrackRenderer {
       disabledColorLocation,
       selectorLocation,
       flagsLocation,
+      localCoordLocation,
       resolutionLocation,
       offsetLocation,
       dprLocation,
@@ -752,6 +781,7 @@ export class CpuSliceTrack implements TrackRenderer {
       disabledColorBuffer,
       selectorBuffer,
       flagsBuffer,
+      localCoordsBuffer,
       indexBuffer,
     } = this.ensureBuffers(gl);
 
@@ -817,6 +847,14 @@ export class CpuSliceTrack implements TrackRenderer {
     }
     gl.enableVertexAttribArray(flagsLocation);
     gl.vertexAttribIPointer(flagsLocation, 1, gl.BYTE, 0, 0);
+
+    // Local coords buffer (for diagonal stripe patterns) - static, only upload when data changes
+    gl.bindBuffer(gl.ARRAY_BUFFER, localCoordsBuffer);
+    if (needsStaticUpload) {
+      gl.bufferData(gl.ARRAY_BUFFER, this.cachedLocalCoords!, gl.STATIC_DRAW);
+    }
+    gl.enableVertexAttribArray(localCoordLocation);
+    gl.vertexAttribPointer(localCoordLocation, 2, gl.FLOAT, false, 0, 0);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     if (needsStaticUpload) {
