@@ -227,13 +227,15 @@ RETURNS Expr AS
     counter_bounds_shared AS (
       SELECT
         $svg_group_key_col AS svg_group_key,
+        $track_group_key_col AS track_group_key,
         min(counter_value) AS min_counter_value,
         max(counter_value) AS max_counter_value
       FROM $intervals_table
       WHERE
         dur > 0 AND element_type = 'counter'
       GROUP BY
-        $svg_group_key_col
+        $svg_group_key_col,
+        $track_group_key_col
     ),
     -- Select the appropriate bounds based on shared counter scale setting
     counter_bounds AS (
@@ -253,7 +255,7 @@ RETURNS Expr AS
         END AS max_counter_value
       FROM counter_bounds_individual AS cbi
       JOIN counter_bounds_shared AS cbs
-        ON cbi.svg_group_key = cbs.svg_group_key
+        USING (svg_group_key, track_group_key)
     ),
     scale_params AS (
       SELECT
