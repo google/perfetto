@@ -158,7 +158,6 @@
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace_summary/file.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
@@ -771,84 +770,59 @@ void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
 // |                      Experimental                             |
 // =================================================================
 
-base::Status TraceProcessorImpl::AnalyzeStructuredQuery(
-    const TraceSummarySpecBytes& spec,
-    const std::string& query_id,
-    AnalyzedStructuredQuery* output) {
+base::Status TraceProcessorImpl::AnalyzeStructuredQueries(
+    const std::vector<StructuredQueryBytes>& sqs,
+    std::vector<AnalyzedStructuredQuery>* output) {
   auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(
       ".perfetto.protos.TraceSummarySpec");
   if (!opt_idx) {
     metrics_descriptor_pool_.AddFromFileDescriptorSet(
         kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
   }
-
-  // Decode the TraceSummarySpec to extract queries
-  protos::pbzero::TraceSummarySpec::Decoder spec_decoder(spec.ptr, spec.size);
-
   perfetto_sql::generator::StructuredQueryGenerator sqg;
+  for (const auto& sq : sqs) {
+    AnalyzedStructuredQuery analyzed_sq;
+    ASSIGN_OR_RETURN(analyzed_sq.sql, sqg.Generate(sq.ptr, sq.size));
+    analyzed_sq.textproto =
+        perfetto::trace_processor::protozero_to_text::ProtozeroToText(
+            metrics_descriptor_pool_,
+            ".perfetto.protos.PerfettoSqlStructuredQuery",
+            protozero::ConstBytes{sq.ptr, sq.size},
+            perfetto::trace_processor::protozero_to_text::kIncludeNewLines);
+    analyzed_sq.modules = sqg.ComputeReferencedModules();
+    analyzed_sq.preambles = sqg.ComputePreambles();
+    sqg.AddQuery(sq.ptr, sq.size);
 
-  // Register all queries with the generator and build a map for efficient
-  // lookup. AddQuery returns the query's ID, avoiding double decoding.
-  // Store query bytes for later retrieval.
-  struct QueryBytes {
-    const uint8_t* ptr;
-    size_t size;
-  };
-  base::FlatHashMap<std::string, QueryBytes> query_map;
-  for (auto it = spec_decoder.query(); it; ++it) {
-    ASSIGN_OR_RETURN(std::string id, sqg.AddQuery(it->data(), it->size()));
-    query_map.Insert(id, QueryBytes{it->data(), it->size()});
+    // Execute modules
+    // TODO(mayzner): Should be done on an empty engine as we don't actually
+    // care about the results of execution of this code.
+    for (const auto& module : analyzed_sq.modules) {
+      engine_->Execute(SqlSource::FromTraceProcessorImplementation(
+          "INCLUDE PERFETTO MODULE " + module));
+    }
+
+    // Execute preambles
+    // TODO(mayzner): Should be done on an empty engine as we don't actually
+    // care about the results of execution of this code.
+    for (const auto& preamble : analyzed_sq.preambles) {
+      engine_->Execute(SqlSource::FromTraceProcessorImplementation(preamble));
+    }
+
+    // Fetch columns
+    ASSIGN_OR_RETURN(
+        auto last_stmt,
+        engine_->PrepareSqliteStatement(
+            SqlSource::FromTraceProcessorImplementation(analyzed_sq.sql)));
+    auto* sqlite_stmt = last_stmt.sqlite_stmt();
+    int col_count = sqlite3_column_count(sqlite_stmt);
+    std::vector<std::string> cols;
+    for (int i = 0; i < col_count; i++) {
+      cols.emplace_back(sqlite3_column_name(sqlite_stmt, i));
+    }
+    analyzed_sq.columns = std::move(cols);
+
+    output->push_back(analyzed_sq);
   }
-
-  // Find the target query to analyze
-  auto* target_query_ptr = query_map.Find(query_id);
-  if (!target_query_ptr) {
-    return base::ErrStatus("Query with id '%s' not found in spec",
-                           query_id.c_str());
-  }
-  const QueryBytes& target_query = *target_query_ptr;
-
-  // Generate SQL for the target query (which can reference other queries via
-  // inner_query_id).
-  ASSIGN_OR_RETURN(output->sql,
-                   sqg.Generate(target_query.ptr, target_query.size));
-  output->textproto =
-      perfetto::trace_processor::protozero_to_text::ProtozeroToText(
-          metrics_descriptor_pool_,
-          ".perfetto.protos.PerfettoSqlStructuredQuery",
-          protozero::ConstBytes{target_query.ptr, target_query.size},
-          perfetto::trace_processor::protozero_to_text::kIncludeNewLines);
-  output->modules = sqg.ComputeReferencedModules();
-  output->preambles = sqg.ComputePreambles();
-
-  // Execute modules
-  // TODO(mayzner): Should be done on an empty engine as we don't actually
-  // care about the results of execution of this code.
-  for (const auto& module : output->modules) {
-    engine_->Execute(SqlSource::FromTraceProcessorImplementation(
-        "INCLUDE PERFETTO MODULE " + module));
-  }
-
-  // Execute preambles
-  // TODO(mayzner): Should be done on an empty engine as we don't actually
-  // care about the results of execution of this code.
-  for (const auto& preamble : output->preambles) {
-    engine_->Execute(SqlSource::FromTraceProcessorImplementation(preamble));
-  }
-
-  // Fetch columns
-  ASSIGN_OR_RETURN(
-      auto last_stmt,
-      engine_->PrepareSqliteStatement(
-          SqlSource::FromTraceProcessorImplementation(output->sql)));
-  auto* sqlite_stmt = last_stmt.sqlite_stmt();
-  int col_count = sqlite3_column_count(sqlite_stmt);
-  std::vector<std::string> cols;
-  for (int i = 0; i < col_count; i++) {
-    cols.emplace_back(sqlite3_column_name(sqlite_stmt, i));
-  }
-  output->columns = std::move(cols);
-
   return base::OkStatus();
 }
 

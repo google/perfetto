@@ -266,8 +266,7 @@ export class SortNode implements QueryNode {
     if (this.primaryInput === undefined) return undefined;
 
     if (this.sortCols.length === 0) {
-      // No sortable columns - return passthrough to maintain reference chain
-      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
+      return this.primaryInput.getStructuredQuery();
     }
 
     const criteria: BuilderSortCriterion[] = [];
@@ -284,8 +283,7 @@ export class SortNode implements QueryNode {
     }
 
     if (criteria.length === 0) {
-      // No valid sort criteria - return passthrough to maintain reference chain
-      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
+      return this.primaryInput.getStructuredQuery();
     }
 
     return StructuredQueryBuilder.withOrderBy(

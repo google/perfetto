@@ -166,8 +166,7 @@ export class LimitAndOffsetNode implements QueryNode {
     const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
 
     if (!hasLimit && !hasOffset) {
-      // No limit/offset - return passthrough to maintain reference chain
-      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
+      return this.primaryInput.getStructuredQuery();
     }
 
     return StructuredQueryBuilder.withLimitOffset(
