@@ -61,6 +61,7 @@
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/tools/http_additional_cors_origins/http_additional_cors_origins.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
@@ -2276,11 +2277,19 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       });
     }
 #endif
+    std::vector<std::string> additional_cors_origins =
+        GetHttpAdditionalCorsOrigins();
+
+    for (const auto& origin : options.additional_cors_origins) {
+      PERFETTO_ILOG("Adding additional CORS origin: %s", origin.c_str());
+      additional_cors_origins.push_back(origin);
+    }
+
     RunHttpRPCServer(
         /*rpc=*/rpc,
         /*listen_ip=*/options.listen_ip,
         /*port_number=*/options.port_number,
-        /*additional_cors_origins=*/options.additional_cors_origins);
+        /*additional_cors_origins=*/additional_cors_origins);
     PERFETTO_FATAL("Should never return");
 #else
     PERFETTO_FATAL("HTTP not available");
