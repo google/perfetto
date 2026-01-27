@@ -43,6 +43,21 @@ import {Dataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import {WebGLRenderer} from '../../base/webgl_renderer';
 
+// Defers execution to the next idle callback and returns a helper to check
+// if idle time has run out.
+function deferToRic(): Promise<{readonly timesUp: boolean}> {
+  return new Promise((resolve) => {
+    requestIdleCallback((deadline) => {
+      console.log('RIC time remaining', deadline.timeRemaining());
+      resolve({
+        get timesUp() {
+          return deadline.timeRemaining() < 0;
+        },
+      });
+    });
+  });
+}
+
 export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 
 const MARGIN_TOP = 5;
@@ -332,6 +347,9 @@ export class GroupSummaryTrack implements TrackRenderer {
       utids: new Int32Array(numRows),
     };
 
+    // Defer to idle time before iterating over results.
+    let idle = await deferToRic();
+
     const it = queryRes.iter({
       count: NUM,
       ts: LONG,
@@ -340,7 +358,13 @@ export class GroupSummaryTrack implements TrackRenderer {
       utid: NUM,
     });
 
+    // Iterate over results, yielding to idle callbacks when time runs out.
+    // Check every 32 iterations to amortize the cost of timeRemaining().
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 100 === 0 && idle.timesUp) {
+        idle = await deferToRic();
+      }
+
       const start = Time.fromRaw(it.ts);
       const dur = it.dur;
       const end = Time.add(start, dur);

@@ -39,6 +39,20 @@ import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
 
+// Defers execution to the next idle callback and returns a helper to check
+// if idle time has run out.
+function deferToRic(): Promise<{readonly timesUp: boolean}> {
+  return new Promise((resolve) => {
+    requestIdleCallback((deadline) => {
+      resolve({
+        get timesUp() {
+          return deadline.timeRemaining() < 0;
+        },
+      });
+    });
+  });
+}
+
 // The common class that underpins all tracks drawing slices.
 
 export const SLICE_FLAGS_INCOMPLETE = 1;
@@ -423,7 +437,7 @@ export abstract class BaseSliceTrack<
     );
 
     // If the visible time range is outside the cached area, requests
-    // asynchronously new data from the SQL engine.
+    // new data from the SQL engine during idle time.
     await this.maybeRequestData(rawSlicesKey);
   }
 
@@ -722,25 +736,17 @@ export abstract class BaseSliceTrack<
   }
 
   // This method figures out if the visible window is outside the bounds of
-  // the cached data and if so issues new queries (i.e. sorta subsumes the
-  // onBoundsChange).
-  private async maybeRequestData(rawSlicesKey: CacheKey) {
+  // the cached data and if so issues new queries. Uses requestIdleCallback
+  // to defer work to idle time, avoiding frame drops.
+  private async maybeRequestData(rawSlicesKey: CacheKey): Promise<void> {
     if (rawSlicesKey.isCoveredBy(this.slicesKey)) {
       return; // We have the data already, no need to re-query
     }
 
-    // Determine the cache key:
     const slicesKey = rawSlicesKey.normalize();
-    if (!rawSlicesKey.isCoveredBy(slicesKey)) {
-      throw new Error(
-        `Normalization error ${slicesKey.toString()} ${rawSlicesKey.toString()}`,
-      );
-    }
 
-    // Here convert each row to a Slice. We do what we can do
-    // generically in the base class, and delegate the rest to the impl
-    // via that rowToSlice() abstract call.
-    const slices = new Array<CastInternal<SliceT>>();
+    // Defer to idle time before starting the query.
+    let idle = await deferToRic();
 
     // The mipmap virtual table will error out when passed a 0 length time span.
     const resolution = slicesKey.bucketSize;
@@ -763,20 +769,26 @@ export abstract class BaseSliceTrack<
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
+    // Iterate over results, yielding to idle callbacks when time runs out.
+    // Check every 100 iterations to amortize the cost of timeRemaining().
     const it = queryRes.iter(this.rowSpec);
-
+    const slices = new Array<CastInternal<SliceT>>();
     let maxDataDepth = this.maxDataDepth;
-    for (let i = 0; it.valid(); it.next(), ++i) {
-      if (it.dur === -1n) {
-        continue;
+    let i = 0;
+
+    while (it.valid()) {
+      if (++i % 100 === 0 && idle.timesUp) {
+        idle = await deferToRic();
       }
 
-      maxDataDepth = Math.max(maxDataDepth, it.depth);
-      // Construct the base slice. The Impl will construct and return
-      // the full derived T["slice"] (e.g. CpuSlice) in the
-      // rowToSlice() method.
-      slices.push(this.rowToSliceInternal(it));
+      if (it.dur !== -1n) {
+        maxDataDepth = Math.max(maxDataDepth, it.depth);
+        slices.push(this.rowToSliceInternal(it));
+      }
+      it.next();
     }
+
+    // Iteration complete - finalize the data.
     for (const incomplete of this.incomplete) {
       maxDataDepth = Math.max(maxDataDepth, incomplete.depth);
     }

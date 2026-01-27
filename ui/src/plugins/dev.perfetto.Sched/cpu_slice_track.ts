@@ -38,6 +38,20 @@ import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {WebGLRenderer, RECT_FLAG_HATCHED} from '../../base/webgl_renderer';
 
+// Defers execution to the next idle callback and returns a helper to check
+// if idle time has run out.
+function deferToRic(): Promise<{readonly timesUp: boolean}> {
+  return new Promise((resolve) => {
+    requestIdleCallback((deadline) => {
+      resolve({
+        get timesUp() {
+          return deadline.timeRemaining() < 0;
+        },
+      });
+    });
+  });
+}
+
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
   counts: Float64Array;
@@ -211,6 +225,9 @@ export class CpuSliceTrack implements TrackRenderer {
       flags: new Uint8Array(numRows),
     };
 
+    // Defer to idle time before iterating over results.
+    let idle = await deferToRic();
+
     const it = queryRes.iter({
       count: NUM,
       tsQ: LONG,
@@ -222,7 +239,14 @@ export class CpuSliceTrack implements TrackRenderer {
       isIncomplete: NUM,
       isRealtime: NUM,
     });
+
+    // Iterate over results, yielding to idle callbacks when time runs out.
+    // Check every 32 iterations to amortize the cost of timeRemaining().
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 100 === 0 && idle.timesUp) {
+        idle = await deferToRic();
+      }
+
       slices.counts[row] = it.count;
       slices.startQs[row] = it.tsQ;
       slices.endQs[row] = it.tsEndQ;
