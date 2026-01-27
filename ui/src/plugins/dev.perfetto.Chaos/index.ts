@@ -16,16 +16,95 @@ import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {PerfettoPlugin} from '../../public/plugin';
+import {
+  assertDefined,
+  assertExists,
+  assertFalse,
+  assertIsInstanceOf,
+  assertTrue,
+  assertUnreachable,
+  fail,
+} from '../../base/logging';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Chaos';
 
   static onActivate(ctx: App): void {
+    const testObject = {
+      a: 123,
+      b: null,
+      c: undefined,
+      d: 'invalid' as 'a' | 'b',
+    };
+
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CrashNow',
       name: 'Chaos: crash now',
       callback: () => {
         throw new Error('Manual crash from dev.perfetto.Chaos#CrashNow');
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AssertTrue',
+      name: 'Chaos: assertTrue failure',
+      callback: () => {
+        assertTrue(testObject.a > 200);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AssertFalse',
+      name: 'Chaos: assertFalse failure',
+      callback: () => {
+        assertFalse(testObject.a < 200);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AssertExists',
+      name: 'Chaos: assertExists failure',
+      callback: () => {
+        assertExists(testObject.b);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AssertDefined',
+      name: 'Chaos: assertDefined failure',
+      callback: () => {
+        assertDefined(testObject.c);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AssertUnreachable',
+      name: 'Chaos: assertUnreachable failure',
+      callback: () => {
+        switch (testObject.d) {
+          case 'a':
+            break;
+          case 'b':
+            break;
+          default:
+            assertUnreachable(testObject.d);
+        }
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.assertIsInstanceOf',
+      name: 'Chaos: assertIsInstanceOf failure',
+      callback: () => {
+        assertIsInstanceOf(testObject, Array);
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.Fail',
+      name: 'Chaos: fail()',
+      callback: () => {
+        fail('Intentional failure from Chaos plugin');
       },
     });
   }
