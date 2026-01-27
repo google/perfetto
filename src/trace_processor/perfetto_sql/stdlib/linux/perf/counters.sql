@@ -17,7 +17,7 @@
 -- and counter name.
 CREATE PERFETTO FUNCTION linux_perf_counter_for_sample(
     -- The ID of the perf sample.
-    sample_id LONG,
+    sample_id JOINID(perf_sample.id),
     -- The name of the counter (e.g., 'cpu-clock', 'instructions').
     counter_name STRING
 )
