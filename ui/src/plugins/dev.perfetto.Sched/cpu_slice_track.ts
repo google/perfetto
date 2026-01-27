@@ -37,20 +37,7 @@ import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {WebGLRenderer, RECT_FLAG_HATCHED} from '../../base/webgl_renderer';
-
-// Defers execution to the next idle callback and returns a helper to check
-// if idle time has run out.
-function deferToRic(): Promise<{readonly timesUp: boolean}> {
-  return new Promise((resolve) => {
-    requestIdleCallback((deadline) => {
-      resolve({
-        get timesUp() {
-          return deadline.timeRemaining() < 0;
-        },
-      });
-    });
-  });
-}
+import {deferToRic} from '../../base/utils';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.

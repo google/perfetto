@@ -38,20 +38,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
-
-// Defers execution to the next idle callback and returns a helper to check
-// if idle time has run out.
-function deferToRic(): Promise<{readonly timesUp: boolean}> {
-  return new Promise((resolve) => {
-    requestIdleCallback((deadline) => {
-      resolve({
-        get timesUp() {
-          return deadline.timeRemaining() < 0;
-        },
-      });
-    });
-  });
-}
+import {deferToRic} from '../../base/utils';
 
 // The common class that underpins all tracks drawing slices.
 

@@ -46,21 +46,8 @@ import {
   QUERY_CANCELLED,
   CancellationSignal,
 } from '../../base/query_slot';
-import { raf } from '../../core/raf_scheduler';
-
-// Defers execution to the next idle callback and returns a helper to check
-// if idle time has run out.
-function deferToRic(): Promise<{readonly timesUp: boolean}> {
-  return new Promise((resolve) => {
-    requestIdleCallback((deadline) => {
-      resolve({
-        get timesUp() {
-          return deadline.timeRemaining() < 0;
-        },
-      });
-    });
-  });
-}
+import {raf} from '../../core/raf_scheduler';
+import {deferToRic} from '../../base/utils';
 
 export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 
@@ -146,7 +133,11 @@ export class GroupSummaryTrack implements TrackRenderer {
   private currentData?: Data;
 
   // Track requested bounds to avoid re-triggering while query is in-flight
-  private requestedBounds?: {startNs: bigint; endNs: bigint; resolution: duration};
+  private requestedBounds?: {
+    startNs: bigint;
+    endNs: bigint;
+    resolution: duration;
+  };
 
   // Cached colors per slice (computed once when data changes)
   private cachedColors?: Array<{

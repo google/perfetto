@@ -103,3 +103,34 @@ export const maybeUndefined = <T>(value: T) => value as T | undefined;
 export function isNumeric(value: unknown): value is number | bigint {
   return typeof value === 'number' || typeof value === 'bigint';
 }
+
+// Defers execution to let the browser render, then returns a helper to check
+// if our time budget has run out. Uses setTimeout to schedule work AFTER
+// the current frame's rendering, not at the start of the next frame.
+export function deferToRic(): Promise<{readonly timesUp: boolean}> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        get timesUp() {
+          return shouldYield();
+        },
+      });
+    }, 0);
+  });
+}
+
+// Global frame timing - shared by all callers
+let lastFrameTime = performance.now();
+const WORK_BUDGET_MS = 4;
+
+// Keep lastFrameTime updated via rAF
+function trackFrames() {
+  lastFrameTime = performance.now();
+  requestAnimationFrame(trackFrames);
+}
+requestAnimationFrame(trackFrames);
+
+// All callers check against the same lastFrameTime
+function shouldYield(): boolean {
+  return performance.now() - lastFrameTime >= WORK_BUDGET_MS;
+}
