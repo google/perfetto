@@ -19,8 +19,6 @@ import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import m from 'mithril';
 import {colorForThread, colorForTid} from '../../components/colorizer';
-import {TrackData} from '../../components/tracks/track_data';
-import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {TrackRenderer} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
@@ -42,13 +40,19 @@ import {
 import {Dataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import {WebGLRenderer} from '../../base/webgl_renderer';
+import {
+  QuerySlot,
+  SerialTaskQueue,
+  QUERY_CANCELLED,
+  CancellationSignal,
+} from '../../base/query_slot';
+import { raf } from '../../core/raf_scheduler';
 
 // Defers execution to the next idle callback and returns a helper to check
 // if idle time has run out.
 function deferToRic(): Promise<{readonly timesUp: boolean}> {
   return new Promise((resolve) => {
     requestIdleCallback((deadline) => {
-      console.log('RIC time remaining', deadline.timeRemaining());
       resolve({
         get timesUp() {
           return deadline.timeRemaining() < 0;
@@ -64,7 +68,17 @@ const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
-interface Data extends TrackData {
+interface Data {
+  // Key fields for caching
+  startNs: bigint;
+  endNs: bigint;
+  resolution: duration;
+
+  // Data bounds (may differ from key if data extends beyond request)
+  start: time;
+  end: time;
+  length: number;
+
   maxLanes: number;
 
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -114,13 +128,25 @@ function computeHover(
   return {utid, lane, count, pid};
 }
 
+interface TableInfo {
+  maxLanes: number;
+}
+
 export class GroupSummaryTrack implements TrackRenderer {
   private hover?: GroupSummaryHover;
-  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
+  private readonly taskQueue = new SerialTaskQueue();
+  private readonly tableSlot = new QuerySlot<TableInfo>(this.taskQueue);
+  private readonly dataSlot = new QuerySlot<Data>(this.taskQueue);
   private trackUuid = uuidv4Sql();
   private mode: Mode = 'slices';
-  private maxLanes: number = 1;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
+  private trackNode?: TrackNode;
+
+  // Current data for rendering and mouse events
+  private currentData?: Data;
+
+  // Track requested bounds to avoid re-triggering while query is in-flight
+  private requestedBounds?: {startNs: bigint; endNs: bigint; resolution: duration};
 
   // Cached colors per slice (computed once when data changes)
   private cachedColors?: Array<{
@@ -149,14 +175,11 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   async onCreate(ctx: TrackContext): Promise<void> {
-    if (this.mode === 'sched') {
-      await this.createSchedMipmap();
-    } else {
-      await this.createSlicesMipmap(ctx.trackNode);
-    }
+    // Store trackNode for lazy table creation in render()
+    this.trackNode = ctx.trackNode;
   }
 
-  private async createSchedMipmap(): Promise<void> {
+  private async createSchedMipmap(): Promise<TableInfo> {
     const getQuery = () => {
       if (this.config.upid !== null) {
         return `
@@ -225,7 +248,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     });
     await trash.asyncDispose();
 
-    this.maxLanes = this.cpuCount;
+    return {maxLanes: this.cpuCount};
   }
 
   private fetchDatasetsFromSliceTracks(node: TrackNode) {
@@ -263,7 +286,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  private async createSlicesMipmap(node: TrackNode): Promise<void> {
+  private async createSlicesMipmap(node: TrackNode): Promise<TableInfo> {
     // Fetch datasets from child tracks
     this.fetchDatasetsFromSliceTracks(node);
 
@@ -281,8 +304,7 @@ export class GroupSummaryTrack implements TrackRenderer {
           where 0
         ))`,
       });
-      this.maxLanes = 1;
-      return;
+      return {maxLanes: 1};
     }
 
     // Create union of all slice tracks with track index as depth
@@ -307,39 +329,37 @@ export class GroupSummaryTrack implements TrackRenderer {
         ${unions}
       ))`,
     });
-    this.maxLanes = 8;
-  }
-
-  async onUpdate({
-    visibleWindow,
-    resolution,
-  }: TrackRenderContext): Promise<void> {
-    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
+    return {maxLanes: 8};
   }
 
   async onDestroy(): Promise<void> {
-    this.fetcher[Symbol.dispose]();
+    this.tableSlot.dispose();
+    this.dataSlot.dispose();
     await this.trace.engine.tryQuery(`
       drop table process_summary_${this.trackUuid}
     `);
   }
 
-  async onBoundsChange(
+  private async fetchData(
     start: time,
     end: time,
     resolution: duration,
-  ): Promise<Data> {
+    maxLanes: number,
+    signal: CancellationSignal,
+  ): Promise<Data | typeof QUERY_CANCELLED> {
     // Resolution must always be a power of 2 for this logic to work
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
     const queryRes = await this.queryData(start, end, resolution);
     const numRows = queryRes.numRows();
     const slices: Data = {
+      startNs: start,
+      endNs: end,
       start,
       end,
       resolution,
       length: numRows,
-      maxLanes: this.maxLanes,
+      maxLanes,
       counts: new Uint32Array(numRows),
       starts: new BigInt64Array(numRows),
       ends: new BigInt64Array(numRows),
@@ -359,10 +379,17 @@ export class GroupSummaryTrack implements TrackRenderer {
     });
 
     // Iterate over results, yielding to idle callbacks when time runs out.
-    // Check every 32 iterations to amortize the cost of timeRemaining().
+    // Check every 100 iterations to amortize the cost of timeRemaining().
     for (let row = 0; it.valid(); it.next(), row++) {
-      if (row % 100 === 0 && idle.timesUp) {
-        idle = await deferToRic();
+      if (row % 100 === 0) {
+        // Check for cancellation
+        if (signal.isCancelled) {
+          console.log('Fetch data cancelled');
+          return QUERY_CANCELLED;
+        }
+        if (idle.timesUp) {
+          idle = await deferToRic();
+        }
       }
 
       const start = Time.fromRaw(it.ts);
@@ -376,6 +403,8 @@ export class GroupSummaryTrack implements TrackRenderer {
       slices.utids[row] = it.utid;
       slices.end = Time.max(end, slices.end);
     }
+
+    raf.scheduleCanvasRedraw();
     return slices;
   }
 
@@ -521,9 +550,80 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  render({ctx, size, timescale, canvasRenderer}: TrackRenderContext): void {
-    const data = this.fetcher.data;
+  render({
+    ctx,
+    size,
+    timescale,
+    canvasRenderer,
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): void {
+    // First, ensure the mipmap table is created
+    const tableResult = this.tableSlot.use({
+      key: {mode: this.mode},
+      queryFn: async () => {
+        if (this.mode === 'sched') {
+          return this.createSchedMipmap();
+        } else {
+          return this.createSlicesMipmap(assertExists(this.trackNode));
+        }
+      },
+    });
 
+    // Can't fetch data until table is ready
+    if (!tableResult.data) return;
+
+    const {maxLanes} = tableResult.data;
+
+    // Check if requested bounds cover the viewport - only update bounds if
+    // we moved outside the loaded bounds or resolution changed.
+    const viewStart = visibleWindow.start.toTime();
+    const viewEnd = visibleWindow.end.toTime();
+
+    const bounds = this.requestedBounds;
+    const needsNewData =
+      bounds === undefined ||
+      viewStart < bounds.startNs ||
+      viewEnd > bounds.endNs ||
+      resolution !== bounds.resolution;
+
+    if (needsNewData) {
+      // Compute padded bounds (one page on each side as "skirt")
+      const viewDuration = viewEnd - viewStart;
+      const paddedStart = BIMath.quantFloor(
+        viewStart - viewDuration,
+        resolution,
+      );
+      const paddedEnd = BIMath.quantCeil(viewEnd + viewDuration, resolution);
+
+      // Track requested bounds to avoid re-triggering while in-flight
+      this.requestedBounds = {
+        startNs: paddedStart,
+        endNs: paddedEnd,
+        resolution,
+      };
+    }
+
+    // Always call dataSlot.use() to get cached result or trigger fetch
+    const {startNs, endNs, resolution: res} = this.requestedBounds!;
+    const result = this.dataSlot.use({
+      key: {startNs, endNs, resolution: res},
+      queryFn: (signal) =>
+        this.fetchData(
+          Time.fromRaw(startNs),
+          Time.fromRaw(endNs),
+          res,
+          maxLanes,
+          signal,
+        ),
+    });
+
+    // Update currentData when new data arrives
+    if (result.data) {
+      this.currentData = result.data;
+    }
+
+    const data = this.currentData;
     if (data === undefined) return; // Can't possibly draw anything.
 
     // If the cached trace slices don't fully cover the visible time range,
@@ -554,7 +654,7 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
+    const data = this.currentData;
     if (data === undefined) return;
     this.hover = computeHover({x, y}, timescale, data, this.threads);
     if (this.hoverMonitor.ifStateChanged()) {
