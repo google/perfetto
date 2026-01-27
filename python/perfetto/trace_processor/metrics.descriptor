@@ -775,8 +775,8 @@ maxRuntime
 totalCountc
 threshold_metric (28.perfetto.protos.AndroidIrqRuntimeMetric.ThresholdMetricRthresholdMetric_
 longest_irq_slices (21.perfetto.protos.AndroidIrqRuntimeMetric.IrqSliceRlongestIrqSlices
-¹
-5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¶
+Ø
+5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Õ
 AndroidJankCujMetric;
 cuj (2).perfetto.protos.AndroidJankCujMetric.CujRcuj¾
 Cuj
@@ -792,7 +792,7 @@ totalCountc
 timeline_metrics (2-.perfetto.protos.AndroidJankCujMetric.MetricsRtimelineMetricsR
 trace_metrics	 (2-.perfetto.protos.AndroidJankCujMetric.MetricsRtraceMetrics
 
-layer_name (	R	layerName¡
+layer_name (	R	layerNameÀ
 Frame!
 frame_number (RframeNumber
 vsync (Rvsync
@@ -801,7 +801,10 @@ layer_name (	R	layerName¡
 dur_expected (RdurExpected
 
 app_missed (R	appMissed
-	sf_missed (RsfMissed,
+	sf_missed (RsfMissed
+
+jank_score
+ (R	jankScore,
 sf_callback_missed (RsfCallbackMissed0
 hwui_callback_missed	 (RhwuiCallbackMissedû
 Metrics!
