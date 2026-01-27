@@ -624,9 +624,8 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should handle ts_dur mode for starts input', () => {
-      // Mock queries need IDs for reference-based query building
-      const mockSq1 = createMockStructuredQuery('starts_mock');
-      const mockSq2 = createMockStructuredQuery('ends_mock');
+      const mockSq1 = createMockStructuredQuery();
+      const mockSq2 = createMockStructuredQuery();
 
       const startsNode = createMockNode({
         nodeId: 'starts',
@@ -668,9 +667,8 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should handle ts_dur mode for ends input', () => {
-      // Mock queries need IDs for reference-based query building
-      const mockSq1 = createMockStructuredQuery('starts_mock');
-      const mockSq2 = createMockStructuredQuery('ends_mock');
+      const mockSq1 = createMockStructuredQuery();
+      const mockSq2 = createMockStructuredQuery();
 
       const startsNode = createMockNode({
         nodeId: 'starts',
@@ -712,9 +710,8 @@ describe('CreateSlicesNode', () => {
     });
 
     it('should handle ts_dur mode for both inputs', () => {
-      // Mock queries need IDs for reference-based query building
-      const mockSq1 = createMockStructuredQuery('starts_mock');
-      const mockSq2 = createMockStructuredQuery('ends_mock');
+      const mockSq1 = createMockStructuredQuery();
+      const mockSq2 = createMockStructuredQuery();
 
       const startsNode = createMockNode({
         nodeId: 'starts',
