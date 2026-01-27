@@ -294,7 +294,13 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         overflowY: 'auto',
         overflowX: 'hidden',
         enableWebGL: true,
-        onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect, webglCanvas, webglCtx}) => {
+        onCanvasRedraw: ({
+          ctx,
+          virtualCanvasSize,
+          canvasRect,
+          webglCanvas,
+          webglCtx,
+        }) => {
           this.drawCanvas(
             ctx,
             virtualCanvasSize,
@@ -521,7 +527,10 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     // X: clip from timelineRect.left (TRACK_SHELL_WIDTH) to the right edge
     // Adjusted for the canvas offset (virtual canvas position)
-    const scissorX = Math.max(0, Math.round((timelineRect.left + canvasOffset.x) * dpr));
+    const scissorX = Math.max(
+      0,
+      Math.round((timelineRect.left + canvasOffset.x) * dpr),
+    );
     const scissorWidth = canvasWidth - scissorX;
 
     // Y: full canvas height (no vertical clipping needed as tracks are already filtered)

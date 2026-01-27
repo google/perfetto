@@ -60,22 +60,24 @@ const CPU_SLICE_FLAGS_REALTIME = 2;
 
 // Cached WebGL program state (shared across instances for same GL context)
 // Only program and attribute/uniform locations are shared - buffers are per-instance
-let cachedGlProgram: {
-  gl: WebGL2RenderingContext;
-  program: WebGLProgram;
-  positionLocation: number;
-  baseColorLocation: number;
-  variantColorLocation: number;
-  disabledColorLocation: number;
-  selectorLocation: number;
-  flagsLocation: number;
-  localCoordLocation: number;
-  resolutionLocation: WebGLUniformLocation;
-  offsetLocation: WebGLUniformLocation;
-  dprLocation: WebGLUniformLocation;
-  timeScaleLocation: WebGLUniformLocation;
-  timePxOffsetLocation: WebGLUniformLocation;
-} | undefined;
+let cachedGlProgram:
+  | {
+      gl: WebGL2RenderingContext;
+      program: WebGLProgram;
+      positionLocation: number;
+      baseColorLocation: number;
+      variantColorLocation: number;
+      disabledColorLocation: number;
+      selectorLocation: number;
+      flagsLocation: number;
+      localCoordLocation: number;
+      resolutionLocation: WebGLUniformLocation;
+      offsetLocation: WebGLUniformLocation;
+      dprLocation: WebGLUniformLocation;
+      timeScaleLocation: WebGLUniformLocation;
+      timePxOffsetLocation: WebGLUniformLocation;
+    }
+  | undefined;
 
 interface CpuSliceHover {
   utid: number;
@@ -336,8 +338,9 @@ export class CpuSliceTrack implements TrackRenderer {
     // Check if we need to rebuild the vertex buffers (data changed)
     // Include data.start because positions are stored relative to it
     const dataGeneration = numRects + data.lastRowId;
-    const needsRebuild = dataGeneration !== this.lastDataGeneration ||
-                         data.start !== this.lastDataStart;
+    const needsRebuild =
+      dataGeneration !== this.lastDataGeneration ||
+      data.start !== this.lastDataStart;
 
     if (needsRebuild && numRects > 0) {
       // Reset buffer upload tracking - any rebuild needs GPU upload
@@ -402,14 +405,14 @@ export class CpuSliceTrack implements TrackRenderer {
         // - localY: 0 at top, RECT_HEIGHT at bottom
         // - leftEdgeTime: t1 (same for all 4 vertices, used to compute localX in shader)
         const localBaseIdx = i * 4 * 2;
-        this.cachedLocalCoords[localBaseIdx + 0] = 0;           // TL: localY
-        this.cachedLocalCoords[localBaseIdx + 1] = t1;          // TL: leftEdgeTime
-        this.cachedLocalCoords[localBaseIdx + 2] = 0;           // TR: localY
-        this.cachedLocalCoords[localBaseIdx + 3] = t1;          // TR: leftEdgeTime
+        this.cachedLocalCoords[localBaseIdx + 0] = 0; // TL: localY
+        this.cachedLocalCoords[localBaseIdx + 1] = t1; // TL: leftEdgeTime
+        this.cachedLocalCoords[localBaseIdx + 2] = 0; // TR: localY
+        this.cachedLocalCoords[localBaseIdx + 3] = t1; // TR: leftEdgeTime
         this.cachedLocalCoords[localBaseIdx + 4] = RECT_HEIGHT; // BL: localY
-        this.cachedLocalCoords[localBaseIdx + 5] = t1;          // BL: leftEdgeTime
+        this.cachedLocalCoords[localBaseIdx + 5] = t1; // BL: leftEdgeTime
         this.cachedLocalCoords[localBaseIdx + 6] = RECT_HEIGHT; // BR: localY
-        this.cachedLocalCoords[localBaseIdx + 7] = t1;          // BR: leftEdgeTime
+        this.cachedLocalCoords[localBaseIdx + 7] = t1; // BR: leftEdgeTime
 
         // Write colors and flags for all 4 vertices
         // RGB values are 0-255 from rgba, normalize to 0-1 for WebGL
@@ -445,11 +448,17 @@ export class CpuSliceTrack implements TrackRenderer {
     // Build selector buffer only when hover state changes
     const hoveredUtid = this.trace.timeline.hoveredUtid;
     const hoveredPid = this.trace.timeline.hoveredPid;
-    const hoverChanged = hoveredUtid !== this.lastHoveredUtid ||
-                         hoveredPid !== this.lastHoveredPid ||
-                         needsRebuild;
+    const hoverChanged =
+      hoveredUtid !== this.lastHoveredUtid ||
+      hoveredPid !== this.lastHoveredPid ||
+      needsRebuild;
 
-    if (hoverChanged && this.cachedUtids && this.cachedPids && this.selectorBuffer) {
+    if (
+      hoverChanged &&
+      this.cachedUtids &&
+      this.cachedPids &&
+      this.selectorBuffer
+    ) {
       const isHovering = hoveredUtid !== undefined;
 
       for (let i = 0; i < this.cachedRectCount; i++) {
@@ -459,7 +468,8 @@ export class CpuSliceTrack implements TrackRenderer {
         let selector = 0; // base
         if (isHovering) {
           const isThreadHovered = hoveredUtid === utid;
-          const isProcessHovered = hoveredPid !== undefined && pid === hoveredPid;
+          const isProcessHovered =
+            hoveredPid !== undefined && pid === hoveredPid;
           if (!isThreadHovered) {
             selector = isProcessHovered ? 1 : 2;
           }
@@ -477,9 +487,16 @@ export class CpuSliceTrack implements TrackRenderer {
     }
 
     // Draw rectangles using WebGL
-    if (offscreenGl && this.cachedPositions && this.cachedBaseColors &&
-        this.cachedVariantColors && this.cachedDisabledColors &&
-        this.cachedIndices && this.selectorBuffer && this.cachedRectCount > 0) {
+    if (
+      offscreenGl &&
+      this.cachedPositions &&
+      this.cachedBaseColors &&
+      this.cachedVariantColors &&
+      this.cachedDisabledColors &&
+      this.cachedIndices &&
+      this.selectorBuffer &&
+      this.cachedRectCount > 0
+    ) {
       this.drawWebGLRects(offscreenGl, canvasOffset, timescale, data.start);
     }
   }
@@ -527,7 +544,10 @@ export class CpuSliceTrack implements TrackRenderer {
       let tEnd = Time.fromRaw(data.endQs[i]);
       const utid = data.utids[i];
 
-      if (data.ids[i] === data.lastRowId && data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
+      if (
+        data.ids[i] === data.lastRowId &&
+        data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE
+      ) {
         tEnd = endTime;
       }
 
@@ -548,7 +568,9 @@ export class CpuSliceTrack implements TrackRenderer {
 
       let textColor: Color;
       if (isHovering && !isThreadHovered) {
-        textColor = isProcessHovered ? colorScheme.textVariant : colorScheme.textDisabled;
+        textColor = isProcessHovered
+          ? colorScheme.textVariant
+          : colorScheme.textDisabled;
       } else {
         textColor = colorScheme.textBase;
       }
@@ -679,14 +701,20 @@ export class CpuSliceTrack implements TrackRenderer {
     gl.shaderSource(vertexShader, vsSource);
     gl.compileShader(vertexShader);
     if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-      console.error('Vertex shader compilation failed:', gl.getShaderInfoLog(vertexShader));
+      console.error(
+        'Vertex shader compilation failed:',
+        gl.getShaderInfoLog(vertexShader),
+      );
     }
 
     const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fragmentShader, fsSource);
     gl.compileShader(fragmentShader);
     if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-      console.error('Fragment shader compilation failed:', gl.getShaderInfoLog(fragmentShader));
+      console.error(
+        'Fragment shader compilation failed:',
+        gl.getShaderInfoLog(fragmentShader),
+      );
     }
 
     const program = gl.createProgram()!;
@@ -694,13 +722,22 @@ export class CpuSliceTrack implements TrackRenderer {
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('Shader program linking failed:', gl.getProgramInfoLog(program));
+      console.error(
+        'Shader program linking failed:',
+        gl.getProgramInfoLog(program),
+      );
     }
 
     const positionLocation = gl.getAttribLocation(program, 'a_position');
     const baseColorLocation = gl.getAttribLocation(program, 'a_baseColor');
-    const variantColorLocation = gl.getAttribLocation(program, 'a_variantColor');
-    const disabledColorLocation = gl.getAttribLocation(program, 'a_disabledColor');
+    const variantColorLocation = gl.getAttribLocation(
+      program,
+      'a_variantColor',
+    );
+    const disabledColorLocation = gl.getAttribLocation(
+      program,
+      'a_disabledColor',
+    );
     const selectorLocation = gl.getAttribLocation(program, 'a_selector');
     const flagsLocation = gl.getAttribLocation(program, 'a_flags');
     const localCoordLocation = gl.getAttribLocation(program, 'a_localCoord');
@@ -708,7 +745,10 @@ export class CpuSliceTrack implements TrackRenderer {
     const offsetLocation = gl.getUniformLocation(program, 'u_offset')!;
     const dprLocation = gl.getUniformLocation(program, 'u_dpr')!;
     const timeScaleLocation = gl.getUniformLocation(program, 'u_time_scale')!;
-    const timePxOffsetLocation = gl.getUniformLocation(program, 'u_time_px_offset')!;
+    const timePxOffsetLocation = gl.getUniformLocation(
+      program,
+      'u_time_px_offset',
+    )!;
 
     cachedGlProgram = {
       gl,
@@ -730,7 +770,9 @@ export class CpuSliceTrack implements TrackRenderer {
     return cachedGlProgram;
   }
 
-  private ensureBuffers(gl: WebGL2RenderingContext): NonNullable<typeof this.glBuffers> {
+  private ensureBuffers(
+    gl: WebGL2RenderingContext,
+  ): NonNullable<typeof this.glBuffers> {
     if (this.glBuffers?.gl === gl) {
       return this.glBuffers;
     }
@@ -790,7 +832,9 @@ export class CpuSliceTrack implements TrackRenderer {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     const dpr = window.devicePixelRatio;
-    const timePerPx = timescale.timeSpan.duration / (timescale.pxBounds.right - timescale.pxBounds.left);
+    const timePerPx =
+      timescale.timeSpan.duration /
+      (timescale.pxBounds.right - timescale.pxBounds.left);
     const timeScale = 1 / timePerPx;
     const timePxOffset = timescale.timeToPx(dataStart);
 
@@ -801,7 +845,8 @@ export class CpuSliceTrack implements TrackRenderer {
     gl.uniform1f(timePxOffsetLocation, timePxOffset);
 
     // Only upload static buffers when data has changed
-    const needsStaticUpload = this.buffersUploadedForGeneration !== this.lastDataGeneration;
+    const needsStaticUpload =
+      this.buffersUploadedForGeneration !== this.lastDataGeneration;
 
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     if (needsStaticUpload) {
@@ -826,7 +871,11 @@ export class CpuSliceTrack implements TrackRenderer {
 
     gl.bindBuffer(gl.ARRAY_BUFFER, disabledColorBuffer);
     if (needsStaticUpload) {
-      gl.bufferData(gl.ARRAY_BUFFER, this.cachedDisabledColors!, gl.STATIC_DRAW);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        this.cachedDisabledColors!,
+        gl.STATIC_DRAW,
+      );
     }
     gl.enableVertexAttribArray(disabledColorLocation);
     gl.vertexAttribPointer(disabledColorLocation, 4, gl.FLOAT, false, 0, 0);
@@ -858,12 +907,21 @@ export class CpuSliceTrack implements TrackRenderer {
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     if (needsStaticUpload) {
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.cachedIndices!, gl.STATIC_DRAW);
+      gl.bufferData(
+        gl.ELEMENT_ARRAY_BUFFER,
+        this.cachedIndices!,
+        gl.STATIC_DRAW,
+      );
       this.buffersUploadedForGeneration = this.lastDataGeneration;
     }
 
     // Indexed drawing: 6 indices per quad, 4 vertices per quad
-    gl.drawElements(gl.TRIANGLES, this.cachedRectCount * 6, gl.UNSIGNED_SHORT, 0);
+    gl.drawElements(
+      gl.TRIANGLES,
+      this.cachedRectCount * 6,
+      gl.UNSIGNED_SHORT,
+      0,
+    );
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
@@ -991,7 +1049,9 @@ export class CpuSliceTrack implements TrackRenderer {
 // real-time priorities. The pattern is created once as an offscreen canvas and
 // is kept cached inside the Context2D of the main canvas, without making
 // assumptions on the lifetime of the main canvas.
-export function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
+export function getHatchedPattern(
+  mainCtx: CanvasRenderingContext2D,
+): CanvasPattern {
   const mctx = mainCtx as CanvasRenderingContext2D & {
     sliceHatchedPattern?: CanvasPattern;
   };
