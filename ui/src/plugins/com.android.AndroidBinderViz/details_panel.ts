@@ -24,9 +24,9 @@ import {STR_NULL} from '../../trace_processor/query_result';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Section} from '../../widgets/section';
 
-// Define an interface for the binder transaction details
 interface BinderTxnDetails {
-  side: string;
+  // Whether this is the client or server side of the binder transaction.
+  txnRole: string;
   interfaceName?: string;
   methodName?: string;
 }
@@ -37,7 +37,7 @@ async function getBinderTxnDetails(
 ): Promise<BinderTxnDetails | undefined> {
   const queryResult = await engine.query(`
     SELECT
-      IF(binder_txn_id = ${id}, 'Client', IF(binder_reply_id = ${id}, 'Server', '')) as side,
+      IF(binder_txn_id = ${id}, 'Client', IF(binder_reply_id = ${id}, 'Server', '')) as txnRole,
       interface as interfaceName,
       method_name as methodName
     FROM android_binder_txns
@@ -45,14 +45,14 @@ async function getBinderTxnDetails(
   `);
 
   const it = queryResult.iter({
-    side: STR_NULL,
+    txnRole: STR_NULL,
     interfaceName: STR_NULL,
     methodName: STR_NULL,
   });
 
   if (it.valid()) {
     return {
-      side: it.side || 'Unknown',
+      txnRole: it.txnRole || 'Unknown',
       interfaceName: it.interfaceName ?? undefined,
       methodName: it.methodName ?? undefined,
     };
@@ -96,7 +96,7 @@ export class BinderSliceDetailsPanel implements TrackEventDetailsPanel {
       return m('.details-panel', m('h2', 'Slice not found'));
     }
 
-    const side = this.binderTxnDetails?.side;
+    const txnRole = this.binderTxnDetails?.txnRole;
     const sliceId = this.sliceDetails?.id;
     const name = this.sliceDetails?.name;
 
@@ -104,7 +104,7 @@ export class BinderSliceDetailsPanel implements TrackEventDetailsPanel {
       '.details-panel',
       m(
         Section,
-        {title: side + ' ' + name},
+        {title: txnRole + ' ' + name},
         this.binderTxnDetails &&
           m(
             Tree,
@@ -117,7 +117,7 @@ export class BinderSliceDetailsPanel implements TrackEventDetailsPanel {
               right: this.binderTxnDetails.methodName,
             }),
             m(TreeNode, {
-              left: side + ' slice',
+              left: txnRole + ' slice',
               right: m(SliceRef, {
                 trace: this.trace,
                 id: sliceId,
