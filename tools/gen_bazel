@@ -194,6 +194,7 @@ external_deps = {
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
     '//gn:llvm_demangle': ['PERFETTO_CONFIG.deps.llvm_demangle'],
+    '//gn:re2': ['PERFETTO_CONFIG.deps.re2'],
     '//src/trace_processor:demangle': ['PERFETTO_CONFIG.deps.demangle_wrapper'],
     gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],
 }

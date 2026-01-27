@@ -111,6 +111,14 @@ class FilterBytecodeParser {
   // start from (typically perfetto.protos.Trace).
   QueryResult Query(uint32_t msg_index, uint32_t field_id) const;
 
+  FilterBytecodeParser Clone() const {
+    FilterBytecodeParser copy;
+    copy.words_ = words_;
+    copy.message_offset_ = message_offset_;
+    copy.suppress_logs_for_fuzzer_ = suppress_logs_for_fuzzer_;
+    return copy;
+  }
+
   void Reset();
   void set_suppress_logs_for_fuzzer(bool x) { suppress_logs_for_fuzzer_ = x; }
 

@@ -42,8 +42,10 @@ source_set("heapprofd_main") {
     "heapprofd.h",
   ]
 
-  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
+  # Abseil is only used in Perfetto via:
+  # - the gRPC/libprotobuf
+  # - re2
+  if (!enable_perfetto_re2 && is_perfetto_build_generator) {
     assert_no_deps = [ "../../../buildtools:abseil_cpp" ]
   }
 }
@@ -120,8 +122,10 @@ shared_library("heapprofd_standalone_client") {
     rebase_path("heapprofd_client_api.map.txt", root_build_dir),
   ]
 
-  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
+  # Abseil is only used in Perfetto via:
+  # - the gRPC/libprotobuf
+  # - re2
+  if (!enable_perfetto_re2 && is_perfetto_build_generator) {
     assert_no_deps = [ "../../../buildtools:abseil_cpp" ]
   }
 }

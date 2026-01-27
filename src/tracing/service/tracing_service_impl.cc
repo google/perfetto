@@ -30,14 +30,15 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <regex>
 #include <set>
 #include <string>
+
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include "perfetto/ext/base/regex.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
@@ -263,8 +264,7 @@ bool NameMatchesFilter(const std::string& name,
   bool filter_regex_matches =
       std::find_if(name_regex_filter.begin(), name_regex_filter.end(),
                    [&](const std::string& regex) {
-                     return std::regex_match(
-                         name, std::regex(regex, std::regex::extended));
+                     return base::Regex(regex).Match(name);
                    }) != name_regex_filter.end();
   return filter_matches || filter_regex_matches;
 }
@@ -1963,9 +1963,7 @@ void TracingServiceImpl::ActivateTriggers(
       // (non-empty producer_name()) ensure the producer who sent this trigger
       // matches.
       if (!iter->producer_name_regex().empty() &&
-          !std::regex_match(
-              producer->name_,
-              std::regex(iter->producer_name_regex(), std::regex::extended))) {
+          !base::Regex(iter->producer_name_regex()).Match(producer->name_)) {
         continue;
       }
 
@@ -4738,7 +4736,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
   if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(
-        new protozero::MessageFilter(src->trace_filter->config()));
+        new protozero::MessageFilter(src->trace_filter->config().Clone()));
   }
 
   cloned_session->buffer_cloned_timestamps = std::move(buf_cloned_timestamps);

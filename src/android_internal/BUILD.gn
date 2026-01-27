@@ -68,9 +68,8 @@ if (perfetto_build_with_android) {
       "../../src/base/*",
       "../../src/tracing/*",
     ]
-
-    # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-    if (perfetto_build_standalone || is_perfetto_build_generator) {
+    if (!enable_perfetto_re2 &&
+        (perfetto_build_standalone || is_perfetto_build_generator)) {
       assert_no_deps += [ "../../buildtools:abseil_cpp" ]
     }
   }

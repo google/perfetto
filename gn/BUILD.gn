@@ -111,6 +111,7 @@ action("gen_buildflags") {
     "PERFETTO_ENABLE_RT_MUTEX=$enable_perfetto_rt_mutex",
     "PERFETTO_ENABLE_LOCKFREE_TASKRUNNER=$enable_perfetto_lockfree_taskrunner",
     "PERFETTO_ENABLE_SOCK_INOTIFY=$enable_perfetto_sock_inotify",
+    "PERFETTO_RE2=$enable_perfetto_re2",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -467,6 +468,23 @@ if (enable_perfetto_zlib) {
 if (enable_perfetto_llvm_demangle) {
   group("llvm_demangle") {
     public_deps = [ "//buildtools:llvm_demangle" ]
+  }
+}
+
+if (enable_perfetto_re2) {
+  config("system_re2_config") {
+    libs = [ "re2" ]
+  }
+
+  group("re2") {
+    if (perfetto_use_system_re2) {
+      public_configs = [ "//gn:system_re2_config" ]
+    } else if (perfetto_root_path == "//") {
+      public_configs = [ "//buildtools:re2_config" ]
+      public_deps = [ "//buildtools:re2" ]
+    } else {
+      public_deps = [ "//third_party/re2" ]
+    }
   }
 }
 

@@ -41,6 +41,7 @@ source_set("sqlite") {
     "../../../protos/perfetto/trace/ftrace:zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
+    "../../base",
     "../containers",
     "../importers/common",
     "../importers/ftrace:ftrace_descriptors",
@@ -48,7 +49,6 @@ source_set("sqlite") {
     "../storage",
     "../types",
     "../util:profile_builder",
-    "../util:regex",
   ]
   public_deps = [ "bindings" ]
 }

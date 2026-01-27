@@ -28,6 +28,7 @@ executable("stress_test") {
     "../../include/perfetto/tracing",
     "../../protos/perfetto/trace:zero",
     "../../src/base",
+    "../../src/base:regex",
     "../../src/base:test_support",
     "configs",
   ]

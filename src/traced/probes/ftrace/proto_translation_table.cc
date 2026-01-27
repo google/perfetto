@@ -16,12 +16,12 @@
 
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
-#include <regex.h>
 #include <sys/utsname.h>
 
 #include <algorithm>
 #include <memory>
 
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -194,21 +194,10 @@ bool Contains(const std::string& haystack, const std::string& needle) {
   return haystack.find(needle) != std::string::npos;
 }
 
-std::string RegexError(int errcode, const regex_t* preg) {
-  char buf[64];
-  regerror(errcode, preg, buf, sizeof(buf));
-  return {buf, sizeof(buf)};
-}
-
 bool Match(const char* string, const char* pattern) {
-  regex_t re;
-  int ret = regcomp(&re, pattern, REG_EXTENDED | REG_NOSUB);
-  if (ret != 0) {
-    PERFETTO_FATAL("regcomp: %s", RegexError(ret, &re).c_str());
-  }
-  ret = regexec(&re, string, 0, nullptr, 0);
-  regfree(&re);
-  return ret != REG_NOMATCH;
+  base::Regex re(pattern);
+  PERFETTO_CHECK(re.IsValid());
+  return re.Match(string);
 }
 
 // TODO(rsavitski): consider using zigzag encoding for signed integers.

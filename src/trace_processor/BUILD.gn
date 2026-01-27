@@ -172,6 +172,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../protos/perfetto/trace_processor:zero",
       "../../protos/perfetto/trace_summary:zero",
       "../base",
+      "../base",
       "../base:clock_snapshots",
       "../protozero",
       "core/dataframe",
@@ -210,7 +211,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util:json_parser",
       "util:protozero_to_json",
       "util:protozero_to_text",
-      "util:regex",
       "util:stdlib",
       "util:trace_type",
     ]

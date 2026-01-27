@@ -33,9 +33,9 @@ source_set("dataframe") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../../base",
     "../../containers",
     "../../util:glob",
-    "../../util:regex",
     "../common",
     "../interpreter",
     "../util",
@@ -56,7 +56,6 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../../base:test_support",
     "../../containers",
-    "../../util:regex",
     "../interpreter",
     "../util",
   ]

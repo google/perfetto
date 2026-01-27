@@ -401,6 +401,10 @@ declare_args() {
   # Enables the use of the LLVM symbolizer in trace_processor.
   enable_perfetto_llvm_symbolizer = false
 
+  # Enables regular expression support via RE2.
+  enable_perfetto_re2 =
+      enable_perfetto_trace_processor || enable_perfetto_platform_services
+
   # Enables Winscope features in trace_processor. These are used by the
   # standalone Winscope tool, Android prebuilts, and trace extractor metrics.
   enable_perfetto_winscope =
@@ -448,6 +452,7 @@ declare_args() {
   perfetto_use_system_sqlite = false
 
   perfetto_use_system_zlib = false
+  perfetto_use_system_re2 = false
 }
 
 if (is_win) {

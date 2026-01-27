@@ -55,6 +55,23 @@ class MessageFilter {
  public:
   class Config {
    public:
+    Config();
+    ~Config();
+
+    Config(Config&&) noexcept;
+    Config& operator=(Config&&) noexcept;
+
+    Config(const Config&) = delete;
+    Config& operator=(const Config&) = delete;
+
+    Config Clone() const {
+      Config copy;
+      copy.filter_ = filter_.Clone();
+      copy.string_filter_ = string_filter_.Clone();
+      copy.root_msg_index_ = root_msg_index_;
+      return copy;
+    }
+
     // Loads filter bytecode. If a filter is already loaded, it is replaced.
     // Optionally accepts an overlay (pass nullptr/0 if not needed).
     // See FilterBytecodeParser::Load() for overlay format details.
@@ -79,6 +96,12 @@ class MessageFilter {
   MessageFilter();
   explicit MessageFilter(Config);
   ~MessageFilter();
+
+  MessageFilter(MessageFilter&&) noexcept;
+  MessageFilter& operator=(MessageFilter&&) noexcept;
+
+  MessageFilter(const MessageFilter&) = delete;
+  MessageFilter& operator=(const MessageFilter&) = delete;
 
   struct InputSlice {
     const void* data;

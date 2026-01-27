@@ -40,6 +40,9 @@ buildtools_hash_revision_for_cache_on_ci.txt
 /open_csd/
 /pigweed/
 /protobuf/
+/re2/
+/re2.tgz
+/re2.tar.gz
 /rustup/
 /sqlglot/
 /sqlite_src/

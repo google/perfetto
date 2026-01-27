@@ -55,6 +55,7 @@ PERFETTO_CONFIG = struct(
         protobuf_lite = ["@com_google_protobuf//:protobuf_lite"],
         protobuf_full = ["@com_google_protobuf//:protobuf"],
         protobuf_descriptor_proto = ["@com_google_protobuf//:descriptor_proto"],
+        re2 = ["@perfetto_dep_re2//:re2"],
         open_csd = ["@perfetto_dep_open_csd//:open_csd"],
 
         android_test_common = [
@@ -97,6 +98,7 @@ PERFETTO_CONFIG = struct(
         jsoncpp = [],
         linenoise = [],
         sqlite = [],
+        re2 = [],
         llvm_demangle = [],
         open_csd = [],
     ),

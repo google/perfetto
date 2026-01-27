@@ -36,6 +36,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
@@ -145,7 +146,6 @@
 #include "src/trace_processor/util/json_utils.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
-#include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -1273,7 +1273,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<PackageLookup>(
       engine.get(), std::make_unique<PackageLookup::Context>(storage));
 
-  if constexpr (regex::IsRegexSupported()) {
+  if constexpr (base::Regex::IsRegexSupported()) {
     RegisterFunction<Regexp>(engine.get());
     RegisterFunction<RegexpExtract>(engine.get());
   }

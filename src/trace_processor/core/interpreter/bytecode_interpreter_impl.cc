@@ -26,6 +26,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -33,7 +34,6 @@
 #include "src/trace_processor/core/util/sort.h"
 #include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/util/glob.h"
-#include "src/trace_processor/util/regex.h"
 
 namespace perfetto::trace_processor::core::interpreter::ops {
 
@@ -70,7 +70,7 @@ struct BitVectorComparator {
 };
 
 struct RegexComparator {
-  bool operator()(StringPool::Id lhs, const regex::Regex& r) const {
+  bool operator()(StringPool::Id lhs, const base::Regex& r) const {
     return r.Search(pool->Get(lhs).c_str());
   }
   const StringPool* pool;
@@ -225,7 +225,7 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
                                 const uint32_t* begin,
                                 const uint32_t* end,
                                 uint32_t* output) {
-  auto regex = regex::Regex::Create(pattern);
+  auto regex = base::Regex::Create(pattern);
   if (!regex.ok()) {
     return output;
   }

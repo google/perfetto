@@ -562,6 +562,66 @@ source_set("abseil_cpp") {
   all_dependent_configs = [ ":abseil_framework_config" ]
 }
 
+config("re2_config") {
+  visibility = _buildtools_visibility
+  include_dirs = [
+    "re2",
+    "abseil-cpp",
+  ]
+}
+
+source_set("re2") {
+  visibility = _buildtools_visibility
+  sources = [
+    "re2/re2/bitmap256.cc",
+    "re2/re2/bitmap256.h",
+    "re2/re2/bitstate.cc",
+    "re2/re2/compile.cc",
+    "re2/re2/dfa.cc",
+    "re2/re2/filtered_re2.cc",
+    "re2/re2/filtered_re2.h",
+    "re2/re2/mimics_pcre.cc",
+    "re2/re2/nfa.cc",
+    "re2/re2/onepass.cc",
+    "re2/re2/parse.cc",
+    "re2/re2/perl_groups.cc",
+    "re2/re2/pod_array.h",
+    "re2/re2/prefilter.cc",
+    "re2/re2/prefilter.h",
+    "re2/re2/prefilter_tree.cc",
+    "re2/re2/prefilter_tree.h",
+    "re2/re2/prog.cc",
+    "re2/re2/prog.h",
+    "re2/re2/re2.cc",
+    "re2/re2/re2.h",
+    "re2/re2/regexp.cc",
+    "re2/re2/regexp.h",
+    "re2/re2/set.cc",
+    "re2/re2/set.h",
+    "re2/re2/simplify.cc",
+    "re2/re2/sparse_array.h",
+    "re2/re2/sparse_set.h",
+    "re2/re2/stringpiece.h",
+    "re2/re2/tostring.cc",
+    "re2/re2/unicode_casefold.cc",
+    "re2/re2/unicode_casefold.h",
+    "re2/re2/unicode_groups.cc",
+    "re2/re2/unicode_groups.h",
+    "re2/re2/walker-inl.h",
+    "re2/util/rune.cc",
+    "re2/util/strutil.cc",
+    "re2/util/strutil.h",
+    "re2/util/utf.h",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  configs += [ ":abseil_config" ]
+  public_configs = [ ":re2_config" ]
+  deps = [
+    ":abseil_cpp",
+    "//gn:default_deps",
+  ]
+}
+
 # Configuration for utf8_range (required by protobuf v22+).
 config("utf8_range_config") {
   visibility = _buildtools_visibility

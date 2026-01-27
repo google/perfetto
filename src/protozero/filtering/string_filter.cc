@@ -19,19 +19,19 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <regex>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/public/compiler.h"
 
 namespace protozero {
 namespace {
 
-using Matches = std::match_results<char*>;
+using Matches = std::vector<std::pair<char*, char*>>;
 
 constexpr std::string_view kRedacted = "P60REDACTED";
 constexpr char kRedactedDash = '-';
@@ -91,34 +91,49 @@ PERFETTO_ALWAYS_INLINE bool StartsWith(const char* ptr,
 void RedactMatches(const Matches& matches) {
   // Go through every group in the matches.
   for (size_t i = 1; i < matches.size(); ++i) {
-    const auto& match = matches[i];
-    PERFETTO_CHECK(match.second >= match.first);
+    char* m_first = matches[i].first;
+    char* m_second = matches[i].second;
+    if (m_first == nullptr)
+      continue;
+    PERFETTO_CHECK(m_second >= m_first);
 
     // Overwrite the match with characters from |kRedacted|. If match is
     // smaller, we will not use all of |kRedacted| but that's fine (i.e. we
     // will overwrite with a truncated |kRedacted|).
-    auto match_len = static_cast<size_t>(match.second - match.first);
+    auto match_len = static_cast<size_t>(m_second - m_first);
     size_t redacted_len = std::min(match_len, kRedacted.size());
-    memcpy(match.first, kRedacted.data(), redacted_len);
+    memcpy(m_first, kRedacted.data(), redacted_len);
 
     // Overwrite any characters after |kRedacted| with |kRedactedDash|.
-    memset(match.first + redacted_len, kRedactedDash, match_len - redacted_len);
+    memset(m_first + redacted_len, kRedactedDash, match_len - redacted_len);
   }
 }
 
 }  // namespace
+
+StringFilter::StringFilter() = default;
+StringFilter::~StringFilter() = default;
+StringFilter::StringFilter(StringFilter&&) noexcept = default;
+StringFilter& StringFilter::operator=(StringFilter&&) noexcept = default;
+
+StringFilter StringFilter::Clone() const {
+  StringFilter copy;
+  for (const auto& rule : rules_) {
+    copy.rules_.push_back(Rule{rule.policy, rule.pattern.Clone(),
+                               rule.atrace_payload_starts_with, rule.name,
+                               rule.semantic_type_mask});
+  }
+  return copy;
+}
 
 void StringFilter::AddRule(Policy policy,
                            std::string_view pattern_str,
                            std::string atrace_payload_starts_with,
                            std::string name,
                            SemanticTypeMask semantic_type_mask) {
-  Rule new_rule{
-      policy,
-      std::regex(pattern_str.begin(), pattern_str.end(),
-                 std::regex::ECMAScript | std::regex_constants::optimize),
-      std::move(atrace_payload_starts_with), std::move(name),
-      semantic_type_mask};
+  Rule new_rule{policy, perfetto::base::Regex(std::string(pattern_str)),
+                std::move(atrace_payload_starts_with), std::move(name),
+                semantic_type_mask};
   // If name is non-empty, look for existing rule with same name and replace.
   if (!new_rule.name.empty()) {
     for (Rule& existing : rules_) {
@@ -134,7 +149,7 @@ void StringFilter::AddRule(Policy policy,
 bool StringFilter::MaybeFilterInternal(char* ptr,
                                        size_t len,
                                        uint32_t semantic_type) const {
-  std::match_results<char*> matches;
+  Matches matches;
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
   for (const Rule& rule : rules_) {
@@ -144,8 +159,7 @@ bool StringFilter::MaybeFilterInternal(char* ptr,
     switch (rule.policy) {
       case Policy::kMatchRedactGroups:
       case Policy::kMatchBreak:
-        if (PERFETTO_UNLIKELY(
-                std::regex_match(ptr, ptr + len, matches, rule.pattern))) {
+        if (PERFETTO_UNLIKELY(rule.pattern.Match(ptr, ptr + len, &matches))) {
           if (rule.policy == Policy::kMatchBreak) {
             return false;
           }
@@ -162,7 +176,7 @@ bool StringFilter::MaybeFilterInternal(char* ptr,
         if (atrace_payload_ptr &&
             StartsWith(atrace_payload_ptr, ptr + len,
                        rule.atrace_payload_starts_with) &&
-            std::regex_match(ptr, ptr + len, matches, rule.pattern)) {
+            rule.pattern.Match(ptr, ptr + len, &matches)) {
           if (rule.policy == Policy::kAtraceMatchBreak) {
             return false;
           }
@@ -177,11 +191,13 @@ bool StringFilter::MaybeFilterInternal(char* ptr,
         atrace_find_tried = true;
         if (atrace_payload_ptr && StartsWith(atrace_payload_ptr, ptr + len,
                                              rule.atrace_payload_starts_with)) {
-          auto beg = std::regex_iterator<char*>(ptr, ptr + len, rule.pattern);
-          auto end = std::regex_iterator<char*>();
-          bool has_any_matches = beg != end;
-          for (auto it = std::move(beg); it != end; ++it) {
-            RedactMatches(*it);
+          bool has_any_matches = false;
+          size_t start_offset = 0;
+          while (rule.pattern.Search(ptr, ptr + len, start_offset, &matches)) {
+            has_any_matches = true;
+            RedactMatches(matches);
+            // matches[0] is the full match.
+            start_offset = static_cast<size_t>(matches[0].second - ptr);
           }
           if (has_any_matches) {
             return true;

@@ -25,7 +25,6 @@
 #include <iterator>
 #include <memory>
 #include <optional>
-#include <regex>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -33,6 +32,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
@@ -475,24 +475,27 @@ int TemplateReplace(
     const std::string& raw_text,
     const std::unordered_map<std::string, std::string>& substitutions,
     std::string* out) {
-  std::regex re(R"(\{\{\s*(\w*)\s*\}\})", std::regex_constants::ECMAScript);
+  base::Regex re(R"(\{\{\s*(\w*)\s*\}\})");
+  if (!re.IsValid()) {
+    return 1;
+  }
 
-  auto it = std::sregex_iterator(raw_text.begin(), raw_text.end(), re);
-  auto regex_end = std::sregex_iterator();
-  auto start = raw_text.begin();
-  for (; it != regex_end; ++it) {
-    out->insert(out->end(), start, raw_text.begin() + it->position(0));
+  size_t start = 0;
+  size_t pos = 0;
+  size_t len = 0;
+  std::vector<std::string> groups;
+  while (re.Search(raw_text, start, &pos, &len, &groups)) {
+    out->append(raw_text, start, pos - start);
 
-    auto value_it = substitutions.find(it->str(1));
+    auto value_it = substitutions.find(groups[0]);
     if (value_it == substitutions.end()) {
       return 1;
     }
 
-    const auto& value = value_it->second;
-    std::copy(value.begin(), value.end(), std::back_inserter(*out));
-    start = raw_text.begin() + it->position(0) + it->length(0);
+    out->append(value_it->second);
+    start = pos + len;
   }
-  out->insert(out->end(), start, raw_text.end());
+  out->append(raw_text, start, raw_text.size() - start);
   return 0;
 }
 

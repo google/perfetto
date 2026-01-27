@@ -20,7 +20,6 @@
 #include <list>
 #include <map>
 #include <random>
-#include <regex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -30,6 +29,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/ctrl_c_handler.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -439,16 +439,15 @@ void CtrlCHandler() {
 
 void StressTestMain(int argc, char** argv) {
   TestHarness th;
-  std::regex filter;
-  bool has_filter = false;
+  std::unique_ptr<base::Regex> filter;
 
   bool verbose = false;
   for (int i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-v")) {
       verbose = true;
     } else {
-      filter = std::regex(argv[i], std::regex::ECMAScript | std::regex::icase);
-      has_filter = true;
+      filter = std::make_unique<base::Regex>(
+          argv[i], base::Regex::Option::kCaseInsensitive);
     }
   }
 
@@ -459,8 +458,7 @@ void StressTestMain(int argc, char** argv) {
        ++i) {
     const auto& cfg_blob = kStressTestConfigs[i];
     StressTestConfig cfg;
-    std::cmatch ignored;
-    if (has_filter && !std::regex_search(cfg_blob.name, ignored, filter)) {
+    if (filter && !filter->Search(cfg_blob.name)) {
       continue;
     }
     PERFETTO_CHECK(cfg.ParseFromArray(cfg_blob.data, cfg_blob.size));

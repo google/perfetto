@@ -31,7 +31,8 @@ executable("traced") {
   assert_no_deps = [ "../../../gn:protobuf_lite" ]
 
   # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
+  if (!enable_perfetto_re2 &&
+      (perfetto_build_standalone || is_perfetto_build_generator)) {
     assert_no_deps += [ "../../buildtools:abseil_cpp" ]
   }
 }
@@ -57,11 +58,6 @@ source_set("service") {
   }
 
   sources = [ "service.cc" ]
-
-  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
-    assert_no_deps = [ "../../../buildtools:abseil_cpp" ]
-  }
 }
 
 source_set("builtin_producer") {

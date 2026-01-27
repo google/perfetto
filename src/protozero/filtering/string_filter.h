@@ -20,12 +20,12 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <regex>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/public/compiler.h"
 
 namespace protozero {
@@ -34,6 +34,17 @@ namespace protozero {
 // |TraceConfig.TraceFilter| for information on how this class works.
 class StringFilter {
  public:
+  StringFilter();
+  ~StringFilter();
+
+  StringFilter(StringFilter&&) noexcept;
+  StringFilter& operator=(StringFilter&&) noexcept;
+
+  StringFilter(const StringFilter&) = delete;
+  StringFilter& operator=(const StringFilter&) = delete;
+
+  StringFilter Clone() const;
+
   // Bitmask for semantic types. Supports up to 128 semantic types.
   class SemanticTypeMask {
    public:
@@ -122,7 +133,7 @@ class StringFilter {
  private:
   struct Rule {
     Policy policy;
-    std::regex pattern;
+    perfetto::base::Regex pattern;
     std::string atrace_payload_starts_with;
     std::string name;
     SemanticTypeMask semantic_type_mask = SemanticTypeMask::Unspecified();

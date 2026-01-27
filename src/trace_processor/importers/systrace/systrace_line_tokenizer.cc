@@ -17,9 +17,9 @@
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
-#include "src/trace_processor/util/regex.h"
 
 #include <algorithm>
 #include <cctype>
@@ -27,7 +27,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <regex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -47,18 +46,13 @@ std::string SubstrTrim(const std::string& input) {
 }
 }  // namespace
 
-SystraceLineTokenizer::SystraceLineTokenizer()
-    : std_line_matcher_(
-          std::regex(R"(-(\d+)\s+\(?\s*(\d+|-+)?\)?\s?\[(\d+)\]\s*)"
-                     R"(([a-zA-Z.]{3}[0-9.]{1,2}\s*)?(\d+\.\d+):\s+(\S+):)")) {
-  if constexpr (regex::IsRegexSupported()) {
-    auto regex_or = regex::Regex::Create(
-        R"(-([0-9]+)[[:space:]]+\(?[[:space:]]*([0-9]+|-+)?\)?[[:space:]]?\[([0-9]+)\][[:space:]]*([a-zA-Z.]{3}[0-9.]{1,2}[[:space:]]*)?([0-9]+\.[0-9]+):[[:space:]]+([^[:space:]]+):)");
-    if (!regex_or.ok()) {
-      PERFETTO_FATAL("%s", regex_or.status().c_message());
-    }
-    line_matcher_ = std::make_unique<regex::Regex>(std::move(regex_or.value()));
+SystraceLineTokenizer::SystraceLineTokenizer() {
+  auto regex_or = base::Regex::Create(
+      R"(-([0-9]+)[[:space:]]+\(?[[:space:]]*([0-9]+|-+)?\)?[[:space:]]?\[([0-9]+)\][[:space:]]*([a-zA-Z.]{3}[0-9.]{1,2}[[:space:]]*)?([0-9]+\.[0-9]+):[[:space:]]+([^[:space:]]+):)");
+  if (!regex_or.ok()) {
+    PERFETTO_FATAL("%s", regex_or.status().c_message());
   }
+  line_matcher_ = std::make_unique<base::Regex>(std::move(regex_or.value()));
 }
 
 // TODO(hjd): This should be more robust to being passed random input.
@@ -80,18 +74,8 @@ base::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
   // manually)
 
   std::vector<std::string_view> matches;
-  bool matched;
-  if constexpr (regex::IsRegexSupported()) {
-    line_matcher_->Submatch(buffer.c_str(), matches);
-    matched = !matches.empty();
-  } else {
-    std::smatch smatches;
-    matched = std::regex_search(buffer, smatches, std_line_matcher_);
-    for (const auto& smatch : smatches) {
-      matches.emplace_back(&*smatch.first, smatch.length());
-    }
-  }
-  if (!matched) {
+  line_matcher_->Submatch(buffer.c_str(), matches);
+  if (matches.empty()) {
     return base::ErrStatus("Not a known systrace event format (line: %s)",
                            buffer.c_str());
   }

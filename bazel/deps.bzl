@@ -47,6 +47,14 @@ def perfetto_deps():
     )
 
     _add_repo_if_not_existing(
+        new_git_repository,
+        name = "perfetto_dep_abseil_cpp",
+        remote = "https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git",
+        commit = "76bb24329e8bf5f39704eb10d21b9a80befa7c81",
+        build_file = "//bazel:abseil_cpp.BUILD",
+    )
+
+    _add_repo_if_not_existing(
         http_archive,
         name = "perfetto_dep_sqlite",
         url = "https://storage.googleapis.com/perfetto/sqlite-amalgamation-3500300.zip",
@@ -94,6 +102,14 @@ def perfetto_deps():
         remote = "https://chromium.googlesource.com/chromium/src/third_party/zlib.git",
         commit = "6f9b4e61924021237d474569027cfb8ac7933ee6",
         build_file = "//bazel:zlib.BUILD",
+    )
+
+    _add_repo_if_not_existing(
+        new_git_repository,
+        name = "perfetto_dep_re2",
+        remote = "https://chromium.googlesource.com/external/github.com/google/re2.git",
+        commit = "927f5d53caf8111721e734cf24724686bb745f55",
+        build_file = "//bazel:re2.BUILD",
     )
 
     _add_repo_if_not_existing(

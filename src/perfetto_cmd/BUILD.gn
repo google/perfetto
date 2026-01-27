@@ -77,8 +77,10 @@ source_set("perfetto_cmd") {
     sources += [ "perfetto_cmd_android.cc" ]
   }
 
-  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
+  # Abseil is only used in Perfetto via:
+  # - the gRPC/libprotobuf
+  # - re2
+  if (!enable_perfetto_re2 && is_perfetto_build_generator) {
     assert_no_deps += [ "../../buildtools:abseil_cpp" ]
   }
 }
@@ -105,10 +107,9 @@ source_set("trigger_perfetto_cmd") {
     "../tracing/ipc/producer",
   ]
   sources = [ "trigger_perfetto.cc" ]
-
-  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
-    assert_no_deps = [ "../../buildtools:abseil_cpp" ]
+  if (!enable_perfetto_re2 &&
+      (perfetto_build_standalone || is_perfetto_build_generator)) {
+    assert_no_deps += [ "../../buildtools:abseil_cpp" ]
   }
 }
 

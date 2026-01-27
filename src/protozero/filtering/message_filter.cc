@@ -69,6 +69,12 @@ inline std::pair<uint8_t*, uint32_t> AppendLenDelim(uint32_t field_id,
 }
 }  // namespace
 
+MessageFilter::Config::Config() = default;
+MessageFilter::Config::~Config() = default;
+MessageFilter::Config::Config(Config&&) noexcept = default;
+MessageFilter::Config& MessageFilter::Config::operator=(Config&&) noexcept =
+    default;
+
 MessageFilter::MessageFilter(Config config) : config_(std::move(config)) {
   // Push a state on the stack for the implicit root message.
   stack_.emplace_back();
@@ -77,6 +83,9 @@ MessageFilter::MessageFilter(Config config) : config_(std::move(config)) {
 MessageFilter::MessageFilter() : MessageFilter(Config()) {}
 
 MessageFilter::~MessageFilter() = default;
+
+MessageFilter::MessageFilter(MessageFilter&&) noexcept = default;
+MessageFilter& MessageFilter::operator=(MessageFilter&&) noexcept = default;
 
 bool MessageFilter::Config::LoadFilterBytecode(const void* filter_data,
                                                size_t len,

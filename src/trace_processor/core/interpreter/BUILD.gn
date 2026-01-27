@@ -31,9 +31,9 @@ source_set("interpreter") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../../base",
     "../../containers",
     "../../util:glob",
-    "../../util:regex",
     "../common",
     "../util",
   ]
@@ -63,7 +63,6 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../base",
     "../../containers",
-    "../../util:regex",
     "../common",
     "../dataframe",
     "../util",

@@ -36,6 +36,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -50,7 +51,6 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/glob.h"
-#include "src/trace_processor/util/regex.h"
 
 namespace perfetto::trace_processor {
 
@@ -312,9 +312,9 @@ struct Regexp : public sqlite::Function<Regexp> {
   static constexpr char kName[] = "regexp";
   static constexpr int kArgCount = 2;
 
-  using AuxData = regex::Regex;
+  using AuxData = base::Regex;
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
-    if constexpr (regex::IsRegexSupported()) {
+    if constexpr (base::Regex::IsRegexSupported()) {
       const char* text =
           reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
       auto* aux = GetAuxData(ctx, 0);
@@ -325,7 +325,7 @@ struct Regexp : public sqlite::Function<Regexp> {
           return;
         }
         SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
-                                regex::Regex::Create(pattern_str));
+                                base::Regex::Create(pattern_str));
         auto ptr = std::make_unique<AuxData>(std::move(regex));
         aux = ptr.get();
         SetAuxData(ctx, 0, std::move(ptr));
@@ -345,12 +345,12 @@ struct RegexpExtract : public sqlite::Function<RegexpExtract> {
   static constexpr int kArgCount = 2;
 
   struct AuxData {
-    regex::Regex regex;
+    base::Regex regex;
     std::vector<std::string_view> matches;
   };
 
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
-    if constexpr (regex::IsRegexSupported()) {
+    if constexpr (base::Regex::IsRegexSupported()) {
       const char* text =
           reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
       auto* aux = GetAuxData(ctx, 1);
@@ -361,7 +361,7 @@ struct RegexpExtract : public sqlite::Function<RegexpExtract> {
           return;
         }
         SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
-                                regex::Regex::Create(pattern_str));
+                                base::Regex::Create(pattern_str));
         auto ptr = std::make_unique<AuxData>(AuxData{std::move(regex), {}});
         aux = ptr.get();
         SetAuxData(ctx, 1, std::move(ptr));

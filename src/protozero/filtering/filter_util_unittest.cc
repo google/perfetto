@@ -18,12 +18,12 @@
 
 #include <cstdint>
 #include <optional>
-#include <regex>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
@@ -43,6 +43,23 @@ size_t TestDescriptorSize() {
   return perfetto::kFilterUtilTestMessagesDescriptor.size();
 }
 
+std::string RegexReplace(const std::string& input,
+                         const std::string& pattern,
+                         const std::string& replacement) {
+  perfetto::base::Regex re(pattern);
+  std::string out;
+  size_t start = 0;
+  size_t pos = 0;
+  size_t len = 0;
+  while (re.Search(input, start, &pos, &len)) {
+    out.append(input, start, pos - start);
+    out.append(replacement);
+    start = pos + len;
+  }
+  out.append(input, start, input.size() - start);
+  return out;
+}
+
 std::string FilterToText(FilterUtil& filter,
                          const std::optional<std::string>& bytecode = {}) {
   std::string tmp_path = perfetto::base::TempFile::Create().path();
@@ -57,8 +74,8 @@ std::string FilterToText(FilterUtil& filter,
   std::string output;
   PERFETTO_CHECK(perfetto::base::ReadFile(tmp_path, &output));
   // Make the output a bit more compact.
-  output = std::regex_replace(output, std::regex(" +"), " ");
-  return std::regex_replace(output, std::regex(" +\\n"), "\n");
+  output = RegexReplace(output, " +", " ");
+  return RegexReplace(output, " +\\n", "\n");
 }
 
 TEST(SchemaParserTest, SchemaToBytecode_Simple) {

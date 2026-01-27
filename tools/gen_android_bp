@@ -434,6 +434,16 @@ def enable_sqlite(module):
     module.static_libs.add('sqlite_ext_percentile')
 
 
+def enable_re2(module):
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libregex_re2')
+  elif module.host_supported:
+    module.android.static_libs.add('libregex_re2')
+    module.host.static_libs.add('libregex_re2')
+  else:
+    module.static_libs.add('libregex_re2')
+
+
 def enable_zlib(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libz')
@@ -494,6 +504,8 @@ builtin_deps = {
         enable_libunwindstack,
     '//gn:sqlite':
         enable_sqlite,
+    '//gn:re2':
+        enable_re2,
     '//gn:zlib':
         enable_zlib,
     '//gn:expat':
