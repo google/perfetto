@@ -17,8 +17,13 @@ import '../base/static_initializers';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, ErrorDetails} from '../base/logging';
-import {initLiveReloadIfLocalhost} from '../core/live_reload';
+import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
+import {ThemeProvider} from '../frontend/theme_provider';
+import {OverlayContainer} from '../widgets/overlay_container';
+import {D3ChartsPage} from '../plugins/dev.perfetto.D3ChartsPage/d3_charts_page';
+import {Button} from '../widgets/button';
+import {Icon} from '../widgets/icon';
 
 function getRoot() {
   // Works out the root directory where the content should be served from
@@ -41,9 +46,13 @@ function setupContentSecurityPolicy() {
     'default-src': [`'self'`],
     'script-src': [`'self'`],
     'object-src': ['none'],
-    'connect-src': [`'self'`],
+    'connect-src': [`'self'`, 'https://brush-googleapis.corp.google.com'],
     'img-src': [`'self'`, 'data:', 'blob:'],
-    'style-src': [`'self'`],
+    'style-src': [
+      `'self'`,
+      `'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='`,
+      `'sha256-yRQRG6LLKMvjvigtzXD1f8VRZSYY7J8fM2ZLfdMaHKg='`,
+    ],
     'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
@@ -68,8 +77,10 @@ function main() {
   css.href = root + 'perfetto.css';
   css.onload = () => cssLoadPromise.resolve();
   css.onerror = (err) => cssLoadPromise.reject(err);
-  const favicon = document.head.querySelector('#favicon') as HTMLLinkElement;
-  if (favicon) favicon.href = root + 'assets/favicon.png';
+  const favicon = document.head.querySelector('#favicon');
+  if (favicon instanceof HTMLLinkElement) {
+    favicon.href = root + 'assets/favicon.png';
+  }
 
   document.head.append(css);
 
@@ -90,16 +101,123 @@ function main() {
   cssLoadPromise.then(() => onCssLoaded());
 }
 
+class BigTraceApp implements m.ClassComponent {
+  private sidebarVisible = true;
+  private currentPage = 'bigtrace';
+
+  view() {
+    return m(
+      '.pf-ui-main',
+      {
+        style: {
+          display: 'flex',
+          height: '100vh',
+          overflow: 'hidden',
+        },
+      },
+      [
+        // Left Sidebar (only render when visible)
+        this.sidebarVisible &&
+          m(
+            'nav.pf-sidebar',
+            {
+              style: {
+                width: '250px',
+                flexShrink: 0,
+              },
+            },
+            [
+              m(
+                'header',
+                {
+                  style: {
+                    padding: '16px',
+                    borderBottom: '1px solid var(--pf-color-border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  },
+                },
+                [
+                  m('h1', {style: {margin: 0, fontSize: '18px'}}, 'BigTrace'),
+                  m(Button, {
+                    icon: 'menu',
+                    onclick: () => {
+                      this.sidebarVisible = !this.sidebarVisible;
+                    },
+                  }),
+                ],
+              ),
+              m(
+                '.pf-sidebar__scroll',
+                m('.pf-sidebar__scroll-container', [
+                  // BigTrace Section
+                  m('section.pf-sidebar__section--expanded', [
+                    m(
+                      '.pf-sidebar__section-header',
+                      m('h1', {title: 'BigTrace'}, 'BigTrace'),
+                    ),
+                    m('.pf-sidebar__section-content', [
+                      m('ul', [
+                        m(
+                          'li',
+                          m(
+                            'a',
+                            {
+                              class:
+                                this.currentPage === 'bigtrace' ? 'active' : '',
+                              onclick: () => {
+                                this.currentPage = 'bigtrace';
+                              },
+                              href: '#',
+                            },
+                            [m(Icon, {icon: 'line_style'}), 'Query Editor'],
+                          ),
+                        ),
+                      ]),
+                    ]),
+                  ]),
+                ]),
+              ),
+            ],
+          ),
+
+        // Main content - D3ChartsPage
+        m(
+          '.bigtrace-content',
+          {
+            style: {
+              flex: 1,
+              overflow: 'hidden',
+            },
+          },
+          m(D3ChartsPage, {
+            useBrushBackend: true,
+            initialQuery: undefined,
+            hideSqlEditor: false,
+            sidebarVisible: this.sidebarVisible,
+            onToggleSidebar: () => {
+              this.sidebarVisible = !this.sidebarVisible;
+            },
+          }),
+        ),
+      ],
+    );
+  }
+}
+
 function onCssLoaded() {
-  // Clear all the contents of the initial page (e.g. the <pre> error message)
-  // And replace it with the root <main> element which will be used by mithril.
+  // Clear all the contents of the initial page
   document.body.innerHTML = '';
 
-  raf.domRedraw = () => {
-    m.render(document.body, m('div'));
-  };
+  raf.mount(document.body, {
+    view: () =>
+      m(ThemeProvider, {theme: 'light'}, [
+        m(OverlayContainer, {fillHeight: true}, [m(BigTraceApp)]),
+      ]),
+  });
 
-  initLiveReloadIfLocalhost(false);
+  initLiveReload();
 }
 
 main();
