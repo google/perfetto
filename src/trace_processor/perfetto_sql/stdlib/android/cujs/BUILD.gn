@@ -18,7 +18,6 @@ perfetto_sql_source_set("cujs") {
   sources = [
     "base.sql",
     "cuj_frame_counters.sql",
-    "slices.sql",
     "sysui_cujs.sql",
     "threads.sql",
   ]

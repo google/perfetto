@@ -117,7 +117,6 @@ MODULE_TAGS = {
         'android', 'ui'
     ],
     'android.cujs.base': ['android', 'ui'],
-    'android.cujs.slices': ['android', 'ui'],
     'android.cujs.sysui_cujs': ['android', 'ui'],
     'android.cujs.threads': ['android', 'ui'],
     'android.input': ['android', 'ui', 'input'],
