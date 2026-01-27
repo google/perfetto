@@ -17,7 +17,7 @@
 -- and counter name.
 CREATE PERFETTO FUNCTION linux_perf_counter_for_sample(
     -- The ID of the perf sample.
-    sample_id LONG,
+    sample_id JOINID(perf_sample.id),
     -- The name of the counter (e.g., 'cpu-clock', 'instructions').
     counter_name STRING
 )
@@ -31,7 +31,7 @@ SELECT
 -- Use with caution for large traces as it may impact query performance.
 CREATE PERFETTO VIEW linux_perf_sample_with_counters (
   -- The sample ID.
-  id LONG,
+  sample_id JOINID(perf_sample.id),
   -- Timestamp of the sample.
   ts TIMESTAMP,
   -- Sampled thread ID.
@@ -41,20 +41,20 @@ CREATE PERFETTO VIEW linux_perf_sample_with_counters (
   -- Execution state (userspace/kernelspace).
   cpu_mode STRING,
   -- Unwound callstack of the sampled thread.
-  callsite_id LONG,
+  callsite_id JOINID(stack_profile_callsite.id),
   -- Stack unwinding error if any.
   unwind_error STRING,
   -- Perf session ID.
-  perf_session_id LONG,
-  -- Counter name (e.g., 'cpu-clock', 'instructions').
-  counter_name STRING,
+  perf_session_id JOINID(perf_session.id),
+  -- Counter ID referencing the counter table.
+  counter_id JOINID(counter.id),
+  -- Track ID for the counter.
+  track_id JOINID(track.id),
   -- Counter value at this sample point.
-  counter_value DOUBLE,
-  -- Whether this counter is the sampling timebase.
-  is_timebase BOOL
+  counter_value DOUBLE
 ) AS
 SELECT
-  ps.id,
+  ps.id AS sample_id,
   ps.ts,
   ps.utid,
   ps.cpu,
@@ -62,13 +62,11 @@ SELECT
   ps.callsite_id,
   ps.unwind_error,
   ps.perf_session_id,
-  pct.name AS counter_name,
-  c.value AS counter_value,
-  pct.is_timebase
+  pcs.counter_id,
+  c.track_id,
+  c.value AS counter_value
 FROM __intrinsic_perf_sample AS ps
 JOIN __intrinsic_perf_counter_set AS pcs
   ON ps.counter_set_id = pcs.perf_counter_set_id
 JOIN counter AS c
-  ON c.id = pcs.counter_id
-JOIN perf_counter_track AS pct
-  ON c.track_id = pct.id;
+  ON c.id = pcs.counter_id;
