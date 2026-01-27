@@ -16,33 +16,6 @@ import protos from '../../../protos';
 import {nextNodeId, QueryNode} from '../query_node';
 
 /**
- * ARCHITECTURE: Query Building Strategy - Reference vs. Embedding
- *
- * This builder uses two strategies for composing queries:
- *
- * 1. **Reference by ID (innerQueryId)**: Used for single-input operations
- *    - Operations: SELECT, WHERE, ORDER BY, LIMIT/OFFSET, GROUP BY, etc.
- *    - Advantage: More efficient, creates flatter query graphs
- *    - Implementation: Set innerQueryId to reference the input query's id
- *
- * 2. **Full Query Embedding (innerQuery)**: Used for multi-input operations
- *    - Operations: JOIN, UNION, interval operations
- *    - Reason: These operations need to embed complete query structures
- *    - Implementation: Create intermediate reference queries that wrap the IDs
- *
- * Example of reference-based building:
- *   FilterNode -> SortNode -> LimitNode
- *   Each node references its input by ID, creating a chain of references.
- *
- * Example of embedding (JOIN):
- *   LEFT query + RIGHT query -> JOIN operation
- *   Creates intermediate refs for left/right, then embeds them in the join.
- *
- * This hybrid approach balances efficiency (references) with compatibility
- * (embedding where the proto structure requires full query objects).
- */
-
-/**
  * Type representing a query source.
  * Builder methods accept nodes or structured queries and extract/use them internally.
  */
@@ -53,7 +26,6 @@ export type QuerySource =
 
 /**
  * Helper function to extract a structured query from a QuerySource.
- * Used for operations that need to embed the full query (e.g., joins, unions).
  * @param source The query source (node or structured query)
  * @returns The structured query, or undefined if extraction fails
  */
@@ -65,25 +37,6 @@ function extractQuery(
     return source;
   }
   return source.getStructuredQuery();
-}
-
-/**
- * Helper function to extract the query ID from a QuerySource.
- * Used for operations that reference queries by ID (single-input operations).
- * @param source The query source (node or structured query)
- * @returns The query ID, or undefined if extraction fails
- */
-function extractQueryId(source: QuerySource): string | undefined {
-  if (source === undefined) return undefined;
-  if (source instanceof protos.PerfettoSqlStructuredQuery) {
-    return source.id ?? undefined;
-  }
-  // For QueryNode, use the node's ID directly. This works because when a node
-  // builds its structured query via getStructuredQuery(), it sets the query's
-  // id field to the node's nodeId. This allows us to reference the query by
-  // the node's ID without needing to call getStructuredQuery() first, which
-  // is more efficient for single-input operations that only need the reference.
-  return source.nodeId;
 }
 
 /**
@@ -145,8 +98,8 @@ export interface SqlDependency {
  */
 export class StructuredQueryBuilder {
   /**
-   * Creates a new structured query with innerQuery wrapper (embedding).
-   * Use this for multi-input operations that need full query embedding.
+   * Creates a new structured query with innerQuery wrapper.
+   * Automatically assigns an id to prevent nesting issues.
    *
    * @param innerQuery The query to wrap
    * @param nodeId Optional node id. If not provided, generates a new one.
@@ -159,28 +112,6 @@ export class StructuredQueryBuilder {
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = nodeId ?? nextNodeId();
     sq.innerQuery = innerQuery;
-    return sq;
-  }
-
-  /**
-   * Creates a passthrough query that references an inner query by ID.
-   * Use this when a node has no operation but still needs to maintain
-   * the reference chain (e.g., FilterNode with no filters).
-   *
-   * @param innerQuery The query source to reference
-   * @param nodeId The node id to assign
-   * @returns A new structured query referencing the inner query by ID
-   */
-  static passthrough(
-    innerQuery: QuerySource,
-    nodeId: string,
-  ): protos.PerfettoSqlStructuredQuery | undefined {
-    const queryId = extractQueryId(innerQuery);
-    if (!queryId) return undefined;
-
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = nodeId;
-    sq.innerQueryId = queryId;
     return sq;
   }
 
@@ -211,7 +142,7 @@ export class StructuredQueryBuilder {
 
   /**
    * Creates a structured query with ORDER BY clause.
-   * References the inner query by ID (not embedded).
+   * Wraps the inner query and adds the orderBy specification.
    *
    * @param innerQuery The query to sort (can be a QueryNode or structured query)
    * @param criteria Array of sort criteria (column names and directions)
@@ -223,8 +154,8 @@ export class StructuredQueryBuilder {
     criteria: SortCriterion[],
     nodeId: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const queryId = extractQueryId(innerQuery);
-    if (!queryId) return undefined;
+    const query = extractQuery(innerQuery);
+    if (!query) return undefined;
 
     const orderingSpecs: protos.PerfettoSqlStructuredQuery.OrderBy.IOrderingSpec[] =
       criteria.map((c) => ({
@@ -237,7 +168,7 @@ export class StructuredQueryBuilder {
 
     return protos.PerfettoSqlStructuredQuery.create({
       id: nodeId,
-      innerQueryId: queryId,
+      innerQuery: query,
       orderBy: protos.PerfettoSqlStructuredQuery.OrderBy.create({
         orderingSpecs,
       }),
@@ -246,7 +177,7 @@ export class StructuredQueryBuilder {
 
   /**
    * Creates a structured query with LIMIT and/or OFFSET.
-   * References the inner query by ID (not embedded).
+   * Wraps the inner query and adds limit/offset.
    *
    * @param innerQuery The query to limit (can be a QueryNode or structured query)
    * @param limit Optional limit value
@@ -260,12 +191,12 @@ export class StructuredQueryBuilder {
     offset?: number,
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const queryId = extractQueryId(innerQuery);
-    if (!queryId) return undefined;
+    const query = extractQuery(innerQuery);
+    if (!query) return undefined;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = nodeId ?? nextNodeId();
-    sq.innerQueryId = queryId;
+    sq.innerQuery = query;
 
     if (limit !== undefined && limit >= 0) {
       sq.limit = limit;
@@ -280,7 +211,6 @@ export class StructuredQueryBuilder {
 
   /**
    * Wraps a query with ExperimentalCounterIntervals to convert counter data to intervals.
-   * References the input query by ID (not embedded).
    *
    * @param inputQuery The query containing counter data (id, ts, track_id, value)
    * @param nodeId Optional node id. If not provided, generates a new one.
@@ -290,30 +220,20 @@ export class StructuredQueryBuilder {
     inputQuery: QuerySource,
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const queryId = extractQueryId(inputQuery);
-    if (!queryId) return undefined;
-
-    const actualNodeId = nodeId ?? nextNodeId();
-
-    // Create an intermediate reference query for the input. This is necessary
-    // because experimentalCounterIntervals.inputQuery expects a full query object
-    // (not just an ID), so we wrap the reference in a passthrough query.
-    const inputRef = new protos.PerfettoSqlStructuredQuery();
-    inputRef.id = `${actualNodeId}_input_ref`;
-    inputRef.innerQueryId = queryId;
+    const query = extractQuery(inputQuery);
+    if (!query) return undefined;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = actualNodeId;
+    sq.id = nodeId ?? nextNodeId();
     sq.experimentalCounterIntervals =
       new protos.PerfettoSqlStructuredQuery.ExperimentalCounterIntervals();
-    sq.experimentalCounterIntervals.inputQuery = inputRef;
+    sq.experimentalCounterIntervals.inputQuery = query;
     return sq;
   }
 
   /**
    * Creates a structured query with interval intersect operation.
    * Automatically filters out unfinished slices (dur < 0) from all inputs.
-   * References the input queries by ID (not embedded).
    *
    * @param baseQuery The base query for the intersection
    * @param intervalQueries Array of interval queries to intersect with the base
@@ -327,25 +247,22 @@ export class StructuredQueryBuilder {
     partitionColumns?: string[],
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const actualNodeId = nodeId ?? nextNodeId();
+    // Extract and filter base query (always filter unfinished slices)
+    let base = extractQuery(baseQuery);
+    if (!base) return undefined;
+    base = this.applyDurFilter(base);
 
-    // Create reference query for base with dur filter
-    const baseId = extractQueryId(baseQuery);
-    if (!baseId) return undefined;
-    const base = this.createDurFilteredRef(baseId, `${actualNodeId}_base_ref`);
-
-    // Create reference queries for intervals with dur filter
+    // Extract and filter interval queries (always filter unfinished slices)
     const intervals: protos.PerfettoSqlStructuredQuery[] = [];
     for (let i = 0; i < intervalQueries.length; i++) {
-      const intervalId = extractQueryId(intervalQueries[i]);
-      if (!intervalId) return undefined;
-      intervals.push(
-        this.createDurFilteredRef(intervalId, `${actualNodeId}_interval_${i}`),
-      );
+      let query = extractQuery(intervalQueries[i]);
+      if (!query) return undefined;
+      query = this.applyDurFilter(query);
+      intervals.push(query);
     }
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = actualNodeId;
+    sq.id = nodeId ?? nextNodeId();
     sq.intervalIntersect =
       new protos.PerfettoSqlStructuredQuery.IntervalIntersect();
     sq.intervalIntersect.base = base;
@@ -359,38 +276,18 @@ export class StructuredQueryBuilder {
   }
 
   /**
-   * Creates a simple reference query.
-   * This is a private helper method used by multi-input operations.
+   * Applies a dur >= 0 filter to a structured query.
+   * The filter is applied to the inner query if present to avoid wrapping.
+   * This is a private helper method used internally by builder methods.
    *
-   * @param innerQueryId The ID of the query to reference
-   * @param refId The ID for this reference query
-   * @returns A new structured query referencing the inner query
+   * @param sq The structured query to filter
+   * @returns The modified structured query (mutates in place)
    */
-  private static createRef(
-    innerQueryId: string,
-    refId: string,
+  private static applyDurFilter(
+    sq: protos.PerfettoSqlStructuredQuery,
   ): protos.PerfettoSqlStructuredQuery {
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = refId;
-    sq.innerQueryId = innerQueryId;
-    return sq;
-  }
-
-  /**
-   * Creates a reference query with a dur >= 0 filter applied.
-   * This is a private helper method used by multi-input operations.
-   *
-   * @param innerQueryId The ID of the query to reference
-   * @param refId The ID for this reference query
-   * @returns A new structured query referencing the inner query with dur filter
-   */
-  private static createDurFilteredRef(
-    innerQueryId: string,
-    refId: string,
-  ): protos.PerfettoSqlStructuredQuery {
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = refId;
-    sq.innerQueryId = innerQueryId;
+    // Apply filter to the inner query if it exists, otherwise to the base
+    const targetSq = sq.innerQuery ? sq.innerQuery : sq;
 
     // Create the dur >= 0 filter
     const filter = new protos.PerfettoSqlStructuredQuery.Filter();
@@ -398,14 +295,23 @@ export class StructuredQueryBuilder {
     filter.op =
       protos.PerfettoSqlStructuredQuery.Filter.Operator.GREATER_THAN_EQUAL;
     filter.int64Rhs = [0];
-    sq.filters = [filter];
+
+    // Add the filter
+    if (!targetSq.filters) targetSq.filters = [];
+    targetSq.filters.push(filter);
+
+    // Ensure the target query has an id to prevent nesting issues
+    if (!targetSq.id) {
+      targetSq.id = nextNodeId();
+    }
 
     return sq;
   }
 
   /**
    * Creates a structured query with GROUP BY and aggregations.
-   * References the inner query by ID (not embedded).
+   * Automatically wraps the query in an inner query if it already has a GROUP BY
+   * or selectColumns (to ensure aliases are in scope).
    *
    * @param innerQuery The query to group
    * @param groupByColumns Column names to group by
@@ -419,12 +325,14 @@ export class StructuredQueryBuilder {
     aggregations: AggregationSpec[],
     nodeId: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const queryId = extractQueryId(innerQuery);
-    if (!queryId) return undefined;
+    let query = extractQuery(innerQuery);
+    if (!query) return undefined;
 
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = nodeId;
-    sq.innerQueryId = queryId;
+    // If the query already has a GROUP BY or selectColumns, wrap it in an inner query
+    // This ensures that aliases from SELECT are available in GROUP BY scope
+    if (query.groupBy !== undefined || (query.selectColumns?.length ?? 0) > 0) {
+      query = this.wrapWithInnerQuery(query);
+    }
 
     const groupByProto = new protos.PerfettoSqlStructuredQuery.GroupBy();
     groupByProto.columnNames = groupByColumns;
@@ -455,13 +363,13 @@ export class StructuredQueryBuilder {
       return aggProto;
     });
 
-    sq.groupBy = groupByProto;
-    return sq;
+    query.groupBy = groupByProto;
+    query.id = nodeId;
+    return query;
   }
 
   /**
    * Creates a structured query with column selection.
-   * References the inner query by ID (not embedded).
    *
    * @param innerQuery The query to select from (can be a QueryNode or structured query)
    * @param columns Array of column specifications
@@ -475,14 +383,16 @@ export class StructuredQueryBuilder {
     referencedModules?: string[],
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const queryId = extractQueryId(innerQuery);
-    if (!queryId) return undefined;
+    let query = extractQuery(innerQuery);
+    if (!query) return undefined;
 
-    const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = nodeId ?? nextNodeId();
-    sq.innerQueryId = queryId;
+    // If the query already has selectColumns, wrap it in an inner query
+    // to ensure we create a new query object (so changes are detected)
+    if ((query.selectColumns?.length ?? 0) > 0) {
+      query = this.wrapWithInnerQuery(query);
+    }
 
-    sq.selectColumns = columns.map((col) => {
+    query.selectColumns = columns.map((col) => {
       const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
       selectCol.columnNameOrExpression = col.columnNameOrExpression;
       if (col.alias && col.alias.trim() !== '') {
@@ -492,10 +402,14 @@ export class StructuredQueryBuilder {
     });
 
     if (referencedModules && referencedModules.length > 0) {
-      sq.referencedModules = referencedModules;
+      query.referencedModules = referencedModules;
     }
 
-    return sq;
+    if (nodeId) {
+      query.id = nodeId;
+    }
+
+    return query;
   }
 
   /**
@@ -608,7 +522,6 @@ export class StructuredQueryBuilder {
 
   /**
    * Creates a structured query with a join operation.
-   * References the input queries by ID (not embedded).
    *
    * @param leftQuery The left query to join (can be a QueryNode or structured query)
    * @param rightQuery The right query to join (can be a QueryNode or structured query)
@@ -624,18 +537,12 @@ export class StructuredQueryBuilder {
     condition: JoinCondition,
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const leftId = extractQueryId(leftQuery);
-    const rightId = extractQueryId(rightQuery);
-    if (!leftId || !rightId) return undefined;
-
-    const actualNodeId = nodeId ?? nextNodeId();
-
-    // Create reference queries for left and right
-    const left = this.createRef(leftId, `${actualNodeId}_left_ref`);
-    const right = this.createRef(rightId, `${actualNodeId}_right_ref`);
+    const left = extractQuery(leftQuery);
+    const right = extractQuery(rightQuery);
+    if (!left || !right) return undefined;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = actualNodeId;
+    sq.id = nodeId ?? nextNodeId();
 
     const join = new protos.PerfettoSqlStructuredQuery.ExperimentalJoin();
     join.type =
@@ -666,7 +573,6 @@ export class StructuredQueryBuilder {
 
   /**
    * Creates a structured query with a union operation.
-   * References the input queries by ID (not embedded).
    *
    * @param queries Array of queries to union (can be QueryNodes or structured queries)
    * @param useUnionAll Whether to use UNION ALL instead of UNION
@@ -678,20 +584,18 @@ export class StructuredQueryBuilder {
     useUnionAll: boolean = false,
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const actualNodeId = nodeId ?? nextNodeId();
-
-    const refQueries: protos.PerfettoSqlStructuredQuery[] = [];
-    for (let i = 0; i < queries.length; i++) {
-      const queryId = extractQueryId(queries[i]);
-      if (!queryId) return undefined;
-      refQueries.push(this.createRef(queryId, `${actualNodeId}_union_${i}`));
+    const extractedQueries: protos.PerfettoSqlStructuredQuery[] = [];
+    for (const q of queries) {
+      const query = extractQuery(q);
+      if (!query) return undefined;
+      extractedQueries.push(query);
     }
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = actualNodeId;
+    sq.id = nodeId ?? nextNodeId();
 
     const union = new protos.PerfettoSqlStructuredQuery.ExperimentalUnion();
-    union.queries = refQueries;
+    union.queries = extractedQueries;
     union.useUnionAll = useUnionAll;
 
     sq.experimentalUnion = union;
@@ -700,7 +604,6 @@ export class StructuredQueryBuilder {
 
   /**
    * Creates a structured query with add columns operation.
-   * References the input queries by ID (not embedded).
    *
    * @param baseQuery The base query (can be a QueryNode or structured query)
    * @param inputQuery The query providing additional columns (can be a QueryNode or structured query)
@@ -716,18 +619,12 @@ export class StructuredQueryBuilder {
     condition: JoinCondition,
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const baseId = extractQueryId(baseQuery);
-    const inputId = extractQueryId(inputQuery);
-    if (!baseId || !inputId) return undefined;
-
-    const actualNodeId = nodeId ?? nextNodeId();
-
-    // Create reference queries for base and input
-    const base = this.createRef(baseId, `${actualNodeId}_base_ref`);
-    const input = this.createRef(inputId, `${actualNodeId}_input_ref`);
+    const base = extractQuery(baseQuery);
+    const input = extractQuery(inputQuery);
+    if (!base || !input) return undefined;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = actualNodeId;
+    sq.id = nodeId ?? nextNodeId();
 
     const addColumns =
       new protos.PerfettoSqlStructuredQuery.ExperimentalAddColumns();
@@ -795,9 +692,9 @@ export class StructuredQueryBuilder {
         inputQuery,
         joinColumns,
         condition,
-        // If we'll add computed columns, this is an intermediate query that will be
-        // embedded (not referenced by ID), so the ID doesn't matter.
-        hasComputedColumns ? nextNodeId() : nodeId,
+        // Use a temporary node ID with '_join' suffix if we'll add computed columns later.
+        // This helps with debugging by making intermediate query steps visible.
+        hasComputedColumns ? `${nodeId}_join` : nodeId,
       );
     } else {
       query = extractQuery(baseQuery);
@@ -818,27 +715,17 @@ export class StructuredQueryBuilder {
         ...computedColumns,
       ];
 
-      // Build SELECT query that EMBEDS the intermediate query (not references by ID).
-      // This is necessary because the intermediate query isn't in the queries array -
-      // it's only returned as part of this composite operation.
-      const sq = new protos.PerfettoSqlStructuredQuery();
-      sq.id = nodeId ?? nextNodeId();
-      sq.innerQuery = query; // Embed, don't reference by ID
+      // Create a temporary node wrapper for the query
+      const tempNode: QueryNode = {
+        getStructuredQuery: () => query,
+      } as QueryNode;
 
-      sq.selectColumns = allColumns.map((col) => {
-        const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-        selectCol.columnNameOrExpression = col.columnNameOrExpression;
-        if (col.alias && col.alias.trim() !== '') {
-          selectCol.alias = col.alias;
-        }
-        return selectCol;
-      });
-
-      if (referencedModules && referencedModules.length > 0) {
-        sq.referencedModules = referencedModules;
-      }
-
-      query = sq;
+      query = this.withSelectColumns(
+        tempNode,
+        allColumns,
+        referencedModules,
+        nodeId,
+      );
     }
 
     return query;
@@ -846,7 +733,7 @@ export class StructuredQueryBuilder {
 
   /**
    * Creates a structured query with filters applied.
-   * References the inner query by ID (not embedded).
+   * Wraps the inner query and adds the filter group.
    *
    * @param innerQuery The query to filter (can be a QueryNode or structured query)
    * @param filterGroup The filter group to apply
@@ -858,12 +745,12 @@ export class StructuredQueryBuilder {
     filterGroup: protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup,
     nodeId?: string,
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const queryId = extractQueryId(innerQuery);
-    if (!queryId) return undefined;
+    const query = extractQuery(innerQuery);
+    if (!query) return undefined;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = nodeId ?? nextNodeId();
-    sq.innerQueryId = queryId;
+    sq.innerQuery = query;
     sq.experimentalFilterGroup = filterGroup;
 
     return sq;
@@ -874,7 +761,6 @@ export class StructuredQueryBuilder {
    * Automatically filters out unfinished slices (dur < 0) from both inputs.
    * Filters the base query to only include rows that overlap with intervals
    * from the intervals query. The output preserves the base query's schema.
-   * References the input queries by ID (not embedded).
    *
    * Key features:
    * - Overlapping intervals in the filter set are automatically merged
@@ -896,22 +782,18 @@ export class StructuredQueryBuilder {
     nodeId?: string,
     selectColumns?: string[],
   ): protos.PerfettoSqlStructuredQuery | undefined {
-    const actualNodeId = nodeId ?? nextNodeId();
+    // Extract and filter base query (always filter unfinished slices)
+    let base = extractQuery(baseQuery);
+    if (!base) return undefined;
+    base = this.applyDurFilter(base);
 
-    // Create reference queries with dur filter
-    const baseId = extractQueryId(baseQuery);
-    if (!baseId) return undefined;
-    const base = this.createDurFilteredRef(baseId, `${actualNodeId}_base_ref`);
-
-    const intervalsId = extractQueryId(intervalsQuery);
-    if (!intervalsId) return undefined;
-    const intervals = this.createDurFilteredRef(
-      intervalsId,
-      `${actualNodeId}_intervals_ref`,
-    );
+    // Extract and filter intervals query (always filter unfinished slices)
+    let intervals = extractQuery(intervalsQuery);
+    if (!intervals) return undefined;
+    intervals = this.applyDurFilter(intervals);
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = actualNodeId;
+    sq.id = nodeId ?? nextNodeId();
 
     const filterToIntervals =
       new protos.PerfettoSqlStructuredQuery.ExperimentalFilterToIntervals();

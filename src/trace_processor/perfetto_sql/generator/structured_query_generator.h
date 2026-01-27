@@ -62,8 +62,8 @@ class StructuredQueryGenerator {
   base::StatusOr<std::string> GenerateById(const std::string& id);
 
   // Adds a query to the internal state to reference in all future calls to
-  // `Generate*`. Returns the query's ID on success.
-  base::StatusOr<std::string> AddQuery(const uint8_t* data, size_t size);
+  // `Generate*`.
+  base::Status AddQuery(const uint8_t* data, size_t size);
 
   // Computes all the PerfettoSQL modules referenced by any past calls to
   // `Generate` and `AddSharedQuery`.
