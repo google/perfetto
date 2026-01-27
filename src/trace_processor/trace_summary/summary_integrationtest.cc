@@ -171,6 +171,88 @@ TEST_F(TraceSummaryTest, SingleTemplateSpec) {
   EXPECT_THAT(*status_or_output, HasSubstr("id: \"my_metric_value\""));
 }
 
+TEST_F(TraceSummaryTest, TemplateSpecWithInnerQueryId) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      value_columns: "value"
+      query {
+        inner_query_id: "shared_query"
+      }
+    }
+    query {
+      id: "shared_query"
+      sql {
+        sql: "SELECT 1.0 as value"
+        column_names: "value"
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"my_metric_value\""));
+}
+
+TEST_F(TraceSummaryTest, TemplateSpecWithInnerQueryIdAndGroupBy) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      dimensions_specs { name: "category" type: STRING }
+      value_columns: "total_value"
+      query {
+        inner_query_id: "shared_query"
+      }
+    }
+    query {
+      id: "shared_query"
+      sql {
+        sql: "SELECT 'cat1' as category, 1.0 as value UNION ALL SELECT 'cat1' as category, 2.0 as value UNION ALL SELECT 'cat2' as category, 3.0 as value"
+        column_names: "category"
+        column_names: "value"
+      }
+      group_by {
+        column_names: "category"
+        aggregates {
+          column_name: "value"
+          op: SUM
+          result_column_name: "total_value"
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"my_metric_total_value\""));
+}
+
+TEST_F(TraceSummaryTest, TemplateSpecWithInnerQueryIdTableSource) {
+  // This test uses a table source in the shared query (like the slice table)
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      dimensions_specs { name: "name" type: STRING }
+      value_columns: "count"
+      query {
+        inner_query_id: "shared_query"
+      }
+    }
+    query {
+      id: "shared_query"
+      table {
+        table_name: "slice"
+      }
+      group_by {
+        column_names: "name"
+        aggregates {
+          column_name: "id"
+          op: COUNT
+          result_column_name: "count"
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"my_metric_count\""));
+}
+
 TEST_F(TraceSummaryTest, MultiValueColumnTemplateSpec) {
   base::StatusOr<std::string> status_or_output = RunSummarize(R"(
     metric_template_spec {
