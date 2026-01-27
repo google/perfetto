@@ -624,6 +624,11 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
   }
 
+  oncreate(vnode: m.VnodeDOM<GraphAttrs>) {
+    // Focus the graph container so WSAD keyboard controls work immediately
+    (vnode.dom as HTMLElement).focus();
+  }
+
   onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
     // Only update labels if the reference changed (indicating external state update)
     if (vnode.attrs.labels !== old.attrs.labels) {
@@ -833,6 +838,37 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       '.pf-exp-node-graph',
       {
         tabindex: 0,
+        onkeydown: (e: KeyboardEvent) => {
+          // Skip if user is typing in an input or textarea
+          const target = e.target as HTMLElement;
+          if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+            return;
+          }
+
+          // WASD keyboard panning
+          // Use KeyboardEvent.code for physical key position (layout-independent)
+          const PAN_STEP = 50;
+          if (e.code === 'KeyW' && this.nodeGraphApi) {
+            this.nodeGraphApi.panBy(0, PAN_STEP);
+            e.preventDefault();
+            return;
+          }
+          if (e.code === 'KeyA' && this.nodeGraphApi) {
+            this.nodeGraphApi.panBy(PAN_STEP, 0);
+            e.preventDefault();
+            return;
+          }
+          if (e.code === 'KeyS' && this.nodeGraphApi) {
+            this.nodeGraphApi.panBy(0, -PAN_STEP);
+            e.preventDefault();
+            return;
+          }
+          if (e.code === 'KeyD' && this.nodeGraphApi) {
+            this.nodeGraphApi.panBy(-PAN_STEP, 0);
+            e.preventDefault();
+            return;
+          }
+        },
       },
       [
         m(NodeGraph, {
