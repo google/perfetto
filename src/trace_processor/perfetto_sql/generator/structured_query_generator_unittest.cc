@@ -5921,4 +5921,114 @@ TEST(StructuredQueryGeneratorTest, ExperimentalCounterIntervalsMissingInput) {
               testing::HasSubstr("must specify an input_query"));
 }
 
+// Test that inner_query_id correctly references a shared query.
+// The generator tracks shared queries in referenced_queries() and generates
+// SQL that references the shared query's table name.
+TEST(StructuredQueryGeneratorTest, InnerQueryIdReferencesSharedQuery) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 1.0 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query via inner_query_id
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify the generated SQL references the shared query's table name
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_shared_query"));
+
+  // Verify the shared query is tracked in referenced_queries
+  auto refs = gen.referenced_queries();
+  ASSERT_EQ(refs.size(), 1u);
+  EXPECT_EQ(refs[0].id, "shared_query");
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("SELECT 1.0 as value"));
+}
+
+// Test that inner_query_id works with group_by operations on the shared query.
+TEST(StructuredQueryGeneratorTest, InnerQueryIdWithGroupBy) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query with group_by
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 'cat1' as category, 1.0 as value"
+      column_names: "category"
+      column_names: "value"
+    }
+    group_by {
+      column_names: "category"
+      aggregates {
+        column_name: "value"
+        op: SUM
+        result_column_name: "total_value"
+      }
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify the generated SQL references the shared query
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_shared_query"));
+
+  // Verify the shared query's SQL includes the group by and aggregation
+  auto refs = gen.referenced_queries();
+  ASSERT_EQ(refs.size(), 1u);
+  EXPECT_EQ(refs[0].id, "shared_query");
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("GROUP BY"));
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("SUM"));
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("total_value"));
+}
+
+// Test that inner_query_id works with a table source in the shared query.
+TEST(StructuredQueryGeneratorTest, InnerQueryIdWithTableSource) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query that uses a table source
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    table {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify the generated SQL references the shared query
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_shared_query"));
+
+  // Verify the shared query's SQL references the slice table
+  auto refs = gen.referenced_queries();
+  ASSERT_EQ(refs.size(), 1u);
+  EXPECT_EQ(refs[0].id, "shared_query");
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("slice"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator
