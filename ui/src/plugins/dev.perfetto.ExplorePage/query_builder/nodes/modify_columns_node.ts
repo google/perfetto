@@ -439,6 +439,18 @@ export class ModifyColumnsNode implements QueryNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.primaryInput === undefined) return undefined;
 
+    // Check if any modification is needed:
+    // - A column is unchecked (hidden)
+    // - A column has an alias (renamed)
+    const hasModification = this.state.selectedColumns.some(
+      (col) => !col.checked || (col.alias && col.alias.trim() !== ''),
+    );
+
+    // If no modification, return passthrough to maintain reference chain
+    if (!hasModification) {
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
+    }
+
     // Build column specifications
     const columns: ColumnSpec[] = [];
 
