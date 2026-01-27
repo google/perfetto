@@ -160,9 +160,14 @@ class AdhocDataframeBuilder {
                                           uint32_t count = 1) {
     return PushNonNullInternal(col, value, count);
   }
+  // See kStringNullLegacy in dataframe.h.
   PERFETTO_ALWAYS_INLINE bool PushNonNull(uint32_t col,
                                           StringPool::Id value,
                                           uint32_t count = 1) {
+    if (PERFETTO_UNLIKELY(value.is_null())) {
+      PushNull(col, count);
+      return true;
+    }
     return PushNonNullInternal(col, value, count);
   }
 
@@ -185,9 +190,11 @@ class AdhocDataframeBuilder {
                                                    uint32_t count = 1) {
     PushNonNullUncheckedInternal(col, value, count);
   }
+  // See kStringNullLegacy in dataframe.h.
   PERFETTO_ALWAYS_INLINE void PushNonNullUnchecked(uint32_t col,
                                                    StringPool::Id value,
                                                    uint32_t count = 1) {
+    PERFETTO_DCHECK(!value.is_null());
     PushNonNullUncheckedInternal(col, value, count);
   }
 
