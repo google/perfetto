@@ -5170,6 +5170,29 @@ message TraceConfig {
   // Supported on: Android 26Q1+.
   optional WriteFlushMode write_flush_mode = 44;
 
+  enum FFlushMode {
+    // Default: same as FFLUSH_DISABLED.
+    FFLUSH_UNSPECIFIED = 0;
+
+    // Do not explicitly sync the file to storage after each write pass.
+    FFLUSH_DISABLED = 1;
+
+    // Explicitly sync the file to storage (via fdatasync) after each periodic
+    // write pass. Increases data durability at the cost of higher disk I/O
+    // overhead.
+    FFLUSH_ENABLED = 2;
+  }
+
+  // Whether to sync the output file to storage after each periodic write pass.
+  // Only applicable when |write_into_file| is true.
+  //
+  // By default, no fflush is invoked. FFLUSH_ENABLED must be set to explicitly
+  // sync to storage on every write.
+  //
+  // Introduced in: perfetto v54.
+  // Supported on: Android 26Q1+.
+  optional FFlushMode fflush_post_write = 45;
+
   // When true, data sources in remote producers (machines connected via
   // traced_relay) will be matched by default. When false (the default), data
   // sources only match the host machine. In either case, an explicit
@@ -8969,13 +8992,13 @@ message DpuDsiCmdFifoStatusFtraceEvent {
 }
 message DpuDsiRxFtraceEvent {
   optional uint32 cmd = 1;
-  optional uint32 rx_buf = 2;
+  optional bytes rx_buf = 3;
 }
 message DpuDsiTxFtraceEvent {
   optional uint32 type = 1;
-  optional uint32 tx_buf = 2;
   optional uint32 last = 3;
   optional uint32 delay_ms = 4;
+  optional bytes tx_buf = 5;
 }
 message DpuDispDpuUnderrunFtraceEvent {
   optional int32 id = 1;
@@ -10514,7 +10537,7 @@ message I2cWriteFtraceEvent {
   optional uint32 addr = 3;
   optional uint32 flags = 4;
   optional uint32 len = 5;
-  optional uint32 buf = 6;
+  optional bytes buf = 7;
 }
 message I2cResultFtraceEvent {
   optional int32 adapter_nr = 1;
@@ -10527,7 +10550,7 @@ message I2cReplyFtraceEvent {
   optional uint32 addr = 3;
   optional uint32 flags = 4;
   optional uint32 len = 5;
-  optional uint32 buf = 6;
+  optional bytes buf = 7;
 }
 message SmbusReadFtraceEvent {
   optional int32 adapter_nr = 1;
@@ -11530,12 +11553,12 @@ message DsiCmdFifoStatusFtraceEvent {
 }
 message DsiRxFtraceEvent {
   optional uint32 cmd = 1;
-  optional uint32 rx_buf = 2;
+  optional bytes rx_buf = 3;
 }
 message DsiTxFtraceEvent {
   optional uint32 last = 1;
-  optional uint32 tx_buf = 2;
   optional uint32 type = 3;
+  optional bytes tx_buf = 4;
 }
 message PanelWriteGenericFtraceEvent {
   optional int32 pid = 1;
@@ -11544,6 +11567,10 @@ message PanelWriteGenericFtraceEvent {
   optional string name = 4;
   optional uint32 type = 5;
   optional int32 value = 6;
+}
+message GramCollisionFtraceEvent {
+  optional int32 panel_index = 1;
+  optional uint32 collision_cnt = 2;
 }
 
 // End of protos/perfetto/trace/ftrace/panel.proto
@@ -11875,9 +11902,9 @@ message ScsiDispatchCmdErrorFtraceEvent {
   optional uint32 data_sglen = 8;
   optional uint32 prot_sglen = 9;
   optional uint32 prot_op = 10;
-  optional string cmnd = 11;
   optional int32 driver_tag = 12;
   optional int32 scheduler_tag = 13;
+  optional bytes cmnd = 14;
 }
 message ScsiDispatchCmdTimeoutFtraceEvent {
   optional uint32 host_no = 1;
@@ -11890,12 +11917,12 @@ message ScsiDispatchCmdTimeoutFtraceEvent {
   optional uint32 data_sglen = 8;
   optional uint32 prot_sglen = 9;
   optional uint32 prot_op = 10;
-  optional string cmnd = 11;
   optional int32 driver_tag = 12;
   optional int32 scheduler_tag = 13;
   optional uint32 sense_key = 14;
   optional uint32 asc = 15;
   optional uint32 ascq = 16;
+  optional bytes cmnd = 17;
 }
 message ScsiEhWakeupFtraceEvent {
   optional uint32 host_no = 1;
@@ -13169,6 +13196,7 @@ message FtraceEvent {
     ScsiEhWakeupFtraceEvent scsi_eh_wakeup = 599;
     FwtpPerfettoSliceFtraceEvent fwtp_perfetto_slice = 600;
     GpuPowerStateFtraceEvent gpu_power_state = 601;
+    GramCollisionFtraceEvent gram_collision = 602;
   }
 }
 
@@ -13559,6 +13587,9 @@ message GenericKernelProcessTree {
 
     // True if thread is the main thread.
     optional bool is_main_thread = 4;
+
+    // True if thread is an idle thread.
+    optional bool is_idle = 5;
   }
 
   // Representation of a process.
@@ -15570,6 +15601,8 @@ message InternedData {
   repeated InternedString viewcapture_window_name = 39;
   repeated InternedString viewcapture_view_id = 40;
   repeated InternedString viewcapture_class_name = 41;
+  repeated InternedString viewcapture_content_description = 45;
+  repeated InternedString viewcapture_text = 46;
 
   // Interned context for android.app_wakelocks.
   repeated AppWakelockInfo app_wakelock_info = 42;

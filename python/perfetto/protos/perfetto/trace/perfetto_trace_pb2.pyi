@@ -21,6 +21,13 @@ class BuiltinClock(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     BUILTIN_CLOCK_PERF: _ClassVar[BuiltinClock]
     BUILTIN_CLOCK_MAX_ID: _ClassVar[BuiltinClock]
 
+class SemanticType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    SEMANTIC_TYPE_UNSPECIFIED: _ClassVar[SemanticType]
+    SEMANTIC_TYPE_ATRACE: _ClassVar[SemanticType]
+    SEMANTIC_TYPE_JOB: _ClassVar[SemanticType]
+    SEMANTIC_TYPE_WAKELOCK: _ClassVar[SemanticType]
+
 class AndroidLogId(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     LID_DEFAULT: _ClassVar[AndroidLogId]
@@ -1539,6 +1546,10 @@ BUILTIN_CLOCK_BOOTTIME: BuiltinClock
 BUILTIN_CLOCK_TSC: BuiltinClock
 BUILTIN_CLOCK_PERF: BuiltinClock
 BUILTIN_CLOCK_MAX_ID: BuiltinClock
+SEMANTIC_TYPE_UNSPECIFIED: SemanticType
+SEMANTIC_TYPE_ATRACE: SemanticType
+SEMANTIC_TYPE_JOB: SemanticType
+SEMANTIC_TYPE_WAKELOCK: SemanticType
 LID_DEFAULT: AndroidLogId
 LID_RADIO: AndroidLogId
 LID_EVENTS: AndroidLogId
@@ -4453,7 +4464,7 @@ class DataSourceConfig(_message.Message):
     def __init__(self, name: _Optional[str] = ..., target_buffer: _Optional[int] = ..., target_buffer_name: _Optional[str] = ..., trace_duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., stop_timeout_ms: _Optional[int] = ..., enable_extra_guardrails: bool = ..., session_initiator: _Optional[_Union[DataSourceConfig.SessionInitiator, str]] = ..., tracing_session_id: _Optional[int] = ..., buffer_exhausted_policy: _Optional[_Union[DataSourceConfig.BufferExhaustedPolicy, str]] = ..., priority_boost: _Optional[_Union[PriorityBoostConfig, _Mapping]] = ..., ftrace_config: _Optional[_Union[FtraceConfig, _Mapping]] = ..., inode_file_config: _Optional[_Union[InodeFileConfig, _Mapping]] = ..., process_stats_config: _Optional[_Union[ProcessStatsConfig, _Mapping]] = ..., sys_stats_config: _Optional[_Union[SysStatsConfig, _Mapping]] = ..., heapprofd_config: _Optional[_Union[HeapprofdConfig, _Mapping]] = ..., java_hprof_config: _Optional[_Union[JavaHprofConfig, _Mapping]] = ..., android_power_config: _Optional[_Union[AndroidPowerConfig, _Mapping]] = ..., android_log_config: _Optional[_Union[AndroidLogConfig, _Mapping]] = ..., gpu_counter_config: _Optional[_Union[GpuCounterConfig, _Mapping]] = ..., android_game_intervention_list_config: _Optional[_Union[AndroidGameInterventionListConfig, _Mapping]] = ..., packages_list_config: _Optional[_Union[PackagesListConfig, _Mapping]] = ..., perf_event_config: _Optional[_Union[PerfEventConfig, _Mapping]] = ..., vulkan_memory_config: _Optional[_Union[VulkanMemoryConfig, _Mapping]] = ..., track_event_config: _Optional[_Union[TrackEventConfig, _Mapping]] = ..., android_polled_state_config: _Optional[_Union[AndroidPolledStateConfig, _Mapping]] = ..., android_system_property_config: _Optional[_Union[AndroidSystemPropertyConfig, _Mapping]] = ..., statsd_tracing_config: _Optional[_Union[StatsdTracingConfig, _Mapping]] = ..., system_info_config: _Optional[_Union[SystemInfoConfig, _Mapping]] = ..., frozen_ftrace_config: _Optional[_Union[FrozenFtraceConfig, _Mapping]] = ..., chrome_config: _Optional[_Union[ChromeConfig, _Mapping]] = ..., v8_config: _Optional[_Union[V8Config, _Mapping]] = ..., interceptor_config: _Optional[_Union[InterceptorConfig, _Mapping]] = ..., network_packet_trace_config: _Optional[_Union[NetworkPacketTraceConfig, _Mapping]] = ..., surfaceflinger_layers_config: _Optional[_Union[SurfaceFlingerLayersConfig, _Mapping]] = ..., surfaceflinger_transactions_config: _Optional[_Union[SurfaceFlingerTransactionsConfig, _Mapping]] = ..., android_sdk_sysprop_guard_config: _Optional[_Union[AndroidSdkSyspropGuardConfig, _Mapping]] = ..., etw_config: _Optional[_Union[EtwConfig, _Mapping]] = ..., protolog_config: _Optional[_Union[ProtoLogConfig, _Mapping]] = ..., android_input_event_config: _Optional[_Union[AndroidInputEventConfig, _Mapping]] = ..., pixel_modem_config: _Optional[_Union[PixelModemConfig, _Mapping]] = ..., windowmanager_config: _Optional[_Union[WindowManagerConfig, _Mapping]] = ..., chromium_system_metrics: _Optional[_Union[ChromiumSystemMetricsConfig, _Mapping]] = ..., kernel_wakelocks_config: _Optional[_Union[KernelWakelocksConfig, _Mapping]] = ..., gpu_renderstages_config: _Optional[_Union[GpuRenderStagesConfig, _Mapping]] = ..., chromium_histogram_samples: _Optional[_Union[ChromiumHistogramSamplesConfig, _Mapping]] = ..., app_wakelocks_config: _Optional[_Union[AppWakelocksConfig, _Mapping]] = ..., cpu_per_uid_config: _Optional[_Union[CpuPerUidConfig, _Mapping]] = ..., user_list_config: _Optional[_Union[AndroidUserListConfig, _Mapping]] = ..., inputmethod_config: _Optional[_Union[InputMethodConfig, _Mapping]] = ..., legacy_config: _Optional[str] = ..., for_testing: _Optional[_Union[TestConfig, _Mapping]] = ...) -> None: ...
 
 class TraceConfig(_message.Message):
-    __slots__ = ("buffers", "data_sources", "builtin_data_sources", "duration_ms", "prefer_suspend_clock_for_duration", "enable_extra_guardrails", "lockdown_mode", "producers", "statsd_metadata", "write_into_file", "output_path", "file_write_period_ms", "max_file_size_bytes", "guardrail_overrides", "deferred_start", "flush_period_ms", "flush_timeout_ms", "data_source_stop_timeout_ms", "notify_traceur", "bugreport_score", "bugreport_filename", "trigger_config", "activate_triggers", "incremental_state_config", "allow_user_build_tracing", "unique_session_name", "compression_type", "incident_report_config", "statsd_logging", "trace_uuid_msb", "trace_uuid_lsb", "trace_filter", "android_report_config", "cmd_trace_start_delay", "session_semaphores", "priority_boost", "exclusive_prio", "write_flush_mode", "trace_all_machines")
+    __slots__ = ("buffers", "data_sources", "builtin_data_sources", "duration_ms", "prefer_suspend_clock_for_duration", "enable_extra_guardrails", "lockdown_mode", "producers", "statsd_metadata", "write_into_file", "output_path", "file_write_period_ms", "max_file_size_bytes", "guardrail_overrides", "deferred_start", "flush_period_ms", "flush_timeout_ms", "data_source_stop_timeout_ms", "notify_traceur", "bugreport_score", "bugreport_filename", "trigger_config", "activate_triggers", "incremental_state_config", "allow_user_build_tracing", "unique_session_name", "compression_type", "incident_report_config", "statsd_logging", "trace_uuid_msb", "trace_uuid_lsb", "trace_filter", "android_report_config", "cmd_trace_start_delay", "session_semaphores", "priority_boost", "exclusive_prio", "write_flush_mode", "fflush_post_write", "trace_all_machines")
     class LockdownModeOperation(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         LOCKDOWN_UNCHANGED: _ClassVar[TraceConfig.LockdownModeOperation]
@@ -4486,6 +4497,14 @@ class TraceConfig(_message.Message):
     WRITE_FLUSH_AUTO: TraceConfig.WriteFlushMode
     WRITE_FLUSH_DISABLED: TraceConfig.WriteFlushMode
     WRITE_FLUSH_ENABLED: TraceConfig.WriteFlushMode
+    class FFlushMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        FFLUSH_UNSPECIFIED: _ClassVar[TraceConfig.FFlushMode]
+        FFLUSH_DISABLED: _ClassVar[TraceConfig.FFlushMode]
+        FFLUSH_ENABLED: _ClassVar[TraceConfig.FFlushMode]
+    FFLUSH_UNSPECIFIED: TraceConfig.FFlushMode
+    FFLUSH_DISABLED: TraceConfig.FFlushMode
+    FFLUSH_ENABLED: TraceConfig.FFlushMode
     class BufferConfig(_message.Message):
         __slots__ = ("size_kb", "fill_policy", "transfer_on_clone", "clear_before_clone", "name", "experimental_mode")
         class FillPolicy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -4642,16 +4661,6 @@ class TraceConfig(_message.Message):
         SFP_MATCH_BREAK: TraceConfig.TraceFilter.StringFilterPolicy
         SFP_ATRACE_MATCH_BREAK: TraceConfig.TraceFilter.StringFilterPolicy
         SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS: TraceConfig.TraceFilter.StringFilterPolicy
-        class SemanticType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = ()
-            SEMANTIC_TYPE_UNSPECIFIED: _ClassVar[TraceConfig.TraceFilter.SemanticType]
-            SEMANTIC_TYPE_ATRACE: _ClassVar[TraceConfig.TraceFilter.SemanticType]
-            SEMANTIC_TYPE_JOB: _ClassVar[TraceConfig.TraceFilter.SemanticType]
-            SEMANTIC_TYPE_WAKELOCK: _ClassVar[TraceConfig.TraceFilter.SemanticType]
-        SEMANTIC_TYPE_UNSPECIFIED: TraceConfig.TraceFilter.SemanticType
-        SEMANTIC_TYPE_ATRACE: TraceConfig.TraceFilter.SemanticType
-        SEMANTIC_TYPE_JOB: TraceConfig.TraceFilter.SemanticType
-        SEMANTIC_TYPE_WAKELOCK: TraceConfig.TraceFilter.SemanticType
         class StringFilterRule(_message.Message):
             __slots__ = ("policy", "regex_pattern", "atrace_payload_starts_with", "name", "semantic_type")
             POLICY_FIELD_NUMBER: _ClassVar[int]
@@ -4663,8 +4672,8 @@ class TraceConfig(_message.Message):
             regex_pattern: str
             atrace_payload_starts_with: str
             name: str
-            semantic_type: _containers.RepeatedScalarFieldContainer[TraceConfig.TraceFilter.SemanticType]
-            def __init__(self, policy: _Optional[_Union[TraceConfig.TraceFilter.StringFilterPolicy, str]] = ..., regex_pattern: _Optional[str] = ..., atrace_payload_starts_with: _Optional[str] = ..., name: _Optional[str] = ..., semantic_type: _Optional[_Iterable[_Union[TraceConfig.TraceFilter.SemanticType, str]]] = ...) -> None: ...
+            semantic_type: _containers.RepeatedScalarFieldContainer[SemanticType]
+            def __init__(self, policy: _Optional[_Union[TraceConfig.TraceFilter.StringFilterPolicy, str]] = ..., regex_pattern: _Optional[str] = ..., atrace_payload_starts_with: _Optional[str] = ..., name: _Optional[str] = ..., semantic_type: _Optional[_Iterable[_Union[SemanticType, str]]] = ...) -> None: ...
         class StringFilterChain(_message.Message):
             __slots__ = ("rules",)
             RULES_FIELD_NUMBER: _ClassVar[int]
@@ -4744,6 +4753,7 @@ class TraceConfig(_message.Message):
     PRIORITY_BOOST_FIELD_NUMBER: _ClassVar[int]
     EXCLUSIVE_PRIO_FIELD_NUMBER: _ClassVar[int]
     WRITE_FLUSH_MODE_FIELD_NUMBER: _ClassVar[int]
+    FFLUSH_POST_WRITE_FIELD_NUMBER: _ClassVar[int]
     TRACE_ALL_MACHINES_FIELD_NUMBER: _ClassVar[int]
     buffers: _containers.RepeatedCompositeFieldContainer[TraceConfig.BufferConfig]
     data_sources: _containers.RepeatedCompositeFieldContainer[TraceConfig.DataSource]
@@ -4783,8 +4793,9 @@ class TraceConfig(_message.Message):
     priority_boost: PriorityBoostConfig
     exclusive_prio: int
     write_flush_mode: TraceConfig.WriteFlushMode
+    fflush_post_write: TraceConfig.FFlushMode
     trace_all_machines: bool
-    def __init__(self, buffers: _Optional[_Iterable[_Union[TraceConfig.BufferConfig, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TraceConfig.DataSource, _Mapping]]] = ..., builtin_data_sources: _Optional[_Union[TraceConfig.BuiltinDataSource, _Mapping]] = ..., duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., enable_extra_guardrails: bool = ..., lockdown_mode: _Optional[_Union[TraceConfig.LockdownModeOperation, str]] = ..., producers: _Optional[_Iterable[_Union[TraceConfig.ProducerConfig, _Mapping]]] = ..., statsd_metadata: _Optional[_Union[TraceConfig.StatsdMetadata, _Mapping]] = ..., write_into_file: bool = ..., output_path: _Optional[str] = ..., file_write_period_ms: _Optional[int] = ..., max_file_size_bytes: _Optional[int] = ..., guardrail_overrides: _Optional[_Union[TraceConfig.GuardrailOverrides, _Mapping]] = ..., deferred_start: bool = ..., flush_period_ms: _Optional[int] = ..., flush_timeout_ms: _Optional[int] = ..., data_source_stop_timeout_ms: _Optional[int] = ..., notify_traceur: bool = ..., bugreport_score: _Optional[int] = ..., bugreport_filename: _Optional[str] = ..., trigger_config: _Optional[_Union[TraceConfig.TriggerConfig, _Mapping]] = ..., activate_triggers: _Optional[_Iterable[str]] = ..., incremental_state_config: _Optional[_Union[TraceConfig.IncrementalStateConfig, _Mapping]] = ..., allow_user_build_tracing: bool = ..., unique_session_name: _Optional[str] = ..., compression_type: _Optional[_Union[TraceConfig.CompressionType, str]] = ..., incident_report_config: _Optional[_Union[TraceConfig.IncidentReportConfig, _Mapping]] = ..., statsd_logging: _Optional[_Union[TraceConfig.StatsdLogging, str]] = ..., trace_uuid_msb: _Optional[int] = ..., trace_uuid_lsb: _Optional[int] = ..., trace_filter: _Optional[_Union[TraceConfig.TraceFilter, _Mapping]] = ..., android_report_config: _Optional[_Union[TraceConfig.AndroidReportConfig, _Mapping]] = ..., cmd_trace_start_delay: _Optional[_Union[TraceConfig.CmdTraceStartDelay, _Mapping]] = ..., session_semaphores: _Optional[_Iterable[_Union[TraceConfig.SessionSemaphore, _Mapping]]] = ..., priority_boost: _Optional[_Union[PriorityBoostConfig, _Mapping]] = ..., exclusive_prio: _Optional[int] = ..., write_flush_mode: _Optional[_Union[TraceConfig.WriteFlushMode, str]] = ..., trace_all_machines: bool = ...) -> None: ...
+    def __init__(self, buffers: _Optional[_Iterable[_Union[TraceConfig.BufferConfig, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TraceConfig.DataSource, _Mapping]]] = ..., builtin_data_sources: _Optional[_Union[TraceConfig.BuiltinDataSource, _Mapping]] = ..., duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., enable_extra_guardrails: bool = ..., lockdown_mode: _Optional[_Union[TraceConfig.LockdownModeOperation, str]] = ..., producers: _Optional[_Iterable[_Union[TraceConfig.ProducerConfig, _Mapping]]] = ..., statsd_metadata: _Optional[_Union[TraceConfig.StatsdMetadata, _Mapping]] = ..., write_into_file: bool = ..., output_path: _Optional[str] = ..., file_write_period_ms: _Optional[int] = ..., max_file_size_bytes: _Optional[int] = ..., guardrail_overrides: _Optional[_Union[TraceConfig.GuardrailOverrides, _Mapping]] = ..., deferred_start: bool = ..., flush_period_ms: _Optional[int] = ..., flush_timeout_ms: _Optional[int] = ..., data_source_stop_timeout_ms: _Optional[int] = ..., notify_traceur: bool = ..., bugreport_score: _Optional[int] = ..., bugreport_filename: _Optional[str] = ..., trigger_config: _Optional[_Union[TraceConfig.TriggerConfig, _Mapping]] = ..., activate_triggers: _Optional[_Iterable[str]] = ..., incremental_state_config: _Optional[_Union[TraceConfig.IncrementalStateConfig, _Mapping]] = ..., allow_user_build_tracing: bool = ..., unique_session_name: _Optional[str] = ..., compression_type: _Optional[_Union[TraceConfig.CompressionType, str]] = ..., incident_report_config: _Optional[_Union[TraceConfig.IncidentReportConfig, _Mapping]] = ..., statsd_logging: _Optional[_Union[TraceConfig.StatsdLogging, str]] = ..., trace_uuid_msb: _Optional[int] = ..., trace_uuid_lsb: _Optional[int] = ..., trace_filter: _Optional[_Union[TraceConfig.TraceFilter, _Mapping]] = ..., android_report_config: _Optional[_Union[TraceConfig.AndroidReportConfig, _Mapping]] = ..., cmd_trace_start_delay: _Optional[_Union[TraceConfig.CmdTraceStartDelay, _Mapping]] = ..., session_semaphores: _Optional[_Iterable[_Union[TraceConfig.SessionSemaphore, _Mapping]]] = ..., priority_boost: _Optional[_Union[PriorityBoostConfig, _Mapping]] = ..., exclusive_prio: _Optional[int] = ..., write_flush_mode: _Optional[_Union[TraceConfig.WriteFlushMode, str]] = ..., fflush_post_write: _Optional[_Union[TraceConfig.FFlushMode, str]] = ..., trace_all_machines: bool = ...) -> None: ...
 
 class Utsname(_message.Message):
     __slots__ = ("sysname", "version", "release", "machine")
@@ -4799,7 +4810,7 @@ class Utsname(_message.Message):
     def __init__(self, sysname: _Optional[str] = ..., version: _Optional[str] = ..., release: _Optional[str] = ..., machine: _Optional[str] = ...) -> None: ...
 
 class SystemInfo(_message.Message):
-    __slots__ = ("utsname", "android_build_fingerprint", "android_device_manufacturer", "android_soc_model", "android_guest_soc_model", "android_hardware_revision", "android_storage_model", "android_ram_model", "android_serial_console", "tracing_service_version", "android_sdk_version", "page_size", "num_cpus", "timezone_off_mins", "hz", "memory_size_bytes")
+    __slots__ = ("utsname", "android_build_fingerprint", "android_device_manufacturer", "android_soc_model", "android_guest_soc_model", "android_hardware_revision", "android_storage_model", "android_ram_model", "android_serial_console", "tracing_service_version", "android_sdk_version", "page_size", "num_cpus", "timezone_off_mins", "hz", "system_ram_bytes")
     UTSNAME_FIELD_NUMBER: _ClassVar[int]
     ANDROID_BUILD_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
     ANDROID_DEVICE_MANUFACTURER_FIELD_NUMBER: _ClassVar[int]
@@ -4815,7 +4826,7 @@ class SystemInfo(_message.Message):
     NUM_CPUS_FIELD_NUMBER: _ClassVar[int]
     TIMEZONE_OFF_MINS_FIELD_NUMBER: _ClassVar[int]
     HZ_FIELD_NUMBER: _ClassVar[int]
-    MEMORY_SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_RAM_BYTES_FIELD_NUMBER: _ClassVar[int]
     utsname: Utsname
     android_build_fingerprint: str
     android_device_manufacturer: str
@@ -4831,8 +4842,8 @@ class SystemInfo(_message.Message):
     num_cpus: int
     timezone_off_mins: int
     hz: int
-    memory_size_bytes: int
-    def __init__(self, utsname: _Optional[_Union[Utsname, _Mapping]] = ..., android_build_fingerprint: _Optional[str] = ..., android_device_manufacturer: _Optional[str] = ..., android_soc_model: _Optional[str] = ..., android_guest_soc_model: _Optional[str] = ..., android_hardware_revision: _Optional[str] = ..., android_storage_model: _Optional[str] = ..., android_ram_model: _Optional[str] = ..., android_serial_console: _Optional[str] = ..., tracing_service_version: _Optional[str] = ..., android_sdk_version: _Optional[int] = ..., page_size: _Optional[int] = ..., num_cpus: _Optional[int] = ..., timezone_off_mins: _Optional[int] = ..., hz: _Optional[int] = ..., memory_size_bytes: _Optional[int] = ...) -> None: ...
+    system_ram_bytes: int
+    def __init__(self, utsname: _Optional[_Union[Utsname, _Mapping]] = ..., android_build_fingerprint: _Optional[str] = ..., android_device_manufacturer: _Optional[str] = ..., android_soc_model: _Optional[str] = ..., android_guest_soc_model: _Optional[str] = ..., android_hardware_revision: _Optional[str] = ..., android_storage_model: _Optional[str] = ..., android_ram_model: _Optional[str] = ..., android_serial_console: _Optional[str] = ..., tracing_service_version: _Optional[str] = ..., android_sdk_version: _Optional[int] = ..., page_size: _Optional[int] = ..., num_cpus: _Optional[int] = ..., timezone_off_mins: _Optional[int] = ..., hz: _Optional[int] = ..., system_ram_bytes: _Optional[int] = ...) -> None: ...
 
 class TraceStats(_message.Message):
     __slots__ = ("buffer_stats", "chunk_payload_histogram_def", "writer_stats", "producers_connected", "producers_seen", "data_sources_registered", "data_sources_seen", "tracing_sessions", "total_buffers", "chunks_discarded", "patches_discarded", "invalid_packets", "filter_stats", "flushes_requested", "flushes_succeeded", "flushes_failed", "final_flush_outcome")
@@ -5241,6 +5252,7 @@ class FrameTimelineEvent(_message.Message):
         JANK_NON_ANIMATING: _ClassVar[FrameTimelineEvent.JankType]
         JANK_APP_RESYNCED_JITTER: _ClassVar[FrameTimelineEvent.JankType]
         JANK_DISPLAY_NOT_ON: _ClassVar[FrameTimelineEvent.JankType]
+        JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS: _ClassVar[FrameTimelineEvent.JankType]
     JANK_UNSPECIFIED: FrameTimelineEvent.JankType
     JANK_NONE: FrameTimelineEvent.JankType
     JANK_SF_SCHEDULING: FrameTimelineEvent.JankType
@@ -5256,6 +5268,7 @@ class FrameTimelineEvent(_message.Message):
     JANK_NON_ANIMATING: FrameTimelineEvent.JankType
     JANK_APP_RESYNCED_JITTER: FrameTimelineEvent.JankType
     JANK_DISPLAY_NOT_ON: FrameTimelineEvent.JankType
+    JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS: FrameTimelineEvent.JankType
     class JankSeverityType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         SEVERITY_UNKNOWN: _ClassVar[FrameTimelineEvent.JankSeverityType]
@@ -8897,20 +8910,20 @@ class DpuDsiRxFtraceEvent(_message.Message):
     CMD_FIELD_NUMBER: _ClassVar[int]
     RX_BUF_FIELD_NUMBER: _ClassVar[int]
     cmd: int
-    rx_buf: int
-    def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[int] = ...) -> None: ...
+    rx_buf: bytes
+    def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[bytes] = ...) -> None: ...
 
 class DpuDsiTxFtraceEvent(_message.Message):
-    __slots__ = ("type", "tx_buf", "last", "delay_ms")
+    __slots__ = ("type", "last", "delay_ms", "tx_buf")
     TYPE_FIELD_NUMBER: _ClassVar[int]
-    TX_BUF_FIELD_NUMBER: _ClassVar[int]
     LAST_FIELD_NUMBER: _ClassVar[int]
     DELAY_MS_FIELD_NUMBER: _ClassVar[int]
+    TX_BUF_FIELD_NUMBER: _ClassVar[int]
     type: int
-    tx_buf: int
     last: int
     delay_ms: int
-    def __init__(self, type: _Optional[int] = ..., tx_buf: _Optional[int] = ..., last: _Optional[int] = ..., delay_ms: _Optional[int] = ...) -> None: ...
+    tx_buf: bytes
+    def __init__(self, type: _Optional[int] = ..., last: _Optional[int] = ..., delay_ms: _Optional[int] = ..., tx_buf: _Optional[bytes] = ...) -> None: ...
 
 class DpuDispDpuUnderrunFtraceEvent(_message.Message):
     __slots__ = ("id", "frames_pending", "vsync_count")
@@ -11784,8 +11797,8 @@ class I2cWriteFtraceEvent(_message.Message):
     addr: int
     flags: int
     len: int
-    buf: int
-    def __init__(self, adapter_nr: _Optional[int] = ..., msg_nr: _Optional[int] = ..., addr: _Optional[int] = ..., flags: _Optional[int] = ..., len: _Optional[int] = ..., buf: _Optional[int] = ...) -> None: ...
+    buf: bytes
+    def __init__(self, adapter_nr: _Optional[int] = ..., msg_nr: _Optional[int] = ..., addr: _Optional[int] = ..., flags: _Optional[int] = ..., len: _Optional[int] = ..., buf: _Optional[bytes] = ...) -> None: ...
 
 class I2cResultFtraceEvent(_message.Message):
     __slots__ = ("adapter_nr", "nr_msgs", "ret")
@@ -11810,8 +11823,8 @@ class I2cReplyFtraceEvent(_message.Message):
     addr: int
     flags: int
     len: int
-    buf: int
-    def __init__(self, adapter_nr: _Optional[int] = ..., msg_nr: _Optional[int] = ..., addr: _Optional[int] = ..., flags: _Optional[int] = ..., len: _Optional[int] = ..., buf: _Optional[int] = ...) -> None: ...
+    buf: bytes
+    def __init__(self, adapter_nr: _Optional[int] = ..., msg_nr: _Optional[int] = ..., addr: _Optional[int] = ..., flags: _Optional[int] = ..., len: _Optional[int] = ..., buf: _Optional[bytes] = ...) -> None: ...
 
 class SmbusReadFtraceEvent(_message.Message):
     __slots__ = ("adapter_nr", "flags", "addr", "command", "protocol")
@@ -13666,18 +13679,18 @@ class DsiRxFtraceEvent(_message.Message):
     CMD_FIELD_NUMBER: _ClassVar[int]
     RX_BUF_FIELD_NUMBER: _ClassVar[int]
     cmd: int
-    rx_buf: int
-    def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[int] = ...) -> None: ...
+    rx_buf: bytes
+    def __init__(self, cmd: _Optional[int] = ..., rx_buf: _Optional[bytes] = ...) -> None: ...
 
 class DsiTxFtraceEvent(_message.Message):
-    __slots__ = ("last", "tx_buf", "type")
+    __slots__ = ("last", "type", "tx_buf")
     LAST_FIELD_NUMBER: _ClassVar[int]
-    TX_BUF_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
+    TX_BUF_FIELD_NUMBER: _ClassVar[int]
     last: int
-    tx_buf: int
     type: int
-    def __init__(self, last: _Optional[int] = ..., tx_buf: _Optional[int] = ..., type: _Optional[int] = ...) -> None: ...
+    tx_buf: bytes
+    def __init__(self, last: _Optional[int] = ..., type: _Optional[int] = ..., tx_buf: _Optional[bytes] = ...) -> None: ...
 
 class PanelWriteGenericFtraceEvent(_message.Message):
     __slots__ = ("pid", "trace_name", "trace_begin", "name", "type", "value")
@@ -14226,7 +14239,7 @@ class ScmCallEndFtraceEvent(_message.Message):
     def __init__(self) -> None: ...
 
 class ScsiDispatchCmdErrorFtraceEvent(_message.Message):
-    __slots__ = ("host_no", "channel", "id", "lun", "rtn", "opcode", "cmd_len", "data_sglen", "prot_sglen", "prot_op", "cmnd", "driver_tag", "scheduler_tag")
+    __slots__ = ("host_no", "channel", "id", "lun", "rtn", "opcode", "cmd_len", "data_sglen", "prot_sglen", "prot_op", "driver_tag", "scheduler_tag", "cmnd")
     HOST_NO_FIELD_NUMBER: _ClassVar[int]
     CHANNEL_FIELD_NUMBER: _ClassVar[int]
     ID_FIELD_NUMBER: _ClassVar[int]
@@ -14237,9 +14250,9 @@ class ScsiDispatchCmdErrorFtraceEvent(_message.Message):
     DATA_SGLEN_FIELD_NUMBER: _ClassVar[int]
     PROT_SGLEN_FIELD_NUMBER: _ClassVar[int]
     PROT_OP_FIELD_NUMBER: _ClassVar[int]
-    CMND_FIELD_NUMBER: _ClassVar[int]
     DRIVER_TAG_FIELD_NUMBER: _ClassVar[int]
     SCHEDULER_TAG_FIELD_NUMBER: _ClassVar[int]
+    CMND_FIELD_NUMBER: _ClassVar[int]
     host_no: int
     channel: int
     id: int
@@ -14250,13 +14263,13 @@ class ScsiDispatchCmdErrorFtraceEvent(_message.Message):
     data_sglen: int
     prot_sglen: int
     prot_op: int
-    cmnd: str
     driver_tag: int
     scheduler_tag: int
-    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., rtn: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., cmnd: _Optional[str] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ...) -> None: ...
+    cmnd: bytes
+    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., rtn: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ..., cmnd: _Optional[bytes] = ...) -> None: ...
 
 class ScsiDispatchCmdTimeoutFtraceEvent(_message.Message):
-    __slots__ = ("host_no", "channel", "id", "lun", "result", "opcode", "cmd_len", "data_sglen", "prot_sglen", "prot_op", "cmnd", "driver_tag", "scheduler_tag", "sense_key", "asc", "ascq")
+    __slots__ = ("host_no", "channel", "id", "lun", "result", "opcode", "cmd_len", "data_sglen", "prot_sglen", "prot_op", "driver_tag", "scheduler_tag", "sense_key", "asc", "ascq", "cmnd")
     HOST_NO_FIELD_NUMBER: _ClassVar[int]
     CHANNEL_FIELD_NUMBER: _ClassVar[int]
     ID_FIELD_NUMBER: _ClassVar[int]
@@ -14267,12 +14280,12 @@ class ScsiDispatchCmdTimeoutFtraceEvent(_message.Message):
     DATA_SGLEN_FIELD_NUMBER: _ClassVar[int]
     PROT_SGLEN_FIELD_NUMBER: _ClassVar[int]
     PROT_OP_FIELD_NUMBER: _ClassVar[int]
-    CMND_FIELD_NUMBER: _ClassVar[int]
     DRIVER_TAG_FIELD_NUMBER: _ClassVar[int]
     SCHEDULER_TAG_FIELD_NUMBER: _ClassVar[int]
     SENSE_KEY_FIELD_NUMBER: _ClassVar[int]
     ASC_FIELD_NUMBER: _ClassVar[int]
     ASCQ_FIELD_NUMBER: _ClassVar[int]
+    CMND_FIELD_NUMBER: _ClassVar[int]
     host_no: int
     channel: int
     id: int
@@ -14283,13 +14296,13 @@ class ScsiDispatchCmdTimeoutFtraceEvent(_message.Message):
     data_sglen: int
     prot_sglen: int
     prot_op: int
-    cmnd: str
     driver_tag: int
     scheduler_tag: int
     sense_key: int
     asc: int
     ascq: int
-    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., result: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., cmnd: _Optional[str] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ..., sense_key: _Optional[int] = ..., asc: _Optional[int] = ..., ascq: _Optional[int] = ...) -> None: ...
+    cmnd: bytes
+    def __init__(self, host_no: _Optional[int] = ..., channel: _Optional[int] = ..., id: _Optional[int] = ..., lun: _Optional[int] = ..., result: _Optional[int] = ..., opcode: _Optional[int] = ..., cmd_len: _Optional[int] = ..., data_sglen: _Optional[int] = ..., prot_sglen: _Optional[int] = ..., prot_op: _Optional[int] = ..., driver_tag: _Optional[int] = ..., scheduler_tag: _Optional[int] = ..., sense_key: _Optional[int] = ..., asc: _Optional[int] = ..., ascq: _Optional[int] = ..., cmnd: _Optional[bytes] = ...) -> None: ...
 
 class ScsiEhWakeupFtraceEvent(_message.Message):
     __slots__ = ("host_no",)
@@ -18148,7 +18161,7 @@ class EventName(_message.Message):
     def __init__(self, iid: _Optional[int] = ..., name: _Optional[str] = ...) -> None: ...
 
 class InternedData(_message.Message):
-    __slots__ = ("event_categories", "event_names", "debug_annotation_names", "debug_annotation_value_type_names", "source_locations", "unsymbolized_source_locations", "log_message_body", "histogram_names", "build_ids", "mapping_paths", "source_paths", "function_names", "mappings", "frames", "callstacks", "vulkan_memory_keys", "graphics_contexts", "gpu_specifications", "kernel_symbols", "debug_annotation_string_values", "packet_context", "v8_js_function_name", "v8_js_function", "v8_js_script", "v8_wasm_script", "v8_isolate", "protolog_string_args", "protolog_stacktrace", "viewcapture_package_name", "viewcapture_window_name", "viewcapture_view_id", "viewcapture_class_name", "app_wakelock_info", "correlation_id_str", "android_job_name")
+    __slots__ = ("event_categories", "event_names", "debug_annotation_names", "debug_annotation_value_type_names", "source_locations", "unsymbolized_source_locations", "log_message_body", "histogram_names", "build_ids", "mapping_paths", "source_paths", "function_names", "mappings", "frames", "callstacks", "vulkan_memory_keys", "graphics_contexts", "gpu_specifications", "kernel_symbols", "debug_annotation_string_values", "packet_context", "v8_js_function_name", "v8_js_function", "v8_js_script", "v8_wasm_script", "v8_isolate", "protolog_string_args", "protolog_stacktrace", "viewcapture_package_name", "viewcapture_window_name", "viewcapture_view_id", "viewcapture_class_name", "viewcapture_content_description", "viewcapture_text", "app_wakelock_info", "correlation_id_str", "android_job_name")
     EVENT_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     EVENT_NAMES_FIELD_NUMBER: _ClassVar[int]
     DEBUG_ANNOTATION_NAMES_FIELD_NUMBER: _ClassVar[int]
@@ -18181,6 +18194,8 @@ class InternedData(_message.Message):
     VIEWCAPTURE_WINDOW_NAME_FIELD_NUMBER: _ClassVar[int]
     VIEWCAPTURE_VIEW_ID_FIELD_NUMBER: _ClassVar[int]
     VIEWCAPTURE_CLASS_NAME_FIELD_NUMBER: _ClassVar[int]
+    VIEWCAPTURE_CONTENT_DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    VIEWCAPTURE_TEXT_FIELD_NUMBER: _ClassVar[int]
     APP_WAKELOCK_INFO_FIELD_NUMBER: _ClassVar[int]
     CORRELATION_ID_STR_FIELD_NUMBER: _ClassVar[int]
     ANDROID_JOB_NAME_FIELD_NUMBER: _ClassVar[int]
@@ -18216,10 +18231,12 @@ class InternedData(_message.Message):
     viewcapture_window_name: _containers.RepeatedCompositeFieldContainer[InternedString]
     viewcapture_view_id: _containers.RepeatedCompositeFieldContainer[InternedString]
     viewcapture_class_name: _containers.RepeatedCompositeFieldContainer[InternedString]
+    viewcapture_content_description: _containers.RepeatedCompositeFieldContainer[InternedString]
+    viewcapture_text: _containers.RepeatedCompositeFieldContainer[InternedString]
     app_wakelock_info: _containers.RepeatedCompositeFieldContainer[AppWakelockInfo]
     correlation_id_str: _containers.RepeatedCompositeFieldContainer[InternedString]
     android_job_name: _containers.RepeatedCompositeFieldContainer[AndroidJobName]
-    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., packet_context: _Optional[_Iterable[_Union[NetworkPacketContext, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ..., protolog_string_args: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., protolog_stacktrace: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_package_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_window_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_view_id: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_class_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., app_wakelock_info: _Optional[_Iterable[_Union[AppWakelockInfo, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., android_job_name: _Optional[_Iterable[_Union[AndroidJobName, _Mapping]]] = ...) -> None: ...
+    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., packet_context: _Optional[_Iterable[_Union[NetworkPacketContext, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ..., protolog_string_args: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., protolog_stacktrace: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_package_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_window_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_view_id: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_class_name: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_content_description: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., viewcapture_text: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., app_wakelock_info: _Optional[_Iterable[_Union[AppWakelockInfo, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., android_job_name: _Optional[_Iterable[_Union[AndroidJobName, _Mapping]]] = ...) -> None: ...
 
 class AndroidJobName(_message.Message):
     __slots__ = ("iid", "name")

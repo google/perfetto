@@ -40,4 +40,53 @@
   &__metric_id_box {
     margin-bottom: 1rem;
   }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+
+    .pf-callout {
+      flex: 1;
+    }
+  }
+
+  &__metric-filter {
+    margin: 0.5rem 0;
+
+    .pf-text-input {
+      width: 100%;
+    }
+  }
+
+  &__editor {
+    min-height: 300px;
+    margin: 1rem 0;
+
+    .pf-editor {
+      min-height: 300px;
+    }
+
+    .cm-editor {
+      min-height: 300px;
+    }
+  }
+}
+
+.pf-metricsv2-result {
+  &__header {
+    margin-bottom: 1rem;
+  }
+
+  &__tabs {
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+  }
+
+  &__bundle {
+    .pf-datagrid {
+      min-height: 200px;
+      max-height: 400px;
+    }
+  }
 }

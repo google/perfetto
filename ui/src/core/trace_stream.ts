@@ -220,7 +220,7 @@ export class TraceMultipleFilesStream implements TraceStream {
         // Construct the 512-byte TAR header for the current file.
         const data = new Uint8Array(512);
         const name = this.traceFiles[this.index].name;
-        for (let i = 0; i < Math.max(name.length, 99); ++i) {
+        for (let i = 0; i < Math.min(name.length, 99); ++i) {
           data[i] = name.charCodeAt(i);
         }
         const size = this.traceFiles[this.index].size.toString(8);

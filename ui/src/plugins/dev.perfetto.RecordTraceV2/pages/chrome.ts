@@ -297,7 +297,7 @@ function defaultAndDisabled(category: string) {
 
 const GROUPS = {
   'Task Scheduling': [
-    'toplevJJJel',
+    'toplevel',
     'toplevel.flow',
     'scheduler',
     'sequence_manager',

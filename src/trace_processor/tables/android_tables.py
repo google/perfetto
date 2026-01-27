@@ -15,6 +15,7 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
+from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppDouble
@@ -64,7 +65,10 @@ ANDROID_CPU_PER_UID_TRACK_TABLE = Table(
     class_name="AndroidCpuPerUidTrackTable",
     sql_name="__intrinsic_android_cpu_per_uid_track",
     columns=[
-        C("track_id", CppTableId(TRACK_TABLE), cpp_access=CppAccess.READ),
+        C("track_id",
+          CppTableId(TRACK_TABLE),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ),
         C("uid", CppInt64(), cpp_access=CppAccess.READ),
         C("cluster", CppInt64(), cpp_access=CppAccess.READ),
         C("total_cpu_millis", CppInt64(), cpp_access=CppAccess.READ),

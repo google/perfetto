@@ -5921,4 +5921,59 @@ TEST(StructuredQueryGeneratorTest, ExperimentalCounterIntervalsMissingInput) {
               testing::HasSubstr("must specify an input_query"));
 }
 
+// Test that referencing the same shared query multiple times (e.g., in a join)
+// doesn't create duplicate CTEs in the generated SQL.
+TEST(StructuredQueryGeneratorTest, SharedQueryReferencedMultipleTimes) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query that will be referenced twice
+  auto shared_proto = ToProto(R"(
+    id: "shared_source"
+    table: {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+      column_names: "name"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a join query that references the shared query on BOTH sides
+  auto join_proto = ToProto(R"(
+    id: "join_query"
+    experimental_join: {
+      type: LEFT
+      left_query: {
+        inner_query_id: "shared_source"
+      }
+      right_query: {
+        inner_query_id: "shared_source"
+      }
+      equality_columns: {
+        left_column: "id"
+        right_column: "id"
+      }
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(join_proto.data(), join_proto.size()));
+
+  auto ret = gen.GenerateById("join_query");
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Count occurrences of the shared query's CTE definition.
+  // It should appear exactly once, not twice.
+  std::string cte_marker = "shared_sq_shared_source AS";
+  size_t count = 0;
+  size_t pos = 0;
+  while ((pos = res.find(cte_marker, pos)) != std::string::npos) {
+    ++count;
+    pos += cte_marker.length();
+  }
+  EXPECT_EQ(count, 1u)
+      << "Expected exactly one CTE for 'shared_sq_shared_source', but found "
+      << count << ". Generated SQL:\n"
+      << res;
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

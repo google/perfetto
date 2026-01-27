@@ -81,8 +81,10 @@ class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
             if (canvas !== null) {
               canvas.focus();
             }
-            e.stopPropagation();
           }
+          // Stop propagation for all keyboard events to prevent them from
+          // reaching the graph (e.g., Delete/Backspace would delete the node)
+          e.stopPropagation();
         },
       },
       [
@@ -105,6 +107,57 @@ class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
       ],
     );
   }
+}
+
+/**
+ * Removes comments and string literals from SQL to allow safe keyword detection.
+ */
+function stripCommentsAndStrings(sql: string): string {
+  let result = sql;
+  // Remove single-line comments (-- ...)
+  result = result.replace(/--[^\n]*$/gm, '');
+  // Remove multi-line comments (/* ... */)
+  result = result.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Remove string literals ('...' and "...")
+  result = result.replace(/'(?:[^'\\]|\\.)*'/g, '');
+  result = result.replace(/"(?:[^"\\]|\\.)*"/g, '');
+  return result;
+}
+
+/**
+ * Validates SQL statement structure. Returns an error message if invalid,
+ * or undefined if valid.
+ *
+ * Valid structure: zero or more INCLUDE PERFETTO MODULE statements,
+ * followed by exactly one SELECT statement.
+ */
+function validateStatementStructure(sql: string): string | undefined {
+  const cleaned = stripCommentsAndStrings(sql);
+
+  // Split by semicolons and filter out empty statements
+  const statements = cleaned
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  if (statements.length === 0) {
+    return 'SQL query is empty';
+  }
+
+  // Check that all statements except the last are INCLUDE PERFETTO MODULE
+  for (let i = 0; i < statements.length - 1; i++) {
+    if (!/^INCLUDE\s+PERFETTO\s+MODULE\b/i.test(statements[i])) {
+      return 'Only INCLUDE PERFETTO MODULE statements are allowed before the SELECT query.';
+    }
+  }
+
+  // Check that the last statement starts with SELECT (or WITH for CTEs)
+  const lastStatement = statements[statements.length - 1];
+  if (!/^(?:SELECT|WITH)\b/i.test(lastStatement)) {
+    return 'The query must end with a SELECT statement.';
+  }
+
+  return undefined;
 }
 
 export class SqlSourceNode implements QueryNode {
@@ -178,6 +231,12 @@ export class SqlSourceNode implements QueryNode {
 
     if (this.state.sql === undefined || this.state.sql.trim() === '') {
       setValidationError(this.state, 'SQL query is empty');
+      return false;
+    }
+
+    const structureError = validateStatementStructure(this.state.sql);
+    if (structureError !== undefined) {
+      setValidationError(this.state, structureError);
       return false;
     }
 
@@ -256,15 +315,22 @@ export class SqlSourceNode implements QueryNode {
       m(SqlEditor, {
         sql: this.state.sql ?? '',
         onUpdate: (text: string) => {
+          if (this.state.sql === text) {
+            return;
+          }
           this.state.sql = text;
           // Clear columns when SQL changes to prevent stale column usage
           this.finalCols = [];
+          // Notify that the query has changed so stale results are cleared
+          this.state.onchange?.();
           m.redraw();
         },
         onExecute: (text: string) => {
           this.state.sql = text.trim();
           // Clear columns when SQL changes to prevent stale column usage
           this.finalCols = [];
+          // Notify that the query has changed so stale results are cleared
+          this.state.onchange?.();
           m.redraw();
         },
       }),

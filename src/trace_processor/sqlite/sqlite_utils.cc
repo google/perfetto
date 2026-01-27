@@ -16,11 +16,8 @@
 
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
+#include <sqlite3.h>
 #include <cstddef>
-#include <cstdint>
-#include <limits>
-#include <optional>
-#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -37,21 +34,19 @@ namespace internal {
 namespace {
 std::string ToExpectedTypesString(ExpectedTypesSet expected_types) {
   PERFETTO_CHECK(expected_types.any());
-  std::stringstream ss;
-  if (expected_types.count() > 1) {
-    ss << "any of ";
-  }
-
-  bool add_separator = false;
+  std::vector<std::string> type_names;
   for (size_t i = 0; i < expected_types.size(); ++i) {
     if (expected_types[i]) {
-      ss << (add_separator ? ", " : "")
-         << SqliteTypeToFriendlyString(static_cast<SqlValue::Type>(i));
-      add_separator = true;
+      type_names.emplace_back(
+          SqliteTypeToFriendlyString(static_cast<SqlValue::Type>(i)));
     }
   }
-
-  return ss.str();
+  std::string result;
+  if (type_names.size() > 1) {
+    result = "any of ";
+  }
+  result += base::Join(type_names, ", ");
+  return result;
 }
 
 inline SqlValue::Type SqliteTypeToSqlValueType(int sqlite_type) {
