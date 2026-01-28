@@ -30,7 +30,8 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {formatFileSize} from '../..//base/file_utils';
+import {formatFileSize} from '../../base/file_utils';
+import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -39,6 +40,11 @@ interface V8JsScript {
   source: string;
   v8_isolate_id: number;
   script_size: number;
+}
+
+interface ScriptResults {
+  source: string;
+  details: V8JsScript;
 }
 
 const V8_JS_SCRIPT_SCHEMA_NAME = 'v8JsScript';
@@ -100,8 +106,10 @@ const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
-  private selectedScriptSource: string | undefined = undefined;
-  private selectedScriptDetails: V8JsScript | undefined = undefined;
+  private readonly slot = new QuerySlot<ScriptResults | undefined>(
+    new SerialTaskQueue(),
+  );
+  private selectedScriptId: number | undefined = undefined;
   private trace: Trace;
   private dataSource: SQLDataSource;
   private filters: readonly Filter[] = [];
@@ -138,14 +146,14 @@ export class V8SourcesTab implements Tab {
       FROM v8_js_script;
     `);
     this.isReady = true;
-    m.redraw();
   }
 
   getTitle(): string {
     return 'V8 Script Sources';
   }
 
-  private async selectScript(id: number) {
+  private async selectScript(id: number | undefined) {
+    if (id === undefined) return undefined;
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
        SELECT *, LENGTH(source) AS script_size
@@ -160,25 +168,25 @@ export class V8SourcesTab implements Tab {
       v8_isolate_id: NUM,
       script_size: NUM,
     });
-    if (it.valid()) {
-      this.selectedScriptSource = it.source as string;
-      this.selectedScriptDetails = {
+    if (!it.valid()) return undefined;
+    this.functionsFilters = [
+      {
+        field: 'v8_js_script_id',
+        op: '=',
+        value: id,
+      },
+    ];
+    return {
+      source: it.source as string,
+      details: {
         v8_js_script_id: it.v8_js_script_id as number,
         name: it.name as string,
         script_type: it.script_type as string,
         source: it.source as string,
         v8_isolate_id: it.v8_isolate_id as number,
         script_size: it.script_size as number,
-      };
-      this.functionsFilters = [
-        {
-          field: 'v8_js_script_id',
-          op: '=',
-          value: id,
-        },
-      ];
-    }
-    m.redraw();
+      },
+    };
   }
 
   filterScripts(searchTerm: string) {
@@ -196,16 +204,16 @@ export class V8SourcesTab implements Tab {
     m.redraw();
   }
 
-  private renderSourceTab() {
+  private renderSourceTab(source: string) {
     return m(Editor, {
-      text: this.selectedScriptSource,
+      text: source,
       language: 'javascript',
       readonly: true,
     });
   }
 
-  private renderDetailsTab() {
-    if (!this.selectedScriptDetails) {
+  private renderDetailsTab(scriptDetails?: V8JsScript) {
+    if (!scriptDetails) {
       return undefined;
     }
 
@@ -213,32 +221,31 @@ export class V8SourcesTab implements Tab {
       Tree,
       m(TreeNode, {
         left: 'ID',
-        right: String(this.selectedScriptDetails.v8_js_script_id),
+        right: String(scriptDetails.v8_js_script_id),
       }),
       m(TreeNode, {
         left: 'Name',
-        right: formatUrlValue(this.selectedScriptDetails.name),
+        right: formatUrlValue(scriptDetails.name),
       }),
       m(TreeNode, {
         left: 'Type',
-        right: this.selectedScriptDetails.script_type,
+        right: scriptDetails.script_type,
       }),
       m(TreeNode, {
         left: 'Isolate',
-        right: String(this.selectedScriptDetails.v8_isolate_id),
+        right: String(scriptDetails.v8_isolate_id),
       }),
       m(TreeNode, {
         left: 'Size',
-        right: formatByteValue(BigInt(this.selectedScriptDetails.script_size)),
+        right: formatByteValue(BigInt(scriptDetails.script_size)),
       }),
     );
   }
 
-  private renderFunctionsTab() {
-    if (!this.selectedScriptDetails) {
+  private renderFunctionsTab(scriptDetails?: V8JsScript) {
+    if (!scriptDetails) {
       return undefined;
     }
-
     const v8JsFunctionUiSchema: SchemaRegistry = {
       v8JsFunction: {
         v8_js_function_id: {title: 'ID'},
@@ -249,7 +256,6 @@ export class V8SourcesTab implements Tab {
         col: {title: 'Column'},
       },
     };
-
     return m(DataGrid, {
       data: this.functionsDataSource,
       schema: v8JsFunctionUiSchema,
@@ -270,6 +276,13 @@ export class V8SourcesTab implements Tab {
   }
 
   render() {
+    const selectedId = this.selectedScriptId;
+    const {data: scriptResult} = this.slot.use({
+      key: {id: selectedId},
+      retainOn: ['id'],
+      queryFn: () => this.selectScript(selectedId),
+    });
+
     const v8JsScriptUiSchema: SchemaRegistry = {
       v8JsScript: {
         v8_js_script_id: {
@@ -280,7 +293,7 @@ export class V8SourcesTab implements Tab {
               {
                 onclick: (e: Event) => {
                   e.preventDefault();
-                  this.selectScript(row.v8_js_script_id as number);
+                  this.selectedScriptId = row.v8_js_script_id as number;
                 },
               },
               String(value),
@@ -347,7 +360,7 @@ export class V8SourcesTab implements Tab {
       ),
       secondPanel: m(
         '.pf-v8-source-script-details',
-        !this.selectedScriptSource
+        !scriptResult
           ? m(
               EmptyState,
               {
@@ -363,19 +376,19 @@ export class V8SourcesTab implements Tab {
                   key: TAB_SOURCE,
                   title: 'Source',
                   leftIcon: 'code',
-                  content: this.renderSourceTab(),
+                  content: this.renderSourceTab(scriptResult.source),
                 },
                 {
                   key: TAB_FUNCTIONS,
                   title: 'Functions',
                   leftIcon: 'function',
-                  content: this.renderFunctionsTab(),
+                  content: this.renderFunctionsTab(scriptResult.details),
                 },
                 {
                   key: TAB_DETAILS,
                   title: 'Details',
                   leftIcon: 'info',
-                  content: this.renderDetailsTab(),
+                  content: this.renderDetailsTab(scriptResult.details),
                 },
               ],
               activeTabKey: this.currentTab,
