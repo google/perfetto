@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {TrackEventSelection} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {asSliceSqlId, SliceSqlId} from '../../components/sql_utils/core_types';
 import {SliceRef} from '../../components/widgets/slice';
@@ -22,6 +23,7 @@ import {renderDetails} from '../../components/details/slice_details';
 import {Engine} from '../../trace_processor/engine';
 import {STR_NULL} from '../../trace_processor/query_result';
 import {Tree, TreeNode} from '../../widgets/tree';
+import {DetailsShell} from '../../widgets/details_shell';
 import {Section} from '../../widgets/section';
 
 interface BinderTxnDetails {
@@ -65,35 +67,33 @@ export class BinderSliceDetailsPanel implements TrackEventDetailsPanel {
   private binderTxnDetails: BinderTxnDetails | undefined;
   private isLoading = true;
 
-  constructor(
-    private readonly trace: Trace,
-    private readonly id: bigint,
-  ) {
-    const sliceId = asSliceSqlId(Number(this.id));
-    Promise.all([
-      getSlice(this.trace.engine, sliceId),
-      getBinderTxnDetails(this.trace.engine, sliceId),
-    ])
-      .then(([slice, binderTxn]) => {
-        this.sliceDetails = slice;
-        this.binderTxnDetails = binderTxn;
-      })
-      .catch((error) => {
-        console.error('Error getting binder transaction details:', error);
-      })
-      .finally(() => {
-        this.isLoading = false;
-        m.redraw();
-      });
+  constructor(private readonly trace: Trace) {}
+
+  async load(selection: TrackEventSelection): Promise<void> {
+    const sliceId = asSliceSqlId(selection.eventId);
+
+    this.isLoading = true;
+    this.sliceDetails = await getSlice(this.trace.engine, sliceId);
+    this.binderTxnDetails = await getBinderTxnDetails(
+      this.trace.engine,
+      sliceId,
+    );
+    this.isLoading = false;
   }
 
   render() {
     if (this.isLoading) {
-      return m('.details-panel', m('h2', 'Loading...'));
+      return m(DetailsShell, {
+        title: 'Binder Transaction',
+        description: 'Loading...',
+      });
     }
 
     if (!this.sliceDetails) {
-      return m('.details-panel', m('h2', 'Slice not found'));
+      return m(DetailsShell, {
+        title: 'Binder Transaction',
+        description: 'Slice not found',
+      });
     }
 
     const txnRole = this.binderTxnDetails?.txnRole;
@@ -101,11 +101,12 @@ export class BinderSliceDetailsPanel implements TrackEventDetailsPanel {
     const name = this.sliceDetails?.name;
 
     return m(
-      '.details-panel',
-      m(
-        Section,
-        {title: txnRole + ' ' + name},
-        this.binderTxnDetails &&
+      DetailsShell,
+      {title: `${txnRole} ${name}`},
+      this.binderTxnDetails &&
+        m(
+          Section,
+          {title: 'Binder'},
           m(
             Tree,
             m(TreeNode, {
@@ -125,7 +126,7 @@ export class BinderSliceDetailsPanel implements TrackEventDetailsPanel {
               }),
             }),
           ),
-      ),
+        ),
       renderDetails(this.trace, this.sliceDetails),
     );
   }
