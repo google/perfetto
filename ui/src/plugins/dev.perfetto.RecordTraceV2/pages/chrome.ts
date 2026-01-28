@@ -160,7 +160,7 @@ const DISABLED_PREFIX = 'disabled-by-default-';
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private fetchedRuntimeCategories = false;
-  private extensionMissing = false;
+  private hasActiveExtension = false;
 
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
@@ -190,14 +190,11 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   private async fetchRuntimeCategoriesIfNeeded() {
     if (this.fetchedRuntimeCategories) return;
     const runtimeCategories = await this.chromeCategoryGetter();
-    if (runtimeCategories.ok) {
+    this.hasActiveExtension = runtimeCategories.ok;
+    if (this.hasActiveExtension) {
       this.initializeCategories(runtimeCategories.value);
-      this.extensionMissing = false;
-    } else {
-      this.extensionMissing = true;
     }
     this.fetchedRuntimeCategories = true;
-    m.redraw();
   }
 
   private initializeCategories(descriptor: protos.TrackEventDescriptor) {
@@ -258,17 +255,19 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     }
 
     const activeCategories = Array.from(this.getIncludedCategories()).sort();
+    const warnMissingTracingExtension =
+      !this.hasActiveExtension && this.platformGetter() === 'CHROME';
+    const TRACING_EXTENSION_URL = 'https://g.co/chrome/tracing-extension';
     return m(
       'div.chrome-probe',
       {
         // This shouldn't be necessary in most cases. It's only needed:
         // 1. The first time the user installs the extension.
-        // 2. In rare cases if the extension fails to respond to the call in the
+        // 2. In rare cases if the extension fails to extensionMissing to the call in the
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
-      this.extensionMissing &&
-        this.platformGetter() === 'CHROME' &&
+      warnMissingTracingExtension &&
         m(
           Callout,
           {
@@ -276,14 +275,14 @@ export class ChromeCategoriesWidget implements ProbeSetting {
             icon: Icons.Warning,
           },
           'The Perfetto Tracing extension is not installed or disabled. ',
-          'Please install it to display the complete tracing settings: ',
+          'Please install it to display the complete settings: ',
           m(
             Anchor,
             {
-              href: 'https://g.co/chrome/tracing-extension',
+              href: TRACING_EXTENSION_URL,
               target: '_blank',
             },
-            'https://g.co/chrome/tracing-extension',
+            TRACING_EXTENSION_URL,
           ),
         ),
       m(
