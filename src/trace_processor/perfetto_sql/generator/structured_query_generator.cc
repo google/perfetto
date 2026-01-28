@@ -1245,6 +1245,9 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   if (!it) {
     return base::ErrStatus("Shared query with id '%s' not found", id.c_str());
   }
+  // TODO(mayzner): Revert to using precomputed shared tables (CREATE PERFETTO
+  // TABLE) instead of inlining as CTEs once the Explore page properly
+  // integrates with the table creation/cleanup lifecycle in Summarize().
   // Always add to state_ so that every generated query has all its
   // dependencies in the CTE.
   state_.emplace_back(QueryType::kShared,
