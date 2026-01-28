@@ -180,6 +180,7 @@ export interface NodeGraphApi {
   autoLayout: () => void;
   recenter: () => void;
   findPlacementForNode: (node: Omit<Node, 'x' | 'y'>) => Position;
+  panBy: (dx: number, dy: number) => void;
 }
 
 export interface NodeGraphAttrs {
@@ -358,6 +359,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
   let canvasElement: HTMLElement | null = null;
 
+  // Shared pan function used by both internal handlers and external API
+  const panBy = (dx: number, dy: number) => {
+    canvasState.panOffset.x += dx;
+    canvasState.panOffset.y += dy;
+  };
+
   // API functions that are exposed to parent components via onReady callback
   // These are initialized in oncreate and can be used in subsequent lifecycle hooks
   let autoLayoutApi: (() => void) | null = null;
@@ -444,10 +451,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       // Pan the canvas
       const dx = e.clientX - canvasState.panStart.x;
       const dy = e.clientY - canvasState.panStart.y;
-      canvasState.panOffset = {
-        x: canvasState.panOffset.x + dx,
-        y: canvasState.panOffset.y + dy,
-      };
+      panBy(dx, dy);
       canvasState.panStart = {x: e.clientX, y: e.clientY};
       m.redraw();
     } else if (canvasState.undockCandidate !== null) {
@@ -1452,10 +1456,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       };
     } else {
       // Pan the canvas based on wheel delta
-      canvasState.panOffset = {
-        x: canvasState.panOffset.x - e.deltaX,
-        y: canvasState.panOffset.y - e.deltaY,
-      };
+      panBy(-e.deltaX, -e.deltaY);
     }
 
     m.redraw();
@@ -1667,6 +1668,22 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             return;
           }
 
+          const {onNodeSelect, selectedNodeIds} = vnode.attrs;
+
+          // When multiple nodes are selected, disable all dragging.
+          // Only allow selection change and focus.
+          if (selectedNodeIds !== undefined && selectedNodeIds.size > 1) {
+            // If clicking an unselected node, select just that node
+            if (!selectedNodeIds.has(id) && onNodeSelect !== undefined) {
+              onNodeSelect(id);
+            }
+            // Focus the canvas for keyboard events (Delete, etc.)
+            if (canvasElement) {
+              canvasElement.focus();
+            }
+            return;
+          }
+
           // Check if this is a chained node (not root)
           if (isDockedChild && rootNode) {
             // Don't undock immediately - wait for drag threshold
@@ -1705,8 +1722,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             currentDragPosition = {x: node.x, y: node.y};
           }
 
-          const {onNodeSelect} = vnode.attrs;
-          if (onNodeSelect !== undefined) {
+          // Only change selection if the clicked node is not already selected
+          // This prevents unnecessary selection changes when starting to drag
+          if (!selectedNodeIds?.has(id) && onNodeSelect !== undefined) {
             onNodeSelect(id);
           }
 
@@ -2086,6 +2104,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           autoLayout: autoLayoutApi,
           recenter: recenterApi,
           findPlacementForNode: findPlacementForNodeApi,
+          panBy,
         });
       }
     },
@@ -2122,6 +2141,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           autoLayout: autoLayoutApi,
           recenter: recenterApi,
           findPlacementForNode: findPlacementForNodeApi,
+          panBy,
         });
       }
     },

@@ -32,7 +32,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "protos/perfetto/trace_processor/metrics_impl.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 

@@ -192,7 +192,7 @@ CREATE PERFETTO VIEW thread_state (
   -- Whether the wakeup was from interrupt context or process context.
   irq_context LONG,
   -- The unique CPU identifier that the thread executed on.
-  ucpu LONG
+  ucpu JOINID(cpu.id)
 ) AS
 SELECT
   id,
