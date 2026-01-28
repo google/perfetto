@@ -249,7 +249,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     try {
       const runtimeCategories = unwrapResult(await this.chromeCategoryGetter());
       this.initializeCategories(runtimeCategories);
-    } catch(e) {
+    } catch (e) {
       console.error(e);
     }
     this.fetchedRuntimeCategories = true;
@@ -405,16 +405,18 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
-      hasAnyTags && this.renderMultiSelectWithChips(
-        'Enabled Tags',
-        enabledTagOptions,
-        this.enabledTags,
-      ),
-      hasAnyTags && this.renderMultiSelectWithChips(
-        'Disabled Tags',
-        disabledTagOptions,
-        this.disabledTags,
-      ),
+      hasAnyTags &&
+        this.renderMultiSelectWithChips(
+          'Enabled Tags',
+          enabledTagOptions,
+          this.enabledTags,
+        ),
+      hasAnyTags &&
+        this.renderMultiSelectWithChips(
+          'Disabled Tags',
+          disabledTagOptions,
+          this.disabledTags,
+        ),
       this.renderMultiSelectWithChips(
         'Presets',
         presetOptions,
