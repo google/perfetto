@@ -139,14 +139,19 @@ export class GroupSummaryTrack implements TrackRenderer {
     resolution: duration;
   };
 
-  // Cached colors per slice (computed once when data changes)
-  private cachedColors?: Array<{
-    base: {r: number; g: number; b: number; a: number};
-    variant: {r: number; g: number; b: number; a: number};
-    disabled: {r: number; g: number; b: number; a: number};
-  }>;
+  // Cached render buffers (computed once when data changes)
+  private cachedRectPosY?: Float32Array; // y positions per rect
+  private cachedRectHeight?: number; // all rects have same height
+  private cachedBaseColors?: Float32Array; // r,g,b,a per rect (normalized 0-1)
+  private cachedVariantColors?: Float32Array;
+  private cachedDisabledColors?: Float32Array;
   private cachedPids?: Array<bigint | undefined>;
   private lastCachedDataGeneration = -1;
+
+  // Temp buffers for render-time computation (reused to avoid allocation)
+  private tempRectPos?: Float32Array;
+  private tempRectSize?: Float32Array;
+  private tempColors?: Float32Array;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -476,9 +481,24 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  private cacheColors(data: Data): void {
+  private cacheRenderBuffers(data: Data): void {
     const numSlices = data.starts.length;
-    this.cachedColors = new Array(numSlices);
+    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+
+    // Pre-compute y positions
+    this.cachedRectPosY = new Float32Array(numSlices);
+    for (let i = 0; i < numSlices; i++) {
+      const lane = data.lanes[i];
+      this.cachedRectPosY[i] = MARGIN_TOP + laneHeight * lane + lane;
+    }
+
+    // Cache height (constant for all rects)
+    this.cachedRectHeight = laneHeight;
+
+    // Pre-compute colors (normalized 0-1)
+    this.cachedBaseColors = new Float32Array(numSlices * 4);
+    this.cachedVariantColors = new Float32Array(numSlices * 4);
+    this.cachedDisabledColors = new Float32Array(numSlices * 4);
     this.cachedPids = new Array(numSlices);
 
     for (let i = 0; i < numSlices; i++) {
@@ -489,13 +509,33 @@ export class GroupSummaryTrack implements TrackRenderer {
           ? colorForThread(threadInfo)
           : colorForTid(Number(this.config.pidForColor));
 
-      this.cachedColors[i] = {
-        base: colorScheme.base.rgba,
-        variant: colorScheme.variant.rgba,
-        disabled: colorScheme.disabled.rgba,
-      };
+      const base = colorScheme.base.rgba;
+      const variant = colorScheme.variant.rgba;
+      const disabled = colorScheme.disabled.rgba;
+
+      const idx = i * 4;
+      this.cachedBaseColors[idx + 0] = base.r / 255;
+      this.cachedBaseColors[idx + 1] = base.g / 255;
+      this.cachedBaseColors[idx + 2] = base.b / 255;
+      this.cachedBaseColors[idx + 3] = base.a;
+
+      this.cachedVariantColors[idx + 0] = variant.r / 255;
+      this.cachedVariantColors[idx + 1] = variant.g / 255;
+      this.cachedVariantColors[idx + 2] = variant.b / 255;
+      this.cachedVariantColors[idx + 3] = variant.a;
+
+      this.cachedDisabledColors[idx + 0] = disabled.r / 255;
+      this.cachedDisabledColors[idx + 1] = disabled.g / 255;
+      this.cachedDisabledColors[idx + 2] = disabled.b / 255;
+      this.cachedDisabledColors[idx + 3] = disabled.a;
+
       this.cachedPids[i] = threadInfo?.pid;
     }
+
+    // Allocate temp buffers for render-time use
+    this.tempRectPos = new Float32Array(numSlices * 2);
+    this.tempRectSize = new Float32Array(numSlices * 2);
+    this.tempColors = new Float32Array(numSlices * 4);
   }
 
   private renderSlices(
@@ -503,42 +543,60 @@ export class GroupSummaryTrack implements TrackRenderer {
     data: Data,
     canvasRenderer: WebGLRenderer,
   ): void {
-    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+    const numSlices = data.starts.length;
     const hoveredUtid = this.trace.timeline.hoveredUtid;
     const hoveredPid = this.trace.timeline.hoveredPid;
-    const isHovering = hoveredUtid !== undefined;
+    const isHovering = this.mode === 'sched' && hoveredUtid !== undefined;
 
-    for (let i = 0; i < data.starts.length; i++) {
+    const rectPos = this.tempRectPos!;
+    const rectSize = this.tempRectSize!;
+    const height = this.cachedRectHeight!;
+
+    // Fill position and size buffers (x and width computed from timescale)
+    for (let i = 0; i < numSlices; i++) {
       const tStart = Time.fromRaw(data.starts[i]);
       const tEnd = Time.fromRaw(data.ends[i]);
-      const utid = data.utids[i];
-      const lane = data.lanes[i];
 
-      const rectStart = timescale.timeToPx(tStart);
-      const rectEnd = timescale.timeToPx(tEnd);
-      const rectWidth = Math.max(1, rectEnd - rectStart);
+      const x = timescale.timeToPx(tStart);
+      const w = Math.max(1, timescale.timeToPx(tEnd) - x);
 
-      const y = MARGIN_TOP + laneHeight * lane + lane;
+      rectPos[i * 2 + 0] = x;
+      rectPos[i * 2 + 1] = this.cachedRectPosY![i];
 
-      // Use cached colors
-      const colors = this.cachedColors![i];
-      let color;
-      if (this.mode === 'sched' && isHovering) {
+      rectSize[i * 2 + 0] = w;
+      rectSize[i * 2 + 1] = height;
+    }
+
+    // Select colors based on hover state
+    let colors: Float32Array;
+    if (isHovering) {
+      // Need to select colors per-rect based on hover
+      const tempColors = this.tempColors!;
+      for (let i = 0; i < numSlices; i++) {
+        const utid = data.utids[i];
         const isThreadHovered = hoveredUtid === utid;
         const isProcessHovered =
           hoveredPid !== undefined && this.cachedPids![i] === hoveredPid;
 
-        if (!isThreadHovered) {
-          color = isProcessHovered ? colors.variant : colors.disabled;
-        } else {
-          color = colors.base;
-        }
-      } else {
-        color = colors.base;
-      }
+        const srcColors = isThreadHovered
+          ? this.cachedBaseColors!
+          : isProcessHovered
+            ? this.cachedVariantColors!
+            : this.cachedDisabledColors!;
 
-      canvasRenderer.drawRect(rectStart, y, rectWidth, laneHeight, color);
+        const idx = i * 4;
+        tempColors[idx + 0] = srcColors[idx + 0];
+        tempColors[idx + 1] = srcColors[idx + 1];
+        tempColors[idx + 2] = srcColors[idx + 2];
+        tempColors[idx + 3] = srcColors[idx + 3];
+      }
+      colors = tempColors;
+    } else {
+      // No hover - use base colors directly
+      colors = this.cachedBaseColors!;
     }
+
+    canvasRenderer.drawRects(rectPos, rectSize, colors, numSlices);
   }
 
   render({
@@ -633,10 +691,10 @@ export class GroupSummaryTrack implements TrackRenderer {
       assertTrue(data.starts.length === data.ends.length);
       assertTrue(data.starts.length === data.utids.length);
 
-      // Cache colors when data changes
+      // Cache render buffers when data changes
       const dataGeneration = data.starts.length + Number(data.resolution);
       if (dataGeneration !== this.lastCachedDataGeneration) {
-        this.cacheColors(data);
+        this.cacheRenderBuffers(data);
         this.lastCachedDataGeneration = dataGeneration;
       }
 

@@ -34,6 +34,7 @@ let cachedProgram:
       colorLoc: number;
       uvLoc: number;
       flagsLoc: number;
+      offsetLoc: number;
       resolutionLoc: WebGLUniformLocation;
       dprLoc: WebGLUniformLocation;
       spriteLoc: WebGLUniformLocation;
@@ -59,6 +60,7 @@ function ensureProgram(gl: WebGL2RenderingContext) {
     in vec4 a_color;
     in vec4 a_uv;  // (x0, y0, x1, y1) in atlas pixels - normalized in shader
     in uint a_flags;
+    in vec2 a_offset;  // Per-instance offset (track position)
 
     out vec4 v_color;
     out vec2 v_localPos;  // Position within the rect (for hatching)
@@ -71,9 +73,9 @@ function ensureProgram(gl: WebGL2RenderingContext) {
     uniform vec2 u_atlasSize;  // Atlas dimensions for UV normalization
 
     void main() {
-      // Compute pixel position from instance rect + quad corner
+      // Compute pixel position from instance rect + quad corner + offset
       vec2 localPos = a_quadCorner * a_rectSize * u_dpr;
-      vec2 pixelPos = a_rectPos * u_dpr + localPos;
+      vec2 pixelPos = (a_rectPos + a_offset) * u_dpr + localPos;
       vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
 
@@ -152,6 +154,7 @@ function ensureProgram(gl: WebGL2RenderingContext) {
     colorLoc: gl.getAttribLocation(program, 'a_color'),
     uvLoc: gl.getAttribLocation(program, 'a_uv'),
     flagsLoc: gl.getAttribLocation(program, 'a_flags'),
+    offsetLoc: gl.getAttribLocation(program, 'a_offset'),
     resolutionLoc: gl.getUniformLocation(program, 'u_resolution')!,
     dprLoc: gl.getUniformLocation(program, 'u_dpr')!,
     spriteLoc: gl.getUniformLocation(program, 'u_sprite')!,
@@ -187,6 +190,7 @@ export class WebGLRenderer {
   private colors: Float32Array; // r, g, b, a per rect
   private uvs: Float32Array; // u0, v0, u1, v1 per rect
   private flags: Uint32Array; // flags per rect (uint for alignment)
+  private offsets: Float32Array; // x, y offset per rect (track position)
   private rectCount = 0;
 
   // WebGL buffers
@@ -197,6 +201,7 @@ export class WebGLRenderer {
   private colorBuffer: WebGLBuffer;
   private uvBuffer: WebGLBuffer;
   private flagsBuffer: WebGLBuffer;
+  private offsetBuffer: WebGLBuffer;
 
   // Sprite atlas - built up during render cycle, uploaded on flush
   private spriteAtlas?: OffscreenCanvas;
@@ -217,6 +222,7 @@ export class WebGLRenderer {
     this.colors = new Float32Array(MAX_RECTS * 4);
     this.uvs = new Float32Array(MAX_RECTS * 4);
     this.flags = new Uint32Array(MAX_RECTS);
+    this.offsets = new Float32Array(MAX_RECTS * 2);
 
     // Create static unit quad: corners at (0,0), (1,0), (0,1), (1,1)
     const quadCorners = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
@@ -236,6 +242,7 @@ export class WebGLRenderer {
     this.colorBuffer = gl.createBuffer()!;
     this.uvBuffer = gl.createBuffer()!;
     this.flagsBuffer = gl.createBuffer()!;
+    this.offsetBuffer = gl.createBuffer()!;
   }
 
   // Add a sprite to the atlas. Returns a handle with pixel coordinates.
@@ -327,6 +334,89 @@ export class WebGLRenderer {
     );
   }
 
+  // Bulk draw rectangles by copying typed arrays directly into buffers.
+  // More efficient than calling drawRect() in a loop.
+  // - rectPos: Float32Array with x,y pairs (count * 2 floats), offset NOT applied
+  // - rectSize: Float32Array with w,h pairs (count * 2 floats)
+  // - colors: Float32Array with r,g,b,a (count * 4 floats, normalized 0-1)
+  // - count: number of rectangles to draw
+  // - flags: optional Uint32Array (count uints), defaults to 0
+  // - uvs: optional Float32Array (count * 4 floats), defaults to 0,0,1,1
+  drawRects(
+    rectPos: Float32Array,
+    rectSize: Float32Array,
+    colors: Float32Array,
+    count: number,
+    flags?: Uint32Array,
+    uvs?: Float32Array,
+  ): void {
+    let remaining = count;
+    let srcOffset = 0;
+
+    while (remaining > 0) {
+      const available = MAX_RECTS - this.rectCount;
+      if (available === 0) {
+        this.flush();
+        continue;
+      }
+
+      const batch = Math.min(remaining, available);
+      const dstOffset = this.rectCount;
+
+      // Copy rectPos directly (offset applied via uniform at flush time)
+      this.rectPos.set(
+        rectPos.subarray(srcOffset * 2, (srcOffset + batch) * 2),
+        dstOffset * 2,
+      );
+
+      // Copy rectSize directly
+      this.rectSize.set(
+        rectSize.subarray(srcOffset * 2, (srcOffset + batch) * 2),
+        dstOffset * 2,
+      );
+
+      // Copy colors directly
+      this.colors.set(
+        colors.subarray(srcOffset * 4, (srcOffset + batch) * 4),
+        dstOffset * 4,
+      );
+
+      // Copy flags or fill with zeros
+      if (flags) {
+        this.flags.set(flags.subarray(srcOffset, srcOffset + batch), dstOffset);
+      } else {
+        this.flags.fill(0, dstOffset, dstOffset + batch);
+      }
+
+      // Fill offsets with current offset value
+      for (let i = 0; i < batch; i++) {
+        const idx = (dstOffset + i) * 2;
+        this.offsets[idx + 0] = this.offset.x;
+        this.offsets[idx + 1] = this.offset.y;
+      }
+
+      // Copy uvs or fill with default (0, 0, 1, 1)
+      if (uvs) {
+        this.uvs.set(
+          uvs.subarray(srcOffset * 4, (srcOffset + batch) * 4),
+          dstOffset * 4,
+        );
+      } else {
+        for (let i = 0; i < batch; i++) {
+          const idx = (dstOffset + i) * 4;
+          this.uvs[idx + 0] = 0;
+          this.uvs[idx + 1] = 0;
+          this.uvs[idx + 2] = 1;
+          this.uvs[idx + 3] = 1;
+        }
+      }
+
+      this.rectCount += batch;
+      srcOffset += batch;
+      remaining -= batch;
+    }
+  }
+
   private addRect(
     x: number,
     y: number,
@@ -345,9 +435,9 @@ export class WebGLRenderer {
 
     const i = this.rectCount;
 
-    // Position (with offset baked in)
-    this.rectPos[i * 2 + 0] = x + this.offset.x;
-    this.rectPos[i * 2 + 1] = y + this.offset.y;
+    // Position (offset applied via uniform at flush time)
+    this.rectPos[i * 2 + 0] = x;
+    this.rectPos[i * 2 + 1] = y;
 
     // Size
     this.rectSize[i * 2 + 0] = w;
@@ -368,6 +458,10 @@ export class WebGLRenderer {
     // Flags
     this.flags[i] = flags;
 
+    // Offset
+    this.offsets[i * 2 + 0] = this.offset.x;
+    this.offsets[i * 2 + 1] = this.offset.y;
+
     this.rectCount++;
   }
 
@@ -385,6 +479,7 @@ export class WebGLRenderer {
       flagsLoc,
       resolutionLoc,
       dprLoc,
+      offsetLoc,
       spriteLoc,
       atlasSizeLoc,
     } = ensureProgram(gl);
@@ -492,6 +587,17 @@ export class WebGLRenderer {
     gl.vertexAttribIPointer(flagsLoc, 1, gl.UNSIGNED_INT, 0, 0);
     gl.vertexAttribDivisor(flagsLoc, 1);
 
+    // Per-instance: offset
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.offsetBuffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      this.offsets.subarray(0, this.rectCount * 2),
+      gl.DYNAMIC_DRAW,
+    );
+    gl.enableVertexAttribArray(offsetLoc);
+    gl.vertexAttribPointer(offsetLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(offsetLoc, 1);
+
     // Draw all rectangles with instanced rendering
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.drawElementsInstanced(
@@ -508,6 +614,7 @@ export class WebGLRenderer {
     gl.vertexAttribDivisor(colorLoc, 0);
     gl.vertexAttribDivisor(uvLoc, 0);
     gl.vertexAttribDivisor(flagsLoc, 0);
+    gl.vertexAttribDivisor(offsetLoc, 0);
 
     this.rectCount = 0;
   }
