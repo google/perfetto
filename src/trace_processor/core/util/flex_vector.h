@@ -144,6 +144,20 @@ class FlexVector {
   // Clears the vector, resetting its size to zero.
   void clear() { size_ = 0; }
 
+  // Resizes the vector to the specified size. If growing, new elements are
+  // uninitialized.
+  void resize(uint64_t new_size) {
+    if (new_size > capacity()) {
+      Slab<T> new_slab =
+          Slab<T>::Alloc(base::AlignUp(new_size, kCapacityMultiple));
+      if (size_ > 0) {
+        memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
+      }
+      slab_ = std::move(new_slab);
+    }
+    size_ = new_size;
+  }
+
   // Shrinks the memory allocated by the vector to be as small as possible while
   // still maintaining the invariants of the class.
   void shrink_to_fit() {
