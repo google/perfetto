@@ -51,7 +51,7 @@ class JitTrackerTest : public testing::Test {
  public:
   JitTrackerTest() : jit_tracker_(&context_) {
     context_.storage.reset(new TraceStorage());
-    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
+    context_.machine_tracker.reset(new MachineTracker(&context_, kDefaultMachineId));
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));

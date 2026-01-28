@@ -65,7 +65,8 @@ class SliceTrackerTest : public ::testing::Test {
     context_.storage = std::make_unique<TraceStorage>();
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
-    context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(context_.storage.get());
     context_.slice_translation_table =

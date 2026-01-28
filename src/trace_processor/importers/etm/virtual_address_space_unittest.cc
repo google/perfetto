@@ -58,7 +58,7 @@ tables::MmapRecordTable::ConstRowReference AddMapping(
 TEST(VirtualAddressSpaceTest, Empty) {
   TraceProcessorContext context;
   context.storage = std::make_unique<TraceStorage>();
-  context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
+  context.machine_tracker = std::make_unique<MachineTracker>(&context, kDefaultMachineId);
   VirtualAddressSpace vs = VirtualAddressSpace::Builder(&context).Build();
 
   EXPECT_THAT(vs.FindMapping(0, 5), IsNull());
@@ -67,7 +67,7 @@ TEST(VirtualAddressSpaceTest, Empty) {
 TEST(VirtualAddressSpaceTest, DisjointRanges) {
   TraceProcessorContext context;
   context.storage = std::make_unique<TraceStorage>();
-  context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
+  context.machine_tracker = std::make_unique<MachineTracker>(&context, kDefaultMachineId);
   auto builder = VirtualAddressSpace::Builder(&context);
   const UniquePid upid = 123;
 
@@ -91,7 +91,7 @@ TEST(VirtualAddressSpaceTest, DisjointRanges) {
 TEST(VirtualAddressSpaceTest, ComplexLayout) {
   TraceProcessorContext context;
   context.storage = std::make_unique<TraceStorage>();
-  context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
+  context.machine_tracker = std::make_unique<MachineTracker>(&context, kDefaultMachineId);
   auto builder = VirtualAddressSpace::Builder(&context);
   const UniquePid upid = 123;
 

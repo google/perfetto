@@ -32,7 +32,8 @@ class ClockConverterTest : public ::testing::Test {
  public:
   ClockConverterTest() {
     context_.storage.reset(new TraceStorage());
-    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
+    context_.machine_tracker.reset(
+        new MachineTracker(&context_, kDefaultMachineId));
   }
 
   TraceProcessorContext context_;

@@ -67,7 +67,8 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.register_additional_proto_modules = &RegisterAdditionalModules;
     context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
-    context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.metadata_tracker =
         std::make_unique<MetadataTracker>(context_.storage.get());
     context_.import_logs_tracker =

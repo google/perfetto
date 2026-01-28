@@ -121,7 +121,7 @@ void ClockSynchronizerListenerImpl::RecordConversionError(
 
 // Returns true if this is a local host, false otherwise.
 bool ClockSynchronizerListenerImpl::IsLocalHost() {
-  return context_->machine_id().value == 0;
+  return context_->machine_id() == MachineId(kDefaultMachineId);
 }
 
 }  // namespace perfetto::trace_processor

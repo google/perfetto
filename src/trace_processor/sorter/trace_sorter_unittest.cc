@@ -69,7 +69,8 @@ class TraceSorterTest : public ::testing::Test {
   TraceSorterTest() : test_buffer_(TraceBlob::Allocate(8)) {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
-    context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     CreateSorter();
   }
 

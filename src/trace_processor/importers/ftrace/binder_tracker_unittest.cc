@@ -40,7 +40,8 @@ class BinderTrackerTest : public ::testing::Test {
  public:
   BinderTrackerTest() {
     context.storage.reset(new TraceStorage());
-    context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
+    context.machine_tracker =
+        std::make_unique<MachineTracker>(&context, kDefaultMachineId);
     context.global_args_tracker.reset(
         new GlobalArgsTracker(context.storage.get()));
     context.args_translation_table.reset(

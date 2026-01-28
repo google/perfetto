@@ -64,7 +64,8 @@ class AndroidLogReaderTest : public ::testing::Test {
  public:
   AndroidLogReaderTest() {
     context_.storage = std::make_unique<TraceStorage>();
-    context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     std::unique_ptr<ClockSynchronizerListenerImpl> clock_tracker_listener =
         std::make_unique<ClockSynchronizerListenerImpl>(&context_);
     context_.clock_tracker =

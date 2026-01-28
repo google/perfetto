@@ -41,7 +41,8 @@ class SchedEventTrackerTest : public ::testing::Test {
  public:
   SchedEventTrackerTest() {
     context.storage = std::make_unique<TraceStorage>();
-    context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
+    context.machine_tracker =
+        std::make_unique<MachineTracker>(&context, kDefaultMachineId);
     context.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context.storage.get());
     context.event_tracker = std::make_unique<EventTracker>(&context);

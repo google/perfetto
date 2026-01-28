@@ -212,7 +212,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // using a different ProtoTraceReader instance. The packet will be parsed
   // in the context of the remote machine.
   if (PERFETTO_UNLIKELY(decoder.machine_id())) {
-    if (context_->machine_id().value == 0) {
+    if (context_->machine_id() == MachineId(kDefaultMachineId)) {
       auto [it, inserted] =
           machine_to_proto_readers_.Insert(decoder.machine_id(), nullptr);
       if (PERFETTO_UNLIKELY(inserted)) {
@@ -230,7 +230,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // Assert that the packet is parsed using the right instance of reader.
   // machine_id is set only for remote machines.
   PERFETTO_DCHECK(decoder.has_machine_id() ==
-                  (context_->machine_id().value != 0));
+                  (context_->machine_id() != MachineId(kDefaultMachineId)));
 
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto [scoped_state, inserted] = sequence_state_.Insert(seq_id, {});
@@ -274,7 +274,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_remote_clock_sync()) {
-    PERFETTO_DCHECK(context_->machine_id().value != 0);
+    PERFETTO_DCHECK(context_->machine_id() != MachineId(kDefaultMachineId));
     return ParseRemoteClockSync(decoder.remote_clock_sync());
   }
 

@@ -68,7 +68,7 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
  public:
   HeapProfileTrackerDupTest() {
     context.storage.reset(new TraceStorage());
-    context.machine_tracker.reset(new MachineTracker(&context, 0));
+    context.machine_tracker.reset(new MachineTracker(&context, kDefaultMachineId));
     context.mapping_tracker.reset(new MappingTracker(&context));
     context.stack_profile_tracker.reset(new StackProfileTracker(&context));
     sequence_state = PacketSequenceStateGeneration::CreateFirst(&context);
@@ -204,7 +204,7 @@ std::optional<CallsiteId> FindCallstack(const TraceStorage& storage,
 TEST(HeapProfileTrackerTest, SourceMappingPath) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
-  context.machine_tracker.reset(new MachineTracker(&context, 0));
+  context.machine_tracker.reset(new MachineTracker(&context, kDefaultMachineId));
   context.mapping_tracker.reset(new MappingTracker(&context));
   context.stack_profile_tracker.reset(new StackProfileTracker(&context));
   auto state = PacketSequenceStateGeneration::CreateFirst(&context);
@@ -239,7 +239,7 @@ TEST(HeapProfileTrackerTest, SourceMappingPath) {
 TEST(HeapProfileTrackerTest, Functional) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
-  context.machine_tracker.reset(new MachineTracker(&context, 0));
+  context.machine_tracker.reset(new MachineTracker(&context, kDefaultMachineId));
   context.mapping_tracker.reset(new MappingTracker(&context));
   context.stack_profile_tracker.reset(new StackProfileTracker(&context));
 

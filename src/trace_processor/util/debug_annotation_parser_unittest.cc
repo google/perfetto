@@ -64,7 +64,8 @@ class DebugAnnotationParserTest : public ::testing::Test,
  protected:
   DebugAnnotationParserTest() {
     context_.storage.reset(new TraceStorage());
-    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
+    context_.machine_tracker.reset(
+        new MachineTracker(&context_, kDefaultMachineId));
   }
 
   const std::vector<std::string>& args() const { return args_; }
