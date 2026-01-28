@@ -15,13 +15,15 @@
 // Simple WebGL rectangle renderer with an immediate-mode style API using
 // instanced rendering. Tracks call drawRect() in a tight loop, then flush()
 // renders all rectangles in a single draw call.
-// Also supports procedural chevron rendering via drawChevron().
+// Also supports SDF-based chevron rendering via drawChevron().
+
+import {createSDFTexture, generatePolygonSDF, Point2D} from './sdf';
 
 const MAX_RECTS = 10000; // Max rectangles per flush
 
 // Flag bits for drawRect options
 export const RECT_FLAG_HATCHED = 1; // Draw diagonal crosshatch pattern
-export const RECT_FLAG_CHEVRON = 2; // Draw upward-pointing chevron (procedural)
+export const RECT_FLAG_CHEVRON = 2; // Draw upward-pointing chevron (SDF-based)
 
 // Cached WebGL program (shared across all WebGLRenderer instances)
 let cachedProgram:
@@ -43,152 +45,34 @@ let cachedProgram:
 
 // SDF texture size - doesn't need to be large since SDF interpolates well
 const SDF_TEX_SIZE = 64;
+const SDF_SPREAD = 0.1;
 
-// Signed distance from point (px, py) to line segment (ax, ay) -> (bx, by)
-function sdSegment(
-  px: number,
-  py: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-): number {
-  const pax = px - ax,
-    pay = py - ay;
-  const bax = bx - ax,
-    bay = by - ay;
-  const h = Math.max(
-    0,
-    Math.min(1, (pax * bax + pay * bay) / (bax * bax + bay * bay)),
-  );
-  const dx = pax - bax * h,
-    dy = pay - bay * h;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-// Cross product of 2D vectors (returns scalar z-component)
-function cross2d(ax: number, ay: number, bx: number, by: number): number {
-  return ax * by - ay * bx;
-}
-
-// Signed distance to triangle (negative inside, positive outside)
-// Vertices must be in counter-clockwise order
-function sdTriangle(
-  px: number,
-  py: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  cx: number,
-  cy: number,
-): number {
-  // Distance to each edge
-  const d0 = sdSegment(px, py, ax, ay, bx, by);
-  const d1 = sdSegment(px, py, bx, by, cx, cy);
-  const d2 = sdSegment(px, py, cx, cy, ax, ay);
-  const dist = Math.min(d0, d1, d2);
-
-  // Determine sign using cross products
-  // In screen coords (Y down), winding is reversed from standard math coords
-  const c0 = cross2d(bx - ax, by - ay, px - ax, py - ay);
-  const c1 = cross2d(cx - bx, cy - by, px - bx, py - by);
-  const c2 = cross2d(ax - cx, ay - cy, px - cx, py - cy);
-
-  // Inside if all cross products have the same sign
-  const inside = (c0 >= 0 && c1 >= 0 && c2 >= 0) || (c0 <= 0 && c1 <= 0 && c2 <= 0);
-  return inside ? -dist : dist;
-}
-
-// Signed distance to chevron shape (union of two triangles)
-// Coordinates in normalized 0-1 space
-function sdChevron(px: number, py: number): number {
-  // Chevron vertices:
-  //        A (0.5, 0) - top center
-  //       / \
-  //      /   \
-  //     /     \
-  //    /   C   \  - C (0.5, 0.7) inner notch
-  //   /   / \   \
-  //  D---     ---B - D (0, 1) and B (1, 1) bottom corners
-  const ax = 0.5,
-    ay = 0;
-  const bx = 1,
-    by = 1;
-  const cx = 0.5,
-    cy = 0.7;
-  const dx = 0,
-    dy = 1;
-
-  // Two triangles (CCW winding): A-C-B (right arm) and A-D-C (left arm)
-  const d1 = sdTriangle(px, py, ax, ay, cx, cy, bx, by);
-  const d2 = sdTriangle(px, py, ax, ay, dx, dy, cx, cy);
-
-  // Union: min of the two SDFs
-  return Math.min(d1, d2);
-}
-
-// Create an SDF texture for the chevron shape
-function createChevronSDFTexture(gl: WebGL2RenderingContext): WebGLTexture {
-  const size = SDF_TEX_SIZE;
-  const data = new Uint8Array(size * size * 4);
-
-  // The SDF spread - how much distance (in normalized coords) maps to 0-1 range
-  // Larger = more gradual falloff, smaller = sharper
-  const spread = 0.1;
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      // Map pixel to normalized coordinates (0-1), sampling at pixel centers
-      const u = (x + 0.5) / size;
-      const v = (y + 0.5) / size;
-
-      // Get signed distance (negative inside, positive outside)
-      const dist = sdChevron(u, v);
-
-      // Normalize to 0-1 range: 0.5 = edge, <0.5 = inside, >0.5 = outside
-      // Scale by spread so we have enough precision near the edge
-      const normalized = Math.max(0, Math.min(1, dist / spread + 0.5));
-
-      const idx = (y * size + x) * 4;
-      data[idx + 0] = 255; // R
-      data[idx + 1] = 255; // G
-      data[idx + 2] = 255; // B
-      data[idx + 3] = Math.round(normalized * 255); // A = SDF value
-    }
-  }
-
-  const texture = gl.createTexture()!;
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    size,
-    size,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    data,
-  );
-
-  // Linear filtering is essential for SDF - it interpolates distance values smoothly
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-  return texture;
-}
+// Chevron shape vertices in normalized 0-1 coordinates:
+//        A (0.5, 0) - top center
+//       / \
+//      /   \
+//     /     \
+//    /   C   \  - C (0.5, 0.7) inner notch
+//   /   / \   \
+//  D---     ---B - D (0, 1) and B (1, 1) bottom corners
+const CHEVRON_VERTICES: readonly Point2D[] = [
+  {x: 0.5, y: 0}, // A - top
+  {x: 1, y: 1}, // B - bottom right
+  {x: 0.5, y: 0.7}, // C - inner notch
+  {x: 0, y: 1}, // D - bottom left
+];
 
 // Cached SDF texture (shared across all renderers for same GL context)
-let cachedSDFTexture: {gl: WebGL2RenderingContext; texture: WebGLTexture} | undefined;
+let cachedSDFTexture:
+  | {gl: WebGL2RenderingContext; texture: WebGLTexture}
+  | undefined;
 
 function ensureSDFTexture(gl: WebGL2RenderingContext): WebGLTexture {
   if (cachedSDFTexture?.gl === gl) {
     return cachedSDFTexture.texture;
   }
-  const texture = createChevronSDFTexture(gl);
+  const sdfData = generatePolygonSDF(CHEVRON_VERTICES, SDF_TEX_SIZE, SDF_SPREAD);
+  const texture = createSDFTexture(gl, sdfData, SDF_TEX_SIZE);
   cachedSDFTexture = {gl, texture};
   return texture;
 }
