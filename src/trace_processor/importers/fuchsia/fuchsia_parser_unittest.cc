@@ -177,8 +177,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
         std::make_unique<ImportLogsTracker>(&context_, 1);
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.metadata_tracker =
-        std::make_unique<MetadataTracker>(context_.storage.get());
+    context_.metadata_tracker = std::make_unique<MetadataTracker>(&context_);
     context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
     context_.cpu_tracker = std::make_unique<CpuTracker>(&context_);
     event_ = new MockEventTracker(&context_);

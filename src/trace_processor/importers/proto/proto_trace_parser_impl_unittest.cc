@@ -257,8 +257,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.stack_profile_tracker =
         std::make_unique<StackProfileTracker>(&context_);
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.metadata_tracker.reset(
-        new MetadataTracker(context_.storage.get()));
+    context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.machine_tracker.reset(new MachineTracker(&context_, 0));
     context_.cpu_tracker.reset(new CpuTracker(&context_));
     event_ = new MockEventTracker(&context_);
