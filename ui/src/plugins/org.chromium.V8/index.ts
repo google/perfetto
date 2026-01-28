@@ -14,9 +14,7 @@
 
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {V8RuntimeCallStatsTab} from './v8_runtime_call_stats_tab';
-
-const RCS_TAB_URI = 'org.chromium.V8#V8RuntimeCallStatsTab';
+import {RCS_TAB_URI, V8RuntimeCallStatsTab} from './v8_runtime_call_stats_tab';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.V8';
