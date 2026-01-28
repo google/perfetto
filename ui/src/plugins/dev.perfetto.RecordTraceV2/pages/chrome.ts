@@ -191,7 +191,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     if (this.fetchedRuntimeCategories) return;
     const runtimeCategories = await this.chromeCategoryGetter();
     this.hasActiveExtension = runtimeCategories.ok;
-    if (this.hasActiveExtension) {
+    if (this.hasActiveExtension && runtimeCategories.value) {
       this.initializeCategories(runtimeCategories.value);
     }
     this.fetchedRuntimeCategories = true;
