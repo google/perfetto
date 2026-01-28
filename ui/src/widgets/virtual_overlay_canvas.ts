@@ -220,6 +220,18 @@ export class VirtualOverlayCanvas
       }
     });
 
+    // Manually sync WebGL canvas size since the initial ResizeObserver callback
+    // fired before the listener was set (during VirtualCanvas construction).
+    if (this.webglCanvas && this.webglCtx) {
+      const canvasRect = virtualCanvas.canvasRect;
+      const dpr = window.devicePixelRatio;
+      this.webglCanvas.width = canvasRect.width * dpr;
+      this.webglCanvas.height = canvasRect.height * dpr;
+      this.webglCanvas.style.width = `${canvasRect.width}px`;
+      this.webglCanvas.style.height = `${canvasRect.height}px`;
+      this.webglCtx.viewport(0, 0, canvasRect.width * dpr, canvasRect.height * dpr);
+    }
+
     // Whenever the canvas changes size or moves around (e.g. when scrolling),
     // we'll need to trigger a re-render to keep canvas content aligned with the
     // DOM elements underneath.
