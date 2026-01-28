@@ -1,0 +1,113 @@
+.chart-container {
+  position: relative;
+  border: 1px solid var(--pf-color-border);
+  padding: 8px;
+  background: var(--pf-color-background);
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  transition: all 0.2s ease;
+}
+
+.chart-header.has-active-filter {
+  background: steelblue;
+  color: white;
+}
+
+.chart-title {
+  font-weight: bold;
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 400px;
+  display: block;
+}
+
+.chart-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.chart-actions button {
+  margin-right: 4px;
+}
+
+.in-dark-mode .chart-container {
+  --chart-color-primary: #ffffff;
+  --chart-color-secondary: #aaaaaa;
+  --chart-color-background: #222222;
+  --chart-color-grid: #444444;
+}
+
+.chart-container svg {
+  color: var(--pf-color-text-primary);
+
+  text {
+    fill: currentColor;
+  }
+
+  // Ensure path/line elements use currentColor by default if stroke is not set or set to currentColor
+  // Note: D3 often sets stroke attribute directly, so we rely on renderers using 'currentColor'
+}
+
+// Chart internal elements (tooltips, crosshairs, grids)
+.chart-tooltip,
+.chart-crosshair-tooltip {
+  position: absolute;
+  visibility: hidden;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.chart-crosshair-tooltip {
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+}
+
+.chart-crosshair {
+  pointer-events: none;
+
+  .crosshair-vertical,
+  .crosshair-horizontal {
+    stroke: #666;
+    stroke-width: 1px;
+    stroke-dasharray: 4, 4;
+  }
+}
+
+.crosshair-overlay {
+  fill: none;
+  pointer-events: all;
+}
+
+// Grid lines
+.grid {
+  pointer-events: none;
+
+  .domain {
+    display: none;
+  }
+
+  .tick line {
+    stroke: #e0e0e0;
+    stroke-opacity: 0.7;
+    stroke-dasharray: 2, 2;
+  }
+}
