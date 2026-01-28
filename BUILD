@@ -401,6 +401,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
+        ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
         ":src_trace_processor_perfetto_sql_intrinsics_operators_operators",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
@@ -611,6 +612,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
+        ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
         ":src_trace_processor_perfetto_sql_intrinsics_operators_operators",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
@@ -3173,6 +3175,17 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/intrinsics/functions/trees:trees
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
+    srcs = [
+        "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_from_table.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_from_table.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.h",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/intrinsics/functions:functions
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_functions_functions",
@@ -3765,6 +3778,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/std/trees:trees
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/table_conversion.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/time:time
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_time_time",
@@ -3886,6 +3907,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_slices_slices",
         ":src_trace_processor_perfetto_sql_stdlib_stack_trace_stack_trace",
         ":src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
+        ":src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
         ":src_trace_processor_perfetto_sql_stdlib_traced_traced",
         ":src_trace_processor_perfetto_sql_stdlib_v8_v8",
@@ -8191,6 +8213,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
+        ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
         ":src_trace_processor_perfetto_sql_intrinsics_operators_operators",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
@@ -8430,6 +8453,7 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
+        ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
         ":src_trace_processor_perfetto_sql_intrinsics_operators_operators",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
