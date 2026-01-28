@@ -81,7 +81,7 @@ const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   name: 'Virtual track scrolling',
   description: `[Experimental] Use virtual scrolling in the timeline view to
     improve performance on large traces.`,
-  defaultValue: false,
+  defaultValue: true,
 });
 
 // Snap-to-boundaries feature constants

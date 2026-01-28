@@ -500,8 +500,9 @@ numThreadsK
 cameraserver_rss_val (RcameraserverRssVal
 dma_val (RdmaVal
 value (Rvalue
-Æ
-5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"û
+«
+5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"à
+
 AndroidDisplayMetrics4
 total_duplicate_frames (RtotalDuplicateFrames6
 duplicate_frames_logged (RduplicateFramesLogged;
@@ -509,7 +510,9 @@ numThreadsK
 refresh_rate_switches (RrefreshRateSwitchesd
 refresh_rate_stats (26.perfetto.protos.AndroidDisplayMetrics.RefreshRateStatRrefreshRateStatse
 update_power_state (27.perfetto.protos.AndroidDisplayMetrics.UpdatePowerStateRupdatePowerStateL
-	dpu_state (2/.perfetto.protos.AndroidDisplayMetrics.DpuStateRdpuState‘
+	dpu_state (2/.perfetto.protos.AndroidDisplayMetrics.DpuStateRdpuStateR
+panel_state (21.perfetto.protos.AndroidDisplayMetrics.PanelStateR
+panelState‘
 RefreshRateStat(
 refresh_rate_fps (RrefreshRateFps
 count (Rcount 
@@ -524,7 +527,14 @@ avg_dur_ms (RavgDurMsM
 dpu_underrun_count (RdpuUnderrunCount­
 DpuState7
 total_dpu_underrun_count (RtotalDpuUnderrunCounth
-dpu_underrun_detail (28.perfetto.protos.AndroidDisplayMetrics.DpuUnderrunDetailRdpuUnderrunDetail
+dpu_underrun_detail (28.perfetto.protos.AndroidDisplayMetrics.DpuUnderrunDetailRdpuUnderrunDetailX
+DdicUnderrunDetail
+name (	Rname.
+ddic_underrun_count (RddicUnderrunCount´
+
+PanelState9
+total_ddic_underrun_count (RtotalDdicUnderrunCountk
+ddic_underrun_detail (29.perfetto.protos.AndroidDisplayMetrics.DdicUnderrunDetailRddicUnderrunDetail
 á
 5protos/perfetto/metrics/android/dma_heap_metric.protoperfetto.protos"–
 AndroidDmaHeapMetric$
@@ -775,8 +785,8 @@ maxRuntime
 totalCountc
 threshold_metric (28.perfetto.protos.AndroidIrqRuntimeMetric.ThresholdMetricRthresholdMetric_
 longest_irq_slices (21.perfetto.protos.AndroidIrqRuntimeMetric.IrqSliceRlongestIrqSlices
-¹
-5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¶
+Ø
+5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Õ
 AndroidJankCujMetric;
 cuj (2).perfetto.protos.AndroidJankCujMetric.CujRcuj¾
 Cuj
@@ -792,7 +802,7 @@ totalCountc
 timeline_metrics (2-.perfetto.protos.AndroidJankCujMetric.MetricsRtimelineMetricsR
 trace_metrics	 (2-.perfetto.protos.AndroidJankCujMetric.MetricsRtraceMetrics
 
-layer_name (	R	layerName¡
+layer_name (	R	layerNameÀ
 Frame!
 frame_number (RframeNumber
 vsync (Rvsync
@@ -801,7 +811,10 @@ layer_name (	R	layerName¡
 dur_expected (RdurExpected
 
 app_missed (R	appMissed
-	sf_missed (RsfMissed,
+	sf_missed (RsfMissed
+
+jank_score
+ (R	jankScore,
 sf_callback_missed (RsfCallbackMissed0
 hwui_callback_missed	 (RhwuiCallbackMissedû
 Metrics!
@@ -1529,7 +1542,7 @@ destBucket
 power_model_version (RpowerModelVersionL
 period_info (2+.perfetto.protos.AndroidWattsonEstimateInfoR
 periodInfo*
-is_crude_estimate (RisCrudeEstimate"­
+is_crude_estimate (RisCrudeEstimate"­
 AndroidWattsonEstimateInfo
 	period_id (RperiodId
 period_name (	R
@@ -1594,7 +1607,7 @@ $AndroidWattsonTasksAttributionMetric%
 power_model_version (RpowerModelVersionN
 period_info (2-.perfetto.protos.AndroidWattsonTaskPeriodInfoR
 periodInfo*
-is_crude_estimate (RisCrudeEstimate"¢
+is_crude_estimate (RisCrudeEstimate"¢
 AndroidWattsonTaskPeriodInfo
 	period_id (RperiodId
 period_name (	R

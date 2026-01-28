@@ -64,6 +64,7 @@ export class SlicesSourceNode implements QueryNode {
   clone(): QueryNode {
     const stateCopy: SlicesSourceState = {
       onchange: this.state.onchange,
+      trace: this.state.trace,
     };
     return new SlicesSourceNode(stateCopy);
   }

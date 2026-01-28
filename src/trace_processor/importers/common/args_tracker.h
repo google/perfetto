@@ -24,7 +24,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
@@ -84,15 +84,15 @@ class ArgsTracker {
     // track the next array index for an array under a specific key.
     size_t GetNextArrayEntryIndex(StringId key) {
       // Zero-initializes |key| in the map if it doesn't exist yet.
-      return args_tracker_
-          ->array_indexes_[std::make_tuple(ptr_, col_, row_, key)];
+      return args_tracker_->array_indexes_[std::make_tuple(
+          reinterpret_cast<uintptr_t>(ptr_), col_, row_, key)];
     }
 
     // Returns the next available array index after increment.
     size_t IncrementArrayEntryIndex(StringId key) {
       // Zero-initializes |key| in the map if it doesn't exist yet.
-      return ++args_tracker_
-                   ->array_indexes_[std::make_tuple(ptr_, col_, row_, key)];
+      return ++args_tracker_->array_indexes_[std::make_tuple(
+          reinterpret_cast<uintptr_t>(ptr_), col_, row_, key)];
     }
 
    protected:
@@ -300,7 +300,7 @@ class ArgsTracker {
   base::SmallVector<GlobalArgsTracker::Arg, 16> args_;
   TraceProcessorContext* context_ = nullptr;
 
-  using ArrayKeyTuple = std::tuple<void* /*ptr*/,
+  using ArrayKeyTuple = std::tuple<uintptr_t /*ptr*/,
                                    uint32_t /*col*/,
                                    uint32_t /*row*/,
                                    StringId /*key*/>;

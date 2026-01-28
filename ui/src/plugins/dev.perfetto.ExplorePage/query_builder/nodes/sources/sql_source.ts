@@ -81,8 +81,10 @@ class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
             if (canvas !== null) {
               canvas.focus();
             }
-            e.stopPropagation();
           }
+          // Stop propagation for all keyboard events to prevent them from
+          // reaching the graph (e.g., Delete/Backspace would delete the node)
+          e.stopPropagation();
         },
       },
       [
@@ -313,6 +315,9 @@ export class SqlSourceNode implements QueryNode {
       m(SqlEditor, {
         sql: this.state.sql ?? '',
         onUpdate: (text: string) => {
+          if (this.state.sql === text) {
+            return;
+          }
           this.state.sql = text;
           // Clear columns when SQL changes to prevent stale column usage
           this.finalCols = [];

@@ -16,6 +16,7 @@ import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {Registry} from '../base/registry';
 import {PageHandler, PageManager} from '../public/page';
+import {Analytics} from '../public/analytics';
 import {Router} from './router';
 import {Gate} from '../base/mithril_utils';
 
@@ -25,6 +26,13 @@ export class PageManagerImpl implements PageManager {
     string,
     {page: string; subpage: string}
   >();
+  // Track the current page for analytics - log when it changes
+  private currentPage: string | undefined;
+  private readonly analytics: Analytics;
+
+  constructor(analytics: Analytics) {
+    this.analytics = analytics;
+  }
 
   registerPage(pageHandler: PageHandler): Disposable {
     assertTrue(/^\/\w*$/.exec(pageHandler.route) !== null);
@@ -36,6 +44,13 @@ export class PageManagerImpl implements PageManager {
   // Called by index.ts upon the main frame redraw callback.
   renderPageForCurrentRoute(): m.Children {
     const route = Router.parseFragment(location.hash);
+
+    // Log page changes to analytics
+    if (this.currentPage !== route.page) {
+      this.currentPage = route.page;
+      setTimeout(() => this.analytics.logEvent('User Actions', route.page), 0);
+    }
+
     this.previousPages.set(route.page, {
       page: route.page,
       subpage: route.subpage,

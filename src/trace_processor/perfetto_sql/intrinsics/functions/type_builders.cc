@@ -63,7 +63,7 @@ inline void HashSqlValue(base::MurmurHashCombiner& h, const SqlValue& v) {
   h.Combine(v.type);
   switch (v.type) {
     case SqlValue::Type::kString:
-      h.Combine(v.AsString());
+      h.Combine(base::StringView(v.AsString()));
       break;
     case SqlValue::Type::kDouble:
       h.Combine(v.AsDouble());

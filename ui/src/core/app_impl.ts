@@ -70,7 +70,7 @@ export interface AppInitArgs {
 export class AppImpl implements App {
   readonly omnibox = new OmniboxManagerImpl();
   readonly commands = new CommandManagerImpl(this.omnibox);
-  readonly pages = new PageManagerImpl();
+  readonly pages: PageManagerImpl;
   readonly sidebar: SidebarManagerImpl;
   readonly plugins = new PluginManagerImpl();
   readonly perfDebugging = new PerfManager();
@@ -150,6 +150,7 @@ export class AppImpl implements App {
       this.embeddedMode,
       initArgs.analyticsSetting.get(),
     );
+    this.pages = new PageManagerImpl(this.analytics);
   }
 
   setActiveTrace(trace: TraceImpl) {

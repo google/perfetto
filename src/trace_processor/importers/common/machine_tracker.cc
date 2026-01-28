@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/common/machine_tracker.h"
 
+#include <cmath>
+
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
@@ -74,6 +76,11 @@ std::optional<MachineTable::RowReference> MachineTracker::getRow() {
   // Host machine has ID 0
   auto machine_id = machine_id_ ? *machine_id_ : MachineTable::Id(0);
   return machines.FindById(machine_id);
+}
+
+// static
+int64_t MachineTracker::BytesToGB(int64_t bytes) {
+  return static_cast<int64_t>(std::round(static_cast<double>(bytes) / 1e9));
 }
 
 }  // namespace perfetto::trace_processor

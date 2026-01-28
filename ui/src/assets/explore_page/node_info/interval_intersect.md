@@ -18,4 +18,10 @@
 
 **Intersection logic:** Two intervals overlap if `[ts1, ts1+dur1)` intersects with `[ts2, ts2+dur2)`. The output is the intersection `[max(ts1, ts2), min(ts1+dur1, ts2+dur2))`.
 
+**Source selection:** By default, the output `ts` and `dur` columns come from the intersection result (cut to intersection boundaries), and there is no `id` column since the intersection doesn't correspond to a single source row. You can change this to use the original values from a specific input instead:
+- **Intersection (no id):** Output `ts`/`dur` reflect the intersection boundaries, no `id` column (default)
+- **Input N:** Output `id`/`ts`/`dur` come from that input's original intervals
+
+This is useful when you want to filter intervals by overlap but preserve the original timing and identity from one of the sources.
+
 **NOTE:** This node does not support unfinished slices ("did not terminate"). They will be filtered out from the intersection.

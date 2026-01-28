@@ -27,8 +27,8 @@
 #include "src/profiling/symbolizer/llvm_symbolizer.h"
 #include "src/profiling/symbolizer/llvm_symbolizer_c_api.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/adhoc_dataframe_builder.h"
-#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/symbolization_input.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
@@ -73,8 +73,10 @@ struct Symbolize : public sqlite::Function<Symbolize> {
     std::vector<CT> col_types{
         CT::kString, CT::kString, CT::kInt64, CT::kInt64, CT::kInt64,
     };
-    dataframe::AdhocDataframeBuilder builder(col_names, user_data->pool,
-                                             col_types);
+    dataframe::AdhocDataframeBuilder builder(
+        col_names, user_data->pool,
+        dataframe::AdhocDataframeBuilder::Options{
+            col_types, dataframe::NullabilityType::kSparseNullWithPopcount});
 
     profiling::LlvmSymbolizer* symbolizer = &user_data->symbolizer;
 
