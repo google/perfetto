@@ -62,6 +62,10 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         'Not recommended unless you intend to share the trace' +
         ' with third-parties.',
     }),
+    v8Code: new Toggle({
+      title: 'Enable V8 Code Data Source',
+      descr: 'Log internal V8 state for profiling and low-level investigation.',
+    }),
     categories: new ChromeCategoriesWidget(chromeCategoryGetter, groupToggles),
   };
   return {
@@ -136,6 +140,12 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         const histogram = tc.addDataSource('org.chromium.histogram_sample');
         const histogramCfg = (histogram.chromiumHistogramSamples ??= {});
         histogramCfg.filterHistogramNames = privacyFilteringEnabled;
+      }
+      if (settings.v8Code.enabled) {
+        const v8DataSource = tc.addDataSource('dev.v8.code');
+        const v8Config = (v8DataSource.v8Config ??= {});
+        v8Config.logScriptSources = true;
+        v8Config.logInstructions = true;
       }
     },
   };
