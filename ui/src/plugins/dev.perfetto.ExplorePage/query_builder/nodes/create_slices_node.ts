@@ -621,14 +621,11 @@ export class CreateSlicesNode implements QueryNode {
       alias: computedColName,
     });
 
-    // Create temporary node wrapper to avoid fetching query twice
-    const tempNode: QueryNode = {
-      getStructuredQuery: () => query,
-    } as QueryNode;
-
+    // Pass the query directly (not wrapped in a node) so extractQueryId
+    // can get the ID from the proto object.
     const processedQuery =
       StructuredQueryBuilder.withSelectColumns(
-        tempNode,
+        query,
         allCols,
         undefined,
         `${this.nodeId}_${inputName}_computed`,

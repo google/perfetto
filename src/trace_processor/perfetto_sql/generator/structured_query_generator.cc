@@ -1629,8 +1629,9 @@ base::StatusOr<std::string> StructuredQueryGenerator::GenerateById(
   return Generate(ptr->data.get(), ptr->size);
 }
 
-base::Status StructuredQueryGenerator::AddQuery(const uint8_t* data,
-                                                size_t size) {
+base::StatusOr<std::string> StructuredQueryGenerator::AddQuery(
+    const uint8_t* data,
+    size_t size) {
   protozero::ProtoDecoder decoder(data, size);
   auto field = decoder.FindField(
       protos::pbzero::PerfettoSqlStructuredQuery::kIdFieldNumber);
@@ -1648,7 +1649,7 @@ base::Status StructuredQueryGenerator::AddQuery(const uint8_t* data,
     return base::ErrStatus("Multiple shared queries specified with the ids %s",
                            id.c_str());
   }
-  return base::OkStatus();
+  return id;
 }
 
 std::vector<std::string> StructuredQueryGenerator::ComputeReferencedModules()

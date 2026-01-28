@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,42 +18,44 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
-import {optimizationsTrack} from './optimizations';
 import {Time} from '../../base/time';
 import {App} from '../../public/app';
 import {RouteArgs} from '../../public/route_schema';
 
-const STARTUP_TRACK_URI = '/android_startups';
-const BREAKDOWN_TRACK_URI = '/android_startups_breakdown';
+const ANR_TRACK_URI = '/android_anrs';
 
-interface StartupArgs {
+interface AnrArgs {
+  processName?: string;
   packageName?: string;
-  startupId?: number;
-  autoSelect?: boolean; // true if the base plugin id 'com.android.AndroidStartup' is present in the route args
+  errorId?: string;
+  autoSelect?: boolean; // true if the base plugin id 'com.android.AndroidAnr' is present in the route args
 }
 
-function getStartupArgsFromRouteArgs(args: RouteArgs): StartupArgs {
-  const tempArgs: StartupArgs = {autoSelect: false};
+function getAnrArgsFromRouteArgs(args: RouteArgs): AnrArgs {
+  const tempArgs: AnrArgs = {autoSelect: false};
 
-  const baseKey = AndroidStartup.id;
+  const baseKey = AndroidAnr.id;
+  const processNameKey = baseKey + '.processName';
+  const errorIdKey = baseKey + '.errorId';
   const packageNameKey = baseKey + '.packageName';
-  const startupIdKey = baseKey + '.startupId';
+
+  const processName = args[processNameKey];
+  if (typeof processName === 'string') {
+    tempArgs.processName = processName;
+  }
 
   const packageName = args[packageNameKey];
   if (typeof packageName === 'string') {
     tempArgs.packageName = packageName;
   }
 
-  const startupId = args[startupIdKey];
-  if (typeof startupId === 'string') {
-    const numStartupId = Number(startupId);
-    if (!isNaN(numStartupId) && Number.isInteger(numStartupId)) {
-      tempArgs.startupId = numStartupId;
-    }
+  const errorId = args[errorIdKey];
+  if (typeof errorId === 'string') {
+    tempArgs.errorId = errorId;
   }
 
-  // Default behaviour: if the flag '${AndroidStartup.id}' is the ONLY argument
-  // then auto-select the last startup.
+  // Default behaviour: if the flag '${AndroidAnr.id}' is the ONLY argument
+  // then auto-select the last ANR.
   if (args.hasOwnProperty(baseKey)) {
     tempArgs.autoSelect = true;
   }
@@ -61,68 +63,32 @@ function getStartupArgsFromRouteArgs(args: RouteArgs): StartupArgs {
   return tempArgs;
 }
 
-let startupArgs: StartupArgs;
+let anrArgs: AnrArgs;
 
-export default class AndroidStartup implements PerfettoPlugin {
-  static readonly id = 'com.android.AndroidStartup';
+export default class AndroidAnr implements PerfettoPlugin {
+  static readonly id = 'com.android.AndroidAnr';
 
   static onActivate(app: App): void {
     const args: RouteArgs = app.initialRouteArgs;
-    startupArgs = getStartupArgsFromRouteArgs(args);
+    anrArgs = getAnrArgsFromRouteArgs(args);
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`
-      include perfetto module android.startup.startups;
+      include perfetto module android.anrs;
     `);
 
-    const cnt = await e.query('select count() cnt from android_startups');
+    const cnt = await e.query('select count() cnt from android_anrs');
     if (cnt.firstRow({cnt: LONG}).cnt === 0n) {
       return;
     }
 
-    await e.query(`
-      include perfetto module android.startup.startup_breakdowns;
-    `);
-
     ctx.tracks.registerTrack({
-      uri: STARTUP_TRACK_URI,
+      uri: ANR_TRACK_URI,
       renderer: await SliceTrack.createMaterialized({
         trace: ctx,
-        uri: STARTUP_TRACK_URI,
-        dataset: new SourceDataset({
-          schema: {
-            id: NUM,
-            ts: LONG,
-            dur: LONG_NULL,
-            name: STR,
-          },
-          src: `
-            SELECT
-              startup_id AS id,
-              ts,
-              dur,
-              package AS name
-            FROM android_startups
-          `,
-        }),
-      }),
-    });
-
-    // Needs a sort order lower than 'Ftrace Events' so that it is prioritized in the UI.
-    const startupTrack = new TrackNode({
-      name: 'Android App Startups',
-      uri: STARTUP_TRACK_URI,
-      sortOrder: -6,
-    });
-    ctx.defaultWorkspace.addChildInOrder(startupTrack);
-
-    ctx.tracks.registerTrack({
-      uri: BREAKDOWN_TRACK_URI,
-      renderer: await SliceTrack.createMaterialized({
-        trace: ctx,
-        uri: BREAKDOWN_TRACK_URI,
+        uri: ANR_TRACK_URI,
         dataset: new SourceDataset({
           schema: {
             ts: LONG,
@@ -131,44 +97,42 @@ export default class AndroidStartup implements PerfettoPlugin {
           },
           src: `
             SELECT
-              ts,
-              dur,
-              reason AS name
-            FROM android_startup_opinionated_breakdown
+              ts - coalesce(anr_dur_ms, default_anr_dur_ms) * 1000000 AS ts,
+              coalesce(anr_dur_ms, default_anr_dur_ms) * 1000000 AS dur,
+              process_name || ': ' || anr_type AS name
+            FROM android_anrs
           `,
         }),
       }),
     });
 
     // Needs a sort order lower than 'Ftrace Events' so that it is prioritized in the UI.
-    const breakdownTrack = new TrackNode({
-      name: 'Android App Startups Breakdown',
-      uri: BREAKDOWN_TRACK_URI,
+    const anrTrack = new TrackNode({
+      name: 'Android ANRs',
+      uri: ANR_TRACK_URI,
       sortOrder: -6,
     });
-    startupTrack.addChildLast(breakdownTrack);
+    ctx.defaultWorkspace.addChildInOrder(anrTrack);
 
-    const optimizations = await optimizationsTrack(ctx);
-    if (optimizations) {
-      startupTrack.addChildLast(optimizations);
-    }
-
-    await this.selectStartupMainThread(ctx, startupArgs);
+    await this.selectAnrMainThread(ctx, anrArgs);
   }
 
-  private async selectStartupMainThread(ctx: Trace, args: StartupArgs) {
+  private async selectAnrMainThread(ctx: Trace, args: AnrArgs) {
     const e = ctx.engine;
 
     const whereFilters = [];
-    if (args.packageName !== undefined) {
-      whereFilters.push(`s.package = '${args.packageName}'`);
+    if (args.processName !== undefined) {
+      whereFilters.push(`anr.process_name = '${args.processName}'`);
     }
-    if (args.startupId !== undefined) {
-      whereFilters.push(`s.startup_id = ${args.startupId}`);
+    if (args.packageName !== undefined) {
+      whereFilters.push(`apm.package_name = '${args.packageName}'`);
+    }
+    if (args.errorId !== undefined) {
+      whereFilters.push(`anr.error_id = '${args.errorId}'`);
     }
 
-    // Order by descending ts to get the last startup first
-    const orderByClause = 'ORDER BY s.ts DESC';
+    // Order by descending ts to get the last anr first
+    const orderByClause = 'ORDER BY anr.ts DESC';
     let whereClause = '';
 
     if (whereFilters.length > 0) {
@@ -180,17 +144,21 @@ export default class AndroidStartup implements PerfettoPlugin {
       return;
     }
 
+    await e.query(`
+      include perfetto module android.process_metadata;
+    `);
+
     const query = `
       SELECT
-        s.ts,
-        s.dur,
+        anr.ts - coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS ts,
+        coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS dur,
         tt.id AS main_thread_track_id
       FROM
-        android_startups s
+        android_anrs anr
       JOIN
-        android_startup_processes p ON s.startup_id = p.startup_id
+        android_process_metadata apm ON anr.upid = apm.upid
       JOIN
-        thread t ON p.upid = t.upid
+        thread t ON anr.upid = t.upid
       JOIN
         thread_track tt ON t.utid = tt.utid
       ${whereClause}
@@ -208,20 +176,20 @@ export default class AndroidStartup implements PerfettoPlugin {
       return;
     }
 
-    const startupInfo = {
+    const anrInfo = {
       ts: it.ts,
       dur: it.dur ?? 0n, // Default duration to 0 if null
       mainThreadTrackId: it.main_thread_track_id,
     };
 
-    // 1. Pin the Android Startups track first.
-    const trackNode = ctx.currentWorkspace.getTrackByUri(STARTUP_TRACK_URI);
+    // 1. Pin the Android ANRs track first.
+    const trackNode = ctx.currentWorkspace.getTrackByUri(ANR_TRACK_URI);
     if (trackNode) {
       trackNode.pin();
     }
 
-    const startTime = Time.fromRaw(BigInt(startupInfo.ts));
-    const endTime = Time.fromRaw(BigInt(startupInfo.ts + startupInfo.dur));
+    const startTime = Time.fromRaw(BigInt(anrInfo.ts));
+    const endTime = Time.fromRaw(BigInt(anrInfo.ts + anrInfo.dur));
 
     ctx.onTraceReady.addListener(async () => {
       // Find the main thread track by its track ID via the track tags.
@@ -231,9 +199,7 @@ export default class AndroidStartup implements PerfettoPlugin {
             return false;
           }
           const trackDesc = ctx.tracks.getTrack(track.uri);
-          return trackDesc?.tags?.trackIds?.includes(
-            startupInfo.mainThreadTrackId,
-          );
+          return trackDesc?.tags?.trackIds?.includes(anrInfo.mainThreadTrackId);
         },
       );
 
@@ -249,7 +215,7 @@ export default class AndroidStartup implements PerfettoPlugin {
           expandGroup: true,
         },
         time:
-          startupInfo.dur > 0n
+          anrInfo.dur > 0n
             ? {
                 start: startTime,
                 end: endTime,
