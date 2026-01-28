@@ -117,12 +117,11 @@ export class GateDetector implements m.ClassComponent<GateDetectorAttrs> {
     this.dom = vnode.dom;
 
     // Find closest Gate wrapper using data attribute
-    this.gateElement = (vnode.dom as HTMLElement).closest(
-      '[data-gate-open]',
-    ) as HTMLElement | undefined;
+    const gateElem = this.dom.closest('[data-gate-open]') ?? undefined;
+    this.gateElement = gateElem as HTMLElement | undefined;
     if (!this.gateElement) return;
 
-    this.observer = new MutationObserver(() => this.checkVisibility());
+    this.observer = new MutationObserver(this.checkVisibility.bind(this));
     this.observer.observe(this.gateElement, {
       attributes: true,
       attributeFilter: ['data-gate-open'],
