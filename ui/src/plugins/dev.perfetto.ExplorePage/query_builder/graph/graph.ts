@@ -848,25 +848,16 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           // WASD keyboard panning
           // Use KeyboardEvent.code for physical key position (layout-independent)
           const PAN_STEP = 50;
-          if (e.code === 'KeyW' && this.nodeGraphApi) {
-            this.nodeGraphApi.panBy(0, PAN_STEP);
+          const panMap: Record<string, [number, number]> = {
+            KeyW: [0, PAN_STEP],
+            KeyA: [PAN_STEP, 0],
+            KeyS: [0, -PAN_STEP],
+            KeyD: [-PAN_STEP, 0],
+          };
+          const pan = panMap[e.code];
+          if (pan !== undefined && this.nodeGraphApi !== null) {
+            this.nodeGraphApi.panBy(pan[0], pan[1]);
             e.preventDefault();
-            return;
-          }
-          if (e.code === 'KeyA' && this.nodeGraphApi) {
-            this.nodeGraphApi.panBy(PAN_STEP, 0);
-            e.preventDefault();
-            return;
-          }
-          if (e.code === 'KeyS' && this.nodeGraphApi) {
-            this.nodeGraphApi.panBy(0, -PAN_STEP);
-            e.preventDefault();
-            return;
-          }
-          if (e.code === 'KeyD' && this.nodeGraphApi) {
-            this.nodeGraphApi.panBy(-PAN_STEP, 0);
-            e.preventDefault();
-            return;
           }
         },
       },
