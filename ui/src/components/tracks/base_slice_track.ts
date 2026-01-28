@@ -732,9 +732,6 @@ export abstract class BaseSliceTrack<
 
     const slicesKey = rawSlicesKey.normalize();
 
-    // Defer to idle time before starting the query.
-    let idle = await deferToBackground();
-
     // The mipmap virtual table will error out when passed a 0 length time span.
     const resolution = slicesKey.bucketSize;
     const extraCols = this.extraSqlColumns.join(',');
@@ -755,6 +752,8 @@ export abstract class BaseSliceTrack<
       ) z
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
+
+    let idle = await deferToBackground();
 
     // Iterate over results, yielding to idle callbacks when time runs out.
     // Check every 100 iterations to amortize the cost of timeRemaining().
