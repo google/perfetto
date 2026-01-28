@@ -175,7 +175,7 @@ CREATE PERFETTO VIEW thread (
   is_main_thread BOOL,
   -- Boolean indicating if this thread is a kernel idle thread.
   is_idle BOOL,
-  -- Machine identifier, 0 for the host machine.
+  -- Machine identifier
   machine_id LONG,
   -- Extra args for this thread.
   arg_set_id ARGSETID
@@ -219,7 +219,7 @@ CREATE PERFETTO VIEW process (
   cmdline STRING,
   -- Extra args for this process.
   arg_set_id ARGSETID,
-  -- Machine identifier, 0 for the host machine.
+  -- Machine identifier
   machine_id LONG
 ) AS
 SELECT

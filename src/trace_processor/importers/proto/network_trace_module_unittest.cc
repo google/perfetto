@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -66,7 +67,7 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.register_additional_proto_modules = &RegisterAdditionalModules;
     context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
-    storage_ = context_.storage.get();
+    context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
     context_.metadata_tracker =
         std::make_unique<MetadataTracker>(context_.storage.get());
     context_.import_logs_tracker =

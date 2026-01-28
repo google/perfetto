@@ -248,6 +248,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.register_additional_proto_modules = &RegisterAdditionalModules;
     storage_ = new TraceStorage();
     context_.storage.reset(storage_);
+    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
@@ -259,7 +260,6 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker.reset(
         new MetadataTracker(context_.storage.get()));
-    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
     context_.cpu_tracker.reset(new CpuTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);

@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -67,6 +68,7 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
  public:
   HeapProfileTrackerDupTest() {
     context.storage.reset(new TraceStorage());
+    context.machine_tracker.reset(new MachineTracker(&context, 0));
     context.mapping_tracker.reset(new MappingTracker(&context));
     context.stack_profile_tracker.reset(new StackProfileTracker(&context));
     sequence_state = PacketSequenceStateGeneration::CreateFirst(&context);
@@ -202,6 +204,7 @@ std::optional<CallsiteId> FindCallstack(const TraceStorage& storage,
 TEST(HeapProfileTrackerTest, SourceMappingPath) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(new MachineTracker(&context, 0));
   context.mapping_tracker.reset(new MappingTracker(&context));
   context.stack_profile_tracker.reset(new StackProfileTracker(&context));
   auto state = PacketSequenceStateGeneration::CreateFirst(&context);
@@ -236,6 +239,7 @@ TEST(HeapProfileTrackerTest, SourceMappingPath) {
 TEST(HeapProfileTrackerTest, Functional) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(new MachineTracker(&context, 0));
   context.mapping_tracker.reset(new MappingTracker(&context));
   context.stack_profile_tracker.reset(new StackProfileTracker(&context));
 

@@ -17,7 +17,7 @@
 CREATE PERFETTO TABLE android_device_name (
   -- Device name.
   name STRING,
-  -- Machine identifier, 0 for the host machine.
+  -- Machine identifier
   machine_id LONG
 ) AS
 WITH

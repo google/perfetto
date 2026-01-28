@@ -52,6 +52,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
  public:
   ProtoTraceReaderTest() {
     context_.storage = std::make_unique<TraceStorage>();
+    std::make_unique<MachineTracker>(&context_, 0);
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, 0x1001);
     context_.global_args_tracker =
