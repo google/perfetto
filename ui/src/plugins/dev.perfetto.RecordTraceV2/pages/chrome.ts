@@ -203,7 +203,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
       }))
       .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
-    console.log(this.options);
   }
 
   getEnabledCategories(): string[] {
