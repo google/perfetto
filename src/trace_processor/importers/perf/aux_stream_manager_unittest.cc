@@ -39,7 +39,8 @@ namespace {
 std::unique_ptr<TraceProcessorContext> CreateTraceProcessorContext() {
   auto ctx = std::make_unique<TraceProcessorContext>();
   ctx->storage = std::make_unique<TraceStorage>();
-  ctx->machine_tracker = std::make_unique<MachineTracker>(ctx.get(), kDefaultMachineId);
+  ctx->machine_tracker =
+      std::make_unique<MachineTracker>(ctx.get(), kDefaultMachineId);
   return ctx;
 }
 

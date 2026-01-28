@@ -88,12 +88,12 @@ perfetto_unittest_source_set("unittests") {
   sources = [ "virtual_address_space_unittest.cc" ]
   deps = [
     ":etm",
-    "../common",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../base",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
+    "../common",
   ]
 }

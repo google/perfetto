@@ -87,7 +87,8 @@ class ExportJsonTest : public ::testing::Test {
  public:
   ExportJsonTest() {
     context_.storage.reset(new TraceStorage());
-    context_.machine_tracker.reset(new MachineTracker(&context_, kDefaultMachineId));
+    context_.machine_tracker.reset(
+        new MachineTracker(&context_, kDefaultMachineId));
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
     context_.event_tracker.reset(new EventTracker(&context_));

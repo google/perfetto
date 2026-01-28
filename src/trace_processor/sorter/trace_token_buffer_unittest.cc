@@ -37,7 +37,8 @@ class TraceTokenBufferUnittest : public testing::Test {
  public:
   TraceTokenBufferUnittest() {
     context.storage.reset(new TraceStorage());
-    context.machine_tracker.reset(new MachineTracker(&context, kDefaultMachineId));
+    context.machine_tracker.reset(
+        new MachineTracker(&context, kDefaultMachineId));
     state = PacketSequenceStateGeneration::CreateFirst(&context);
   }
 
