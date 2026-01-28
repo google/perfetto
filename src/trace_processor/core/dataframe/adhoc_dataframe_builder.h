@@ -280,6 +280,13 @@ class AdhocDataframeBuilder {
     if (!state.storage) {
       // No storage yet - create appropriate storage for this type.
       state.storage = Storage{FlexVec{}};
+      // For DenseNull, if there were prior nulls pushed before we knew the
+      // type, we need to add placeholder values for them now.
+      if (state.null_overlay &&
+          state.nullability_type == NullabilityType::kDenseNull) {
+        state.storage->unchecked_get<TypeTag>().push_back_multiple(
+            T{}, static_cast<uint32_t>(state.null_overlay->size()));
+      }
       state.storage->unchecked_get<TypeTag>().push_back_multiple(value, count);
     } else if (state.storage->type().Is<TypeTag>()) {
       // Same type - push directly.
