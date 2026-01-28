@@ -29,11 +29,18 @@ import {
 } from '../../../widgets/multiselect';
 import {Chip} from '../../../widgets/chip';
 import {Result} from '../../../base/result';
+import {Icons} from '../../../base/semantic_icons';
+import {Intent} from '../../../widgets/common';
+import {TargetPlatformId} from '../interfaces/target_platform';
+import {Callout} from '../../../widgets/callout';
+import {Anchor} from '../../../widgets/anchor';
 
 type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
+type PlatformGetter = () => TargetPlatformId;
 
 export function chromeRecordSection(
   chromeCategoryGetter: ChromeCatFunction,
+  platformGetter: PlatformGetter,
 ): RecordSubpage {
   return {
     kind: 'PROBES_PAGE',
@@ -41,11 +48,14 @@ export function chromeRecordSection(
     title: 'Chrome browser',
     subtitle: 'Chrome tracing',
     icon: 'laptop_chromebook',
-    probes: [chromeProbe(chromeCategoryGetter)],
+    probes: [chromeProbe(chromeCategoryGetter, platformGetter)],
   };
 }
 
-function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
+function chromeProbe(
+  chromeCategoryGetter: ChromeCatFunction,
+  platformGetter: PlatformGetter,
+): RecordProbe {
   const groupToggles = Object.fromEntries(
     Object.entries(GROUPS).map(([groupName, categories]) => [
       groupName,
@@ -62,7 +72,11 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         'Not recommended unless you intend to share the trace' +
         ' with third-parties.',
     }),
-    categories: new ChromeCategoriesWidget(chromeCategoryGetter, groupToggles),
+    categories: new ChromeCategoriesWidget(
+      chromeCategoryGetter,
+      platformGetter,
+      groupToggles,
+    ),
   };
   return {
     id: 'chrome_tracing',
@@ -146,9 +160,11 @@ const DISABLED_PREFIX = 'disabled-by-default-';
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private fetchedRuntimeCategories = false;
+  private extensionMissing = false;
 
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
+    private platformGetter: PlatformGetter,
     private groupToggles: Record<string, Toggle>,
   ) {
     // Initialize first with the static list of builtin categories (in case
@@ -176,9 +192,12 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     const runtimeCategories = await this.chromeCategoryGetter();
     if (runtimeCategories.ok) {
       this.initializeCategories(runtimeCategories.value);
-      m.redraw();
+      this.extensionMissing = false;
+    } else {
+      this.extensionMissing = true;
     }
     this.fetchedRuntimeCategories = true;
+    m.redraw();
   }
 
   private initializeCategories(descriptor: protos.TrackEventDescriptor) {
@@ -240,7 +259,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
 
     const activeCategories = Array.from(this.getIncludedCategories()).sort();
     return m(
-      'div',
+      'div.chrome-probe',
       {
         // This shouldn't be necessary in most cases. It's only needed:
         // 1. The first time the user installs the extension.
@@ -248,6 +267,25 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
+      this.extensionMissing &&
+        this.platformGetter() === 'CHROME' &&
+        m(
+          Callout,
+          {
+            intent: Intent.Warning,
+            icon: Icons.Warning,
+          },
+          'The Perfetto Tracing extension is not installed or disabled. ',
+          'Please install it to display the complete tracing settings: ',
+          m(
+            Anchor,
+            {
+              href: 'https://g.co/chrome/tracing-extension',
+              target: '_blank',
+            },
+            'https://g.co/chrome/tracing-extension',
+          ),
+        ),
       m(
         'div.chrome-categories',
         m(
