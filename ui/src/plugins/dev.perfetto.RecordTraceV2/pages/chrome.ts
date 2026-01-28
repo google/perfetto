@@ -257,9 +257,13 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   private initializeCategories(descriptor: protos.TrackEventDescriptor) {
+    // TODO(cbruni) Remove once extension is updated and redeployed.
+    const uniqueCategoryNames = new Set();
     for (const cat of descriptor.availableCategories) {
       const name = cat.name;
       if (typeof name !== 'string' || !name) continue;
+      if (uniqueCategoryNames.has(name)) continue;
+      uniqueCategoryNames.add(name);
       const option: MultiSelectOption = {
         id: name,
         name: name.replace(DISABLED_PREFIX, ''),
