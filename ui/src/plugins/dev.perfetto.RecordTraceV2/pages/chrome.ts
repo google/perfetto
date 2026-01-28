@@ -182,7 +182,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   private initializeCategories(descriptor: protos.TrackEventDescriptor) {
-    console.log(descriptor.availableCategories);
     // TODO(cbruni) Remove once extension is updated and redeployed.
     const uniqueCategoryNames = new Set();
     this.options = descriptor.availableCategories
