@@ -28,11 +28,12 @@ import {Query, QueryNode} from '../query_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {findErrors} from './query_builder_utils';
+import {findErrors, isAQuery} from './query_builder_utils';
 import {UIFilter, normalizeDataGridFilter} from './operations/filter';
 import {DataExplorerEmptyState} from './widgets';
 import {Trace} from '../../../public/trace';
 import {Timestamp} from '../../../components/widgets/timestamp';
+import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
@@ -67,6 +68,7 @@ export interface DataExplorerAttrs {
   readonly query?: Query | Error;
   readonly response?: QueryResponse;
   readonly dataSource?: DataSource;
+  readonly sqlModules: SqlModules;
   readonly isQueryRunning: boolean;
   readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
@@ -273,6 +275,9 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     // invalid column names). These are stored separately from validation errors
     // so they survive validate() calls during rendering.
     if (attrs.node.state.issues?.executionError) {
+      // Get the SQL that caused the error (query is preserved during error)
+      const failingSql = isAQuery(attrs.query) ? attrs.query.sql : undefined;
+
       return m(
         DataExplorerEmptyState,
         {
@@ -280,16 +285,34 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           variant: 'warning',
           title: attrs.node.state.issues.executionError.message,
         },
-        m(Button, {
-          label: 'Retry',
-          icon: 'refresh',
-          intent: Intent.Primary,
-          onclick: () => {
-            // Clear the execution error and re-run the query
-            attrs.node.state.issues?.clearExecutionError();
-            attrs.onExecute();
-          },
-        }),
+        [
+          // Show the failing SQL if available
+          failingSql &&
+            m('.pf-failing-sql', [
+              m('.pf-failing-sql__header', [
+                m('.pf-failing-sql__label', 'Failed SQL:'),
+                m(Button, {
+                  icon: 'content_copy',
+                  compact: true,
+                  title: 'Copy SQL to clipboard',
+                  onclick: () => {
+                    navigator.clipboard.writeText(failingSql);
+                  },
+                }),
+              ]),
+              m('pre.pf-failing-sql__code', failingSql),
+            ]),
+          m(Button, {
+            label: 'Retry',
+            icon: 'refresh',
+            intent: Intent.Primary,
+            onclick: () => {
+              // Clear the execution error and re-run the query
+              attrs.node.state.issues?.clearExecutionError();
+              attrs.onExecute();
+            },
+          }),
+        ],
       );
     }
 
@@ -345,8 +368,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       const columnSchema: ColumnSchema = {};
       const schema: SchemaRegistry = {data: columnSchema};
 
-      // Get sqlModules from node state (if available)
-      const {sqlModules} = attrs.node.state;
+      // Get sqlModules from attrs (centralized, not from node state)
+      const {sqlModules} = attrs;
 
       // Capture columns for use in closures
       const responseColumns = attrs.response.columns;

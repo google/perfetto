@@ -37,7 +37,9 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
@@ -54,6 +56,28 @@ namespace perfetto::trace_processor {
 
 namespace {
 constexpr char kDeinternError[] = "STRING DE-INTERNING ERROR";
+
+// Helper to extract uint32 values via Cell() callback.
+struct Uint32CellExtractor : dataframe::CellCallback {
+  std::optional<uint32_t> result;
+  void OnCell(int64_t) {}
+  void OnCell(double) {}
+  void OnCell(NullTermStringView) {}
+  void OnCell(std::nullptr_t) { result = std::nullopt; }
+  void OnCell(uint32_t v) { result = v; }
+  void OnCell(int32_t) {}
+};
+
+// Helper to extract int64 values via Cell() callback.
+struct Int64CellExtractor : dataframe::CellCallback {
+  int64_t result = 0;
+  void OnCell(int64_t v) { result = v; }
+  void OnCell(double) {}
+  void OnCell(NullTermStringView) {}
+  void OnCell(std::nullptr_t) {}
+  void OnCell(uint32_t) {}
+  void OnCell(int32_t) {}
+};
 
 // Interned data stored in table with columns:
 // - base64_proto_id
@@ -259,10 +283,9 @@ base::Status InsertRows(
   std::unordered_set<uint32_t> inflated_protos;
   std::unordered_map<uint32_t, KeyToRowMap> group_id_to_key_row_map;
   for (uint32_t i = 0; i < static_table.row_count(); ++i) {
-    std::optional<uint32_t> base64_proto_id =
-        static_table.GetCellUncheckedLegacy<
-            dataframe::Uint32, dataframe::SparseNullWithPopcountAlways>(
-            base64_col, i);
+    Uint32CellExtractor base64_extractor;
+    static_table.GetCell(i, base64_col, base64_extractor);
+    std::optional<uint32_t> base64_proto_id = base64_extractor.result;
     PERFETTO_CHECK(base64_proto_id.has_value());
     if (inflated_protos.count(*base64_proto_id) > 0) {
       continue;
@@ -282,10 +305,9 @@ base::Status InsertRows(
 
     KeyToRowMap* key_to_row = nullptr;
     if (group_id_col_idx.has_value()) {
-      uint32_t group_id = static_cast<uint32_t>(
-          static_table
-              .GetCellUncheckedLegacy<dataframe::Int64, dataframe::NonNull>(
-                  *group_id_col_idx, i));
+      Int64CellExtractor group_id_extractor;
+      static_table.GetCell(i, *group_id_col_idx, group_id_extractor);
+      uint32_t group_id = static_cast<uint32_t>(group_id_extractor.result);
       auto pos = group_id_to_key_row_map.find(group_id);
       if (pos != group_id_to_key_row_map.end()) {
         key_to_row = &(pos->second);

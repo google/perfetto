@@ -221,6 +221,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         className: classNames(
           collapsible && 'pf-track__shell--clickable',
           highlight && 'pf-track__shell--highlight',
+          lite && 'pf-track__shell--lite',
         ),
         onclick: () => {
           collapsible && attrs.onCollapsedChanged?.(!collapsed);

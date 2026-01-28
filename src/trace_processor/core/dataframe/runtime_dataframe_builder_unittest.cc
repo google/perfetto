@@ -35,7 +35,7 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 inline void PrintTo(const ColumnSpec& spec, std::ostream* os) {
   *os << "\n  ColumnSpec{\n"
@@ -611,4 +611,4 @@ TEST_F(DataframeBuilderTest, DuplicateState_String_HasDuplicates_Nullable) {
 }
 
 }  // namespace
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe

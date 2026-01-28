@@ -27,15 +27,13 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
-#include "src/trace_processor/core/dataframe/impl/bytecode_instructions.h"
-#include "src/trace_processor/core/dataframe/impl/query_plan.h"
-#include "src/trace_processor/core/dataframe/impl/types.h"
+#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_to_string.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 Dataframe::Dataframe(StringPool* string_pool,
                      uint32_t column_count,
@@ -50,7 +48,7 @@ Dataframe::Dataframe(StringPool* string_pool,
 
 Dataframe::Dataframe(bool finalized,
                      std::vector<std::string> column_names,
-                     std::vector<std::shared_ptr<impl::Column>> columns,
+                     std::vector<std::shared_ptr<Column>> columns,
                      uint32_t row_count,
                      StringPool* string_pool)
     : column_names_(std::move(column_names)),
@@ -73,9 +71,9 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     const LimitSpec& limit_spec,
     uint64_t cols_used) const {
   ASSIGN_OR_RETURN(auto plan,
-                   impl::QueryPlanBuilder::Build(
-                       row_count_, columns_, indexes_, filter_specs,
-                       distinct_specs, sort_specs, limit_spec, cols_used));
+                   QueryPlanBuilder::Build(row_count_, columns_, indexes_,
+                                           filter_specs, distinct_specs,
+                                           sort_specs, limit_spec, cols_used));
   return QueryPlan(std::move(plan));
 }
 
@@ -238,23 +236,23 @@ DataframeSpec Dataframe::CreateSpec() const {
   return spec;
 }
 
-std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
+std::vector<std::shared_ptr<Column>> Dataframe::CreateColumnVector(
     const ColumnSpec* column_specs,
     uint32_t column_count) {
   auto make_storage = [](const ColumnSpec& spec) {
     switch (spec.type.index()) {
       case StorageType::GetTypeIndex<Id>():
-        return impl::Storage(impl::Storage::Id{});
+        return Storage(Storage::Id{});
       case StorageType::GetTypeIndex<Uint32>():
-        return impl::Storage(impl::Storage::Uint32{});
+        return Storage(Storage::Uint32{});
       case StorageType::GetTypeIndex<Int32>():
-        return impl::Storage(impl::Storage::Int32{});
+        return Storage(Storage::Int32{});
       case StorageType::GetTypeIndex<Int64>():
-        return impl::Storage(impl::Storage::Int64{});
+        return Storage(Storage::Int64{});
       case StorageType::GetTypeIndex<Double>():
-        return impl::Storage(impl::Storage::Double{});
+        return Storage(Storage::Double{});
       case StorageType::GetTypeIndex<String>():
-        return impl::Storage(impl::Storage::String{});
+        return Storage(Storage::String{});
       default:
         PERFETTO_FATAL("Invalid storage type");
     }
@@ -262,25 +260,25 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
   auto make_null_storage = [](const ColumnSpec& spec) {
     switch (spec.nullability.index()) {
       case Nullability::GetTypeIndex<NonNull>():
-        return impl::NullStorage(impl::NullStorage::NonNull{});
+        return NullStorage(NullStorage::NonNull{});
       case Nullability::GetTypeIndex<SparseNull>():
-        return impl::NullStorage(impl::NullStorage::SparseNull{}, SparseNull{});
+        return NullStorage(NullStorage::SparseNull{}, SparseNull{});
       case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
-        return impl::NullStorage(impl::NullStorage::SparseNull{},
-                                 SparseNullWithPopcountAlways{});
+        return NullStorage(NullStorage::SparseNull{},
+                           SparseNullWithPopcountAlways{});
       case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
-        return impl::NullStorage(impl::NullStorage::SparseNull{},
-                                 SparseNullWithPopcountUntilFinalization{});
+        return NullStorage(NullStorage::SparseNull{},
+                           SparseNullWithPopcountUntilFinalization{});
       case Nullability::GetTypeIndex<DenseNull>():
-        return impl::NullStorage(impl::NullStorage::DenseNull{});
+        return NullStorage(NullStorage::DenseNull{});
       default:
         PERFETTO_FATAL("Invalid nullability type");
     }
   };
-  std::vector<std::shared_ptr<impl::Column>> columns;
+  std::vector<std::shared_ptr<Column>> columns;
   columns.reserve(column_count);
   for (uint32_t i = 0; i < column_count; ++i) {
-    columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
+    columns.emplace_back(std::make_shared<Column>(Column{
         make_storage(column_specs[i]),
         make_null_storage(column_specs[i]),
         column_specs[i].sort_state,
@@ -293,9 +291,34 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
 std::vector<std::string> Dataframe::QueryPlan::BytecodeToString() const {
   std::vector<std::string> result;
   for (const auto& instr : plan_.bytecode) {
-    result.push_back(impl::bytecode::ToString(instr));
+    result.push_back(interpreter::ToString(instr));
   }
   return result;
 }
 
-}  // namespace perfetto::trace_processor::dataframe
+std::string Dataframe::QueryPlan::Serialize() const {
+  return plan_.Serialize();
+}
+
+Dataframe::QueryPlan Dataframe::QueryPlan::Deserialize(
+    std::string_view serialized) {
+  return QueryPlan(QueryPlanImpl::Deserialize(serialized));
+}
+
+const QueryPlanImpl& Dataframe::QueryPlan::GetImplForTesting() const {
+  return plan_;
+}
+
+uint32_t Dataframe::QueryPlan::max_row_count() const {
+  return plan_.params.max_row_count;
+}
+
+uint32_t Dataframe::QueryPlan::estimated_row_count() const {
+  return plan_.params.estimated_row_count;
+}
+
+double Dataframe::QueryPlan::estimated_cost() const {
+  return plan_.params.estimated_cost;
+}
+
+}  // namespace perfetto::trace_processor::core::dataframe

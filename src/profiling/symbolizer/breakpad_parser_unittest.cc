@@ -231,6 +231,126 @@ TEST(BreakpadParserTest, AddrBetweenFunctions) {
   EXPECT_FALSE(parser.GetSymbol(0x1036U));
 }
 
+// Test file contents for GetSourceLocation tests. Contains FILE and LINE
+// records that map machine code addresses to source file locations.
+constexpr char kGetSourceLocationTestContents[] =
+    "MODULE mac x86_64 E3A0F28FBCB43C15986D8608AF1DD2380 exif.so\n"
+    "FILE 0 /path/to/foo.cc\n"
+    "FILE 1 /path/to/bar.cc\n"
+    "FILE 2 /path/to/baz.cc\n"
+    "FUNC 1010 23 0 foo\n"
+    "1010 10 10 0\n"
+    "1020 13 20 0\n"
+    "FUNC 1040 84 0 bar\n"
+    "1040 40 100 1\n"
+    "1080 44 150 1\n"
+    "FUNC 10d0 6b 0 baz\n"
+    "10d0 30 200 2\n"
+    "1100 3b 250 2\n";
+
+TEST(BreakpadParserTest, ContainsFileRecords) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSourceLocationTestContents));
+  // Verify that FILE records are parsed by checking GetSourceLocation returns
+  // the correct file names.
+  auto result = parser.GetSourceLocation(0x1010U);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(std::get<0>(*result), "/path/to/foo.cc");
+}
+
+TEST(BreakpadParserTest, ContainsLineRecords) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSourceLocationTestContents));
+  // Verify that LINE records are parsed by checking GetSourceLocation returns
+  // the correct line numbers.
+  auto result = parser.GetSourceLocation(0x1010U);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(std::get<1>(*result), 10u);
+}
+
+TEST(BreakpadParserTest, GetSourceLocationStartAddr) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSourceLocationTestContents));
+  // Test with exact start addresses.
+  auto result1 = parser.GetSourceLocation(0x1010U);
+  ASSERT_TRUE(result1.has_value());
+  EXPECT_EQ(std::get<0>(*result1), "/path/to/foo.cc");
+  EXPECT_EQ(std::get<1>(*result1), 10u);
+
+  auto result2 = parser.GetSourceLocation(0x1040U);
+  ASSERT_TRUE(result2.has_value());
+  EXPECT_EQ(std::get<0>(*result2), "/path/to/bar.cc");
+  EXPECT_EQ(std::get<1>(*result2), 100u);
+
+  auto result3 = parser.GetSourceLocation(0x10d0U);
+  ASSERT_TRUE(result3.has_value());
+  EXPECT_EQ(std::get<0>(*result3), "/path/to/baz.cc");
+  EXPECT_EQ(std::get<1>(*result3), 200u);
+}
+
+TEST(BreakpadParserTest, GetSourceLocationInRange) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSourceLocationTestContents));
+  // Test with addresses within the range of a line record.
+  auto result = parser.GetSourceLocation(0x1015U);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(std::get<0>(*result), "/path/to/foo.cc");
+  EXPECT_EQ(std::get<1>(*result), 10u);
+}
+
+TEST(BreakpadParserTest, GetSourceLocationAddrTooLow) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSourceLocationTestContents));
+  // Address is lower than any line record.
+  EXPECT_FALSE(parser.GetSourceLocation(0x1000U).has_value());
+}
+
+TEST(BreakpadParserTest, GetSourceLocationAddrTooHigh) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSourceLocationTestContents));
+  // Address is higher than any line record.
+  EXPECT_FALSE(parser.GetSourceLocation(0x3000U).has_value());
+}
+
+TEST(BreakpadParserTest, GetSourceLocationAddrBetweenRecords) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSourceLocationTestContents));
+  // Address falls between line records (in the gap between functions).
+  EXPECT_FALSE(parser.GetSourceLocation(0x1035U).has_value());
+}
+
+TEST(BreakpadParserTest, FileRecordIncomplete) {
+  BreakpadParser parser(kFakeFilePath);
+  constexpr char kTestFileContents[] =
+      "MODULE mac x86_64 E3A0F28FBCB43C15986D8608AF1DD2380 exif.so\n"
+      "FILE 0\n";
+  ASSERT_FALSE(parser.ParseFromString(kTestFileContents));
+}
+
+TEST(BreakpadParserTest, FileRecordInvalidNumber) {
+  BreakpadParser parser(kFakeFilePath);
+  constexpr char kTestFileContents[] =
+      "MODULE mac x86_64 E3A0F28FBCB43C15986D8608AF1DD2380 exif.so\n"
+      "FILE abc /path/to/file.cc\n";
+  ASSERT_FALSE(parser.ParseFromString(kTestFileContents));
+}
+
+TEST(BreakpadParserTest, LineRecordIncomplete) {
+  BreakpadParser parser(kFakeFilePath);
+  constexpr char kTestFileContents[] =
+      "MODULE mac x86_64 E3A0F28FBCB43C15986D8608AF1DD2380 exif.so\n"
+      "1010 10 20\n";
+  ASSERT_FALSE(parser.ParseFromString(kTestFileContents));
+}
+
+TEST(BreakpadParserTest, LineRecordInvalidAddress) {
+  BreakpadParser parser(kFakeFilePath);
+  constexpr char kTestFileContents[] =
+      "MODULE mac x86_64 E3A0F28FBCB43C15986D8608AF1DD2380 exif.so\n"
+      "gggg 10 20 0\n";
+  ASSERT_FALSE(parser.ParseFromString(kTestFileContents));
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto

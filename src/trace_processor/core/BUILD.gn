@@ -20,5 +20,6 @@ group("core") {
   deps = [
     "common",
     "dataframe",
+    "interpreter",
   ]
 }

@@ -70,7 +70,7 @@ source_set("export_json") {
     "tables",
     "types",
     "util:args_utils",
-    "util:json_parser",
+    "util:json_value",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
 }
@@ -196,6 +196,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "perfetto_sql/engine",
       "perfetto_sql/generator",
       "perfetto_sql/intrinsics/functions",
+      "perfetto_sql/intrinsics/functions/trees",
       "perfetto_sql/intrinsics/operators",
       "perfetto_sql/intrinsics/table_functions",
       "perfetto_sql/stdlib",
@@ -211,6 +212,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util:protozero_to_json",
       "util:protozero_to_text",
       "util:regex",
+      "util:simple_json_parser",
       "util:stdlib",
       "util:trace_type",
     ]
@@ -350,9 +352,9 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":top_level_unittests",
     "containers:unittests",
-    "core/common:unittests",
     "core/dataframe:unittests",
-    "core/dataframe/impl:unittests",
+    "core/interpreter:unittests",
+    "core/util:unittests",
     "importers/android_bugreport:unittests",
     "importers/common:unittests",
     "importers/ftrace:unittests",
