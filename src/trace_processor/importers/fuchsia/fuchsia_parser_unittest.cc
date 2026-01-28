@@ -170,6 +170,8 @@ class FuchsiaTraceParserTest : public ::testing::Test {
   FuchsiaTraceParserTest() {
     context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
@@ -179,7 +181,6 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker =
         std::make_unique<MetadataTracker>(context_.storage.get());
-    context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
     context_.cpu_tracker = std::make_unique<CpuTracker>(&context_);
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);

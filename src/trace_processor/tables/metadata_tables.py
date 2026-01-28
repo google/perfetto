@@ -210,7 +210,7 @@ PROCESS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='process',),
     tabledoc=TableDoc(
@@ -330,7 +330,7 @@ THREAD_TABLE = Table(
         ),
         C(
             'machine_id',
-            CppOptional(CppTableId(MACHINE_TABLE)),
+            CppTableId(MACHINE_TABLE),
             cpp_access=CppAccess.READ,
         ),
         C(
@@ -425,7 +425,7 @@ CPU_TABLE = Table(
             CppString(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
         C(
             'capacity',
             CppOptional(CppUint32()),
@@ -760,7 +760,7 @@ CLOCK_SNAPSHOT_TABLE = Table(
           cpp_access=CppAccess.READ,
           cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('snapshot_id', CppUint32()),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
     ],
     tabledoc=TableDoc(
         doc='''
