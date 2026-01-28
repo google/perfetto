@@ -308,7 +308,6 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
     if (state.type == QueryType::kShared) {
       queries_.emplace_back(
           Query{state.id_from_proto.value(), state.table_name, state.sql});
-      continue;
     }
     // Skip the root query if it's just a wrapper for inner_query + operations
     if (&state == &state_[0] && root_only_has_inner_query_and_operations) {
@@ -1246,11 +1245,8 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   if (!it) {
     return base::ErrStatus("Shared query with id '%s' not found", id.c_str());
   }
-  auto sq = std::find_if(queries_.begin(), queries_.end(),
-                         [&](const Query& sq) { return id == sq.id; });
-  if (sq != queries_.end()) {
-    return sq->table_name;
-  }
+  // Always add to state_ so that every generated query has all its
+  // dependencies in the CTE.
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},
                       state_.size(), state_index_, used_table_names_);
