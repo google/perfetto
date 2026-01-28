@@ -180,6 +180,7 @@ export interface NodeGraphApi {
   autoLayout: () => void;
   recenter: () => void;
   findPlacementForNode: (node: Omit<Node, 'x' | 'y'>) => Position;
+  panBy: (dx: number, dy: number) => void;
 }
 
 export interface NodeGraphAttrs {
@@ -358,6 +359,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
   let canvasElement: HTMLElement | null = null;
 
+  // Shared pan function used by both internal handlers and external API
+  const panBy = (dx: number, dy: number) => {
+    canvasState.panOffset.x += dx;
+    canvasState.panOffset.y += dy;
+  };
+
   // API functions that are exposed to parent components via onReady callback
   // These are initialized in oncreate and can be used in subsequent lifecycle hooks
   let autoLayoutApi: (() => void) | null = null;
@@ -444,10 +451,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       // Pan the canvas
       const dx = e.clientX - canvasState.panStart.x;
       const dy = e.clientY - canvasState.panStart.y;
-      canvasState.panOffset = {
-        x: canvasState.panOffset.x + dx,
-        y: canvasState.panOffset.y + dy,
-      };
+      panBy(dx, dy);
       canvasState.panStart = {x: e.clientX, y: e.clientY};
       m.redraw();
     } else if (canvasState.undockCandidate !== null) {
@@ -1452,10 +1456,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       };
     } else {
       // Pan the canvas based on wheel delta
-      canvasState.panOffset = {
-        x: canvasState.panOffset.x - e.deltaX,
-        y: canvasState.panOffset.y - e.deltaY,
-      };
+      panBy(-e.deltaX, -e.deltaY);
     }
 
     m.redraw();
@@ -2103,6 +2104,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           autoLayout: autoLayoutApi,
           recenter: recenterApi,
           findPlacementForNode: findPlacementForNodeApi,
+          panBy,
         });
       }
     },
@@ -2139,6 +2141,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           autoLayout: autoLayoutApi,
           recenter: recenterApi,
           findPlacementForNode: findPlacementForNodeApi,
+          panBy,
         });
       }
     },
