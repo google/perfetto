@@ -1728,6 +1728,6 @@ class AndroidStdlib(TestSuite):
         """,
         out=Csv("""
         "name","machine_id"
-        "oriole","[NULL]"
+        "oriole",0
         "raven",1
         """))

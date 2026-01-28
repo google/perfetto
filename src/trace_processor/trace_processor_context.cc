@@ -246,11 +246,11 @@ TraceProcessorContext::ForkContextForMachineInCurrentTrace(
   return ForkContextForTrace(trace_state->raw_trace_id, raw_machine_id);
 }
 
-std::optional<MachineId> TraceProcessorContext::machine_id() const {
+MachineId TraceProcessorContext::machine_id() const {
   if (!machine_tracker) {
     // Doesn't require that |machine_tracker| is initialized, e.g. in unit
-    // tests.
-    return std::nullopt;
+    // tests so we default to default_machine_id 0.
+    return MachineId(0);
   }
   return machine_tracker->machine_id();
 }
