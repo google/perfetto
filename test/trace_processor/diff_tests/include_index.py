@@ -184,6 +184,8 @@ from diff_tests.tables.tests import Tables
 from diff_tests.tables.tests_counters import TablesCounters
 from diff_tests.tables.tests_sched import TablesSched
 from diff_tests.summary.metrics_v2_tests import SummaryMetricsV2
+from diff_tests.operators.pivot_tests import Pivot
+from diff_tests.operators.tree_tests import Tree
 
 sys.path.pop()
 
@@ -362,6 +364,11 @@ def fetch_all_diff_tests(
       TablesSched,
   ]
 
+  operator_tests = [
+      Pivot,
+      Tree,
+  ]
+
   summary_tests = [SummaryMetricsV2]
 
   all_tests = []
@@ -371,6 +378,7 @@ def fetch_all_diff_tests(
   all_tests += syntax_tests
   all_tests += tables_tests
   all_tests += summary_tests
+  all_tests += operator_tests
   all_test_instances = [x for t in all_tests for x in t(index_path).fetch()]
 
   # Chrome is special because it is rolled in from externally. So it has its

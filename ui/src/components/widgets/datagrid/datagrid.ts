@@ -42,7 +42,14 @@ import {
 import {CellFilterMenu} from './cell_filter_menu';
 import {FilterMenu} from './column_filter_menu';
 import {ColumnInfoMenu} from './column_info_menu';
-import {DataSource, ROLLUP_LEVEL_COLUMN} from './data_source';
+import {
+  DataSource,
+  DataSourceModel,
+  DataSourceRows,
+  FlatModel,
+  PivotModel,
+  TreeModel,
+} from './data_source';
 import {
   SchemaRegistry,
   getColumnInfo,
@@ -65,7 +72,7 @@ import {
   AggregateFunction,
   Column,
   Filter,
-  PathSet,
+  IdBasedTree,
   Pivot,
   SortDirection,
 } from './model';
@@ -243,6 +250,29 @@ export interface DataGridAttrs {
   readonly onPivotChanged?: (pivot: Pivot | undefined) => void;
 
   /**
+   * ID-based tree configuration using __intrinsic_tree virtual table.
+   * Uses explicit id/parent_id columns for tree structure.
+   * Mutually exclusive with pivot mode.
+   *
+   * In controlled mode: Provide this prop along with onIdBasedTreeChanged callback.
+   * In uncontrolled mode: Omit this prop to let the grid manage tree state internally.
+   */
+  readonly idBasedTree?: IdBasedTree;
+
+  /**
+   * Initial ID-based tree configuration to apply on first load.
+   * This is ignored in controlled mode (i.e. when `idBasedTree` is provided).
+   */
+  readonly initialIdBasedTree?: IdBasedTree;
+
+  /**
+   * Callback triggered when the ID-based tree configuration changes.
+   * Required for controlled mode - when provided with idBasedTree,
+   * the parent component becomes responsible for updating the idBasedTree prop.
+   */
+  readonly onIdBasedTreeChanged?: (tree: IdBasedTree | undefined) => void;
+
+  /**
    * Extra items to place on the toolbar.
    */
   readonly toolbarItemsLeft?: m.Children;
@@ -308,7 +338,7 @@ export interface DataGridApi {
 }
 
 function getOrCreateDataSource(data: DataSource | readonly Row[]): DataSource {
-  if ('notify' in data) {
+  if ('useRows' in data) {
     return data;
   } else {
     return new InMemoryDataSource(data);
@@ -323,10 +353,13 @@ interface FlatGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly result: DataSource['rows'];
+  readonly rowsResult: DataSourceRows;
+  readonly aggregateSummaries?: Row;
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
+  // ID-based tree mode - if set, one column displays as a tree with id-based expansion
+  readonly idBasedTree?: IdBasedTree;
 }
 
 /**
@@ -337,7 +370,8 @@ interface PivotGridBuildContext {
   readonly schema: SchemaRegistry;
   readonly rootSchema: string;
   readonly datasource: DataSource;
-  readonly result: DataSource['rows'];
+  readonly rowsResult: DataSourceRows;
+  readonly aggregateSummaries?: Row;
   readonly pivot: Pivot;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
@@ -348,6 +382,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private columns: readonly Column[] = [];
   private filters: readonly Filter[] = [];
   private pivot?: Pivot;
+  private idBasedTree?: IdBasedTree;
 
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
@@ -355,12 +390,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   // The grid API instance for column autosizing etc
   private gridApi?: GridApi;
-
-  // Track columns needing distinct values
-  private distinctValuesColumns = new Set<string>();
-
-  // Track parameterized columns needing key discovery
-  private parameterKeyColumns = new Set<string>();
 
   oninit({attrs}: m.Vnode<DataGridAttrs>) {
     if (attrs.initialColumns) {
@@ -379,6 +408,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialPivot) {
       this.pivot = attrs.initialPivot;
     }
+
+    if (attrs.initialIdBasedTree) {
+      this.idBasedTree = attrs.initialIdBasedTree;
+    }
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -389,6 +422,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       columns,
       filters,
       pivot,
+      idBasedTree,
       schema,
       rootSchema,
       structuredQueryCompatMode = false,
@@ -403,26 +437,28 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (columns) this.columns = columns;
     if (filters) this.filters = filters;
     if (pivot) this.pivot = pivot;
+    if (idBasedTree) this.idBasedTree = idBasedTree;
 
-    // Notify the data source of the current model state.
+    // Determine if we're in pivot mode (has groupBy columns and not drilling down)
+    const isPivotMode =
+      this.pivot !== undefined &&
+      this.pivot.groupBy.length > 0 &&
+      this.pivot.drillDown === undefined;
+
+    // Build the model for data source queries
     const datasource = getOrCreateDataSource(data);
-    datasource.notify({
-      columns: this.columns,
-      filters: this.filters,
-      pagination: {
-        offset: this.paginationOffset,
-        limit: this.paginationLimit,
-      },
-      pivot: this.pivot,
-      distinctValuesColumns: this.distinctValuesColumns,
-      parameterKeyColumns: this.parameterKeyColumns,
-    });
+    const model = this.buildDataSourceModel();
+
+    // Fetch data using the slot-like API
+    const rowsResult = datasource.useRows(model);
+    const aggregateSummariesResult = datasource.useAggregateSummaries(model);
 
     // Expose the API
     attrs.onReady?.({
       exportData: async (format) => {
         return await this.formatData(
           datasource,
+          model,
           schema,
           rootSchema,
           this.pivot,
@@ -430,18 +466,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         );
       },
       getRowCount: () => {
-        return datasource?.rows?.totalRows;
+        return rowsResult.totalRows;
       },
     });
-
-    // Extract the result from the datasource
-    const result = datasource.rows;
-
-    // Determine if we're in pivot mode (has groupBy columns and not drilling down)
-    const isPivotMode =
-      this.pivot !== undefined &&
-      this.pivot.groupBy.length > 0 &&
-      this.pivot.drillDown === undefined;
 
     // Build grid columns and rows based on mode
     let gridColumns: GridColumn[];
@@ -454,7 +481,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         schema,
         rootSchema,
         datasource,
-        result,
+        rowsResult,
+        aggregateSummaries: aggregateSummariesResult.data,
         pivot: this.pivot!,
         structuredQueryCompatMode,
         enablePivotControls,
@@ -477,10 +505,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         schema,
         rootSchema,
         datasource,
-        result,
+        rowsResult,
+        aggregateSummaries: aggregateSummariesResult.data,
         columnInfoCache,
         structuredQueryCompatMode,
         enablePivotControls,
+        idBasedTree: this.idBasedTree,
       };
 
       gridColumns = this.buildFlatColumns(flatContext);
@@ -498,21 +528,20 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       m(DataGridToolbar, {
         leftItems: [
           toolbarItemsLeft,
-          // Show expand/collapse/flat buttons for multi-level pivot (not in drill-down)
+          // Show expand/collapse/flat buttons for pivot mode (not in drill-down)
           this.pivot &&
-            this.pivot.groupBy.length > 1 &&
             !this.pivot.drillDown && [
               m(Button, {
                 icon: 'unfold_more',
                 tooltip: 'Expand all groups',
                 onclick: () => this.expandAll(attrs),
-                disabled: !this.pivot.collapsibleGroups,
+                disabled: this.pivot.groupDisplay === 'flat',
               }),
               m(Button, {
                 icon: 'unfold_less',
                 tooltip: 'Collapse all groups',
                 onclick: () => this.collapseAll(attrs),
-                disabled: !this.pivot.collapsibleGroups,
+                disabled: this.pivot.groupDisplay === 'flat',
               }),
               m(SegmentedButtons, {
                 options: [
@@ -525,16 +554,28 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     icon: 'account_tree',
                   },
                 ],
-                selectedOption: this.pivot.collapsibleGroups ? 1 : 0,
+                selectedOption: this.pivot.groupDisplay === 'flat' ? 0 : 1,
                 onOptionSelected: (num: number) => {
                   if (num === 1) {
-                    this.disableFlatMode(attrs);
+                    this.enableTreeMode(attrs);
                   } else {
                     this.enableFlatMode(attrs);
                   }
                 },
               }),
             ],
+          this.idBasedTree && [
+            m(Button, {
+              icon: 'unfold_more',
+              tooltip: 'Expand all groups',
+              onclick: () => this.expandAll(attrs),
+            }),
+            m(Button, {
+              icon: 'unfold_less',
+              tooltip: 'Collapse all groups',
+              onclick: () => this.collapseAll(attrs),
+            }),
+          ],
         ],
         rightItems: [
           toolbarItemsRight,
@@ -543,6 +584,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               onExportData: (format) =>
                 this.formatData(
                   datasource,
+                  model,
                   schema,
                   rootSchema,
                   this.pivot,
@@ -570,15 +612,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       }),
       m(LinearProgress, {
         className: 'pf-data-grid__loading',
-        state: datasource.isLoading ? 'indeterminate' : 'none',
+        state: rowsResult.isPending ? 'indeterminate' : 'none',
       }),
       m(Grid, {
         className: 'pf-data-grid__table',
         columns: gridColumns,
         rowData: {
           data: gridRows,
-          total: result?.totalRows ?? 0,
-          offset: Math.max(result?.rowOffset ?? 0, this.paginationOffset),
+          total: rowsResult.totalRows ?? 0,
+          offset: Math.max(rowsResult.rowOffset ?? 0, this.paginationOffset),
           onLoadData: (offset, limit) => {
             this.paginationOffset = offset;
             this.paginationLimit = limit;
@@ -600,8 +642,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           this.gridApi = api;
         },
         emptyState:
-          result?.totalRows === 0 &&
-          !datasource.isLoading &&
+          rowsResult.totalRows === 0 &&
+          !rowsResult.isPending &&
           m(
             EmptyState,
             {
@@ -621,6 +663,115 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           ),
       }),
     );
+  }
+
+  /**
+   * Builds a DataSourceModel from the current state.
+   * The model shape depends on whether we're in pivot mode or flat mode.
+   */
+  private buildDataSourceModel(): DataSourceModel {
+    // Extract sort from columns (flat mode only)
+    const sortedColumn = this.columns.find((c) => c.sort);
+    const sort = sortedColumn
+      ? {alias: sortedColumn.id, direction: sortedColumn.sort!}
+      : undefined;
+
+    // Common base fields
+    const baseModel = {
+      filters: this.filters,
+      pagination: {
+        offset: this.paginationOffset,
+        limit: this.paginationLimit,
+      },
+    };
+
+    if (this.pivot && this.pivot.drillDown) {
+      // DrillDown mode: use FlatModel with drilldown conditions as filters
+      // This shows raw rows filtered to specific group values
+      const drillDownFilters: Filter[] = this.pivot.drillDown.map((dd) => ({
+        field: dd.field,
+        op: dd.value === null ? 'is null' : '=',
+        value: dd.value === null ? undefined : dd.value,
+      })) as Filter[];
+
+      const flatModel: FlatModel = {
+        ...baseModel,
+        mode: 'flat',
+        sort,
+        filters: [...(this.filters ?? []), ...drillDownFilters],
+        columns: this.columns
+          .map((col) => ({
+            field: col.field,
+            alias: col.id,
+          }))
+          .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
+      };
+      return flatModel;
+    } else if (this.pivot) {
+      // Extract sort from pivot columns (groupBy or aggregates)
+      const sortedGroupBy = this.pivot.groupBy.find((c) => c.sort);
+      const sortedAggregate = (this.pivot.aggregates ?? []).find((c) => c.sort);
+      const sortedPivotCol = sortedGroupBy ?? sortedAggregate;
+      const pivotSort = sortedPivotCol
+        ? {alias: sortedPivotCol.id, direction: sortedPivotCol.sort!}
+        : undefined;
+
+      // Build PivotModel
+      const pivotModel: PivotModel = {
+        ...baseModel,
+        mode: 'pivot',
+        sort: pivotSort,
+        groupBy: this.pivot.groupBy.map((col) => ({
+          field: col.field,
+          alias: col.id,
+        })),
+        aggregates: (this.pivot.aggregates ?? [])
+          .map((agg) => {
+            if (agg.function === 'COUNT') {
+              return {function: 'COUNT' as const, alias: agg.id};
+            } else {
+              return {function: agg.function, field: agg.field, alias: agg.id};
+            }
+          })
+          .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
+        groupDisplay: this.pivot.groupDisplay ?? 'tree',
+        expandedIds: this.pivot.expandedIds,
+        collapsedIds: this.pivot.collapsedIds,
+      };
+      return pivotModel;
+    } else if (this.idBasedTree) {
+      // Build TreeModel for id-based tree mode
+      const treeModel: TreeModel = {
+        ...baseModel,
+        mode: 'tree',
+        sort,
+        columns: this.columns
+          .map((col) => ({
+            field: col.field,
+            alias: col.id,
+          }))
+          .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
+        idColumn: this.idBasedTree.idColumn,
+        parentIdColumn: this.idBasedTree.parentIdColumn,
+        expandedIds: this.idBasedTree.expandedIds,
+        collapsedIds: this.idBasedTree.collapsedIds,
+      };
+      return treeModel;
+    } else {
+      // Build FlatModel
+      const flatModel: FlatModel = {
+        ...baseModel,
+        mode: 'flat',
+        sort,
+        columns: this.columns
+          .map((col) => ({
+            field: col.field,
+            alias: col.id,
+          }))
+          .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
+      };
+      return flatModel;
+    }
   }
 
   private updateSort(
@@ -855,6 +1006,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const newPivot: Pivot = {
       groupBy: [{id: shortUuid(), field}],
       aggregates,
+      groupDisplay: 'tree',
     };
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
@@ -876,27 +1028,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       afterIndex !== undefined ? afterIndex + 1 : newGroupBy.length;
     newGroupBy.splice(insertIndex, 0, {id: shortUuid(), field});
 
-    // Initialize to collapsed (empty expandedGroups) when becoming multi-level
-    // and no expansion state is set yet.
-    const hasExpansionState =
-      ('expandedGroups' in this.pivot && this.pivot.expandedGroups) ||
-      ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups);
-
-    let newPivot: Pivot;
-    if (newGroupBy.length > 1 && !Boolean(hasExpansionState)) {
-      // Becoming multi-level with no expansion state - default to all collapsed
-      newPivot = {
-        ...this.pivot,
-        groupBy: newGroupBy,
-        expandedGroups: new PathSet(),
-      };
-    } else {
-      // Keep existing expansion state
-      newPivot = {
-        ...this.pivot,
-        groupBy: newGroupBy,
-      };
-    }
+    // Just update the groupBy - expansion state (expandedIds) is preserved
+    const newPivot: Pivot = {
+      ...this.pivot,
+      groupBy: newGroupBy,
+    };
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -1067,97 +1203,113 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   /**
-   * Checks if a group path is currently expanded.
+   * Checks if a group node is currently expanded using its ID.
+   * Handles both allowlist (expandedIds) and denylist (collapsedIds) modes.
    */
-  private isGroupExpanded(path: readonly SqlValue[]): boolean {
+  private isGroupExpanded(nodeId: bigint): boolean {
     if (!this.pivot) return false;
-    if ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups) {
-      // Blacklist mode: expanded unless in collapsedGroups
-      return !this.pivot.collapsedGroups.has(path);
+    // Denylist mode: expanded unless in collapsedIds
+    if (this.pivot.collapsedIds !== undefined) {
+      return !this.pivot.collapsedIds.has(nodeId);
     }
-    if ('expandedGroups' in this.pivot && this.pivot.expandedGroups) {
-      // Whitelist mode: expanded only if in expandedGroups
-      return this.pivot.expandedGroups.has(path);
-    }
-    // No expansion state = all collapsed (default)
-    return false;
+    // Allowlist mode: expanded only if in expandedIds
+    return this.pivot.expandedIds?.has(nodeId) ?? false;
   }
 
   /**
-   * Toggles the expansion state of a group identified by its path.
+   * Toggles the expansion state of a group identified by its node ID.
    * Used for collapsible rollup rows in multi-level pivot tables.
-   * @param path Array of groupBy values from level 0 to the group being toggled
+   * @param nodeId The __id__ value of the node to toggle
    */
-  private toggleExpansion(
-    path: readonly SqlValue[],
-    attrs: DataGridAttrs,
-  ): void {
+  private toggleExpansion(nodeId: bigint, attrs: DataGridAttrs): void {
     if (!this.pivot) return;
 
-    let newPivot: Pivot;
-
-    if ('collapsedGroups' in this.pivot && this.pivot.collapsedGroups) {
-      // Blacklist mode: toggle in collapsedGroups
-      const newCollapsed = new PathSet(this.pivot.collapsedGroups);
-      if (newCollapsed.has(path)) {
-        newCollapsed.delete(path);
+    // Handle both allowlist (expandedIds) and denylist (collapsedIds) modes
+    if (this.pivot.collapsedIds !== undefined) {
+      // Denylist mode: toggle in collapsedIds
+      // In list = collapsed, not in list = expanded
+      const currentCollapsed = this.pivot.collapsedIds;
+      const newCollapsed = new Set(currentCollapsed);
+      if (newCollapsed.has(nodeId)) {
+        // Currently collapsed, expand it by removing from list
+        newCollapsed.delete(nodeId);
       } else {
-        newCollapsed.add(path);
+        // Currently expanded, collapse it by adding to list
+        newCollapsed.add(nodeId);
       }
-      newPivot = {...this.pivot, collapsedGroups: newCollapsed};
+      const newPivot: Pivot = {...this.pivot, collapsedIds: newCollapsed};
+      this.pivot = newPivot;
+      attrs.onPivotChanged?.(newPivot);
     } else {
-      // Whitelist mode: toggle in expandedGroups
-      const expandedGroups =
-        'expandedGroups' in this.pivot ? this.pivot.expandedGroups : undefined;
-      const newExpanded = new PathSet(expandedGroups);
-      if (newExpanded.has(path)) {
-        newExpanded.delete(path);
+      // Allowlist mode: toggle in expandedIds
+      // In list = expanded, not in list = collapsed
+      const currentExpanded = this.pivot.expandedIds ?? new Set<bigint>();
+      const newExpanded = new Set(currentExpanded);
+      if (newExpanded.has(nodeId)) {
+        newExpanded.delete(nodeId);
       } else {
-        newExpanded.add(path);
+        newExpanded.add(nodeId);
       }
-      newPivot = {...this.pivot, expandedGroups: newExpanded};
+      const newPivot: Pivot = {...this.pivot, expandedIds: newExpanded};
+      this.pivot = newPivot;
+      attrs.onPivotChanged?.(newPivot);
     }
-
-    this.pivot = newPivot;
-    attrs.onPivotChanged?.(newPivot);
   }
 
   /**
-   * Expands all groups by switching to blacklist mode with empty set.
+   * Expands all groups by switching to denylist mode with empty collapsedIds.
+   * Empty collapsedIds = all nodes expanded (nothing is collapsed).
    */
   private expandAll(attrs: DataGridAttrs): void {
-    if (!this.pivot) return;
-    // Remove expandedGroups and set collapsedGroups to empty (all expanded)
-    const {
-      expandedGroups: _,
-      collapsedGroups: __,
-      ...rest
-    } = this.pivot as Pivot & {
-      expandedGroups?: PathSet;
-      collapsedGroups?: PathSet;
-    };
-    const newPivot: Pivot = {...rest, collapsedGroups: new PathSet()};
-    this.pivot = newPivot;
-    attrs.onPivotChanged?.(newPivot);
+    if (this.pivot) {
+      // Switch to denylist mode with empty set - all nodes expanded
+      const newPivot: Pivot = {
+        ...this.pivot,
+        expandedIds: undefined,
+        collapsedIds: new Set<bigint>(),
+      };
+      this.pivot = newPivot;
+      attrs.onPivotChanged?.(newPivot);
+    }
+
+    if (this.idBasedTree) {
+      // Switch to denylist mode with empty set - all nodes expanded
+      const newTree: IdBasedTree = {
+        ...this.idBasedTree,
+        expandedIds: undefined,
+        collapsedIds: new Set<bigint>(),
+      };
+      this.idBasedTree = newTree;
+      attrs.onIdBasedTreeChanged?.(newTree);
+    }
   }
 
   /**
-   * Collapses all groups by switching to whitelist mode with empty set.
+   * Collapses all groups by switching to allowlist mode with empty expandedIds.
+   * Empty expandedIds = all nodes collapsed (nothing is expanded).
    */
   private collapseAll(attrs: DataGridAttrs): void {
-    if (!this.pivot) return;
-    // Remove collapsedGroups and set expandedGroups to empty (all collapsed)
-    const {
-      expandedGroups: _,
-      collapsedGroups: __,
-      ...rest
-    } = this.pivot as Pivot & {
-      expandedGroups?: PathSet;
-      collapsedGroups?: PathSet;
-    };
-    const newPivot: Pivot = {...rest, expandedGroups: new PathSet()};
-    this.pivot = newPivot;
-    attrs.onPivotChanged?.(newPivot);
+    if (this.pivot) {
+      // Switch to denylist mode with empty set - all nodes expanded
+      const newPivot: Pivot = {
+        ...this.pivot,
+        expandedIds: new Set<bigint>(),
+        collapsedIds: undefined,
+      };
+      this.pivot = newPivot;
+      attrs.onPivotChanged?.(newPivot);
+    }
+
+    if (this.idBasedTree) {
+      // Switch to denylist mode with empty set - all nodes expanded
+      const newTree: IdBasedTree = {
+        ...this.idBasedTree,
+        expandedIds: new Set<bigint>(),
+        collapsedIds: undefined,
+      };
+      this.idBasedTree = newTree;
+      attrs.onIdBasedTreeChanged?.(newTree);
+    }
   }
 
   /**
@@ -1165,17 +1317,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    */
   private enableFlatMode(attrs: DataGridAttrs): void {
     if (!this.pivot) return;
-    const newPivot: Pivot = {...this.pivot, collapsibleGroups: false};
+    const newPivot: Pivot = {...this.pivot, groupDisplay: 'flat'};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
 
   /**
-   * Disables flat mode - shows hierarchical grouping with rollup rows.
+   * Enables tree mode - shows hierarchical grouping with expand/collapse.
    */
-  private disableFlatMode(attrs: DataGridAttrs): void {
+  private enableTreeMode(attrs: DataGridAttrs): void {
     if (!this.pivot) return;
-    const newPivot: Pivot = {...this.pivot, collapsibleGroups: true};
+    const newPivot: Pivot = {...this.pivot, groupDisplay: 'tree'};
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
   }
@@ -1193,6 +1345,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       datasource,
+      aggregateSummaries,
       columnInfoCache,
       structuredQueryCompatMode,
       enablePivotControls,
@@ -1221,14 +1374,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ),
         m(MenuDivider),
         m(FilterMenu, {
+          datasource,
+          field,
           columnType,
           structuredQueryCompatMode,
-          distinctValues: datasource.distinctValues?.get(field),
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
-          onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
-          onDismissDistinctValues: () =>
-            this.distinctValuesColumns.delete(field),
         }),
         m(MenuDivider),
         this.gridApi &&
@@ -1250,7 +1401,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           visibleColumns: this.columns.map((c) => c.field),
           onAddColumn: (newField) => this.addColumn(newField, attrs, colIndex),
           dataSource: datasource,
-          parameterKeyColumns: this.parameterKeyColumns,
         }),
         attrs.addColumnMenuItems?.(field),
         m(MenuDivider),
@@ -1296,7 +1446,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build subContent showing grand total if column has an aggregate
       let subContent: m.Children;
       if (aggregate) {
-        const totalValue = datasource.aggregateTotals?.get(colAlias);
+        const totalValue = aggregateSummaries?.[colAlias];
         const isLoading = totalValue === undefined;
         // Don't show grand total for ANY aggregation (it's just an arbitrary value)
         let totalContent: m.Children;
@@ -1338,22 +1488,28 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds grid rows for flat (non-pivot) mode.
    */
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
-    const {attrs, result, columnInfoCache} = ctx;
+    const {attrs, rowsResult, columnInfoCache, idBasedTree} = ctx;
 
-    if (result === undefined) return [];
+    if (rowsResult.rows === undefined) return [];
 
     // Find the intersection of rows between what we have and what is required
     // and only render those.
-    const start = Math.max(result.rowOffset, this.paginationOffset);
+    const start = Math.max(rowsResult.rowOffset ?? 0, this.paginationOffset);
 
     const rowIndices = Array.from(
       {length: this.paginationLimit},
       (_, i) => i + start,
     );
 
+    // ID-based tree mode config
+    // Use specified treeColumn, or first visible column if not specified
+    const idTreeColumn =
+      idBasedTree?.treeColumn ?? (this.columns[0]?.field || undefined);
+    const idTreeIdColumn = idBasedTree?.idColumn;
+
     return rowIndices
       .map((index) => {
-        const row = result.rows[index - result.rowOffset];
+        const row = rowsResult.rows![index - (rowsResult.rowOffset ?? 0)];
         if (row === undefined) return undefined;
 
         return this.columns.map((col) => {
@@ -1366,6 +1522,32 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           const rendered = cellRenderer(value, row);
           const isRich = isCellRenderResult(rendered);
 
+          // Check if this is the tree column (id-based)
+          const isIdTreeColumn =
+            idBasedTree !== undefined && field === idTreeColumn;
+
+          // Tree column specific rendering
+          let chevron: 'expanded' | 'collapsed' | 'leaf' | undefined;
+          let onChevronClick: (() => void) | undefined;
+          let indent: number | undefined;
+
+          if (isIdTreeColumn) {
+            // ID-based tree mode
+            const treeDepth = Number(row['__depth__'] ?? 0);
+            const hasChildren = Boolean(row['__has_children__']);
+
+            indent = treeDepth;
+
+            if (hasChildren && idTreeIdColumn) {
+              const nodeId = BigInt(row[idTreeIdColumn] as number | bigint);
+              const isExpanded = this.isIdTreeNodeExpanded(nodeId);
+              chevron = isExpanded ? 'expanded' : 'collapsed';
+              onChevronClick = () => this.toggleIdTreeExpansion(nodeId, attrs);
+            } else {
+              chevron = 'leaf';
+            }
+          }
+
           return m(
             GridCell,
             {
@@ -1373,6 +1555,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               nullish: isRich
                 ? rendered.nullish ?? value === null
                 : value === null,
+              chevron,
+              onChevronClick,
+              indent,
               menuItems: [
                 m(CellFilterMenu, {
                   value,
@@ -1389,6 +1574,72 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 
   /**
+   * Checks if an id-based tree node is expanded.
+   */
+  private isIdTreeNodeExpanded(nodeId: bigint): boolean {
+    if (!this.idBasedTree) return false;
+
+    if (this.idBasedTree.expandedIds) {
+      return this.idBasedTree.expandedIds.has(nodeId);
+    }
+
+    if (this.idBasedTree.collapsedIds) {
+      return !this.idBasedTree.collapsedIds.has(nodeId);
+    }
+
+    return false;
+  }
+
+  /**
+   * Toggles expansion of an id-based tree node.
+   */
+  private toggleIdTreeExpansion(nodeId: bigint, attrs: DataGridAttrs): void {
+    if (!this.idBasedTree) return;
+
+    const {idColumn, parentIdColumn, treeColumn} = this.idBasedTree;
+
+    let newTree: IdBasedTree;
+
+    if (this.idBasedTree.collapsedIds) {
+      // Denylist mode: toggle in collapsedIds
+      const newCollapsed = new Set(this.idBasedTree.collapsedIds);
+      if (newCollapsed.has(nodeId)) {
+        newCollapsed.delete(nodeId);
+      } else {
+        newCollapsed.add(nodeId);
+      }
+      newTree = {
+        idColumn,
+        parentIdColumn,
+        treeColumn,
+        collapsedIds: newCollapsed,
+      };
+    } else {
+      // Allowlist mode: toggle in expandedIds
+      const currentExpanded =
+        'expandedIds' in this.idBasedTree && this.idBasedTree.expandedIds
+          ? this.idBasedTree.expandedIds
+          : new Set<bigint>();
+
+      const newExpanded = new Set(currentExpanded);
+      if (newExpanded.has(nodeId)) {
+        newExpanded.delete(nodeId);
+      } else {
+        newExpanded.add(nodeId);
+      }
+      newTree = {
+        idColumn,
+        parentIdColumn,
+        treeColumn,
+        expandedIds: newExpanded,
+      };
+    }
+
+    this.idBasedTree = newTree;
+    attrs.onIdBasedTreeChanged?.(newTree);
+  }
+
+  /**
    * Builds grid columns for pivot mode.
    * Pivot mode has two types of columns:
    * 1. GroupBy columns - the columns we're grouping by
@@ -1400,6 +1651,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       schema,
       rootSchema,
       datasource,
+      aggregateSummaries,
       pivot,
       structuredQueryCompatMode,
       enablePivotControls,
@@ -1437,14 +1689,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ),
         m(MenuDivider),
         m(FilterMenu, {
+          datasource,
+          field,
           columnType,
           structuredQueryCompatMode,
-          distinctValues: datasource.distinctValues?.get(field),
           valueFormatter: (v) => colInfo?.cellFormatter?.(v, {}) ?? String(v),
           onFilterAdd: (filter) => this.addFilter({field, ...filter}, attrs),
-          onRequestDistinctValues: () => this.distinctValuesColumns.add(field),
-          onDismissDistinctValues: () =>
-            this.distinctValuesColumns.delete(field),
         }),
         m(MenuDivider),
         enablePivotControls &&
@@ -1455,7 +1705,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             onAddColumn: (newField) =>
               this.addGroupByColumn(newField, attrs, i),
             dataSource: datasource,
-            parameterKeyColumns: this.parameterKeyColumns,
             canRemove: true,
             onRemove: () => this.removeGroupByColumn(i, attrs),
             removeLabel: 'Remove group by',
@@ -1577,7 +1826,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Build subContent showing grand total with aggregate symbol
       // Don't show grand total for ANY aggregation (it's just an arbitrary value)
-      const aggregateTotalValue = datasource.aggregateTotals?.get(alias);
+      const aggregateTotalValue = aggregateSummaries?.[alias];
       const symbol = agg.function;
       const isLoading = aggregateTotalValue === undefined;
       let aggTotalContent: m.Children;
@@ -1621,13 +1870,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * For multi-level pivots with rollups, adds expand/collapse chevrons.
    */
   private buildPivotRows(ctx: PivotGridBuildContext): m.Children[][] {
-    const {attrs, schema, rootSchema, result, pivot, enablePivotControls} = ctx;
+    const {attrs, schema, rootSchema, rowsResult, pivot, enablePivotControls} =
+      ctx;
 
-    if (result === undefined) return [];
+    if (rowsResult.rows === undefined) return [];
 
     // Find the intersection of rows between what we have and what is required
     // and only render those.
-    const start = Math.max(result.rowOffset, this.paginationOffset);
+    const start = Math.max(rowsResult.rowOffset ?? 0, this.paginationOffset);
 
     const rowIndices = Array.from(
       {length: this.paginationLimit},
@@ -1637,19 +1887,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const aggregates = pivot.aggregates ?? [];
     const numGroupBy = pivot.groupBy.length;
     // In flat mode, don't use multi-level UI (no chevrons, no indent)
-    const isMultiLevel = numGroupBy > 1 && pivot.collapsibleGroups;
+    const isMultiLevel = numGroupBy > 1 && pivot.groupDisplay !== 'flat';
 
     return rowIndices
       .map((index) => {
-        const row = result.rows[index - result.rowOffset];
+        const row = rowsResult.rows![index - (rowsResult.rowOffset ?? 0)];
         if (row === undefined) return undefined;
 
         const cells: m.Children[] = [];
 
-        // For multi-level pivots, get the rollup level from __level__ column
+        // For multi-level pivots, get the rollup level from __depth__ column
         // Level indicates how many groupBy columns have real values (0 to N-1)
         const rowLevel = isMultiLevel
-          ? Number(row[ROLLUP_LEVEL_COLUMN] ?? numGroupBy - 1)
+          ? Number(row['__depth__'] ?? numGroupBy - 1)
           : numGroupBy - 1;
 
         // Render groupBy columns
@@ -1688,14 +1938,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             const isSummaryRow = rowLevel === i;
 
             if (isSummaryRow && i < numGroupBy - 1) {
-              // Build the path from level 0 to this level (inclusive)
-              const path = pivot.groupBy
-                .slice(0, i + 1)
-                .map((col) => row[col.id]);
+              // Use the node's __id__ for expansion state
+              const nodeId = row['__id__'] as bigint;
               // This is a summary row at this level - show expand/collapse chevron
-              const isExpanded = this.isGroupExpanded(path);
+              const isExpanded = this.isGroupExpanded(nodeId);
               chevron = isExpanded ? 'expanded' : 'collapsed';
-              onChevronClick = () => this.toggleExpansion(path, attrs);
+              onChevronClick = () => this.toggleExpansion(nodeId, attrs);
             } else if (i < rowLevel) {
               // This column has a value but is not the summary level - it's a leaf cell
               // in a higher-level column, show with indent
@@ -1818,13 +2066,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   private async formatData(
     dataSource: DataSource,
+    model: DataSourceModel,
     schema: SchemaRegistry | undefined,
     rootSchema: string | undefined,
     pivot: Pivot | undefined,
     format: 'tsv' | 'json' | 'markdown' = 'tsv',
   ): Promise<string> {
     // Get all rows from the data source
-    const rows = await dataSource.exportData();
+    const rows = await dataSource.exportData(model);
 
     // Determine which columns to export based on mode
     let columns: ReadonlyArray<string>;
