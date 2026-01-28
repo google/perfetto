@@ -29,7 +29,6 @@ import {
   GridCell,
   GridColumn,
   GridHeaderCell,
-  renderSortMenuItems,
 } from '../../../widgets/grid';
 import {Icon} from '../../../widgets/icon';
 import {LinearProgress} from '../../../widgets/linear_progress';
@@ -1216,10 +1215,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build menu items
       const columnType = colInfo?.columnType;
       const menuItems: m.Children[] = [
-        renderSortMenuItems(sort, (direction) =>
-          this.updateSort(field, direction, attrs),
-        ),
-        m(MenuDivider),
         m(FilterMenu, {
           columnType,
           structuredQueryCompatMode,
@@ -1432,10 +1427,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build menu items for groupBy column
       const columnType = colInfo?.columnType;
       const menuItems: m.Children[] = [
-        renderSortMenuItems(sort, (direction) =>
-          this.updatePivotGroupBySort(i, direction, attrs),
-        ),
-        m(MenuDivider),
         m(FilterMenu, {
           columnType,
           structuredQueryCompatMode,
@@ -1546,10 +1537,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Build menu items for aggregate column
       const menuItems: m.Children[] = [
-        renderSortMenuItems(sort, (direction) =>
-          this.updatePivotAggregateSort(i, direction, attrs),
-        ),
-        m(MenuDivider),
         enablePivotControls && [
           changeFunctionSubmenu,
           groupByThisMenuItem,

@@ -23,8 +23,6 @@ import {
   GridCell,
   GridColumn,
   GridHeaderCell,
-  renderSortMenuItems,
-  SortDirection,
 } from '../../../../widgets/grid';
 
 import {SqlTableState} from './state';
@@ -187,10 +185,6 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     const virtualGridColumns = columns.map((column, i) => {
       const sorted = this.state.isSortedBy(column);
       const menuItems: m.Children = [
-        renderSortMenuItems(sorted, (direction) =>
-          this.state.sortBy({column, direction}),
-        ),
-        m(MenuDivider),
         this.state.getSelectedColumns().length > 1 &&
           m(MenuItem, {
             label: 'Hide',
@@ -234,9 +228,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           GridHeaderCell,
           {
             sort: sorted,
-            onSort: (direction: SortDirection) => {
-              this.state.sortBy({column, direction});
-            },
+            onSort: (direction) => this.state.sortBy({column, direction}),
             menuItems,
           },
           columnTitle(column),
