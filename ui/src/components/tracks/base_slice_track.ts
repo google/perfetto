@@ -527,14 +527,6 @@ export abstract class BaseSliceTrack<
       }
     }
 
-    // Second pass: fill slices.
-    // Add chevron sprite to atlas if using WebGL for instant slices.
-    const chevronSprite = canvasRenderer
-      ? canvasRenderer.addSprite(
-          this.getChevronSprite(this.instantWidthPx, sliceHeight),
-        )
-      : undefined;
-
     let lastColor = undefined;
     for (const slice of vizSlices) {
       const color = slice.isHighlighted
@@ -542,15 +534,14 @@ export abstract class BaseSliceTrack<
         : slice.colorScheme.base;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
-        if (canvasRenderer && chevronSprite) {
+        if (canvasRenderer) {
           // Use WebGL sprite rendering
-          canvasRenderer.drawSprite(
+          canvasRenderer.drawChevron(
             slice.x,
             y,
             this.instantWidthPx,
             sliceHeight,
             color.rgba,
-            chevronSprite,
           );
         } else {
           // Fallback to Canvas 2D
@@ -975,24 +966,6 @@ export abstract class BaseSliceTrack<
     ctx.lineTo(midX, y); // Back to A.
     ctx.closePath();
     ctx.fill();
-  }
-
-  // Create a sprite canvas for WebGL rendering using drawChevron.
-  // The sprite is white on transparent - it will be tinted by the color.
-  private getChevronSprite(width: number, height: number): OffscreenCanvas {
-    // Don't cache - create fresh each time to avoid stale canvas issues
-    const dpr = window.devicePixelRatio;
-    const canvas = new OffscreenCanvas(
-      Math.ceil(width * dpr),
-      Math.ceil(height * dpr),
-    );
-    const ctx = canvas.getContext('2d')!;
-
-    ctx.scale(dpr, dpr);
-    ctx.fillStyle = 'white';
-    this.drawChevron(ctx, 0, 0, height);
-
-    return canvas;
   }
 
   // This is a good default implementation for highlighting slices. By default

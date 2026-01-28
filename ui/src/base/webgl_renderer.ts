@@ -15,13 +15,13 @@
 // Simple WebGL rectangle renderer with an immediate-mode style API using
 // instanced rendering. Tracks call drawRect() in a tight loop, then flush()
 // renders all rectangles in a single draw call.
-// Also supports sprite rendering via addSprite() and drawSprite().
+// Also supports procedural chevron rendering via drawChevron().
 
 const MAX_RECTS = 10000; // Max rectangles per flush
 
 // Flag bits for drawRect options
 export const RECT_FLAG_HATCHED = 1; // Draw diagonal crosshatch pattern
-export const RECT_FLAG_SPRITE = 2; // Use sprite texture instead of solid color
+export const RECT_FLAG_CHEVRON = 2; // Draw upward-pointing chevron (procedural)
 
 // Cached WebGL program (shared across all WebGLRenderer instances)
 let cachedProgram:
@@ -37,8 +37,6 @@ let cachedProgram:
       offsetLoc: number;
       resolutionLoc: WebGLUniformLocation;
       dprLoc: WebGLUniformLocation;
-      spriteLoc: WebGLUniformLocation;
-      atlasSizeLoc: WebGLUniformLocation;
     }
   | undefined;
 
@@ -58,7 +56,7 @@ function ensureProgram(gl: WebGL2RenderingContext) {
     in vec2 a_rectPos;
     in vec2 a_rectSize;
     in vec4 a_color;
-    in vec4 a_uv;  // (x0, y0, x1, y1) in atlas pixels - normalized in shader
+    in vec4 a_uv;  // (u0, v0, u1, v1) normalized 0-1
     in uint a_flags;
     in vec2 a_offset;  // Per-instance offset (track position)
 
@@ -70,7 +68,6 @@ function ensureProgram(gl: WebGL2RenderingContext) {
 
     uniform vec2 u_resolution;
     uniform float u_dpr;
-    uniform vec2 u_atlasSize;  // Atlas dimensions for UV normalization
 
     void main() {
       // Compute pixel position from instance rect + quad corner + offset
@@ -83,9 +80,8 @@ function ensureProgram(gl: WebGL2RenderingContext) {
       v_localPos = localPos;
       v_rectWidth = a_rectSize.x * u_dpr;
 
-      // Interpolate UVs based on quad corner, then normalize using atlas size
-      vec2 uvPixels = mix(a_uv.xy, a_uv.zw, a_quadCorner);
-      v_uv = uvPixels / u_atlasSize;
+      // Interpolate UVs based on quad corner (already normalized 0-1)
+      v_uv = mix(a_uv.xy, a_uv.zw, a_quadCorner);
 
       v_flags = a_flags;
     }
@@ -99,20 +95,48 @@ function ensureProgram(gl: WebGL2RenderingContext) {
     flat in uint v_flags;
     flat in float v_rectWidth;  // Rect width in pixels
     out vec4 fragColor;
-    uniform sampler2D u_sprite;
 
     const uint FLAG_HATCHED = 1u;
-    const uint FLAG_SPRITE = 2u;
+    const uint FLAG_CHEVRON = 2u;
     const float HATCH_SPACING = 8.0;
     const float HATCH_WIDTH = 1.0;
     const float HATCH_MIN_WIDTH = 4.0;  // Skip hatching on rects smaller than this
 
+    // Check if point p is inside triangle (v0, v1, v2)
+    bool pointInTriangle(vec2 p, vec2 v0, vec2 v1, vec2 v2) {
+      float d1 = (p.x - v1.x) * (v0.y - v1.y) - (v0.x - v1.x) * (p.y - v1.y);
+      float d2 = (p.x - v2.x) * (v1.y - v2.y) - (v1.x - v2.x) * (p.y - v2.y);
+      float d3 = (p.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (p.y - v0.y);
+      bool hasNeg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);
+      bool hasPos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);
+      return !(hasNeg && hasPos);
+    }
+
     void main() {
-      // Check if this is a sprite
-      if ((v_flags & FLAG_SPRITE) != 0u) {
-        // Sample sprite texture and tint with color
-        vec4 texColor = texture(u_sprite, v_uv);
-        fragColor = texColor * v_color;
+      // Check if this is a chevron (procedurally rendered)
+      if ((v_flags & FLAG_CHEVRON) != 0u) {
+        // Chevron vertices:
+        //        A (0.5, 0) - top center
+        //       / \
+        //      /   \
+        //     /     \
+        //    /   C   \  - C (0.5, 0.7) inner notch
+        //   /   / \   \
+        //  D---     ---B - D (0, 1) and B (1, 1) bottom corners
+        vec2 A = vec2(0.5, 0.0);
+        vec2 B = vec2(1.0, 1.0);
+        vec2 C = vec2(0.5, 0.7);
+        vec2 D = vec2(0.0, 1.0);
+
+        // Chevron = two triangles: ABC (right arm) and ACD (left arm)
+        bool inRight = pointInTriangle(v_uv, A, B, C);
+        bool inLeft = pointInTriangle(v_uv, A, C, D);
+
+        if (inRight || inLeft) {
+          fragColor = v_color;
+        } else {
+          discard;
+        }
         return;
       }
 
@@ -157,8 +181,6 @@ function ensureProgram(gl: WebGL2RenderingContext) {
     offsetLoc: gl.getAttribLocation(program, 'a_offset'),
     resolutionLoc: gl.getUniformLocation(program, 'u_resolution')!,
     dprLoc: gl.getUniformLocation(program, 'u_dpr')!,
-    spriteLoc: gl.getUniformLocation(program, 'u_sprite')!,
-    atlasSizeLoc: gl.getUniformLocation(program, 'u_atlasSize')!,
   };
 
   return cachedProgram;
@@ -171,14 +193,6 @@ export interface RGBA {
   a: number; // 0-1
 }
 
-// Handle returned by addSprite(), contains pixel coordinates into the atlas.
-// These are normalized to UV coordinates at draw time to handle atlas resizing.
-export interface SpriteHandle {
-  x: number; // Pixel x in atlas
-  y: number; // Pixel y in atlas
-  w: number; // Pixel width
-  h: number; // Pixel height
-}
 
 export class WebGLRenderer {
   private readonly gl: WebGL2RenderingContext;
@@ -202,15 +216,6 @@ export class WebGLRenderer {
   private uvBuffer: WebGLBuffer;
   private flagsBuffer: WebGLBuffer;
   private offsetBuffer: WebGLBuffer;
-
-  // Sprite atlas - built up during render cycle, uploaded on flush
-  private spriteAtlas?: OffscreenCanvas;
-  private spriteAtlasCtx?: OffscreenCanvasRenderingContext2D;
-  private spriteAtlasWidth = 0;
-  private spriteAtlasHeight = 0;
-  private nextSpriteX = 0;
-  private spriteAtlasDirty = false;
-  private spriteTexture?: WebGLTexture;
 
   constructor(gl: WebGL2RenderingContext, offset: {x: number; y: number}) {
     this.gl = gl;
@@ -245,56 +250,6 @@ export class WebGLRenderer {
     this.offsetBuffer = gl.createBuffer()!;
   }
 
-  // Add a sprite to the atlas. Returns a handle with pixel coordinates.
-  // The canvas should contain a white shape on transparent background -
-  // it will be tinted by the color in drawSprite().
-  addSprite(canvas: HTMLCanvasElement | OffscreenCanvas): SpriteHandle {
-    const spriteWidth = canvas.width;
-    const spriteHeight = canvas.height;
-
-    const neededWidth = this.nextSpriteX + spriteWidth;
-    const neededHeight = Math.max(this.spriteAtlasHeight, spriteHeight);
-
-    if (
-      !this.spriteAtlas ||
-      neededWidth > this.spriteAtlasWidth ||
-      neededHeight > this.spriteAtlasHeight
-    ) {
-      const newWidth = Math.max(this.spriteAtlasWidth * 2, neededWidth, 256);
-      const newHeight = Math.max(this.spriteAtlasHeight, neededHeight, 64);
-      this.resizeAtlas(newWidth, newHeight);
-    }
-
-    this.spriteAtlasCtx!.drawImage(canvas, this.nextSpriteX, 0);
-
-    const handle: SpriteHandle = {
-      x: this.nextSpriteX,
-      y: 0,
-      w: spriteWidth,
-      h: spriteHeight,
-    };
-
-    this.nextSpriteX += spriteWidth;
-    this.spriteAtlasDirty = true;
-
-    return handle;
-  }
-
-  private resizeAtlas(newWidth: number, newHeight: number): void {
-    const newAtlas = new OffscreenCanvas(newWidth, newHeight);
-    const newCtx = newAtlas.getContext('2d')!;
-
-    if (this.spriteAtlas) {
-      newCtx.drawImage(this.spriteAtlas, 0, 0);
-    }
-
-    this.spriteAtlas = newAtlas;
-    this.spriteAtlasCtx = newCtx;
-    this.spriteAtlasWidth = newWidth;
-    this.spriteAtlasHeight = newHeight;
-    this.spriteAtlasDirty = true;
-  }
-
   setOffset(x: number, y: number): void {
     this.offset = {x, y};
   }
@@ -310,28 +265,10 @@ export class WebGLRenderer {
     this.addRect(x, y, w, h, color, flags, 0, 0, 1, 1);
   }
 
-  drawSprite(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    color: RGBA,
-    sprite: SpriteHandle,
-  ): void {
-    // Pass pixel coordinates - they'll be normalized in the shader at flush time
-    // when we know the final atlas dimensions
-    this.addRect(
-      x,
-      y,
-      w,
-      h,
-      color,
-      RECT_FLAG_SPRITE,
-      sprite.x,
-      sprite.y,
-      sprite.x + sprite.w,
-      sprite.y + sprite.h,
-    );
+  // Draw an upward-pointing chevron at the given position/size, tinted by color
+  drawChevron(x: number, y: number, w: number, h: number, color: RGBA): void {
+    // UVs 0-1 are used by the procedural shader to determine the chevron shape
+    this.addRect(x, y, w, h, color, RECT_FLAG_CHEVRON, 0, 0, 1, 1);
   }
 
   // Bulk draw rectangles by copying typed arrays directly into buffers.
@@ -480,51 +417,15 @@ export class WebGLRenderer {
       resolutionLoc,
       dprLoc,
       offsetLoc,
-      spriteLoc,
-      atlasSizeLoc,
     } = ensureProgram(gl);
 
     gl.useProgram(program);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    // Set atlas size uniform (use 1,1 if no atlas to avoid division by zero)
-    gl.uniform2f(
-      atlasSizeLoc,
-      this.spriteAtlasWidth || 1,
-      this.spriteAtlasHeight || 1,
-    );
-
     const dpr = window.devicePixelRatio;
     gl.uniform2f(resolutionLoc, gl.canvas.width, gl.canvas.height);
     gl.uniform1f(dprLoc, dpr);
-
-    // Upload sprite atlas if dirty
-    if (this.spriteAtlas && this.spriteAtlasDirty) {
-      if (!this.spriteTexture) {
-        this.spriteTexture = gl.createTexture()!;
-      }
-      gl.bindTexture(gl.TEXTURE_2D, this.spriteTexture);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        this.spriteAtlas,
-      );
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      this.spriteAtlasDirty = false;
-    }
-
-    if (this.spriteTexture) {
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.spriteTexture);
-      gl.uniform1i(spriteLoc, 0);
-    }
 
     // Static quad corners (per-vertex, divisor 0)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
