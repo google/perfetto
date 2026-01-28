@@ -30,12 +30,11 @@ namespace {
 
 using protozero::ConstBytes;
 
-// Display file I/O events under the "IO" heading. Split data into one row per
-// thread, each labeled "File I/O (<thread ID>)".
+// Display file I/O events in per-thread rows under the "IO > ETW File I/O"
+// headers (per the schema for type "etw_fileio" in `slice_tracks.ts`).
 const auto kBlueprint = TrackCompressor::SliceBlueprint(
     "etw_fileio",
-    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
-    tracks::StaticNameBlueprint("File I/O"));
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
 
 constexpr std::pair<EventType, const char*> kEventTypeNames[] = {
     {EventType::kCreateFile, "CreateFile"},

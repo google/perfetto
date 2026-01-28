@@ -28,7 +28,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 100
                 cpu: 1
-                thread_id: 12345
                 file_io_create {
                   irp_ptr: 99999
                   file_object: 67890
@@ -46,7 +45,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 150
                 cpu: 1
-                thread_id: 12345
                 file_io_op_end {
                   irp_ptr: 99999
                   extra_info: 777
@@ -72,15 +70,15 @@ class Etw(TestSuite):
         """,
         out=Csv('''
           "track","ts","dur","name","key","string_value","int_value"
-          "File I/O (12345)",100,50,"CreateFile","Create Options","[NULL]",44444
-          "File I/O (12345)",100,50,"CreateFile","Extra Info","[NULL]",777
-          "File I/O (12345)",100,50,"CreateFile","File Attributes","[NULL]",55555
-          "File I/O (12345)",100,50,"CreateFile","File Object","[NULL]",67890
-          "File I/O (12345)",100,50,"CreateFile","I/O Request Packet","[NULL]",99999
-          "File I/O (12345)",100,50,"CreateFile","NT Status","[NULL]",888
-          "File I/O (12345)",100,50,"CreateFile","Open Path","C:/path/to/file.txt","[NULL]"
-          "File I/O (12345)",100,50,"CreateFile","Share Access","[NULL]",66666
-          "File I/O (12345)",100,50,"CreateFile","Thread ID","[NULL]",3
+          "ETW File I/O",100,50,"CreateFile","Create Options","[NULL]",44444
+          "ETW File I/O",100,50,"CreateFile","Extra Info","[NULL]",777
+          "ETW File I/O",100,50,"CreateFile","File Attributes","[NULL]",55555
+          "ETW File I/O",100,50,"CreateFile","File Object","[NULL]",67890
+          "ETW File I/O",100,50,"CreateFile","I/O Request Packet","[NULL]",99999
+          "ETW File I/O",100,50,"CreateFile","NT Status","[NULL]",888
+          "ETW File I/O",100,50,"CreateFile","Open Path","C:/path/to/file.txt","[NULL]"
+          "ETW File I/O",100,50,"CreateFile","Share Access","[NULL]",66666
+          "ETW File I/O",100,50,"CreateFile","Thread ID","[NULL]",3
         '''))
 
   def test_dir_enum(self):
@@ -91,7 +89,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 200
                 cpu: 2
-                thread_id: 1
                 file_io_dir_enum {
                   irp_ptr: 54321
                   file_object: 98765
@@ -110,7 +107,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 250
                 cpu: 2
-                thread_id: 1
                 file_io_op_end {
                   irp_ptr: 54321
                   extra_info: 999
@@ -136,15 +132,15 @@ class Etw(TestSuite):
         """,
         out=Csv('''
           "track","ts","dur","name","key","string_value","int_value"
-          "File I/O (1)",200,50,"DirectoryEnumeration","Enumeration Path","dir/path/","[NULL]"
-          "File I/O (1)",200,50,"DirectoryEnumeration","Extra Info","[NULL]",999
-          "File I/O (1)",200,50,"DirectoryEnumeration","File Index","[NULL]",22222
-          "File I/O (1)",200,50,"DirectoryEnumeration","File Key","[NULL]",11111
-          "File I/O (1)",200,50,"DirectoryEnumeration","File Object","[NULL]",98765
-          "File I/O (1)",200,50,"DirectoryEnumeration","I/O Request Packet","[NULL]",54321
-          "File I/O (1)",200,50,"DirectoryEnumeration","Info Class","FileDirectoryInformation","[NULL]"
-          "File I/O (1)",200,50,"DirectoryEnumeration","NT Status","[NULL]",0
-          "File I/O (1)",200,50,"DirectoryEnumeration","Thread ID","[NULL]",1
+          "ETW File I/O",200,50,"DirectoryEnumeration","Enumeration Path","dir/path/","[NULL]"
+          "ETW File I/O",200,50,"DirectoryEnumeration","Extra Info","[NULL]",999
+          "ETW File I/O",200,50,"DirectoryEnumeration","File Index","[NULL]",22222
+          "ETW File I/O",200,50,"DirectoryEnumeration","File Key","[NULL]",11111
+          "ETW File I/O",200,50,"DirectoryEnumeration","File Object","[NULL]",98765
+          "ETW File I/O",200,50,"DirectoryEnumeration","I/O Request Packet","[NULL]",54321
+          "ETW File I/O",200,50,"DirectoryEnumeration","Info Class","FileDirectoryInformation","[NULL]"
+          "ETW File I/O",200,50,"DirectoryEnumeration","NT Status","[NULL]",0
+          "ETW File I/O",200,50,"DirectoryEnumeration","Thread ID","[NULL]",1
         '''))
 
   def test_file_info(self):
@@ -155,7 +151,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 300
                 cpu: 3
-                thread_id: 123
                 file_io_info {
                   irp_ptr: 65432
                   file_object: 87654
@@ -173,7 +168,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 301
                 cpu: 3
-                thread_id: 123
                 file_io_op_end {
                   irp_ptr: 65432
                   extra_info: 111
@@ -199,14 +193,14 @@ class Etw(TestSuite):
         """,
         out=Csv("""
           "track","ts","dur","name","key","string_value","int_value"
-          "File I/O (123)",300,1,"SetInformation","Disposition","[NULL]",33333
-          "File I/O (123)",300,1,"SetInformation","Extra Info","[NULL]",111
-          "File I/O (123)",300,1,"SetInformation","File Key","[NULL]",22222
-          "File I/O (123)",300,1,"SetInformation","File Object","[NULL]",87654
-          "File I/O (123)",300,1,"SetInformation","I/O Request Packet","[NULL]",65432
-          "File I/O (123)",300,1,"SetInformation","Info Class","FileDispositionInformation","[NULL]"
-          "File I/O (123)",300,1,"SetInformation","NT Status","[NULL]",0
-          "File I/O (123)",300,1,"SetInformation","Thread ID","[NULL]",100
+          "ETW File I/O",300,1,"SetInformation","Disposition","[NULL]",33333
+          "ETW File I/O",300,1,"SetInformation","Extra Info","[NULL]",111
+          "ETW File I/O",300,1,"SetInformation","File Key","[NULL]",22222
+          "ETW File I/O",300,1,"SetInformation","File Object","[NULL]",87654
+          "ETW File I/O",300,1,"SetInformation","I/O Request Packet","[NULL]",65432
+          "ETW File I/O",300,1,"SetInformation","Info Class","FileDispositionInformation","[NULL]"
+          "ETW File I/O",300,1,"SetInformation","NT Status","[NULL]",0
+          "ETW File I/O",300,1,"SetInformation","Thread ID","[NULL]",100
         """),
     )
 
@@ -218,7 +212,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 400
                 cpu: 4
-                thread_id: 5
                 file_io_read_write {
                   irp_ptr: 98765
                   offset: 1024
@@ -237,7 +230,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 400
                 cpu: 4
-                thread_id: 5
                 file_io_op_end {
                   irp_ptr: 98765
                   extra_info: 0
@@ -263,15 +255,15 @@ class Etw(TestSuite):
         """,
         out=Csv("""
           "track","ts","dur","name","key","string_value","int_value"
-          "File I/O (5)",400,0,"WriteFile","Extra Info","[NULL]",0
-          "File I/O (5)",400,0,"WriteFile","File Key","[NULL]",54321
-          "File I/O (5)",400,0,"WriteFile","File Object","[NULL]",12345
-          "File I/O (5)",400,0,"WriteFile","I/O Flags","[NULL]",1
-          "File I/O (5)",400,0,"WriteFile","I/O Request Packet","[NULL]",98765
-          "File I/O (5)",400,0,"WriteFile","I/O Size","[NULL]",256
-          "File I/O (5)",400,0,"WriteFile","NT Status","[NULL]",0
-          "File I/O (5)",400,0,"WriteFile","Offset","[NULL]",1024
-          "File I/O (5)",400,0,"WriteFile","Thread ID","[NULL]",5
+          "ETW File I/O",400,0,"WriteFile","Extra Info","[NULL]",0
+          "ETW File I/O",400,0,"WriteFile","File Key","[NULL]",54321
+          "ETW File I/O",400,0,"WriteFile","File Object","[NULL]",12345
+          "ETW File I/O",400,0,"WriteFile","I/O Flags","[NULL]",1
+          "ETW File I/O",400,0,"WriteFile","I/O Request Packet","[NULL]",98765
+          "ETW File I/O",400,0,"WriteFile","I/O Size","[NULL]",256
+          "ETW File I/O",400,0,"WriteFile","NT Status","[NULL]",0
+          "ETW File I/O",400,0,"WriteFile","Offset","[NULL]",1024
+          "ETW File I/O",400,0,"WriteFile","Thread ID","[NULL]",5
         """),
     )
 
@@ -283,7 +275,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 500
                 cpu: 5
-                thread_id: 77777
                 file_io_simple_op {
                   irp_ptr: 111111
                   file_object: 222222
@@ -299,7 +290,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 550
                 cpu: 5
-                thread_id: 77777
                 file_io_op_end {
                   irp_ptr: 111111
                   extra_info: 0
@@ -325,12 +315,12 @@ class Etw(TestSuite):
         """,
         out=Csv("""
           "track","ts","dur","name","key","string_value","int_value"
-          "File I/O (77777)",500,50,"Flush","Extra Info","[NULL]",0
-          "File I/O (77777)",500,50,"Flush","File Key","[NULL]",333333
-          "File I/O (77777)",500,50,"Flush","File Object","[NULL]",222222
-          "File I/O (77777)",500,50,"Flush","I/O Request Packet","[NULL]",111111
-          "File I/O (77777)",500,50,"Flush","NT Status","[NULL]",0
-          "File I/O (77777)",500,50,"Flush","Thread ID","[NULL]",7
+          "ETW File I/O",500,50,"Flush","Extra Info","[NULL]",0
+          "ETW File I/O",500,50,"Flush","File Key","[NULL]",333333
+          "ETW File I/O",500,50,"Flush","File Object","[NULL]",222222
+          "ETW File I/O",500,50,"Flush","I/O Request Packet","[NULL]",111111
+          "ETW File I/O",500,50,"Flush","NT Status","[NULL]",0
+          "ETW File I/O",500,50,"Flush","Thread ID","[NULL]",7
         """),
     )
 
@@ -342,7 +332,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 550
                 cpu: 5
-                thread_id: 1
                 file_io_create {
                   irp_ptr: 111112
                   file_object: 222222
@@ -360,7 +349,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 600
                 cpu: 5
-                thread_id: 1
                 file_io_op_end {
                   irp_ptr: 999999
                   extra_info: 123
@@ -386,17 +374,17 @@ class Etw(TestSuite):
         """,
         out=Csv("""
           "track","ts","dur","name","key","string_value","int_value"
-          "File I/O (1)",550,0,"CreateFile","Create Options","[NULL]",44444
-          "File I/O (1)",550,0,"CreateFile","File Attributes","[NULL]",55555
-          "File I/O (1)",550,0,"CreateFile","File Object","[NULL]",222222
-          "File I/O (1)",550,0,"CreateFile","I/O Request Packet","[NULL]",111112
-          "File I/O (1)",550,0,"CreateFile","Missing Event","End","[NULL]"
-          "File I/O (1)",550,0,"CreateFile","Open Path","file_path.txt","[NULL]"
-          "File I/O (1)",550,0,"CreateFile","Share Access","[NULL]",66666
-          "File I/O (1)",550,0,"CreateFile","Thread ID","[NULL]",1
-          "File I/O (1)",600,0,"EndOperation","Extra Info","[NULL]",123
-          "File I/O (1)",600,0,"EndOperation","Missing Event","Start","[NULL]"
-          "File I/O (1)",600,0,"EndOperation","NT Status","[NULL]",456
+          "ETW File I/O",550,0,"CreateFile","Create Options","[NULL]",44444
+          "ETW File I/O",550,0,"CreateFile","File Attributes","[NULL]",55555
+          "ETW File I/O",550,0,"CreateFile","File Object","[NULL]",222222
+          "ETW File I/O",550,0,"CreateFile","I/O Request Packet","[NULL]",111112
+          "ETW File I/O",550,0,"CreateFile","Missing Event","End","[NULL]"
+          "ETW File I/O",550,0,"CreateFile","Open Path","file_path.txt","[NULL]"
+          "ETW File I/O",550,0,"CreateFile","Share Access","[NULL]",66666
+          "ETW File I/O",550,0,"CreateFile","Thread ID","[NULL]",1
+          "ETW File I/O",600,0,"EndOperation","Extra Info","[NULL]",123
+          "ETW File I/O",600,0,"EndOperation","Missing Event","Start","[NULL]"
+          "ETW File I/O",600,0,"EndOperation","NT Status","[NULL]",456
         """),
     )
 
@@ -408,7 +396,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 700
                 cpu: 7
-                thread_id: 99999
                 file_io_create {
                   file_object: 100000
                   ttid: 99999
@@ -425,7 +412,6 @@ class Etw(TestSuite):
               event {
                 timestamp: 750
                 cpu: 7
-                thread_id: 99999
                 file_io_op_end {
                   extra_info: 4
                   nt_status: 5
@@ -450,13 +436,13 @@ class Etw(TestSuite):
         """,
         out=Csv("""
           "track","ts","dur","name","key","string_value","int_value"
-          "File I/O (99999)",700,0,"CreateFile","Create Options","[NULL]",1
-          "File I/O (99999)",700,0,"CreateFile","File Attributes","[NULL]",2
-          "File I/O (99999)",700,0,"CreateFile","File Object","[NULL]",100000
-          "File I/O (99999)",700,0,"CreateFile","Open Path","/file/path","[NULL]"
-          "File I/O (99999)",700,0,"CreateFile","Share Access","[NULL]",3
-          "File I/O (99999)",700,0,"CreateFile","Thread ID","[NULL]",99999
-          "File I/O (99999)",750,0,"EndOperation","Extra Info","[NULL]",4
-          "File I/O (99999)",750,0,"EndOperation","NT Status","[NULL]",5
+          "ETW File I/O",700,0,"CreateFile","Create Options","[NULL]",1
+          "ETW File I/O",700,0,"CreateFile","File Attributes","[NULL]",2
+          "ETW File I/O",700,0,"CreateFile","File Object","[NULL]",100000
+          "ETW File I/O",700,0,"CreateFile","Open Path","/file/path","[NULL]"
+          "ETW File I/O",700,0,"CreateFile","Share Access","[NULL]",3
+          "ETW File I/O",700,0,"CreateFile","Thread ID","[NULL]",99999
+          "ETW File I/O",750,0,"EndOperation","Extra Info","[NULL]",4
+          "ETW File I/O",750,0,"EndOperation","NT Status","[NULL]",5
         """),
     )
