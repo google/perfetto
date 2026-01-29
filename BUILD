@@ -382,6 +382,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_pprof_pprof",
+        ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -516,6 +517,8 @@ perfetto_cc_library(
                ":protos_perfetto_trace_translation_zero",
                ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
+               ":protos_third_party_primes_cpp",
+               ":protos_third_party_primes_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
                ":src_base_base",
@@ -591,6 +594,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_pprof_pprof",
+        ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -729,6 +733,8 @@ perfetto_cc_library(
                ":protos_perfetto_trace_translation_zero",
                ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
+               ":protos_third_party_primes_cpp",
+               ":protos_third_party_primes_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
                ":src_base_base",
@@ -2549,6 +2555,17 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/pprof/pprof_trace_reader.cc",
         "src/trace_processor/importers/pprof/pprof_trace_reader.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/primes:primes
+perfetto_filegroup(
+    name = "src_trace_processor_importers_primes_primes",
+    srcs = [
+        "src/trace_processor/importers/primes/primes_trace_parser.cc",
+        "src/trace_processor/importers/primes/primes_trace_parser.h",
+        "src/trace_processor/importers/primes/primes_trace_tokenizer.cc",
+        "src/trace_processor/importers/primes/primes_trace_tokenizer.h",
     ],
 )
 
@@ -7843,6 +7860,35 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/third_party/primes:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_third_party_primes_cpp",
+    deps = [
+        ":protos_third_party_primes_protos",
+    ],
+)
+
+# GN target: //protos/third_party/primes:source_set
+perfetto_proto_library(
+    name = "protos_third_party_primes_protos",
+    srcs = [
+        "protos/third_party/primes/primes_tracing.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+)
+
+# GN target: //protos/third_party/primes:zero
+perfetto_cc_protozero_library(
+    name = "protos_third_party_primes_zero",
+    deps = [
+        ":protos_third_party_primes_protos",
+    ],
+)
+
 # GN target: //protos/third_party/simpleperf:source_set
 perfetto_proto_library(
     name = "protos_third_party_simpleperf_protos",
@@ -8159,6 +8205,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_pprof_pprof",
+        ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -8293,6 +8340,8 @@ perfetto_cc_library(
                ":protos_perfetto_trace_translation_zero",
                ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
+               ":protos_third_party_primes_cpp",
+               ":protos_third_party_primes_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
                ":src_base_base",
@@ -8397,6 +8446,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_pprof_pprof",
+        ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -8520,6 +8570,8 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_translation_zero",
                ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
+               ":protos_third_party_primes_cpp",
+               ":protos_third_party_primes_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
                ":src_base_base",
