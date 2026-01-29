@@ -153,8 +153,6 @@ source_set("full") {
     "jit_tracker.h",
     "metadata_module.cc",
     "metadata_module.h",
-    "perf_counter_set_tracker.cc",
-    "perf_counter_set_tracker.h",
     "pigweed_detokenizer.cc",
     "pigweed_detokenizer.h",
     "pixel_modem_module.cc",

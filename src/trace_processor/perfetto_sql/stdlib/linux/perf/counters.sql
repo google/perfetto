@@ -22,9 +22,8 @@ CREATE PERFETTO FUNCTION linux_perf_counter_for_sample(
     counter_name STRING
 )
 -- The counter value, or NULL if not found.
-RETURNS DOUBLE AS
-SELECT
-  __intrinsic_perf_counter_for_sample($sample_id, $counter_name);
+RETURNS DOUBLE
+  DELEGATES TO __intrinsic_perf_counter_for_sample;
 
 -- Fully denormalized view joining perf samples with their counter values.
 -- Note: This view has multiple rows per sample (one for each counter).

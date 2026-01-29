@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -61,8 +62,8 @@ void PerfCounterForSampleFunction::Step(sqlite3_context* ctx,
   // Look up the sample to get counter_set_id.
   const auto& perf_sample_table = storage->perf_sample_table();
   if (sample_id >= perf_sample_table.row_count()) {
-    // Invalid sample ID.
-    return;
+    return sqlite::result::Error(
+        ctx, "__intrinsic_perf_counter_for_sample: invalid sample id");
   }
 
   auto counter_set_id = perf_sample_table[sample_id].counter_set_id();
@@ -71,18 +72,25 @@ void PerfCounterForSampleFunction::Step(sqlite3_context* ctx,
     return;
   }
 
-  // Iterate through the counter set to find the counter with matching name.
-  const auto& perf_counter_set_table = storage->perf_counter_set_table();
+  // Look up the counter name in the string pool first.
+  // If it's not in the pool, no track can have this name.
+  std::optional<StringPool::Id> counter_name_id =
+      storage->string_pool().GetId(counter_name);
+  if (!counter_name_id.has_value()) {
+    // Name not in pool, so no match possible.
+    return;
+  }
+
+  // Use the memoized cursor to iterate through the counter set.
   const auto& counter_table = storage->counter_table();
   const auto& track_table = storage->track_table();
 
-  for (auto it = perf_counter_set_table.IterateRows(); it; ++it) {
-    if (it.perf_counter_set_id() != *counter_set_id) {
-      continue;
-    }
+  user_data->extractor.SetCounterSetId(*counter_set_id);
+  for (; !user_data->extractor.Eof(); user_data->extractor.Next()) {
+    const auto& cursor = user_data->extractor.cursor();
 
     // Get the counter row.
-    CounterId counter_id = it.counter_id();
+    CounterId counter_id = cursor.counter_id();
     if (counter_id.value >= counter_table.row_count()) {
       continue;
     }
@@ -93,10 +101,8 @@ void PerfCounterForSampleFunction::Step(sqlite3_context* ctx,
       continue;
     }
 
-    // Check if the track name matches.
-    auto track_name_str =
-        storage->GetString(track_table[track_id.value].name());
-    if (track_name_str == counter_name) {
+    // Compare string IDs directly (O(1) instead of string comparison).
+    if (track_table[track_id.value].name() == *counter_name_id) {
       // Found matching counter, return its value.
       double value = counter_table[counter_id.value].value();
       return sqlite::result::Double(ctx, value);

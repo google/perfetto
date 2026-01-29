@@ -37,7 +37,6 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
-#include "src/trace_processor/importers/proto/perf_counter_set_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -57,6 +56,25 @@
 
 namespace perfetto::trace_processor {
 
+namespace {
+
+// Adds a counter set containing the given counter IDs.
+// Returns the set ID that can be stored in PerfSampleTable.
+uint32_t AddCounterSet(TraceProcessorContext* context,
+                       const std::vector<CounterId>& counter_ids) {
+  auto* table = context->storage->mutable_perf_counter_set_table();
+  uint32_t set_id = static_cast<uint32_t>(table->row_count());
+  for (CounterId counter_id : counter_ids) {
+    tables::PerfCounterSetTable::Row row;
+    row.perf_counter_set_id = set_id;
+    row.counter_id = counter_id;
+    table->Insert(row);
+  }
+  return set_id;
+}
+
+}  // namespace
+
 using perfetto::protos::pbzero::TracePacket;
 using protozero::ConstBytes;
 
@@ -64,8 +82,7 @@ ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
                              TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
-      perf_sample_tracker_(context),
-      perf_counter_set_tracker_(context) {
+      perf_sample_tracker_(context) {
   RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber);
   RegisterForField(TracePacket::kPerfSampleFieldNumber);
   RegisterForField(TracePacket::kProfilePacketFieldNumber);
@@ -281,7 +298,7 @@ void ProfileModule::ParsePerfSample(
   // Create counter set if we have any counter IDs
   std::optional<uint32_t> counter_set_id;
   if (!counter_ids.empty()) {
-    counter_set_id = perf_counter_set_tracker_.AddCounterSet(counter_ids);
+    counter_set_id = AddCounterSet(context_, counter_ids);
   }
 
   const UniqueTid utid =

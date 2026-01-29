@@ -22,7 +22,6 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
-#include "src/trace_processor/importers/proto/perf_counter_set_tracker.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
@@ -77,7 +76,6 @@ class ProfileModule : public ProtoImporterModule {
 
   TraceProcessorContext* context_;
   PerfSampleTracker perf_sample_tracker_;
-  PerfCounterSetTracker perf_counter_set_tracker_;
 };
 
 }  // namespace perfetto::trace_processor
