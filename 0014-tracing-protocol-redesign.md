@@ -292,10 +292,10 @@ Open questions:
 ##### Memory layout
 
 ```txt
-[ Ring buffer Header] [N x Chunk headers] [N x Chunk payloads]
+[ Ring buffer Header] [Chunk 1 Header] [Chunk 1 Payload] ... [Chunk N Header] [Chunk N Payload]
 ```
 
-where `N = (segment_size - sizeof(RBHeader)) / (sizeof(ChunkHeader) + 256)`
+where `N = (segment_size - sizeof(RBHeader)) / 256`
 
 ##### Ring buffer header
 
@@ -328,11 +328,8 @@ A 16 bytes header with ring-buffer-wide properties
 
 ##### Chunk header
 
-After the RB header, follows an array of contiguous chunk headers, one per
-chunk. If the chunk size is fixed, we know upfront how many chunks we can have
-for a given ring buffer size (the segment size). Hence we can store them all
-adjacently, making handshaking operations even faster by improving spatial
-locality.
+After the RB header, follow an array of 256B chunks. Each chunk is preceded by
+an inline chunk header, and then the payload.
 
 The chunk header is 32 bit, and it's important it stays such: this allows to
 manipulate it atomically using compare-and-exchange operations on both 32-bit
