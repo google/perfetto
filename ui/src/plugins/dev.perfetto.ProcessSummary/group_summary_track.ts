@@ -19,8 +19,6 @@ import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import m from 'mithril';
 import {colorForThread, colorForTid} from '../../components/colorizer';
-import {TrackData} from '../../components/tracks/track_data';
-import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {TrackRenderer} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
@@ -41,6 +39,15 @@ import {
 } from '../../trace_processor/sql_utils';
 import {Dataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
+import {WebGLRenderer} from '../../base/webgl_renderer';
+import {
+  QuerySlot,
+  SerialTaskQueue,
+  QUERY_CANCELLED,
+  CancellationSignal,
+} from '../../base/query_slot';
+import {raf} from '../../core/raf_scheduler';
+import {deferToBackground, yieldBackgroundTask} from '../../base/utils';
 
 export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 
@@ -48,7 +55,17 @@ const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
-interface Data extends TrackData {
+interface Data {
+  // Key fields for caching
+  startNs: bigint;
+  endNs: bigint;
+  resolution: duration;
+
+  // Data bounds (may differ from key if data extends beyond request)
+  start: time;
+  end: time;
+  length: number;
+
   maxLanes: number;
 
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -98,13 +115,43 @@ function computeHover(
   return {utid, lane, count, pid};
 }
 
+interface TableInfo {
+  maxLanes: number;
+}
+
 export class GroupSummaryTrack implements TrackRenderer {
   private hover?: GroupSummaryHover;
-  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
+  private readonly taskQueue = new SerialTaskQueue();
+  private readonly tableSlot = new QuerySlot<TableInfo>(this.taskQueue);
+  private readonly dataSlot = new QuerySlot<Data>(this.taskQueue);
   private trackUuid = uuidv4Sql();
   private mode: Mode = 'slices';
-  private maxLanes: number = 1;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
+  private trackNode?: TrackNode;
+
+  // Current data for rendering and mouse events
+  private currentData?: Data;
+
+  // Track requested bounds to avoid re-triggering while query is in-flight
+  private requestedBounds?: {
+    startNs: bigint;
+    endNs: bigint;
+    resolution: duration;
+  };
+
+  // Cached render buffers (computed once when data changes)
+  private cachedRectPosY?: Float32Array; // y positions per rect
+  private cachedRectHeight?: number; // all rects have same height
+  private cachedBaseColors?: Float32Array; // r,g,b,a per rect (normalized 0-1)
+  private cachedVariantColors?: Float32Array;
+  private cachedDisabledColors?: Float32Array;
+  private cachedPids?: Array<bigint | undefined>;
+  private lastCachedDataGeneration = -1;
+
+  // Temp buffers for render-time computation (reused to avoid allocation)
+  private tempRectPos?: Float32Array;
+  private tempRectSize?: Float32Array;
+  private tempColors?: Float32Array;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -124,14 +171,11 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   async onCreate(ctx: TrackContext): Promise<void> {
-    if (this.mode === 'sched') {
-      await this.createSchedMipmap();
-    } else {
-      await this.createSlicesMipmap(ctx.trackNode);
-    }
+    // Store trackNode for lazy table creation in render()
+    this.trackNode = ctx.trackNode;
   }
 
-  private async createSchedMipmap(): Promise<void> {
+  private async createSchedMipmap(): Promise<TableInfo> {
     const getQuery = () => {
       if (this.config.upid !== null) {
         return `
@@ -200,7 +244,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     });
     await trash.asyncDispose();
 
-    this.maxLanes = this.cpuCount;
+    return {maxLanes: this.cpuCount};
   }
 
   private fetchDatasetsFromSliceTracks(node: TrackNode) {
@@ -238,7 +282,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  private async createSlicesMipmap(node: TrackNode): Promise<void> {
+  private async createSlicesMipmap(node: TrackNode): Promise<TableInfo> {
     // Fetch datasets from child tracks
     this.fetchDatasetsFromSliceTracks(node);
 
@@ -256,8 +300,7 @@ export class GroupSummaryTrack implements TrackRenderer {
           where 0
         ))`,
       });
-      this.maxLanes = 1;
-      return;
+      return {maxLanes: 1};
     }
 
     // Create union of all slice tracks with track index as depth
@@ -282,45 +325,46 @@ export class GroupSummaryTrack implements TrackRenderer {
         ${unions}
       ))`,
     });
-    this.maxLanes = 8;
-  }
-
-  async onUpdate({
-    visibleWindow,
-    resolution,
-  }: TrackRenderContext): Promise<void> {
-    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
+    return {maxLanes: 8};
   }
 
   async onDestroy(): Promise<void> {
-    this.fetcher[Symbol.dispose]();
+    this.tableSlot.dispose();
+    this.dataSlot.dispose();
     await this.trace.engine.tryQuery(`
       drop table process_summary_${this.trackUuid}
     `);
   }
 
-  async onBoundsChange(
+  private async fetchData(
     start: time,
     end: time,
     resolution: duration,
-  ): Promise<Data> {
+    maxLanes: number,
+    signal: CancellationSignal,
+  ): Promise<Data | typeof QUERY_CANCELLED> {
     // Resolution must always be a power of 2 for this logic to work
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
     const queryRes = await this.queryData(start, end, resolution);
     const numRows = queryRes.numRows();
     const slices: Data = {
+      startNs: start,
+      endNs: end,
       start,
       end,
       resolution,
       length: numRows,
-      maxLanes: this.maxLanes,
+      maxLanes,
       counts: new Uint32Array(numRows),
       starts: new BigInt64Array(numRows),
       ends: new BigInt64Array(numRows),
       lanes: new Uint32Array(numRows),
       utids: new Int32Array(numRows),
     };
+
+    // Defer to idle time before iterating over results.
+    let idle = await deferToBackground();
 
     const it = queryRes.iter({
       count: NUM,
@@ -330,7 +374,20 @@ export class GroupSummaryTrack implements TrackRenderer {
       utid: NUM,
     });
 
+    // Iterate over results, yielding to idle callbacks when time runs out.
+    // Check every 100 iterations to amortize the cost of timeRemaining().
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 100 === 0) {
+        // Check for cancellation
+        if (signal.isCancelled) {
+          console.log('Fetch data cancelled');
+          return QUERY_CANCELLED;
+        }
+        if (idle.timeRemaining() <= 0) {
+          idle = await yieldBackgroundTask();
+        }
+      }
+
       const start = Time.fromRaw(it.ts);
       const dur = it.dur;
       const end = Time.add(start, dur);
@@ -342,6 +399,8 @@ export class GroupSummaryTrack implements TrackRenderer {
       slices.utids[row] = it.utid;
       slices.end = Time.max(end, slices.end);
     }
+
+    raf.scheduleCanvasRedraw();
     return slices;
   }
 
@@ -422,9 +481,198 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
-    const data = this.fetcher.data;
+  private cacheRenderBuffers(data: Data): void {
+    const numSlices = data.starts.length;
+    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
 
+    // Pre-compute y positions
+    this.cachedRectPosY = new Float32Array(numSlices);
+    for (let i = 0; i < numSlices; i++) {
+      const lane = data.lanes[i];
+      this.cachedRectPosY[i] = MARGIN_TOP + laneHeight * lane + lane;
+    }
+
+    // Cache height (constant for all rects)
+    this.cachedRectHeight = laneHeight;
+
+    // Pre-compute colors (normalized 0-1)
+    this.cachedBaseColors = new Float32Array(numSlices * 4);
+    this.cachedVariantColors = new Float32Array(numSlices * 4);
+    this.cachedDisabledColors = new Float32Array(numSlices * 4);
+    this.cachedPids = new Array(numSlices);
+
+    for (let i = 0; i < numSlices; i++) {
+      const utid = data.utids[i];
+      const threadInfo = this.threads.get(utid);
+      const colorScheme =
+        this.mode === 'sched'
+          ? colorForThread(threadInfo)
+          : colorForTid(Number(this.config.pidForColor));
+
+      const base = colorScheme.base.rgba;
+      const variant = colorScheme.variant.rgba;
+      const disabled = colorScheme.disabled.rgba;
+
+      const idx = i * 4;
+      this.cachedBaseColors[idx + 0] = base.r / 255;
+      this.cachedBaseColors[idx + 1] = base.g / 255;
+      this.cachedBaseColors[idx + 2] = base.b / 255;
+      this.cachedBaseColors[idx + 3] = base.a;
+
+      this.cachedVariantColors[idx + 0] = variant.r / 255;
+      this.cachedVariantColors[idx + 1] = variant.g / 255;
+      this.cachedVariantColors[idx + 2] = variant.b / 255;
+      this.cachedVariantColors[idx + 3] = variant.a;
+
+      this.cachedDisabledColors[idx + 0] = disabled.r / 255;
+      this.cachedDisabledColors[idx + 1] = disabled.g / 255;
+      this.cachedDisabledColors[idx + 2] = disabled.b / 255;
+      this.cachedDisabledColors[idx + 3] = disabled.a;
+
+      this.cachedPids[i] = threadInfo?.pid;
+    }
+
+    // Allocate temp buffers for render-time use
+    this.tempRectPos = new Float32Array(numSlices * 2);
+    this.tempRectSize = new Float32Array(numSlices * 2);
+    this.tempColors = new Float32Array(numSlices * 4);
+  }
+
+  private renderSlices(
+    timescale: TimeScale,
+    data: Data,
+    canvasRenderer: WebGLRenderer,
+  ): void {
+    const numSlices = data.starts.length;
+    const hoveredUtid = this.trace.timeline.hoveredUtid;
+    const hoveredPid = this.trace.timeline.hoveredPid;
+    const isHovering = this.mode === 'sched' && hoveredUtid !== undefined;
+
+    const rectPos = this.tempRectPos!;
+    const rectSize = this.tempRectSize!;
+    const height = this.cachedRectHeight!;
+
+    // Fill position and size buffers (x and width computed from timescale)
+    for (let i = 0; i < numSlices; i++) {
+      const tStart = Time.fromRaw(data.starts[i]);
+      const tEnd = Time.fromRaw(data.ends[i]);
+
+      const x = timescale.timeToPx(tStart);
+      const w = Math.max(1, timescale.timeToPx(tEnd) - x);
+
+      rectPos[i * 2 + 0] = x;
+      rectPos[i * 2 + 1] = this.cachedRectPosY![i];
+
+      rectSize[i * 2 + 0] = w;
+      rectSize[i * 2 + 1] = height;
+    }
+
+    // Select colors based on hover state
+    let colors: Float32Array;
+    if (isHovering) {
+      // Need to select colors per-rect based on hover
+      const tempColors = this.tempColors!;
+      for (let i = 0; i < numSlices; i++) {
+        const utid = data.utids[i];
+        const isThreadHovered = hoveredUtid === utid;
+        const isProcessHovered =
+          hoveredPid !== undefined && this.cachedPids![i] === hoveredPid;
+
+        const srcColors = isThreadHovered
+          ? this.cachedBaseColors!
+          : isProcessHovered
+            ? this.cachedVariantColors!
+            : this.cachedDisabledColors!;
+
+        const idx = i * 4;
+        tempColors[idx + 0] = srcColors[idx + 0];
+        tempColors[idx + 1] = srcColors[idx + 1];
+        tempColors[idx + 2] = srcColors[idx + 2];
+        tempColors[idx + 3] = srcColors[idx + 3];
+      }
+      colors = tempColors;
+    } else {
+      // No hover - use base colors directly
+      colors = this.cachedBaseColors!;
+    }
+
+    canvasRenderer.drawRects(rectPos, rectSize, colors, numSlices);
+  }
+
+  render({
+    ctx,
+    size,
+    timescale,
+    canvasRenderer,
+    visibleWindow,
+    resolution,
+  }: TrackRenderContext): void {
+    // First, ensure the mipmap table is created
+    const tableResult = this.tableSlot.use({
+      key: {mode: this.mode},
+      queryFn: async () => {
+        if (this.mode === 'sched') {
+          return this.createSchedMipmap();
+        } else {
+          return this.createSlicesMipmap(assertExists(this.trackNode));
+        }
+      },
+    });
+
+    // Can't fetch data until table is ready
+    if (!tableResult.data) return;
+
+    const {maxLanes} = tableResult.data;
+
+    // Check if requested bounds cover the viewport - only update bounds if
+    // we moved outside the loaded bounds or resolution changed.
+    const viewStart = visibleWindow.start.toTime();
+    const viewEnd = visibleWindow.end.toTime();
+
+    const bounds = this.requestedBounds;
+    const needsNewData =
+      bounds === undefined ||
+      viewStart < bounds.startNs ||
+      viewEnd > bounds.endNs ||
+      resolution !== bounds.resolution;
+
+    if (needsNewData) {
+      // Compute padded bounds (one page on each side as "skirt")
+      const viewDuration = viewEnd - viewStart;
+      const paddedStart = BIMath.quantFloor(
+        viewStart - viewDuration,
+        resolution,
+      );
+      const paddedEnd = BIMath.quantCeil(viewEnd + viewDuration, resolution);
+
+      // Track requested bounds to avoid re-triggering while in-flight
+      this.requestedBounds = {
+        startNs: paddedStart,
+        endNs: paddedEnd,
+        resolution,
+      };
+    }
+
+    // Always call dataSlot.use() to get cached result or trigger fetch
+    const {startNs, endNs, resolution: res} = this.requestedBounds!;
+    const result = this.dataSlot.use({
+      key: {startNs, endNs, resolution: res},
+      queryFn: (signal) =>
+        this.fetchData(
+          Time.fromRaw(startNs),
+          Time.fromRaw(endNs),
+          res,
+          maxLanes,
+          signal,
+        ),
+    });
+
+    // Update currentData when new data arrives
+    if (result.data) {
+      this.currentData = result.data;
+    }
+
+    const data = this.currentData;
     if (data === undefined) return; // Can't possibly draw anything.
 
     // If the cached trace slices don't fully cover the visible time range,
@@ -438,60 +686,24 @@ export class GroupSummaryTrack implements TrackRenderer {
       timescale.timeToPx(data.end),
     );
 
-    assertTrue(data.starts.length === data.ends.length);
-    assertTrue(data.starts.length === data.utids.length);
+    // Render slices using WebGL if available
+    if (canvasRenderer !== undefined) {
+      assertTrue(data.starts.length === data.ends.length);
+      assertTrue(data.starts.length === data.utids.length);
 
-    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
-
-    for (let i = 0; i < data.ends.length; i++) {
-      const tStart = Time.fromRaw(data.starts[i]);
-      const tEnd = Time.fromRaw(data.ends[i]);
-
-      // Cull slices that lie completely outside the visible window
-      if (!visibleWindow.overlaps(tStart, tEnd)) continue;
-
-      const utid = data.utids[i];
-      const lane = data.lanes[i];
-
-      const rectStart = Math.floor(timescale.timeToPx(tStart));
-      const rectEnd = Math.floor(timescale.timeToPx(tEnd));
-      const rectWidth = Math.max(1, rectEnd - rectStart);
-
-      let colorScheme;
-
-      if (this.mode === 'sched') {
-        // Scheduling mode: color by thread (utid)
-        const threadInfo = this.threads.get(utid);
-        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-        const pid = (threadInfo ? threadInfo.pid : -1) || -1;
-
-        const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-        const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-        const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-        colorScheme = colorForThread(threadInfo);
-
-        if (isHovering && !isThreadHovered) {
-          if (!isProcessHovered) {
-            ctx.fillStyle = colorScheme.disabled.cssString;
-          } else {
-            ctx.fillStyle = colorScheme.variant.cssString;
-          }
-        } else {
-          ctx.fillStyle = colorScheme.base.cssString;
-        }
-      } else {
-        // Slice mode: consistent color based on pidForColor
-        colorScheme = colorForTid(this.config.pidForColor);
-        ctx.fillStyle = colorScheme.base.cssString;
+      // Cache render buffers when data changes
+      const dataGeneration = data.starts.length + Number(data.resolution);
+      if (dataGeneration !== this.lastCachedDataGeneration) {
+        this.cacheRenderBuffers(data);
+        this.lastCachedDataGeneration = dataGeneration;
       }
 
-      const y = MARGIN_TOP + laneHeight * lane + lane;
-      ctx.fillRect(rectStart, y, rectWidth, laneHeight);
+      this.renderSlices(timescale, data, canvasRenderer);
     }
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
+    const data = this.currentData;
     if (data === undefined) return;
     this.hover = computeHover({x, y}, timescale, data, this.threads);
     if (this.hoverMonitor.ifStateChanged()) {

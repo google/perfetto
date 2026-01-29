@@ -15,9 +15,8 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Monitor} from '../../base/monitor';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
-import {assertExists, assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
-import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
 import m from 'mithril';
@@ -37,6 +36,8 @@ import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
+import {WebGLRenderer, RECT_FLAG_HATCHED} from '../../base/webgl_renderer';
+import {deferToBackground, yieldBackgroundTask} from '../../base/utils';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -95,6 +96,15 @@ export class CpuSliceTrack implements TrackRenderer {
 
   private lastRowId = -1;
   private trackUuid = uuidv4Sql();
+
+  // Cached colors per slice (computed once when data changes)
+  private cachedColors?: Array<{
+    base: {r: number; g: number; b: number; a: number};
+    variant: {r: number; g: number; b: number; a: number};
+    disabled: {r: number; g: number; b: number; a: number};
+  }>;
+  private cachedPids?: Array<bigint | number>;
+  private lastCachedDataGeneration = -1;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -202,6 +212,9 @@ export class CpuSliceTrack implements TrackRenderer {
       flags: new Uint8Array(numRows),
     };
 
+    // Defer to idle time before iterating over results.
+    let idle = await deferToBackground();
+
     const it = queryRes.iter({
       count: NUM,
       tsQ: LONG,
@@ -213,7 +226,14 @@ export class CpuSliceTrack implements TrackRenderer {
       isIncomplete: NUM,
       isRealtime: NUM,
     });
+
+    // Iterate over results, yielding to idle callbacks when time runs out.
+    // Check every 32 iterations to amortize the cost of timeRemaining().
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 100 === 0 && idle.timeRemaining() <= 0) {
+        idle = await yieldBackgroundTask();
+      }
+
       slices.counts[row] = it.count;
       slices.startQs[row] = it.tsQ;
       slices.endQs[row] = it.tsEndQ;
@@ -266,8 +286,77 @@ export class CpuSliceTrack implements TrackRenderer {
     }
   }
 
+  private cacheColors(data: Data): void {
+    const numSlices = data.startQs.length;
+    this.cachedColors = new Array(numSlices);
+    this.cachedPids = new Array(numSlices);
+
+    for (let i = 0; i < numSlices; i++) {
+      const utid = data.utids[i];
+      const threadInfo = this.threads.get(utid);
+      const colorScheme = colorForThread(threadInfo);
+
+      this.cachedColors[i] = {
+        base: colorScheme.base.rgba,
+        variant: colorScheme.variant.rgba,
+        disabled: colorScheme.disabled.rgba,
+      };
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      this.cachedPids[i] = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
+    }
+  }
+
+  private renderSlices(
+    timescale: TimeScale,
+    data: Data,
+    canvasRenderer: WebGLRenderer,
+  ): void {
+    const hoveredUtid = this.trace.timeline.hoveredUtid;
+    const hoveredPid = this.trace.timeline.hoveredPid;
+    const isHovering = hoveredUtid !== undefined;
+
+    for (let i = 0; i < data.startQs.length; i++) {
+      const tStart = Time.fromRaw(data.startQs[i]);
+      const tEnd = Time.fromRaw(data.endQs[i]);
+      const utid = data.utids[i];
+
+      const rectStart = timescale.timeToPx(tStart);
+      const rectEnd = timescale.timeToPx(tEnd);
+      const rectWidth = Math.max(1, rectEnd - rectStart);
+
+      // Use cached colors
+      const colors = this.cachedColors![i];
+      const pid = this.cachedPids![i];
+      let color;
+      if (isHovering) {
+        const isThreadHovered = hoveredUtid === utid;
+        const isProcessHovered = hoveredPid !== undefined && pid === hoveredPid;
+
+        if (!isThreadHovered) {
+          color = isProcessHovered ? colors.variant : colors.disabled;
+        } else {
+          color = colors.base;
+        }
+      } else {
+        color = colors.base;
+      }
+
+      // Use hatching for real-time priority slices
+      const flags =
+        data.flags[i] & CPU_SLICE_FLAGS_REALTIME ? RECT_FLAG_HATCHED : 0;
+      canvasRenderer.drawRect(
+        rectStart,
+        MARGIN_TOP,
+        rectWidth,
+        RECT_HEIGHT,
+        color,
+        flags,
+      );
+    }
+  }
+
   render(trackCtx: TrackRenderContext): void {
-    const {ctx, size, timescale} = trackCtx;
+    const {ctx, size, timescale, visibleWindow, canvasRenderer} = trackCtx;
 
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -285,107 +374,82 @@ export class CpuSliceTrack implements TrackRenderer {
       timescale.timeToPx(data.end),
     );
 
-    this.renderSlices(trackCtx, data);
-  }
+    // Render rectangles using WebGL if available
+    if (canvasRenderer !== undefined) {
+      assertTrue(data.startQs.length === data.endQs.length);
+      assertTrue(data.startQs.length === data.utids.length);
 
-  renderSlices(
-    {ctx, timescale, size, visibleWindow}: TrackRenderContext,
-    data: Data,
-  ): void {
-    assertTrue(data.startQs.length === data.endQs.length);
-    assertTrue(data.startQs.length === data.utids.length);
+      // Cache colors when data changes
+      const dataGeneration = data.startQs.length + data.lastRowId;
+      if (dataGeneration !== this.lastCachedDataGeneration) {
+        this.cacheColors(data);
+        this.lastCachedDataGeneration = dataGeneration;
+      }
 
+      this.renderSlices(timescale, data, canvasRenderer);
+    }
+
+    // Render text using Canvas 2D (on top of WebGL rectangles)
     const visWindowEndPx = size.width;
-
     ctx.textAlign = 'center';
     ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     const timespan = visibleWindow.toTimeSpan();
-
     const startTime = timespan.start;
     const endTime = timespan.end;
 
     const rawStartIdx = data.endQs.findIndex((end) => end >= startTime);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
-
     const [, rawEndIdx] = searchSegment(data.startQs, endTime);
     const endIdx = rawEndIdx === -1 ? data.startQs.length : rawEndIdx;
+
+    const hoveredUtid = this.trace.timeline.hoveredUtid;
+    const hoveredPid = this.trace.timeline.hoveredPid;
+    const isHovering = hoveredUtid !== undefined;
 
     for (let i = startIdx; i < endIdx; i++) {
       const tStart = Time.fromRaw(data.startQs[i]);
       let tEnd = Time.fromRaw(data.endQs[i]);
       const utid = data.utids[i];
 
-      // If the last slice is incomplete, it should end with the end of the
-      // window, else it might spill over the window and the end would not be
-      // visible as a zigzag line.
       if (
         data.ids[i] === data.lastRowId &&
         data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE
       ) {
         tEnd = endTime;
       }
+
       const rectStart = timescale.timeToPx(tStart);
       const rectEnd = timescale.timeToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
+
+      // Don't render text when we have less than 5px to play with.
+      if (rectWidth < 5) continue;
 
       const threadInfo = this.threads.get(utid);
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
-      const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-      const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-      const isProcessHovered = this.trace.timeline.hoveredPid === pid;
+      const isThreadHovered = hoveredUtid === utid;
+      const isProcessHovered = hoveredPid === pid;
       const colorScheme = colorForThread(threadInfo);
-      let color: Color;
+
       let textColor: Color;
       if (isHovering && !isThreadHovered) {
-        if (!isProcessHovered) {
-          color = colorScheme.disabled;
-          textColor = colorScheme.textDisabled;
-        } else {
-          color = colorScheme.variant;
-          textColor = colorScheme.textVariant;
-        }
+        textColor = isProcessHovered
+          ? colorScheme.textVariant
+          : colorScheme.textDisabled;
       } else {
-        color = colorScheme.base;
         textColor = colorScheme.textBase;
       }
-      ctx.fillStyle = color.cssString;
 
-      if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
-        drawIncompleteSlice(
-          ctx,
-          rectStart,
-          MARGIN_TOP,
-          rectWidth,
-          RECT_HEIGHT,
-          color,
-        );
-      } else {
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
-      }
-
-      // Don't render text when we have less than 5px to play with.
-      if (rectWidth < 5) continue;
-
-      // Stylize real-time threads. We don't do it when zoomed out as the
-      // fillRect is expensive.
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
-        ctx.fillStyle = getHatchedPattern(ctx);
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
-      }
-
-      // TODO: consider de-duplicating this code with the copied one from
-      // chrome_slices/frontend.ts.
       let title = `[utid:${utid}]`;
       let subTitle = '';
       if (threadInfo) {
         if (threadInfo.pid !== undefined && threadInfo.pid !== 0n) {
           let procName = threadInfo.procName ?? '';
           if (procName.startsWith('/')) {
-            // Remove folder paths from name
             procName = procName.substring(procName.lastIndexOf('/') + 1);
           }
           title = `${procName} [${threadInfo.pid}]`;
@@ -561,27 +625,4 @@ export class CpuSliceTrack implements TrackRenderer {
   detailsPanel() {
     return new SchedSliceDetailsPanel(this.trace, this.threads);
   }
-}
-
-// Creates a diagonal hatched pattern to be used for distinguishing slices with
-// real-time priorities. The pattern is created once as an offscreen canvas and
-// is kept cached inside the Context2D of the main canvas, without making
-// assumptions on the lifetime of the main canvas.
-function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
-  const mctx = mainCtx as CanvasRenderingContext2D & {
-    sliceHatchedPattern?: CanvasPattern;
-  };
-  if (mctx.sliceHatchedPattern !== undefined) return mctx.sliceHatchedPattern;
-  const canvas = document.createElement('canvas');
-  const SIZE = 8;
-  canvas.width = canvas.height = SIZE;
-  const ctx = assertExists(canvas.getContext('2d'));
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.beginPath();
-  ctx.lineWidth = 1;
-  ctx.moveTo(0, SIZE);
-  ctx.lineTo(SIZE, 0);
-  ctx.stroke();
-  mctx.sliceHatchedPattern = assertExists(mctx.createPattern(canvas, 'repeat'));
-  return mctx.sliceHatchedPattern;
 }

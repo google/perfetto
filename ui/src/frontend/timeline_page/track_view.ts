@@ -30,6 +30,7 @@ import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {Icons} from '../../base/semantic_icons';
 import {TimeScale} from '../../base/time_scale';
 import {RequiredField} from '../../base/utils';
+import {WebGLRenderer} from '../../base/webgl_renderer';
 import {AppImpl} from '../../core/app_impl';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
@@ -261,6 +262,7 @@ export class TrackView {
     );
   }
 
+  // Render the track - both WebGL rectangles and Canvas 2D content
   drawCanvas(
     ctx: CanvasRenderingContext2D,
     rect: Rect2D,
@@ -268,6 +270,7 @@ export class TrackView {
     perfStatsEnabled: boolean,
     trackPerfStats: WeakMap<TrackNode, PerfStats>,
     colors: CanvasColors,
+    canvasRenderer?: WebGLRenderer,
   ) {
     // For each track we rendered in view(), render it to the canvas. We know the
     // vertical bounds, so we just need to combine it with the horizontal bounds
@@ -312,6 +315,7 @@ export class TrackView {
         ctx,
         timescale,
         colors,
+        canvasRenderer,
       });
 
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);

@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
-import {colorCompare} from '../../base/color';
 import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
@@ -39,6 +38,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
+import {deferToBackground, yieldBackgroundTask} from '../../base/utils';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -47,6 +47,7 @@ export const SLICE_FLAGS_INSTANT = 2;
 
 // Slices smaller than this don't get any text:
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
+
 const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const SLICE_MIN_WIDTH_FADED_PX = 0.1;
 
@@ -423,7 +424,7 @@ export abstract class BaseSliceTrack<
     );
 
     // If the visible time range is outside the cached area, requests
-    // asynchronously new data from the SQL engine.
+    // new data from the SQL engine during idle time.
     await this.maybeRequestData(rawSlicesKey);
   }
 
@@ -433,6 +434,7 @@ export abstract class BaseSliceTrack<
     visibleWindow,
     timescale,
     colors,
+    canvasRenderer,
   }: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
@@ -525,27 +527,33 @@ export abstract class BaseSliceTrack<
       }
     }
 
-    // Second pass: fill slices by color.
-    const vizSlicesByColor = vizSlices.slice();
-    if (!this.forceTimestampRenderOrder) {
-      vizSlicesByColor.sort((a, b) =>
-        colorCompare(a.colorScheme.base, b.colorScheme.base),
-      );
-    }
     let lastColor = undefined;
     for (const slice of vizSlices) {
       const color = slice.isHighlighted
         ? slice.colorScheme.variant
         : slice.colorScheme.base;
-      const colorString = color.cssString;
-      if (colorString !== lastColor) {
-        lastColor = colorString;
-        ctx.fillStyle = colorString;
-      }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
-        this.drawChevron(ctx, slice.x, y, sliceHeight);
+        if (canvasRenderer) {
+          // Use WebGL sprite rendering
+          canvasRenderer.drawChevron(
+            slice.x,
+            y,
+            this.instantWidthPx,
+            sliceHeight,
+            color.rgba,
+          );
+        } else {
+          // Fallback to Canvas 2D
+          const colorString = color.cssString;
+          if (colorString !== lastColor) {
+            lastColor = colorString;
+            ctx.fillStyle = colorString;
+          }
+          this.drawChevron(ctx, slice.x, y, sliceHeight);
+        }
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
+        // Incomplete slices have special rendering - keep using Canvas 2D
         const w = CROP_INCOMPLETE_SLICE_FLAG.get()
           ? slice.w
           : Math.max(slice.w - 2, 2);
@@ -559,19 +567,29 @@ export abstract class BaseSliceTrack<
           !CROP_INCOMPLETE_SLICE_FLAG.get(),
         );
       } else {
+        // Regular slices - use WebGL when available
         const w = Math.max(
           slice.w,
           FADE_THIN_SLICES_FLAG.get()
             ? SLICE_MIN_WIDTH_FADED_PX
             : SLICE_MIN_WIDTH_PX,
         );
-        ctx.fillRect(slice.x, y, w, sliceHeight);
+        if (canvasRenderer) {
+          canvasRenderer.drawRect(slice.x, y, w, sliceHeight, color.rgba);
+        } else {
+          const colorString = color.cssString;
+          if (colorString !== lastColor) {
+            lastColor = colorString;
+            ctx.fillStyle = colorString;
+          }
+          ctx.fillRect(slice.x, y, w, sliceHeight);
+        }
       }
     }
 
     // Pass 2.5: Draw fillRatio light section.
     ctx.fillStyle = `#FFFFFF50`;
-    for (const slice of vizSlicesByColor) {
+    for (const slice of vizSlices) {
       // Can't draw fill ratio on incomplete or instant slices.
       if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
         continue;
@@ -696,25 +714,14 @@ export abstract class BaseSliceTrack<
   }
 
   // This method figures out if the visible window is outside the bounds of
-  // the cached data and if so issues new queries (i.e. sorta subsumes the
-  // onBoundsChange).
-  private async maybeRequestData(rawSlicesKey: CacheKey) {
+  // the cached data and if so issues new queries. Uses requestIdleCallback
+  // to defer work to idle time, avoiding frame drops.
+  private async maybeRequestData(rawSlicesKey: CacheKey): Promise<void> {
     if (rawSlicesKey.isCoveredBy(this.slicesKey)) {
       return; // We have the data already, no need to re-query
     }
 
-    // Determine the cache key:
     const slicesKey = rawSlicesKey.normalize();
-    if (!rawSlicesKey.isCoveredBy(slicesKey)) {
-      throw new Error(
-        `Normalization error ${slicesKey.toString()} ${rawSlicesKey.toString()}`,
-      );
-    }
-
-    // Here convert each row to a Slice. We do what we can do
-    // generically in the base class, and delegate the rest to the impl
-    // via that rowToSlice() abstract call.
-    const slices = new Array<CastInternal<SliceT>>();
 
     // The mipmap virtual table will error out when passed a 0 length time span.
     const resolution = slicesKey.bucketSize;
@@ -737,20 +744,28 @@ export abstract class BaseSliceTrack<
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
-    const it = queryRes.iter(this.rowSpec);
+    let idle = await deferToBackground();
 
+    // Iterate over results, yielding to idle callbacks when time runs out.
+    // Check every 100 iterations to amortize the cost of timeRemaining().
+    const it = queryRes.iter(this.rowSpec);
+    const slices = new Array<CastInternal<SliceT>>();
     let maxDataDepth = this.maxDataDepth;
-    for (let i = 0; it.valid(); it.next(), ++i) {
-      if (it.dur === -1n) {
-        continue;
+    let i = 0;
+
+    while (it.valid()) {
+      if (++i % 100 === 0 && idle.timeRemaining() <= 0) {
+        idle = await yieldBackgroundTask();
       }
 
-      maxDataDepth = Math.max(maxDataDepth, it.depth);
-      // Construct the base slice. The Impl will construct and return
-      // the full derived T["slice"] (e.g. CpuSlice) in the
-      // rowToSlice() method.
-      slices.push(this.rowToSliceInternal(it));
+      if (it.dur !== -1n) {
+        maxDataDepth = Math.max(maxDataDepth, it.depth);
+        slices.push(this.rowToSliceInternal(it));
+      }
+      it.next();
     }
+
+    // Iteration complete - finalize the data.
     for (const incomplete of this.incomplete) {
       maxDataDepth = Math.max(maxDataDepth, incomplete.depth);
     }
@@ -928,7 +943,7 @@ export abstract class BaseSliceTrack<
   }
 
   protected drawChevron(
-    ctx: CanvasRenderingContext2D,
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     x: number,
     y: number,
     h: number,
