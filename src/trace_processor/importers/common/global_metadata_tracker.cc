@@ -220,6 +220,7 @@ GlobalMetadataTracker::ContextIds GlobalMetadataTracker::GetContextIds(
     case metadata::Scope::kNumScopes:
       PERFETTO_FATAL("Invalid scope");
   }
+  PERFETTO_FATAL("For GCC");
 }
 
 }  // namespace perfetto::trace_processor

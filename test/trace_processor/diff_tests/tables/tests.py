@@ -376,19 +376,11 @@ class Tables(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
-          # This will set trace_uuid globally initially
-          system_info {
-            tracing_service_version: "v42"
+          trace_uuid {
+            msb: 0
+            lsb: 1
           }
           trusted_packet_sequence_id: 1
-        }
-        packet {
-          timestamp: 100
-          track_event {
-            name: "Slice"
-            type: TYPE_SLICE_BEGIN
-          }
-          trusted_packet_sequence_id: 2
         }
         """),
         query=r"""
@@ -397,7 +389,7 @@ class Tables(TestSuite):
         """,
         out=Csv(r"""
           "name","str_value","machine_id","trace_id"
-          "trace_uuid","...","[NULL]",0
+          "trace_uuid","00000000-0000-0000-0000-000000000001","[NULL]",0
         """))
 
   def test_flow_table_trace_id(self):
