@@ -28,6 +28,7 @@ import {Time} from '../../base/time';
 export default class TrackUtilsPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackUtils';
   static dvorakSetting: Setting<boolean>;
+  static azertySetting: Setting<boolean>;
 
   static onActivate(app: App): void {
     TrackUtilsPlugin.dvorakSetting = app.settings.register({
@@ -39,6 +40,15 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       description: 'Rearranges hotkeys to avoid collisions in Dvorak layout.',
       schema: z.boolean(),
       requiresReload: true, // Hotkeys are registered on trace load.
+    });
+
+    TrackUtilsPlugin.azertySetting = app.settings.register({
+      id: 'azertyMode',
+      defaultValue: false,
+      name: 'AZERTY layout',
+      description: 'Adjusts shortcuts for AZERTY keyboards (ZQSD navigation).',
+      schema: z.boolean(),
+      requiresReload: true,
     });
   }
 
