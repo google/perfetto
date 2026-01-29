@@ -257,19 +257,18 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   private initializeCategories(descriptor: protos.TrackEventDescriptor) {
-    // TODO(cbruni) Remove once extension is updated and redeployed.
-    const uniqueCategoryNames = new Set();
+    const newOptions = [];
+    const currentOptionsMap = new Map<string, MultiSelectOption>();
+    this.options.forEach((o) => currentOptionsMap.set(o.id, o));
     for (const cat of descriptor.availableCategories) {
       const name = cat.name;
       if (typeof name !== 'string' || !name) continue;
-      if (uniqueCategoryNames.has(name)) continue;
-      uniqueCategoryNames.add(name);
       const option: MultiSelectOption = {
         id: name,
         name: name.replace(DISABLED_PREFIX, ''),
-        checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
+        checked: currentOptionsMap.get(name)?.checked ?? false,
       };
-      this.options.push(option);
+      newOptions.push(option);
       for (const tag of cat.tags ?? []) {
         if (this.tagsMap.has(tag)) {
           this.tagsMap.get(tag)?.push(option);
@@ -278,6 +277,10 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         }
       }
     }
+    newOptions.sort((a, b) =>
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+    );
+    this.options = newOptions;
   }
 
   private enableCategory(cat: string, enabled: boolean) {
@@ -341,10 +344,14 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     if (!Array.isArray(categories)) return;
     if (!categories.every((x) => typeof x === 'string')) return;
 
-    this.options.forEach((o) => (o.checked = false));
+    const optionsMap = new Map<string, MultiSelectOption>();
+    this.options.forEach((o) => {
+      o.checked = false;
+      optionsMap.set(o.id, o);
+    });
     for (const key of categories) {
-      const opt = this.options.find((o) => o.id === key);
-      if (opt !== undefined) opt.checked = true;
+      const maybeOption = optionsMap.get(key);
+      if (maybeOption) maybeOption.checked = true;
     }
     return true;
   }
@@ -378,7 +385,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     }
 
     const activeCategories = Array.from(this.getAllIncludedCategories()).sort();
-
     const allTags = Array.from(this.tagsMap.keys()).sort();
     const hasAnyTags = allTags.length > 0;
     const enabledTagOptions: SelectOption[] = allTags
@@ -399,7 +405,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         };
       },
     );
-
     return m(
       'div.chrome-probe-settings',
       {
