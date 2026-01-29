@@ -536,9 +536,11 @@ async function getTraceInfo(
   const hasFtrace =
     (await engine.query(`select * from ftrace_event limit 1`)).numRows() > 0;
 
+  // UUIDs are not always present. We fall back to a combination of trace_id and trace_type
+  // to ensure we still have a unique component for the session hash.
   const uuidRes = await engine.query(`
     INCLUDE PERFETTO MODULE std.traceinfo.trace;
-    select trace_uuid as uuid from _metadata_by_trace
+    select ifnull(trace_uuid, trace_id || '-' || trace_type) as uuid from _metadata_by_trace
   `);
   const uuids: string[] = [];
   for (

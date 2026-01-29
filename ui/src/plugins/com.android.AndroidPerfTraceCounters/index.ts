@@ -20,7 +20,7 @@ import {NUM} from '../../trace_processor/query_result';
 
 const PERF_TRACE_COUNTERS_PRECONDITION = `
   SELECT
-    extract_metadata('trace_config_pbtxt') GLOB '*ftrace_events: "perf_trace_counters/sched_switch_with_ctrs"*' AS result
+    ifnull(extract_metadata('trace_config_pbtxt') GLOB '*ftrace_events: "perf_trace_counters/sched_switch_with_ctrs"*', 0) AS result
 `;
 
 export default class implements PerfettoPlugin {
