@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_TREES_TREE_FROM_TABLE_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_TREES_TREE_FROM_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_TREES_TREE_CONVERSION_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_TREES_TREE_CONVERSION_H_
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 
 namespace perfetto::trace_processor {
 
@@ -28,14 +29,18 @@ struct TreeFromTable : public sqlite::AggregateFunction<TreeFromTable> {
   static constexpr int kArgCount = -1;
   using UserData = StringPool;
 
-  struct AggCtx : sqlite::AggregateContext<AggCtx> {
-    // TODO: Add TreeBuilder once core/tree is implemented.
-  };
-
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
   static void Final(sqlite3_context* ctx);
 };
 
+// Scalar function that converts a Tree back to a table (dataframe).
+struct TreeToTable : public sqlite::Function<TreeToTable> {
+  static constexpr char kName[] = "__intrinsic_tree_to_table";
+  static constexpr int kArgCount = 1;
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+};
+
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_TREES_TREE_FROM_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_TREES_TREE_CONVERSION_H_
