@@ -8,7 +8,7 @@ steps:
   args:
   - /ui_builder_entrypoint.sh
   - $BRANCH_NAME
-# Timeout = 30 min (last measured time in Feb 2021: 12 min)
-timeout: 1800s
+# Timeout = 60 min (last measured time in Jan 2026: 30 min)
+timeout: 3600s
 options:
   machineType: E2_HIGHCPU_32
