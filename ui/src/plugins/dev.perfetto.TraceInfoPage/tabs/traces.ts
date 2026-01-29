@@ -37,25 +37,18 @@ export interface TracesData {
 
 export async function loadTracesData(engine: Engine): Promise<TracesData> {
   const result = await engine.query(`
+    INCLUDE PERFETTO MODULE std.metadata.trace;
+
     select
       trace_id as traceId,
-      max(case when name = 'unique_session_name' then str_value end) as uniqueSessionName,
-      max(case when name = 'trace_uuid' then str_value end) as traceUuid,
-      max(case when name = 'trace_type' then str_value end) as traceType,
-      max(case when name = 'trace_size_bytes' then int_value end) as traceSizeBytes,
-      max(case when name = 'trace_trigger' then str_value end) as traceTrigger,
-      (
-        select group_concat(ifnull(
-          (select str_value from metadata where name = 'system_name' and machine_id = m.machine_id limit 1),
-          'Machine ' || m.machine_id
-        ), ', ')
-        from (select distinct trace_id, machine_id from metadata where machine_id is not null) m
-        where m.trace_id = m_outer.trace_id
-      ) as machines
-    from metadata m_outer
-    where trace_id is not null
-    group by trace_id
-    order by trace_id
+      unique_session_name as uniqueSessionName,
+      trace_uuid as traceUuid,
+      trace_type as traceType,
+      trace_size_bytes as traceSizeBytes,
+      trace_trigger as traceTrigger,
+      machines
+    from metadata_by_trace
+    order by trace_id;
   `);
 
   const traces: TraceRow[] = [];

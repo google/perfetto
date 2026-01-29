@@ -84,9 +84,9 @@ export default class implements PerfettoPlugin {
           android_process_metadata.debuggable as isDebuggable,
           case
             when process.name = 'system_server' then
-              ifnull((select int_value from metadata where name = 'android_profile_system_server' limit 1), 0)
+              ifnull(metadata_get_machine_int(machine_id, 'android_profile_system_server'), 0)
             when process.name GLOB 'zygote*' then
-              ifnull((select int_value from metadata where name = 'android_profile_boot_classpath' limit 1), 0)
+              ifnull(metadata_get_machine_int(machine_id, 'android_profile_boot_classpath'), 0)
             else 0
           end as isBootImageProfiling,
           ifnull((

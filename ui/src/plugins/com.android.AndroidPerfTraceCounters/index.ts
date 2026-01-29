@@ -19,12 +19,9 @@ import {addQueryResultsTab} from '../../components/query_table/query_result_tab'
 
 const PERF_TRACE_COUNTERS_PRECONDITION = `
   SELECT
-    str_value
-  FROM metadata
+    metadata_get_str('trace_config_pbtxt')
   WHERE
-    name = 'trace_config_pbtxt'
-    AND str_value GLOB '*ftrace_events: "perf_trace_counters/sched_switch_with_ctrs"*'
-  LIMIT 1
+    metadata_get_str('trace_config_pbtxt') GLOB '*ftrace_events: "perf_trace_counters/sched_switch_with_ctrs"*'
 `;
 
 export default class implements PerfettoPlugin {

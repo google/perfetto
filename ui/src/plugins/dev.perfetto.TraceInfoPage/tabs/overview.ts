@@ -40,8 +40,8 @@ export interface OverviewData {
   uiLoadingErrorCount: number;
   // Metrics
   traceSizeBytes?: bigint;
-  traceType?: string;
-  traceUuid?: string;
+  traceTypes: string[];
+  uuid?: string;
   durationNs?: duration;
   schedDurationNs?: duration;
   // System information
@@ -57,38 +57,21 @@ export interface OverviewData {
 export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
   // Load everything in a single query
   const result = await trace.engine.query(`
-    WITH primary_metadata AS (
-      SELECT
-        name,
-        str_value,
-        int_value
-      FROM (
-        SELECT
-          name,
-          str_value,
-          int_value,
-          ROW_NUMBER() OVER (PARTITION BY name ORDER BY trace_id ASC, machine_id ASC) as rn
-        FROM metadata
-      )
-      WHERE rn = 1
-    )
     SELECT
       -- Status card counts
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'analysis') as import_errors,
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'trace') as trace_errors,
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'data_loss') as data_losses,
       -- Metrics
-      (SELECT int_value FROM primary_metadata WHERE name = 'trace_size_bytes') as trace_size_bytes,
-      IFNULL((SELECT str_value FROM primary_metadata WHERE name = 'trace_type'), 'Unknown') as trace_type,
-      IFNULL((SELECT str_value FROM primary_metadata WHERE name = 'trace_uuid'), 'Not available') as trace_uuid,
-      (SELECT int_value FROM primary_metadata WHERE name = 'tracing_disabled_ns') - 
-        (SELECT int_value FROM primary_metadata WHERE name = 'tracing_started_ns') as duration_ns,
+      metadata_get_int('trace_size_bytes') as trace_size_bytes,
+      metadata_get_int('tracing_disabled_ns') - 
+        metadata_get_int('tracing_started_ns') as duration_ns,
       (SELECT max(ts) - min(ts) FROM sched) as sched_duration_ns,
       -- System info
-      (SELECT str_value FROM primary_metadata WHERE name = 'system_name') as system_name,
-      (SELECT str_value FROM primary_metadata WHERE name = 'system_release') as system_release,
-      (SELECT str_value FROM primary_metadata WHERE name = 'system_machine') as system_machine,
-      (SELECT str_value FROM primary_metadata WHERE name = 'android_build_fingerprint') as android_build_fingerprint,
+      metadata_get_str('system_name') as system_name,
+      metadata_get_str('system_release') as system_release,
+      metadata_get_str('system_machine') as system_machine,
+      metadata_get_str('android_build_fingerprint') as android_build_fingerprint,
       (SELECT COUNT(DISTINCT trace_id) FROM metadata WHERE trace_id IS NOT NULL) as trace_count,
       (SELECT COUNT(DISTINCT machine_id) FROM metadata WHERE machine_id IS NOT NULL) as machine_count;
   `);
@@ -98,8 +81,6 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
     trace_errors: NUM_NULL,
     data_losses: NUM_NULL,
     trace_size_bytes: LONG_NULL,
-    trace_type: STR_NULL,
-    trace_uuid: STR_NULL,
     duration_ns: LONG_NULL,
     sched_duration_ns: LONG_NULL,
     system_name: STR_NULL,
@@ -115,8 +96,8 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
     dataLosses: row.data_losses ?? 0,
     uiLoadingErrorCount: trace.loadingErrors.length,
     traceSizeBytes: row.trace_size_bytes ?? undefined,
-    traceType: row.trace_type ?? undefined,
-    traceUuid: row.trace_uuid ?? undefined,
+    traceTypes: trace.traceInfo.traceTypes,
+    uuid: trace.traceInfo.uuid,
     durationNs: row.duration_ns ?? undefined,
     schedDurationNs: row.sched_duration_ns ?? undefined,
     androidBuildFingerprint: row.android_build_fingerprint ?? undefined,
@@ -370,7 +351,8 @@ function createTraceMetrics(
     },
     {
       label: 'Trace Type',
-      value: data.traceType,
+      value:
+        data.traceTypes.length > 0 ? data.traceTypes.join(', ') : 'Unknown',
       help: 'Format of the trace file (proto, json, etc.)',
     },
     {
@@ -391,8 +373,11 @@ function createTraceMetrics(
     },
     {
       label: 'Trace UUID',
-      value: data.traceUuid,
-      help: 'Unique identifier for this trace session',
+      value: data.uuid,
+      help:
+        data.traceCount > 1
+          ? 'Session-wide identifier. Individual UUIDs are in the "Traces" tab.'
+          : 'Unique identifier for this trace session',
       wide: true,
     },
   ];

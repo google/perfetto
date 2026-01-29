@@ -392,6 +392,66 @@ class Tables(TestSuite):
           "trace_uuid","00000000-0000-0000-0000-000000000001","[NULL]",0
         """))
 
+  def test_metadata_helpers(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Darwin"
+            }
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 100
+              print { buf: "host" }
+            }
+            last_read_event_timestamp: 1000
+          }
+          trusted_packet_sequence_id: 3
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 2000
+              pid: 200
+              print { buf: "remote" }
+            }
+            last_read_event_timestamp: 2000
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 4
+        }
+        """),
+        query=r"""
+          SELECT
+            metadata_get_str('system_name') as primary_system,
+            metadata_get_machine_str(0, 'system_name') as machine_0_system,
+            metadata_get_machine_str(1, 'system_name') as machine_1_system,
+            metadata_get_int('ftrace_latest_data_start_ns') as primary_ftrace_start,
+            metadata_get_machine_int(0, 'ftrace_latest_data_start_ns') as machine_0_ftrace_start,
+            metadata_get_machine_int(1, 'ftrace_latest_data_start_ns') as machine_1_ftrace_start;
+        """,
+        out=Csv(r"""
+          "primary_system","machine_0_system","machine_1_system","primary_ftrace_start","machine_0_ftrace_start","machine_1_ftrace_start"
+          "Linux","Linux","Darwin",1000,1000,2000
+        """))
+
   def test_flow_table_trace_id(self):
     return DiffTestBlueprint(
         trace=TextProto("""

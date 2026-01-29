@@ -44,6 +44,8 @@ source_set("functions") {
     "layout_functions.h",
     "math.cc",
     "math.h",
+    "metadata.cc",
+    "metadata.h",
     "package_lookup.cc",
     "package_lookup.h",
     "pprof_functions.cc",
