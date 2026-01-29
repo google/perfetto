@@ -15,9 +15,8 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Monitor} from '../../base/monitor';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
-import {assertExists, assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
-import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
 import m from 'mithril';
@@ -37,6 +36,7 @@ import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
+import {RECT_FLAG_FADEOUT, RECT_FLAG_HATCHED} from '../../base/renderer';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -289,7 +289,13 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   renderSlices(
-    {ctx, timescale, size, visibleWindow}: TrackRenderContext,
+    {
+      ctx,
+      timescale,
+      size,
+      visibleWindow,
+      renderer,
+    }: TrackRenderContext,
     data: Data,
   ): void {
     assertTrue(data.startQs.length === data.endQs.length);
@@ -352,30 +358,30 @@ export class CpuSliceTrack implements TrackRenderer {
         color = colorScheme.base;
         textColor = colorScheme.textBase;
       }
-      ctx.fillStyle = color.cssString;
 
-      if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
-        drawIncompleteSlice(
-          ctx,
-          rectStart,
-          MARGIN_TOP,
-          rectWidth,
-          RECT_HEIGHT,
-          color,
-        );
-      } else {
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
-      }
+      // Build flags
+      const srcFlags = data.flags[i];
+      let flags = 0;
+      if (srcFlags & CPU_SLICE_FLAGS_INCOMPLETE) flags |= RECT_FLAG_FADEOUT;
+      if (srcFlags & CPU_SLICE_FLAGS_REALTIME) flags |= RECT_FLAG_HATCHED;
+
+      const rgba = color.rgba;
+      renderer.drawRect(
+        rectStart,
+        MARGIN_TOP,
+        rectEnd,
+        MARGIN_TOP + RECT_HEIGHT,
+        {
+          r: rgba.r,
+          g: rgba.g,
+          b: rgba.b,
+          a: Math.round(rgba.a * 255),
+        },
+        flags,
+      );
 
       // Don't render text when we have less than 5px to play with.
       if (rectWidth < 5) continue;
-
-      // Stylize real-time threads. We don't do it when zoomed out as the
-      // fillRect is expensive.
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
-        ctx.fillStyle = getHatchedPattern(ctx);
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
-      }
 
       // TODO: consider de-duplicating this code with the copied one from
       // chrome_slices/frontend.ts.
@@ -561,27 +567,4 @@ export class CpuSliceTrack implements TrackRenderer {
   detailsPanel() {
     return new SchedSliceDetailsPanel(this.trace, this.threads);
   }
-}
-
-// Creates a diagonal hatched pattern to be used for distinguishing slices with
-// real-time priorities. The pattern is created once as an offscreen canvas and
-// is kept cached inside the Context2D of the main canvas, without making
-// assumptions on the lifetime of the main canvas.
-function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
-  const mctx = mainCtx as CanvasRenderingContext2D & {
-    sliceHatchedPattern?: CanvasPattern;
-  };
-  if (mctx.sliceHatchedPattern !== undefined) return mctx.sliceHatchedPattern;
-  const canvas = document.createElement('canvas');
-  const SIZE = 8;
-  canvas.width = canvas.height = SIZE;
-  const ctx = assertExists(canvas.getContext('2d'));
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.beginPath();
-  ctx.lineWidth = 1;
-  ctx.moveTo(0, SIZE);
-  ctx.lineTo(SIZE, 0);
-  ctx.stroke();
-  mctx.sliceHatchedPattern = assertExists(mctx.createPattern(canvas, 'repeat'));
-  return mctx.sliceHatchedPattern;
 }

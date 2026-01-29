@@ -422,7 +422,13 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
+  render({
+    ctx,
+    size,
+    timescale,
+    visibleWindow,
+    renderer,
+  }: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -455,7 +461,6 @@ export class GroupSummaryTrack implements TrackRenderer {
 
       const rectStart = Math.floor(timescale.timeToPx(tStart));
       const rectEnd = Math.floor(timescale.timeToPx(tEnd));
-      const rectWidth = Math.max(1, rectEnd - rectStart);
 
       let colorScheme;
 
@@ -486,7 +491,13 @@ export class GroupSummaryTrack implements TrackRenderer {
       }
 
       const y = MARGIN_TOP + laneHeight * lane + lane;
-      ctx.fillRect(rectStart, y, rectWidth, laneHeight);
+      const rgba = colorScheme.base.rgba;
+      renderer.drawRect(rectStart, y, rectEnd, y + laneHeight, {
+        r: rgba.r,
+        g: rgba.g,
+        b: rgba.b,
+        a: Math.round(rgba.a * 255),
+      });
     }
   }
 

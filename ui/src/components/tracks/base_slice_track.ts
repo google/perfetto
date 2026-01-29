@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {colorCompare} from '../../base/color';
 import {Monitor} from '../../base/monitor';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
@@ -39,6 +38,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
+import {RECT_FLAG_FADEOUT} from '../../base/renderer';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -433,6 +433,7 @@ export abstract class BaseSliceTrack<
     visibleWindow,
     timescale,
     colors,
+    renderer,
   }: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
@@ -542,21 +543,37 @@ export abstract class BaseSliceTrack<
         lastColor = colorString;
         ctx.fillStyle = colorString;
       }
+
+      const rgba = {
+        r: color.rgba.r,
+        g: color.rgba.g,
+        b: color.rgba.b,
+        a: Math.round(color.rgba.a * 255),
+      };
+
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
-        this.drawChevron(ctx, slice.x, y, sliceHeight);
+        renderer.drawMarker(
+          slice.x,
+          y,
+          this.instantWidthPx,
+          sliceHeight,
+          rgba,
+          (ctx, x, y, w, h) =>
+            this.drawChevron(ctx, x + (w - CHEVRON_WIDTH_PX) / 2, y, h),
+        );
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
         const w = CROP_INCOMPLETE_SLICE_FLAG.get()
           ? slice.w
           : Math.max(slice.w - 2, 2);
-        drawIncompleteSlice(
-          ctx,
+
+        renderer.drawRect(
           slice.x,
           y,
-          w,
-          sliceHeight,
-          color,
-          !CROP_INCOMPLETE_SLICE_FLAG.get(),
+          slice.x + w,
+          y + sliceHeight,
+          rgba,
+          RECT_FLAG_FADEOUT,
         );
       } else {
         const w = Math.max(
@@ -565,7 +582,8 @@ export abstract class BaseSliceTrack<
             ? SLICE_MIN_WIDTH_FADED_PX
             : SLICE_MIN_WIDTH_PX,
         );
-        ctx.fillRect(slice.x, y, w, sliceHeight);
+
+        renderer.drawRect(slice.x, y, slice.x + w, y + sliceHeight, rgba);
       }
     }
 
