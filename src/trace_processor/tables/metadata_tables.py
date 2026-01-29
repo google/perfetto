@@ -685,7 +685,7 @@ TRACE_FILE_TABLE = Table(
 METADATA_TABLE = Table(
     python_module=__file__,
     class_name='MetadataTable',
-    sql_name='metadata',
+    sql_name='__intrinsic_metadata',
     columns=[
         C(
             'name',

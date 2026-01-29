@@ -61,12 +61,10 @@ MetadataId GlobalMetadataTracker::SetMetadata(
   auto& metadata_table = *storage_->mutable_metadata_table();
   StringId name_id = key_ids_[static_cast<size_t>(key)];
 
-  for (auto it = metadata_table.IterateRows(); it; ++it) {
-    if (it.name() == name_id && it.machine_id() == ctx_ids.machine_id &&
-        it.trace_id() == ctx_ids.trace_id) {
-      WriteValue(it.ToRowReference(), value);
-      return it.id();
-    }
+  MetadataEntry entry{name_id, ctx_ids.machine_id, ctx_ids.trace_id};
+  if (auto* id_ptr = id_by_entry_.Find(entry)) {
+    WriteValue(*metadata_table.FindById(*id_ptr), value);
+    return *id_ptr;
   }
 
   // Special case for trace_uuid: it's possible that trace_uuid was set
@@ -75,13 +73,16 @@ MetadataId GlobalMetadataTracker::SetMetadata(
   // entry by associating it with the current trace context instead of
   // inserting a new row.
   if (key == metadata::trace_uuid) {
-    for (auto it = metadata_table.IterateRows(); it; ++it) {
-      if (it.name() == name_id && !it.trace_id().has_value()) {
-        auto rr = it.ToRowReference();
-        rr.set_trace_id(ctx_ids.trace_id);
-        WriteValue(rr, value);
-        return rr.id();
-      }
+    MetadataEntry global_entry{name_id, std::nullopt, std::nullopt};
+    if (auto* id_ptr = id_by_entry_.Find(global_entry)) {
+      MetadataId id = *id_ptr;
+      id_by_entry_.Erase(global_entry);
+      id_by_entry_.Insert(entry, id);
+
+      auto rr = *metadata_table.FindById(id);
+      rr.set_trace_id(ctx_ids.trace_id);
+      WriteValue(rr, value);
+      return id;
     }
   }
 
@@ -93,6 +94,7 @@ MetadataId GlobalMetadataTracker::SetMetadata(
 
   auto id_and_row = metadata_table.Insert(row);
   WriteValue(metadata_table[id_and_row.row], value);
+  id_by_entry_.Insert(entry, id_and_row.id);
   return id_and_row.id;
 }
 
@@ -107,25 +109,24 @@ std::optional<SqlValue> GlobalMetadataTracker::GetMetadata(
   const auto& metadata_table = storage_->metadata_table();
   StringId name_id = key_ids_[static_cast<size_t>(key)];
 
-  for (auto it = metadata_table.IterateRows(); it; ++it) {
-    if (it.name() == name_id && it.machine_id() == ctx_ids.machine_id &&
-        it.trace_id() == ctx_ids.trace_id) {
-      auto value_type = metadata::kValueTypes[key];
-      switch (value_type) {
-        case Variadic::kInt:
-          return SqlValue::Long(*it.int_value());
-        case Variadic::kString:
-          return SqlValue::String(storage_->GetString(*it.str_value()).c_str());
-        case Variadic::kNull:
-          return SqlValue();
-        case Variadic::kUint:
-        case Variadic::kReal:
-        case Variadic::kPointer:
-        case Variadic::kBool:
-        case Variadic::kJson:
-          PERFETTO_FATAL("Invalid metadata value type %s",
-                         Variadic::kTypeNames[value_type]);
-      }
+  MetadataEntry entry{name_id, ctx_ids.machine_id, ctx_ids.trace_id};
+  if (auto* id_ptr = id_by_entry_.Find(entry)) {
+    auto rr = *metadata_table.FindById(*id_ptr);
+    auto value_type = metadata::kValueTypes[key];
+    switch (value_type) {
+      case Variadic::kInt:
+        return SqlValue::Long(*rr.int_value());
+      case Variadic::kString:
+        return SqlValue::String(storage_->GetString(*rr.str_value()).c_str());
+      case Variadic::kNull:
+        return SqlValue();
+      case Variadic::kUint:
+      case Variadic::kReal:
+      case Variadic::kPointer:
+      case Variadic::kBool:
+      case Variadic::kJson:
+        PERFETTO_FATAL("Invalid metadata value type %s",
+                       Variadic::kTypeNames[value_type]);
     }
   }
   return std::nullopt;

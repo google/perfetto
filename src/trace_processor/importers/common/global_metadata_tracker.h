@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -36,6 +37,23 @@ class GlobalMetadataTracker {
  private:
   using MachineId = tables::MachineTable::Id;
   using TraceId = tables::TraceFileTable::Id;
+
+  struct MetadataEntry {
+    StringId name;
+    std::optional<MachineId> machine_id;
+    std::optional<TraceId> trace_id;
+
+    bool operator==(const MetadataEntry& other) const {
+      return name == other.name && machine_id == other.machine_id &&
+             trace_id == other.trace_id;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const MetadataEntry& value) {
+      return H::Combine(std::move(h), value.name.raw_id(), value.machine_id,
+                        value.trace_id);
+    }
+  };
 
  public:
   explicit GlobalMetadataTracker(TraceStorage* storage);
@@ -87,6 +105,8 @@ class GlobalMetadataTracker {
 
   std::array<StringId, kNumKeys> key_ids_;
   std::array<StringId, kNumKeyTypes> key_type_ids_;
+
+  base::FlatHashMap<MetadataEntry, MetadataId> id_by_entry_;
 
   TraceStorage* const storage_;
 };
