@@ -269,7 +269,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         checked: currentOptionsMap.get(name)?.checked ?? false,
       };
       newOptions.push(option);
-      for (const tag of cat.tags ?? []) {
+      for (const tag of new Set(cat.tags ?? [])) {
         if (this.tagsMap.has(tag)) {
           this.tagsMap.get(tag)?.push(option);
         } else {
