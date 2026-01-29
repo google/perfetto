@@ -51,21 +51,26 @@ constexpr auto BOOTTIME = protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
 class ProtoTraceReaderTest : public ::testing::Test {
  public:
   ProtoTraceReaderTest() {
-    context_.storage = std::make_unique<TraceStorage>();
-    std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
-    context_.machine_tracker =
-        std::make_unique<MachineTracker>(&context_, 0x1001);
-    context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context_.storage.get());
-    context_.import_logs_tracker =
-        std::make_unique<ImportLogsTracker>(&context_, 1);
-    context_.clock_tracker = std::make_unique<ClockTracker>(
-        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
-    context_.sorter = std::make_unique<TraceSorter>(
-        &context_, TraceSorter::SortingMode::kDefault);
-    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-    context_.register_additional_proto_modules = &RegisterAdditionalModules;
-    proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&context_);
+    host_context_.storage = std::make_unique<TraceStorage>();
+    host_context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{0});
+    host_context_.forked_context_state = TraceProcessorContextPtr<
+        TraceProcessorContext::ForkedContextState>::MakeRoot();
+    host_context_.machine_tracker =
+        std::make_unique<MachineTracker>(&host_context_, kDefaultMachineId);
+    host_context_.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(host_context_.storage.get());
+    host_context_.import_logs_tracker =
+        std::make_unique<ImportLogsTracker>(&host_context_, 1);
+    host_context_.clock_tracker = std::make_unique<ClockTracker>(
+        std::make_unique<ClockSynchronizerListenerImpl>(&host_context_));
+    host_context_.sorter = std::make_unique<TraceSorter>(
+        &host_context_, TraceSorter::SortingMode::kDefault);
+    host_context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    host_context_.register_additional_proto_modules =
+        &RegisterAdditionalModules;
+    proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&host_context_);
   }
 
   base::Status Tokenize() {
@@ -82,13 +87,13 @@ class ProtoTraceReaderTest : public ::testing::Test {
 
  protected:
   protozero::HeapBuffered<protos::pbzero::Trace> trace_;
-  TraceProcessorContext context_;
+  TraceProcessorContext host_context_;
   std::unique_ptr<ProtoTraceReader> proto_trace_reader_;
 };
 
 TEST_F(ProtoTraceReaderTest, RemoteClockSync_Valid) {
-  context_.machine_tracker =
-      std::make_unique<MachineTracker>(&context_, 0x1001);
+  auto* machine_context =
+      host_context_.ForkContextForMachineInCurrentTrace(0x1001);
 
   auto* packet = trace_->add_packet();
   packet->set_machine_id(0x1001);
@@ -121,12 +126,13 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Valid) {
 
   ASSERT_TRUE(Tokenize().ok());
   ASSERT_EQ(1u,
-            context_.clock_tracker->remote_clock_offsets_for_testing().size());
+            machine_context->clock_tracker->remote_clock_offsets_for_testing()
+                .size());
 }
 
 TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
-  context_.machine_tracker =
-      std::make_unique<MachineTracker>(&context_, 0x1001);
+  auto* machine_context =
+      host_context_.ForkContextForMachineInCurrentTrace(0x1001);
 
   auto* packet = trace_->add_packet();
   packet->set_machine_id(0x1001);
@@ -158,7 +164,8 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
   ASSERT_TRUE(Tokenize().ok());
   // No valid clock offset.
   ASSERT_EQ(0u,
-            context_.clock_tracker->remote_clock_offsets_for_testing().size());
+            machine_context->clock_tracker->remote_clock_offsets_for_testing()
+                .size());
 }
 
 TEST_F(ProtoTraceReaderTest, CalculateClockOffset) {
