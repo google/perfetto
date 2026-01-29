@@ -832,20 +832,10 @@ base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
 base::Status CreateQueriesAndComputeMetrics(
     TraceProcessor* processor,
     const DescriptorPool& pool,
-    const std::vector<StructuredQueryGenerator::Query>& queries,
     const std::vector<Metric>& metrics,
     const std::optional<std::string>& metadata_sql,
     std::vector<uint8_t>* output,
     const TraceSummaryOutputSpec& output_spec) {
-  for (const auto& query : queries) {
-    auto it = processor->ExecuteQuery("CREATE PERFETTO TABLE " +
-                                      query.table_name + " AS " + query.sql);
-    PERFETTO_CHECK(!it.Next());
-    if (!it.Status().ok()) {
-      return base::ErrStatus("Error while executing shared query %s: %s",
-                             query.id.c_str(), it.Status().c_message());
-    }
-  }
   protozero::HeapBuffered<TraceSummary> summary;
   RETURN_IF_ERROR(
       CreateQueriesAndComputeMetrics(processor, metrics, summary.get()));
@@ -1028,18 +1018,8 @@ base::Status Summarize(TraceProcessor* processor,
     RETURN_IF_ERROR(it.Status());
   }
 
-  auto queries = generator.referenced_queries();
-  base::Status status = CreateQueriesAndComputeMetrics(
-      processor, pool, queries, metrics, metadata_sql, output, output_spec);
-
-  // Make sure to cleanup all the queries.
-  for (const auto& query : queries) {
-    auto it =
-        processor->ExecuteQuery("DROP TABLE IF EXISTS " + query.table_name);
-    PERFETTO_CHECK(!it.Next());
-    PERFETTO_CHECK(it.Status().ok());
-  }
-  return status;
+  return CreateQueriesAndComputeMetrics(processor, pool, metrics, metadata_sql,
+                                        output, output_spec);
 }
 
 base::Status ExecuteStructuredQuery(

@@ -6031,4 +6031,74 @@ TEST(StructuredQueryGeneratorTest, InnerQueryIdWithTableSource) {
   EXPECT_THAT(refs[0].sql, testing::HasSubstr("slice"));
 }
 
+// Test that shared query SQL is inlined as a CTE in each generated query.
+// This ensures that each generated query is self-contained with all its
+// dependencies embedded as CTEs.
+TEST(StructuredQueryGeneratorTest, SharedQueryInlinedAsCte) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query with a distinctive SQL pattern
+  auto shared_proto = ToProto(R"(
+    id: "my_shared"
+    sql {
+      sql: "SELECT 42 as magic_number"
+      column_names: "magic_number"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query
+  auto main_proto = ToProto(R"(
+    inner_query_id: "my_shared"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify the shared query's SQL is inlined as a CTE in the generated output
+  // The output should contain the CTE definition with the shared query's SQL
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_my_shared AS"));
+  EXPECT_THAT(res, testing::HasSubstr("42"));
+  EXPECT_THAT(res, testing::HasSubstr("magic_number"));
+}
+
+// Test that the same shared query referenced in multiple Generate() calls
+// is inlined as a CTE in each generated query independently.
+TEST(StructuredQueryGeneratorTest, SharedQueryInlinedInEachGenerate) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query
+  auto shared_proto = ToProto(R"(
+    id: "common_data"
+    sql {
+      sql: "SELECT 'test_value' as data_field"
+      column_names: "data_field"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // First query that references the shared query
+  auto first_proto = ToProto(R"(
+    inner_query_id: "common_data"
+  )");
+
+  auto first_ret = gen.Generate(first_proto.data(), first_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string first_res, first_ret);
+
+  // Second query that also references the same shared query
+  auto second_proto = ToProto(R"(
+    inner_query_id: "common_data"
+  )");
+
+  auto second_ret = gen.Generate(second_proto.data(), second_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string second_res, second_ret);
+
+  // Both generated queries should contain the shared query's CTE definition
+  EXPECT_THAT(first_res, testing::HasSubstr("shared_sq_common_data AS"));
+  EXPECT_THAT(first_res, testing::HasSubstr("test_value"));
+
+  EXPECT_THAT(second_res, testing::HasSubstr("shared_sq_common_data AS"));
+  EXPECT_THAT(second_res, testing::HasSubstr("test_value"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator
