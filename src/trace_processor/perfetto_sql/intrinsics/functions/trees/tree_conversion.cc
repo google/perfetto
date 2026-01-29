@@ -132,7 +132,7 @@ void TreeToTable::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return sqlite::result::Error(ctx,
                                  "tree_to_table: expected TREE_TRANSFORMER");
   }
-  if (!tree_ptr->taken()) {
+  if (tree_ptr->taken()) {
     return sqlite::result::Error(
         ctx, "tree_to_table: tree has already been consumed");
   }
