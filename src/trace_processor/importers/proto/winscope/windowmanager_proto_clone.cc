@@ -15,6 +15,7 @@
  */
 #include "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.h"
 
+#include "perfetto/base/logging.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
@@ -308,6 +309,9 @@ void CloneField(const protozero::Field& field, protozero::Message* dst) {
     case protozero::proto_utils::ProtoWireType::kLengthDelimited:
       dst->AppendBytes(field.id(), field.as_bytes().data,
                        field.as_bytes().size);
+      break;
+    case protozero::proto_utils::ProtoWireType::kSGroup:
+    case protozero::proto_utils::ProtoWireType::kEGroup:
       break;
   }
 }

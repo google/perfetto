@@ -190,7 +190,7 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
             AppendFixed(token.field_id, static_cast<uint64_t>(token.value),
                         &out_);
           break;
-        case proto_utils::ProtoWireType::kLengthDelimited:
+        case proto_utils::ProtoWireType::kLengthDelimited: {
           // Here we have two cases:
           // A. A simple string/bytes field: we just want to consume the next
           //    bytes (the string payload), optionally passing them through in
@@ -245,6 +245,10 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
               state->action = StackState::kDrop;
             }
           }
+          break;
+        }
+        case proto_utils::ProtoWireType::kSGroup:
+        case proto_utils::ProtoWireType::kEGroup:
           break;
       }  // switch(type)
 

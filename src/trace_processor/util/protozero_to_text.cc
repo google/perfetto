@@ -424,6 +424,9 @@ void ProtozeroToTextInternal(const std::string& type,
       case ProtoWireType::kFixed64:
         PrintFixed64Field(opt_field_descriptor, field, output);
         break;
+      case ProtoWireType::kSGroup:
+      case ProtoWireType::kEGroup:
+        break;
     }
   }
   if (decoder.bytes_left() != 0) {

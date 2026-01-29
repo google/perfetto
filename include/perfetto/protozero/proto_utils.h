@@ -44,6 +44,8 @@ enum class ProtoWireType : uint32_t {
   kVarInt = 0,
   kFixed64 = 1,
   kLengthDelimited = 2,
+  kSGroup = 3,
+  kEGroup = 4,
   kFixed32 = 5,
 };
 

@@ -135,6 +135,9 @@ bool IsTypeMatch(ProtoWireType wire, uint32_t type) {
         default:
           return false;
       }
+    case ProtoWireType::kSGroup:
+    case ProtoWireType::kEGroup:
+      return false;
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -514,6 +517,9 @@ void InnerMessageField(const DescriptorPool& pool,
         case ProtoWireType::kFixed64:
           RepeatedFixed64(protobytes, opt_field_descriptor, field.id(), out);
           break;
+        case ProtoWireType::kSGroup:
+        case ProtoWireType::kEGroup:
+          break;
       }
     } else {
       switch (field.type()) {
@@ -529,6 +535,9 @@ void InnerMessageField(const DescriptorPool& pool,
           break;
         case ProtoWireType::kFixed64:
           Fixed64Field(opt_field_descriptor, field, out);
+          break;
+        case ProtoWireType::kSGroup:
+        case ProtoWireType::kEGroup:
           break;
       }
     }
