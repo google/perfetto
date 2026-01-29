@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -70,8 +71,12 @@ class AndroidLogReaderTest : public ::testing::Test {
         std::make_unique<ClockSynchronizerListenerImpl>(&context_);
     context_.clock_tracker =
         std::make_unique<ClockTracker>(std::move(clock_tracker_listener));
-    context_.metadata_tracker =
-        std::make_unique<MetadataTracker>(context_.storage.get());
+    context_.global_metadata_tracker =
+        std::make_unique<GlobalMetadataTracker>(context_.storage.get());
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
+    context_.metadata_tracker = std::make_unique<MetadataTracker>(&context_);
     context_.clock_tracker->SetTraceTimeClock(
         protos::pbzero::ClockSnapshot::Clock::REALTIME);
     context_.sorter = std::make_unique<TraceSorter>(

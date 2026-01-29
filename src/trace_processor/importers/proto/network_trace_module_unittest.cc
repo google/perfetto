@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -69,10 +70,14 @@ class NetworkTraceModuleTest : public testing::Test {
     storage_ = context_.storage.get();
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
-    context_.metadata_tracker =
-        std::make_unique<MetadataTracker>(context_.storage.get());
+    context_.global_metadata_tracker =
+        std::make_unique<GlobalMetadataTracker>(context_.storage.get());
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
+    context_.metadata_tracker = std::make_unique<MetadataTracker>(&context_);
     context_.import_logs_tracker =
-        std::make_unique<ImportLogsTracker>(&context_, 1);
+        std::make_unique<ImportLogsTracker>(&context_, TraceId(1));
     context_.clock_tracker = std::make_unique<ClockTracker>(
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
