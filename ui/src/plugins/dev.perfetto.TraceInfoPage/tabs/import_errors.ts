@@ -85,6 +85,11 @@ export async function loadImportErrorsData(
     logs: [] as ImportLogRow[],
   }));
 
+  const categoryMap = new Map<string, ErrorCategory>();
+  for (const category of categories) {
+    categoryMap.set(category.name, category);
+  }
+
   // Load import logs for each category
   const logsResult = await engine.query(`
     select
@@ -100,7 +105,7 @@ export async function loadImportErrorsData(
   `);
 
   for (const iter = logsResult.iter(importLogSpec); iter.valid(); iter.next()) {
-    const category = categories.find((c) => c.name === iter.name);
+    const category = categoryMap.get(iter.name);
     if (!category) continue;
 
     const traceId = iter.trace_id;

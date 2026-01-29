@@ -213,7 +213,7 @@ export default class WearLongBatteryTracingPlugin implements PerfettoPlugin {
    */
   async onTraceLoad(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(
-      `SELECT int_value FROM metadata WHERE name = 'statsd_triggering_subscription_id'`,
+      `SELECT int_value FROM metadata WHERE name = 'statsd_triggering_subscription_id' limit 1`,
     );
     const row = result.maybeFirstRow({int_value: LONG});
     if (!row) {

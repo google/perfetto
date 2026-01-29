@@ -39,7 +39,8 @@ export async function hasWattsonSufficientCPUConfigs(
   const query = `
     SELECT str_value
     FROM metadata
-    WHERE name = 'trace_config_pbtxt';
+    WHERE name = 'trace_config_pbtxt'
+    LIMIT 1;
     `;
 
   const result = await engine.query(query);

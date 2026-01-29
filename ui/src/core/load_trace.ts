@@ -525,7 +525,7 @@ async function getTraceInfo(
     (await engine.query(`select * from ftrace_event limit 1`)).numRows() > 0;
 
   const uuidRes = await engine.query(`select str_value as uuid from metadata
-    where name = 'trace_uuid'`);
+    where name = 'trace_uuid' limit 1`);
   // trace_uuid can be missing from the TP tables if the trace is empty or in
   // other similar edge cases.
   const uuid = uuidRes.numRows() > 0 ? uuidRes.firstRow({uuid: STR}).uuid : '';
@@ -555,7 +555,7 @@ async function getTraceInfo(
 
 async function getTraceType(engine: Engine) {
   const result = await engine.query(
-    `select str_value from metadata where name = 'trace_type'`,
+    `select str_value from metadata where name = 'trace_type' limit 1`,
   );
 
   if (result.numRows() === 0) return undefined;

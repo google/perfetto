@@ -24,6 +24,7 @@ const PERF_TRACE_COUNTERS_PRECONDITION = `
   WHERE
     name = 'trace_config_pbtxt'
     AND str_value GLOB '*ftrace_events: "perf_trace_counters/sched_switch_with_ctrs"*'
+  LIMIT 1
 `;
 
 export default class implements PerfettoPlugin {
