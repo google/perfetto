@@ -63,15 +63,15 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'trace') as trace_errors,
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'data_loss') as data_losses,
       -- Metrics
-      metadata_get_int('trace_size_bytes') as trace_size_bytes,
-      metadata_get_int('tracing_disabled_ns') - 
-        metadata_get_int('tracing_started_ns') as duration_ns,
+      extract_metadata('trace_size_bytes') as trace_size_bytes,
+      extract_metadata('tracing_disabled_ns') - 
+        extract_metadata('tracing_started_ns') as duration_ns,
       (SELECT max(ts) - min(ts) FROM sched) as sched_duration_ns,
       -- System info
-      metadata_get_str('system_name') as system_name,
-      metadata_get_str('system_release') as system_release,
-      metadata_get_str('system_machine') as system_machine,
-      metadata_get_str('android_build_fingerprint') as android_build_fingerprint,
+      extract_metadata('system_name') as system_name,
+      extract_metadata('system_release') as system_release,
+      extract_metadata('system_machine') as system_machine,
+      extract_metadata('android_build_fingerprint') as android_build_fingerprint,
       (SELECT COUNT(DISTINCT trace_id) FROM metadata WHERE trace_id IS NOT NULL) as trace_count,
       (SELECT COUNT(DISTINCT machine_id) FROM metadata WHERE machine_id IS NOT NULL) as machine_count;
   `);

@@ -3777,12 +3777,12 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/stdlib/std/metadata:metadata
+# GN target: //src/trace_processor/perfetto_sql/stdlib/std/traceinfo:traceinfo
 perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_std_metadata_metadata",
+    name = "src_trace_processor_perfetto_sql_stdlib_std_traceinfo_traceinfo",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/std/metadata/summary.sql",
-        "src/trace_processor/perfetto_sql/stdlib/std/metadata/trace.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/traceinfo/metadata_for_primary_scope.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/traceinfo/trace.sql",
     ],
 )
 
@@ -3915,7 +3915,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_slices_slices",
         ":src_trace_processor_perfetto_sql_stdlib_stack_trace_stack_trace",
         ":src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
-        ":src_trace_processor_perfetto_sql_stdlib_std_metadata_metadata",
+        ":src_trace_processor_perfetto_sql_stdlib_std_traceinfo_traceinfo",
         ":src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
         ":src_trace_processor_perfetto_sql_stdlib_traced_traced",

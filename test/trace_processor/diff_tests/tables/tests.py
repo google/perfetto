@@ -440,12 +440,12 @@ class Tables(TestSuite):
         """),
         query=r"""
           SELECT
-            metadata_get_str('system_name') as primary_system,
-            metadata_get_machine_str(0, 'system_name') as machine_0_system,
-            metadata_get_machine_str(1, 'system_name') as machine_1_system,
-            metadata_get_int('ftrace_latest_data_start_ns') as primary_ftrace_start,
-            metadata_get_machine_int(0, 'ftrace_latest_data_start_ns') as machine_0_ftrace_start,
-            metadata_get_machine_int(1, 'ftrace_latest_data_start_ns') as machine_1_ftrace_start;
+            extract_metadata('system_name') as primary_system,
+            extract_metadata_for_machine(0, 'system_name') as machine_0_system,
+            extract_metadata_for_machine(1, 'system_name') as machine_1_system,
+            extract_metadata('ftrace_latest_data_start_ns') as primary_ftrace_start,
+            extract_metadata_for_machine(0, 'ftrace_latest_data_start_ns') as machine_0_ftrace_start,
+            extract_metadata_for_machine(1, 'ftrace_latest_data_start_ns') as machine_1_ftrace_start;
         """,
         out=Csv(r"""
           "primary_system","machine_0_system","machine_1_system","primary_ftrace_start","machine_0_ftrace_start","machine_1_ftrace_start"

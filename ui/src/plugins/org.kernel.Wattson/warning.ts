@@ -37,7 +37,7 @@ export async function hasWattsonSufficientCPUConfigs(
 
   // 2. Check configured events
   const query = `
-    SELECT metadata_get_str('trace_config_pbtxt') as str_value;
+    SELECT extract_metadata('trace_config_pbtxt') as str_value;
     `;
 
   const result = await engine.query(query);

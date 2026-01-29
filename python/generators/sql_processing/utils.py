@@ -33,7 +33,6 @@ ALLOWED_PREFIXES = {
     ],
     'linux': ['cpu', 'memory'],
     'stacks': ['cpu_profiling'],
-    'std/metadata': ['metadata'],
 }
 
 # Allows for nonstandard object names.

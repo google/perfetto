@@ -13,12 +13,12 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- @module std.metadata.summary
+-- @module std.traceinfo.metadata_for_primary_scope
 -- Metadata summary table.
 
 -- A table containing a summary of metadata entries, picking the primary entry
 -- for each name (favoring the root trace and machine).
-CREATE PERFETTO TABLE metadata_summary (
+CREATE PERFETTO TABLE _metadata_for_primary_scope (
   -- Name of the metadata entry.
   name STRING,
   -- String value of the entry.

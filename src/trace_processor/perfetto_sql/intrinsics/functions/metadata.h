@@ -15,33 +15,111 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_METADATA_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_METADATA_H_
 
+#include <optional>
+
 #include "perfetto/base/status.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 
 namespace perfetto::trace_processor {
 
 class PerfettoSqlEngine;
-class TraceStorage;
 
-// Registers the following metadata helper functions with |engine|:
-//
-// metadata_get_str(name STRING):
-//   Returns the string value of the "primary" metadata entry for the given
-//   name, prioritizing entries from the root trace and root machine.
-//
-// metadata_get_int(name STRING):
-//   Returns the integer value of the "primary" metadata entry.
-//
-// metadata_get_machine_str(machine_id LONG, name STRING):
-//   Returns the string value of the metadata entry for a specific machine.
-//
-// metadata_get_machine_int(machine_id LONG, name STRING):
-//   Returns the integer value for a specific machine.
-//
-// metadata_get_trace_str(trace_id LONG, name STRING):
-//   Returns the string value for a specific trace file.
-//
-// metadata_get_trace_int(trace_id LONG, name STRING):
-//   Returns the integer value for a specific trace file.
+// extract_metadata(name) returns the "primary" metadata value for a given name.
+struct ExtractMetadata : public sqlite::Function<ExtractMetadata> {
+  static constexpr char kName[] = "extract_metadata";
+  static constexpr int kArgCount = 1;
+
+  struct Context {
+    explicit Context(const TraceStorage* s)
+        : storage(s),
+          cursor(s->metadata_table().CreateCursor(
+              {dataframe::FilterSpec{tables::MetadataTable::ColumnIndex::name,
+                                     0, dataframe::Eq{}, std::nullopt}})) {}
+    const TraceStorage* storage;
+    tables::MetadataTable::ConstCursor cursor;
+  };
+
+  using UserData = Context;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
+};
+
+// extract_metadata_for_machine(machine_id, name) returns the metadata value
+// for a specific machine.
+struct ExtractMetadataForMachine
+    : public sqlite::Function<ExtractMetadataForMachine> {
+  static constexpr char kName[] = "extract_metadata_for_machine";
+  static constexpr int kArgCount = 2;
+
+  struct Context {
+    explicit Context(const TraceStorage* s)
+        : storage(s),
+          cursor(s->metadata_table().CreateCursor(
+              {dataframe::FilterSpec{tables::MetadataTable::ColumnIndex::name,
+                                     0, dataframe::Eq{}, std::nullopt},
+               dataframe::FilterSpec{
+                   tables::MetadataTable::ColumnIndex::machine_id, 1,
+                   dataframe::Eq{}, std::nullopt}})) {}
+    const TraceStorage* storage;
+    tables::MetadataTable::ConstCursor cursor;
+  };
+
+  using UserData = Context;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
+};
+
+// extract_metadata_for_trace(trace_id, name) returns the metadata value
+// for a specific trace file.
+struct ExtractMetadataForTrace
+    : public sqlite::Function<ExtractMetadataForTrace> {
+  static constexpr char kName[] = "extract_metadata_for_trace";
+  static constexpr int kArgCount = 2;
+
+  struct Context {
+    explicit Context(const TraceStorage* s)
+        : storage(s),
+          cursor(s->metadata_table().CreateCursor(
+              {dataframe::FilterSpec{tables::MetadataTable::ColumnIndex::name,
+                                     0, dataframe::Eq{}, std::nullopt},
+               dataframe::FilterSpec{
+                   tables::MetadataTable::ColumnIndex::trace_id, 1,
+                   dataframe::Eq{}, std::nullopt}})) {}
+    const TraceStorage* storage;
+    tables::MetadataTable::ConstCursor cursor;
+  };
+
+  using UserData = Context;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
+};
+
+// extract_exact_metadata(machine_id, trace_id, name) returns the metadata value
+// for a specific machine and trace file.
+struct ExtractExactMetadata : public sqlite::Function<ExtractExactMetadata> {
+  static constexpr char kName[] = "extract_exact_metadata";
+  static constexpr int kArgCount = 3;
+
+  struct Context {
+    explicit Context(const TraceStorage* s)
+        : storage(s),
+          cursor(s->metadata_table().CreateCursor(
+              {dataframe::FilterSpec{tables::MetadataTable::ColumnIndex::name,
+                                     0, dataframe::Eq{}, std::nullopt},
+               dataframe::FilterSpec{
+                   tables::MetadataTable::ColumnIndex::machine_id, 1,
+                   dataframe::Eq{}, std::nullopt},
+               dataframe::FilterSpec{
+                   tables::MetadataTable::ColumnIndex::trace_id, 2,
+                   dataframe::Eq{}, std::nullopt}})) {}
+    const TraceStorage* storage;
+    tables::MetadataTable::ConstCursor cursor;
+  };
+
+  using UserData = Context;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
+};
+
 base::Status RegisterMetadataFunctions(PerfettoSqlEngine& engine,
                                        TraceStorage* storage);
 

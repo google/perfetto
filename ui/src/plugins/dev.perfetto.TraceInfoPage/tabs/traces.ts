@@ -37,7 +37,7 @@ export interface TracesData {
 
 export async function loadTracesData(engine: Engine): Promise<TracesData> {
   const result = await engine.query(`
-    INCLUDE PERFETTO MODULE std.metadata.trace;
+    INCLUDE PERFETTO MODULE std.traceinfo.trace;
 
     select
       trace_id as traceId,
@@ -47,7 +47,7 @@ export async function loadTracesData(engine: Engine): Promise<TracesData> {
       trace_size_bytes as traceSizeBytes,
       trace_trigger as traceTrigger,
       machines
-    from metadata_by_trace
+    from _metadata_by_trace
     order by trace_id;
   `);
 

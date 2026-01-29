@@ -431,6 +431,11 @@ async function computeVisibleTime(
   return new TimeSpan(visibleStart, visibleEnd);
 }
 
+// TODO(sashwinbalaji): Move session UUID generation to TraceProcessor.
+// computeGlobalUuid is a temporary measure to ensure multi-trace sessions
+// have a unique cache key. This prevents collisions where a multi-trace
+// session (e.g. a ZIP) would otherwise reuse the cache entry of its first
+// component trace if that trace was previously opened individually.
 async function computeGlobalUuid(uuids: string[]): Promise<string> {
   if (uuids.length === 0) return '';
   if (uuids.length === 1) return uuids[0];
@@ -531,9 +536,10 @@ async function getTraceInfo(
   const hasFtrace =
     (await engine.query(`select * from ftrace_event limit 1`)).numRows() > 0;
 
-  const uuidRes = await engine.query(
-    `select str_value as uuid from metadata where name = 'trace_uuid'`,
-  );
+  const uuidRes = await engine.query(`
+    INCLUDE PERFETTO MODULE std.traceinfo.trace;
+    select trace_uuid as uuid from _metadata_by_trace
+  `);
   const uuids: string[] = [];
   for (
     const itUuid = uuidRes.iter({uuid: STR});
@@ -569,11 +575,11 @@ async function getTraceInfo(
 }
 
 async function getTraceTypes(engine: Engine): Promise<string[]> {
-  const result = await engine.query(
-    `select distinct str_value as str_value
-     from metadata
-     where name = 'trace_type'`,
-  );
+  const result = await engine.query(`
+    INCLUDE PERFETTO MODULE std.traceinfo.trace;
+    select distinct trace_type as str_value
+    from _metadata_by_trace
+  `);
 
   const traceTypes: string[] = [];
   const it = result.iter({str_value: STR});

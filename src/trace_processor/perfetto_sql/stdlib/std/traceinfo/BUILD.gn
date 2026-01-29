@@ -14,9 +14,9 @@
 
 import("../../../../../../gn/perfetto_sql.gni")
 
-perfetto_sql_source_set("metadata") {
+perfetto_sql_source_set("traceinfo") {
   sources = [
-    "summary.sql",
+    "metadata_for_primary_scope.sql",
     "trace.sql",
   ]
 }

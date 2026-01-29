@@ -37,15 +37,14 @@ export interface ConfigData {
 
 export async function loadConfigData(engine: Engine): Promise<ConfigData> {
   const configResult = await engine.query(`
+    INCLUDE PERFETTO MODULE std.traceinfo.trace;
     SELECT
       trace_id as traceId,
-      MAX(CASE WHEN name = 'trace_config_pbtxt' THEN str_value END) as configText,
-      MAX(CASE WHEN name = 'unique_session_name' THEN str_value END) as sessionName
-    FROM metadata
-    WHERE name IN ('trace_config_pbtxt', 'unique_session_name')
-    GROUP BY trace_id
-    HAVING MAX(CASE WHEN name = 'trace_config_pbtxt' THEN str_value END) IS NOT NULL
-    ORDER BY trace_id;
+      extract_metadata_for_trace(trace_id, 'trace_config_pbtxt') as configText,
+      unique_session_name as sessionName
+    FROM _metadata_by_trace
+    WHERE configText IS NOT NULL
+    ORDER BY traceId;
   `);
 
   const traceInfos = await getTraceInfos(engine);
