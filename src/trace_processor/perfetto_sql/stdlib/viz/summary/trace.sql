@@ -20,7 +20,7 @@ CREATE PERFETTO FUNCTION _is_linux_machine(
 )
 RETURNS LONG AS
 SELECT
-  count() = 1
+  count() > 0
 FROM metadata
 WHERE
   name = 'system_name' AND str_value = 'Linux' AND machine_id = $machine_id;
