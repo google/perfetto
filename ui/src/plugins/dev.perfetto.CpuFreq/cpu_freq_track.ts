@@ -36,6 +36,7 @@ import {
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
 import {Color} from '../../base/color';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 export interface Data extends TrackData {
   timestamps: BigInt64Array;
@@ -240,6 +241,8 @@ export class CpuFreqTrack implements TrackRenderer {
       );
     `);
 
+    const task = await deferChunkedTask({priority: 'background'});
+
     const freqRows = freqResult.numRows();
     const idleRows = idleResult.numRows();
     assertTrue(freqRows == idleRows);
@@ -267,6 +270,10 @@ export class CpuFreqTrack implements TrackRenderer {
       lastIdle: NUM,
     });
     for (let i = 0; freqIt.valid(); ++i, freqIt.next(), idleIt.next()) {
+      if (i % 50 === 0 && task.shouldYield()) {
+        await task.yield();
+      }
+
       data.timestamps[i] = freqIt.ts;
       data.timestampsRelNs[i] = Number(freqIt.ts - start);
       data.minFreqKHz[i] = freqIt.minFreq;

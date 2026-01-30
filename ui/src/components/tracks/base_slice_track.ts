@@ -39,6 +39,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -753,10 +754,16 @@ export abstract class BaseSliceTrack<
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
+    const task = await deferChunkedTask({priority: 'background'});
+
     const it = queryRes.iter(this.rowSpec);
 
     let maxDataDepth = this.maxDataDepth;
     for (let i = 0; it.valid(); it.next(), ++i) {
+      if (i % 50 === 0 && task.shouldYield()) {
+        await task.yield();
+      }
+
       if (it.dur === -1n) {
         continue;
       }

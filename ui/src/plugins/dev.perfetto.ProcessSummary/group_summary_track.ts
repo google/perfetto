@@ -42,6 +42,7 @@ import {
 } from '../../trace_processor/sql_utils';
 import {Dataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 
@@ -318,6 +319,9 @@ export class GroupSummaryTrack implements TrackRenderer {
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
     const queryRes = await this.queryData(start, end, resolution);
+
+    const task = await deferChunkedTask({priority: 'background'});
+
     const numRows = queryRes.numRows();
     const slices: Data = {
       start,
@@ -345,6 +349,10 @@ export class GroupSummaryTrack implements TrackRenderer {
     });
 
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 50 === 0 && task.shouldYield()) {
+        await task.yield();
+      }
+
       const ts = it.ts;
       const dur = it.dur;
       const endTs = ts + dur;
