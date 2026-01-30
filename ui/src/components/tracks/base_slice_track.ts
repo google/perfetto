@@ -143,6 +143,9 @@ export type BaseRow = typeof BASE_ROW;
 interface SliceInternal {
   x: number;
   w: number;
+  // Pre-computed relative timestamp (nanoseconds relative to dataStart) for
+  // fast pixel calculation in render loop.
+  startRelNs: number;
 }
 
 // We use this to avoid exposing subclasses to the properties that live on
@@ -479,13 +482,24 @@ export abstract class BaseSliceTrack<
     // beyond the visible portion of the canvas.
     const pxEnd = size.width;
 
+    // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(this.slicesKey.start);
+
+    // Update relative timestamps for incomplete slices (they persist across
+    // slicesKey changes, so we need to recompute relative to current reference).
+    const refStartNs = this.slicesKey.start;
+    for (const slice of this.incomplete) {
+      slice.startRelNs = Number(slice.startNs - refStartNs);
+    }
+
     for (const slice of vizSlices) {
       // Compute the basic geometry for any visible slice, even if only
       // partially visible. This might end up with a negative x if the
       // slice starts before the visible time or with a width that overflows
       // pxEnd.
-      slice.x = timescale.timeToPx(slice.startNs);
-      slice.w = timescale.durationToPx(slice.durNs);
+      slice.x = slice.startRelNs * pxPerNs + baseOffsetPx;
+      slice.w = Number(slice.durNs) * pxPerNs;
 
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         // In the case of an instant slice, set the slice geometry on the
@@ -667,13 +681,15 @@ export abstract class BaseSliceTrack<
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
+    const slicesKeyEndPx =
+      Number(this.slicesKey.end - refStartNs) * pxPerNs + baseOffsetPx;
     checkerboardExcept(
       ctx,
       this.getHeight(),
       0,
       size.width,
-      timescale.timeToPx(this.slicesKey.start),
-      timescale.timeToPx(this.slicesKey.end),
+      baseOffsetPx,
+      slicesKeyEndPx,
     );
 
     // TODO(hjd): Remove this.
@@ -757,6 +773,13 @@ export abstract class BaseSliceTrack<
     this.maxDataDepth = maxDataDepth;
 
     this.slicesKey = slicesKey;
+
+    // Pre-compute relative timestamps for fast pixel calculation in render.
+    const refStartNs = slicesKey.start;
+    for (const slice of slices) {
+      slice.startRelNs = Number(slice.startNs - refStartNs);
+    }
+
     this.onUpdatedSlices(slices);
     this.slices = slices;
 
@@ -776,6 +799,7 @@ export abstract class BaseSliceTrack<
       ...slice,
       x: -1,
       w: -1,
+      startRelNs: 0, // Will be computed in maybeRequestData
     };
   }
 
