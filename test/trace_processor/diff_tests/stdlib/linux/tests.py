@@ -121,19 +121,19 @@ class LinuxTests(TestSuite):
         INCLUDE PERFETTO MODULE linux.perf.counters;
 
         select
-          id,
+          sample_id,
           ts,
-          counter_name,
-          counter_value,
-          is_timebase
+          t.name as counter_name,
+          counter_value
         from linux_perf_sample_with_counters
-        order by id, counter_name
+        join track t on t.id = track_id
+        order by sample_id, counter_name
         """,
         out=Csv("""
-        "id","ts","counter_name","counter_value","is_timebase"
-        0,273574993553025,"cpu-clock",10020141.000000,1
-        0,273574993553025,"cpu-cycles",4672142.000000,0
-        0,273574993553025,"instructions",1144537.000000,0
+        "sample_id","ts","counter_name","counter_value"
+        0,273574993553025,"cpu-clock",10020141.000000
+        0,273574993553025,"cpu-cycles",4672142.000000
+        0,273574993553025,"instructions",1144537.000000
         """))
 
   def test_kernel_threads(self):

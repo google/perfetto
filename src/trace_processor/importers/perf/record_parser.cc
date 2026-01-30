@@ -346,8 +346,9 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
 
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
-  CounterId counter_id = sample.attr->GetOrCreateCounter(sample.cpu)
-                             .AddDelta(sample.trace_ts, static_cast<double>(period));
+  CounterId counter_id =
+      sample.attr->GetOrCreateCounter(sample.cpu)
+          .AddDelta(sample.trace_ts, static_cast<double>(period));
   return std::vector<CounterId>{counter_id};
 }
 
@@ -361,8 +362,9 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
       return base::ErrStatus("No perf_event_attr for id %" PRIu64,
                              *entry.event_id);
     }
-    CounterId counter_id = attr->GetOrCreateCounter(sample.cpu)
-                               .AddCount(sample.trace_ts, static_cast<double>(entry.value));
+    CounterId counter_id =
+        attr->GetOrCreateCounter(sample.cpu)
+            .AddCount(sample.trace_ts, static_cast<double>(entry.value));
     counter_ids.push_back(counter_id);
   }
   return counter_ids;

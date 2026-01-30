@@ -28,10 +28,9 @@ class PerfCounterExtractor {
  public:
   explicit PerfCounterExtractor(
       const tables::PerfCounterSetTable& perf_counter_set_table)
-      : cursor_(perf_counter_set_table.CreateCursor(
-            {dataframe::FilterSpec{
-                tables::PerfCounterSetTable::ColumnIndex::perf_counter_set_id,
-                0, dataframe::Eq{}, std::nullopt}})) {}
+      : cursor_(perf_counter_set_table.CreateCursor({dataframe::FilterSpec{
+            tables::PerfCounterSetTable::ColumnIndex::perf_counter_set_id, 0,
+            dataframe::Eq{}, std::nullopt}})) {}
 
   // Sets up the cursor for the given counter_set_id and executes the query.
   void SetCounterSetId(uint32_t counter_set_id) {
@@ -60,8 +59,7 @@ struct PerfCounterForSampleFunction
 
   struct Context {
     explicit Context(TraceStorage* s)
-        : storage(s),
-          extractor(s->perf_counter_set_table()) {}
+        : storage(s), extractor(s->perf_counter_set_table()) {}
 
     TraceStorage* storage;
     PerfCounterExtractor extractor;
