@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- sqlformat file off
+
 -- Returns the counter value for a perf sample given the sample ID
 -- and counter name.
 CREATE PERFETTO FUNCTION linux_perf_counter_for_sample(
@@ -24,6 +26,8 @@ CREATE PERFETTO FUNCTION linux_perf_counter_for_sample(
 -- The counter value, or NULL if not found.
 RETURNS DOUBLE
   DELEGATES TO __intrinsic_perf_counter_for_sample;
+
+-- sqlformat file on
 
 -- Fully denormalized view joining perf samples with their counter values.
 -- Note: This view has multiple rows per sample (one for each counter).
