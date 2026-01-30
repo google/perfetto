@@ -28,13 +28,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/core/dataframe/value_fetcher.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 // Builds a Dataframe instance row by row at runtime.
 //
@@ -81,6 +80,8 @@ namespace perfetto::trace_processor::dataframe {
 // ```
 class RuntimeDataframeBuilder {
  public:
+  using Options = AdhocDataframeBuilder::Options;
+
   // Constructs a RuntimeDataframeBuilder.
   //
   // Args:
@@ -94,18 +95,18 @@ class RuntimeDataframeBuilder {
   //         of the columns. If empty, types are inferred from the first
   //         non-null value added to each column. If provided, must match
   //         the size of `names`.
-  RuntimeDataframeBuilder(
-      std::vector<std::string> names,
-      StringPool* pool,
-      const std::vector<AdhocDataframeBuilder::ColumnType>& types = {})
+  RuntimeDataframeBuilder(std::vector<std::string> names,
+                          StringPool* pool,
+                          const Options& options = {})
       : coulumn_count_(static_cast<uint32_t>(names.size())),
-        builder_(std::move(names), pool, types),
+        builder_(std::move(names), pool, options),
         pool_(pool) {}
   ~RuntimeDataframeBuilder() = default;
 
   // Movable but not copyable
-  RuntimeDataframeBuilder(RuntimeDataframeBuilder&&) noexcept;
-  RuntimeDataframeBuilder& operator=(RuntimeDataframeBuilder&&) noexcept;
+  RuntimeDataframeBuilder(RuntimeDataframeBuilder&&) noexcept = default;
+  RuntimeDataframeBuilder& operator=(RuntimeDataframeBuilder&&) noexcept =
+      default;
   RuntimeDataframeBuilder(const RuntimeDataframeBuilder&) = delete;
   RuntimeDataframeBuilder& operator=(const RuntimeDataframeBuilder&) = delete;
 
@@ -165,6 +166,9 @@ class RuntimeDataframeBuilder {
         case ValueFetcherImpl::kNull:
           builder_.PushNull(i);
           break;
+        case ValueFetcherImpl::kBytes:
+          PERFETTO_FATAL("Blob type not supported in Dataframe");
+          break;
       }
     }
     return true;
@@ -203,6 +207,6 @@ class RuntimeDataframeBuilder {
   StringPool* pool_ = nullptr;
 };
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_RUNTIME_DATAFRAME_BUILDER_H_

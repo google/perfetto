@@ -11,4 +11,5 @@ SELECT
   str_value
 FROM metadata
 WHERE
-  name = "cr-hardware-class";
+  name = "cr-hardware-class"
+LIMIT 1;

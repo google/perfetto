@@ -69,6 +69,20 @@
 
 import {stringifyJsonWithBigints} from './json_utils';
 
+/**
+ * Signal passed to queryFn to check if the query has been cancelled.
+ * Check this periodically during long-running operations to bail out early.
+ */
+export interface CancellationSignal {
+  readonly isCancelled: boolean;
+}
+
+/**
+ * Special return value from queryFn indicating the query was cancelled.
+ * When returned, the result is not cached.
+ */
+export const QUERY_CANCELLED = Symbol('QUERY_CANCELLED');
+
 function isAsyncDisposable(value: unknown): value is AsyncDisposable {
   return (
     value !== null &&
@@ -155,7 +169,9 @@ export class SerialTaskQueue {
 
 export interface QueryOptions<T, K extends JSONCompatible<K>> {
   key: K;
-  queryFn: AsyncFunc<T>;
+  // Query function receives a cancellation signal. Check signal.isCancelled
+  // periodically during long operations and return QUERY_CANCELLED to bail out.
+  queryFn: (signal: CancellationSignal) => Promise<T | typeof QUERY_CANCELLED>;
   // If provided, query only runs when this is truthy
   // e.g., enabled: viewResult.data
   enabled?: boolean;
@@ -181,6 +197,7 @@ export class QuerySlot<T> {
   private cache?: {key: object; keyStr: string; data: T};
   private pendingKey?: object;
   private disposed = false;
+  private currentSignal?: {cancelled: boolean};
 
   constructor(private readonly queue: SerialTaskQueue) {}
 
@@ -211,12 +228,26 @@ export class QuerySlot<T> {
     const canRun = enabled === undefined || enabled;
 
     if (isKeyDifferentFromPending && isKeyDifferentFromCache && canRun) {
+      // Cancel any in-flight query
+      if (this.currentSignal) {
+        this.currentSignal.cancelled = true;
+      }
+
+      // Create new signal for this query
+      const signal = {cancelled: false};
+      this.currentSignal = signal;
+
       this.pendingKey = key;
       this.queue.schedule(this, async () => {
         // Dispose of previous result before running new query
         await this.disposeCache();
-        const result = await queryFn();
-        this.setCache(key, result);
+        const result = await queryFn({
+          get isCancelled() {
+            return signal.cancelled;
+          },
+        });
+
+        this.finaliseQuery(key, result);
       });
     }
 
@@ -247,9 +278,12 @@ export class QuerySlot<T> {
     return {data: undefined, isPending, isFresh: false};
   }
 
-  private setCache(key: object, data: T): void {
+  /**
+   * Called when a query completes. Clears the pending state and optionally
+   * caches the result (if not cancelled).
+   */
+  private finaliseQuery(key: object, result: T | typeof QUERY_CANCELLED): void {
     const keyStr = stringifyJsonWithBigints(key);
-    this.cache = {key, keyStr, data};
 
     // Clear pending if it matches
     if (
@@ -257,6 +291,11 @@ export class QuerySlot<T> {
       stringifyJsonWithBigints(this.pendingKey) === keyStr
     ) {
       this.pendingKey = undefined;
+    }
+
+    // Cache the result (unless cancelled)
+    if (result !== QUERY_CANCELLED) {
+      this.cache = {key, keyStr, data: result};
     }
   }
 

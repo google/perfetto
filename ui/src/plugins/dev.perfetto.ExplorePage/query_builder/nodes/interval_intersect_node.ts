@@ -714,7 +714,6 @@ export class IntervalIntersectNode implements QueryNode {
         : undefined,
       tsDurSource: this.state.tsDurSource,
       onchange: this.state.onchange,
-      sqlModules: this.state.sqlModules,
     };
     return new IntervalIntersectNode(stateCopy);
   }

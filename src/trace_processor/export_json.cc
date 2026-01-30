@@ -23,30 +23,21 @@
 #include <cstdio>
 #include <cstring>
 #include <deque>
-#include <iterator>
 #include <limits>
 #include <map>
-#include <memory>
 #include <optional>
-#include <sstream>
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/public/compiler.h"
-#include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/iterator.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -63,17 +54,15 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-#include <json/config.h>
-#include <json/reader.h>
-#include <json/value.h>
-#include <json/writer.h>
-#endif
+#include "src/trace_processor/util/json_value.h"
 
 namespace perfetto::trace_processor::json {
 
 namespace {
+
+std::string JsonToString(const Dom& value) {
+  return Serialize(value);
+}
 
 class FileWriter : public OutputWriter {
  public:
@@ -112,7 +101,6 @@ uint32_t LowerBoundIndex(uint32_t first,
   return first;
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
 
 const char kLegacyEventArgsKey[] = "legacy_event";
@@ -136,7 +124,7 @@ const char* GetNonNullString(const TraceStorage* storage,
                              std::optional<StringId> id) {
   return id == std::nullopt || *id == kNullStringId
              ? ""
-             : storage->GetString(*id).c_str();
+             : storage->GetString(id).c_str();
 }
 
 class JsonExporter {
@@ -179,40 +167,37 @@ class JsonExporter {
           metadata_filter_(std::move(metadata_filter)),
           label_filter_(std::move(label_filter)),
           first_event_(true) {
-      Json::StreamWriterBuilder b;
-      b.settings_["indentation"] = "";
-      writer_.reset(b.newStreamWriter());
       WriteHeader();
     }
 
     ~TraceFormatWriter() { WriteFooter(); }
 
-    void WriteCommonEvent(const Json::Value& event) {
+    void WriteCommonEvent(const Dom& event) {
       if (label_filter_ && !label_filter_("traceEvents"))
         return;
 
       DoWriteEvent(event);
     }
 
-    void AddAsyncBeginEvent(const Json::Value& event) {
+    void AddAsyncBeginEvent(Dom&& event) {
       if (label_filter_ && !label_filter_("traceEvents"))
         return;
 
-      async_begin_events_.push_back(event);
+      async_begin_events_.push_back(std::move(event));
     }
 
-    void AddAsyncInstantEvent(const Json::Value& event) {
+    void AddAsyncInstantEvent(Dom&& event) {
       if (label_filter_ && !label_filter_("traceEvents"))
         return;
 
-      async_instant_events_.push_back(event);
+      async_instant_events_.push_back(std::move(event));
     }
 
-    void AddAsyncEndEvent(const Json::Value& event) {
+    void AddAsyncEndEvent(Dom&& event) {
       if (label_filter_ && !label_filter_("traceEvents"))
         return;
 
-      async_end_events_.push_back(event);
+      async_end_events_.push_back(std::move(event));
     }
 
     void SortAndEmitAsyncEvents() {
@@ -228,8 +213,8 @@ class JsonExporter {
       // the same timestamp. To accomplish this, we perform a stable sort in
       // descending order and later iterate via reverse iterators.
       struct {
-        bool operator()(const Json::Value& a, const Json::Value& b) const {
-          return a["ts"].asInt64() > b["ts"].asInt64();
+        bool operator()(const Dom& a, const Dom& b) const {
+          return a["ts"].AsInt64() > b["ts"].AsInt64();
         }
       } CompareEvents;
       std::stable_sort(async_end_events_.begin(), async_end_events_.end(),
@@ -265,8 +250,8 @@ class JsonExporter {
 
       auto emit_next_instant_or_end = [&instant_event_it, &end_event_it,
                                        &emit_next_instant, &emit_next_end]() {
-        if ((*instant_event_it)["ts"].asInt64() <=
-            (*end_event_it)["ts"].asInt64()) {
+        if ((*instant_event_it)["ts"].AsInt64() <=
+            (*end_event_it)["ts"].AsInt64()) {
           emit_next_instant();
         } else {
           emit_next_end();
@@ -275,8 +260,8 @@ class JsonExporter {
       auto emit_next_instant_or_begin = [&instant_event_it, &begin_event_it,
                                          &emit_next_instant,
                                          &emit_next_begin]() {
-        if ((*instant_event_it)["ts"].asInt64() <=
-            (*begin_event_it)["ts"].asInt64()) {
+        if ((*instant_event_it)["ts"].AsInt64() <=
+            (*begin_event_it)["ts"].AsInt64()) {
           emit_next_instant();
         } else {
           emit_next_begin();
@@ -284,8 +269,8 @@ class JsonExporter {
       };
       auto emit_next_end_or_begin = [&end_event_it, &begin_event_it,
                                      &emit_next_end, &emit_next_begin]() {
-        if ((*end_event_it)["ts"].asInt64() <=
-            (*begin_event_it)["ts"].asInt64()) {
+        if ((*end_event_it)["ts"].AsInt64() <=
+            (*begin_event_it)["ts"].AsInt64()) {
           emit_next_end();
         } else {
           emit_next_begin();
@@ -294,8 +279,8 @@ class JsonExporter {
 
       // While we still have events in all iterators, consider each.
       while (has_instant_event && has_end_event && has_begin_event) {
-        if ((*instant_event_it)["ts"].asInt64() <=
-            (*end_event_it)["ts"].asInt64()) {
+        if ((*instant_event_it)["ts"].AsInt64() <=
+            (*end_event_it)["ts"].AsInt64()) {
           emit_next_instant_or_begin();
         } else {
           emit_next_end_or_begin();
@@ -341,30 +326,30 @@ class JsonExporter {
       if (label_filter_ && !label_filter_("traceEvents"))
         return;
 
-      std::ostringstream ss;
+      std::string out;
       if (!first_event_)
-        ss << ",\n";
+        out += ",\n";
 
-      Json::Value value;
+      Dom value(Type::kObject);
       value["ph"] = "M";
       value["cat"] = "__metadata";
       value["ts"] = 0;
       value["name"] = metadata_type;
-      value["pid"] = Json::Int(pid);
-      value["tid"] = Json::Int(tid);
+      value["pid"] = static_cast<int>(pid);
+      value["tid"] = static_cast<int>(tid);
 
-      Json::Value args;
+      Dom args(Type::kObject);
       args[metadata_arg_name] = metadata_arg_value;
-      value["args"] = args;
+      value["args"] = std::move(args);
 
-      writer_->write(value, &ss);
-      output_->AppendString(ss.str());
+      out += JsonToString(value);
+      output_->AppendString(out);
       first_event_ = false;
     }
 
-    void MergeMetadata(const Json::Value& value) {
-      for (const auto& member : value.getMemberNames()) {
-        metadata_[member] = value[member];
+    void MergeMetadata(const Dom& value) {
+      for (const auto& member : value.GetMemberNames()) {
+        metadata_[member] = value[member].Copy();
       }
     }
 
@@ -373,15 +358,15 @@ class JsonExporter {
     }
 
     void AppendTelemetryMetadataString(const char* key, const char* value) {
-      metadata_["telemetry"][key].append(value);
+      metadata_["telemetry"][key].Append(Dom(value));
     }
 
     void AppendTelemetryMetadataInt(const char* key, int64_t value) {
-      metadata_["telemetry"][key].append(Json::Int64(value));
+      metadata_["telemetry"][key].Append(Dom(value));
     }
 
     void AppendTelemetryMetadataBool(const char* key, bool value) {
-      metadata_["telemetry"][key].append(value);
+      metadata_["telemetry"][key].Append(Dom(value));
     }
 
     void SetTelemetryMetadataTimestamp(const char* key, int64_t value) {
@@ -389,7 +374,7 @@ class JsonExporter {
     }
 
     void SetStats(const char* key, int64_t value) {
-      metadata_["trace_processor_stats"][key] = Json::Int64(value);
+      metadata_["trace_processor_stats"][key] = value;
     }
 
     void SetStats(const char* key, const IndexMap& indexed_values) {
@@ -399,16 +384,14 @@ class JsonExporter {
       if (strncmp(kBufferStatsPrefix, key, strlen(kBufferStatsPrefix)) == 0) {
         for (const auto& value : indexed_values) {
           metadata_["trace_processor_stats"]["traced_buf"][value.first]
-                   [key + strlen(kBufferStatsPrefix)] =
-                       Json::Int64(value.second);
+                   [key + strlen(kBufferStatsPrefix)] = value.second;
         }
         return;
       }
 
       // Other indexed value stats are exported as array under their key.
       for (const auto& value : indexed_values) {
-        metadata_["trace_processor_stats"][key][value.first] =
-            Json::Int64(value.second);
+        metadata_["trace_processor_stats"][key][value.first] = value.second;
       }
     }
 
@@ -433,7 +416,7 @@ class JsonExporter {
 
       // Filter metadata entries.
       if (metadata_filter_) {
-        for (const auto& member : metadata_.getMemberNames()) {
+        for (const auto& member : metadata_.GetMemberNames()) {
           if (!metadata_filter_(member.c_str()))
             metadata_[member] = kStrippedArgument;
         }
@@ -443,15 +426,10 @@ class JsonExporter {
           !user_trace_data_.empty()) {
         user_trace_data_ += "]";
 
-        Json::CharReaderBuilder builder;
-        auto reader =
-            std::unique_ptr<Json::CharReader>(builder.newCharReader());
-        Json::Value result;
-        if (reader->parse(user_trace_data_.data(),
-                          user_trace_data_.data() + user_trace_data_.length(),
-                          &result, nullptr)) {
-          for (const auto& event : result) {
-            WriteCommonEvent(event);
+        auto result = Parse(user_trace_data_);
+        if (result.ok()) {
+          for (const auto& event : *result) {
+            DoWriteEvent(event);
           }
         } else {
           PERFETTO_DLOG(
@@ -460,55 +438,78 @@ class JsonExporter {
         }
       }
 
-      std::ostringstream ss;
+      std::string out;
       if (!label_filter_)
-        ss << "]";
+        out += "]";
 
       if ((!label_filter_ || label_filter_("systemTraceEvents")) &&
           !system_trace_data_.empty()) {
-        ss << ",\"systemTraceEvents\":\n";
-        writer_->write(Json::Value(system_trace_data_), &ss);
+        out += ",\"systemTraceEvents\":\n";
+        out += JsonToString(Dom(system_trace_data_));
       }
 
       if ((!label_filter_ || label_filter_("metadata")) && !metadata_.empty()) {
-        ss << ",\"metadata\":\n";
-        writer_->write(metadata_, &ss);
+        out += ",\"metadata\":\n";
+        out += JsonToString(metadata_);
       }
 
       if (!label_filter_)
-        ss << "}";
+        out += "}";
 
-      output_->AppendString(ss.str());
+      output_->AppendString(out);
     }
 
-    void DoWriteEvent(const Json::Value& event) {
-      std::ostringstream ss;
+    void DoWriteEvent(const Dom& event) {
+      std::string out;
       if (!first_event_)
-        ss << ",\n";
+        out += ",\n";
 
       ArgumentNameFilterPredicate argument_name_filter;
       bool strip_args =
           argument_filter_ &&
-          !argument_filter_(event["cat"].asCString(), event["name"].asCString(),
+          !argument_filter_(event["cat"].AsCString(), event["name"].AsCString(),
                             &argument_name_filter);
-      if ((strip_args || argument_name_filter) && event.isMember("args")) {
-        Json::Value event_copy = event;
-        if (strip_args) {
-          event_copy["args"] = kStrippedArgument;
-        } else {
-          auto& args = event_copy["args"];
-          for (const auto& member : event["args"].getMemberNames()) {
-            if (!argument_name_filter(member.c_str()))
-              args[member] = kStrippedArgument;
+      if ((strip_args || argument_name_filter) && event.HasMember("args")) {
+        // Note: Dom is move-only, so we serialize the filtered version inline
+        Dom event_copy(Type::kObject);
+        for (const auto& key : event.GetMemberNames()) {
+          if (key == "args") {
+            if (strip_args) {
+              event_copy["args"] = kStrippedArgument;
+            } else {
+              event_copy["args"] = Dom(Type::kObject);
+              for (const auto& member : event["args"].GetMemberNames()) {
+                if (!argument_name_filter(member.c_str())) {
+                  event_copy["args"][member] = kStrippedArgument;
+                } else {
+                  // Copy the value preserving its type
+                  event_copy["args"][member] = event["args"][member].Copy();
+                }
+              }
+            }
+          } else {
+            // Copy simple values
+            const auto& val = event[key];
+            if (val.IsString()) {
+              event_copy[key] = Dom(val.AsString());
+            } else if (val.IsInt()) {
+              event_copy[key] = Dom(val.AsInt64());
+            } else if (val.IsUint()) {
+              event_copy[key] = Dom(val.AsUint64());
+            } else if (val.IsDouble()) {
+              event_copy[key] = Dom(val.AsDouble());
+            } else if (val.IsBool()) {
+              event_copy[key] = Dom(val.AsBool());
+            }
           }
         }
-        writer_->write(event_copy, &ss);
+        out += JsonToString(event_copy);
       } else {
-        writer_->write(event, &ss);
+        out += JsonToString(event);
       }
       first_event_ = false;
 
-      output_->AppendString(ss.str());
+      output_->AppendString(out);
     }
 
     OutputWriter* output_;
@@ -516,31 +517,26 @@ class JsonExporter {
     MetadataFilterPredicate metadata_filter_;
     LabelFilterPredicate label_filter_;
 
-    std::unique_ptr<Json::StreamWriter> writer_;
     bool first_event_;
-    Json::Value metadata_;
+    Dom metadata_{Type::kObject};
     std::string system_trace_data_;
     std::string user_trace_data_;
-    std::vector<Json::Value> async_begin_events_;
-    std::vector<Json::Value> async_instant_events_;
-    std::vector<Json::Value> async_end_events_;
+    std::vector<Dom> async_begin_events_;
+    std::vector<Dom> async_instant_events_;
+    std::vector<Dom> async_end_events_;
   };
 
   class ArgsBuilder {
    public:
     explicit ArgsBuilder(const TraceStorage* storage)
-        : storage_(storage),
-          empty_value_(Json::objectValue),
-          nan_value_(Json::StaticString("NaN")),
-          inf_value_(Json::StaticString("Infinity")),
-          neg_inf_value_(Json::StaticString("-Infinity")) {
+        : storage_(storage), empty_value_(Type::kObject) {
       const auto& arg_table = storage_->arg_table();
       ArgSet arg_set;
       uint32_t cur_args_set_id = std::numeric_limits<uint32_t>::max();
       for (auto it = arg_table.IterateRows(); it; ++it) {
         ArgSetId set_id = it.arg_set_id();
         if (set_id != cur_args_set_id) {
-          args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());
+          args_sets_.Insert(cur_args_set_id, ArgNodeToJson(arg_set.root()));
           arg_set = ArgSet();
           cur_args_set_id = set_id;
         }
@@ -548,12 +544,12 @@ class JsonExporter {
                           GetArgValue(*storage_, it.row_number().row_number()));
       }
       if (cur_args_set_id != std::numeric_limits<uint32_t>::max()) {
-        args_sets_[cur_args_set_id] = ArgNodeToJson(arg_set.root());
+        args_sets_.Insert(cur_args_set_id, ArgNodeToJson(arg_set.root()));
       }
       PostprocessArgs();
     }
 
-    const Json::Value& GetArgs(std::optional<ArgSetId> set_id) const {
+    const Dom& GetArgs(std::optional<ArgSetId> set_id) const {
       return set_id ? *args_sets_.Find(*set_id) : empty_value_;
     }
 
@@ -563,57 +559,57 @@ class JsonExporter {
     }
 
    private:
-    Json::Value VariadicToJson(Variadic variadic) {
+    Dom VariadicToJson(Variadic variadic) {
       switch (variadic.type) {
         case Variadic::kInt:
-          return Json::Int64(variadic.int_value);
+          return Dom(variadic.int_value);
         case Variadic::kUint:
-          return Json::UInt64(variadic.uint_value);
+          return Dom(variadic.uint_value);
         case Variadic::kString:
-          return GetNonNullString(storage_, variadic.string_value);
+          return Dom(GetNonNullString(storage_, variadic.string_value));
         case Variadic::kReal:
           if (std::isnan(variadic.real_value)) {
-            return nan_value_;
+            return Dom("NaN");
           } else if (std::isinf(variadic.real_value) &&
                      variadic.real_value > 0) {
-            return inf_value_;
+            return Dom("Infinity");
           } else if (std::isinf(variadic.real_value) &&
                      variadic.real_value < 0) {
-            return neg_inf_value_;
+            return Dom("-Infinity");
           } else {
-            return variadic.real_value;
+            return Dom(variadic.real_value);
           }
         case Variadic::kPointer:
-          return base::Uint64ToHexString(variadic.pointer_value);
+          return Dom(base::Uint64ToHexString(variadic.pointer_value));
         case Variadic::kBool:
-          return variadic.bool_value;
+          return Dom(variadic.bool_value);
         case Variadic::kNull:
-          return base::Uint64ToHexString(0);
-        case Variadic::kJson:
-          Json::CharReaderBuilder b;
-          auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());
-
-          Json::Value result;
+          return Dom(base::Uint64ToHexString(0));
+        case Variadic::kJson: {
           std::string v = GetNonNullString(storage_, variadic.json_value);
-          reader->parse(v.data(), v.data() + v.length(), &result, nullptr);
-          return result;
+          auto result = Parse(v);
+          if (result.ok()) {
+            return std::move(*result);
+          }
+          return Dom{};
+        }
       }
       PERFETTO_FATAL("Not reached");  // For gcc.
     }
 
-    Json::Value ArgNodeToJson(const ArgNode& node) {
+    Dom ArgNodeToJson(const ArgNode& node) {
       switch (node.GetType()) {
         case ArgNode::Type::kPrimitive:
           return VariadicToJson(node.GetPrimitiveValue());
         case ArgNode::Type::kArray: {
-          Json::Value result(Json::arrayValue);
+          Dom result(Type::kArray);
           for (const auto& child : node.GetArray()) {
-            result.append(ArgNodeToJson(child));
+            result.Append(ArgNodeToJson(child));
           }
           return result;
         }
         case ArgNode::Type::kDict: {
-          Json::Value result(Json::objectValue);
+          Dom result(Type::kObject);
           for (const auto& [key, value] : node.GetDict()) {
             result[key] = ArgNodeToJson(value);
           }
@@ -627,58 +623,54 @@ class JsonExporter {
       for (auto it = args_sets_.GetIterator(); it; ++it) {
         auto& args = it.value();
         // Move all fields from "debug" key to upper level.
-        if (args.isMember("debug")) {
-          Json::Value debug = args["debug"];
-          args.removeMember("debug");
-          for (const auto& member : debug.getMemberNames()) {
-            args[member] = debug[member];
+        if (args.HasMember("debug")) {
+          Dom debug = std::move(args["debug"]);
+          args.RemoveMember("debug");
+          for (const auto& member : debug.GetMemberNames()) {
+            args[member] = debug[member].Copy();
           }
         }
 
-        if (args.isMember("legacy_trace_source_id")) {
-          const Json::Value& legacy_trace_source_id =
-              args["legacy_trace_source_id"];
-          if (legacy_trace_source_id.isInt64()) {
-            legacy_trace_ids_[it.key()] = legacy_trace_source_id.asInt64();
-            args.removeMember("legacy_trace_source_id");
+        if (args.HasMember("legacy_trace_source_id")) {
+          const Dom& legacy_trace_source_id = args["legacy_trace_source_id"];
+          if (legacy_trace_source_id.IsInt()) {
+            legacy_trace_ids_[it.key()] = legacy_trace_source_id.AsInt64();
+            args.RemoveMember("legacy_trace_source_id");
           }
         }
 
         // Rename source fields.
-        if (args.isMember("task")) {
-          if (args["task"].isMember("posted_from")) {
-            Json::Value posted_from = args["task"]["posted_from"];
-            args["task"].removeMember("posted_from");
-            if (posted_from.isMember("function_name")) {
-              args["src_func"] = posted_from["function_name"];
-              args["src_file"] = posted_from["file_name"];
-              args["src_line"] = posted_from["line_number"];
-            } else if (posted_from.isMember("file_name")) {
-              args["src"] = posted_from["file_name"];
+        if (args.HasMember("task")) {
+          if (args["task"].HasMember("posted_from")) {
+            Dom posted_from = std::move(args["task"]["posted_from"]);
+            args["task"].RemoveMember("posted_from");
+            if (posted_from.HasMember("function_name")) {
+              args["src_func"] = posted_from["function_name"].Copy();
+              args["src_file"] = posted_from["file_name"].Copy();
+              args["src_line"] = posted_from["line_number"].Copy();
+            } else if (posted_from.HasMember("file_name")) {
+              args["src"] = posted_from["file_name"].Copy();
             }
           }
           if (args["task"].empty())
-            args.removeMember("task");
+            args.RemoveMember("task");
         }
-        if (args.isMember("source")) {
-          Json::Value source = args["source"];
-          if (source.isObject() && source.isMember("function_name")) {
-            args["function_name"] = source["function_name"];
-            args["file_name"] = source["file_name"];
-            args["line_number"] = source["line_number"];
-            args.removeMember("source");
+        if (args.HasMember("source")) {
+          const Dom& source = args["source"];
+          if (source.IsObject() && source.HasMember("function_name")) {
+            args["function_name"] = source["function_name"].Copy();
+            args["file_name"] = source["file_name"].Copy();
+            args["line_number"] = source["line_number"].Copy();
+            args.RemoveMember("source");
           }
         }
       }
     }
 
     const TraceStorage* storage_;
-    base::FlatHashMap<ArgSetId, Json::Value> args_sets_;
+    base::FlatHashMap<ArgSetId, Dom> args_sets_;
     base::FlatHashMap<ArgSetId, int64_t> legacy_trace_ids_;
-    const Json::Value empty_value_;
-    const Json::Value nan_value_;
-    const Json::Value inf_value_;
-    const Json::Value neg_inf_value_;
+    const Dom empty_value_;
   };
 
   base::Status MapUniquePidsAndTids() {
@@ -796,12 +788,12 @@ class JsonExporter {
       // TODO(b/153609716): Add a src column or do_not_export flag instead.
       if (!it.category())
         continue;
-      auto cat = storage_->GetString(*it.category());
+      auto cat = storage_->GetString(it.category());
       if (cat.c_str() == nullptr || cat == "binder")
         continue;
 
-      Json::Value event;
-      event["ts"] = Json::Int64(it.ts() / 1000);
+      Dom event;
+      event["ts"] = static_cast<int64_t>(it.ts() / 1000);
       event["cat"] = GetNonNullString(storage_, it.category());
       event["name"] = GetNonNullString(storage_, it.name());
       event["pid"] = 0;
@@ -810,18 +802,18 @@ class JsonExporter {
       std::optional<UniqueTid> legacy_utid;
       std::string legacy_phase;
 
-      event["args"] = args_builder_.GetArgs(it.arg_set_id());  // Makes a copy.
-      if (event["args"].isMember(kLegacyEventArgsKey)) {
+      event["args"] = args_builder_.GetArgs(it.arg_set_id()).Copy();
+      if (event["args"].HasMember(kLegacyEventArgsKey)) {
         const auto& legacy_args = event["args"][kLegacyEventArgsKey];
 
-        if (legacy_args.isMember(kLegacyEventPassthroughUtidKey)) {
-          legacy_utid = legacy_args[kLegacyEventPassthroughUtidKey].asUInt();
+        if (legacy_args.HasMember(kLegacyEventPassthroughUtidKey)) {
+          legacy_utid = legacy_args[kLegacyEventPassthroughUtidKey].AsUint();
         }
-        if (legacy_args.isMember(kLegacyEventPhaseKey)) {
-          legacy_phase = legacy_args[kLegacyEventPhaseKey].asString();
+        if (legacy_args.HasMember(kLegacyEventPhaseKey)) {
+          legacy_phase = legacy_args[kLegacyEventPhaseKey].AsString();
         }
 
-        event["args"].removeMember(kLegacyEventArgsKey);
+        event["args"].RemoveMember(kLegacyEventArgsKey);
       }
 
       std::optional<int64_t> legacy_trace_source_id;
@@ -840,14 +832,14 @@ class JsonExporter {
 
       auto track_row_ref = *track_table.FindById(track_id);
       auto track_args_id = track_row_ref.source_arg_set_id();
-      const Json::Value* track_args = nullptr;
+      const Dom* track_args = nullptr;
       bool legacy_chrome_track = false;
       bool is_child_track = false;
       if (track_args_id) {
-        track_args = &args_builder_.GetArgs(*track_args_id);
-        legacy_chrome_track = (*track_args)["source"].asString() == "chrome";
-        is_child_track = track_args->isMember("is_root_in_scope") &&
-                         !(*track_args)["is_root_in_scope"].asBool();
+        track_args = &args_builder_.GetArgs(track_args_id);
+        legacy_chrome_track = (*track_args)["source"].AsString() == "chrome";
+        is_child_track = track_args->HasMember("is_root_in_scope") &&
+                         !(*track_args)["is_root_in_scope"].AsBool();
       }
 
       const auto& virtual_track_slices = storage_->virtual_track_slices();
@@ -884,8 +876,8 @@ class JsonExporter {
       if (track_row_ref.utid() && !is_child_track) {
         // Synchronous (thread) slice or instant event.
         auto pid_and_tid = UtidToPidAndTid(*track_row_ref.utid());
-        event["pid"] = Json::Int(pid_and_tid.first);
-        event["tid"] = Json::Int(pid_and_tid.second);
+        event["pid"] = static_cast<int>(pid_and_tid.first);
+        event["tid"] = static_cast<int>(pid_and_tid.second);
 
         if (duration_ns == 0) {
           if (legacy_phase.empty()) {
@@ -896,32 +888,33 @@ class JsonExporter {
             event["ph"] = legacy_phase;
           }
           if (thread_ts_ns && thread_ts_ns > 0) {
-            event["tts"] = Json::Int64(*thread_ts_ns / 1000);
+            event["tts"] = static_cast<int64_t>(*thread_ts_ns / 1000);
           }
           if (thread_instruction_count && *thread_instruction_count > 0) {
-            event["ticount"] = Json::Int64(*thread_instruction_count);
+            event["ticount"] = static_cast<int64_t>(*thread_instruction_count);
           }
           event["s"] = "t";
         } else {
           if (duration_ns > 0) {
             event["ph"] = "X";
-            event["dur"] = Json::Int64(duration_ns / 1000);
+            event["dur"] = static_cast<int64_t>(duration_ns / 1000);
           } else {
             // If the slice didn't finish, the duration may be negative. Only
             // write a begin event without end event in this case.
             event["ph"] = "B";
           }
           if (thread_ts_ns && *thread_ts_ns > 0) {
-            event["tts"] = Json::Int64(*thread_ts_ns / 1000);
+            event["tts"] = static_cast<int64_t>(*thread_ts_ns / 1000);
             // Only write thread duration for completed events.
             if (duration_ns > 0 && thread_duration_ns)
-              event["tdur"] = Json::Int64(*thread_duration_ns / 1000);
+              event["tdur"] = static_cast<int64_t>(*thread_duration_ns / 1000);
           }
           if (thread_instruction_count && *thread_instruction_count > 0) {
-            event["ticount"] = Json::Int64(*thread_instruction_count);
+            event["ticount"] = static_cast<int64_t>(*thread_instruction_count);
             // Only write thread instruction delta for completed events.
             if (duration_ns > 0 && thread_instruction_delta)
-              event["tidelta"] = Json::Int64(*thread_instruction_delta);
+              event["tidelta"] =
+                  static_cast<int64_t>(*thread_instruction_delta);
           }
         }
         writer_.WriteCommonEvent(event);
@@ -931,24 +924,25 @@ class JsonExporter {
         if (legacy_chrome_track) {
           // Legacy async tracks are always process-associated and have args.
           PERFETTO_DCHECK(track_args);
-          PERFETTO_DCHECK(track_args->isMember("upid"));
-          int64_t exported_pid = UpidToPid((*track_args)["upid"].asUInt());
-          event["pid"] = Json::Int(exported_pid);
-          event["tid"] =
-              Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
-                                    : exported_pid);
+          PERFETTO_DCHECK(track_args->HasMember("upid"));
+          int64_t exported_pid = UpidToPid(
+              static_cast<UniquePid>((*track_args)["upid"].AsUint64()));
+          event["pid"] = static_cast<int>(exported_pid);
+          event["tid"] = static_cast<int>(
+              legacy_utid ? UtidToPidAndTid(*legacy_utid).second
+                          : exported_pid);
 
           // Preserve original event IDs for legacy tracks. This is so that e.g.
           // memory dump IDs show up correctly in the JSON trace.
           PERFETTO_DCHECK(legacy_trace_source_id);
-          PERFETTO_DCHECK(track_args->isMember("trace_id_is_process_scoped"));
-          PERFETTO_DCHECK(track_args->isMember("source_scope"));
+          PERFETTO_DCHECK(track_args->HasMember("trace_id_is_process_scoped"));
+          PERFETTO_DCHECK(track_args->HasMember("source_scope"));
           auto trace_id = static_cast<uint64_t>(*legacy_trace_source_id);
-          std::string source_scope = (*track_args)["source_scope"].asString();
+          std::string source_scope = (*track_args)["source_scope"].AsString();
           if (!source_scope.empty())
             event["scope"] = source_scope;
           bool trace_id_is_process_scoped =
-              (*track_args)["trace_id_is_process_scoped"].asBool();
+              (*track_args)["trace_id_is_process_scoped"].AsBool();
           if (trace_id_is_process_scoped) {
             event["id2"]["local"] = base::Uint64ToHexString(trace_id);
           } else {
@@ -961,21 +955,21 @@ class JsonExporter {
         } else {
           if (track_row_ref.utid()) {
             auto pid_and_tid = UtidToPidAndTid(*track_row_ref.utid());
-            event["pid"] = Json::Int(pid_and_tid.first);
-            event["tid"] = Json::Int(pid_and_tid.second);
+            event["pid"] = static_cast<int>(pid_and_tid.first);
+            event["tid"] = static_cast<int>(pid_and_tid.second);
             event["id2"]["local"] = base::Uint64ToHexString(track_id.value);
           } else if (track_row_ref.upid()) {
             int64_t exported_pid = UpidToPid(*track_row_ref.upid());
-            event["pid"] = Json::Int(exported_pid);
-            event["tid"] =
-                Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
-                                      : exported_pid);
+            event["pid"] = static_cast<int>(exported_pid);
+            event["tid"] = static_cast<int>(
+                legacy_utid ? UtidToPidAndTid(*legacy_utid).second
+                            : exported_pid);
             event["id2"]["local"] = base::Uint64ToHexString(track_id.value);
           } else {
             if (legacy_utid) {
               auto pid_and_tid = UtidToPidAndTid(*legacy_utid);
-              event["pid"] = Json::Int(pid_and_tid.first);
-              event["tid"] = Json::Int(pid_and_tid.second);
+              event["pid"] = static_cast<int>(pid_and_tid.first);
+              event["tid"] = static_cast<int>(pid_and_tid.second);
             }
 
             // Some legacy importers don't understand "id2" fields, so we use
@@ -987,43 +981,43 @@ class JsonExporter {
         }
 
         if (thread_ts_ns && *thread_ts_ns > 0) {
-          event["tts"] = Json::Int64(*thread_ts_ns / 1000);
-          event["use_async_tts"] = Json::Int(1);
+          event["tts"] = static_cast<int64_t>(*thread_ts_ns / 1000);
+          event["use_async_tts"] = static_cast<int64_t>(1);
         }
         if (thread_instruction_count && *thread_instruction_count > 0) {
-          event["ticount"] = Json::Int64(*thread_instruction_count);
-          event["use_async_tts"] = Json::Int(1);
+          event["ticount"] = static_cast<int64_t>(*thread_instruction_count);
+          event["use_async_tts"] = static_cast<int64_t>(1);
         }
 
         if (duration_ns == 0) {
           if (legacy_phase.empty()) {
             // Instant async event.
             event["ph"] = "n";
-            writer_.AddAsyncInstantEvent(event);
+            writer_.AddAsyncInstantEvent(std::move(event));
           } else {
             // Async step events.
             event["ph"] = legacy_phase;
-            writer_.AddAsyncBeginEvent(event);
+            writer_.AddAsyncBeginEvent(std::move(event));
           }
         } else {  // Async start and end.
           event["ph"] = legacy_phase.empty() ? "b" : legacy_phase;
-          writer_.AddAsyncBeginEvent(event);
+          writer_.AddAsyncBeginEvent(event.Copy());
           // If the slice didn't finish, the duration may be negative. Don't
           // write the end event in this case.
           if (duration_ns > 0) {
             event["ph"] = legacy_phase.empty() ? "e" : "F";
-            event["ts"] = Json::Int64((it.ts() + duration_ns) / 1000);
+            event["ts"] = static_cast<int64_t>((it.ts() + duration_ns) / 1000);
             if (thread_ts_ns && thread_duration_ns && *thread_ts_ns > 0) {
-              event["tts"] =
-                  Json::Int64((*thread_ts_ns + *thread_duration_ns) / 1000);
+              event["tts"] = static_cast<int64_t>(
+                  (*thread_ts_ns + *thread_duration_ns) / 1000);
             }
             if (thread_instruction_count && thread_instruction_delta &&
                 *thread_instruction_count > 0) {
-              event["ticount"] = Json::Int64(
+              event["ticount"] = static_cast<int64_t>(
                   (*thread_instruction_count + *thread_instruction_delta));
             }
-            event["args"].clear();
-            writer_.AddAsyncEndEvent(event);
+            event["args"].Clear();
+            writer_.AddAsyncEndEvent(std::move(event));
           }
         }
       } else {
@@ -1045,10 +1039,10 @@ class JsonExporter {
 
           if (track_row_ref.upid()) {
             int64_t exported_pid = UpidToPid(*track_row_ref.upid());
-            event["pid"] = Json::Int(exported_pid);
-            event["tid"] =
-                Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
-                                      : exported_pid);
+            event["pid"] = static_cast<int>(exported_pid);
+            event["tid"] = static_cast<int>(
+                legacy_utid ? UtidToPidAndTid(*legacy_utid).second
+                            : exported_pid);
             event["s"] = "p";
           } else {
             event["s"] = "g";
@@ -1060,12 +1054,12 @@ class JsonExporter {
     return base::OkStatus();
   }
 
-  std::optional<Json::Value> CreateFlowEventV1(uint32_t flow_id,
-                                               SliceId slice_id,
-                                               const std::string& name,
-                                               const std::string& cat,
-                                               Json::Value args,
-                                               bool flow_begin) {
+  std::optional<Dom> CreateFlowEventV1(uint32_t flow_id,
+                                       SliceId slice_id,
+                                       const std::string& name,
+                                       const std::string& cat,
+                                       Dom args,
+                                       bool flow_begin) {
     const auto& slices = storage_->slice_table();
 
     auto opt_slice_rr = slices.FindById(slice_id);
@@ -1083,14 +1077,14 @@ class JsonExporter {
 
     UniqueTid utid = *rr->utid();
     auto pid_and_tid = UtidToPidAndTid(utid);
-    Json::Value event;
-    event["id"] = flow_id;
-    event["pid"] = Json::Int(pid_and_tid.first);
-    event["tid"] = Json::Int(pid_and_tid.second);
+    Dom event(Type::kObject);
+    event["id"] = static_cast<uint64_t>(flow_id);
+    event["pid"] = static_cast<int>(pid_and_tid.first);
+    event["tid"] = static_cast<int>(pid_and_tid.second);
     event["cat"] = cat;
     event["name"] = name;
     event["ph"] = (flow_begin ? "s" : "f");
-    event["ts"] = Json::Int64(slice_rr.ts() / 1000);
+    event["ts"] = static_cast<int64_t>(slice_rr.ts() / 1000);
     if (!flow_begin) {
       event["bp"] = "e";
     }
@@ -1108,14 +1102,14 @@ class JsonExporter {
 
       std::string cat;
       std::string name;
-      auto args = args_builder_.GetArgs(arg_set_id);
+      Dom args = args_builder_.GetArgs(arg_set_id).Copy();
       if (arg_set_id != std::nullopt) {
-        cat = args["cat"].asString();
-        name = args["name"].asString();
+        cat = args["cat"].AsString();
+        name = args["name"].AsString();
         // Don't export these args since they are only used for this export and
         // weren't part of the original event.
-        args.removeMember("name");
-        args.removeMember("cat");
+        args.RemoveMember("name");
+        args.RemoveMember("cat");
       } else {
         auto rr = slice_table.FindById(slice_out);
         PERFETTO_DCHECK(rr.has_value());
@@ -1124,7 +1118,7 @@ class JsonExporter {
       }
 
       uint32_t i = it.row_number().row_number();
-      auto out_event = CreateFlowEventV1(i, slice_out, name, cat, args,
+      auto out_event = CreateFlowEventV1(i, slice_out, name, cat, args.Copy(),
                                          /* flow_begin = */ true);
       auto in_event = CreateFlowEventV1(i, slice_in, name, cat, std::move(args),
                                         /* flow_begin = */ false);
@@ -1137,78 +1131,81 @@ class JsonExporter {
     return base::OkStatus();
   }
 
-  Json::Value ConvertLegacyRawEventToJson(
+  Dom ConvertLegacyRawEventToJson(
       const tables::ChromeRawTable::ConstIterator& it) {
-    Json::Value event;
-    event["ts"] = Json::Int64(it.ts() / 1000);
+    Dom event(Type::kObject);
+    event["ts"] = static_cast<int64_t>(it.ts() / 1000);
 
     UniqueTid utid = static_cast<UniqueTid>(it.utid());
     auto pid_and_tid = UtidToPidAndTid(utid);
-    event["pid"] = Json::Int(pid_and_tid.first);
-    event["tid"] = Json::Int(pid_and_tid.second);
+    event["pid"] = static_cast<int>(pid_and_tid.first);
+    event["tid"] = static_cast<int>(pid_and_tid.second);
 
     // Raw legacy events store all other params in the arg set. Make a copy of
     // the converted args here, parse, and then remove the legacy params.
-    event["args"] = args_builder_.GetArgs(it.arg_set_id());
-    const Json::Value& legacy_args = event["args"][kLegacyEventArgsKey];
+    event["args"] = args_builder_.GetArgs(it.arg_set_id()).Copy();
+    const Dom& legacy_args = event["args"][kLegacyEventArgsKey];
 
-    PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventCategoryKey));
-    event["cat"] = legacy_args[kLegacyEventCategoryKey];
+    PERFETTO_DCHECK(legacy_args.HasMember(kLegacyEventCategoryKey));
+    event["cat"] = legacy_args[kLegacyEventCategoryKey].AsString();
 
-    PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventNameKey));
-    event["name"] = legacy_args[kLegacyEventNameKey];
+    PERFETTO_DCHECK(legacy_args.HasMember(kLegacyEventNameKey));
+    event["name"] = legacy_args[kLegacyEventNameKey].AsString();
 
-    PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventPhaseKey));
-    event["ph"] = legacy_args[kLegacyEventPhaseKey];
+    PERFETTO_DCHECK(legacy_args.HasMember(kLegacyEventPhaseKey));
+    event["ph"] = legacy_args[kLegacyEventPhaseKey].AsString();
 
     // Object snapshot events are supposed to have a mandatory "snapshot" arg,
     // which may be removed in trace processor if it is empty.
-    if (legacy_args[kLegacyEventPhaseKey] == "O" &&
-        !event["args"].isMember("snapshot")) {
-      event["args"]["snapshot"] = Json::Value(Json::objectValue);
+    if (legacy_args[kLegacyEventPhaseKey].AsString() == "O" &&
+        !event["args"].HasMember("snapshot")) {
+      event["args"]["snapshot"] = Dom(Type::kObject);
     }
 
-    if (legacy_args.isMember(kLegacyEventDurationNsKey))
-      event["dur"] = legacy_args[kLegacyEventDurationNsKey].asInt64() / 1000;
+    if (legacy_args.HasMember(kLegacyEventDurationNsKey))
+      event["dur"] = legacy_args[kLegacyEventDurationNsKey].AsInt64() / 1000;
 
-    if (legacy_args.isMember(kLegacyEventThreadTimestampNsKey)) {
+    if (legacy_args.HasMember(kLegacyEventThreadTimestampNsKey)) {
       event["tts"] =
-          legacy_args[kLegacyEventThreadTimestampNsKey].asInt64() / 1000;
+          legacy_args[kLegacyEventThreadTimestampNsKey].AsInt64() / 1000;
     }
 
-    if (legacy_args.isMember(kLegacyEventThreadDurationNsKey)) {
+    if (legacy_args.HasMember(kLegacyEventThreadDurationNsKey)) {
       event["tdur"] =
-          legacy_args[kLegacyEventThreadDurationNsKey].asInt64() / 1000;
+          legacy_args[kLegacyEventThreadDurationNsKey].AsInt64() / 1000;
     }
 
-    if (legacy_args.isMember(kLegacyEventThreadInstructionCountKey))
-      event["ticount"] = legacy_args[kLegacyEventThreadInstructionCountKey];
+    if (legacy_args.HasMember(kLegacyEventThreadInstructionCountKey))
+      event["ticount"] =
+          legacy_args[kLegacyEventThreadInstructionCountKey].AsInt64();
 
-    if (legacy_args.isMember(kLegacyEventThreadInstructionDeltaKey))
-      event["tidelta"] = legacy_args[kLegacyEventThreadInstructionDeltaKey];
+    if (legacy_args.HasMember(kLegacyEventThreadInstructionDeltaKey))
+      event["tidelta"] =
+          legacy_args[kLegacyEventThreadInstructionDeltaKey].AsInt64();
 
-    if (legacy_args.isMember(kLegacyEventUseAsyncTtsKey))
-      event["use_async_tts"] = legacy_args[kLegacyEventUseAsyncTtsKey];
+    if (legacy_args.HasMember(kLegacyEventUseAsyncTtsKey))
+      event["use_async_tts"] =
+          legacy_args[kLegacyEventUseAsyncTtsKey].AsInt64();
 
-    if (legacy_args.isMember(kLegacyEventUnscopedIdKey)) {
+    if (legacy_args.HasMember(kLegacyEventUnscopedIdKey)) {
       event["id"] = base::Uint64ToHexString(
-          legacy_args[kLegacyEventUnscopedIdKey].asUInt64());
+          legacy_args[kLegacyEventUnscopedIdKey].AsUint64());
     }
 
-    if (legacy_args.isMember(kLegacyEventGlobalIdKey)) {
+    if (legacy_args.HasMember(kLegacyEventGlobalIdKey)) {
       event["id2"]["global"] = base::Uint64ToHexString(
-          legacy_args[kLegacyEventGlobalIdKey].asUInt64());
+          legacy_args[kLegacyEventGlobalIdKey].AsUint64());
     }
 
-    if (legacy_args.isMember(kLegacyEventLocalIdKey)) {
+    if (legacy_args.HasMember(kLegacyEventLocalIdKey)) {
       event["id2"]["local"] = base::Uint64ToHexString(
-          legacy_args[kLegacyEventLocalIdKey].asUInt64());
+          legacy_args[kLegacyEventLocalIdKey].AsUint64());
     }
 
-    if (legacy_args.isMember(kLegacyEventIdScopeKey))
-      event["scope"] = legacy_args[kLegacyEventIdScopeKey];
+    if (legacy_args.HasMember(kLegacyEventIdScopeKey))
+      event["scope"] = legacy_args[kLegacyEventIdScopeKey].AsString();
 
-    event["args"].removeMember(kLegacyEventArgsKey);
+    event["args"].RemoveMember(kLegacyEventArgsKey);
 
     return event;
   }
@@ -1226,21 +1223,21 @@ class JsonExporter {
     const auto& events = storage_->chrome_raw_table();
     for (auto it = events.IterateRows(); it; ++it) {
       if (raw_legacy_event_key_id && it.name() == *raw_legacy_event_key_id) {
-        Json::Value event = ConvertLegacyRawEventToJson(it);
+        Dom event = ConvertLegacyRawEventToJson(it);
         writer_.WriteCommonEvent(event);
       } else if (raw_legacy_system_trace_event_id &&
                  it.name() == *raw_legacy_system_trace_event_id) {
-        Json::Value args = args_builder_.GetArgs(it.arg_set_id());
-        PERFETTO_DCHECK(args.isMember("data"));
-        writer_.AddSystemTraceData(args["data"].asString());
+        const Dom& args = args_builder_.GetArgs(it.arg_set_id());
+        PERFETTO_DCHECK(args.HasMember("data"));
+        writer_.AddSystemTraceData(args["data"].AsString());
       } else if (raw_legacy_user_trace_event_id &&
                  it.name() == *raw_legacy_user_trace_event_id) {
-        Json::Value args = args_builder_.GetArgs(it.arg_set_id());
-        PERFETTO_DCHECK(args.isMember("data"));
-        writer_.AddUserTraceData(args["data"].asString());
+        const Dom& args = args_builder_.GetArgs(it.arg_set_id());
+        PERFETTO_DCHECK(args.HasMember("data"));
+        writer_.AddUserTraceData(args["data"].AsString());
       } else if (raw_chrome_metadata_event_id &&
                  it.name() == *raw_chrome_metadata_event_id) {
-        Json::Value args = args_builder_.GetArgs(it.arg_set_id());
+        const Dom& args = args_builder_.GetArgs(it.arg_set_id());
         writer_.MergeMetadata(args);
       }
     }
@@ -1356,14 +1353,14 @@ class JsonExporter {
         {chrome_process_stats.data(), chrome_process_stats.size()});
 
     for (auto sit = memory_snapshots.IterateRows(); sit; ++sit) {
-      Json::Value event_base;
+      Dom event_base;
 
       event_base["ph"] = "v";
       event_base["cat"] = "disabled-by-default-memory-infra";
       auto snapshot_id = sit.id();
       event_base["id"] = base::Uint64ToHexString(snapshot_id.value);
       int64_t snapshot_ts = sit.timestamp();
-      event_base["ts"] = Json::Int64(snapshot_ts / 1000);
+      event_base["ts"] = static_cast<int64_t>(snapshot_ts / 1000);
       // TODO(crbug:1116359): Add dump type to the snapshot proto
       // to properly fill event_base["name"]
       event_base["name"] = "periodic_interval";
@@ -1374,8 +1371,8 @@ class JsonExporter {
       const auto& process_table = storage_->process_table();
       const auto& track_table = storage_->track_table();
       for (auto pit = process_table.IterateRows(); pit; ++pit) {
-        Json::Value event = FillInProcessEventDetails(event_base, pit.pid());
-        Json::Value& totals = event["args"]["dumps"]["process_totals"];
+        Dom event = FillInProcessEventDetails(event_base, pit.pid());
+        Dom& totals = event["args"]["dumps"]["process_totals"];
 
         for (auto it = track_table.IterateRows(); it; ++it) {
           if (it.type() != process_stats) {
@@ -1397,18 +1394,17 @@ class JsonExporter {
 
         auto process_args_id = pit.arg_set_id();
         if (process_args_id) {
-          const Json::Value* process_args =
-              &args_builder_.GetArgs(process_args_id);
-          if (process_args->isMember("is_peak_rss_resettable")) {
+          const Dom* process_args = &args_builder_.GetArgs(process_args_id);
+          if (process_args->HasMember("is_peak_rss_resettable")) {
             totals["is_peak_rss_resettable"] =
-                (*process_args)["is_peak_rss_resettable"];
+                (*process_args)["is_peak_rss_resettable"].AsBool();
           }
         }
 
         const auto& smaps_table = storage_->profiler_smaps_table();
         // Do not create vm_regions without memory maps, since catapult expects
         // to have rows.
-        Json::Value* smaps =
+        Dom* smaps =
             smaps_table.row_count() > 0
                 ? &event["args"]["dumps"]["process_mmaps"]["vm_regions"]
                 : nullptr;
@@ -1417,14 +1413,14 @@ class JsonExporter {
             continue;
           if (it.ts() != snapshot_ts)
             continue;
-          Json::Value region;
+          Dom region(Type::kObject);
           region["mf"] = GetNonNullString(storage_, it.file_name());
-          region["pf"] = Json::Int64(it.protection_flags());
+          region["pf"] = static_cast<int64_t>(it.protection_flags());
           region["sa"] = base::Uint64ToHexStringNoPrefix(
               static_cast<uint64_t>(it.start_address()));
           region["sz"] = base::Uint64ToHexStringNoPrefix(
               static_cast<uint64_t>(it.size_kb()) * 1024);
-          region["ts"] = Json::Int64(it.module_timestamp());
+          region["ts"] = static_cast<int64_t>(it.module_timestamp());
           region["id"] = GetNonNullString(storage_, it.module_debugid());
           region["df"] = GetNonNullString(storage_, it.module_debug_path());
           region["bs"]["pc"] = base::Uint64ToHexStringNoPrefix(
@@ -1439,7 +1435,7 @@ class JsonExporter {
               static_cast<uint64_t>(it.shared_dirty_resident_kb()) * 1024);
           region["bs"]["sw"] = base::Uint64ToHexStringNoPrefix(
               static_cast<uint64_t>(it.swap_kb()) * 1024);
-          smaps->append(region);
+          smaps->Append(std::move(region));
         }
 
         if (!totals.empty() || (smaps && !smaps->empty()))
@@ -1473,7 +1469,7 @@ class JsonExporter {
           }
         }
 
-        Json::Value event = FillInProcessEventDetails(event_base, pid);
+        Dom event = FillInProcessEventDetails(event_base, pid);
 
         const auto& sn = storage_->memory_snapshot_node_table();
 
@@ -1496,21 +1492,20 @@ class JsonExporter {
           auto node_args_id = it.arg_set_id();
           if (!node_args_id)
             continue;
-          const Json::Value* node_args =
-              &args_builder_.GetArgs(node_args_id.value());
-          for (const auto& arg_name : node_args->getMemberNames()) {
-            const Json::Value& arg_value = (*node_args)[arg_name]["value"];
+          const Dom* node_args = &args_builder_.GetArgs(node_args_id.value());
+          for (const auto& arg_name : node_args->GetMemberNames()) {
+            const Dom& arg_value = (*node_args)[arg_name]["value"];
             if (arg_value.empty())
               continue;
-            if (arg_value.isString()) {
+            if (arg_value.IsString()) {
               AddAttributeToMemoryNode(&event, path, arg_name,
-                                       arg_value.asString());
-            } else if (arg_value.isInt64()) {
-              Json::Value unit = (*node_args)[arg_name]["unit"];
-              if (unit.empty())
-                unit = "unknown";
+                                       arg_value.AsString());
+            } else if (arg_value.IsInt()) {
+              const Dom& unit_dom = (*node_args)[arg_name]["unit"];
+              std::string unit =
+                  unit_dom.empty() ? "unknown" : unit_dom.AsString();
               AddAttributeToMemoryNode(&event, path, arg_name,
-                                       arg_value.asInt64(), unit.asString());
+                                       arg_value.AsInt64(), unit);
             }
           }
         }
@@ -1523,16 +1518,16 @@ class JsonExporter {
           if (source_node_rr.process_snapshot_id() != process_snapshot_id) {
             continue;
           }
-          Json::Value edge;
+          Dom edge(Type::kObject);
           edge["source"] =
               base::Uint64ToHexStringNoPrefix(it.source_node_id().value);
           edge["target"] =
               base::Uint64ToHexStringNoPrefix(it.target_node_id().value);
-          edge["importance"] = Json::Int(it.importance());
+          edge["importance"] = static_cast<int64_t>(it.importance());
           edge["type"] = "ownership";
-          event["args"]["dumps"]["allocators_graph"].append(edge);
+          event["args"]["dumps"]["allocators_graph"].Append(std::move(edge));
         }
-        writer_.WriteCommonEvent(event);
+        writer_.WriteCommonEvent(std::move(event));
       }
     }
     return base::OkStatus();
@@ -1573,15 +1568,14 @@ class JsonExporter {
     return false;
   }
 
-  static Json::Value FillInProcessEventDetails(const Json::Value& event,
-                                               int64_t pid) {
-    Json::Value output = event;
-    output["pid"] = Json::Int(pid);
-    output["tid"] = Json::Int(-1);
+  static Dom FillInProcessEventDetails(const Dom& event, int64_t pid) {
+    Dom output = event.Copy();
+    output["pid"] = static_cast<int64_t>(pid);
+    output["tid"] = static_cast<int64_t>(-1);
     return output;
   }
 
-  static void AddAttributeToMemoryNode(Json::Value* event,
+  static void AddAttributeToMemoryNode(Dom* event,
                                        const std::string& path,
                                        const std::string& key,
                                        int64_t value,
@@ -1594,7 +1588,7 @@ class JsonExporter {
         units;
   }
 
-  static void AddAttributeToMemoryNode(Json::Value* event,
+  static void AddAttributeToMemoryNode(Dom* event,
                                        const std::string& path,
                                        const std::string& key,
                                        const std::string& value,
@@ -1637,7 +1631,7 @@ class JsonExporter {
   // pids/tids that is visibly different from regular pids/tids - counting down
   // from uint32_t max.
   int64_t next_exported_pid_or_tid_for_duplicates_ =
-      std::numeric_limits<int64_t>::max();
+      std::numeric_limits<uint32_t>::max();
 
   std::map<UniquePid, int64_t> upids_to_exported_pids_;
   std::map<int64_t, UniquePid> exported_pids_to_upids_;
@@ -1646,8 +1640,6 @@ class JsonExporter {
   std::map<std::pair<int64_t, int64_t>, UniqueTid>
       exported_pids_and_tids_to_utids_;
 };
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 }  // namespace
 
@@ -1659,18 +1651,9 @@ base::Status ExportJson(const TraceStorage* storage,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
                         LabelFilterPredicate label_filter) {
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   JsonExporter exporter(storage, output, std::move(argument_filter),
                         std::move(metadata_filter), std::move(label_filter));
   return exporter.Export();
-#else
-  perfetto::base::ignore_result(storage);
-  perfetto::base::ignore_result(output);
-  perfetto::base::ignore_result(argument_filter);
-  perfetto::base::ignore_result(metadata_filter);
-  perfetto::base::ignore_result(label_filter);
-  return base::ErrStatus("JSON support is not compiled in this build");
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
 base::Status ExportJson(TraceProcessorStorage* tp,

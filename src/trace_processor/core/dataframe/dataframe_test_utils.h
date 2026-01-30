@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -28,9 +29,11 @@
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
-#include "src/trace_processor/core/dataframe/value_fetcher.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
+#include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 struct TestRowFetcher : ValueFetcher {
   using Value = std::variant<std::nullopt_t, int64_t, double, const char*>;
@@ -39,6 +42,7 @@ struct TestRowFetcher : ValueFetcher {
     kInt64,
     kDouble,
     kString,
+    kBytes,
   };
 
   void SetRow(const std::vector<Value>& row_data) { current_row_ = &row_data; }
@@ -150,6 +154,6 @@ std::vector<std::vector<ValueVerifier::ValueVariant>> Rows(Args&&... rows) {
       std::forward<Args>(rows)...};
 }
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_DATAFRAME_TEST_UTILS_H_

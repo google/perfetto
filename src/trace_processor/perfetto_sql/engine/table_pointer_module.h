@@ -21,7 +21,6 @@
 #include <cstdint>
 
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 
 namespace perfetto::trace_processor {
@@ -69,7 +68,7 @@ struct TablePointerModule : sqlite::Module<TablePointerModule> {
     const dataframe::Dataframe* dataframe = nullptr;
     std::array<uint32_t, kBindableColumnCount> bound_col_to_table_index{};
     uint32_t col_count = 0;
-    DataframeModule::DfCursor cursor;
+    uint32_t current_row = 0;
   };
 
   static constexpr auto kType = kEponymousOnly;

@@ -87,8 +87,10 @@ struct CounterIntervals : public sqlite::Function<CounterIntervals> {
         CT::kDouble,  // next_value
         CT::kDouble,  // delta_value
     };
-    dataframe::AdhocDataframeBuilder builder(ret_col_names,
-                                             GetUserData(ctx)->pool, col_types);
+    dataframe::AdhocDataframeBuilder builder(
+        ret_col_names, GetUserData(ctx)->pool,
+        dataframe::AdhocDataframeBuilder::Options{
+            col_types, dataframe::NullabilityType::kSparseNullWithPopcount});
 
     auto* partitioned_counter = sqlite::value::Pointer<PartitionedCounter>(
         argv[2], PartitionedCounter::kName);

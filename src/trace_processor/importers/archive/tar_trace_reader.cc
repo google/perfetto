@@ -280,8 +280,9 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
     metadata_->name = std::move(*long_name_);
     long_name_.reset();
   } else {
-    metadata_->name =
-        ExtractString(header.prefix) + "/" + ExtractString(header.name);
+    std::string prefix = ExtractString(header.prefix);
+    std::string name = ExtractString(header.name);
+    metadata_->name = prefix.empty() ? name : prefix + "/" + name;
   }
 
   switch (metadata_->type_flag) {

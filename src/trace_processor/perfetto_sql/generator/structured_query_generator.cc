@@ -305,12 +305,10 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
   size_t cte_count = 0;
   for (size_t i = 0; i < state_.size(); ++i) {
     QueryState& state = state_[state_.size() - i - 1];
-    // Shared queries are tracked in queries_ for external reference, but they
-    // must also be included in the WITH clause so they can be referenced by
-    // other queries via inner_query_id.
     if (state.type == QueryType::kShared) {
       queries_.emplace_back(
           Query{state.id_from_proto.value(), state.table_name, state.sql});
+      continue;
     }
     // Skip the root query if it's just a wrapper for inner_query + operations
     if (&state == &state_[0] && root_only_has_inner_query_and_operations) {

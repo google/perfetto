@@ -22,8 +22,10 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
@@ -32,11 +34,18 @@ namespace trace_processor {
 namespace {
 
 class TraceTokenBufferUnittest : public testing::Test {
+ public:
+  TraceTokenBufferUnittest() {
+    context.storage.reset(new TraceStorage());
+    context.machine_tracker.reset(
+        new MachineTracker(&context, kDefaultMachineId));
+    state = PacketSequenceStateGeneration::CreateFirst(&context);
+  }
+
  protected:
   TraceTokenBuffer store;
   TraceProcessorContext context;
-  RefPtr<PacketSequenceStateGeneration> state =
-      PacketSequenceStateGeneration::CreateFirst(&context);
+  RefPtr<PacketSequenceStateGeneration> state;
 };
 
 TEST_F(TraceTokenBufferUnittest, TracePacketDataInOut) {

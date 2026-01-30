@@ -94,5 +94,6 @@ perfetto_unittest_source_set("unittests") {
     "../../storage",
     "../../tables:tables_python",
     "../../types",
+    "../common",
   ]
 }

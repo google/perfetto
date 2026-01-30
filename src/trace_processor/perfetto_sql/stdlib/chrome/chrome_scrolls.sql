@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+INCLUDE PERFETTO MODULE chrome.android_input;
+
 INCLUDE PERFETTO MODULE chrome.event_latency;
 
 INCLUDE PERFETTO MODULE chrome.graphics_pipeline;
@@ -9,8 +11,6 @@ INCLUDE PERFETTO MODULE chrome.graphics_pipeline;
 INCLUDE PERFETTO MODULE chrome.input;
 
 INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
-INCLUDE PERFETTO MODULE chrome.android_input;
-
 
 -- Ties together input (`LatencyInfo.Flow`) and frame (`Graphics.Pipeline`)
 -- trace events. Only covers input events of the `GESTURE_SCROLL_UPDATE_EVENT`

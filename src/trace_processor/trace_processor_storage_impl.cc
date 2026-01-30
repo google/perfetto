@@ -30,7 +30,7 @@
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -94,8 +94,9 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
     base::Uuid uuid(static_cast<int64_t>(trace_hash_.digest()), 0);
     const StringId id_for_uuid = context()->storage->InternString(
         base::StringView(uuid.ToPrettyString()));
-    context()->metadata_tracker->SetMetadata(metadata::trace_uuid,
-                                             Variadic::String(id_for_uuid));
+    context()->global_metadata_tracker->SetMetadata(
+        std::nullopt, std::nullopt, metadata::trace_uuid,
+        Variadic::String(id_for_uuid));
   }
 
   base::Status status = parser_->Parse(std::move(blob));

@@ -55,6 +55,8 @@ SELECT
               'missed_frames', SUM(app_missed OR sf_missed),
               'missed_app_frames', SUM(app_missed),
               'missed_sf_frames', SUM(sf_missed),
+              'weighted_missed_app_frames', SUM(app_missed * jank_score),
+              'weighted_missed_sf_frames', SUM(sf_missed * jank_score),
               'sf_callback_missed_frames', SUM(sf_callback_missed),
               'hwui_callback_missed_frames', SUM(hwui_callback_missed),
               'frame_dur_max', MAX(f.dur),
@@ -75,6 +77,8 @@ SELECT
               'missed_frames', SUM(app_missed OR sf_missed),
               'missed_app_frames', SUM(app_missed),
               'missed_sf_frames', SUM(sf_missed),
+              'weighted_missed_app_frames', SUM(app_missed * jank_score),
+              'weighted_missed_sf_frames', SUM(sf_missed * jank_score),
               'sf_callback_missed_frames', SUM(sf_callback_missed),
               'hwui_callback_missed_frames', SUM(hwui_callback_missed),
               'frame_dur_max', MAX(f.dur),
@@ -99,6 +103,7 @@ SELECT
                 'dur_expected', f.dur_expected,
                 'app_missed', f.app_missed,
                 'sf_missed', f.sf_missed,
+                'jank_score', f.jank_score,
                 'sf_callback_missed', f.sf_callback_missed,
                 'hwui_callback_missed', f.hwui_callback_missed))
             FROM android_jank_cuj_frame f
@@ -112,7 +117,8 @@ SELECT
                 'ts', f.ts,
                 'dur', f.dur,
                 'dur_expected', f.dur_expected,
-                'sf_missed', f.sf_missed))
+                'sf_missed', f.sf_missed,
+                'jank_score', f.jank_score))
             FROM android_jank_cuj_sf_frame f
             WHERE f.cuj_id = cuj.cuj_id
             ORDER BY frame_number ASC)

@@ -469,7 +469,6 @@ export class JoinNode implements QueryNode {
       rightColumns: this.state.rightColumns
         ? newColumnInfoList(this.state.rightColumns)
         : undefined,
-      sqlModules: this.state.sqlModules,
     };
     return new JoinNode(stateCopy);
   }

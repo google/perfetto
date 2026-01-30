@@ -278,8 +278,10 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
       // If any of the tables is empty the intersection with it also has to be
       // empty.
       if (!tables[i] || tables[i]->partitions_map.size() == 0) {
-        dataframe::AdhocDataframeBuilder builder(ret_col_names,
-                                                 GetUserData(ctx)->pool);
+        dataframe::AdhocDataframeBuilder builder(
+            ret_col_names, GetUserData(ctx)->pool,
+            dataframe::AdhocDataframeBuilder::Options{
+                {}, dataframe::NullabilityType::kSparseNullWithPopcount});
         SQLITE_ASSIGN_OR_RETURN(ctx, dataframe::Dataframe ret_table,
                                 std::move(builder).Build());
         return sqlite::result::UniquePointer(
@@ -304,8 +306,10 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
                                      return t_a->size() < t_b->size();
                                    });
 
-    dataframe::AdhocDataframeBuilder builder(ret_col_names,
-                                             GetUserData(ctx)->pool, col_types);
+    dataframe::AdhocDataframeBuilder builder(
+        ret_col_names, GetUserData(ctx)->pool,
+        dataframe::AdhocDataframeBuilder::Options{
+            col_types, dataframe::NullabilityType::kSparseNullWithPopcount});
     auto t_least_partitions =
         static_cast<uint32_t>(std::distance(t_partitions.begin(), min_el));
 

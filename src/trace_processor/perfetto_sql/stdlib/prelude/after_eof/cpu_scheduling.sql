@@ -37,7 +37,7 @@ CREATE PERFETTO VIEW cpu (
   cluster_id LONG,
   -- A string describing this core.
   processor STRING,
-  -- Machine identifier, non-null for CPUs on a remote machine.
+  -- Machine identifier
   machine_id LONG,
   -- Capacity of a CPU of a device, a metric which indicates the
   -- relative performance of a CPU on a device

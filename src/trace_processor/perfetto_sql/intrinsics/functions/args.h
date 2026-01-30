@@ -17,13 +17,13 @@
 
 #include <optional>
 
-#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/util/args_utils.h"
+#include "src/trace_processor/util/json_serializer.h"
 
 namespace perfetto::trace_processor {
 
@@ -62,7 +62,7 @@ struct ArgSetToJson : public sqlite::Function<ArgSetToJson> {
 
     TraceStorage* storage;
     tables::ArgTable::ConstCursor arg_cursor;
-    base::DynamicStringWriter json_writer;
+    json::JsonSerializer json_serializer;
     ArgSet arg_set;
   };
 

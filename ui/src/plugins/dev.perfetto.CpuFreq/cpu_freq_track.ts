@@ -35,6 +35,7 @@ import {
 } from '../../trace_processor/sql_utils';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
+import {Color} from '../../base/color';
 
 export interface Data extends TrackData {
   timestamps: BigInt64Array;
@@ -42,6 +43,8 @@ export interface Data extends TrackData {
   maxFreqKHz: Uint32Array;
   lastFreqKHz: Uint32Array;
   lastIdleValues: Int8Array;
+  // Relative timestamps for fast rendering (relative to data.start)
+  timestampsRelNs: Float64Array;
 }
 
 interface Config {
@@ -89,6 +92,9 @@ export class CpuFreqTrack implements TrackRenderer {
 
   private trash!: AsyncDisposableStack;
 
+  // Cached color for this CPU (constant for track lifetime).
+  private readonly color: Color;
+
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
     () => this.hover?.ts,
@@ -99,7 +105,9 @@ export class CpuFreqTrack implements TrackRenderer {
   constructor(
     private readonly config: Config,
     private readonly trace: Trace,
-  ) {}
+  ) {
+    this.color = colorForCpu(this.config.cpu);
+  }
 
   async onCreate() {
     this.trash = new AsyncDisposableStack();
@@ -246,6 +254,7 @@ export class CpuFreqTrack implements TrackRenderer {
       maxFreqKHz: new Uint32Array(freqRows),
       lastFreqKHz: new Uint32Array(freqRows),
       lastIdleValues: new Int8Array(freqRows),
+      timestampsRelNs: new Float64Array(freqRows),
     };
 
     const freqIt = freqResult.iter({
@@ -259,6 +268,7 @@ export class CpuFreqTrack implements TrackRenderer {
     });
     for (let i = 0; freqIt.valid(); ++i, freqIt.next(), idleIt.next()) {
       data.timestamps[i] = freqIt.ts;
+      data.timestampsRelNs[i] = Number(freqIt.ts - start);
       data.minFreqKHz[i] = freqIt.minFreq;
       data.maxFreqKHz[i] = freqIt.maxFreq;
       data.lastFreqKHz[i] = freqIt.lastFreq;
@@ -321,19 +331,22 @@ export class CpuFreqTrack implements TrackRenderer {
     // The values we have for cpufreq are in kHz so +1 to unitGroup.
     const yLabel = `${num} ${kUnits[unitGroup + 1]}Hz`;
 
-    const color = colorForCpu(this.config.cpu);
     let saturation = 45;
     if (this.trace.timeline.hoveredUtid !== undefined) {
       saturation = 0;
     }
 
-    ctx.fillStyle = color
+    ctx.fillStyle = this.color
       .setHSL({s: saturation, l: 50})
       .setAlpha(0.6).cssString;
-    ctx.strokeStyle = color.setHSL({s: saturation, l: 50}).cssString;
+    ctx.strokeStyle = this.color.setHSL({s: saturation, l: 50}).cssString;
 
-    const calculateX = (timestamp: time) => {
-      return Math.floor(timescale.timeToPx(timestamp));
+    // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(data.start);
+
+    const calculateX = (relNs: number) => {
+      return Math.floor(relNs * pxPerNs + baseOffsetPx);
     };
     const calculateY = (value: number) => {
       return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
@@ -352,13 +365,14 @@ export class CpuFreqTrack implements TrackRenderer {
     // Draw the CPU frequency graph.
     {
       ctx.beginPath();
-      const timestamp = Time.fromRaw(data.timestamps[startIdx]);
-      ctx.moveTo(Math.max(calculateX(timestamp), 0), zeroY);
+      ctx.moveTo(
+        Math.max(calculateX(data.timestampsRelNs[startIdx]), 0),
+        zeroY,
+      );
 
       let lastDrawnY = zeroY;
       for (let i = startIdx; i < endIdx; i++) {
-        const timestamp = Time.fromRaw(data.timestamps[i]);
-        const x = Math.max(0, calculateX(timestamp));
+        const x = Math.max(0, calculateX(data.timestampsRelNs[i]));
         const minY = calculateY(data.minFreqKHz[i]);
         const maxY = calculateY(data.maxFreqKHz[i]);
         const lastY = calculateY(data.lastFreqKHz[i]);
@@ -393,12 +407,11 @@ export class CpuFreqTrack implements TrackRenderer {
         // coordinates. Instead we use floating point which prevents flickering as
         // we pan and zoom; this relies on the browser anti-aliasing pixels
         // correctly.
-        const timestamp = Time.fromRaw(data.timestamps[i]);
-        const x = timescale.timeToPx(timestamp);
+        const x = data.timestampsRelNs[i] * pxPerNs + baseOffsetPx;
         const xEnd =
           i === data.lastIdleValues.length - 1
             ? endPx
-            : timescale.timeToPx(Time.fromRaw(data.timestamps[i + 1]));
+            : data.timestampsRelNs[i + 1] * pxPerNs + baseOffsetPx;
 
         const width = xEnd - x;
         const height = calculateY(data.lastFreqKHz[i]) - zeroY;
@@ -411,14 +424,18 @@ export class CpuFreqTrack implements TrackRenderer {
     ctx.font = '10px Roboto Condensed';
 
     if (this.hover !== undefined) {
-      ctx.fillStyle = color.setHSL({s: 45, l: 75}).cssString;
-      ctx.strokeStyle = color.setHSL({s: 45, l: 45}).cssString;
+      ctx.fillStyle = this.color.setHSL({s: 45, l: 75}).cssString;
+      ctx.strokeStyle = this.color.setHSL({s: 45, l: 45}).cssString;
 
-      const xStart = Math.floor(timescale.timeToPx(this.hover.ts));
+      const hoverRelNs = Number(this.hover.ts) - Number(data.start);
+      const xStart = Math.floor(hoverRelNs * pxPerNs + baseOffsetPx);
       const xEnd =
         this.hover.tsEnd === undefined
           ? endPx
-          : Math.floor(timescale.timeToPx(this.hover.tsEnd));
+          : Math.floor(
+              (Number(this.hover.tsEnd) - Number(data.start)) * pxPerNs +
+                baseOffsetPx,
+            );
       const y = zeroY - Math.round((this.hover.value / yMax) * RECT_HEIGHT);
 
       // Highlight line.

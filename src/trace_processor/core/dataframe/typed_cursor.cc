@@ -25,7 +25,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 void TypedCursor::ExecuteUnchecked() {
   if (PERFETTO_UNLIKELY(last_execution_mutation_count_ != GetMutations())) {
@@ -47,4 +47,4 @@ void TypedCursor::PrepareCursorInternal() {
   std::fill(filter_values_.begin(), filter_values_.end(), nullptr);
 }
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe

@@ -61,7 +61,7 @@ export function registerCoreNodes() {
     name: 'Slices',
     description: 'Explore all the slices from your trace.',
     icon: 'bar_chart',
-    hotkey: 's',
+    hotkey: 'l',
     type: 'source',
     showOnLandingPage: true,
     factory: (state) => new SlicesSourceNode(state),
@@ -80,7 +80,6 @@ export function registerCoreNodes() {
         // Return an array of states, one for each selected table
         return selections.map((selection) => ({
           sqlTable: selection.sqlTable,
-          sqlModules,
         }));
       }
       return null;

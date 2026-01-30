@@ -19,6 +19,8 @@
 
 #include <optional>
 #include <string>
+#include <tuple>
+#include <unordered_map>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -46,6 +48,19 @@ class BreakpadParser {
     size_t function_size = 0;
     // The human-readable name for the function signature.
     std::string symbol_name;
+  };
+
+  // Represents a line record that maps a range of machine code addresses to
+  // source file information (file number and line number).
+  struct LineRecord {
+    // The starting address of the machine code range.
+    uint64_t start_address = 0;
+    // The size in bytes of the machine code range.
+    size_t size = 0;
+    // The source line number.
+    uint32_t line = 0;
+    // The file number that references an entry in the FILE records.
+    uint32_t file_number = 0;
   };
 
   // Supported record types for the Breakpad symbol file format.
@@ -76,6 +91,10 @@ class BreakpadParser {
   // As same as GetSymbol, but retrieve from the PUBLIC records.
   std::optional<std::string> GetPublicSymbol(uint64_t address) const;
 
+  // Returns source file name and line number for the corresponding code address
+  std::optional<std::tuple<std::string, uint32_t>> GetSourceLocation(
+      uint64_t address) const;
+
   const std::vector<Symbol>& symbols_for_testing() const { return symbols_; }
   const std::vector<Symbol>& public_symbols_for_testing() const {
     return public_symbols_;
@@ -88,11 +107,17 @@ class BreakpadParser {
   // record. Return a fail status on parsing errors on FUNC record.
   base::Status ParseIfRecord(base::StringView current_line, RecordType type);
 
+  base::Status ParseFileRecord(base::StringView current_line);
+
+  base::Status ParseLineRecord(base::StringView current_line);
+
   std::string GetRecordLabel(RecordType type) const;
   void StoreSymbol(Symbol& symbol, RecordType type);
 
   std::vector<Symbol> symbols_;
   std::vector<Symbol> public_symbols_;
+  std::vector<LineRecord> line_records_;
+  std::unordered_map<uint32_t, std::string> source_files_;
   const std::string file_path_;
 };
 

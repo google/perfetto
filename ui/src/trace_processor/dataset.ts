@@ -329,7 +329,8 @@ export class UnionDataset<T extends DatasetSchema = DatasetSchema>
 
     for (const dataset of allDatasets) {
       if (dataset instanceof SourceDataset) {
-        const set = getOrCreate(combinedSrcSets, dataset.src, () => []);
+        const key = `${dataset.src}|${getJoinSignature(dataset)}`;
+        const set = getOrCreate(combinedSrcSets, key, () => []);
         set.push(dataset);
       } else {
         // Non-source datasets (shouldn't happen after flattening, but handle it)
@@ -480,6 +481,13 @@ FROM ${name}`,
   }
 }
 
+function getJoinSignature(dataset: SourceDataset): string {
+  if (!dataset.joins) {
+    return '';
+  }
+  return Object.keys(dataset.joins).sort().join(',');
+}
+
 function mergeFilters(filters: InFilter[]): InFilter | undefined {
   if (filters.length === 0) return undefined;
   const col = filters[0].col;
@@ -548,9 +556,10 @@ export class UnionDatasetWithLineage<T extends DatasetSchema>
 
     for (const dataset of datasets) {
       if (dataset instanceof SourceDataset) {
-        const group = sourceGroups.get(dataset.src) ?? [];
+        const key = `${dataset.src}|${getJoinSignature(dataset)}`;
+        const group = sourceGroups.get(key) ?? [];
         group.push({dataset});
-        sourceGroups.set(dataset.src, group);
+        sourceGroups.set(key, group);
       } else {
         // Non-SourceDataset: treat as its own group with a unique key
         const key = `__other_${sourceGroups.size}`;

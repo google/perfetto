@@ -129,6 +129,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Display',
   },
   {
+    type: 'ddic_underrun',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
     type: 'disp_vblank_irq_enable',
     topLevelGroup: 'HARDWARE',
     group: 'Display',

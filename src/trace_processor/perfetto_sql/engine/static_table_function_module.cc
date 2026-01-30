@@ -19,7 +19,6 @@
 #include <sqlite3.h>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -27,9 +26,10 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
@@ -188,23 +188,18 @@ int StaticTableFunctionModule::Filter(sqlite3_vtab_cursor* cur,
   if (!c->cursor->Run(c->values)) {
     return sqlite::utils::SetError(cur->pVtab, c->cursor->status());
   }
-  SQLITE_ASSIGN_OR_RETURN(
-      cur->pVtab, auto plan,
-      c->cursor->dataframe()->PlanQuery(c->filters, {}, {}, {},
-                                        std::numeric_limits<uint64_t>::max()));
-  c->cursor->dataframe()->PrepareCursor(plan, c->df_cursor);
-  DataframeModule::SqliteValueFetcher fetcher{{}, {}, nullptr};
-  c->df_cursor.Execute(fetcher);
+  c->current_row = 0;
   return SQLITE_OK;
 }
 
 int StaticTableFunctionModule::Next(sqlite3_vtab_cursor* cur) {
-  GetCursor(cur)->df_cursor.Next();
+  ++GetCursor(cur)->current_row;
   return SQLITE_OK;
 }
 
 int StaticTableFunctionModule::Eof(sqlite3_vtab_cursor* cur) {
-  return GetCursor(cur)->df_cursor.Eof();
+  auto* c = GetCursor(cur);
+  return c->current_row >= c->cursor->dataframe()->row_count();
 }
 
 int StaticTableFunctionModule::Column(sqlite3_vtab_cursor* cur,
@@ -216,7 +211,8 @@ int StaticTableFunctionModule::Column(sqlite3_vtab_cursor* cur,
 
   if (PERFETTO_LIKELY(idx < t->output_count)) {
     DataframeModule::SqliteResultCallback visitor{{}, ctx};
-    c->df_cursor.Cell(static_cast<uint32_t>(raw_n), visitor);
+    c->cursor->dataframe()->GetCell(c->current_row,
+                                    static_cast<uint32_t>(raw_n), visitor);
   } else if (PERFETTO_LIKELY(idx < t->output_count + t->arg_count)) {
     // TODO(lalitm): it may be more appropriate to keep a note of the arguments
     // which we passed in and return them here. Not doing this to because it
@@ -225,7 +221,7 @@ int StaticTableFunctionModule::Column(sqlite3_vtab_cursor* cur,
     sqlite::result::Null(ctx);
   } else {
     PERFETTO_DCHECK(idx == t->output_count + t->arg_count);
-    sqlite::result::Long(ctx, c->df_cursor.RowIndex());
+    sqlite::result::Long(ctx, c->current_row);
   }
   return SQLITE_OK;
 }

@@ -328,7 +328,6 @@ export class UnionNode implements QueryNode {
     const stateCopy: UnionNodeState = {
       inputNodes: [...this.state.inputNodes],
       selectedColumns: this.state.selectedColumns.map((c) => ({...c})),
-      sqlModules: this.state.sqlModules,
     };
     const clone = new UnionNode(stateCopy);
     clone.comment = this.comment;

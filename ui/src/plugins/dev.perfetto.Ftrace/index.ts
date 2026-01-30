@@ -133,7 +133,7 @@ async function getFtraceCpus(ctx: Trace): Promise<Cpu[]> {
   const queryRes = await ctx.engine.query(`
     SELECT DISTINCT
       ucpu,
-      IFNULL(cpu.machine_id, 0) AS machine_id,
+      cpu.machine_id AS machine_id,
       cpu.cpu AS cpu
     FROM ftrace_event
     JOIN cpu USING (ucpu)

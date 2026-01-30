@@ -98,6 +98,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/metadata.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.h"
@@ -105,6 +106,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
@@ -131,9 +133,13 @@
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
+#include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/trace_reader_registry.h"
@@ -142,10 +148,10 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/gzip_utils.h"
-#include "src/trace_processor/util/json_utils.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/regex.h"
+#include "src/trace_processor/util/simple_json_parser.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -512,14 +518,12 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
         kCtraceTraceType);
     context()->reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
   }
-  if constexpr (json::IsJsonSupported()) {
-    context()->reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
-        kJsonTraceType);
-    context()
-        ->reader_registry
-        ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
-            kGeckoTraceType);
-  }
+  context()->reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
+      kJsonTraceType);
+  context()
+      ->reader_registry
+      ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
+          kGeckoTraceType);
   context()
       ->reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(
           kArtMethodTraceType);
@@ -1341,6 +1345,11 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
+    base::Status status = RegisterMetadataFunctions(*engine, storage);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
     base::Status status = RegisterBase64Functions(*engine);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
@@ -1370,6 +1379,12 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   {
     base::Status status = perfetto_sql::RegisterCounterIntervalsFunctions(
         *engine, storage->mutable_string_pool());
+  }
+  {
+    base::Status status =
+        RegisterTreeFunctions(*engine, *storage->mutable_string_pool());
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
   }
 #if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
   {

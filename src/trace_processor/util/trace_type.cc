@@ -300,6 +300,37 @@ const char* TraceTypeToString(TraceType trace_type) {
   PERFETTO_FATAL("For GCC");
 }
 
+bool IsContainerTraceType(TraceType trace_type) {
+  switch (trace_type) {
+    case kGzipTraceType:
+    case kCtraceTraceType:
+    case kZipFile:
+    case kAndroidBugreportTraceType:
+    case kTarTraceType:
+      return true;
+    case kJsonTraceType:
+    case kProtoTraceType:
+    case kSymbolsTraceType:
+    case kNinjaLogTraceType:
+    case kFuchsiaTraceType:
+    case kSystraceTraceType:
+    case kPerfDataTraceType:
+    case kPprofTraceType:
+    case kCollapsedStackTraceType:
+    case kInstrumentsXmlTraceType:
+    case kAndroidLogcatTraceType:
+    case kAndroidDumpstateTraceType:
+    case kGeckoTraceType:
+    case kArtMethodTraceType:
+    case kArtHprofTraceType:
+    case kPerfTextTraceType:
+    case kSimpleperfProtoTraceType:
+    case kUnknownTraceType:
+      return false;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (size == 0) {
     return kUnknownTraceType;

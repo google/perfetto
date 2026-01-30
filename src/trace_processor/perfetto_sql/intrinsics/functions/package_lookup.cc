@@ -16,6 +16,7 @@
 
 #include <cstdint>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"

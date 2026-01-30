@@ -159,7 +159,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       pid: LONG_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
-      machine: NUM_NULL,
+      machine: NUM,
       description: STR_NULL,
     });
     for (; it.valid(); it.next()) {

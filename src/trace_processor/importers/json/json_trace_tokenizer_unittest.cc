@@ -21,8 +21,6 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include <json/value.h>
-
 namespace perfetto::trace_processor {
 namespace {
 

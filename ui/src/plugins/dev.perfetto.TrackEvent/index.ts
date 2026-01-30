@@ -162,7 +162,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
     // Get CPU count and threads for summary tracks
     const cpuCountResult = await ctx.engine.query(`
-      SELECT COUNT(*) as cpu_count FROM cpu WHERE IFNULL(machine_id, 0) = 0
+      SELECT COUNT(*) as cpu_count FROM cpu WHERE machine_id = 0
     `);
     const cpuCount = cpuCountResult.firstRow({cpu_count: NUM}).cpu_count;
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();

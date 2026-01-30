@@ -96,6 +96,12 @@ std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
     }
 
     if (opt_func_name) {
+      std::optional<std::tuple<std::string, uint32_t>> opt_file_and_line =
+          parser.GetSourceLocation(addr);
+      if (opt_file_and_line != std::nullopt) {
+        std::tie(frame.file_name, frame.line) = *opt_file_and_line;
+      }
+
       frame.function_name = *opt_func_name;
       num_symbolized_frames++;
     }

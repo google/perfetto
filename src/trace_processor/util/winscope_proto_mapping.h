@@ -17,13 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_WINSCOPE_PROTO_MAPPING_H_
 #define SRC_TRACE_PROCESSOR_UTIL_WINSCOPE_PROTO_MAPPING_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
@@ -33,6 +39,17 @@ namespace perfetto::trace_processor::util::winscope_proto_mapping {
 
 namespace {
 constexpr std::string_view CONTAINER_TYPE_COL = "container_type";
+
+// Helper to extract string values via Cell() callback.
+struct StringCellExtractor : dataframe::CellCallback {
+  std::optional<base::StringView> result;
+  void OnCell(int64_t) {}
+  void OnCell(double) {}
+  void OnCell(NullTermStringView v) { result = v; }
+  void OnCell(std::nullptr_t) { result = std::nullopt; }
+  void OnCell(uint32_t) {}
+  void OnCell(int32_t) {}
+};
 constexpr std::string_view ROOT_WINDOW_CONTAINER = "RootWindowContainer";
 constexpr std::string_view DISPLAY_CONTENT = "DisplayContent";
 constexpr std::string_view DISPLAY_AREA = "DisplayArea";
@@ -46,19 +63,14 @@ constexpr std::string_view WINDOW_CONTAINER = "WindowContainer";
 std::optional<const base::StringView> inline GetWindowContainerType(
     const dataframe::Dataframe& static_table,
     uint32_t row,
-    StringPool* string_pool) {
+    StringPool*) {
   auto col_idx = static_table.IndexOfColumnLegacy(CONTAINER_TYPE_COL);
   if (!col_idx.has_value()) {
     return std::nullopt;
   }
-  auto container_type_id =
-      static_table
-          .GetCellUncheckedLegacy<dataframe::String, dataframe::DenseNull>(
-              col_idx.value(), row);
-  if (!container_type_id.has_value()) {
-    return std::nullopt;
-  }
-  return string_pool->Get(container_type_id.value());
+  StringCellExtractor extractor;
+  static_table.GetCell(row, col_idx.value(), extractor);
+  return extractor.result;
 }
 }  // namespace
 

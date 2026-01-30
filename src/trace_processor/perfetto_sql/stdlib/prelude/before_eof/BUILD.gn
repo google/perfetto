@@ -16,6 +16,7 @@ import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("before_eof") {
   sources = [
+    "metadata.sql",
     "tables.sql",
     "trace_bounds.sql",
     "views.sql",

@@ -51,6 +51,33 @@
 
 namespace perfetto::trace_processor::sqlite::utils {
 
+// Helper class to use with the SQLite pointer passing APIs.
+//
+// The problem: SQLite is responsible for managing the lifetime of all pointers
+// using the pointer passing APIs which means we don't have an easy way to
+// have an object passed between functions that is *moved* between the calls.
+//
+// This class wraps a value of type T and allows it to be moved out of the
+// wrapper. The wrapper itself will be managed with a unique_ptr and enforces
+// that the only way to extract the value is to move it out.
+template <typename T>
+struct MovePointer {
+ public:
+  explicit MovePointer(T value) : value_(std::move(value)) {}
+
+  T Take() {
+    PERFETTO_CHECK(!taken_);
+    taken_ = true;
+    return std::move(value_);
+  }
+
+  bool taken() const { return taken_; }
+
+ private:
+  T value_;
+  bool taken_ = false;
+};
+
 const auto kSqliteStatic = reinterpret_cast<sqlite3_destructor_type>(0);
 const auto kSqliteTransient = reinterpret_cast<sqlite3_destructor_type>(-1);
 

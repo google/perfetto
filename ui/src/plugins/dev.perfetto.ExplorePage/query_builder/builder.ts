@@ -432,6 +432,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               node: selectedNode,
               response: this.response,
               dataSource: this.dataSource,
+              sqlModules: attrs.sqlModules,
               isQueryRunning: this.isQueryRunning,
               isAnalyzing: this.isAnalyzing,
               onchange: () => {

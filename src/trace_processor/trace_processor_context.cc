@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
@@ -72,6 +73,7 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context) {
   context->sched_event_tracker = Ptr<SchedEventTracker>::MakeRoot(context);
   context->args_translation_table =
       Ptr<ArgsTranslationTable>::MakeRoot(context->storage.get());
+  context->metadata_tracker = Ptr<MetadataTracker>::MakeRoot(context);
 
   context->slice_tracker->SetOnSliceBeginCallback(
       [context](TrackId track_id, SliceId slice_id) {
@@ -101,12 +103,12 @@ void CopyPerMachineState(const TraceProcessorContext* source,
   dest->cpu_tracker = source->cpu_tracker.Fork();
 }
 
-void InitPerTraceState(TraceProcessorContext* context, uint32_t raw_trace_id) {
+void InitPerTraceState(TraceProcessorContext* context, TraceId trace_id) {
   context->trace_state = Ptr<TraceProcessorContext::TraceState>::MakeRoot(
-      TraceProcessorContext::TraceState{raw_trace_id});
+      TraceProcessorContext::TraceState{trace_id});
   context->content_analyzer = nullptr;
   context->import_logs_tracker =
-      Ptr<ImportLogsTracker>::MakeRoot(context, raw_trace_id);
+      Ptr<ImportLogsTracker>::MakeRoot(context, trace_id);
 }
 
 void CopyTraceState(const TraceProcessorContext* source,
@@ -148,6 +150,8 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->reader_registry = Ptr<TraceReaderRegistry>::MakeRoot();
   context->global_args_tracker =
       Ptr<GlobalArgsTracker>::MakeRoot(context->storage.get());
+  context->global_metadata_tracker =
+      Ptr<GlobalMetadataTracker>::MakeRoot(context->storage.get());
   context->trace_file_tracker = Ptr<TraceFileTracker>::MakeRoot(context);
   context->descriptor_pool_ = Ptr<DescriptorPool>::MakeRoot();
   context->forked_context_state =
@@ -160,8 +164,6 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->register_additional_proto_modules = nullptr;
 
   // Per-Trace State (Miscategorized).
-  context->metadata_tracker =
-      Ptr<MetadataTracker>::MakeRoot(context->storage.get());
   context->registered_file_tracker =
       Ptr<RegisteredFileTracker>::MakeRoot(context);
   context->uuid_state = Ptr<TraceProcessorContext::UuidState>::MakeRoot();
@@ -176,6 +178,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->sorter = source->sorter.Fork();
   dest->reader_registry = source->reader_registry.Fork();
   dest->global_args_tracker = source->global_args_tracker.Fork();
+  dest->global_metadata_tracker = source->global_metadata_tracker.Fork();
   dest->trace_file_tracker = source->trace_file_tracker.Fork();
   dest->descriptor_pool_ = source->descriptor_pool_.Fork();
   dest->forked_context_state = source->forked_context_state.Fork();
@@ -185,7 +188,6 @@ void CopyGlobalState(const TraceProcessorContext* source,
       source->register_additional_proto_modules;
 
   // Per-Trace State (Miscategorized).
-  dest->metadata_tracker = source->metadata_tracker.Fork();
   dest->registered_file_tracker = source->registered_file_tracker.Fork();
   dest->uuid_state = source->uuid_state.Fork();
   dest->heap_graph_tracker = source->heap_graph_tracker.Fork();
@@ -202,21 +204,21 @@ TraceProcessorContext::TraceProcessorContext(const Config& _config) {
 TraceProcessorContext::~TraceProcessorContext() = default;
 
 TraceProcessorContext* TraceProcessorContext::ForkContextForTrace(
-    uint32_t raw_trace_id,
+    TraceId trace_id,
     uint32_t default_raw_machine_id) const {
   auto [it, inserted] =
       forked_context_state->trace_and_machine_to_context.Insert(
-          std::pair(raw_trace_id, default_raw_machine_id), nullptr);
+          std::pair(trace_id.value, default_raw_machine_id), nullptr);
   if (inserted) {
     auto context = std::make_unique<TraceProcessorContext>();
     CopyGlobalState(this, context.get());
 
     // Initialize per-trace state.
     auto [trace_it, trace_inserted] =
-        forked_context_state->trace_to_context.Insert(raw_trace_id,
+        forked_context_state->trace_to_context.Insert(trace_id.value,
                                                       context.get());
     if (trace_inserted) {
-      InitPerTraceState(context.get(), raw_trace_id);
+      InitPerTraceState(context.get(), trace_id);
     } else {
       CopyTraceState(*trace_it, context.get());
     }
@@ -243,16 +245,15 @@ TraceProcessorContext*
 TraceProcessorContext::ForkContextForMachineInCurrentTrace(
     uint32_t raw_machine_id) const {
   PERFETTO_CHECK(trace_state);
-  return ForkContextForTrace(trace_state->raw_trace_id, raw_machine_id);
+  return ForkContextForTrace(trace_id(), raw_machine_id);
 }
 
-std::optional<MachineId> TraceProcessorContext::machine_id() const {
-  if (!machine_tracker) {
-    // Doesn't require that |machine_tracker| is initialized, e.g. in unit
-    // tests.
-    return std::nullopt;
-  }
+MachineId TraceProcessorContext::machine_id() const {
   return machine_tracker->machine_id();
+}
+
+TraceId TraceProcessorContext::trace_id() const {
+  return trace_state->trace_id;
 }
 
 void TraceProcessorContext::DestroyParsingState() {
