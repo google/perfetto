@@ -15,7 +15,7 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Monitor} from '../../base/monitor';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
-import {assertExists, assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
@@ -39,6 +39,7 @@ import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {deferChunkedTask} from '../../base/chunked_task';
+import {RECT_PATTERN_HATCHED} from '../../base/renderer';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -315,7 +316,7 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   renderSlices(
-    {ctx, timescale, size, visibleWindow}: TrackRenderContext,
+    {ctx, timescale, size, visibleWindow, renderer}: TrackRenderContext,
     data: Data,
   ): void {
     assertTrue(data.startQs.length === data.endQs.length);
@@ -384,9 +385,9 @@ export class CpuSliceTrack implements TrackRenderer {
         color = colorScheme.base;
         textColor = colorScheme.textBase;
       }
-      ctx.fillStyle = color.cssString;
 
       if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
+        ctx.fillStyle = color.cssString;
         drawIncompleteSlice(
           ctx,
           rectStart,
@@ -396,7 +397,13 @@ export class CpuSliceTrack implements TrackRenderer {
           color,
         );
       } else {
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+        renderer.drawRect(
+          rectStart,
+          MARGIN_TOP,
+          rectEnd,
+          MARGIN_TOP + RECT_HEIGHT,
+          color.rgba,
+        );
       }
 
       // Don't render text when we have less than 5px to play with.
@@ -405,8 +412,14 @@ export class CpuSliceTrack implements TrackRenderer {
       // Stylize real-time threads. We don't do it when zoomed out as the
       // fillRect is expensive.
       if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
-        ctx.fillStyle = getHatchedPattern(ctx);
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+        renderer.drawRect(
+          rectStart,
+          MARGIN_TOP,
+          rectEnd,
+          MARGIN_TOP + RECT_HEIGHT,
+          color.rgba,
+          RECT_PATTERN_HATCHED,
+        );
       }
 
       // TODO: consider de-duplicating this code with the copied one from
@@ -591,27 +604,4 @@ export class CpuSliceTrack implements TrackRenderer {
   detailsPanel() {
     return new SchedSliceDetailsPanel(this.trace, this.threads);
   }
-}
-
-// Creates a diagonal hatched pattern to be used for distinguishing slices with
-// real-time priorities. The pattern is created once as an offscreen canvas and
-// is kept cached inside the Context2D of the main canvas, without making
-// assumptions on the lifetime of the main canvas.
-function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
-  const mctx = mainCtx as CanvasRenderingContext2D & {
-    sliceHatchedPattern?: CanvasPattern;
-  };
-  if (mctx.sliceHatchedPattern !== undefined) return mctx.sliceHatchedPattern;
-  const canvas = document.createElement('canvas');
-  const SIZE = 8;
-  canvas.width = canvas.height = SIZE;
-  const ctx = assertExists(canvas.getContext('2d'));
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.beginPath();
-  ctx.lineWidth = 1;
-  ctx.moveTo(0, SIZE);
-  ctx.lineTo(SIZE, 0);
-  ctx.stroke();
-  mctx.sliceHatchedPattern = assertExists(mctx.createPattern(canvas, 'repeat'));
-  return mctx.sliceHatchedPattern;
 }

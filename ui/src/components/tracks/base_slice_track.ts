@@ -437,6 +437,7 @@ export abstract class BaseSliceTrack<
     visibleWindow,
     timescale,
     colors,
+    renderer,
   }: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
@@ -559,7 +560,15 @@ export abstract class BaseSliceTrack<
       }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
-        this.drawChevron(ctx, slice.x, y, sliceHeight);
+        renderer.drawMarker(
+          slice.x,
+          y,
+          CHEVRON_WIDTH_PX,
+          sliceHeight,
+          color.rgba,
+          // TODO center this?
+          () => this.drawChevron(ctx, slice.x, y, sliceHeight),
+        );
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
         const w = CROP_INCOMPLETE_SLICE_FLAG.get()
           ? slice.w
@@ -580,7 +589,13 @@ export abstract class BaseSliceTrack<
             ? SLICE_MIN_WIDTH_FADED_PX
             : SLICE_MIN_WIDTH_PX,
         );
-        ctx.fillRect(slice.x, y, w, sliceHeight);
+        renderer.drawRect(
+          slice.x,
+          y,
+          slice.x + w,
+          y + sliceHeight,
+          color.rgba,
+        );
       }
     }
 

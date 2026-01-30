@@ -43,6 +43,7 @@ import {
 import {Dataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import {deferChunkedTask} from '../../base/chunked_task';
+import {Color} from '../../base/color';
 
 export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 
@@ -454,7 +455,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  render({ctx, size, timescale}: TrackRenderContext): void {
+  render({ctx, size, timescale, renderer}: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -492,7 +493,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       const utid = data.utids[i];
       const lane = data.lanes[i];
 
-      const rectWidth = Math.max(1, rectEnd - rectStart);
+      let color: Color;
 
       if (this.mode === 'sched') {
         // Scheduling mode: color by thread (utid) - use cached color scheme
@@ -507,20 +508,20 @@ export class GroupSummaryTrack implements TrackRenderer {
 
         if (isHovering && !isThreadHovered) {
           if (!isProcessHovered) {
-            ctx.fillStyle = colorScheme.disabled.cssString;
+            color = colorScheme.disabled;
           } else {
-            ctx.fillStyle = colorScheme.variant.cssString;
+            color = colorScheme.variant;
           }
         } else {
-          ctx.fillStyle = colorScheme.base.cssString;
+          color = colorScheme.base;
         }
       } else {
         // Slice mode: consistent color based on pidForColor - use cached color
-        ctx.fillStyle = this.slicesModeColor.base.cssString;
+        color = this.slicesModeColor.base;
       }
 
       const y = MARGIN_TOP + laneHeight * lane + lane;
-      ctx.fillRect(rectStart, y, rectWidth, laneHeight);
+      renderer.drawRect(rectStart, y, rectEnd, y + laneHeight, color.rgba);
     }
   }
 
