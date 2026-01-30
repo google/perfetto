@@ -20,6 +20,7 @@ import {duration, Time, time} from '../../base/time';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
+import {ColorScheme} from '../../base/color_scheme';
 import m from 'mithril';
 import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
@@ -49,6 +50,8 @@ export interface Data extends TrackData {
   utids: Uint32Array;
   flags: Uint8Array;
   lastRowId: number;
+  // Cached color schemes to avoid lookups in render hot path
+  colorSchemes: ColorScheme[];
 }
 
 const MARGIN_TOP = 3;
@@ -200,6 +203,7 @@ export class CpuSliceTrack implements TrackRenderer {
       durs: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
       flags: new Uint8Array(numRows),
+      colorSchemes: new Array(numRows),
     };
 
     const it = queryRes.iter({
@@ -229,6 +233,10 @@ export class CpuSliceTrack implements TrackRenderer {
       if (it.isRealtime) {
         slices.flags[row] |= CPU_SLICE_FLAGS_REALTIME;
       }
+
+      // Cache color scheme to avoid lookups in render hot path
+      const threadInfo = this.threads.get(it.utid);
+      slices.colorSchemes[row] = colorForThread(threadInfo);
     }
     return slices;
   }
@@ -337,7 +345,7 @@ export class CpuSliceTrack implements TrackRenderer {
       const isHovering = this.trace.timeline.hoveredUtid !== undefined;
       const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
       const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-      const colorScheme = colorForThread(threadInfo);
+      const colorScheme = data.colorSchemes[i];
       let color: Color;
       let textColor: Color;
       if (isHovering && !isThreadHovered) {
@@ -420,8 +428,7 @@ export class CpuSliceTrack implements TrackRenderer {
         if (startIndex !== endIndex) {
           const tStart = Time.fromRaw(data.startQs[startIndex]);
           const tEnd = Time.fromRaw(data.endQs[startIndex]);
-          const utid = data.utids[startIndex];
-          const color = colorForThread(this.threads.get(utid));
+          const color = data.colorSchemes[startIndex];
           const rectStart = timescale.timeToPx(tStart);
           const rectEnd = timescale.timeToPx(tEnd);
           const rectWidth = Math.max(1, rectEnd - rectStart);

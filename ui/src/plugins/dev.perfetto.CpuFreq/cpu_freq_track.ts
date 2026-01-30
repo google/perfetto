@@ -35,6 +35,7 @@ import {
 } from '../../trace_processor/sql_utils';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
+import {Color} from '../../base/color';
 
 export interface Data extends TrackData {
   timestamps: BigInt64Array;
@@ -89,6 +90,9 @@ export class CpuFreqTrack implements TrackRenderer {
 
   private trash!: AsyncDisposableStack;
 
+  // Cached color for this CPU (constant for track lifetime).
+  private readonly color: Color;
+
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
     () => this.hover?.ts,
@@ -99,7 +103,9 @@ export class CpuFreqTrack implements TrackRenderer {
   constructor(
     private readonly config: Config,
     private readonly trace: Trace,
-  ) {}
+  ) {
+    this.color = colorForCpu(this.config.cpu);
+  }
 
   async onCreate() {
     this.trash = new AsyncDisposableStack();
@@ -321,16 +327,15 @@ export class CpuFreqTrack implements TrackRenderer {
     // The values we have for cpufreq are in kHz so +1 to unitGroup.
     const yLabel = `${num} ${kUnits[unitGroup + 1]}Hz`;
 
-    const color = colorForCpu(this.config.cpu);
     let saturation = 45;
     if (this.trace.timeline.hoveredUtid !== undefined) {
       saturation = 0;
     }
 
-    ctx.fillStyle = color
+    ctx.fillStyle = this.color
       .setHSL({s: saturation, l: 50})
       .setAlpha(0.6).cssString;
-    ctx.strokeStyle = color.setHSL({s: saturation, l: 50}).cssString;
+    ctx.strokeStyle = this.color.setHSL({s: saturation, l: 50}).cssString;
 
     const calculateX = (timestamp: time) => {
       return Math.floor(timescale.timeToPx(timestamp));
@@ -411,8 +416,8 @@ export class CpuFreqTrack implements TrackRenderer {
     ctx.font = '10px Roboto Condensed';
 
     if (this.hover !== undefined) {
-      ctx.fillStyle = color.setHSL({s: 45, l: 75}).cssString;
-      ctx.strokeStyle = color.setHSL({s: 45, l: 45}).cssString;
+      ctx.fillStyle = this.color.setHSL({s: 45, l: 75}).cssString;
+      ctx.strokeStyle = this.color.setHSL({s: 45, l: 45}).cssString;
 
       const xStart = Math.floor(timescale.timeToPx(this.hover.ts));
       const xEnd =
