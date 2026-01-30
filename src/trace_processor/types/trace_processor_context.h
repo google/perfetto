@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <utility>
 
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -222,7 +221,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<Destructible>
       ftrace_sched_tracker;  // FtraceSchedEventTracker
 
-  std::optional<MachineId> machine_id() const;
+  MachineId machine_id() const;
 
  private:
   explicit TraceProcessorContext(const Config& config);

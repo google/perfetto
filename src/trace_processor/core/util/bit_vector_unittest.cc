@@ -417,5 +417,78 @@ TEST(BitVectorTest, MixedOperations) {
   EXPECT_TRUE(bits.is_set(102));
 }
 
+// Test resize to shrink
+TEST(BitVectorTest, ResizeShrink) {
+  auto bits = BitVector::CreateWithSize(100, false);
+  bits.set(10);
+  bits.set(50);
+  bits.set(90);
+
+  bits.resize(60);
+  EXPECT_EQ(bits.size(), 60u);
+
+  // Bits within new size should be preserved
+  EXPECT_TRUE(bits.is_set(10));
+  EXPECT_TRUE(bits.is_set(50));
+}
+
+// Test resize to grow with default value (false)
+TEST(BitVectorTest, ResizeGrowFalse) {
+  auto bits = BitVector::CreateWithSize(50, false);
+  bits.set(10);
+  bits.set(40);
+
+  bits.resize(100, false);
+  EXPECT_EQ(bits.size(), 100u);
+
+  // Original bits preserved
+  EXPECT_TRUE(bits.is_set(10));
+  EXPECT_TRUE(bits.is_set(40));
+
+  // New bits should be unset
+  for (size_t i = 50; i < 100; ++i) {
+    EXPECT_FALSE(bits.is_set(i)) << "Bit " << i << " should be unset";
+  }
+}
+
+// Test resize to grow with value true
+TEST(BitVectorTest, ResizeGrowTrue) {
+  auto bits = BitVector::CreateWithSize(50, false);
+  bits.set(10);
+
+  bits.resize(100, true);
+  EXPECT_EQ(bits.size(), 100u);
+
+  // Original bits preserved
+  EXPECT_TRUE(bits.is_set(10));
+  EXPECT_FALSE(bits.is_set(20));
+
+  // New bits should be set
+  for (size_t i = 50; i < 100; ++i) {
+    EXPECT_TRUE(bits.is_set(i)) << "Bit " << i << " should be set";
+  }
+}
+
+// Test resize across word boundaries
+TEST(BitVectorTest, ResizeAcrossWordBoundary) {
+  // Start with size that doesn't align to 64
+  auto bits = BitVector::CreateWithSize(70, false);
+  bits.set(60);
+  bits.set(65);
+
+  // Shrink to within first word
+  bits.resize(30);
+  EXPECT_EQ(bits.size(), 30u);
+
+  // Grow back across boundary with true
+  bits.resize(80, true);
+  EXPECT_EQ(bits.size(), 80u);
+
+  // Bits 30-79 should be set
+  for (size_t i = 30; i < 80; ++i) {
+    EXPECT_TRUE(bits.is_set(i)) << "Bit " << i << " should be set";
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core

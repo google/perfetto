@@ -184,5 +184,39 @@ TEST(FlexVectorTest, DataAccessor) {
   EXPECT_EQ(vec[1], 42);
 }
 
+// Test resize to shrink
+TEST(FlexVectorTest, ResizeShrink) {
+  auto vec = FlexVector<int>::CreateWithCapacity(64);
+  for (size_t i = 0; i < 10; ++i) {
+    vec.push_back(static_cast<int>(i * 10));
+  }
+  EXPECT_EQ(vec.size(), 10u);
+
+  vec.resize(5);
+  EXPECT_EQ(vec.size(), 5u);
+
+  // Verify first 5 elements are preserved
+  for (size_t i = 0; i < 5; ++i) {
+    EXPECT_EQ(vec[i], static_cast<int>(i * 10));
+  }
+}
+
+// Test resize to grow
+TEST(FlexVectorTest, ResizeGrow) {
+  auto vec = FlexVector<int>::CreateWithCapacity(64);
+  vec.push_back(1);
+  vec.push_back(2);
+  vec.push_back(3);
+  EXPECT_EQ(vec.size(), 3u);
+
+  vec.resize(100);
+  EXPECT_EQ(vec.size(), 100u);
+
+  // Verify original elements are preserved
+  EXPECT_EQ(vec[0], 1);
+  EXPECT_EQ(vec[1], 2);
+  EXPECT_EQ(vec[2], 3);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core

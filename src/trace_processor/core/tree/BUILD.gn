@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
+import("../../../../gn/test.gni")
 
-# Exposed for Chromium only. May be removed in the future.
-source_set("export_json") {
-  sources = [ "export_json.h" ]
-}
-
-source_set("demangle") {
-  sources = [ "demangle.h" ]
-}
-
-source_set("trace_processor_shell") {
-  sources = [ "trace_processor_shell.h" ]
+source_set("tree") {
+  sources = [
+    "tree_transformer.cc",
+    "tree_transformer.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../containers",
+    "../dataframe",
+  ]
 }

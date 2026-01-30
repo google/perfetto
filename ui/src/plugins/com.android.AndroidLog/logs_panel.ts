@@ -504,7 +504,7 @@ async function updateLogEntries(
     isMsgHighlighted: NUM_NULL,
     isProcessHighlighted: NUM,
     processName: STR,
-    machineId: NUM_NULL,
+    machineId: NUM,
   });
   for (; it.valid(); it.next()) {
     timestamps.push(Time.fromRaw(it.ts));
@@ -517,7 +517,7 @@ async function updateLogEntries(
       it.isMsgHighlighted === 1 || it.isProcessHighlighted === 1,
     );
     processName.push(it.processName);
-    machineIds.push(it.machineId ?? 0); // Id 0 is for the primary VM
+    machineIds.push(it.machineId);
   }
 
   const queryRes = await engine.query(`
@@ -566,7 +566,7 @@ async function updateLogView(
     }
   }
   if (filter.machineExcludeList.length) {
-    selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join(',')})`;
+    selectedRows += ` and process.machine_id not in (${filter.machineExcludeList.join(',')})`;
   }
 
   // We extract only the rows which will be visible.

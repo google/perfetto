@@ -20,13 +20,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {
-  LONG,
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
@@ -72,7 +66,7 @@ export default class implements PerfettoPlugin {
           clock_name: STR_NULL,
           clock_value: LONG,
           snapshot_id: NUM,
-          machine_id: NUM_NULL,
+          machine_id: NUM,
         },
       }),
       detailsPanel: (row) => {
@@ -118,7 +112,7 @@ export default class implements PerfettoPlugin {
                       }),
                       m(TreeNode, {
                         left: 'machine_id ',
-                        right: row.machine_id ?? 'NULL',
+                        right: row.machine_id,
                       }),
                     ),
                   ),
