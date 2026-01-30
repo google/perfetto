@@ -810,9 +810,11 @@ base::Status TraceProcessorImpl::AnalyzeStructuredQuery(
   const QueryBytes& target_query = *target_query_ptr;
 
   // Generate SQL for the target query (which can reference other queries via
-  // inner_query_id).
+  // inner_query_id). Use inline_shared_queries=true to include all referenced
+  // queries as CTEs, making the SQL self-contained.
   ASSIGN_OR_RETURN(output->sql,
-                   sqg.Generate(target_query.ptr, target_query.size));
+                   sqg.Generate(target_query.ptr, target_query.size,
+                                /*inline_shared_queries=*/true));
   output->textproto =
       perfetto::trace_processor::protozero_to_text::ProtozeroToText(
           metrics_descriptor_pool_,
