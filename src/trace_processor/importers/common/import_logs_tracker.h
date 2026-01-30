@@ -34,7 +34,8 @@ class TraceProcessorContext;
 // queryable logs with context).
 class ImportLogsTracker {
  public:
-  explicit ImportLogsTracker(TraceProcessorContext*, uint32_t trace_id);
+  explicit ImportLogsTracker(TraceProcessorContext*,
+                             tables::TraceFileTable::Id trace_id);
 
   // For "tokenization" errors (pre-parsing, only have byte offset)
   // Use when reading raw bytes and encountering malformed data.
@@ -79,7 +80,7 @@ class ImportLogsTracker {
       std::function<void(ArgsTracker::BoundInserter&)> args_callback);
 
   TraceProcessorContext* context_;
-  uint32_t trace_id_;
+  tables::TraceFileTable::Id trace_id_;
 };
 
 }  // namespace perfetto::trace_processor

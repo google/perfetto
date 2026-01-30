@@ -420,7 +420,8 @@ Executes a PerfettoSQL query and displays results in a new query tab.
 
 **Arguments:**
 
-- `query` (string, required): PerfettoSQL query to execute
+1. `query` (string, required): PerfettoSQL query to execute
+2. `title` (string, optional): Title for the query tab
 
 **Example:**
 
@@ -428,6 +429,15 @@ Executes a PerfettoSQL query and displays results in a new query tab.
 {
   "id": "dev.perfetto.RunQueryAndShowTab",
   "args": ["SELECT ts, dur, name FROM slice LIMIT 50"]
+}
+```
+
+**Example with tab title:**
+
+```json
+{
+  "id": "dev.perfetto.RunQueryAndShowTab",
+  "args": ["SELECT ts, dur, name FROM slice LIMIT 50", "Top 50 Slices"]
 }
 ```
 

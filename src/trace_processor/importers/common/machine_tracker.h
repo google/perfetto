@@ -43,12 +43,12 @@ class MachineTracker {
   void SetAndroidSdkVersion(int64_t sdk_version);
   void SetSystemRamBytes(int64_t system_ram_bytes);
 
-  std::optional<MachineId> machine_id() const { return machine_id_; }
+  MachineId machine_id() const { return machine_id_; }
 
  private:
   std::optional<tables::MachineTable::RowReference> getRow();
 
-  std::optional<MachineId> machine_id_;
+  MachineId machine_id_;
   TraceProcessorContext* const context_;
 };
 

@@ -1181,7 +1181,7 @@ class GenericKernelParser(TestSuite):
         """,
         out=Csv("""
         "ts","cpu","value","name","type","machine_id"
-        359831239274,0,1500000.000000,"cpufreq","cpu_frequency","[NULL]"
+        359831239274,0,1500000.000000,"cpufreq","cpu_frequency",0
         360831239274,1,2500000.000000,"cpufreq","cpu_frequency",1
         """))
 

@@ -1350,9 +1350,11 @@ base::Status LoadTrace(TraceProcessor* trace_processor,
   {
     auto it = trace_processor->ExecuteQuery(
         "SELECT str_value FROM metadata WHERE name = 'trace_type'");
-    if (it.Next() && it.Get(0).type == SqlValue::kString) {
-      if (std::string_view(it.Get(0).AsString()) == "proto") {
+    while (it.Next()) {
+      if (it.Get(0).type == SqlValue::kString &&
+          std::string_view(it.Get(0).AsString()) == "proto") {
         is_proto_trace = true;
+        break;
       }
     }
   }

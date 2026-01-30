@@ -24,6 +24,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/jit_cache.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -50,6 +51,8 @@ class JitTrackerTest : public testing::Test {
  public:
   JitTrackerTest() : jit_tracker_(&context_) {
     context_.storage.reset(new TraceStorage());
+    context_.machine_tracker.reset(
+        new MachineTracker(&context_, kDefaultMachineId));
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));

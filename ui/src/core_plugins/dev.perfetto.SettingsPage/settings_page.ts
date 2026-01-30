@@ -31,6 +31,10 @@ import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
 import {Icons} from '../../base/semantic_icons';
+import {GateDetector} from '../../base/mithril_utils';
+import {findRef} from '../../base/dom_utils';
+
+const SEARCH_BOX_REF = 'settings-search-box';
 
 export interface SettingsPageAttrs {
   readonly subpage?: string;
@@ -59,7 +63,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       return a.localeCompare(b);
     });
 
-    return m(
+    const page = m(
       SettingsShell,
       {
         title: 'Settings',
@@ -111,6 +115,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
           m(StackAuto),
           m(TextInput, {
             placeholder: 'Search...',
+            ref: SEARCH_BOX_REF,
             value: this.filterText,
             leftIcon: 'search',
             oninput: (e: Event) => {
@@ -129,6 +134,25 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
               return this.renderPluginSection(pluginId, settings, subpage);
             }),
       ),
+    );
+
+    return m(
+      GateDetector,
+      {
+        onVisibilityChanged: (visible: boolean, dom: Element) => {
+          if (visible) {
+            const input = findRef(
+              dom,
+              SEARCH_BOX_REF,
+            ) as HTMLInputElement | null;
+            if (input) {
+              input.focus();
+              input.select();
+            }
+          }
+        },
+      },
+      page,
     );
   }
 

@@ -129,7 +129,7 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
   // parsed first so that we do not get issues with
   // SetPidZeroIsUpidZeroIdleProcess()
-  trace_context_ = input_context_->ForkContextForTrace(file_id_.value, 0);
+  trace_context_ = input_context_->ForkContextForTrace(file_id_, 0);
   if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
     trace_context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
   }
