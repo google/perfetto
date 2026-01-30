@@ -93,8 +93,8 @@ export async function loadStatsData(engine: Engine): Promise<StatsData> {
   `);
 
   // Load trace and machine info
-  const traceIds = new Set<number | null>();
-  const machineIds = new Set<number | null>();
+  const traceIds = new Set<number>();
+  const machineIds = new Set<number>();
 
   const traceMetadata: TraceMetadataRow[] = [];
   for (
@@ -102,8 +102,12 @@ export async function loadStatsData(engine: Engine): Promise<StatsData> {
     iter.valid();
     iter.next()
   ) {
-    machineIds.add(iter.machineId);
-    traceIds.add(iter.traceId);
+    if (iter.machineId !== null) {
+      machineIds.add(iter.machineId);
+    }
+    if (iter.traceId !== null) {
+      traceIds.add(iter.traceId);
+    }
     traceMetadata.push({
       name: iter.name,
       value: iter.value,
