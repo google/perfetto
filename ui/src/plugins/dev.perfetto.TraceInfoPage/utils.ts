@@ -62,16 +62,11 @@ export interface TraceInfo {
 export async function getTraceInfos(
   engine: Engine,
 ): Promise<Map<number, TraceInfo>> {
-  // We use _metadata_by_trace (which is based on the metadata table) rather
-  // than __intrinsic_trace_file because __intrinsic_trace_file contains
-  // entries for containers (e.g. ZIP files) as well as the traces themselves.
-  // The metadata table only contains entries for actual trace data
-  // (non-containers).
   const result = await engine.query(`
-    INCLUDE PERFETTO MODULE std.traceinfo.trace;
-    select trace_id as id
-    from _metadata_by_trace
-    order by trace_id
+    select id
+    from __intrinsic_trace_file
+    where is_container = 0
+    order by id
   `);
 
   const map = new Map<number, TraceInfo>();

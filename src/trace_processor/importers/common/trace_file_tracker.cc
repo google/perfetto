@@ -43,10 +43,10 @@ tables::TraceFileTable::Id TraceFileTracker::AddFileImpl(StringId name) {
       parsing_stack_.empty() ? std::nullopt
                              : std::make_optional(parsing_stack_.back());
   return context_->storage->mutable_trace_file_table()
-      ->Insert({parent, name, 0,
+      ->Insert({parent, name, /*size=*/0,
                 context_->storage->InternString(
                     TraceTypeToString(kUnknownTraceType)),
-                std::nullopt})
+                /*processing_order=*/std::nullopt, /*is_container=*/0})
       .id;
 }
 
@@ -63,6 +63,9 @@ void TraceFileTracker::StartParsing(tables::TraceFileTable::Id id,
       context_->storage->InternString(TraceTypeToString(trace_type)));
   row.set_processing_order(static_cast<int64_t>(processing_order_++));
 
+  bool is_container = IsContainerTraceType(trace_type);
+  row.set_is_container(is_container);
+
   // We log metadata only for "actual" traces and not for containers (e.g. zip
   // files, gzip files). We do this because:
   // 1. Tooling (e.g. trace_processor_shell) often queries metadata early in the
@@ -71,7 +74,7 @@ void TraceFileTracker::StartParsing(tables::TraceFileTable::Id id,
   //    after NotifyEndOfFile.
   // 3. A hardcoded list of container types allows us to make the logging
   //    decision immediately.
-  if (IsContainerTraceType(trace_type)) {
+  if (is_container) {
     return;
   }
 
@@ -87,8 +90,7 @@ void TraceFileTracker::DoneParsing(tables::TraceFileTable::Id id, size_t size) {
   row.set_size(static_cast<int64_t>(size));
 
   // Log trace_size_bytes only for non-container traces.
-  if (context_->global_metadata_tracker->GetMetadata(std::nullopt, id,
-                                                     metadata::trace_type)) {
+  if (!row.is_container()) {
     context_->global_metadata_tracker->SetMetadata(
         /*machine_id*/ std::nullopt, id, metadata::trace_size_bytes,
         Variadic::Integer(row.size()));
