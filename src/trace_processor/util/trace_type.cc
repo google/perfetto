@@ -311,6 +311,7 @@ bool IsContainerTraceType(TraceType trace_type) {
     case kTarTraceType:
       return true;
     case kJsonTraceType:
+    case kPrimesTraceType:
     case kProtoTraceType:
     case kSymbolsTraceType:
     case kNinjaLogTraceType:
