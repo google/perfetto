@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_METADATA_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_METADATA_TRACKER_H_
 
-#include <array>
-#include <cstddef>
 #include <cstdint>
 #include <optional>
 
@@ -28,10 +26,12 @@
 
 namespace perfetto::trace_processor {
 
+class TraceProcessorContext;
+
 // Tracks information in the metadata table.
 class MetadataTracker {
  public:
-  explicit MetadataTracker(TraceStorage* storage);
+  explicit MetadataTracker(TraceProcessorContext* context);
 
   // Example usage:
   // SetMetadata(metadata::benchmark_name,
@@ -59,18 +59,8 @@ class MetadataTracker {
   }
 
  private:
-  static constexpr size_t kNumKeys =
-      static_cast<size_t>(metadata::KeyId::kNumKeys);
-  static constexpr size_t kNumKeyTypes =
-      static_cast<size_t>(metadata::KeyType::kNumKeyTypes);
-
-  void WriteValue(uint32_t row, Variadic value);
-
-  std::array<StringId, kNumKeys> key_ids_;
-  std::array<StringId, kNumKeyTypes> key_type_ids_;
   uint32_t chrome_metadata_bundle_count_ = 0;
-
-  TraceStorage* storage_;
+  TraceProcessorContext* const context_;
 };
 
 }  // namespace perfetto::trace_processor

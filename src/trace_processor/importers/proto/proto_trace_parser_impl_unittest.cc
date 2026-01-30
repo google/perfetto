@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
@@ -253,14 +254,18 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.global_metadata_tracker =
+        std::make_unique<GlobalMetadataTracker>(context_.storage.get());
     context_.import_logs_tracker =
-        std::make_unique<ImportLogsTracker>(&context_, 1);
+        std::make_unique<ImportLogsTracker>(&context_, TraceId(1));
     context_.mapping_tracker.reset(new MappingTracker(&context_));
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
     context_.stack_profile_tracker =
         std::make_unique<StackProfileTracker>(&context_);
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.metadata_tracker.reset(
-        new MetadataTracker(context_.storage.get()));
+    context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.cpu_tracker.reset(new CpuTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);

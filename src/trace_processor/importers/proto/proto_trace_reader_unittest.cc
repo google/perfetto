@@ -54,7 +54,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
     host_context_.storage = std::make_unique<TraceStorage>();
     host_context_.trace_state =
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
-            TraceProcessorContext::TraceState{0});
+            TraceProcessorContext::TraceState{TraceId{1}});
     host_context_.forked_context_state = TraceProcessorContextPtr<
         TraceProcessorContext::ForkedContextState>::MakeRoot();
     host_context_.machine_tracker =
@@ -62,7 +62,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
     host_context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(host_context_.storage.get());
     host_context_.import_logs_tracker =
-        std::make_unique<ImportLogsTracker>(&host_context_, 1);
+        std::make_unique<ImportLogsTracker>(&host_context_, TraceId(1));
     host_context_.clock_tracker = std::make_unique<ClockTracker>(
         std::make_unique<ClockSynchronizerListenerImpl>(&host_context_));
     host_context_.sorter = std::make_unique<TraceSorter>(
