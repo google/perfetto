@@ -2041,6 +2041,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_core_interpreter_interpreter",
     srcs = [
+        "src/trace_processor/core/interpreter/bytecode_builder.cc",
+        "src/trace_processor/core/interpreter/bytecode_builder.h",
         "src/trace_processor/core/interpreter/bytecode_core.h",
         "src/trace_processor/core/interpreter/bytecode_instruction_macros.h",
         "src/trace_processor/core/interpreter/bytecode_instructions.h",
