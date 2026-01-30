@@ -589,13 +589,7 @@ export abstract class BaseSliceTrack<
             ? SLICE_MIN_WIDTH_FADED_PX
             : SLICE_MIN_WIDTH_PX,
         );
-        renderer.drawRect(
-          slice.x,
-          y,
-          slice.x + w,
-          y + sliceHeight,
-          color.rgba,
-        );
+        renderer.drawRect(slice.x, y, slice.x + w, y + sliceHeight, color.rgba);
       }
     }
 
