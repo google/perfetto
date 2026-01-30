@@ -19,6 +19,7 @@ import {assertExists, assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import m from 'mithril';
 import {colorForThread, colorForTid} from '../../components/colorizer';
+import {ColorScheme} from '../../base/color_scheme';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
 import {checkerboardExcept} from '../../components/checkerboard';
@@ -57,6 +58,8 @@ interface Data extends TrackData {
   ends: BigInt64Array;
   utids: Int32Array;
   lanes: Uint32Array;
+  // Cached color schemes for each slice (only used in 'sched' mode).
+  colorSchemes: ColorScheme[];
 }
 
 export interface Config {
@@ -106,6 +109,9 @@ export class GroupSummaryTrack implements TrackRenderer {
   private maxLanes: number = 1;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
 
+  // Cached color scheme for 'slices' mode (constant for track lifetime).
+  private readonly slicesModeColor: ColorScheme;
+
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
     () => this.hover?.utid,
@@ -121,6 +127,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     hasSched: boolean,
   ) {
     this.mode = hasSched ? 'sched' : 'slices';
+    this.slicesModeColor = colorForTid(this.config.pidForColor);
   }
 
   async onCreate(ctx: TrackContext): Promise<void> {
@@ -320,6 +327,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       ends: new BigInt64Array(numRows),
       lanes: new Uint32Array(numRows),
       utids: new Int32Array(numRows),
+      colorSchemes: new Array(numRows),
     };
 
     const it = queryRes.iter({
@@ -341,6 +349,12 @@ export class GroupSummaryTrack implements TrackRenderer {
       slices.lanes[row] = it.lane;
       slices.utids[row] = it.utid;
       slices.end = Time.max(end, slices.end);
+
+      // Cache color scheme for 'sched' mode (depends on utid).
+      if (this.mode === 'sched') {
+        const threadInfo = this.threads.get(it.utid);
+        slices.colorSchemes[row] = colorForThread(threadInfo);
+      }
     }
     return slices;
   }
@@ -457,10 +471,9 @@ export class GroupSummaryTrack implements TrackRenderer {
       const rectEnd = Math.floor(timescale.timeToPx(tEnd));
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
-      let colorScheme;
-
       if (this.mode === 'sched') {
-        // Scheduling mode: color by thread (utid)
+        // Scheduling mode: color by thread (utid) - use cached color scheme
+        const colorScheme = data.colorSchemes[i];
         const threadInfo = this.threads.get(utid);
         // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
         const pid = (threadInfo ? threadInfo.pid : -1) || -1;
@@ -468,7 +481,6 @@ export class GroupSummaryTrack implements TrackRenderer {
         const isHovering = this.trace.timeline.hoveredUtid !== undefined;
         const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
         const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-        colorScheme = colorForThread(threadInfo);
 
         if (isHovering && !isThreadHovered) {
           if (!isProcessHovered) {
@@ -480,9 +492,8 @@ export class GroupSummaryTrack implements TrackRenderer {
           ctx.fillStyle = colorScheme.base.cssString;
         }
       } else {
-        // Slice mode: consistent color based on pidForColor
-        colorScheme = colorForTid(this.config.pidForColor);
-        ctx.fillStyle = colorScheme.base.cssString;
+        // Slice mode: consistent color based on pidForColor - use cached color
+        ctx.fillStyle = this.slicesModeColor.base.cssString;
       }
 
       const y = MARGIN_TOP + laneHeight * lane + lane;
