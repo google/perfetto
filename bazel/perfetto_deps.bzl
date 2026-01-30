@@ -62,10 +62,11 @@ def _perfetto_deps_impl(module_ctx):
         build_file = "@perfetto//bazel:zlib.BUILD",
     )
 
-    git_repository(
+    new_git_repository(
         name = "perfetto_dep_re2",
         remote = "https://chromium.googlesource.com/external/github.com/google/re2.git",
         commit = "927f5d53caf8111721e734cf24724686bb745f55",
+        build_file = "@perfetto//bazel:re2.BUILD",
     )
 
     git_repository(

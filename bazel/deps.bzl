@@ -97,10 +97,11 @@ def perfetto_deps():
     )
 
     _add_repo_if_not_existing(
-        git_repository,
+        new_git_repository,
         name = "perfetto_dep_re2",
         remote = "https://chromium.googlesource.com/external/github.com/google/re2.git",
         commit = "927f5d53caf8111721e734cf24724686bb745f55",
+        build_file = "//bazel:re2.BUILD",
     )
 
     # Abseil is required by RE2.

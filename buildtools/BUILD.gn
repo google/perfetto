@@ -1688,6 +1688,9 @@ source_set("sqlite") {
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":sqlite_config" ]
   deps = [ "//gn:default_deps" ]
+  if (is_gcc) {
+    cflags = [ "-Wno-stringop-overread" ]
+  }
 }
 
 source_set("lzma") {
@@ -2157,20 +2160,6 @@ if (enable_perfetto_grpc) {
     }
   }
 
-  config("grpc_upb_config") {
-    visibility = _buildtools_visibility
-    include_dirs = [
-      "grpc/src/third_party/upb",
-      "grpc/src/src/core/ext/upb-generated",
-      "grpc/src/src/core/ext/upbdefs-generated",
-    ]
-  }
-
-  config("grpc_re2_config") {
-    visibility = _buildtools_visibility
-    include_dirs = [ "grpc/src/third_party/re2" ]
-  }
-
   config("grpc_internal_config") {
     visibility = _buildtools_visibility
     include_dirs = [
@@ -2179,12 +2168,14 @@ if (enable_perfetto_grpc) {
       "grpc/src/src/core/ext/upb-gen",
       "grpc/src/src/core/ext/upbdefs-gen",
       "grpc/src/third_party/address_sorting/include",
-      "grpc/src/third_party/re2",
       "grpc/src/third_party/upb",
       "grpc/src/third_party/utf8_range",
       "grpc/src/third_party/xxhash",
     ]
-    cflags = [ "-DGRPC_ARES=0" ]
+    cflags = [
+      "-DGRPC_ARES=0",
+      "-DRE2_USE_ABSL",
+    ]
     if (is_gcc) {
       cflags += [
         "-Wno-attributes",
@@ -2202,7 +2193,7 @@ if (enable_perfetto_grpc) {
       perfetto_isystem_cflag,
       rebase_path("grpc/src/include", root_build_dir),
       perfetto_isystem_cflag,
-      rebase_path("grpc/src/third_party/abseil-cpp", root_build_dir),
+      rebase_path("abseil-cpp", root_build_dir),
     ]
 
     # This issues appear in .grpc.pb.h files so we unfortunately need to leak
