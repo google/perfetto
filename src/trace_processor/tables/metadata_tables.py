@@ -657,6 +657,11 @@ TRACE_FILE_TABLE = Table(
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
+        C(
+            'is_container',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('trace_file'),
     tabledoc=TableDoc(
@@ -680,6 +685,8 @@ TRACE_FILE_TABLE = Table(
                 '''Trace type''',
             'processing_order':
                 '''In which order where the files were processed.''',
+            'is_container':
+                '''Whether the file is a container (e.g. zip, gzip)''',
         }))
 
 METADATA_TABLE = Table(
