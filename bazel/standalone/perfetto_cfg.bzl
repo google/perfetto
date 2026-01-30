@@ -45,6 +45,7 @@ PERFETTO_CONFIG = struct(
         base_platform = ["//:perfetto_base_default_platform"],
 
         zlib = ["@perfetto_dep_zlib//:zlib"],
+        re2 = ["@perfetto_dep_re2//:re2"],
         expat = ["@perfetto_dep_expat//:expat"],
         jsoncpp = ["@perfetto_dep_jsoncpp//:jsoncpp"],
         linenoise = ["@perfetto_dep_linenoise//:linenoise"],
@@ -93,6 +94,7 @@ PERFETTO_CONFIG = struct(
     # initialized with the Perfetto build files (i.e. via perfetto_deps()).
     deps_copts = struct(
         zlib = [],
+        re2 = [],
         expat = [],
         jsoncpp = [],
         linenoise = [],

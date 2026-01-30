@@ -1101,6 +1101,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/periodic_task.h",
         "include/perfetto/ext/base/pipe.h",
         "include/perfetto/ext/base/platform.h",
+        "include/perfetto/ext/base/regex.h",
         "include/perfetto/ext/base/rt_mutex.h",
         "include/perfetto/ext/base/scoped_file.h",
         "include/perfetto/ext/base/scoped_mmap.h",
@@ -1613,7 +1614,8 @@ perfetto_cc_library(
         ":include_perfetto_public_base",
     ],
     deps = [
-    ] + PERFETTO_CONFIG.deps.base_platform,
+           ] + PERFETTO_CONFIG.deps.base_platform +
+           PERFETTO_CONFIG.deps.re2,
     linkstatic = True,
 )
 
