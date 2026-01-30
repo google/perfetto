@@ -982,11 +982,13 @@ export abstract class BaseSliceTrack<
   // onUpdatedSlices() this gives them a chance to call the highlighting without
   // having to reimplement it.
   protected highlightHoveredAndSameTitle(slices: Slice[]) {
+    const highlightedSliceId = this.trace.timeline.highlightedSliceId;
+    const hoveredTitle = this.hoveredSlice?.title;
     for (const slice of slices) {
       const isHovering =
-        this.trace.timeline.highlightedSliceId === slice.id ||
-        (this.hoveredSlice && this.hoveredSlice.title === slice.title);
-      slice.isHighlighted = !!isHovering;
+        highlightedSliceId === slice.id ||
+        (hoveredTitle && hoveredTitle === slice.title);
+      slice.isHighlighted = Boolean(isHovering);
     }
   }
 

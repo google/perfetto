@@ -471,6 +471,8 @@ export class GroupSummaryTrack implements TrackRenderer {
     const pxPerNs = timescale.durationToPx(1n);
     const baseOffsetPx = timescale.timeToPx(data.start);
 
+    const timeline = this.trace.timeline;
+
     for (let i = 0; i < data.ends.length; i++) {
       // Use pre-computed relative timestamps for fast pixel conversion
       const rectStart = Math.floor(data.startRelNs[i] * pxPerNs + baseOffsetPx);
@@ -491,9 +493,9 @@ export class GroupSummaryTrack implements TrackRenderer {
         // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
         const pid = (threadInfo ? threadInfo.pid : -1) || -1;
 
-        const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-        const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-        const isProcessHovered = this.trace.timeline.hoveredPid === pid;
+        const isHovering = timeline.hoveredUtid !== undefined;
+        const isThreadHovered = timeline.hoveredUtid === utid;
+        const isProcessHovered = timeline.hoveredPid === pid;
 
         if (isHovering && !isThreadHovered) {
           if (!isProcessHovered) {

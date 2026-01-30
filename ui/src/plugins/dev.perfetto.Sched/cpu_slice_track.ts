@@ -336,6 +336,8 @@ export class CpuSliceTrack implements TrackRenderer {
     const [, rawEndIdx] = searchSegment(data.startQs, endTime);
     const endIdx = rawEndIdx === -1 ? data.startQs.length : rawEndIdx;
 
+    const timeline = this.trace.timeline;
+
     for (let i = startIdx; i < endIdx; i++) {
       const utid = data.utids[i];
 
@@ -357,9 +359,9 @@ export class CpuSliceTrack implements TrackRenderer {
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
-      const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-      const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-      const isProcessHovered = this.trace.timeline.hoveredPid === pid;
+      const isHovering = timeline.hoveredUtid !== undefined;
+      const isThreadHovered = timeline.hoveredUtid === utid;
+      const isProcessHovered = timeline.hoveredPid === pid;
       const colorScheme = data.colorSchemes[i];
       let color: Color;
       let textColor: Color;
