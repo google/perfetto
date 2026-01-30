@@ -15,40 +15,14 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_PERF_COUNTER_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_PERF_COUNTER_H_
 
-#include "src/trace_processor/core/dataframe/specs.h"
+#include <memory>
+
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/profiler_tables_py.h"
 
 namespace perfetto::trace_processor {
 
-// A reusable cursor for looking up perf counters by counter_set_id.
-// This avoids creating a new cursor for each lookup.
-class PerfCounterExtractor {
- public:
-  explicit PerfCounterExtractor(
-      const tables::PerfCounterSetTable& perf_counter_set_table)
-      : cursor_(perf_counter_set_table.CreateCursor({dataframe::FilterSpec{
-            tables::PerfCounterSetTable::ColumnIndex::perf_counter_set_id, 0,
-            dataframe::Eq{}, std::nullopt}})) {}
-
-  // Sets up the cursor for the given counter_set_id and executes the query.
-  void SetCounterSetId(uint32_t counter_set_id) {
-    cursor_.SetFilterValueUnchecked(0, counter_set_id);
-    cursor_.Execute();
-  }
-
-  bool Eof() const { return cursor_.Eof(); }
-  void Next() { cursor_.Next(); }
-
-  // Access to the underlying cursor for retrieving values.
-  const tables::PerfCounterSetTable::ConstCursor& cursor() const {
-    return cursor_;
-  }
-
- private:
-  tables::PerfCounterSetTable::ConstCursor cursor_;
-};
+class TraceStorage;
+class PerfCounterExtractor;  // Defined in .cc file
 
 // __intrinsic_perf_counter_for_sample(sample_id, counter_name)
 // Returns the counter value for a given sample and counter name.
@@ -58,14 +32,15 @@ struct PerfCounterForSampleFunction
   static constexpr int kArgCount = 2;
 
   struct Context {
-    explicit Context(TraceStorage* s)
-        : storage(s), extractor(s->perf_counter_set_table()) {}
+    Context(TraceStorage* s);
+    ~Context();
 
     TraceStorage* storage;
-    PerfCounterExtractor extractor;
+    std::unique_ptr<PerfCounterExtractor> extractor;
   };
 
   using UserData = Context;
+
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
 };
 

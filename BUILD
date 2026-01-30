@@ -2629,8 +2629,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/jit_tracker.h",
         "src/trace_processor/importers/proto/metadata_module.cc",
         "src/trace_processor/importers/proto/metadata_module.h",
-        "src/trace_processor/importers/proto/perf_counter_set_tracker.cc",
-        "src/trace_processor/importers/proto/perf_counter_set_tracker.h",
         "src/trace_processor/importers/proto/pigweed_detokenizer.cc",
         "src/trace_processor/importers/proto/pigweed_detokenizer.h",
         "src/trace_processor/importers/proto/pixel_modem_module.cc",

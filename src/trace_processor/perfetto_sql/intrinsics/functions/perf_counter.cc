@@ -15,9 +15,11 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/perf_counter.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -27,6 +29,45 @@
 #include "src/trace_processor/tables/track_tables_py.h"
 
 namespace perfetto::trace_processor {
+
+// A reusable cursor for looking up perf counters by counter_set_id.
+// This avoids creating a new cursor for each lookup.
+class PerfCounterExtractor {
+ public:
+  explicit PerfCounterExtractor(
+      const tables::PerfCounterSetTable& perf_counter_set_table)
+      : cursor_(perf_counter_set_table.CreateCursor({dataframe::FilterSpec{
+            tables::PerfCounterSetTable::ColumnIndex::perf_counter_set_id, 0,
+            dataframe::Eq{}, std::nullopt}})) {}
+
+  // Sets up the cursor for the given counter_set_id and executes the query.
+  void SetCounterSetId(uint32_t counter_set_id) {
+    cursor_.SetFilterValueUnchecked(0, counter_set_id);
+    cursor_.Execute();
+  }
+
+  bool Eof() const { return cursor_.Eof(); }
+  void Next() { cursor_.Next(); }
+
+  // Access to the underlying cursor for retrieving values.
+  const tables::PerfCounterSetTable::ConstCursor& cursor() const {
+    return cursor_;
+  }
+
+ private:
+  tables::PerfCounterSetTable::ConstCursor cursor_;
+};
+
+// Context constructor - defined here where PerfCounterExtractor is complete.
+PerfCounterForSampleFunction::Context::Context(TraceStorage* s)
+    : storage(s),
+      extractor(
+          std::make_unique<PerfCounterExtractor>(s->perf_counter_set_table())) {
+}
+
+// Context destructor - must be defined here where PerfCounterExtractor is
+// complete.
+PerfCounterForSampleFunction::Context::~Context() = default;
 
 // static
 void PerfCounterForSampleFunction::Step(sqlite3_context* ctx,
@@ -85,9 +126,9 @@ void PerfCounterForSampleFunction::Step(sqlite3_context* ctx,
   const auto& counter_table = storage->counter_table();
   const auto& track_table = storage->track_table();
 
-  user_data->extractor.SetCounterSetId(*counter_set_id);
-  for (; !user_data->extractor.Eof(); user_data->extractor.Next()) {
-    const auto& cursor = user_data->extractor.cursor();
+  user_data->extractor->SetCounterSetId(*counter_set_id);
+  for (; !user_data->extractor->Eof(); user_data->extractor->Next()) {
+    const auto& cursor = user_data->extractor->cursor();
 
     // Get the counter row.
     CounterId counter_id = cursor.counter_id();
