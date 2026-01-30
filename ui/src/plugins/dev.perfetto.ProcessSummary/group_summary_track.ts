@@ -60,6 +60,9 @@ interface Data extends TrackData {
   lanes: Uint32Array;
   // Cached color schemes for each slice (only used in 'sched' mode).
   colorSchemes: ColorScheme[];
+  // Relative timestamps for fast rendering (relative to data.start)
+  startRelNs: Float64Array;
+  endRelNs: Float64Array;
 }
 
 export interface Config {
@@ -328,6 +331,9 @@ export class GroupSummaryTrack implements TrackRenderer {
       lanes: new Uint32Array(numRows),
       utids: new Int32Array(numRows),
       colorSchemes: new Array(numRows),
+      // Relative timestamps for fast rendering
+      startRelNs: new Float64Array(numRows),
+      endRelNs: new Float64Array(numRows),
     };
 
     const it = queryRes.iter({
@@ -339,16 +345,20 @@ export class GroupSummaryTrack implements TrackRenderer {
     });
 
     for (let row = 0; it.valid(); it.next(), row++) {
-      const start = Time.fromRaw(it.ts);
+      const ts = it.ts;
       const dur = it.dur;
-      const end = Time.add(start, dur);
+      const endTs = ts + dur;
 
       slices.counts[row] = it.count;
-      slices.starts[row] = start;
-      slices.ends[row] = end;
+      slices.starts[row] = ts;
+      slices.ends[row] = endTs;
       slices.lanes[row] = it.lane;
       slices.utids[row] = it.utid;
-      slices.end = Time.max(end, slices.end);
+      slices.end = Time.max(Time.fromRaw(endTs), slices.end);
+
+      // Store relative timestamps as floats for fast rendering
+      slices.startRelNs[row] = Number(ts - start);
+      slices.endRelNs[row] = Number(endTs - start);
 
       // Cache color scheme for 'sched' mode (depends on utid).
       if (this.mode === 'sched') {
@@ -436,7 +446,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
+  render({ctx, size, timescale}: TrackRenderContext): void {
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
@@ -457,18 +467,21 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
 
+    // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(data.start);
+
     for (let i = 0; i < data.ends.length; i++) {
-      const tStart = Time.fromRaw(data.starts[i]);
-      const tEnd = Time.fromRaw(data.ends[i]);
+      // Use pre-computed relative timestamps for fast pixel conversion
+      const rectStart = Math.floor(data.startRelNs[i] * pxPerNs + baseOffsetPx);
+      const rectEnd = Math.floor(data.endRelNs[i] * pxPerNs + baseOffsetPx);
 
       // Cull slices that lie completely outside the visible window
-      if (!visibleWindow.overlaps(tStart, tEnd)) continue;
+      if (rectEnd < 0 || rectStart > size.width) continue;
 
       const utid = data.utids[i];
       const lane = data.lanes[i];
 
-      const rectStart = Math.floor(timescale.timeToPx(tStart));
-      const rectEnd = Math.floor(timescale.timeToPx(tEnd));
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
       if (this.mode === 'sched') {
