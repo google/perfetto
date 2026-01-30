@@ -23,6 +23,9 @@ SELECT TraceMetadata(
   'android_build_fingerprint', (
     SELECT str_value FROM metadata WHERE name = 'android_build_fingerprint' LIMIT 1
   ),
+  'android_incremental_build', (
+    SELECT str_value FROM metadata WHERE name = 'android_incremental_build' LIMIT 1
+  ),
   'android_device_manufacturer', (
     SELECT str_value FROM metadata WHERE name = 'android_device_manufacturer' LIMIT 1
   ),
