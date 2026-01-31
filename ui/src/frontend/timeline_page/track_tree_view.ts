@@ -324,7 +324,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         className: classNames(className, 'pf-track-tree'),
         overflowY: 'auto',
         overflowX: 'hidden',
-        enableWebGL: true,
+        enableWebGL: WEBGL_RENDERING.get(),
         onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect, webglCtx}) => {
           this.drawCanvas(
             ctx,
