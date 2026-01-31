@@ -20,35 +20,11 @@ import {
   Renderer,
   Transform2D,
   RECT_PATTERN_HATCHED,
-  RECT_PATTERN_FADE_RIGHT,
   MarkerRenderFunc,
 } from './renderer';
 
-interface RectItem {
-  kind: 'rect';
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-  rgba: number;
-  flags: number;
-}
-
-interface MarkerItem {
-  kind: 'marker';
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  rgba: number;
-  render: MarkerRenderFunc;
-}
-
-type DrawItem = RectItem | MarkerItem;
-
 export class Canvas2DRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
-  private items: DrawItem[] = [];
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -60,7 +36,6 @@ export class Canvas2DRenderer implements Renderer {
     scaleX = 1,
     scaleY = 1,
   }: Partial<Transform2D>): Disposable {
-    this.flush();
     const ctx = this.ctx;
 
     ctx.save();
@@ -69,7 +44,6 @@ export class Canvas2DRenderer implements Renderer {
 
     return {
       [Symbol.dispose]: () => {
-        this.flush();
         ctx.restore();
       },
     };
@@ -83,16 +57,15 @@ export class Canvas2DRenderer implements Renderer {
     rgba: number,
     render: MarkerRenderFunc,
   ): void {
-    this.items.push({
-      kind: 'marker',
-      x,
-      y,
-      w,
-      h,
-      rgba,
-      render,
-    });
+    const ctx = this.ctx;
+    if (this.previousColor !== rgba) {
+      ctx.fillStyle = rgbaToString(rgba);
+      this.previousColor = rgba;
+    }
+    render(ctx, x - w / 2, y, w, h);
   }
+
+  private previousColor = -1;
 
   drawRect(
     left: number,
@@ -102,67 +75,29 @@ export class Canvas2DRenderer implements Renderer {
     rgba: number,
     flags = 0,
   ): void {
-    this.items.push({
-      kind: 'rect',
-      left,
-      top,
-      right,
-      bottom,
-      rgba,
-      flags,
-    });
+    const ctx = this.ctx;
+    const w = right - left;
+    const h = bottom - top;
+
+    if (this.previousColor !== rgba) {
+      ctx.fillStyle = rgbaToString(rgba);
+      this.previousColor = rgba;
+    }
+    ctx.fillRect(left, top, w, h);
+
+    if (flags & RECT_PATTERN_HATCHED && w >= 5) {
+      ctx.fillStyle = getHatchedPattern(ctx);
+      ctx.fillRect(left, top, w, h);
+      this.previousColor = -1;
+    }
   }
 
   flush(): void {
-    if (this.items.length === 0) return;
-
-    // Sort by color to minimize fillStyle changes.
-    this.items.sort((a, b) => a.rgba - b.rgba);
-
-    const ctx = this.ctx;
-    let lastRgba: number | undefined;
-
-    for (const item of this.items) {
-      if (item.kind === 'rect') {
-        const {left, top, right, bottom, rgba, flags} = item;
-        const w = right - left;
-        const h = bottom - top;
-
-        if (flags & RECT_PATTERN_FADE_RIGHT) {
-          const gradient = ctx.createLinearGradient(left, 0, right, 0);
-          gradient.addColorStop(0, rgbaToString(rgba));
-          gradient.addColorStop(1, rgbaToString(rgba && 0xffffff00));
-          ctx.fillStyle = gradient;
-          ctx.fillRect(left, top, w, h);
-          lastRgba = undefined;
-        } else {
-          if (rgba !== lastRgba) {
-            ctx.fillStyle = rgbaToString(rgba);
-            lastRgba = rgba;
-          }
-          ctx.fillRect(left, top, w, h);
-        }
-
-        if (flags & RECT_PATTERN_HATCHED && w >= 5) {
-          ctx.fillStyle = getHatchedPattern(ctx);
-          ctx.fillRect(left, top, w, h);
-          lastRgba = undefined;
-        }
-      } else {
-        const {x, y, w, h, rgba, render} = item;
-        if (rgba !== lastRgba) {
-          ctx.fillStyle = rgbaToString(rgba);
-          lastRgba = rgba;
-        }
-        render(ctx, x - w / 2, y, w, h);
-      }
-    }
-
-    this.items = [];
+    // No-op for Canvas 2D - drawing is immediate
+    this.previousColor = -1;
   }
 
   clip(x: number, y: number, w: number, h: number): Disposable {
-    this.flush();
     const ctx = this.ctx;
     ctx.save();
     ctx.beginPath();
@@ -170,10 +105,14 @@ export class Canvas2DRenderer implements Renderer {
     ctx.clip();
     return {
       [Symbol.dispose]: () => {
-        this.flush();
         ctx.restore();
       },
     };
+  }
+
+  rawCanvas(fn: (ctx: CanvasRenderingContext2D) => void): void {
+    this.previousColor = -1;
+    fn(this.ctx);
   }
 }
 

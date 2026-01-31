@@ -548,16 +548,10 @@ export abstract class BaseSliceTrack<
         colorCompare(a.colorScheme.base, b.colorScheme.base),
       );
     }
-    let lastColor = undefined;
     for (const slice of vizSlices) {
       const color = slice.isHighlighted
         ? slice.colorScheme.variant
         : slice.colorScheme.base;
-      const colorString = color.cssString;
-      if (colorString !== lastColor) {
-        lastColor = colorString;
-        ctx.fillStyle = colorString;
-      }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         renderer.drawMarker(
@@ -570,18 +564,21 @@ export abstract class BaseSliceTrack<
           () => this.drawChevron(ctx, slice.x, y, sliceHeight),
         );
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
+        // Draw incomplete slice
         const w = CROP_INCOMPLETE_SLICE_FLAG.get()
           ? slice.w
           : Math.max(slice.w - 2, 2);
-        drawIncompleteSlice(
-          ctx,
-          slice.x,
-          y,
-          w,
-          sliceHeight,
-          color,
-          !CROP_INCOMPLETE_SLICE_FLAG.get(),
-        );
+        renderer.rawCanvas((ctx) => {
+          drawIncompleteSlice(
+            ctx,
+            slice.x,
+            y,
+            w,
+            sliceHeight,
+            color,
+            !CROP_INCOMPLETE_SLICE_FLAG.get(),
+          );
+        });
       } else {
         const w = Math.max(
           slice.w,
@@ -593,120 +590,122 @@ export abstract class BaseSliceTrack<
       }
     }
 
-    // Pass 2.5: Draw fillRatio light section.
-    ctx.fillStyle = `#FFFFFF50`;
-    for (const slice of vizSlicesByColor) {
-      // Can't draw fill ratio on incomplete or instant slices.
-      if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
-        continue;
+    renderer.rawCanvas((ctx) => {
+      // Pass 2.5: Draw fillRatio light section.
+      ctx.fillStyle = `#FFFFFF50`;
+      for (const slice of vizSlicesByColor) {
+        // Can't draw fill ratio on incomplete or instant slices.
+        if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
+          continue;
+        }
+
+        // Clamp fillRatio between 0.0 -> 1.0
+        const fillRatio = clamp(slice.fillRatio, 0, 1);
+
+        // Don't draw anything if the fill ratio is 1.0ish
+        if (floatEqual(fillRatio, 1)) {
+          continue;
+        }
+
+        // Work out the width of the light section
+        const sliceDrawWidth = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
+        const lightSectionDrawWidth = sliceDrawWidth * (1 - fillRatio);
+
+        // Don't draw anything if the light section is smaller than 1 px
+        if (lightSectionDrawWidth < 1) {
+          continue;
+        }
+
+        const y = padding + slice.depth * (sliceHeight + rowSpacing);
+        const x = slice.x + (sliceDrawWidth - lightSectionDrawWidth);
+        ctx.fillRect(x, y, lightSectionDrawWidth, sliceHeight);
       }
 
-      // Clamp fillRatio between 0.0 -> 1.0
-      const fillRatio = clamp(slice.fillRatio, 0, 1);
+      // Third pass, draw the titles (e.g., process name for sched slices).
+      ctx.textAlign = 'center';
+      ctx.font = this.getTitleFont();
+      ctx.textBaseline = 'middle';
+      for (const slice of vizSlices) {
+        if (
+          slice.flags & SLICE_FLAGS_INSTANT ||
+          !slice.title ||
+          slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX
+        ) {
+          continue;
+        }
 
-      // Don't draw anything if the fill ratio is 1.0ish
-      if (floatEqual(fillRatio, 1)) {
-        continue;
+        // Change the title color dynamically depending on contrast.
+        const textColor = slice.isHighlighted
+          ? slice.colorScheme.textVariant
+          : slice.colorScheme.textBase;
+        ctx.fillStyle = textColor.cssString;
+        const title = cropText(slice.title, charWidth, slice.w);
+        const rectXCenter = slice.x + slice.w / 2;
+        const y = padding + slice.depth * (sliceHeight + rowSpacing);
+        const yDiv = slice.subTitle ? 3 : 2;
+        const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
+        ctx.fillText(title, rectXCenter, yMidPoint);
       }
 
-      // Work out the width of the light section
-      const sliceDrawWidth = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
-      const lightSectionDrawWidth = sliceDrawWidth * (1 - fillRatio);
-
-      // Don't draw anything if the light section is smaller than 1 px
-      if (lightSectionDrawWidth < 1) {
-        continue;
+      // Fourth pass, draw the subtitles (e.g., thread name for sched slices).
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.font = this.getSubtitleFont();
+      for (const slice of vizSlices) {
+        if (
+          slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX ||
+          !slice.subTitle ||
+          slice.flags & SLICE_FLAGS_INSTANT
+        ) {
+          continue;
+        }
+        const rectXCenter = slice.x + slice.w / 2;
+        const subTitle = cropText(slice.subTitle, charWidth, slice.w);
+        const y = padding + slice.depth * (sliceHeight + rowSpacing);
+        const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
+        ctx.fillText(subTitle, rectXCenter, yMidPoint);
       }
 
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      const x = slice.x + (sliceDrawWidth - lightSectionDrawWidth);
-      ctx.fillRect(x, y, lightSectionDrawWidth, sliceHeight);
-    }
+      // Here we need to ensure we never draw a slice that hasn't been
+      // updated via the math above so we don't use this.selectedSlice
+      // directly.
+      if (discoveredSelection !== undefined) {
+        this.selectedSlice = discoveredSelection;
 
-    // Third pass, draw the titles (e.g., process name for sched slices).
-    ctx.textAlign = 'center';
-    ctx.font = this.getTitleFont();
-    ctx.textBaseline = 'middle';
-    for (const slice of vizSlices) {
-      if (
-        slice.flags & SLICE_FLAGS_INSTANT ||
-        !slice.title ||
-        slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX
-      ) {
-        continue;
+        // Draw a thicker border around the selected slice (or chevron).
+        const slice = discoveredSelection;
+        const y = padding + slice.depth * (sliceHeight + rowSpacing);
+        ctx.strokeStyle = colors.COLOR_TIMELINE_OVERLAY;
+        ctx.beginPath();
+        const THICKNESS = 3;
+        ctx.lineWidth = THICKNESS;
+        ctx.strokeRect(
+          slice.x,
+          y - THICKNESS / 2,
+          slice.w,
+          sliceHeight + THICKNESS,
+        );
+        ctx.closePath();
       }
 
-      // Change the title color dynamically depending on contrast.
-      const textColor = slice.isHighlighted
-        ? slice.colorScheme.textVariant
-        : slice.colorScheme.textBase;
-      ctx.fillStyle = textColor.cssString;
-      const title = cropText(slice.title, charWidth, slice.w);
-      const rectXCenter = slice.x + slice.w / 2;
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      const yDiv = slice.subTitle ? 3 : 2;
-      const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
-      ctx.fillText(title, rectXCenter, yMidPoint);
-    }
-
-    // Fourth pass, draw the subtitles (e.g., thread name for sched slices).
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.font = this.getSubtitleFont();
-    for (const slice of vizSlices) {
-      if (
-        slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX ||
-        !slice.subTitle ||
-        slice.flags & SLICE_FLAGS_INSTANT
-      ) {
-        continue;
-      }
-      const rectXCenter = slice.x + slice.w / 2;
-      const subTitle = cropText(slice.subTitle, charWidth, slice.w);
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
-      ctx.fillText(subTitle, rectXCenter, yMidPoint);
-    }
-
-    // Here we need to ensure we never draw a slice that hasn't been
-    // updated via the math above so we don't use this.selectedSlice
-    // directly.
-    if (discoveredSelection !== undefined) {
-      this.selectedSlice = discoveredSelection;
-
-      // Draw a thicker border around the selected slice (or chevron).
-      const slice = discoveredSelection;
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      ctx.strokeStyle = colors.COLOR_TIMELINE_OVERLAY;
-      ctx.beginPath();
-      const THICKNESS = 3;
-      ctx.lineWidth = THICKNESS;
-      ctx.strokeRect(
-        slice.x,
-        y - THICKNESS / 2,
-        slice.w,
-        sliceHeight + THICKNESS,
+      // If the cached trace slices don't fully cover the visible time range,
+      // show a gray rectangle with a "Loading..." label.
+      const slicesKeyEndPx =
+        Number(this.slicesKey.end - refStartNs) * pxPerNs + baseOffsetPx;
+      checkerboardExcept(
+        ctx,
+        this.getHeight(),
+        0,
+        size.width,
+        baseOffsetPx,
+        slicesKeyEndPx,
       );
-      ctx.closePath();
-    }
 
-    // If the cached trace slices don't fully cover the visible time range,
-    // show a gray rectangle with a "Loading..." label.
-    const slicesKeyEndPx =
-      Number(this.slicesKey.end - refStartNs) * pxPerNs + baseOffsetPx;
-    checkerboardExcept(
-      ctx,
-      this.getHeight(),
-      0,
-      size.width,
-      baseOffsetPx,
-      slicesKeyEndPx,
-    );
-
-    // TODO(hjd): Remove this.
-    // The only thing this does is drawing the sched latency arrow. We should
-    // have some abstraction for that arrow (ideally the same we'd use for
-    // flows).
-    this.drawSchedLatencyArrow(ctx, this.selectedSlice);
+      // TODO(hjd): Remove this.
+      // The only thing this does is drawing the sched latency arrow. We should
+      // have some abstraction for that arrow (ideally the same we'd use for
+      // flows).
+      this.drawSchedLatencyArrow(ctx, this.selectedSlice);
+    });
   }
 
   async onDestroy(): Promise<void> {

@@ -79,4 +79,9 @@ export interface Renderer {
 
   // Flush all pending draw calls to the GPU.
   flush(): void;
+
+  // Escape hatch to just draw directly to the raw CanvasRenderingContext2D.
+  // Resets any internal caching that the canvas renderer may be doing.
+  // All canvas calls must be made through this.
+  rawCanvas(fn: (ctx: CanvasRenderingContext2D) => void): void;
 }

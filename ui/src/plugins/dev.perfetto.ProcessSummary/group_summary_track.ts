@@ -462,14 +462,16 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
-    checkerboardExcept(
-      ctx,
-      this.getHeight(),
-      0,
-      size.width,
-      timescale.timeToPx(data.start),
-      timescale.timeToPx(data.end),
-    );
+    renderer.rawCanvas(() => {
+      checkerboardExcept(
+        ctx,
+        this.getHeight(),
+        0,
+        size.width,
+        timescale.timeToPx(data.start),
+        timescale.timeToPx(data.end),
+      );
+    });
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
@@ -492,6 +494,8 @@ export class GroupSummaryTrack implements TrackRenderer {
 
       const utid = data.utids[i];
       const lane = data.lanes[i];
+
+      const rectWidth = Math.max(1, rectEnd - rectStart);
 
       let color: Color;
 
@@ -521,7 +525,13 @@ export class GroupSummaryTrack implements TrackRenderer {
       }
 
       const y = MARGIN_TOP + laneHeight * lane + lane;
-      renderer.drawRect(rectStart, y, rectEnd, y + laneHeight, color.rgba);
+      renderer.drawRect(
+        rectStart,
+        y,
+        rectStart + rectWidth,
+        y + laneHeight,
+        color.rgba,
+      );
     }
   }
 

@@ -50,6 +50,7 @@ export interface Data extends TrackData {
   tses: BigInt64Array;
   durs: BigInt64Array;
   utids: Uint32Array;
+  pids: BigInt64Array;
   flags: Uint8Array;
   lastRowId: number;
   // Cached color schemes to avoid lookups in render hot path
@@ -210,6 +211,7 @@ export class CpuSliceTrack implements TrackRenderer {
       tses: new BigInt64Array(numRows),
       durs: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
+      pids: new BigInt64Array(numRows),
       flags: new Uint8Array(numRows),
       colorSchemes: new Array(numRows),
       // Relative timestamps for fast rendering (relative to data.start)
@@ -239,6 +241,7 @@ export class CpuSliceTrack implements TrackRenderer {
       slices.tses[row] = it.ts;
       slices.durs[row] = it.dur;
       slices.utids[row] = it.utid;
+      slices.pids[row] = this.threads.get(it.utid)?.pid ?? -1n;
       slices.ids[row] = it.id;
 
       // Store relative timestamps as floats for fast rendering
@@ -294,31 +297,26 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   render(trackCtx: TrackRenderContext): void {
-    const {ctx, size, timescale} = trackCtx;
+    const {ctx, size, timescale, visibleWindow, renderer} = trackCtx;
 
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
 
     if (data === undefined) return; // Can't possibly draw anything.
 
-    // If the cached trace slices don't fully cover the visible time range,
-    // show a gray rectangle with a "Loading..." label.
-    checkerboardExcept(
-      ctx,
-      this.getHeight(),
-      0,
-      size.width,
-      timescale.timeToPx(data.start),
-      timescale.timeToPx(data.end),
-    );
+    renderer.rawCanvas(() => {
+      // If the cached trace slices don't fully cover the visible time range,
+      // show a gray rectangle with a "Loading..." label.
+      checkerboardExcept(
+        ctx,
+        this.getHeight(),
+        0,
+        size.width,
+        timescale.timeToPx(data.start),
+        timescale.timeToPx(data.end),
+      );
+    });
 
-    this.renderSlices(trackCtx, data);
-  }
-
-  renderSlices(
-    {ctx, timescale, size, visibleWindow, renderer}: TrackRenderContext,
-    data: Data,
-  ): void {
     assertTrue(data.startQs.length === data.endQs.length);
     assertTrue(data.startQs.length === data.utids.length);
 
@@ -348,6 +346,7 @@ export class CpuSliceTrack implements TrackRenderer {
 
     for (let i = startIdx; i < endIdx; i++) {
       const utid = data.utids[i];
+      const pid = data.pids[i];
 
       // Use pre-computed relative timestamps for fast pixel conversion
       const rectStart = data.startRelNs[i] * pxPerNs + baseOffsetPx;
@@ -362,10 +361,6 @@ export class CpuSliceTrack implements TrackRenderer {
         ? visWindowEndPx
         : data.endRelNs[i] * pxPerNs + baseOffsetPx;
       const rectWidth = Math.max(1, rectEnd - rectStart);
-
-      const threadInfo = this.threads.get(utid);
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
       const isHovering = timeline.hoveredUtid !== undefined;
       const isThreadHovered = timeline.hoveredUtid === utid;
@@ -387,20 +382,22 @@ export class CpuSliceTrack implements TrackRenderer {
       }
 
       if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
-        ctx.fillStyle = color.cssString;
-        drawIncompleteSlice(
-          ctx,
-          rectStart,
-          MARGIN_TOP,
-          rectWidth,
-          RECT_HEIGHT,
-          color,
-        );
+        renderer.rawCanvas((ctx) => {
+          ctx.fillStyle = color.cssString;
+          drawIncompleteSlice(
+            ctx,
+            rectStart,
+            MARGIN_TOP,
+            rectWidth,
+            RECT_HEIGHT,
+            color,
+          );
+        });
       } else {
         renderer.drawRect(
           rectStart,
           MARGIN_TOP,
-          rectEnd,
+          rectStart + rectWidth,
           MARGIN_TOP + RECT_HEIGHT,
           color.rgba,
         );
@@ -415,7 +412,7 @@ export class CpuSliceTrack implements TrackRenderer {
         renderer.drawRect(
           rectStart,
           MARGIN_TOP,
-          rectEnd,
+          rectStart + rectWidth,
           MARGIN_TOP + RECT_HEIGHT,
           color.rgba,
           RECT_PATTERN_HATCHED,
@@ -426,6 +423,7 @@ export class CpuSliceTrack implements TrackRenderer {
       // chrome_slices/frontend.ts.
       let title = `[utid:${utid}]`;
       let subTitle = '';
+      const threadInfo = this.threads.get(utid);
       if (threadInfo) {
         if (threadInfo.pid !== undefined && threadInfo.pid !== 0n) {
           let procName = threadInfo.procName ?? '';
@@ -450,12 +448,15 @@ export class CpuSliceTrack implements TrackRenderer {
       title = cropText(title, charWidth, visibleWidth);
       subTitle = cropText(subTitle, charWidth, visibleWidth);
       const rectXCenter = left + visibleWidth / 2;
-      ctx.fillStyle = textColor.cssString;
-      ctx.font = '12px Roboto Condensed';
-      ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
-      ctx.fillStyle = textColor.setAlpha(0.6).cssString;
-      ctx.font = '10px Roboto Condensed';
-      ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
+
+      renderer.rawCanvas((ctx) => {
+        ctx.fillStyle = textColor.cssString;
+        ctx.font = '12px Roboto Condensed';
+        ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
+        ctx.fillStyle = textColor.setAlpha(0.6).cssString;
+        ctx.font = '10px Roboto Condensed';
+        ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
+      });
     }
 
     const selection = this.trace.selection.selection;
@@ -469,17 +470,19 @@ export class CpuSliceTrack implements TrackRenderer {
           const rectEnd = data.endRelNs[startIndex] * pxPerNs + baseOffsetPx;
           const rectWidth = Math.max(1, rectEnd - rectStart);
 
-          // Draw a rectangle around the slice that is currently selected.
-          ctx.strokeStyle = color.base.setHSL({l: 30}).cssString;
-          ctx.beginPath();
-          ctx.lineWidth = 3;
-          ctx.strokeRect(
-            rectStart,
-            MARGIN_TOP - 1.5,
-            rectWidth,
-            RECT_HEIGHT + 3,
-          );
-          ctx.closePath();
+          renderer.rawCanvas((ctx) => {
+            // Draw a rectangle around the slice that is currently selected.
+            ctx.strokeStyle = color.base.setHSL({l: 30}).cssString;
+            ctx.beginPath();
+            ctx.lineWidth = 3;
+            ctx.strokeRect(
+              rectStart,
+              MARGIN_TOP - 1.5,
+              rectWidth,
+              RECT_HEIGHT + 3,
+            );
+            ctx.closePath();
+          });
         }
       }
     }

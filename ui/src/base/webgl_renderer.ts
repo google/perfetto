@@ -119,7 +119,7 @@ function ensureRectProgram(gl: WebGL2RenderingContext) {
     // Per-instance
     in vec2 a_topLeft;      // x = left (time or pixels), y = top pixels
     in vec2 a_bottomRight;  // x = right (time or pixels), y = bottom pixels
-    in vec4 a_color;
+    in uint a_color;
     in uint a_flags;
 
     out vec4 v_color;
@@ -147,7 +147,12 @@ function ensureRectProgram(gl: WebGL2RenderingContext) {
       vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
 
-      v_color = a_color;
+      v_color = vec4(
+        float((a_color >> 24) & 0xffu) / 255.0,
+        float((a_color >> 16) & 0xffu) / 255.0,
+        float((a_color >> 8) & 0xffu) / 255.0,
+        float(a_color & 0xffu) / 255.0
+      );
       v_localPos = localPos;
       v_rectWidth = pixelW * u_dpr;
       v_flags = a_flags;
@@ -252,7 +257,7 @@ function ensureSpriteProgram(gl: WebGL2RenderingContext) {
     // Per-instance
     in vec2 a_spritePos;    // x = position (time or pixels), y = pixels
     in vec2 a_spriteSize;   // width/height in pixels
-    in vec4 a_color;
+    in uint a_color;
     in vec4 a_uv;  // (u0, v0, u1, v1)
     in vec2 a_offset;       // Per-instance offset (for batching across transforms)
 
@@ -277,7 +282,12 @@ function ensureSpriteProgram(gl: WebGL2RenderingContext) {
       vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
 
-      v_color = a_color;
+      v_color = vec4(
+        float((a_color >> 24) & 0xffu) / 255.0,
+        float((a_color >> 16) & 0xffu) / 255.0,
+        float((a_color >> 8) & 0xffu) / 255.0,
+        float(a_color & 0xffu) / 255.0
+      );
       v_uv = mix(a_uv.xy, a_uv.zw, a_quadCorner);
     }
   `;
@@ -365,7 +375,7 @@ export class WebGLRenderer implements Renderer {
   // ===== Rects pipeline (no UVs) =====
   private readonly topLeft: Float32Array;
   private readonly bottomRight: Float32Array;
-  private readonly rectColors: Uint8Array;
+  private readonly rectColors: Uint32Array;
   private readonly rectFlags: Uint8Array;
   private rectCount = 0;
 
@@ -380,7 +390,7 @@ export class WebGLRenderer implements Renderer {
   // ===== Sprites pipeline (with UVs for SDF) =====
   private readonly spritePos: Float32Array;
   private readonly spriteSize: Float32Array;
-  private readonly spriteColors: Uint8Array;
+  private readonly spriteColors: Uint32Array;
   private readonly spriteUvs: Float32Array;
   private readonly spriteOffsets: Float32Array;
   private spriteCount = 0;
@@ -406,7 +416,7 @@ export class WebGLRenderer implements Renderer {
     // ===== Initialize Rects pipeline =====
     this.topLeft = new Float32Array(MAX_RECTS * 2);
     this.bottomRight = new Float32Array(MAX_RECTS * 2);
-    this.rectColors = new Uint8Array(MAX_RECTS * 4);
+    this.rectColors = new Uint32Array(MAX_RECTS);
     this.rectFlags = new Uint8Array(MAX_RECTS);
 
     const quadCorners = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
@@ -428,7 +438,7 @@ export class WebGLRenderer implements Renderer {
     // ===== Initialize Sprites pipeline =====
     this.spritePos = new Float32Array(MAX_SPRITES * 2);
     this.spriteSize = new Float32Array(MAX_SPRITES * 2);
-    this.spriteColors = new Uint8Array(MAX_SPRITES * 4);
+    this.spriteColors = new Uint32Array(MAX_SPRITES);
     this.spriteUvs = new Float32Array(MAX_SPRITES * 4);
     this.spriteOffsets = new Float32Array(MAX_SPRITES * 2);
 
@@ -508,10 +518,7 @@ export class WebGLRenderer implements Renderer {
     this.spriteSize[i * 2 + 1] = h;
 
     // Color (RGBA 0-255)
-    this.spriteColors[i * 4] = (rgba >> 24) & 0xff;
-    this.spriteColors[i * 4 + 1] = (rgba >> 16) & 0xff;
-    this.spriteColors[i * 4 + 2] = (rgba >> 8) & 0xff;
-    this.spriteColors[i * 4 + 3] = rgba & 0xff;
+    this.spriteColors[i] = rgba;
 
     // UVs: full SDF texture (0,0) to (1,1)
     this.spriteUvs[i * 4] = 0; // u0
@@ -524,68 +531,6 @@ export class WebGLRenderer implements Renderer {
     this.spriteOffsets[i * 2 + 1] = 0;
 
     this.spriteCount++;
-  }
-
-  // Bulk draw billboards (chevrons) centered horizontally at given positions.
-  // positions: (x, y) pairs - x in time units, y in pixels
-  // sizes: (w, h) pairs in pixels
-  // colors: RGBA values (4 bytes per billboard)
-  // render: Canvas2D fallback render function (ignored - WebGL uses SDF)
-  drawMarkers(
-    positions: Float32Array,
-    sizes: Float32Array,
-    colors: Uint8Array,
-    count: number,
-    _render: MarkerRenderFunc,
-  ): void {
-    let remaining = count;
-    let srcOffset = 0;
-
-    while (remaining > 0) {
-      const available = MAX_SPRITES - this.spriteCount;
-      if (available === 0) {
-        this.flushSprites();
-        continue;
-      }
-
-      const batch = Math.min(remaining, available);
-      const dstOffset = this.spriteCount;
-
-      // Copy positions
-      this.spritePos.set(
-        positions.subarray(srcOffset * 2, (srcOffset + batch) * 2),
-        dstOffset * 2,
-      );
-
-      // Copy sizes
-      this.spriteSize.set(
-        sizes.subarray(srcOffset * 2, (srcOffset + batch) * 2),
-        dstOffset * 2,
-      );
-
-      // Copy colors
-      this.spriteColors.set(
-        colors.subarray(srcOffset * 4, (srcOffset + batch) * 4),
-        dstOffset * 4,
-      );
-
-      // Fill UVs and offsets for each sprite in this batch
-      for (let i = 0; i < batch; i++) {
-        const idx = dstOffset + i;
-        // UVs: full SDF texture (0,0) to (1,1)
-        this.spriteUvs[idx * 4] = 0;
-        this.spriteUvs[idx * 4 + 1] = 0;
-        this.spriteUvs[idx * 4 + 2] = 1;
-        this.spriteUvs[idx * 4 + 3] = 1;
-        // Per-instance offset (pixel offset is baked into uniform)
-        this.spriteOffsets[idx * 2] = 0;
-        this.spriteOffsets[idx * 2 + 1] = 0;
-      }
-
-      this.spriteCount += batch;
-      srcOffset += batch;
-      remaining -= batch;
-    }
   }
 
   // Draw single rectangle.
@@ -614,69 +559,11 @@ export class WebGLRenderer implements Renderer {
     this.bottomRight[i * 2 + 1] = bottom; // bottom pixels
 
     // Color (RGBA 0-255)
-    this.rectColors[i * 4] = (rgba >> 24) & 0xff;
-    this.rectColors[i * 4 + 1] = (rgba >> 16) & 0xff;
-    this.rectColors[i * 4 + 2] = (rgba >> 8) & 0xff;
-    this.rectColors[i * 4 + 3] = rgba & 0xff;
+    this.rectColors[i] = rgba;
 
     this.rectFlags[i] = flags;
 
     this.rectCount++;
-  }
-
-  // Bulk draw rectangles.
-  // topLeft/bottomRight x values are in time units (relative to transform origin).
-  // topLeft/bottomRight y values are in pixels.
-  // Use +Infinity for right (x in bottomRight) to extend to the canvas edge.
-  drawRects(
-    topLeft: Float32Array,
-    bottomRight: Float32Array,
-    colors: Uint8Array,
-    count: number,
-    flags?: Uint8Array,
-  ): void {
-    let remaining = count;
-    let srcOffset = 0;
-
-    while (remaining > 0) {
-      const available = MAX_RECTS - this.rectCount;
-      if (available === 0) {
-        this.flushRects();
-        continue;
-      }
-
-      const batch = Math.min(remaining, available);
-      const dstOffset = this.rectCount;
-
-      // +Infinity values are handled by GPU clipping
-      this.topLeft.set(
-        topLeft.subarray(srcOffset * 2, (srcOffset + batch) * 2),
-        dstOffset * 2,
-      );
-
-      this.bottomRight.set(
-        bottomRight.subarray(srcOffset * 2, (srcOffset + batch) * 2),
-        dstOffset * 2,
-      );
-
-      this.rectColors.set(
-        colors.subarray(srcOffset * 4, (srcOffset + batch) * 4),
-        dstOffset * 4,
-      );
-
-      if (flags) {
-        this.rectFlags.set(
-          flags.subarray(srcOffset, srcOffset + batch),
-          dstOffset,
-        );
-      } else {
-        this.rectFlags.fill(0, dstOffset, dstOffset + batch);
-      }
-
-      this.rectCount += batch;
-      srcOffset += batch;
-      remaining -= batch;
-    }
   }
 
   private flushRects(): void {
@@ -744,7 +631,7 @@ export class WebGLRenderer implements Renderer {
       gl.DYNAMIC_DRAW,
     );
     gl.enableVertexAttribArray(colorLoc);
-    gl.vertexAttribPointer(colorLoc, 4, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.vertexAttribIPointer(colorLoc, 1, gl.UNSIGNED_INT, 0, 0);
     gl.vertexAttribDivisor(colorLoc, 1);
 
     // Per-instance: flags
@@ -858,7 +745,7 @@ export class WebGLRenderer implements Renderer {
       gl.DYNAMIC_DRAW,
     );
     gl.enableVertexAttribArray(colorLoc);
-    gl.vertexAttribPointer(colorLoc, 4, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.vertexAttribIPointer(colorLoc, 1, gl.UNSIGNED_INT, 0, 0);
     gl.vertexAttribDivisor(colorLoc, 1);
 
     // Per-instance: UVs
@@ -906,6 +793,10 @@ export class WebGLRenderer implements Renderer {
   flush(): void {
     this.flushRects();
     this.flushSprites();
+  }
+
+  rawCanvas(fn: (ctx: CanvasRenderingContext2D) => void): void {
+    fn(this.c2d);
   }
 
   clip(x: number, y: number, w: number, h: number): Disposable {
