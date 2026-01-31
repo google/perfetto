@@ -754,7 +754,7 @@ export abstract class BaseSliceTrack<
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
-    const task = await deferChunkedTask({priority: 'background'});
+    const task = await deferChunkedTask();
 
     const it = queryRes.iter(this.rowSpec);
 

@@ -193,7 +193,7 @@ export class CpuSliceTrack implements TrackRenderer {
       cross join sched s using (id)
     `);
 
-    const task = await deferChunkedTask({priority: 'background'});
+    const task = await deferChunkedTask();
 
     const numRows = queryRes.numRows();
     const slices: Data = {

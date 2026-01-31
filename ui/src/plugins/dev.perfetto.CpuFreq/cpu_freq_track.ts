@@ -241,7 +241,7 @@ export class CpuFreqTrack implements TrackRenderer {
       );
     `);
 
-    const task = await deferChunkedTask({priority: 'background'});
+    const task = await deferChunkedTask();
 
     const freqRows = freqResult.numRows();
     const idleRows = idleResult.numRows();

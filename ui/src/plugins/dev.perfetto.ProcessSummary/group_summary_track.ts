@@ -320,7 +320,7 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     const queryRes = await this.queryData(start, end, resolution);
 
-    const task = await deferChunkedTask({priority: 'background'});
+    const task = await deferChunkedTask();
 
     const numRows = queryRes.numRows();
     const slices: Data = {

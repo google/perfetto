@@ -1131,7 +1131,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       );
     `);
 
-    const task = await deferChunkedTask({priority: 'background'});
+    const task = await deferChunkedTask();
 
     const it = queryRes.iter({
       ts: LONG,
