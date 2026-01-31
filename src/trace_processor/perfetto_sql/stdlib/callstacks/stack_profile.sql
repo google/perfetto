@@ -195,7 +195,7 @@ RETURNS TableOrSubquery AS
     metrics AS MATERIALIZED (
       SELECT
         callsite_id,
-        SUM(value) AS self_value
+        sum(value) AS self_value
       FROM $samples
       GROUP BY
         callsite_id
