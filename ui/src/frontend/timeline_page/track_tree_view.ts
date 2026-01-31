@@ -48,7 +48,6 @@ import {TraceImpl} from '../../core/trace_impl';
 import {TrackNode} from '../../public/workspace';
 import {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {WebGLRenderer} from '../../base/webgl_renderer';
 import {
   COLOR_ACCENT,
   COLOR_BACKGROUND,
@@ -76,28 +75,7 @@ import {Intent} from '../../widgets/common';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {CanvasColors} from '../../public/canvas_colors';
 import {Icons} from '../../base/semantic_icons';
-import {Canvas2DRenderer} from '../../base/canvas2d_renderer';
 import {Renderer} from '../../base/renderer';
-
-// Creates a CanvasRenderer with the appropriate base offset.
-// WebGL needs the canvas offset applied via transform since it doesn't use
-// ctx.translate like Canvas2D. Canvas2D already has the offset applied.
-function createCanvasRenderer(
-  ctx: CanvasRenderingContext2D,
-  webglCtx: WebGL2RenderingContext | undefined,
-  initialOffsetX: number,
-  initialOffsetY: number,
-): Renderer {
-  if (webglCtx && WEBGL_RENDERING.get()) {
-    const renderer = new WebGLRenderer(ctx, webglCtx);
-    renderer.pushWebGLTransform({
-      offsetX: initialOffsetX,
-      offsetY: initialOffsetY,
-    });
-    return renderer;
-  }
-  return new Canvas2DRenderer(ctx);
-}
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -325,14 +303,14 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         overflowY: 'auto',
         overflowX: 'hidden',
         enableWebGL: WEBGL_RENDERING.get(),
-        onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect, webglCtx}) => {
+        onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect, renderer}) => {
           this.drawCanvas(
             ctx,
             virtualCanvasSize,
             renderedTracks,
             canvasRect,
             rootNode,
-            webglCtx,
+            renderer,
           );
 
           if (VIRTUAL_TRACK_SCROLLING.get()) {
@@ -420,7 +398,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     renderedTracks: ReadonlyArray<TrackView>,
     floatingCanvasRect: Rect2D,
     rootNode: TrackNode,
-    webglCtx?: WebGL2RenderingContext,
+    renderer: Renderer,
   ) {
     const timelineRect = new Rect2D({
       left: TRACK_SHELL_WIDTH,
@@ -463,7 +441,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       timelineRect,
       visibleWindow,
       colors,
-      webglCtx,
+      renderer,
     );
 
     renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
@@ -517,17 +495,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     timelineRect: Rect2D,
     visibleWindow: HighPrecisionTimeSpan,
     colors: CanvasColors,
-    webglCtx?: WebGL2RenderingContext,
+    renderer: Renderer,
   ) {
-    // Create renderer with appropriate base offset. WebGL needs the canvas
-    // offset applied since it doesn't use ctx.translate like Canvas2D.
-    const canvasRenderer = createCanvasRenderer(
-      ctx,
-      webglCtx,
-      -floatingCanvasRect.left,
-      -floatingCanvasRect.top,
-    );
-
     let tracksOnCanvas = 0;
     for (const trackView of renderedTracks) {
       const {verticalBounds} = trackView;
@@ -545,7 +514,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           this.perfStatsEnabled,
           this.trackPerfStats,
           colors,
-          canvasRenderer,
+          renderer,
         );
         ++tracksOnCanvas;
       }

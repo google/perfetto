@@ -35,6 +35,9 @@ import {findRef, toHTMLElement} from '../base/dom_utils';
 import {Rect2D, Size2D} from '../base/geom';
 import {assertExists} from '../base/logging';
 import {VirtualCanvas} from '../base/virtual_canvas';
+import {WebGLRenderer} from '../base/webgl_renderer';
+import {Canvas2DRenderer} from '../base/canvas2d_renderer';
+import {Renderer} from '../base/renderer';
 import {HTMLAttrs} from './common';
 
 const CANVAS_CONTAINER_REF = 'canvas-container';
@@ -56,10 +59,10 @@ export interface VirtualOverlayCanvasDrawContext {
   // Does not include overdraw area.
   readonly viewportRect: Rect2D;
 
-  // Optional WebGL canvas and context for hardware-accelerated rendering.
-  // These are positioned in sync with the 2D canvas.
-  readonly webglCanvas?: HTMLCanvasElement;
-  readonly webglCtx?: WebGL2RenderingContext;
+  // Renderer for drawing primitives. This is either a WebGLRenderer (when
+  // WebGL is enabled and available) or a Canvas2DRenderer fallback.
+  // The renderer is reused across frames - do not store references to it.
+  readonly renderer: Renderer;
 }
 
 export type Overflow = 'hidden' | 'visible' | 'auto';
@@ -123,7 +126,7 @@ export class VirtualOverlayCanvas
   private virtualCanvas?: VirtualCanvas;
   private attrs?: VirtualOverlayCanvasAttrs;
   private webglCanvas?: HTMLCanvasElement;
-  private webglCtx?: WebGL2RenderingContext;
+  private webglRenderer?: WebGLRenderer;
 
   view({attrs, children}: m.CVnode<VirtualOverlayCanvasAttrs>) {
     this.attrs = attrs;
@@ -194,12 +197,14 @@ export class VirtualOverlayCanvas
         }
       });
 
-      this.webglCtx =
-        this.webglCanvas.getContext('webgl2', {
-          alpha: true,
-          premultipliedAlpha: true,
-          antialias: true,
-        }) ?? undefined;
+      const webglCtx = this.webglCanvas.getContext('webgl2', {
+        alpha: true,
+        premultipliedAlpha: true,
+        antialias: true,
+      });
+      if (webglCtx) {
+        this.webglRenderer = new WebGLRenderer(this.ctx, webglCtx);
+      }
     }
 
     // When the container resizes, we might need to resize the canvas. This can
@@ -211,25 +216,25 @@ export class VirtualOverlayCanvas
       canvas.height = height * dpr;
 
       // Resize WebGL canvas to match
-      if (this.webglCanvas && this.webglCtx) {
+      if (this.webglCanvas && this.webglRenderer) {
         this.webglCanvas.width = width * dpr;
         this.webglCanvas.height = height * dpr;
         this.webglCanvas.style.width = `${width}px`;
         this.webglCanvas.style.height = `${height}px`;
-        this.webglCtx.viewport(0, 0, width * dpr, height * dpr);
+        this.webglRenderer.gl.viewport(0, 0, width * dpr, height * dpr);
       }
     });
 
     // Manually sync WebGL canvas size since the initial ResizeObserver callback
     // fired before the listener was set (during VirtualCanvas construction).
-    if (this.webglCanvas && this.webglCtx) {
+    if (this.webglCanvas && this.webglRenderer) {
       const canvasRect = virtualCanvas.canvasRect;
       const dpr = window.devicePixelRatio;
       this.webglCanvas.width = canvasRect.width * dpr;
       this.webglCanvas.height = canvasRect.height * dpr;
       this.webglCanvas.style.width = `${canvasRect.width}px`;
       this.webglCanvas.style.height = `${canvasRect.height}px`;
-      this.webglCtx.viewport(
+      this.webglRenderer.gl.viewport(
         0,
         0,
         canvasRect.width * dpr,
@@ -271,10 +276,17 @@ export class VirtualOverlayCanvas
     ctx.resetTransform();
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-    // Clear WebGL canvas if present
-    if (this.webglCtx) {
-      this.webglCtx.clearColor(0, 0, 0, 0);
-      this.webglCtx.clear(this.webglCtx.COLOR_BUFFER_BIT);
+    // Clear WebGL canvas if present and set up its transform to match Canvas 2D
+    if (this.webglRenderer) {
+      const gl = this.webglRenderer.gl;
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      this.webglRenderer.resetTransform();
+      // Apply the same offset as Canvas 2D so both contexts are in sync
+      this.webglRenderer.pushWebGLTransform({
+        offsetX: -virtualCanvas.canvasRect.left,
+        offsetY: -virtualCanvas.canvasRect.top,
+      });
     }
 
     // Adjust scaling according pixel ratio. This makes sure the canvas remains
@@ -291,15 +303,18 @@ export class VirtualOverlayCanvas
       -virtualCanvas.canvasRect.top,
     );
 
+    // Create the appropriate renderer: WebGLRenderer if available, otherwise
+    // Canvas2DRenderer as fallback.
+    const renderer: Renderer = this.webglRenderer ?? new Canvas2DRenderer(ctx);
+
     assertExists(this.attrs).onCanvasRedraw?.({
       ctx,
       virtualCanvasSize: virtualCanvas.size,
       canvasRect: virtualCanvas.canvasRect,
       viewportRect: virtualCanvas.viewportRect,
-      webglCanvas: this.webglCanvas,
-      webglCtx: this.webglCtx,
+      renderer,
     });
 
-    this.webglCtx?.flush();
+    this.webglRenderer?.gl.flush();
   }
 }
