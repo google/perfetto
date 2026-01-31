@@ -492,7 +492,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     ];
 
     // Add a metric for each counter type (uses weighted macro with counter values)
-    for (const {name: counterName, trackId} of counterTypes) {
+    for (const {name: counterName} of counterTypes) {
       metrics.push({
         name: `Perf Samples (${counterName})`,
         unit: '',
@@ -513,9 +513,10 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
             select p.callsite_id, p.counter_value as value
             from linux_perf_sample_with_counters p
             join thread t ON p.utid = t.id
+            join perf_counter_track pct ON p.track_id = pct.id
             where p.ts >= ${currentSelection.start}
               and p.ts <= ${currentSelection.end}
-              and p.track_id = ${trackId}
+              and pct.name = '${counterName}'
               and (${trackConstraints})
           ))
         `,
@@ -564,7 +565,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   private async getCounterTypesForSessions(
     trace: Trace,
     sessionIds: number[],
-  ): Promise<{name: string; trackId: number}[]> {
+  ): Promise<{name: string}[]> {
     if (sessionIds.length === 0) {
       return [];
     }
@@ -572,21 +573,23 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     const sessionFilter = sessionIds
       .map((id) => `perf_session_id = ${id}`)
       .join(' OR ');
+    // Group by name to get unique counter types (one per counter name, not per CPU)
     const result = await trace.engine.query(`
-      SELECT DISTINCT pct.name, pct.id as track_id
+      SELECT pct.name, MAX(pct.is_timebase) as is_timebase
       FROM perf_counter_track pct
       WHERE (${sessionFilter})
-      ORDER BY pct.is_timebase DESC, pct.name
+      GROUP BY pct.name
+      ORDER BY is_timebase DESC, pct.name
     `);
 
-    const counterTypes: {name: string; trackId: number}[] = [];
+    const counterTypes: {name: string}[] = [];
     for (
-      const it = result.iter({name: STR_NULL, track_id: NUM});
+      const it = result.iter({name: STR_NULL, is_timebase: NUM_NULL});
       it.valid();
       it.next()
     ) {
       if (it.name !== null) {
-        counterTypes.push({name: it.name, trackId: it.track_id});
+        counterTypes.push({name: it.name});
       }
     }
     return counterTypes;
