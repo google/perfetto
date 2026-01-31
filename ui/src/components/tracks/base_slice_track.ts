@@ -790,7 +790,9 @@ export abstract class BaseSliceTrack<
     this.onUpdatedSlices(slices);
     this.slices = slices;
 
-    raf.scheduleCanvasRedraw();
+    // We need to schedule a full redraw here as the track height could have
+    // changed, which requires a full DOM redraw.
+    raf.scheduleFullRedraw();
   }
 
   private rowToSliceInternal(row: RowT): CastInternal<SliceT> {
