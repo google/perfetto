@@ -57,8 +57,6 @@ let cachedSpriteProgram:
       spritePosLoc: number;
       spriteSizeLoc: number;
       colorLoc: number;
-      uvLoc: number;
-      offsetLoc: number;
       resolutionLoc: WebGLUniformLocation;
       dprLoc: WebGLUniformLocation;
       transformOffsetLoc: WebGLUniformLocation;
@@ -258,8 +256,6 @@ function ensureSpriteProgram(gl: WebGL2RenderingContext) {
     in vec2 a_spritePos;    // x = position (time or pixels), y = pixels
     in vec2 a_spriteSize;   // width/height in pixels
     in uint a_color;
-    in vec4 a_uv;  // (u0, v0, u1, v1)
-    in vec2 a_offset;       // Per-instance offset (for batching across transforms)
 
     out vec4 v_color;
     out vec2 v_uv;
@@ -278,7 +274,7 @@ function ensureSpriteProgram(gl: WebGL2RenderingContext) {
       float centeredX = pixelX - a_spriteSize.x * 0.5;
 
       vec2 localPos = a_quadCorner * a_spriteSize * u_dpr;
-      vec2 pixelPos = (vec2(centeredX, pixelY) + a_offset) * u_dpr + localPos;
+      vec2 pixelPos = vec2(centeredX, pixelY) * u_dpr + localPos;
       vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
 
@@ -288,7 +284,7 @@ function ensureSpriteProgram(gl: WebGL2RenderingContext) {
         float((a_color >> 8) & 0xffu) / 255.0,
         float(a_color & 0xffu) / 255.0
       );
-      v_uv = mix(a_uv.xy, a_uv.zw, a_quadCorner);
+      v_uv = a_quadCorner;
     }
   `;
 
@@ -336,8 +332,6 @@ function ensureSpriteProgram(gl: WebGL2RenderingContext) {
     spritePosLoc: gl.getAttribLocation(program, 'a_spritePos'),
     spriteSizeLoc: gl.getAttribLocation(program, 'a_spriteSize'),
     colorLoc: gl.getAttribLocation(program, 'a_color'),
-    uvLoc: gl.getAttribLocation(program, 'a_uv'),
-    offsetLoc: gl.getAttribLocation(program, 'a_offset'),
     resolutionLoc: gl.getUniformLocation(program, 'u_resolution')!,
     dprLoc: gl.getUniformLocation(program, 'u_dpr')!,
     transformOffsetLoc: gl.getUniformLocation(program, 'u_offset')!,
@@ -387,12 +381,10 @@ export class WebGLRenderer implements Renderer {
   private readonly rectColorBuffer: WebGLBuffer;
   private readonly rectFlagsBuffer: WebGLBuffer;
 
-  // ===== Sprites pipeline (with UVs for SDF) =====
+  // ===== Sprites pipeline =====
   private readonly spritePos: Float32Array;
   private readonly spriteSize: Float32Array;
   private readonly spriteColors: Uint32Array;
-  private readonly spriteUvs: Float32Array;
-  private readonly spriteOffsets: Float32Array;
   private spriteCount = 0;
 
   // Sprite WebGL buffers
@@ -401,8 +393,6 @@ export class WebGLRenderer implements Renderer {
   private readonly spritePosBuffer: WebGLBuffer;
   private readonly spriteSizeBuffer: WebGLBuffer;
   private readonly spriteColorBuffer: WebGLBuffer;
-  private readonly spriteUvBuffer: WebGLBuffer;
-  private readonly spriteOffsetBuffer: WebGLBuffer;
 
   // The current transformation applied to WebGL draws
   private transform: Transform2D = Identity;
@@ -439,8 +429,6 @@ export class WebGLRenderer implements Renderer {
     this.spritePos = new Float32Array(MAX_SPRITES * 2);
     this.spriteSize = new Float32Array(MAX_SPRITES * 2);
     this.spriteColors = new Uint32Array(MAX_SPRITES);
-    this.spriteUvs = new Float32Array(MAX_SPRITES * 4);
-    this.spriteOffsets = new Float32Array(MAX_SPRITES * 2);
 
     this.spriteQuadCornerBuffer = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.spriteQuadCornerBuffer);
@@ -453,8 +441,6 @@ export class WebGLRenderer implements Renderer {
     this.spritePosBuffer = gl.createBuffer()!;
     this.spriteSizeBuffer = gl.createBuffer()!;
     this.spriteColorBuffer = gl.createBuffer()!;
-    this.spriteUvBuffer = gl.createBuffer()!;
-    this.spriteOffsetBuffer = gl.createBuffer()!;
   }
 
   pushTransform(transform: Partial<Transform2D>): Disposable {
@@ -520,16 +506,6 @@ export class WebGLRenderer implements Renderer {
     // Color (RGBA 0-255)
     this.spriteColors[i] = rgba;
 
-    // UVs: full SDF texture (0,0) to (1,1)
-    this.spriteUvs[i * 4] = 0; // u0
-    this.spriteUvs[i * 4 + 1] = 0; // v0
-    this.spriteUvs[i * 4 + 2] = 1; // u1
-    this.spriteUvs[i * 4 + 3] = 1; // v1
-
-    // Per-instance offset (pixel offset is baked into uniform)
-    this.spriteOffsets[i * 2] = 0;
-    this.spriteOffsets[i * 2 + 1] = 0;
-
     this.spriteCount++;
   }
 
@@ -552,15 +528,13 @@ export class WebGLRenderer implements Renderer {
     // Fill in the buffers (+Infinity is handled by GPU clipping)
     const i = this.rectCount;
 
-    this.topLeft[i * 2 + 0] = left; // left time
-    this.topLeft[i * 2 + 1] = top; // top pixels
+    this.topLeft[i * 2 + 0] = left;
+    this.topLeft[i * 2 + 1] = top;
 
-    this.bottomRight[i * 2 + 0] = right; // right time (+Infinity OK)
-    this.bottomRight[i * 2 + 1] = bottom; // bottom pixels
+    this.bottomRight[i * 2 + 0] = right;
+    this.bottomRight[i * 2 + 1] = bottom;
 
-    // Color (RGBA 0-255)
     this.rectColors[i] = rgba;
-
     this.rectFlags[i] = flags;
 
     this.rectCount++;
@@ -627,7 +601,7 @@ export class WebGLRenderer implements Renderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.rectColorBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
-      this.rectColors.subarray(0, this.rectCount * 4),
+      this.rectColors.subarray(0, this.rectCount),
       gl.DYNAMIC_DRAW,
     );
     gl.enableVertexAttribArray(colorLoc);
@@ -674,8 +648,6 @@ export class WebGLRenderer implements Renderer {
       spritePosLoc,
       spriteSizeLoc,
       colorLoc,
-      uvLoc,
-      offsetLoc,
       resolutionLoc,
       dprLoc,
       transformOffsetLoc,
@@ -737,38 +709,16 @@ export class WebGLRenderer implements Renderer {
     gl.vertexAttribPointer(spriteSizeLoc, 2, gl.FLOAT, false, 0, 0);
     gl.vertexAttribDivisor(spriteSizeLoc, 1);
 
-    // Per-instance: color (Uint8Array normalized to 0-1)
+    // Per-instance: color
     gl.bindBuffer(gl.ARRAY_BUFFER, this.spriteColorBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
-      this.spriteColors.subarray(0, this.spriteCount * 4),
+      this.spriteColors.subarray(0, this.spriteCount),
       gl.DYNAMIC_DRAW,
     );
     gl.enableVertexAttribArray(colorLoc);
     gl.vertexAttribIPointer(colorLoc, 1, gl.UNSIGNED_INT, 0, 0);
     gl.vertexAttribDivisor(colorLoc, 1);
-
-    // Per-instance: UVs
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.spriteUvBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      this.spriteUvs.subarray(0, this.spriteCount * 4),
-      gl.DYNAMIC_DRAW,
-    );
-    gl.enableVertexAttribArray(uvLoc);
-    gl.vertexAttribPointer(uvLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.vertexAttribDivisor(uvLoc, 1);
-
-    // Per-instance: offset
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.spriteOffsetBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      this.spriteOffsets.subarray(0, this.spriteCount * 2),
-      gl.DYNAMIC_DRAW,
-    );
-    gl.enableVertexAttribArray(offsetLoc);
-    gl.vertexAttribPointer(offsetLoc, 2, gl.FLOAT, false, 0, 0);
-    gl.vertexAttribDivisor(offsetLoc, 1);
 
     // Draw all sprites
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.spriteQuadIndexBuffer);
@@ -784,8 +734,6 @@ export class WebGLRenderer implements Renderer {
     gl.vertexAttribDivisor(spritePosLoc, 0);
     gl.vertexAttribDivisor(spriteSizeLoc, 0);
     gl.vertexAttribDivisor(colorLoc, 0);
-    gl.vertexAttribDivisor(uvLoc, 0);
-    gl.vertexAttribDivisor(offsetLoc, 0);
 
     this.spriteCount = 0;
   }
