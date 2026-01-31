@@ -38,6 +38,7 @@ import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -192,6 +193,8 @@ export class CpuSliceTrack implements TrackRenderer {
       cross join sched s using (id)
     `);
 
+    const task = await deferChunkedTask();
+
     const numRows = queryRes.numRows();
     const slices: Data = {
       start,
@@ -225,6 +228,10 @@ export class CpuSliceTrack implements TrackRenderer {
       isRealtime: NUM,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 50 === 0 && task.shouldYield()) {
+        await task.yield();
+      }
+
       slices.counts[row] = it.count;
       slices.startQs[row] = it.tsQ;
       slices.endQs[row] = it.tsEndQ;
