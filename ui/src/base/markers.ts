@@ -47,7 +47,6 @@ export interface MarkerProgram {
   readonly spriteSizeLoc: number;
   readonly colorLoc: number;
   readonly resolutionLoc: WebGLUniformLocation;
-  readonly dprLoc: WebGLUniformLocation;
   readonly offsetLoc: WebGLUniformLocation;
   readonly scaleLoc: WebGLUniformLocation;
   readonly sdfTexLoc: WebGLUniformLocation;
@@ -93,7 +92,6 @@ function createMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
     out vec2 v_uv;
 
     uniform vec2 u_resolution;
-    uniform float u_dpr;
     uniform vec2 u_offset;
     uniform vec2 u_scale;
 
@@ -101,11 +99,14 @@ function createMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
       float pixelX = u_offset.x + a_spritePos.x * u_scale.x;
       float pixelY = u_offset.y + a_spritePos.y * u_scale.y;
 
-      // Center horizontally
-      float centeredX = pixelX - a_spriteSize.x * 0.5;
+      // Scale size by DPR (use u_scale.y to maintain aspect ratio)
+      vec2 scaledSize = a_spriteSize * u_scale.y;
 
-      vec2 localPos = a_quadCorner * a_spriteSize * u_dpr;
-      vec2 pixelPos = vec2(centeredX, pixelY) * u_dpr + localPos;
+      // Center horizontally (offset is in physical pixels)
+      float centeredX = pixelX - scaledSize.x * 0.5;
+
+      vec2 localPos = a_quadCorner * scaledSize;
+      vec2 pixelPos = vec2(centeredX, pixelY) + localPos;
       vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
 
@@ -171,7 +172,6 @@ function createMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
     spriteSizeLoc: gl.getAttribLocation(program, 'a_spriteSize'),
     colorLoc: gl.getAttribLocation(program, 'a_color'),
     resolutionLoc: gl.getUniformLocation(program, 'u_resolution')!,
-    dprLoc: gl.getUniformLocation(program, 'u_dpr')!,
     offsetLoc: gl.getUniformLocation(program, 'u_offset')!,
     scaleLoc: gl.getUniformLocation(program, 'u_scale')!,
     sdfTexLoc: gl.getUniformLocation(program, 'u_sdfTex')!,
@@ -264,9 +264,7 @@ export class MarkerBatch {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     // Set uniforms
-    const dpr = window.devicePixelRatio;
     gl.uniform2f(prog.resolutionLoc, gl.canvas.width, gl.canvas.height);
-    gl.uniform1f(prog.dprLoc, dpr);
     gl.uniform2f(prog.offsetLoc, transform.offsetX, transform.offsetY);
     gl.uniform2f(prog.scaleLoc, transform.scaleX, transform.scaleY);
 

@@ -25,6 +25,7 @@ import {
 
 export class Canvas2DRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
+  private readonly colorCache: Record<number, string> = {};
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -59,7 +60,7 @@ export class Canvas2DRenderer implements Renderer {
   ): void {
     const ctx = this.ctx;
     if (this.previousColor !== rgba) {
-      ctx.fillStyle = rgbaToString(rgba);
+      ctx.fillStyle = this.rgbaToString(rgba);
       this.previousColor = rgba;
     }
     render(ctx, x - w / 2, y, w, h);
@@ -80,7 +81,7 @@ export class Canvas2DRenderer implements Renderer {
     const h = bottom - top;
 
     if (this.previousColor !== rgba) {
-      ctx.fillStyle = rgbaToString(rgba);
+      ctx.fillStyle = this.rgbaToString(rgba);
       this.previousColor = rgba;
     }
     ctx.fillRect(left, top, w, h);
@@ -93,7 +94,6 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   flush(): void {
-    // No-op for Canvas 2D - drawing is immediate
     this.previousColor = -1;
   }
 
@@ -114,15 +114,31 @@ export class Canvas2DRenderer implements Renderer {
     this.previousColor = -1;
     fn(this.ctx);
   }
-}
 
-// Converts RGBA packed integer to css string
-function rgbaToString(rgba: number): string {
-  const r = (rgba >> 24) & 0xff;
-  const g = (rgba >> 16) & 0xff;
-  const b = (rgba >> 8) & 0xff;
-  const a = rgba & 0xff;
-  return `rgba(${r},${g},${b},${a})`;
+  resetTransform(): void {
+    this.ctx.resetTransform();
+  }
+
+  clear(): void {
+    const ctx = this.ctx;
+    const canvas = ctx.canvas;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Converts RGBA packed integer to css string
+  private rgbaToString(rgba: number): string {
+    const cached = this.colorCache[rgba];
+    if (cached !== undefined) {
+      return cached;
+    }
+    const r = (rgba >> 24) & 0xff;
+    const g = (rgba >> 16) & 0xff;
+    const b = (rgba >> 8) & 0xff;
+    const a = rgba & 0xff;
+    const cssString = `rgba(${r},${g},${b},${a})`;
+    this.colorCache[rgba] = cssString;
+    return cssString;
+  }
 }
 
 // Creates a diagonal hatched pattern for distinguishing slices with real-time

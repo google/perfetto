@@ -31,7 +31,6 @@ export interface RectProgram {
   readonly colorLoc: number;
   readonly flagsLoc: number;
   readonly resolutionLoc: WebGLUniformLocation;
-  readonly dprLoc: WebGLUniformLocation;
   readonly offsetLoc: WebGLUniformLocation;
   readonly scaleLoc: WebGLUniformLocation;
 }
@@ -62,11 +61,11 @@ function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
     flat out float v_rectWidth;
 
     uniform vec2 u_resolution;
-    uniform float u_dpr;
     uniform vec2 u_offset;
     uniform vec2 u_scale;
 
     void main() {
+      // Transform coordinates to physical pixels (DPR is baked into scale)
       float pixelX0 = u_offset.x + a_topLeft.x * u_scale.x;
       float pixelX1 = u_offset.x + a_bottomRight.x * u_scale.x;
       float pixelY0 = u_offset.y + a_topLeft.y * u_scale.y;
@@ -75,8 +74,8 @@ function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
       float pixelW = max(1.0, pixelX1 - pixelX0);
       float pixelH = pixelY1 - pixelY0;
 
-      vec2 localPos = a_quadCorner * vec2(pixelW, pixelH) * u_dpr;
-      vec2 pixelPos = vec2(pixelX0, pixelY0) * u_dpr + localPos;
+      vec2 localPos = a_quadCorner * vec2(pixelW, pixelH);
+      vec2 pixelPos = vec2(pixelX0, pixelY0) + localPos;
       vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
 
@@ -87,7 +86,7 @@ function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
         float(a_color & 0xffu) / 255.0
       );
       v_localPos = localPos;
-      v_rectWidth = pixelW * u_dpr;
+      v_rectWidth = pixelW;
       v_flags = a_flags;
     }
   `;
@@ -154,7 +153,6 @@ function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
     colorLoc: gl.getAttribLocation(program, 'a_color'),
     flagsLoc: gl.getAttribLocation(program, 'a_flags'),
     resolutionLoc: gl.getUniformLocation(program, 'u_resolution')!,
-    dprLoc: gl.getUniformLocation(program, 'u_dpr')!,
     offsetLoc: gl.getUniformLocation(program, 'u_offset')!,
     scaleLoc: gl.getUniformLocation(program, 'u_scale')!,
   };
@@ -258,9 +256,7 @@ export class RectBatch {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     // Set uniforms
-    const dpr = window.devicePixelRatio;
     gl.uniform2f(prog.resolutionLoc, gl.canvas.width, gl.canvas.height);
-    gl.uniform1f(prog.dprLoc, dpr);
     gl.uniform2f(prog.offsetLoc, transform.offsetX, transform.offsetY);
     gl.uniform2f(prog.scaleLoc, transform.scaleX, transform.scaleY);
 

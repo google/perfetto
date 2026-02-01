@@ -48,6 +48,12 @@ export interface Renderer {
   //   using _ = renderer.pushTransform({offsetX: 10, offsetY: 20, scaleX: 1, scaleY: 1});
   pushTransform(transform: Partial<Transform2D>): Disposable;
 
+  // Reset the transform to identity (no offset, scale=1).
+  resetTransform(): void;
+
+  // Clear the entire canvas.
+  clear(): void;
+
   // Set a clipping rectangle in pixels. All subsequent draws will be clipped
   // to this region. Returns a disposable that restores the previous clip.
   // Use with `using`:

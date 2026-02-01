@@ -304,18 +304,16 @@ export class CpuSliceTrack implements TrackRenderer {
 
     if (data === undefined) return; // Can't possibly draw anything.
 
-    renderer.rawCanvas(() => {
-      // If the cached trace slices don't fully cover the visible time range,
-      // show a gray rectangle with a "Loading..." label.
-      checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        timescale.timeToPx(data.start),
-        timescale.timeToPx(data.end),
-      );
-    });
+    // If the cached trace slices don't fully cover the visible time range,
+    // show a gray rectangle with a "Loading..." label.
+    checkerboardExcept(
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      timescale.timeToPx(data.start),
+      timescale.timeToPx(data.end),
+    );
 
     assertTrue(data.startQs.length === data.endQs.length);
     assertTrue(data.startQs.length === data.utids.length);
@@ -343,10 +341,15 @@ export class CpuSliceTrack implements TrackRenderer {
     const endIdx = rawEndIdx === -1 ? data.startQs.length : rawEndIdx;
 
     const timeline = this.trace.timeline;
+    const hoveredUtid = timeline.hoveredUtid;
+    const hoveredPid = timeline.hoveredPid;
 
     for (let i = startIdx; i < endIdx; i++) {
       const utid = data.utids[i];
       const pid = data.pids[i];
+      const colorScheme = data.colorSchemes[i];
+      const flags = data.flags[i];
+      const id = data.ids[i];
 
       // Use pre-computed relative timestamps for fast pixel conversion
       const rectStart = data.startRelNs[i] * pxPerNs + baseOffsetPx;
@@ -355,17 +358,15 @@ export class CpuSliceTrack implements TrackRenderer {
       // window, else it might spill over the window and the end would not be
       // visible as a zigzag line.
       const isIncomplete =
-        data.ids[i] === data.lastRowId &&
-        data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE;
+        id === data.lastRowId && flags & CPU_SLICE_FLAGS_INCOMPLETE;
       const rectEnd = Boolean(isIncomplete)
         ? visWindowEndPx
         : data.endRelNs[i] * pxPerNs + baseOffsetPx;
       const rectWidth = Math.max(1, rectEnd - rectStart);
+      const isHovering = hoveredUtid !== undefined;
+      const isThreadHovered = hoveredUtid === utid;
+      const isProcessHovered = hoveredPid === pid;
 
-      const isHovering = timeline.hoveredUtid !== undefined;
-      const isThreadHovered = timeline.hoveredUtid === utid;
-      const isProcessHovered = timeline.hoveredPid === pid;
-      const colorScheme = data.colorSchemes[i];
       let color: Color;
       let textColor: Color;
       if (isHovering && !isThreadHovered) {
@@ -381,18 +382,17 @@ export class CpuSliceTrack implements TrackRenderer {
         textColor = colorScheme.textBase;
       }
 
-      if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
-        renderer.rawCanvas((ctx) => {
-          ctx.fillStyle = color.cssString;
-          drawIncompleteSlice(
-            ctx,
-            rectStart,
-            MARGIN_TOP,
-            rectWidth,
-            RECT_HEIGHT,
-            color,
-          );
-        });
+      if (flags & CPU_SLICE_FLAGS_INCOMPLETE) {
+        renderer.flush();
+        ctx.fillStyle = color.cssString;
+        drawIncompleteSlice(
+          ctx,
+          rectStart,
+          MARGIN_TOP,
+          rectWidth,
+          RECT_HEIGHT,
+          color,
+        );
       } else {
         renderer.drawRect(
           rectStart,
@@ -408,7 +408,7 @@ export class CpuSliceTrack implements TrackRenderer {
 
       // Stylize real-time threads. We don't do it when zoomed out as the
       // fillRect is expensive.
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
+      if (flags & CPU_SLICE_FLAGS_REALTIME) {
         renderer.drawRect(
           rectStart,
           MARGIN_TOP,
@@ -438,7 +438,7 @@ export class CpuSliceTrack implements TrackRenderer {
         }
       }
 
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
+      if (flags & CPU_SLICE_FLAGS_REALTIME) {
         subTitle = subTitle + ' (RT)';
       }
 
@@ -449,14 +449,15 @@ export class CpuSliceTrack implements TrackRenderer {
       subTitle = cropText(subTitle, charWidth, visibleWidth);
       const rectXCenter = left + visibleWidth / 2;
 
-      renderer.rawCanvas((ctx) => {
-        ctx.fillStyle = textColor.cssString;
-        ctx.font = '12px Roboto Condensed';
-        ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
-        ctx.fillStyle = textColor.setAlpha(0.6).cssString;
-        ctx.font = '10px Roboto Condensed';
-        ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
-      });
+      // Flush before raw canvas calls to avoid ordering / caching issues.
+      renderer.flush();
+
+      ctx.fillStyle = textColor.cssString;
+      ctx.font = '12px Roboto Condensed';
+      ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
+      ctx.fillStyle = textColor.setAlpha(0.6).cssString;
+      ctx.font = '10px Roboto Condensed';
+      ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
     const selection = this.trace.selection.selection;
@@ -470,19 +471,17 @@ export class CpuSliceTrack implements TrackRenderer {
           const rectEnd = data.endRelNs[startIndex] * pxPerNs + baseOffsetPx;
           const rectWidth = Math.max(1, rectEnd - rectStart);
 
-          renderer.rawCanvas((ctx) => {
-            // Draw a rectangle around the slice that is currently selected.
-            ctx.strokeStyle = color.base.setHSL({l: 30}).cssString;
-            ctx.beginPath();
-            ctx.lineWidth = 3;
-            ctx.strokeRect(
-              rectStart,
-              MARGIN_TOP - 1.5,
-              rectWidth,
-              RECT_HEIGHT + 3,
-            );
-            ctx.closePath();
-          });
+          // Draw a rectangle around the slice that is currently selected.
+          ctx.strokeStyle = color.base.setHSL({l: 30}).cssString;
+          ctx.beginPath();
+          ctx.lineWidth = 3;
+          ctx.strokeRect(
+            rectStart,
+            MARGIN_TOP - 1.5,
+            rectWidth,
+            RECT_HEIGHT + 3,
+          );
+          ctx.closePath();
         }
       }
     }

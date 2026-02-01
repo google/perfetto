@@ -125,6 +125,17 @@ export class WebGLRenderer implements Renderer {
 
   resetTransform(): void {
     this.transform = Identity;
+    this.c2d.resetTransform();
+  }
+
+  clear(): void {
+    const gl = this.gl;
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    const ctx = this.c2d;
+    const canvas = ctx.canvas;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
   rawCanvas(fn: (ctx: CanvasRenderingContext2D) => void): void {
@@ -134,20 +145,22 @@ export class WebGLRenderer implements Renderer {
   clip(x: number, y: number, w: number, h: number): Disposable {
     const gl = this.gl;
     const ctx = this.c2d;
-    const dpr = window.devicePixelRatio;
 
     this.flush();
 
-    const physX = x + this.transform.offsetX;
-    const physY = y + this.transform.offsetY;
+    // Apply transform: physPos = offset + pos * scale
+    const physX = this.transform.offsetX + x * this.transform.scaleX;
+    const physY = this.transform.offsetY + y * this.transform.scaleY;
+    const physW = w * this.transform.scaleX;
+    const physH = h * this.transform.scaleY;
 
     gl.enable(gl.SCISSOR_TEST);
     const canvasHeight = gl.canvas.height;
     gl.scissor(
-      Math.round(physX * dpr),
-      Math.round(canvasHeight - (physY + h) * dpr),
-      Math.round(w * dpr),
-      Math.round(h * dpr),
+      Math.round(physX),
+      Math.round(canvasHeight - (physY + physH)),
+      Math.round(physW),
+      Math.round(physH),
     );
 
     ctx.save();

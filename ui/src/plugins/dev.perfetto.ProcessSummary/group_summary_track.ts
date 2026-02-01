@@ -462,16 +462,14 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
-    renderer.rawCanvas(() => {
-      checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        timescale.timeToPx(data.start),
-        timescale.timeToPx(data.end),
-      );
-    });
+    checkerboardExcept(
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      timescale.timeToPx(data.start),
+      timescale.timeToPx(data.end),
+    );
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);

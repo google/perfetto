@@ -51,6 +51,8 @@ function makeMockRenderer(): Renderer {
     drawRect: jest.fn(),
     flush: jest.fn(),
     rawCanvas: jest.fn(),
+    resetTransform: jest.fn(),
+    clear: jest.fn(),
   };
 }
 

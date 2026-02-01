@@ -272,41 +272,26 @@ export class VirtualOverlayCanvas
     const ctx = assertExists(this.ctx);
     const virtualCanvas = assertExists(this.virtualCanvas);
 
-    // Reset & clear canvas
-    ctx.resetTransform();
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-    // Clear WebGL canvas if present and set up its transform to match Canvas 2D
-    if (this.webglRenderer) {
-      const gl = this.webglRenderer.gl;
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      this.webglRenderer.resetTransform();
-      // Apply the same offset as Canvas 2D so both contexts are in sync
-      this.webglRenderer.pushWebGLTransform({
-        offsetX: -virtualCanvas.canvasRect.left,
-        offsetY: -virtualCanvas.canvasRect.top,
-      });
-    }
-
-    // Adjust scaling according pixel ratio. This makes sure the canvas remains
-    // sharp on high DPI screens.
-    const dpr = window.devicePixelRatio;
-    ctx.scale(dpr, dpr);
-
-    // Align canvas rendering offset with the canvas container, not the actual
-    // canvas. This means we can ignore the fact that we are using a virtual
-    // canvas and just render assuming (0, 0) is at the top left of the canvas
-    // container.
-    ctx.translate(
-      -virtualCanvas.canvasRect.left,
-      -virtualCanvas.canvasRect.top,
-    );
-
     // Create the appropriate renderer: WebGLRenderer if available, otherwise
     // Canvas2DRenderer as fallback.
     const renderer: Renderer = this.webglRenderer ?? new Canvas2DRenderer(ctx);
 
+    // Reset & clear canvas
+    renderer.resetTransform();
+    renderer.clear();
+
+    // Offse by the virtual canvas position and scale by device pixel ratio
+    const dpr = window.devicePixelRatio;
+    renderer.pushTransform({
+      scaleX: dpr,
+      scaleY: dpr,
+    });
+    renderer.pushTransform({
+      offsetX: -virtualCanvas.canvasRect.left,
+      offsetY: -virtualCanvas.canvasRect.top,
+    });
+
+    // Call the user-provided draw callback to render into the canvas
     assertExists(this.attrs).onCanvasRedraw?.({
       ctx,
       virtualCanvasSize: virtualCanvas.size,
@@ -315,6 +300,10 @@ export class VirtualOverlayCanvas
       renderer,
     });
 
+    // Make sure to finish drawing all queued up draw calls
+    renderer.flush();
+
+    // Also flush WebGL if used
     this.webglRenderer?.gl.flush();
   }
 }
