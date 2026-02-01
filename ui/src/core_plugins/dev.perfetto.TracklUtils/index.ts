@@ -53,6 +53,18 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ToggleDrawer',
+      name: 'Toggle drawer',
+      defaultHotkey: TrackUtilsPlugin.azertySetting.get() ? 'A' : 'Q',
+      callback: () => {
+        const tabsManager = ctx.tabs as unknown as {
+          toggleTabPanelVisibility: () => void;
+        };
+        tabsManager.toggleTabPanelVisibility();
+      },
+    });
+
     // Register this command up front to block the print dialog from appearing
     // when pressing the hotkey before the trace is loaded.
     ctx.commands.registerCommand({

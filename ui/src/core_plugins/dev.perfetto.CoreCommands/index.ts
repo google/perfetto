@@ -746,16 +746,6 @@ export default class CoreCommands implements PerfettoPlugin {
       defaultHotkey: 'R',
     });
 
-    const azertySetting = ctx.settings.get<boolean>('azertyMode');
-    const isAzerty = azertySetting && azertySetting.get();
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.ToggleDrawer',
-      name: 'Toggle drawer',
-      defaultHotkey: isAzerty ? 'A' : 'Q',
-      callback: () => ctx.tabs.toggleTabPanelVisibility(),
-    });
-
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CopyPinnedToWorkspace',
       name: 'Copy pinned tracks to workspace',
