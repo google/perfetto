@@ -331,7 +331,11 @@ export class RectBatch {
         : this.count * size;
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, elemCount), gl.DYNAMIC_DRAW);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      data.subarray(0, elemCount),
+      gl.DYNAMIC_DRAW,
+    );
     gl.enableVertexAttribArray(loc);
 
     if (isInteger) {
