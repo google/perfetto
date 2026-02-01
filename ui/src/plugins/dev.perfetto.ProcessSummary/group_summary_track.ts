@@ -528,7 +528,7 @@ export class GroupSummaryTrack implements TrackRenderer {
         y,
         rectStart + rectWidth,
         y + laneHeight,
-        color.rgba,
+        color,
       );
     }
   }

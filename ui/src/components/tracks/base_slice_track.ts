@@ -559,8 +559,8 @@ export abstract class BaseSliceTrack<
           y,
           CHEVRON_WIDTH_PX,
           sliceHeight,
-          color.rgba,
-          // TODO center this?
+          color,
+          // TODO(stevegolton): center this?
           () => this.drawChevron(ctx, slice.x, y, sliceHeight),
         );
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
@@ -585,7 +585,7 @@ export abstract class BaseSliceTrack<
             ? SLICE_MIN_WIDTH_FADED_PX
             : SLICE_MIN_WIDTH_PX,
         );
-        renderer.drawRect(slice.x, y, slice.x + w, y + sliceHeight, color.rgba);
+        renderer.drawRect(slice.x, y, slice.x + w, y + sliceHeight, color);
       }
     }
 

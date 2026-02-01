@@ -21,6 +21,7 @@ import {Renderer, Transform2D, MarkerRenderFunc} from './renderer';
 import {DisposableStack} from './disposable_stack';
 import {RectBatch} from './rects';
 import {MarkerBatch} from './markers';
+import {Color} from './color';
 
 function composeTransforms(
   a: Transform2D,
@@ -95,13 +96,13 @@ export class WebGLRenderer implements Renderer {
     y: number,
     w: number,
     h: number,
-    rgba: number,
+    color: Color,
     _render: MarkerRenderFunc,
   ): void {
     if (this.markers.isFull) {
       this.markers.flush(this.transform);
     }
-    this.markers.add(x, y, w, h, rgba);
+    this.markers.add(x, y, w, h, color.rgba);
   }
 
   drawRect(
@@ -109,13 +110,13 @@ export class WebGLRenderer implements Renderer {
     top: number,
     right: number,
     bottom: number,
-    rgba: number,
+    color: Color,
     flags = 0,
   ): void {
     if (this.rects.isFull) {
       this.rects.flush(this.transform);
     }
-    this.rects.add(left, top, right, bottom, rgba, flags);
+    this.rects.add(left, top, right, bottom, color.rgba, flags);
   }
 
   flush(): void {
@@ -124,6 +125,7 @@ export class WebGLRenderer implements Renderer {
   }
 
   resetTransform(): void {
+    this.flush();
     this.transform = Identity;
     this.c2d.resetTransform();
   }
@@ -136,10 +138,6 @@ export class WebGLRenderer implements Renderer {
     const ctx = this.c2d;
     const canvas = ctx.canvas;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
-
-  rawCanvas(fn: (ctx: CanvasRenderingContext2D) => void): void {
-    fn(this.c2d);
   }
 
   clip(x: number, y: number, w: number, h: number): Disposable {

@@ -16,6 +16,7 @@
 // All transforms are applied via the canvas context's transform matrix
 // (translate/scale), so draw methods use coordinates directly.
 
+import {Color} from './color';
 import {
   Renderer,
   Transform2D,
@@ -25,7 +26,7 @@ import {
 
 export class Canvas2DRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly colorCache: Record<number, string> = {};
+  private previousFillStyle?: string;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -55,46 +56,47 @@ export class Canvas2DRenderer implements Renderer {
     y: number,
     w: number,
     h: number,
-    rgba: number,
+    color: Color,
     render: MarkerRenderFunc,
   ): void {
     const ctx = this.ctx;
-    if (this.previousColor !== rgba) {
-      ctx.fillStyle = this.rgbaToString(rgba);
-      this.previousColor = rgba;
+    if (this.previousFillStyle !== color.cssString) {
+      ctx.fillStyle = color.cssString;
+      this.previousFillStyle = color.cssString;
     }
     render(ctx, x - w / 2, y, w, h);
   }
-
-  private previousColor = -1;
 
   drawRect(
     left: number,
     top: number,
     right: number,
     bottom: number,
-    rgba: number,
+    color: Color,
     flags = 0,
   ): void {
     const ctx = this.ctx;
     const w = right - left;
     const h = bottom - top;
 
-    if (this.previousColor !== rgba) {
-      ctx.fillStyle = this.rgbaToString(rgba);
-      this.previousColor = rgba;
+    if (this.previousFillStyle !== color.cssString) {
+      ctx.fillStyle = color.cssString;
+      this.previousFillStyle = color.cssString;
     }
     ctx.fillRect(left, top, w, h);
 
     if (flags & RECT_PATTERN_HATCHED && w >= 5) {
       ctx.fillStyle = getHatchedPattern(ctx);
       ctx.fillRect(left, top, w, h);
-      this.previousColor = -1;
+      this.previousFillStyle = undefined;
     }
   }
 
   flush(): void {
-    this.previousColor = -1;
+    // Draw calls are immediate in Canvas2D, so nothing to do here. Reset the
+    // previous color cache as the ctx might be used and the fillStyle changed
+    // externally.
+    this.previousFillStyle = undefined;
   }
 
   clip(x: number, y: number, w: number, h: number): Disposable {
@@ -110,11 +112,6 @@ export class Canvas2DRenderer implements Renderer {
     };
   }
 
-  rawCanvas(fn: (ctx: CanvasRenderingContext2D) => void): void {
-    this.previousColor = -1;
-    fn(this.ctx);
-  }
-
   resetTransform(): void {
     this.ctx.resetTransform();
   }
@@ -123,21 +120,6 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx;
     const canvas = ctx.canvas;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
-
-  // Converts RGBA packed integer to css string
-  private rgbaToString(rgba: number): string {
-    const cached = this.colorCache[rgba];
-    if (cached !== undefined) {
-      return cached;
-    }
-    const r = (rgba >> 24) & 0xff;
-    const g = (rgba >> 16) & 0xff;
-    const b = (rgba >> 8) & 0xff;
-    const a = rgba & 0xff;
-    const cssString = `rgba(${r},${g},${b},${a})`;
-    this.colorCache[rgba] = cssString;
-    return cssString;
   }
 }
 

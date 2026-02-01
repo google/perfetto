@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Color} from './color';
+
 // Common interfaces for canvas rendering, shared between WebGL and Canvas2D
 // implementations.
 
@@ -68,7 +70,7 @@ export interface Renderer {
     y: number,
     w: number,
     h: number,
-    rgba: number,
+    color: Color,
     render: MarkerRenderFunc,
   ): void;
 
@@ -79,15 +81,10 @@ export interface Renderer {
     top: number,
     right: number,
     bottom: number,
-    rgba: number,
+    color: Color,
     pattern?: number,
   ): void;
 
   // Flush all pending draw calls to the GPU.
   flush(): void;
-
-  // Escape hatch to just draw directly to the raw CanvasRenderingContext2D.
-  // Resets any internal caching that the canvas renderer may be doing.
-  // All canvas calls must be made through this.
-  rawCanvas(fn: (ctx: CanvasRenderingContext2D) => void): void;
 }

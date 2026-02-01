@@ -399,7 +399,7 @@ export class CpuSliceTrack implements TrackRenderer {
           MARGIN_TOP,
           rectStart + rectWidth,
           MARGIN_TOP + RECT_HEIGHT,
-          color.rgba,
+          color,
         );
       }
 
@@ -414,7 +414,7 @@ export class CpuSliceTrack implements TrackRenderer {
           MARGIN_TOP,
           rectStart + rectWidth,
           MARGIN_TOP + RECT_HEIGHT,
-          color.rgba,
+          color,
           RECT_PATTERN_HATCHED,
         );
       }
