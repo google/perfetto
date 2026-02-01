@@ -120,6 +120,9 @@ function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
           fragColor.rgb = mix(fragColor.rgb, vec3(1.0), 0.3);
         }
       }
+
+      // Premultiply alpha for correct compositing over page background
+      fragColor.rgb *= fragColor.a;
     }
   `;
 
@@ -253,7 +256,7 @@ export class RectBatch {
 
     gl.useProgram(prog.program);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
     // Set uniforms
     gl.uniform2f(prog.resolutionLoc, gl.canvas.width, gl.canvas.height);

@@ -136,7 +136,9 @@ function createMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
       if (alpha < 0.01) {
         discard;
       }
-      fragColor = vec4(v_color.rgb, v_color.a * alpha);
+      // Premultiply alpha for correct compositing over page background
+      float finalAlpha = v_color.a * alpha;
+      fragColor = vec4(v_color.rgb * finalAlpha, finalAlpha);
     }
   `;
 
@@ -258,7 +260,7 @@ export class MarkerBatch {
 
     gl.useProgram(prog.program);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
     // Set uniforms
     gl.uniform2f(prog.resolutionLoc, gl.canvas.width, gl.canvas.height);
