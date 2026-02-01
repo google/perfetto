@@ -889,74 +889,39 @@ TEST_F(SysStatsDataSourceTest, Psi) {
   EXPECT_EQ(sys_stats.psi()[5].total_ns(), 205933000U);
 }
 
-TEST_F(SysStatsDataSourceTest, RejectsMaxUint32Period) {
+TEST_F(SysStatsDataSourceTest, AcceptsMaxUint32Period) {
   DataSourceConfig config;
   protos::gen::SysStatsConfig sys_cfg;
   sys_cfg.set_cpufreq_period_ms(std::numeric_limits<uint32_t>::max());
   config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
   auto data_source = GetSysStatsDataSource(config);
 
-  // Should not tick because period is rejected and disabled
-  // Run any pending tasks to ensure Start() was called
-  task_runner_.RunUntilIdle();
-  EXPECT_EQ(data_source->tick_for_testing(), 0u);
-}
-
-TEST_F(SysStatsDataSourceTest, RejectsPeriodAboveMax) {
-  constexpr uint32_t kMaxPeriodMs = 1000 * 60 * 60;  // 1 hour
-  DataSourceConfig config;
-  protos::gen::SysStatsConfig sys_cfg;
-  sys_cfg.set_meminfo_period_ms(kMaxPeriodMs + 1);
-  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
-  auto data_source = GetSysStatsDataSource(config);
-
-  // Should not tick because period exceeds maximum
-  // Run any pending tasks to ensure Start() was called
-  task_runner_.RunUntilIdle();
-  EXPECT_EQ(data_source->tick_for_testing(), 0u);
-}
-
-TEST_F(SysStatsDataSourceTest, AcceptsPeriodAtMax) {
-  constexpr uint32_t kMaxPeriodMs = 1000 * 60 * 60;  // 1 hour
-  DataSourceConfig config;
-  protos::gen::SysStatsConfig sys_cfg;
-  sys_cfg.set_meminfo_period_ms(kMaxPeriodMs);  // Exactly at max
-  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
-  auto data_source = GetSysStatsDataSource(config);
-
-  // Should work fine at the maximum allowed value
+  // Max uint32 is valid - just a very long polling interval (49 days)
   WaitTick(data_source.get());
   EXPECT_GT(data_source->tick_for_testing(), 0u);
 }
 
-TEST_F(SysStatsDataSourceTest, ValidatesEachPeriodIndependently) {
+TEST_F(SysStatsDataSourceTest, AcceptsLargePeriods) {
+  // Test that large periods (e.g., 24 hours) work correctly
+  constexpr uint32_t k24Hours = 1000 * 60 * 60 * 24;  // 24 hours
   DataSourceConfig config;
   protos::gen::SysStatsConfig sys_cfg;
-  sys_cfg.set_meminfo_period_ms(100);  // Valid
-  sys_cfg.set_vmstat_period_ms(
-      std::numeric_limits<uint32_t>::max());  // Invalid
-  sys_cfg.set_stat_period_ms(100);            // Valid
+  sys_cfg.set_meminfo_period_ms(k24Hours);
   config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
   auto data_source = GetSysStatsDataSource(config);
 
+  // Should work fine with large periods
   WaitTick(data_source.get());
-
-  // Should still tick for valid counters
-  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
-  ASSERT_TRUE(packet.has_sys_stats());
-  const auto& sys_stats = packet.sys_stats();
-  EXPECT_GT(sys_stats.meminfo_size(), 0);   // Valid counter works
-  EXPECT_EQ(sys_stats.vmstat_size(), 0);    // Invalid counter disabled
-  EXPECT_GT(sys_stats.cpu_stat_size(), 0);  // Valid counter works
+  EXPECT_GT(data_source->tick_for_testing(), 0u);
 }
 
 TEST_F(SysStatsDataSourceTest, HandlesLargePeriodModuloCorrectly) {
-  // Ensure that even at max period (1 hour), the tick arithmetic doesn't
+  // Ensure that even at very large periods, the tick arithmetic doesn't
   // overflow
-  constexpr uint32_t kMaxPeriodMs = 1000 * 60 * 60;  // 1 hour
+  constexpr uint32_t kLargePeriod = 1000 * 60 * 60 * 10;  // 10 hours
   DataSourceConfig config;
   protos::gen::SysStatsConfig sys_cfg;
-  sys_cfg.set_meminfo_period_ms(kMaxPeriodMs);
+  sys_cfg.set_meminfo_period_ms(kLargePeriod);
   config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
   auto data_source = GetSysStatsDataSource(config);
 

@@ -46,7 +46,6 @@ using protos::pbzero::SysStatsConfig;
 namespace {
 constexpr size_t kReadBufSize = 1024 * 16;
 constexpr uint32_t kMinPeriodMs = 10;
-constexpr uint32_t kMaxPeriodMs = 1000 * 60 * 60;  // 1 hour
 
 base::ScopedFile OpenReadOnly(const char* path) {
   base::ScopedFile fd(base::OpenFile(path, O_RDONLY));
@@ -64,13 +63,6 @@ uint32_t ValidateAndClampPeriod(uint32_t period_ms, const char* counter_name) {
                   "ms. Increasing to %" PRIu32 "ms.",
                   counter_name, period_ms, kMinPeriodMs, kMinPeriodMs);
     return kMinPeriodMs;
-  }
-  if (period_ms > kMaxPeriodMs) {
-    PERFETTO_ELOG("%s %" PRIu32 " exceeds maximum of %" PRIu32
-                  "ms (1 hour). "
-                  "Disabling this counter to avoid CPU spin.",
-                  counter_name, period_ms, kMaxPeriodMs);
-    return 0;  // Disable the counter
   }
   return period_ms;
 }
