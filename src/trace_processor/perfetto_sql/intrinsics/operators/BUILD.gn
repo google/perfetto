@@ -36,6 +36,7 @@ source_set("operators") {
     "../../../../base",
     "../../../containers",
     "../../../sqlite",
+    "../../../util:galloping_search",
     "../../engine",
   ]
   if (enable_perfetto_etm_importer) {

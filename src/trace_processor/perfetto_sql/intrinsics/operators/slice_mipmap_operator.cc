@@ -17,13 +17,12 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h"
 
 #include <sqlite3.h>
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -34,6 +33,7 @@
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/galloping_search.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -199,15 +199,29 @@ int SliceMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
   int64_t end = sqlite3_value_int64(argv[1]);
   int64_t step = sqlite3_value_int64(argv[2]);
 
+  // Build the array of query timestamps (window boundaries).
+  c->queries.clear();
+  c->queries.reserve(static_cast<size_t>((end - start) / step) + 2);
+  c->queries.push_back(start);
+  for (int64_t s = start; s < end; s += step) {
+    c->queries.push_back(s + step);
+  }
+
   for (uint32_t depth = 0; depth < state->by_depth.size(); ++depth) {
     auto& by_depth = state->by_depth[depth];
     const auto& ids = by_depth.ids;
     const auto& tses = by_depth.timestamps;
 
+    // Use galloping search for batched lower_bound queries.
+    GallopingSearch searcher(tses.data(), static_cast<uint32_t>(tses.size()));
+    c->positions.resize(c->queries.size());
+    searcher.BatchedLowerBound(c->queries.data(),
+                               static_cast<uint32_t>(c->queries.size()),
+                               c->positions.data());
+
     // If the slice before this window overlaps with the current window, move
     // the iterator back one to consider it as well.
-    auto start_idx = static_cast<uint32_t>(std::distance(
-        tses.begin(), std::lower_bound(tses.begin(), tses.end(), start)));
+    uint32_t start_idx = c->positions[0];
     if (start_idx != 0 &&
         (static_cast<size_t>(start_idx) == tses.size() ||
          (tses[start_idx] != start &&
@@ -215,11 +229,9 @@ int SliceMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
       --start_idx;
     }
 
-    for (int64_t s = start; s < end; s += step) {
-      auto end_idx = static_cast<uint32_t>(std::distance(
-          tses.begin(),
-          std::lower_bound(tses.begin() + static_cast<int64_t>(start_idx),
-                           tses.end(), s + step)));
+    // Process each window using pre-computed positions.
+    for (size_t i = 1; i < c->positions.size(); ++i) {
+      uint32_t end_idx = c->positions[i];
       if (start_idx == end_idx) {
         continue;
       }

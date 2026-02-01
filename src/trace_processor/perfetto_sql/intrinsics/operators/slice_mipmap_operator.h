@@ -86,6 +86,8 @@ struct SliceMipmapOperator : sqlite::Module<SliceMipmapOperator> {
       uint32_t depth;
     };
     std::vector<Result> results;
+    std::vector<int64_t> queries;
+    std::vector<uint32_t> positions;
     uint32_t index = 0;
   };
 

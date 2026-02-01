@@ -17,14 +17,13 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.h"
 
 #include <sqlite3.h>
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <iterator>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -34,6 +33,7 @@
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/galloping_search.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -186,30 +186,41 @@ int CounterMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
   c->index = 0;
   c->counters.clear();
 
+  // Build the array of query timestamps (window boundaries).
+  c->queries.clear();
+  c->queries.reserve(static_cast<size_t>((end_ts - start_ts) / step_ts) + 2);
+  c->queries.push_back(start_ts);
+  for (int64_t s = start_ts; s < end_ts; s += step_ts) {
+    c->queries.push_back(s + step_ts);
+  }
+
+  // Use galloping search for batched lower_bound queries.
+  GallopingSearch searcher(state->timestamps.data(),
+                           static_cast<uint32_t>(state->timestamps.size()));
+  c->positions.resize(c->queries.size());
+  searcher.BatchedLowerBound(c->queries.data(),
+                             static_cast<uint32_t>(c->queries.size()),
+                             c->positions.data());
+
   // If there is a counter value before the start of this window, include it in
   // the aggregation as well because it contributes to what should be rendered
   // here.
-  auto ts_lb = std::lower_bound(state->timestamps.begin(),
-                                state->timestamps.end(), start_ts);
-  if (ts_lb != state->timestamps.begin() &&
-      (ts_lb == state->timestamps.end() || *ts_lb != start_ts)) {
-    --ts_lb;
+  uint32_t start_idx = c->positions[0];
+  if (start_idx != 0 && (start_idx == state->timestamps.size() ||
+                         state->timestamps[start_idx] != start_ts)) {
+    --start_idx;
   }
-  int64_t start_idx = std::distance(state->timestamps.begin(), ts_lb);
-  for (int64_t s = start_ts; s < end_ts; s += step_ts) {
-    int64_t end_idx =
-        std::distance(state->timestamps.begin(),
-                      std::lower_bound(state->timestamps.begin() +
-                                           static_cast<int64_t>(start_idx),
-                                       state->timestamps.end(), s + step_ts));
+
+  // Process each window using pre-computed positions.
+  for (size_t i = 1; i < c->positions.size(); ++i) {
+    uint32_t end_idx = c->positions[i];
     if (start_idx == end_idx) {
       continue;
     }
     c->counters.emplace_back(Cursor::Result{
-        state->forest.Query(static_cast<uint32_t>(start_idx),
-                            static_cast<uint32_t>(end_idx)),
-        state->forest[static_cast<uint32_t>(end_idx) - 1],
-        state->timestamps[static_cast<uint32_t>(end_idx) - 1],
+        state->forest.Query(start_idx, end_idx),
+        state->forest[end_idx - 1],
+        state->timestamps[end_idx - 1],
     });
     start_idx = end_idx;
   }
