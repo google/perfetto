@@ -930,25 +930,7 @@ export abstract class BaseSliceTrack<
     start: time,
     end: time,
   ): Array<CastInternal<SliceT>> {
-    // Slice visibility is computed using tsq / endTsq. The means an
-    // event at ts=100n can end up with tsq=90n depending on the bucket
-    // calculation. start and end here are the direct unquantised
-    // boundaries so when start=100n we should see the event at tsq=90n
-    // Ideally we would quantize start and end via the same calculation
-    // we used for slices but since that calculation happens in SQL
-    // this is hard. Instead we increase the range by +1 bucket in each
-    // direction. It's fine to overestimate since false positives
-    // (incorrectly marking a slice as visible) are not a problem it's
-    // only false negatives we have to avoid.
-    start = Time.sub(start, this.slicesKey.bucketSize);
-    end = Time.add(end, this.slicesKey.bucketSize);
-
-    let slices = filterVisibleSlices<CastInternal<SliceT>>(
-      this.slices,
-      start,
-      end,
-    );
-    slices = slices.concat(this.incomplete);
+    const slices = this.slices.concat(this.incomplete);
     // The selected slice is always visible:
     if (this.selectedSlice && !this.slices.includes(this.selectedSlice)) {
       slices.push(this.selectedSlice);

@@ -102,11 +102,8 @@ function createMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
       // Scale size by DPR (use u_scale.y to maintain aspect ratio)
       vec2 scaledSize = a_spriteSize * u_scale.y;
 
-      // Center horizontally (offset is in physical pixels)
-      float centeredX = pixelX - scaledSize.x * 0.5;
-
       vec2 localPos = a_quadCorner * scaledSize;
-      vec2 pixelPos = vec2(centeredX, pixelY) + localPos;
+      vec2 pixelPos = vec2(pixelX, pixelY) + localPos;
       vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
 

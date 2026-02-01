@@ -24,21 +24,53 @@ import {
   MarkerRenderFunc,
 } from './renderer';
 
+const Identity: Transform2D = {
+  offsetX: 0,
+  offsetY: 0,
+  scaleX: 1,
+  scaleY: 1,
+};
+
+function composeTransforms(
+  a: Transform2D,
+  b: Partial<Transform2D>,
+): Transform2D {
+  const {offsetX = 0, offsetY = 0, scaleX = 1, scaleY = 1} = b;
+  return {
+    offsetX: a.offsetX + offsetX * a.scaleX,
+    offsetY: a.offsetY + offsetY * a.scaleY,
+    scaleX: a.scaleX * scaleX,
+    scaleY: a.scaleY * scaleY,
+  };
+}
+
+// Clip bounds stored in physical screen coordinates (post-transform).
+// This allows correct culling regardless of what transforms are active.
+interface PhysicalClipBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
 export class Canvas2DRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   private previousFillStyle?: string;
+  // Track transform ourselves for CPU-side culling calculations.
+  // Some systems (particularly Linux) don't efficiently cull clipped geometry.
+  private transform: Transform2D = Identity;
+  private physicalClipBounds?: PhysicalClipBounds;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
   }
 
-  pushTransform({
-    offsetX = 0,
-    offsetY = 0,
-    scaleX = 1,
-    scaleY = 1,
-  }: Partial<Transform2D>): Disposable {
+  pushTransform(t: Partial<Transform2D>): Disposable {
+    const {offsetX = 0, offsetY = 0, scaleX = 1, scaleY = 1} = t;
     const ctx = this.ctx;
+
+    const previousTransform = this.transform;
+    this.transform = composeTransforms(this.transform, t);
 
     ctx.save();
     ctx.translate(offsetX, offsetY);
@@ -47,6 +79,7 @@ export class Canvas2DRenderer implements Renderer {
     return {
       [Symbol.dispose]: () => {
         ctx.restore();
+        this.transform = previousTransform;
       },
     };
   }
@@ -59,6 +92,24 @@ export class Canvas2DRenderer implements Renderer {
     color: Color,
     render: MarkerRenderFunc,
   ): void {
+    // CPU-side culling: transform marker bounds to physical space and compare
+    if (this.physicalClipBounds !== undefined) {
+      const t = this.transform;
+      const physLeft = t.offsetX + (x - w / 2) * t.scaleX;
+      const physRight = t.offsetX + (x + w / 2) * t.scaleX;
+      const physTop = t.offsetY + y * t.scaleY;
+      const physBottom = t.offsetY + (y + h) * t.scaleY;
+      const clip = this.physicalClipBounds;
+      if (
+        physRight < clip.left ||
+        physLeft > clip.right ||
+        physBottom < clip.top ||
+        physTop > clip.bottom
+      ) {
+        return;
+      }
+    }
+
     const ctx = this.ctx;
     if (this.previousFillStyle !== color.cssString) {
       ctx.fillStyle = color.cssString;
@@ -75,6 +126,24 @@ export class Canvas2DRenderer implements Renderer {
     color: Color,
     flags = 0,
   ): void {
+    // CPU-side culling: transform rect bounds to physical space and compare
+    if (this.physicalClipBounds !== undefined) {
+      const t = this.transform;
+      const physLeft = t.offsetX + left * t.scaleX;
+      const physRight = t.offsetX + right * t.scaleX;
+      const physTop = t.offsetY + top * t.scaleY;
+      const physBottom = t.offsetY + bottom * t.scaleY;
+      const clip = this.physicalClipBounds;
+      if (
+        physRight < clip.left ||
+        physLeft > clip.right ||
+        physBottom < clip.top ||
+        physTop > clip.bottom
+      ) {
+        return;
+      }
+    }
+
     const ctx = this.ctx;
     const w = right - left;
     const h = bottom - top;
@@ -101,19 +170,38 @@ export class Canvas2DRenderer implements Renderer {
 
   clip(x: number, y: number, w: number, h: number): Disposable {
     const ctx = this.ctx;
+
+    // Store clip bounds in physical coordinates for CPU-side culling
+    const t = this.transform;
+    const physX = t.offsetX + x * t.scaleX;
+    const physY = t.offsetY + y * t.scaleY;
+    const physW = w * t.scaleX;
+    const physH = h * t.scaleY;
+
+    const previousClipBounds = this.physicalClipBounds;
+    this.physicalClipBounds = {
+      left: physX,
+      top: physY,
+      right: physX + physW,
+      bottom: physY + physH,
+    };
+
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, w, h);
     ctx.clip();
+
     return {
       [Symbol.dispose]: () => {
         ctx.restore();
+        this.physicalClipBounds = previousClipBounds;
       },
     };
   }
 
   resetTransform(): void {
     this.ctx.resetTransform();
+    this.transform = Identity;
   }
 
   clear(): void {
