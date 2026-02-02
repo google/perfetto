@@ -22,6 +22,10 @@ export const SIDEBAR_SECTIONS = {
     title: 'New Trace',
     summary: 'Open or record a new trace',
   },
+  trace_example_files: {
+    title: 'Example Traces',
+    summary: 'Open an example trace',
+  },
   settings: {
     title: 'Settings',
     summary: 'Preferences and configuration',

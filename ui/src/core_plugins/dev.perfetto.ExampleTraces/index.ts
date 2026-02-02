@@ -41,7 +41,7 @@ export default class implements PerfettoPlugin {
       },
     });
     ctx.sidebar.addMenuItem({
-      section: 'trace_files',
+      section: 'trace_example_files',
       commandId: OPEN_EXAMPLE_ANDROID_TRACE_COMMAND_ID,
       icon: Icons.Android,
       sortOrder: 3,
@@ -57,7 +57,7 @@ export default class implements PerfettoPlugin {
       },
     });
     ctx.sidebar.addMenuItem({
-      section: 'trace_files',
+      section: 'trace_example_files',
       commandId: OPEN_EXAMPLE_CHROME_TRACE_COMMAND_ID,
       icon: Icons.Web,
       sortOrder: 4,
