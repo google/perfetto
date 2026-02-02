@@ -23,7 +23,6 @@ import {TimeScale} from '../../base/time_scale';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
 import {colorForCpu} from '../../components/colorizer';
 import {TraceImpl} from '../../core/trace_impl';
-import {MinimapRow} from '../../public/minimap';
 import {TimestampFormat} from '../../public/timeline';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
@@ -50,14 +49,6 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
   private readonly trash = new DisposableStack();
   private interactions?: ZonedInteractionHandler;
 
-  // Cache for the minimap heatmap rendering
-  private heatmapCache?: {
-    canvas: HTMLCanvasElement;
-    rows: readonly MinimapRow[];
-    width: number;
-    height: number;
-  };
-
   view({attrs}: m.CVnode<MinimapAttrs>) {
     return m(
       VirtualOverlayCanvas,
@@ -81,56 +72,6 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
 
   onremove(_: m.VnodeDOM<MinimapAttrs, this>) {
     this.trash.dispose();
-  }
-
-  // Returns a cached canvas with the heatmap rendered. Only re-renders when
-  // the data or dimensions change.
-  private getHeatmapCanvas(
-    rows: readonly MinimapRow[],
-    width: number,
-    height: number,
-    timescale: TimeScale,
-  ): HTMLCanvasElement {
-    const cache = this.heatmapCache;
-
-    // Check if cache is valid
-    if (
-      cache &&
-      cache.rows === rows &&
-      cache.width === width &&
-      cache.height === height
-    ) {
-      return cache.canvas;
-    }
-
-    // Create or resize the offscreen canvas
-    const canvas = cache?.canvas ?? document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-
-    const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, width, height);
-
-    // Render the heatmap
-    const numTracks = rows.length;
-    const trackHeight = (height - 1) / numTracks;
-    let y = 0;
-    for (const row of rows) {
-      for (const cell of row) {
-        const x = Math.floor(timescale.timeToPx(cell.ts));
-        const cellWidth = Math.ceil(timescale.durationToPx(cell.dur));
-        const yOff = Math.floor(y * trackHeight);
-        const color = colorForCpu(y).setHSL({s: 50}).setAlpha(cell.load);
-        ctx.fillStyle = color.cssString;
-        ctx.fillRect(x, yOff, cellWidth, Math.ceil(trackHeight));
-      }
-      y++;
-    }
-
-    // Update cache
-    this.heatmapCache = {canvas, rows, width, height};
-
-    return canvas;
   }
 
   private renderCanvas(
@@ -186,16 +127,24 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
       }
     }
 
-    // Render the minimap heatmap (cached)
+    // Render the minimap data
     const rows = trace.minimap.getLoad();
     if (rows) {
-      const cachedCanvas = this.getHeatmapCanvas(
-        rows,
-        size.width,
-        tracksHeight,
-        timescale,
-      );
-      ctx.drawImage(cachedCanvas, 0, headerHeight);
+      const numTracks = rows.length;
+      const trackHeight = (tracksHeight - 1) / numTracks;
+      let y = 0;
+      for (const row of rows) {
+        for (const cell of row) {
+          const x = Math.floor(timescale.timeToPx(cell.ts));
+          const width = Math.ceil(timescale.durationToPx(cell.dur));
+          const yOff = Math.floor(headerHeight + y * trackHeight);
+          const color = colorForCpu(y).setHSL({s: 50}).setAlpha(cell.load);
+          ctx.fillStyle = color.cssString;
+          ctx.clearRect(x, yOff, width, Math.ceil(trackHeight));
+          ctx.fillRect(x, yOff, width, Math.ceil(trackHeight));
+        }
+        y++;
+      }
     }
 
     // Draw bottom border.
