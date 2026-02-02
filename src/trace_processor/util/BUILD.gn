@@ -471,6 +471,7 @@ source_set("unittests") {
     "../../base:test_support",
     "../../protozero",
     "../../protozero:testing_messages_zero",
+    "../importers/common",
     "../importers/proto:gen_cc_track_event_descriptor",
     "../importers/proto:minimal",
     "../importers/proto:packet_sequence_state_generation_hdr",

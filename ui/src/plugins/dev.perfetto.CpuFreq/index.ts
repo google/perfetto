@@ -35,15 +35,15 @@ export default class implements PerfettoPlugin {
         track.id AS freqTrackId,
         t2.id AS idleTrackId,
         cpu.ucpu AS ucpu,
-        IFNULL(track.machine_id, 0) AS machineId,
+        track.machine_id AS machineId,
         track.cpu AS cpu
       FROM cpu_counter_track track
       JOIN cpu
         ON track.cpu = cpu.cpu
-       AND IFNULL(track.machine_id, 0) = IFNULL(cpu.machine_id, 0)
+       AND track.machine_id = cpu.machine_id
       LEFT JOIN cpu_counter_track t2
         ON track.cpu = t2.cpu
-       AND IFNULL(track.machine_id, 0) = IFNULL(t2.machine_id, 0)
+       AND track.machine_id = t2.machine_id
        AND t2.type = 'cpu_idle'
       WHERE
         track.type = 'cpu_frequency'

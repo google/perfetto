@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 
+#include <cstdint>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -23,6 +24,7 @@
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/base/test/status_matchers.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
@@ -72,6 +74,97 @@ TEST_F(AdhocDataframeBuilderTest, StringColumnWithNullId) {
       ElementsAre(
           ColumnSpec{String{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
           ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+// Callback for reading cell values in tests.
+struct TestCellCallback : CellCallback {
+  void OnCell(int64_t v) {
+    int_value = v;
+    is_null = false;
+  }
+  void OnCell(uint32_t v) {
+    int_value = static_cast<int64_t>(v);
+    is_null = false;
+  }
+  void OnCell(int32_t v) {
+    int_value = static_cast<int64_t>(v);
+    is_null = false;
+  }
+  void OnCell(double v) {
+    double_value = v;
+    is_null = false;
+  }
+  void OnCell(NullTermStringView) { is_null = false; }
+  void OnCell(std::nullptr_t) { is_null = true; }
+
+  int64_t int_value = 0;
+  double double_value = 0;
+  bool is_null = false;
+};
+
+// Test that DenseNull correctly handles the case where PushNull is called
+// before any non-null value (i.e., before storage type is known).
+TEST_F(AdhocDataframeBuilderTest, DenseNullWithLeadingNulls) {
+  AdhocDataframeBuilder builder(
+      {"col"}, &pool_,
+      AdhocDataframeBuilder::Options{{}, NullabilityType::kDenseNull});
+
+  // Push null first - storage doesn't exist yet
+  builder.PushNull(0);
+  // Then push non-null values
+  builder.PushNonNull(0, int64_t{10});
+  builder.PushNonNull(0, int64_t{20});
+
+  base::StatusOr<Dataframe> df_status = std::move(builder).Build();
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+
+  ASSERT_EQ(df.row_count(), 3u);
+
+  // Verify cell values
+  TestCellCallback cb;
+
+  df.GetCell(0, 0, cb);
+  EXPECT_TRUE(cb.is_null);
+
+  df.GetCell(1, 0, cb);
+  EXPECT_FALSE(cb.is_null);
+  EXPECT_EQ(cb.int_value, 10);
+
+  df.GetCell(2, 0, cb);
+  EXPECT_FALSE(cb.is_null);
+  EXPECT_EQ(cb.int_value, 20);
+}
+
+// Test DenseNull with multiple leading nulls.
+TEST_F(AdhocDataframeBuilderTest, DenseNullWithMultipleLeadingNulls) {
+  AdhocDataframeBuilder builder(
+      {"col"}, &pool_,
+      AdhocDataframeBuilder::Options{{}, NullabilityType::kDenseNull});
+
+  // Push multiple nulls first
+  builder.PushNull(0);
+  builder.PushNull(0);
+  // Then push non-null value
+  builder.PushNonNull(0, int64_t{42});
+
+  base::StatusOr<Dataframe> df_status = std::move(builder).Build();
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+
+  ASSERT_EQ(df.row_count(), 3u);
+
+  TestCellCallback cb;
+
+  df.GetCell(0, 0, cb);
+  EXPECT_TRUE(cb.is_null);
+
+  df.GetCell(1, 0, cb);
+  EXPECT_TRUE(cb.is_null);
+
+  df.GetCell(2, 0, cb);
+  EXPECT_FALSE(cb.is_null);
+  EXPECT_EQ(cb.int_value, 42);
 }
 
 }  // namespace

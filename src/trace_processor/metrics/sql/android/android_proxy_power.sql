@@ -49,6 +49,7 @@ after_first_slash(str) AS (
   SELECT SUBSTR(str_value, INSTR(str_value, '/') + 1)
   FROM metadata
   WHERE name = 'android_build_fingerprint'
+  LIMIT 1
 ),
 before_second_slash(str) AS (
   SELECT SUBSTR(str, 0, INSTR(str, '/'))

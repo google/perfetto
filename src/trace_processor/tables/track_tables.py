@@ -53,7 +53,7 @@ TRACK_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C("machine_id", CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
         C(
             "type",
             CppString(),
