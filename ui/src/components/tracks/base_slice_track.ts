@@ -555,6 +555,8 @@ export abstract class BaseSliceTrack<
         const w = CROP_INCOMPLETE_SLICE_FLAG.get()
           ? slice.w
           : Math.max(slice.w - 2, 2);
+        // Flush renderer before accessing the canvas2d context directly to
+        // synchronize any reordering and invalidate caches.
         renderer.flush();
         drawIncompleteSlice(
           ctx,
@@ -576,6 +578,8 @@ export abstract class BaseSliceTrack<
       }
     }
 
+    // Flush renderer before accessing the canvas2d context directly to
+    // synchronize any reordering and invalidate caches.
     renderer.flush();
 
     // Pass 2.5: Draw fillRatio light section.

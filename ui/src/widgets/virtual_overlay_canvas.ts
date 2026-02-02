@@ -300,10 +300,10 @@ export class VirtualOverlayCanvas
       renderer,
     });
 
-    // Make sure to finish drawing all queued up draw calls
+    // Make sure to finish drawing all queued operations
     renderer.flush();
 
-    // Also flush WebGL if used
+    // Also flush WebGL draw calls (this is distinct from the flush above).
     this.webglRenderer?.gl.flush();
   }
 }

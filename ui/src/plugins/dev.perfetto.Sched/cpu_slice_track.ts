@@ -383,6 +383,8 @@ export class CpuSliceTrack implements TrackRenderer {
       }
 
       if (flags & CPU_SLICE_FLAGS_INCOMPLETE) {
+        // Flush renderer before accessing the canvas2d context directly to
+        // synchronize any reordering and invalidate caches.
         renderer.flush();
         ctx.fillStyle = color.cssString;
         drawIncompleteSlice(
@@ -449,7 +451,8 @@ export class CpuSliceTrack implements TrackRenderer {
       subTitle = cropText(subTitle, charWidth, visibleWidth);
       const rectXCenter = left + visibleWidth / 2;
 
-      // Flush before raw canvas calls to avoid ordering / caching issues.
+      // Flush renderer before accessing the canvas2d context directly to
+      // synchronize any reordering and invalidate caches.
       renderer.flush();
 
       ctx.fillStyle = textColor.cssString;
