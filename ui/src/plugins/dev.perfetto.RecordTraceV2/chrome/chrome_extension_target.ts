@@ -191,7 +191,7 @@ export class ChromeExtensionTarget implements RecordingTarget {
     const seenCategoryNames = new Set<string>();
     const uniqueCategories: protos.ITrackEventCategory[] = [];
     for (const cat of descriptor.availableCategories) {
-      if (!cat.name) continue;
+      if (typeof cat.name !== 'string' || !cat.name) continue;
       if (seenCategoryNames.has(cat.name)) continue;
       uniqueCategories.push(cat);
       seenCategoryNames.add(cat.name);
