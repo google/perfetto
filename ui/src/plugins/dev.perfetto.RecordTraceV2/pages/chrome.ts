@@ -168,6 +168,7 @@ function chromeProbe(
 }
 
 const DISABLED_PREFIX = 'disabled-by-default-';
+const TRACING_EXTENSION_URL = 'https://g.co/chrome/tracing-extension';
 
 interface SelectOption {
   id: string;
@@ -259,6 +260,7 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     if (this.fetchedRuntimeCategories) return;
     try {
       const runtimeCategories = unwrapResult(await this.chromeCategoryGetter());
+      this.hasActiveExtension = true;
       this.initializeCategories(runtimeCategories);
     } catch (e) {
       console.error(e);
@@ -381,6 +383,9 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   render() {
+    const warnMissingTracingExtension =
+      !this.hasActiveExtension && this.platformGetter() === 'CHROME';
+
     const categoriesOptions: MultiSelectOption[] = [];
     const slowCategoriesOptions: MultiSelectOption[] = [];
     let includedCategoriesCount = 0;
@@ -416,9 +421,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         };
       },
     );
-    const warnMissingTracingExtension =
-      !this.hasActiveExtension && this.platformGetter() === 'CHROME';
-    const TRACING_EXTENSION_URL = 'https://g.co/chrome/tracing-extension';
     return m(
       'div.chrome-probe-settings',
       {
