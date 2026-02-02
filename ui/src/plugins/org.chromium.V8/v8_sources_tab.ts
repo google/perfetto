@@ -260,6 +260,7 @@ export class V8SourcesTab implements Tab {
       data: this.functionsDataSource,
       schema: v8JsFunctionUiSchema,
       rootSchema: V8_JS_FUNCTION_SCHEMA_NAME,
+      fillHeight: true,
       initialFilters: this.functionsFilters,
       onFiltersChanged: (filters: readonly Filter[]) => {
         this.functionsFilters = filters;
@@ -346,6 +347,7 @@ export class V8SourcesTab implements Tab {
           data: this.dataSource,
           schema: v8JsScriptUiSchema,
           rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
+          fillHeight: true,
           filters: this.filters,
           onFiltersChanged: (filters: readonly Filter[]) => {
             this.filters = filters;
