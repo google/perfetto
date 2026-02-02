@@ -23,6 +23,18 @@ bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "platforms", version = "0.0.11")
 bazel_dep(name = "rules_cc", version = "0.0.10")
 bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
+bazel_dep(name = "abseil-cpp", version = "20250127.0", repo_name = "com_google_absl")
+git_override(
+    module_name = "abseil-cpp",
+    remote = "https://github.com/abseil/abseil-cpp.git",
+    commit = "76bb24329e8bf5f39704eb10d21b9a80befa7c81",
+)
+bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
+git_override(
+    module_name = "re2",
+    remote = "https://github.com/google/re2.git",
+    commit = "927f5d53caf8111721e734cf24724686bb745f55",
+)
 bazel_dep(name = "rules_python", version = "1.0.0")
 bazel_dep(name = "rules_android", version = "0.6.6")
 
@@ -82,13 +94,11 @@ perfetto_deps = use_extension(
 )
 use_repo(
     perfetto_deps,
-    "com_google_absl",
     "perfetto_dep_expat",
     "perfetto_dep_jsoncpp",
     "perfetto_dep_linenoise",
     "perfetto_dep_llvm_demangle",
     "perfetto_dep_open_csd",
-    "perfetto_dep_re2",
     "perfetto_dep_sqlite",
     "perfetto_dep_sqlite_src",
     "perfetto_dep_zlib",
