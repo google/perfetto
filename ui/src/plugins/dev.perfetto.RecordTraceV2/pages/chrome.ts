@@ -198,19 +198,20 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   private initializeCategories(descriptor: protos.TrackEventDescriptor) {
-    const options: MultiSelectOption[] = [];
-    for (const cat of descriptor.availableCategories) {
-      if (!cat.name) continue;
-      options.push({
+    this.options = descriptor.availableCategories
+      .filter(
+        (
+          cat,
+        ): cat is protos.ITrackEventCategory & {
+          name: string;
+        } => cat.name != null,
+      )
+      .map((cat) => ({
         id: cat.name,
         name: cat.name.replace(DISABLED_PREFIX, ''),
         checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
-      });
-    }
-    options.sort((a, b) =>
-      a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
-    );
-    this.options = options;
+      }))
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
   }
 
   getEnabledCategories(): string[] {
