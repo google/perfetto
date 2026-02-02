@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  RECT_PATTERN_FADE_RIGHT,
-  RECT_PATTERN_HATCHED,
-  Transform2D,
-} from './renderer';
+import {Transform2D} from '../geom';
+import {RECT_PATTERN_FADE_RIGHT, RECT_PATTERN_HATCHED} from './../renderer';
+import {createBuffer, createProgram, getUniformLocation} from './gl';
 
 // Static quad geometry shared by all rect batches
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
@@ -114,27 +112,7 @@ function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
     }
   `;
 
-  const vs = gl.createShader(gl.VERTEX_SHADER)!;
-  gl.shaderSource(vs, vsSource);
-  gl.compileShader(vs);
-  if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-    throw new Error('Rect vertex shader: ' + gl.getShaderInfoLog(vs));
-  }
-
-  const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
-  gl.shaderSource(fs, fsSource);
-  gl.compileShader(fs);
-  if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-    throw new Error('Rect fragment shader: ' + gl.getShaderInfoLog(fs));
-  }
-
-  const program = gl.createProgram()!;
-  gl.attachShader(program, vs);
-  gl.attachShader(program, fs);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error('Rect program link: ' + gl.getProgramInfoLog(program));
-  }
+  const program = createProgram(gl, vsSource, fsSource);
 
   return {
     program,
@@ -143,9 +121,9 @@ function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
     bottomRightLoc: gl.getAttribLocation(program, 'a_bottomRight'),
     colorLoc: gl.getAttribLocation(program, 'a_color'),
     flagsLoc: gl.getAttribLocation(program, 'a_flags'),
-    resolutionLoc: gl.getUniformLocation(program, 'u_resolution')!,
-    offsetLoc: gl.getUniformLocation(program, 'u_offset')!,
-    scaleLoc: gl.getUniformLocation(program, 'u_scale')!,
+    resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
+    offsetLoc: getUniformLocation(gl, program, 'u_offset'),
+    scaleLoc: getUniformLocation(gl, program, 'u_scale'),
   };
 }
 
@@ -190,19 +168,19 @@ export class RectBatch {
     this.flags = new Uint8Array(capacity);
 
     // Create static quad buffers
-    this.quadCornerBuffer = gl.createBuffer()!;
+    this.quadCornerBuffer = createBuffer(gl);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, QUAD_CORNERS, gl.STATIC_DRAW);
 
-    this.quadIndexBuffer = gl.createBuffer()!;
+    this.quadIndexBuffer = createBuffer(gl);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, QUAD_INDICES, gl.STATIC_DRAW);
 
     // Create dynamic instance buffers
-    this.topLeftBuffer = gl.createBuffer()!;
-    this.bottomRightBuffer = gl.createBuffer()!;
-    this.colorBuffer = gl.createBuffer()!;
-    this.flagsBuffer = gl.createBuffer()!;
+    this.topLeftBuffer = createBuffer(gl);
+    this.bottomRightBuffer = createBuffer(gl);
+    this.colorBuffer = createBuffer(gl);
+    this.flagsBuffer = createBuffer(gl);
   }
 
   get isFull(): boolean {

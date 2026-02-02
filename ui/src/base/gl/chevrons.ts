@@ -13,10 +13,15 @@
 // limitations under the License.
 
 import {createSDFTexture, generatePolygonSDF} from './sdf';
-import {Point2D} from './geom';
-import {Transform2D} from './renderer';
+import {Point2D, Transform2D} from '../geom';
+import {
+  createBuffer,
+  createProgram,
+  getAttribLocation,
+  getUniformLocation,
+} from './gl';
 
-// Static quad geometry shared by all marker batches
+// Static quad geometry shared by all sprite batches
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 const QUAD_INDICES = new Uint16Array([0, 1, 2, 3]);
 
@@ -40,7 +45,7 @@ const CHEVRON_VERTICES: readonly Point2D[] = [
 ];
 
 // Program with all attribute/uniform locations resolved
-interface MarkerProgram {
+interface SpriteProgram {
   readonly program: WebGLProgram;
   readonly quadCornerLoc: number;
   readonly spritePosLoc: number;
@@ -61,7 +66,7 @@ function createChevronTexture(gl: WebGL2RenderingContext): WebGLTexture {
   return createSDFTexture(gl, sdfData, SDF_TEX_SIZE);
 }
 
-function createMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
+function createSpriteProgram(gl: WebGL2RenderingContext): SpriteProgram {
   const vsSource = `#version 300 es
     in vec2 a_quadCorner;
     in vec2 a_spritePos;
@@ -122,38 +127,18 @@ function createMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
     }
   `;
 
-  const vs = gl.createShader(gl.VERTEX_SHADER)!;
-  gl.shaderSource(vs, vsSource);
-  gl.compileShader(vs);
-  if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-    throw new Error('Marker vertex shader: ' + gl.getShaderInfoLog(vs));
-  }
-
-  const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
-  gl.shaderSource(fs, fsSource);
-  gl.compileShader(fs);
-  if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-    throw new Error('Marker fragment shader: ' + gl.getShaderInfoLog(fs));
-  }
-
-  const program = gl.createProgram()!;
-  gl.attachShader(program, vs);
-  gl.attachShader(program, fs);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error('Marker program link: ' + gl.getProgramInfoLog(program));
-  }
+  const program = createProgram(gl, vsSource, fsSource);
 
   return {
     program,
-    quadCornerLoc: gl.getAttribLocation(program, 'a_quadCorner'),
-    spritePosLoc: gl.getAttribLocation(program, 'a_spritePos'),
-    spriteSizeLoc: gl.getAttribLocation(program, 'a_spriteSize'),
-    colorLoc: gl.getAttribLocation(program, 'a_color'),
-    resolutionLoc: gl.getUniformLocation(program, 'u_resolution')!,
-    offsetLoc: gl.getUniformLocation(program, 'u_offset')!,
-    scaleLoc: gl.getUniformLocation(program, 'u_scale')!,
-    sdfTexLoc: gl.getUniformLocation(program, 'u_sdfTex')!,
+    quadCornerLoc: getAttribLocation(gl, program, 'a_quadCorner'),
+    spritePosLoc: getAttribLocation(gl, program, 'a_spritePos'),
+    spriteSizeLoc: getAttribLocation(gl, program, 'a_spriteSize'),
+    colorLoc: getAttribLocation(gl, program, 'a_color'),
+    resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
+    offsetLoc: getUniformLocation(gl, program, 'u_offset'),
+    scaleLoc: getUniformLocation(gl, program, 'u_scale'),
+    sdfTexLoc: getUniformLocation(gl, program, 'u_sdfTex'),
   };
 }
 
@@ -165,7 +150,7 @@ function createMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
  *   batch.add(100, 0, 10, 14, 0xff0000ff);
  *   batch.flush(transform);
  */
-export class MarkerBatch {
+export class ChevronBatch {
   private readonly gl: WebGL2RenderingContext;
   private readonly capacity: number;
 
@@ -182,14 +167,14 @@ export class MarkerBatch {
   private readonly sizeBuffer: WebGLBuffer;
   private readonly colorBuffer: WebGLBuffer;
 
-  private readonly program: MarkerProgram;
+  private readonly program: SpriteProgram;
   private readonly chevronTexture: WebGLTexture;
 
   constructor(gl: WebGL2RenderingContext, capacity = 10000) {
     this.gl = gl;
     this.capacity = capacity;
 
-    this.program = createMarkerProgram(gl);
+    this.program = createSpriteProgram(gl);
     this.chevronTexture = createChevronTexture(gl);
 
     // Allocate CPU arrays
@@ -198,18 +183,18 @@ export class MarkerBatch {
     this.colors = new Uint32Array(capacity);
 
     // Create static quad buffers
-    this.quadCornerBuffer = gl.createBuffer()!;
+    this.quadCornerBuffer = createBuffer(gl);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, QUAD_CORNERS, gl.STATIC_DRAW);
 
-    this.quadIndexBuffer = gl.createBuffer()!;
+    this.quadIndexBuffer = createBuffer(gl);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, QUAD_INDICES, gl.STATIC_DRAW);
 
     // Create dynamic instance buffers
-    this.positionBuffer = gl.createBuffer()!;
-    this.sizeBuffer = gl.createBuffer()!;
-    this.colorBuffer = gl.createBuffer()!;
+    this.positionBuffer = createBuffer(gl);
+    this.sizeBuffer = createBuffer(gl);
+    this.colorBuffer = createBuffer(gl);
   }
 
   get isFull(): boolean {
@@ -236,7 +221,7 @@ export class MarkerBatch {
   }
 
   /**
-   * Draw all markers and clear the batch.
+   * Draw all chevrons and clear the batch.
    */
   flush(transform: Transform2D): void {
     if (this.count === 0) return;

@@ -13,20 +13,7 @@
 // limitations under the License.
 
 import {Color} from './color';
-
-// Common interfaces for canvas rendering, shared between WebGL and Canvas2D
-// implementations.
-
-// 2D transformation (offset + scale). Transforms compound when pushed:
-// - Offsets add: newOffset = currentOffset + transform.offset
-// - Scales multiply: newScale = currentScale * transform.scale
-// For time-to-pixel conversion, use scaleX as pixels-per-time-unit.
-export interface Transform2D {
-  offsetX: number; // Pixel offset in X
-  offsetY: number; // Pixel offset in Y
-  scaleX: number; // Scale factor for X (use as pxPerTime for time conversion)
-  scaleY: number; // Scale factor for Y
-}
+import {Transform2D} from './geom';
 
 // Flag bits for drawRect options
 export const RECT_PATTERN_HATCHED = 1; // Draw diagonal crosshatch pattern

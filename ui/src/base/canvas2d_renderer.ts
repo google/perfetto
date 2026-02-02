@@ -17,32 +17,8 @@
 // (translate/scale), so draw methods use coordinates directly.
 
 import {Color} from './color';
-import {
-  Renderer,
-  Transform2D,
-  RECT_PATTERN_HATCHED,
-  MarkerRenderFunc,
-} from './renderer';
-
-const Identity: Transform2D = {
-  offsetX: 0,
-  offsetY: 0,
-  scaleX: 1,
-  scaleY: 1,
-};
-
-function composeTransforms(
-  a: Transform2D,
-  b: Partial<Transform2D>,
-): Transform2D {
-  const {offsetX = 0, offsetY = 0, scaleX = 1, scaleY = 1} = b;
-  return {
-    offsetX: a.offsetX + offsetX * a.scaleX,
-    offsetY: a.offsetY + offsetY * a.scaleY,
-    scaleX: a.scaleX * scaleX,
-    scaleY: a.scaleY * scaleY,
-  };
-}
+import {Transform2D} from './geom';
+import {Renderer, RECT_PATTERN_HATCHED, MarkerRenderFunc} from './renderer';
 
 // Clip bounds stored in physical screen coordinates (post-transform).
 // This allows correct culling regardless of what transforms are active.
@@ -57,8 +33,7 @@ export class Canvas2DRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   private previousFillStyle?: string;
   // Track transform ourselves for CPU-side culling calculations.
-  // Some systems (particularly Linux) don't efficiently cull clipped geometry.
-  private transform: Transform2D = Identity;
+  private transform = Transform2D.Identity;
   private physicalClipBounds?: PhysicalClipBounds;
 
   constructor(ctx: CanvasRenderingContext2D) {
@@ -70,7 +45,7 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx;
 
     const previousTransform = this.transform;
-    this.transform = composeTransforms(this.transform, t);
+    this.transform = Transform2D.compose(this.transform, t);
 
     ctx.save();
     ctx.translate(offsetX, offsetY);
@@ -201,7 +176,7 @@ export class Canvas2DRenderer implements Renderer {
 
   resetTransform(): void {
     this.ctx.resetTransform();
-    this.transform = Identity;
+    this.transform = Transform2D.Identity;
   }
 
   clear(): void {

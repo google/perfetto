@@ -15,7 +15,7 @@
 // Signed Distance Field (SDF) generation for closed polygons.
 // SDFs enable resolution-independent rendering of shapes with smooth anti-aliasing.
 
-import {Point2D} from './geom';
+import {Point2D} from './../geom';
 
 // Signed distance from point to line segment
 function sdSegment(p: Point2D, a: Point2D, b: Point2D): number {

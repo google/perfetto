@@ -17,44 +17,25 @@
 // 1. Rects pipeline - plain/hatched rectangles
 // 2. Markers pipeline - SDF-based shapes like chevrons
 
-import {Renderer, Transform2D, MarkerRenderFunc} from './renderer';
-import {DisposableStack} from './disposable_stack';
+import {Renderer, MarkerRenderFunc} from './../renderer';
+import {DisposableStack} from './../disposable_stack';
 import {RectBatch} from './rects';
-import {MarkerBatch} from './markers';
-import {Color} from './color';
-
-function composeTransforms(
-  a: Transform2D,
-  b: Partial<Transform2D>,
-): Transform2D {
-  const {offsetX = 0, offsetY = 0, scaleX = 1, scaleY = 1} = b;
-  return {
-    offsetX: a.offsetX + offsetX * a.scaleX,
-    offsetY: a.offsetY + offsetY * a.scaleY,
-    scaleX: a.scaleX * scaleX,
-    scaleY: a.scaleY * scaleY,
-  };
-}
-
-const Identity: Transform2D = {
-  offsetX: 0,
-  offsetY: 0,
-  scaleX: 1,
-  scaleY: 1,
-};
+import {ChevronBatch} from './chevrons';
+import {Color} from './../color';
+import {Transform2D} from '../geom';
 
 export class WebGLRenderer implements Renderer {
   private readonly c2d: CanvasRenderingContext2D;
   readonly gl: WebGL2RenderingContext;
   private readonly rects: RectBatch;
-  private readonly markers: MarkerBatch;
-  private transform: Transform2D = Identity;
+  private readonly markers: ChevronBatch;
+  private transform = Transform2D.Identity;
 
   constructor(c2d: CanvasRenderingContext2D, gl: WebGL2RenderingContext) {
     this.c2d = c2d;
     this.gl = gl;
     this.rects = new RectBatch(gl);
-    this.markers = new MarkerBatch(gl);
+    this.markers = new ChevronBatch(gl);
   }
 
   pushTransform(transform: Partial<Transform2D>): Disposable {
@@ -66,7 +47,7 @@ export class WebGLRenderer implements Renderer {
 
   pushWebGLTransform(transform: Partial<Transform2D>): Disposable {
     const previousTransform = this.transform;
-    this.transform = composeTransforms(this.transform, transform);
+    this.transform = Transform2D.compose(this.transform, transform);
     return {
       [Symbol.dispose]: () => {
         this.transform = previousTransform;
@@ -126,7 +107,7 @@ export class WebGLRenderer implements Renderer {
 
   resetTransform(): void {
     this.flush();
-    this.transform = Identity;
+    this.transform = Transform2D.Identity;
     this.c2d.resetTransform();
   }
 

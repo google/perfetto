@@ -35,7 +35,7 @@ import {findRef, toHTMLElement} from '../base/dom_utils';
 import {Rect2D, Size2D} from '../base/geom';
 import {assertExists} from '../base/logging';
 import {VirtualCanvas} from '../base/virtual_canvas';
-import {WebGLRenderer} from '../base/webgl_renderer';
+import {WebGLRenderer} from '../base/gl/webgl_renderer';
 import {Canvas2DRenderer} from '../base/canvas2d_renderer';
 import {Renderer} from '../base/renderer';
 import {HTMLAttrs} from './common';
