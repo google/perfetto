@@ -17,6 +17,7 @@ import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AppImpl} from '../../core/app_impl';
+import {TraceImpl} from '../../core/trace_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists, RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
@@ -52,16 +53,13 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
   }
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
+  async onTraceLoad(ctx: TraceImpl): Promise<void> {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.ToggleDrawer',
       name: 'Toggle drawer',
       defaultHotkey: TrackUtilsPlugin.azertySetting.get() ? 'A' : 'Q',
       callback: () => {
-        const tabsManager = ctx.tabs as unknown as {
-          toggleTabPanelVisibility: () => void;
-        };
-        tabsManager.toggleTabPanelVisibility();
+        ctx.tabs.toggleTabPanelVisibility();
       },
     });
 
