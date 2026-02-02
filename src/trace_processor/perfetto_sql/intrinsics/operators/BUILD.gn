@@ -87,6 +87,7 @@ if (enable_perfetto_benchmarks) {
       ":operators",
       "../../../../../gn:benchmark",
       "../../../../../gn:default_deps",
+      "../../../../../gn:sqlite",
       "../../../../base",
       "../../../sqlite",
     ]
