@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from './query_slot';
+import {QuerySlot, SerialTaskQueue, QUERY_CANCELLED} from './query_slot';
 
 // Helper to wait for pending promises to resolve
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -21,7 +21,7 @@ test('basic query execution', async () => {
   const queue = new SerialTaskQueue();
   const slot = new QuerySlot<number>(queue);
 
-  const queryFn = jest.fn().mockResolvedValue(42);
+  const queryFn = jest.fn().mockImplementation(async () => 42);
 
   const result1 = slot.use({
     key: {id: 1},
@@ -356,4 +356,83 @@ test('slot dispose calls AsyncDisposable dispose after in-flight task completes'
   // Now the dispose should have been scheduled and run
   expect(events).toEqual(['query-start', 'query-end', 'disposed']);
   expect(disposable[Symbol.asyncDispose]).toHaveBeenCalledTimes(1);
+});
+
+test('cancellation signal is set when new query is scheduled', async () => {
+  const executor = new SerialTaskQueue();
+  const slot = new QuerySlot<number>(executor);
+
+  const events: string[] = [];
+  let query1Signal: {isCancelled: boolean} | undefined;
+  let resolveQuery1: () => void;
+  const query1Promise = new Promise<void>((resolve) => {
+    resolveQuery1 = resolve;
+  });
+
+  const queryFn1 = jest.fn().mockImplementation(async (signal) => {
+    query1Signal = signal;
+    events.push('query1-start');
+    await query1Promise;
+    events.push(`query1-end (cancelled=${signal.isCancelled})`);
+    if (Boolean(signal.isCancelled)) {
+      return QUERY_CANCELLED;
+    }
+    return 1;
+  });
+
+  const queryFn2 = jest.fn().mockImplementation(async (signal) => {
+    events.push(`query2 (cancelled=${signal.isCancelled})`);
+    return 2;
+  });
+
+  // Start first query
+  slot.use({key: {id: 1}, queryFn: queryFn1});
+  await flushPromises();
+
+  expect(events).toEqual(['query1-start']);
+  expect(query1Signal?.isCancelled).toBe(false);
+
+  // Schedule second query while first is in-flight
+  slot.use({key: {id: 2}, queryFn: queryFn2});
+
+  // First query's signal should now be cancelled
+  expect(query1Signal?.isCancelled).toBe(true);
+
+  // Complete first query
+  resolveQuery1!();
+  await flushPromises();
+  await flushPromises();
+
+  // First query returned QUERY_CANCELLED so it shouldn't be cached
+  // Second query should have run
+  expect(events).toEqual([
+    'query1-start',
+    'query1-end (cancelled=true)',
+    'query2 (cancelled=false)',
+  ]);
+
+  // Final result should be from query2
+  const result = slot.use({key: {id: 2}, queryFn: queryFn2});
+  expect(result.data).toBe(2);
+});
+
+test('QUERY_CANCELLED result is not cached', async () => {
+  const executor = new SerialTaskQueue();
+  const slot = new QuerySlot<number>(executor);
+
+  // Query that always returns QUERY_CANCELLED
+  const queryFn = jest.fn().mockImplementation(async () => QUERY_CANCELLED);
+
+  slot.use({key: {id: 1}, queryFn});
+  await flushPromises();
+
+  // Result should be undefined since QUERY_CANCELLED was returned
+  const result = slot.use({key: {id: 1}, queryFn});
+  expect(result.data).toBeUndefined();
+
+  // Wait for the second query to execute
+  await flushPromises();
+
+  // Query should be called again since nothing was cached
+  expect(queryFn).toHaveBeenCalledTimes(2);
 });

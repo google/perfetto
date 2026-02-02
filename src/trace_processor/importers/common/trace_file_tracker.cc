@@ -24,7 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -43,10 +43,10 @@ tables::TraceFileTable::Id TraceFileTracker::AddFileImpl(StringId name) {
       parsing_stack_.empty() ? std::nullopt
                              : std::make_optional(parsing_stack_.back());
   return context_->storage->mutable_trace_file_table()
-      ->Insert({parent, name, 0,
+      ->Insert({parent, name, /*size=*/0,
                 context_->storage->InternString(
                     TraceTypeToString(kUnknownTraceType)),
-                std::nullopt})
+                /*processing_order=*/std::nullopt, /*is_container=*/0})
       .id;
 }
 
@@ -62,10 +62,25 @@ void TraceFileTracker::StartParsing(tables::TraceFileTable::Id id,
   row.set_trace_type(
       context_->storage->InternString(TraceTypeToString(trace_type)));
   row.set_processing_order(static_cast<int64_t>(processing_order_++));
-  if (id.value == 0) {
-    context_->metadata_tracker->SetMetadata(metadata::trace_type,
-                                            Variadic::String(row.trace_type()));
+
+  bool is_container = IsContainerTraceType(trace_type);
+  row.set_is_container(is_container);
+
+  // We log metadata only for "actual" traces and not for containers (e.g. zip
+  // files, gzip files). We do this because:
+  // 1. Tooling (e.g. trace_processor_shell) often queries metadata early in the
+  //    ingestion process (before NotifyEndOfFile is called).
+  // 2. Parent-child relationships (to identify wrappers) are only fully known
+  //    after NotifyEndOfFile.
+  // 3. A hardcoded list of container types allows us to make the logging
+  //    decision immediately.
+  if (is_container) {
+    return;
   }
+
+  context_->global_metadata_tracker->SetMetadata(
+      /*machine_id*/ std::nullopt, id, metadata::trace_type,
+      Variadic::String(row.trace_type()));
 }
 
 void TraceFileTracker::DoneParsing(tables::TraceFileTable::Id id, size_t size) {
@@ -74,10 +89,11 @@ void TraceFileTracker::DoneParsing(tables::TraceFileTable::Id id, size_t size) {
   auto row = *context_->storage->mutable_trace_file_table()->FindById(id);
   row.set_size(static_cast<int64_t>(size));
 
-  // First file (root)
-  if (id.value == 0) {
-    context_->metadata_tracker->SetMetadata(metadata::trace_size_bytes,
-                                            Variadic::Integer(row.size()));
+  // Log trace_size_bytes only for non-container traces.
+  if (!row.is_container()) {
+    context_->global_metadata_tracker->SetMetadata(
+        /*machine_id*/ std::nullopt, id, metadata::trace_size_bytes,
+        Variadic::Integer(row.size()));
   }
 }
 

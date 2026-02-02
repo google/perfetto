@@ -20,13 +20,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <map>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 
 namespace perfetto::trace_processor::json {
@@ -51,10 +51,9 @@ const Dom& NullDom();
 
 // DOM-based JSON value class.
 // Provides a jsoncpp-like API for reading and writing JSON values.
-// Uses base::FlatHashMap for object storage.
 class Dom {
  public:
-  using Object = base::FlatHashMap<std::string, Dom>;
+  using Object = std::map<std::string, Dom>;
   using Array = std::vector<Dom>;
 
   // Default constructor creates null value.

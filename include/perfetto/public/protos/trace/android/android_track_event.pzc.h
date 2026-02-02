@@ -26,6 +26,171 @@
 #include "perfetto/public/pb_macros.h"
 #include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSurfaceFlingerWorkload_Summary);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Stats);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Hwc);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Re);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_SfCpu);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Skia);
+
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_AndroidSurfaceFlingerWorkload, Source){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_AndroidSurfaceFlingerWorkload,
+                                  UNKNOWN) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_AndroidSurfaceFlingerWorkload,
+                                  FRAME_SIGNAL) = 1,
+};
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidSurfaceFlingerWorkload);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidSurfaceFlingerWorkload,
+                  VARINT,
+                  enum perfetto_protos_AndroidSurfaceFlingerWorkload_Source,
+                  source,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidSurfaceFlingerWorkload,
+                  STRING,
+                  const char*,
+                  output_name,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidSurfaceFlingerWorkload,
+                  VARINT,
+                  int64_t,
+                  vsync_id,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidSurfaceFlingerWorkload,
+                  MSG,
+                  perfetto_protos_AndroidSurfaceFlingerWorkload_Summary,
+                  summary,
+                  4);
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidSurfaceFlingerWorkload_Summary);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidSurfaceFlingerWorkload_Summary,
+                  MSG,
+                  perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings,
+                  timings,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidSurfaceFlingerWorkload_Summary,
+                  MSG,
+                  perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Stats,
+                  stats,
+                  2);
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Stats);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Stats,
+                  VARINT,
+                  int32_t,
+                  gpu_composited_layers,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Stats,
+                  VARINT,
+                  int32_t,
+                  dpu_composited_layers,
+                  2);
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings,
+    MSG,
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_SfCpu,
+    sf_cpu,
+    1);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings,
+    MSG,
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Hwc,
+    hwc,
+    2);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings,
+    MSG,
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Re,
+    re,
+    3);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings,
+    MSG,
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Skia,
+    skia,
+    4);
+
+PERFETTO_PB_MSG(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Skia);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Skia,
+    VARINT,
+    int64_t,
+    flush_nanos,
+    1);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Skia,
+    VARINT,
+    int64_t,
+    submit_nanos,
+    2);
+
+PERFETTO_PB_MSG(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Re);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Re,
+    VARINT,
+    int64_t,
+    draw_layers_nanos,
+    1);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Re,
+    VARINT,
+    int64_t,
+    gpu_completion_nanos,
+    2);
+
+PERFETTO_PB_MSG(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Hwc);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Hwc,
+    VARINT,
+    int64_t,
+    present_nanos,
+    1);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Hwc,
+    VARINT,
+    int64_t,
+    validate_nanos,
+    2);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_Hwc,
+    VARINT,
+    int64_t,
+    present_or_validate_nanos,
+    3);
+
+PERFETTO_PB_MSG(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_SfCpu);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_SfCpu,
+    VARINT,
+    int64_t,
+    frame_signal_nanos,
+    1);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_SfCpu,
+    VARINT,
+    int64_t,
+    commit_nanos,
+    2);
+PERFETTO_PB_FIELD(
+    perfetto_protos_AndroidSurfaceFlingerWorkload_Summary_Timings_SfCpu,
+    VARINT,
+    int64_t,
+    composite_nanos,
+    3);
+
 PERFETTO_PB_MSG(perfetto_protos_AndroidBitmap);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap, VARINT, int64_t, size, 1);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidBitmap, VARINT, int32_t, width, 2);
@@ -204,4 +369,10 @@ PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
                             perfetto_protos_AndroidJobSchedulerJob,
                             job_scheduler_job,
                             2006);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidSurfaceFlingerWorkload,
+                            surfaceflinger_workload,
+                            2007);
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_ANDROID_ANDROID_TRACK_EVENT_PZC_H_
