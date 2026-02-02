@@ -45,6 +45,7 @@ using protos::pbzero::SysStatsConfig;
 
 namespace {
 constexpr size_t kReadBufSize = 1024 * 16;
+constexpr uint32_t kMinPeriodMs = 10;
 
 base::ScopedFile OpenReadOnly(const char* path) {
   base::ScopedFile fd(base::OpenFile(path, O_RDONLY));
@@ -53,12 +54,15 @@ base::ScopedFile OpenReadOnly(const char* path) {
   return fd;
 }
 
-uint32_t ClampTo10Ms(uint32_t period_ms, const char* counter_name) {
-  if (period_ms > 0 && period_ms < 10) {
-    PERFETTO_ILOG("%s %" PRIu32
-                  " is less than minimum of 10ms. Increasing to 10ms.",
-                  counter_name, period_ms);
-    return 10;
+uint32_t ValidateAndClampPeriod(uint32_t period_ms, const char* counter_name) {
+  if (period_ms == 0) {
+    return 0;  // Disabled, valid state
+  }
+  if (period_ms < kMinPeriodMs) {
+    PERFETTO_ILOG("%s %" PRIu32 " is less than minimum of %" PRIu32
+                  "ms. Increasing to %" PRIu32 "ms.",
+                  counter_name, period_ms, kMinPeriodMs, kMinPeriodMs);
+    return kMinPeriodMs;
   }
   return period_ms;
 }
@@ -150,17 +154,27 @@ SysStatsDataSource::SysStatsDataSource(
   std::array<uint32_t, 11> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
-  periods_ms[0] = ClampTo10Ms(cfg.meminfo_period_ms(), "meminfo_period_ms");
-  periods_ms[1] = ClampTo10Ms(cfg.vmstat_period_ms(), "vmstat_period_ms");
-  periods_ms[2] = ClampTo10Ms(cfg.stat_period_ms(), "stat_period_ms");
-  periods_ms[3] = ClampTo10Ms(cfg.devfreq_period_ms(), "devfreq_period_ms");
-  periods_ms[4] = ClampTo10Ms(cfg.cpufreq_period_ms(), "cpufreq_period_ms");
-  periods_ms[5] = ClampTo10Ms(cfg.buddyinfo_period_ms(), "buddyinfo_period_ms");
-  periods_ms[6] = ClampTo10Ms(cfg.diskstat_period_ms(), "diskstat_period_ms");
-  periods_ms[7] = ClampTo10Ms(cfg.psi_period_ms(), "psi_period_ms");
-  periods_ms[8] = ClampTo10Ms(cfg.thermal_period_ms(), "thermal_period_ms");
-  periods_ms[9] = ClampTo10Ms(cfg.cpuidle_period_ms(), "cpuidle_period_ms");
-  periods_ms[10] = ClampTo10Ms(cfg.gpufreq_period_ms(), "gpufreq_period_ms");
+  periods_ms[0] =
+      ValidateAndClampPeriod(cfg.meminfo_period_ms(), "meminfo_period_ms");
+  periods_ms[1] =
+      ValidateAndClampPeriod(cfg.vmstat_period_ms(), "vmstat_period_ms");
+  periods_ms[2] =
+      ValidateAndClampPeriod(cfg.stat_period_ms(), "stat_period_ms");
+  periods_ms[3] =
+      ValidateAndClampPeriod(cfg.devfreq_period_ms(), "devfreq_period_ms");
+  periods_ms[4] =
+      ValidateAndClampPeriod(cfg.cpufreq_period_ms(), "cpufreq_period_ms");
+  periods_ms[5] =
+      ValidateAndClampPeriod(cfg.buddyinfo_period_ms(), "buddyinfo_period_ms");
+  periods_ms[6] =
+      ValidateAndClampPeriod(cfg.diskstat_period_ms(), "diskstat_period_ms");
+  periods_ms[7] = ValidateAndClampPeriod(cfg.psi_period_ms(), "psi_period_ms");
+  periods_ms[8] =
+      ValidateAndClampPeriod(cfg.thermal_period_ms(), "thermal_period_ms");
+  periods_ms[9] =
+      ValidateAndClampPeriod(cfg.cpuidle_period_ms(), "cpuidle_period_ms");
+  periods_ms[10] =
+      ValidateAndClampPeriod(cfg.gpufreq_period_ms(), "gpufreq_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -193,6 +207,8 @@ SysStatsDataSource::SysStatsDataSource(
 }
 
 void SysStatsDataSource::Start() {
+  if (tick_period_ms_ == 0)
+    return;  // No polling configured.
   auto weak_this = GetWeakPtr();
   task_runner_->PostTask(std::bind(&SysStatsDataSource::Tick, weak_this));
 }
