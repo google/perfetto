@@ -255,10 +255,7 @@ export class PopupMultiSelect
     const {options, showNumSelected, label} = attrs;
 
     if (showNumSelected) {
-      const numSelected = options.reduce(
-        (count, {checked}) => count + (checked ? 1 : 0),
-        0,
-      );
+      const numSelected = options.filter(({checked}) => checked).length;;
       return `${label} (${numSelected} selected)`;
     } else {
       return label;
