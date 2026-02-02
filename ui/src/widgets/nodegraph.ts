@@ -1467,11 +1467,30 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     // Zoom with Ctrl+wheel, pan without Ctrl
     if (e.ctrlKey || e.metaKey) {
       // Zoom around mouse position
-      const canvasRect = canvasElement.getBoundingClientRect();
+      const canvas = canvasElement;
+      const canvasRect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - canvasRect.left;
       const mouseY = e.clientY - canvasRect.top;
+
+      // Calculate zoom delta (negative deltaY = zoom in)
       const zoomDelta = -e.deltaY * 0.003;
-      zoomBy(zoomDelta, mouseX, mouseY);
+      const newZoom = Math.max(
+        0.1,
+        Math.min(5.0, canvasState.zoom * (1 + zoomDelta)),
+      );
+
+      // Calculate the point in canvas space (before zoom)
+      const canvasX = (mouseX - canvasState.panOffset.x) / canvasState.zoom;
+      const canvasY = (mouseY - canvasState.panOffset.y) / canvasState.zoom;
+
+      // Update zoom
+      canvasState.zoom = newZoom;
+
+      // Adjust pan to keep the same point under the mouse
+      canvasState.panOffset = {
+        x: mouseX - canvasX * newZoom,
+        y: mouseY - canvasY * newZoom,
+      };
     } else {
       // Pan the canvas based on wheel delta
       panBy(-e.deltaX, -e.deltaY);
@@ -2208,11 +2227,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               target.classList.contains('pf-canvas') ||
               target.tagName === 'svg'
             ) {
-              // Store position to detect click vs drag
-              canvasState.canvasMouseDownPos = {x: e.clientX, y: e.clientY};
-
-              // Shift + left click = rectangular selection (if multiselect enabled)
-              if (e.button === 0 && e.shiftKey && multiselect) {
+              // Start box selection with Shift (only if multiselect is enabled)
+              if (multiselect && e.shiftKey) {
                 const transformedX = canvasState.mousePos.transformedX ?? 0;
                 const transformedY = canvasState.mousePos.transformedY ?? 0;
                 canvasState.selectionRect = {
@@ -2221,17 +2237,13 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                   currentX: transformedX,
                   currentY: transformedY,
                 };
-                e.preventDefault();
                 return;
               }
 
-              // Left click, right click, or middle mouse = pan
-              if (e.button === 0 || e.button === 1 || e.button === 2) {
-                canvasState.isPanning = true;
-                canvasState.panStart = {x: e.clientX, y: e.clientY};
-                e.preventDefault();
-                return;
-              }
+              // Start panning and store position to detect click vs drag
+              canvasState.isPanning = true;
+              canvasState.panStart = {x: e.clientX, y: e.clientY};
+              canvasState.canvasMouseDownPos = {x: e.clientX, y: e.clientY};
             }
           },
           onclick: (e: PointerEvent) => {
