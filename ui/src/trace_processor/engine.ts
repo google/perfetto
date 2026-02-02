@@ -134,6 +134,18 @@ export interface Engine {
     summarizerId: string,
   ): Promise<protos.DestroySummarizerResult>;
 
+  /**
+   * Converts a proto to textproto format.
+   * @param proto The proto to convert (TraceSummarySpec, PerfettoSqlStructuredQuery, or TraceMetricV2Spec)
+   * @returns The textproto representation
+   */
+  getProtoContent(
+    proto:
+      | {traceSummarySpec: protos.TraceSummarySpec}
+      | {structuredQuery: protos.PerfettoSqlStructuredQuery}
+      | {metricSpec: protos.TraceMetricV2Spec},
+  ): Promise<string>;
+
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
   readonly failed: string | undefined;
@@ -169,6 +181,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingUpdateSummarizerSpec?: Deferred<protos.UpdateSummarizerSpecResult>;
   private pendingQuerySummarizer?: Deferred<protos.QuerySummarizerResult>;
   private pendingDestroySummarizer?: Deferred<protos.DestroySummarizerResult>;
+  private pendingProtoContent?: Deferred<string>;
   private _numRequestsPending = 0;
   private _failed: string | undefined = undefined;
   private _queryLog: Array<QueryLog> = [];
@@ -372,6 +385,18 @@ export abstract class EngineBase implements Engine, Disposable {
       case TPM.TPM_ENABLE_METATRACE:
         // We don't have any pending promises for this request so just
         // return.
+        break;
+      case TPM.TPM_PROTO_CONTENT:
+        const protoContentRes = assertExists(
+          rpc.protoContentResult,
+        ) as protos.ProtoContentResult;
+        const pendingProto = assertExists(this.pendingProtoContent);
+        if (exists(protoContentRes.error) && protoContentRes.error.length > 0) {
+          pendingProto.reject(new Error(protoContentRes.error));
+        } else {
+          pendingProto.resolve(protoContentRes.textproto ?? '');
+        }
+        this.pendingProtoContent = undefined;
         break;
       default:
         console.log(
@@ -741,6 +766,33 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
+  getProtoContent(
+    proto:
+      | {traceSummarySpec: protos.TraceSummarySpec}
+      | {structuredQuery: protos.PerfettoSqlStructuredQuery}
+      | {metricSpec: protos.TraceMetricV2Spec},
+  ): Promise<string> {
+    if (this.pendingProtoContent) {
+      return Promise.reject(new Error('Already getting proto content'));
+    }
+    const result = defer<string>();
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_PROTO_CONTENT;
+    const args = (rpc.protoContentArgs = new protos.ProtoContentArgs());
+
+    if ('traceSummarySpec' in proto) {
+      args.traceSummarySpec = proto.traceSummarySpec;
+    } else if ('structuredQuery' in proto) {
+      args.structuredQuery = proto.structuredQuery;
+    } else if ('metricSpec' in proto) {
+      args.metricSpec = proto.metricSpec;
+    }
+
+    this.pendingProtoContent = result;
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
   // Marshals the TraceProcessorRpc request arguments and sends the request
   // to the concrete Engine (Wasm or HTTP).
   private rpcSendRequest(rpc: protos.TraceProcessorRpc) {
@@ -866,6 +918,15 @@ export class EngineProxy implements Engine, Disposable {
     summarizerId: string,
   ): Promise<protos.DestroySummarizerResult> {
     return this.engine.destroySummarizer(summarizerId);
+  }
+
+  getProtoContent(
+    proto:
+      | {traceSummarySpec: protos.TraceSummarySpec}
+      | {structuredQuery: protos.PerfettoSqlStructuredQuery}
+      | {metricSpec: protos.TraceMetricV2Spec},
+  ): Promise<string> {
+    return this.engine.getProtoContent(proto);
   }
 
   get engineId(): string {

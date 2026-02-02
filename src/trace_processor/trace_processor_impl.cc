@@ -795,6 +795,30 @@ void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
 // |                      Experimental                             |
 // =================================================================
 
+base::Status TraceProcessorImpl::ProtoToText(const std::string& proto_type,
+                                             const uint8_t* proto_bytes,
+                                             size_t proto_size,
+                                             std::string* output) {
+  // Ensure the descriptor is loaded for this proto type
+  auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(proto_type);
+  if (!opt_idx) {
+    // Try loading the trace summary descriptor which contains most types we
+    // need
+    metrics_descriptor_pool_.AddFromFileDescriptorSet(
+        kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
+    opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(proto_type);
+    if (!opt_idx) {
+      return base::ErrStatus("Unknown proto type: %s", proto_type.c_str());
+    }
+  }
+
+  *output = protozero_to_text::ProtozeroToText(
+      metrics_descriptor_pool_, proto_type,
+      protozero::ConstBytes{proto_bytes, proto_size},
+      protozero_to_text::kIncludeNewLines);
+  return base::OkStatus();
+}
+
 namespace {
 
 class StringInterner {

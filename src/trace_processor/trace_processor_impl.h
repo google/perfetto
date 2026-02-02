@@ -131,11 +131,16 @@ class TraceProcessorImpl : public TraceProcessor,
 
   std::vector<uint8_t> GetMetricDescriptors() override;
 
-  // ===================
-  // |   Summarizer    |
-  // ===================
+  // ============================
+  // |   Experimental methods   |
+  // ============================
 
   base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
+
+  base::Status ProtoToText(const std::string& proto_type,
+                           const uint8_t* proto_bytes,
+                           size_t proto_size,
+                           std::string* output) override;
 
  private:
   // Needed for iterators to be able to access the context.

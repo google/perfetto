@@ -56,6 +56,7 @@ export enum NodeType {
   kSort = 'sort',
   kFilter = 'filter',
   kCounterToIntervals = 'counter_to_intervals',
+  kMetrics = 'metrics',
 
   // Multi node operations
   kIntervalIntersect = 'interval_intersect',
@@ -78,6 +79,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kSort:
     case NodeType.kFilter:
     case NodeType.kCounterToIntervals:
+    case NodeType.kMetrics:
       return true;
     default:
       return false;

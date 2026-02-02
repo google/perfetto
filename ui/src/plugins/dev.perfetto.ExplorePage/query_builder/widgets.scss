@@ -701,3 +701,97 @@
 .pf-callout-with-spacing {
   margin-bottom: 16px;
 }
+
+// Metrics header row with ID prefix and Export button
+.pf-metrics-header-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+
+  // OutlinedField should take most of the space
+  > .pf-outlined-field {
+    flex: 1;
+  }
+}
+
+// Metrics V2 Export button - styled to match OutlinedField height
+.pf-metrics-v2-export-button.pf-button {
+  // Match the OutlinedField dimensions
+  min-height: 44px; // Same as OutlinedField (legend height + input padding)
+  padding: 8px 16px;
+  justify-content: center;
+}
+
+// Metrics export modal
+.pf-metrics-export-modal {
+  min-width: 600px;
+  max-width: 80vw;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+
+  .pf-tabs {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .pf-tabs__content {
+    flex: 1;
+    overflow: auto;
+    min-height: 300px;
+  }
+}
+
+// Metrics export result section
+.pf-metrics-export-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__header {
+    display: flex;
+    justify-content: flex-start;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--pf-color-border);
+  }
+
+  &__loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+  }
+
+  &__error {
+    padding: 16px;
+    color: var(--pf-color-danger);
+    background: var(--pf-color-background-secondary);
+    border-radius: 4px;
+  }
+
+  &__empty {
+    padding: 16px;
+    color: var(--pf-color-text-muted);
+    text-align: center;
+  }
+
+  &__tables {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  &__bundle {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__bundle-title {
+    font-weight: 600;
+    font-size: var(--pf-font-size-m);
+    color: var(--pf-color-text);
+  }
+}
