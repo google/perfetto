@@ -15,7 +15,10 @@
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {createQueryCounterTrack, SqlTableCounterTrack} from '../../components/tracks/query_counter_track';
+import {
+  createQueryCounterTrack,
+  SqlTableCounterTrack,
+} from '../../components/tracks/query_counter_track';
 import {TrackRenderer} from '../../public/track';
 import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
@@ -80,12 +83,22 @@ export default class OomAdjScore implements PerfettoPlugin {
     });
     ctx.defaultWorkspace.pinnedTracksNode.addChildLast(concurrencyNode);
 
-    const processes = await ctx.engine.query(this.getProcessesQuery(window, bucket));
-    for (const procIter = processes.iter({}); procIter.valid(); procIter.next()) {
+    const processes = await ctx.engine.query(
+      this.getProcessesQuery(window, bucket),
+    );
+    for (
+      const procIter = processes.iter({});
+      procIter.valid();
+      procIter.next()
+    ) {
       const processName = procIter.get('process_name') as string;
       const upid = procIter.get('upid') as number;
       const processNode = await this.createCounterTrackNode(
-        ctx, `Process: ${processName}`, upid, window);
+        ctx,
+        `Process: ${processName}`,
+        upid,
+        window,
+      );
       concurrencyNode.addChildLast(processNode);
     }
   }
@@ -155,41 +168,37 @@ UNION SELECT ${window.end} AS ts, 0 AS value
     upid: number,
     window: Awaited<TimeSpan>,
   ): Promise<TrackNode> {
-    return await this.createTrackNode(
-      trace,
-      name,
-      (uri: string) => {
-        return createQueryCounterTrack({
-          trace: trace,
-          uri,
-          materialize: false,
-          data: {
-            sqlSource: this.getOomScoreTrackQuery(window, upid),
-          },
-          columns: {
-            ts: 'ts',
-            value: 'value',
-          },
-        });
-      },
-    );
+    return await this.createTrackNode(trace, name, (uri: string) => {
+      return createQueryCounterTrack({
+        trace: trace,
+        uri,
+        materialize: false,
+        data: {
+          sqlSource: this.getOomScoreTrackQuery(window, upid),
+        },
+        columns: {
+          ts: 'ts',
+          value: 'value',
+        },
+      });
+    });
   }
 
   private async createTrackNode(
-      trace: Trace,
-      name: string,
-      createTrack: (uri: string, filtersClause: string) => Promise<TrackRenderer>,
-    ) {
-      const uri = `name_${uuidv4()}`;
-      const renderer = await createTrack(uri, '');
-      trace.tracks.registerTrack({
-        uri,
-        renderer,
-      });
+    trace: Trace,
+    name: string,
+    createTrack: (uri: string, filtersClause: string) => Promise<TrackRenderer>,
+  ) {
+    const uri = `name_${uuidv4()}`;
+    const renderer = await createTrack(uri, '');
+    trace.tracks.registerTrack({
+      uri,
+      renderer,
+    });
 
-      return new TrackNode({
-        name,
-        uri,
-      });
-    }
+    return new TrackNode({
+      name,
+      uri,
+    });
+  }
 }
