@@ -1,7 +1,5 @@
 # See go/perfetto-ui-autopush for docs on how this works end-to-end.
-# If this file is modified, the inline YAML must be copy-pasted
-# FROM: infra/ui.perfetto.dev/cloudbuild.yaml
-# TO: TWO trigger configs inline YAML in Google Cloud Console > Cloud Build.
+# See trigger configs inline YAML in Google Cloud Console > Cloud Build.
 steps:
 - name: europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder
   args:
@@ -11,7 +9,7 @@ steps:
   # script can't handle $1 sometimes being defined (as in
   # cloudbuild.yaml) and sometimes not.
 
-# Timeout = 30 min (last measured time in Feb 2021: 12 min)
-timeout: 1800s
+# Timeout = 60 min (last measured time in Jan 2026: 30 min)
+timeout: 3600s
 options:
   machineType: E2_HIGHCPU_32

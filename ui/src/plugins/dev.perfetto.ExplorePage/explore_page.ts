@@ -353,6 +353,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ? initialState
       : [initialState];
 
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
     const newNodes: QueryNode[] = [];
     for (const state of statesToCreate) {
       try {
@@ -360,6 +361,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           {
             ...state,
             trace: attrs.trace,
+            sqlModules,
           } as QueryNodeState,
           {allNodes: attrs.state.rootNodes},
         );
@@ -881,6 +883,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     const newFilterNode = new FilterNode({
       filters,
       filterOperator,
+      sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
     });
 
     // Mark as initialized

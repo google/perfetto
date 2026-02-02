@@ -19,7 +19,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <ostream>
 #include <tuple>
 
 #include "src/trace_processor/types/destructible.h"
@@ -113,15 +112,6 @@ struct SystraceTracePoint {
 
   // For phase = N, G, H (track name)
   base::StringView str_value;
-
-  // Visible for unittesting.
-  friend std::ostream& operator<<(std::ostream& os,
-                                  const SystraceTracePoint& point) {
-    return os << "SystraceTracePoint{'" << point.phase << "', " << point.tgid
-              << ", \"" << point.name.ToStdString() << "\", " << point.int_value
-              << ", \"" << point.str_value.ToStdString() << "\""
-              << "}";
-  }
 };
 
 // We have to handle trace_marker events of a few different types:

@@ -28,7 +28,7 @@ CREATE OR REPLACE PERFETTO FUNCTION _extract_int_metadata(
   name STRING)
 -- int_value for the given name. NULL if there's no such entry.
 RETURNS LONG AS
-SELECT int_value FROM metadata WHERE name = ($name);
+SELECT int_value FROM metadata WHERE name = ($name) LIMIT 1;
 
 DROP VIEW IF EXISTS chrome_event_stats_per_thread;
 

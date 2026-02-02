@@ -26,13 +26,10 @@ using tables::MachineTable;
 
 MachineTracker::MachineTracker(TraceProcessorContext* context,
                                uint32_t raw_machine_id)
-    : context_(context) {
-  auto id =
-      context_->storage->mutable_machine_table()->Insert({raw_machine_id}).id;
-
-  if (raw_machine_id)
-    machine_id_ = id;
-}
+    : machine_id_(context->storage->mutable_machine_table()
+                      ->Insert({raw_machine_id})
+                      .id),
+      context_(context) {}
 MachineTracker::~MachineTracker() = default;
 
 void MachineTracker::SetMachineInfo(StringId sysname,
@@ -73,9 +70,7 @@ void MachineTracker::SetSystemRamBytes(int64_t system_ram_bytes) {
 PERFETTO_ALWAYS_INLINE
 std::optional<MachineTable::RowReference> MachineTracker::getRow() {
   auto& machines = *context_->storage->mutable_machine_table();
-  // Host machine has ID 0
-  auto machine_id = machine_id_ ? *machine_id_ : MachineTable::Id(0);
-  return machines.FindById(machine_id);
+  return machines.FindById(machine_id_);
 }
 
 // static

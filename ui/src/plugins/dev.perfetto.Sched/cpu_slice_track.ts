@@ -20,6 +20,7 @@ import {duration, Time, time} from '../../base/time';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
 import {Color} from '../../base/color';
+import {ColorScheme} from '../../base/color_scheme';
 import m from 'mithril';
 import {colorForThread} from '../../components/colorizer';
 import {TrackData} from '../../components/tracks/track_data';
@@ -37,6 +38,7 @@ import {SchedSliceDetailsPanel} from './sched_details_tab';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -49,6 +51,12 @@ export interface Data extends TrackData {
   utids: Uint32Array;
   flags: Uint8Array;
   lastRowId: number;
+  // Cached color schemes to avoid lookups in render hot path
+  colorSchemes: ColorScheme[];
+  // Relative timestamps for fast rendering (avoids BigInt conversion in hot path)
+  // All times are relative to data.start (in nanoseconds as floats)
+  startRelNs: Float64Array;
+  endRelNs: Float64Array;
 }
 
 const MARGIN_TOP = 3;
@@ -185,6 +193,8 @@ export class CpuSliceTrack implements TrackRenderer {
       cross join sched s using (id)
     `);
 
+    const task = await deferChunkedTask();
+
     const numRows = queryRes.numRows();
     const slices: Data = {
       start,
@@ -200,6 +210,10 @@ export class CpuSliceTrack implements TrackRenderer {
       durs: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
       flags: new Uint8Array(numRows),
+      colorSchemes: new Array(numRows),
+      // Relative timestamps for fast rendering (relative to data.start)
+      startRelNs: new Float64Array(numRows),
+      endRelNs: new Float64Array(numRows),
     };
 
     const it = queryRes.iter({
@@ -214,6 +228,10 @@ export class CpuSliceTrack implements TrackRenderer {
       isRealtime: NUM,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 50 === 0 && task.shouldYield()) {
+        await task.yield();
+      }
+
       slices.counts[row] = it.count;
       slices.startQs[row] = it.tsQ;
       slices.endQs[row] = it.tsEndQ;
@@ -222,6 +240,10 @@ export class CpuSliceTrack implements TrackRenderer {
       slices.utids[row] = it.utid;
       slices.ids[row] = it.id;
 
+      // Store relative timestamps as floats for fast rendering
+      slices.startRelNs[row] = Number(it.tsQ - start);
+      slices.endRelNs[row] = Number(it.tsEndQ - start);
+
       slices.flags[row] = 0;
       if (it.isIncomplete) {
         slices.flags[row] |= CPU_SLICE_FLAGS_INCOMPLETE;
@@ -229,6 +251,10 @@ export class CpuSliceTrack implements TrackRenderer {
       if (it.isRealtime) {
         slices.flags[row] |= CPU_SLICE_FLAGS_REALTIME;
       }
+
+      // Cache color scheme to avoid lookups in render hot path
+      const threadInfo = this.threads.get(it.utid);
+      slices.colorSchemes[row] = colorForThread(threadInfo);
     }
     return slices;
   }
@@ -306,38 +332,44 @@ export class CpuSliceTrack implements TrackRenderer {
     const startTime = timespan.start;
     const endTime = timespan.end;
 
+    // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
+    // Formula: px = relativeNs * pxPerNs + baseOffsetPx
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(data.start);
+
     const rawStartIdx = data.endQs.findIndex((end) => end >= startTime);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
     const [, rawEndIdx] = searchSegment(data.startQs, endTime);
     const endIdx = rawEndIdx === -1 ? data.startQs.length : rawEndIdx;
 
+    const timeline = this.trace.timeline;
+
     for (let i = startIdx; i < endIdx; i++) {
-      const tStart = Time.fromRaw(data.startQs[i]);
-      let tEnd = Time.fromRaw(data.endQs[i]);
       const utid = data.utids[i];
+
+      // Use pre-computed relative timestamps for fast pixel conversion
+      const rectStart = data.startRelNs[i] * pxPerNs + baseOffsetPx;
 
       // If the last slice is incomplete, it should end with the end of the
       // window, else it might spill over the window and the end would not be
       // visible as a zigzag line.
-      if (
+      const isIncomplete =
         data.ids[i] === data.lastRowId &&
-        data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE
-      ) {
-        tEnd = endTime;
-      }
-      const rectStart = timescale.timeToPx(tStart);
-      const rectEnd = timescale.timeToPx(tEnd);
+        data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE;
+      const rectEnd = Boolean(isIncomplete)
+        ? visWindowEndPx
+        : data.endRelNs[i] * pxPerNs + baseOffsetPx;
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
       const threadInfo = this.threads.get(utid);
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
-      const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-      const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-      const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-      const colorScheme = colorForThread(threadInfo);
+      const isHovering = timeline.hoveredUtid !== undefined;
+      const isThreadHovered = timeline.hoveredUtid === utid;
+      const isProcessHovered = timeline.hoveredPid === pid;
+      const colorScheme = data.colorSchemes[i];
       let color: Color;
       let textColor: Color;
       if (isHovering && !isThreadHovered) {
@@ -418,12 +450,10 @@ export class CpuSliceTrack implements TrackRenderer {
       if (selection.trackUri === this.uri) {
         const [startIndex, endIndex] = searchEq(data.ids, selection.eventId);
         if (startIndex !== endIndex) {
-          const tStart = Time.fromRaw(data.startQs[startIndex]);
-          const tEnd = Time.fromRaw(data.endQs[startIndex]);
-          const utid = data.utids[startIndex];
-          const color = colorForThread(this.threads.get(utid));
-          const rectStart = timescale.timeToPx(tStart);
-          const rectEnd = timescale.timeToPx(tEnd);
+          const color = data.colorSchemes[startIndex];
+          const rectStart =
+            data.startRelNs[startIndex] * pxPerNs + baseOffsetPx;
+          const rectEnd = data.endRelNs[startIndex] * pxPerNs + baseOffsetPx;
           const rectWidth = Math.max(1, rectEnd - rectStart);
 
           // Draw a rectangle around the slice that is currently selected.

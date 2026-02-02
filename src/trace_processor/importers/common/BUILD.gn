@@ -37,6 +37,8 @@ source_set("common") {
     "flow_tracker.h",
     "global_args_tracker.cc",
     "global_args_tracker.h",
+    "global_metadata_tracker.cc",
+    "global_metadata_tracker.h",
     "import_logs_tracker.cc",
     "import_logs_tracker.h",
     "jit_cache.cc",
@@ -127,6 +129,19 @@ source_set("parser_types") {
 source_set("synthetic_tid_hdr") {
   sources = [ "synthetic_tid.h" ]
   deps = [ "../../../../gn:default_deps" ]
+}
+
+source_set("v8_profile_parser") {
+  sources = [
+    "v8_profile_parser.cc",
+    "v8_profile_parser.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
+    "../../util:json_parser",
+    "../../util:simple_json_parser",
+  ]
 }
 
 source_set("unittests") {
