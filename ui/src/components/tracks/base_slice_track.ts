@@ -431,14 +431,7 @@ export abstract class BaseSliceTrack<
     await this.maybeRequestData(rawSlicesKey);
   }
 
-  render({
-    ctx,
-    size,
-    visibleWindow,
-    timescale,
-    colors,
-    renderer,
-  }: TrackRenderContext): void {
+  render({ctx, size, timescale, colors, renderer}: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
 
@@ -450,13 +443,7 @@ export abstract class BaseSliceTrack<
       charWidth = this.charWidth = ctx.measureText('dbpqaouk').width / 8;
     }
 
-    // Filter only the visible slices. |this.slices| will have more slices than
-    // needed because maybeRequestData() over-fetches to handle small pan/zooms.
-    // We don't want to waste time drawing slices that are off screen.
-    const vizSlices = this.getVisibleSlicesInternal(
-      visibleWindow.start.toTime('floor'),
-      visibleWindow.end.toTime('ceil'),
-    );
+    const vizSlices = this.getVisibleSlicesInternal();
 
     const selection = this.trace.selection.selection;
     const selectedId =
@@ -926,10 +913,7 @@ export abstract class BaseSliceTrack<
     return true;
   }
 
-  private getVisibleSlicesInternal(
-    start: time,
-    end: time,
-  ): Array<CastInternal<SliceT>> {
+  private getVisibleSlicesInternal(): Array<CastInternal<SliceT>> {
     const slices = this.slices.concat(this.incomplete);
     // The selected slice is always visible:
     if (this.selectedSlice && !this.slices.includes(this.selectedSlice)) {
