@@ -40,7 +40,7 @@ const CHEVRON_VERTICES: readonly Point2D[] = [
 ];
 
 // Program with all attribute/uniform locations resolved
-export interface MarkerProgram {
+interface MarkerProgram {
   readonly program: WebGLProgram;
   readonly quadCornerLoc: number;
   readonly spritePosLoc: number;
@@ -52,33 +52,13 @@ export interface MarkerProgram {
   readonly sdfTexLoc: WebGLUniformLocation;
 }
 
-// Cached program per GL context
-const programCache = new WeakMap<WebGL2RenderingContext, MarkerProgram>();
-
-// Cached SDF texture per GL context
-const textureCache = new WeakMap<WebGL2RenderingContext, WebGLTexture>();
-
-export function getMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
-  let program = programCache.get(gl);
-  if (program === undefined) {
-    program = createMarkerProgram(gl);
-    programCache.set(gl, program);
-  }
-  return program;
-}
-
-function getSDFTexture(gl: WebGL2RenderingContext): WebGLTexture {
-  let texture = textureCache.get(gl);
-  if (texture === undefined) {
-    const sdfData = generatePolygonSDF(
-      CHEVRON_VERTICES,
-      SDF_TEX_SIZE,
-      SDF_SPREAD,
-    );
-    texture = createSDFTexture(gl, sdfData, SDF_TEX_SIZE);
-    textureCache.set(gl, texture);
-  }
-  return texture;
+function createChevronTexture(gl: WebGL2RenderingContext): WebGLTexture {
+  const sdfData = generatePolygonSDF(
+    CHEVRON_VERTICES,
+    SDF_TEX_SIZE,
+    SDF_SPREAD,
+  );
+  return createSDFTexture(gl, sdfData, SDF_TEX_SIZE);
 }
 
 function createMarkerProgram(gl: WebGL2RenderingContext): MarkerProgram {
@@ -202,9 +182,15 @@ export class MarkerBatch {
   private readonly sizeBuffer: WebGLBuffer;
   private readonly colorBuffer: WebGLBuffer;
 
+  private readonly program: MarkerProgram;
+  private readonly chevronTexture: WebGLTexture;
+
   constructor(gl: WebGL2RenderingContext, capacity = 10000) {
     this.gl = gl;
     this.capacity = capacity;
+
+    this.program = createMarkerProgram(gl);
+    this.chevronTexture = createChevronTexture(gl);
 
     // Allocate CPU arrays
     this.positions = new Float32Array(capacity * 2);
@@ -256,7 +242,7 @@ export class MarkerBatch {
     if (this.count === 0) return;
 
     const gl = this.gl;
-    const prog = getMarkerProgram(gl);
+    const prog = this.program;
 
     gl.useProgram(prog.program);
     gl.enable(gl.BLEND);
@@ -269,7 +255,7 @@ export class MarkerBatch {
 
     // Bind SDF texture
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, getSDFTexture(gl));
+    gl.bindTexture(gl.TEXTURE_2D, this.chevronTexture);
     gl.uniform1i(prog.sdfTexLoc, 0);
 
     // Bind static quad

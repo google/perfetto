@@ -23,7 +23,7 @@ const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 const QUAD_INDICES = new Uint16Array([0, 1, 2, 2, 1, 3]);
 
 // Program with all attribute/uniform locations resolved
-export interface RectProgram {
+interface RectProgram {
   readonly program: WebGLProgram;
   readonly quadCornerLoc: number;
   readonly topLeftLoc: number;
@@ -33,18 +33,6 @@ export interface RectProgram {
   readonly resolutionLoc: WebGLUniformLocation;
   readonly offsetLoc: WebGLUniformLocation;
   readonly scaleLoc: WebGLUniformLocation;
-}
-
-// Cached program per GL context - WeakMap allows GC when context is destroyed
-const programCache = new WeakMap<WebGL2RenderingContext, RectProgram>();
-
-export function getRectProgram(gl: WebGL2RenderingContext): RectProgram {
-  let program = programCache.get(gl);
-  if (program === undefined) {
-    program = createRectProgram(gl);
-    programCache.set(gl, program);
-  }
-  return program;
 }
 
 function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
@@ -173,6 +161,7 @@ function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
 export class RectBatch {
   private readonly gl: WebGL2RenderingContext;
   private readonly capacity: number;
+  private readonly program: RectProgram;
 
   // CPU-side instance data
   private readonly topLeft: Float32Array;
@@ -192,6 +181,7 @@ export class RectBatch {
   constructor(gl: WebGL2RenderingContext, capacity = 10000) {
     this.gl = gl;
     this.capacity = capacity;
+    this.program = createRectProgram(gl);
 
     // Allocate CPU arrays
     this.topLeft = new Float32Array(capacity * 2);
@@ -252,7 +242,7 @@ export class RectBatch {
     if (this.count === 0) return;
 
     const gl = this.gl;
-    const prog = getRectProgram(gl);
+    const prog = this.program;
 
     gl.useProgram(prog.program);
     gl.enable(gl.BLEND);
