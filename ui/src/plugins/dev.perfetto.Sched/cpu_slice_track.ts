@@ -344,6 +344,22 @@ export class CpuSliceTrack implements TrackRenderer {
     const hoveredUtid = timeline.hoveredUtid;
     const hoveredPid = timeline.hoveredPid;
 
+    // Collect text labels to render in a second pass (allows batching rects)
+    const textLabels: Array<{
+      title: string;
+      subTitle: string;
+      textColor: Color;
+      rectXCenter: number;
+    }> = [];
+
+    // Collect incomplete slices to render after flushing
+    const incompleteSlices: Array<{
+      rectStart: number;
+      rectWidth: number;
+      color: Color;
+    }> = [];
+
+    // First pass: draw all rects (batched via renderer)
     for (let i = startIdx; i < endIdx; i++) {
       const utid = data.utids[i];
       const pid = data.pids[i];
@@ -383,18 +399,8 @@ export class CpuSliceTrack implements TrackRenderer {
       }
 
       if (flags & CPU_SLICE_FLAGS_INCOMPLETE) {
-        // Flush renderer before accessing the canvas2d context directly to
-        // synchronize any reordering and invalidate caches.
-        renderer.flush();
-        ctx.fillStyle = color.cssString;
-        drawIncompleteSlice(
-          ctx,
-          rectStart,
-          MARGIN_TOP,
-          rectWidth,
-          RECT_HEIGHT,
-          color,
-        );
+        // Defer incomplete slices to render after flush
+        incompleteSlices.push({rectStart, rectWidth, color});
       } else {
         renderer.drawRect(
           rectStart,
@@ -404,9 +410,6 @@ export class CpuSliceTrack implements TrackRenderer {
           color,
         );
       }
-
-      // Don't render text when we have less than 5px to play with.
-      if (rectWidth < 5) continue;
 
       // Stylize real-time threads. We don't do it when zoomed out as the
       // fillRect is expensive.
@@ -420,6 +423,9 @@ export class CpuSliceTrack implements TrackRenderer {
           RECT_PATTERN_HATCHED,
         );
       }
+
+      // Don't render text when we have less than 5px to play with.
+      if (rectWidth < 5) continue;
 
       // TODO: consider de-duplicating this code with the copied one from
       // chrome_slices/frontend.ts.
@@ -447,14 +453,33 @@ export class CpuSliceTrack implements TrackRenderer {
       const right = Math.min(visWindowEndPx, rectEnd);
       const left = Math.max(rectStart, 0);
       const visibleWidth = Math.max(right - left, 1);
-      title = cropText(title, charWidth, visibleWidth);
-      subTitle = cropText(subTitle, charWidth, visibleWidth);
-      const rectXCenter = left + visibleWidth / 2;
 
-      // Flush renderer before accessing the canvas2d context directly to
-      // synchronize any reordering and invalidate caches.
-      renderer.flush();
+      textLabels.push({
+        title: cropText(title, charWidth, visibleWidth),
+        subTitle: cropText(subTitle, charWidth, visibleWidth),
+        textColor,
+        rectXCenter: left + visibleWidth / 2,
+      });
+    }
 
+    // Flush once after all rects are batched
+    renderer.flush();
+
+    // Draw incomplete slices (requires direct canvas access)
+    for (const {rectStart, rectWidth, color} of incompleteSlices) {
+      ctx.fillStyle = color.cssString;
+      drawIncompleteSlice(
+        ctx,
+        rectStart,
+        MARGIN_TOP,
+        rectWidth,
+        RECT_HEIGHT,
+        color,
+      );
+    }
+
+    // Second pass: draw all text labels
+    for (const {title, subTitle, textColor, rectXCenter} of textLabels) {
       ctx.fillStyle = textColor.cssString;
       ctx.font = '12px Roboto Condensed';
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
