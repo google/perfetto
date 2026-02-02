@@ -519,7 +519,7 @@ export abstract class BaseSliceTrack<
         //                   [slice]
         // So that the slice title stays within the visible region.
         const sliceVizLimit = Math.min(slice.x + slice.w, pxEnd);
-        slice.x = Math.max(slice.x, 0);
+        slice.x = Math.max(slice.x, -1);
         slice.w = sliceVizLimit - slice.x;
       }
 
@@ -547,7 +547,6 @@ export abstract class BaseSliceTrack<
           CHEVRON_WIDTH_PX,
           sliceHeight,
           color,
-          // TODO(stevegolton): center this?
           () => this.drawChevron(ctx, slice.x, y, sliceHeight),
         );
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
