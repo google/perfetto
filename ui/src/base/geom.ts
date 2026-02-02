@@ -309,7 +309,7 @@ export class Rect2D implements Bounds2D, Size2D, Point2D {
   }
 }
 
-// 2D transformation (offset + scale). Transforms compound when pushed:
+// 2D transformation (offset + scale).
 // - Offsets add: newOffset = currentOffset + transform.offset
 // - Scales multiply: newScale = currentScale * transform.scale
 // For time-to-pixel conversion, use scaleX as pixels-per-time-unit.

@@ -143,10 +143,10 @@ function createSpriteProgram(gl: WebGL2RenderingContext): SpriteProgram {
 }
 
 /**
- * A batch of markers (chevrons) for efficient instanced rendering.
+ * A batch of chevrons for efficient instanced rendering.
  *
  * Usage:
- *   const batch = new MarkerBatch(gl);
+ *   const batch = new ChevronBatch(gl);
  *   batch.add(100, 0, 10, 14, 0xff0000ff);
  *   batch.flush(transform);
  */
@@ -206,9 +206,7 @@ export class ChevronBatch {
   }
 
   /**
-   * Add a marker to the batch.
-   * X is in transform units (e.g., time), Y in pixels.
-   * Marker is centered horizontally on x.
+   * Add a chevron to the batch.
    */
   add(x: number, y: number, w: number, h: number, color: number): void {
     const i = this.count;
