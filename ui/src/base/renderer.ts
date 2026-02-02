@@ -72,6 +72,11 @@ export interface Renderer {
     pattern?: number,
   ): void;
 
-  // Flush all pending draw calls to the GPU.
+  // Flush all pending draw/marker calls to the underlying backend and
+  // invalidate caches. Users should ensure that they call flush before
+  // accessing the canvas2d context directly in order to synchronize draws and
+  // avoid visual glitches. However, excessive flushing can degrade performance,
+  // so it should be used judiciously. If possible, try to batch as many draw
+  // calls together as possible inbetween flushes.
   flush(): void;
 }
