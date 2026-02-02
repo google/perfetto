@@ -18,7 +18,7 @@ import {Transform2D} from './renderer';
 
 // Static quad geometry shared by all marker batches
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
-const QUAD_INDICES = new Uint16Array([0, 1, 2, 2, 1, 3]);
+const QUAD_INDICES = new Uint16Array([0, 1, 2, 3]);
 
 // SDF texture parameters
 const SDF_TEX_SIZE = 64;
@@ -276,7 +276,13 @@ export class MarkerBatch {
 
     // Draw
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
-    gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0, this.count);
+    gl.drawElementsInstanced(
+      gl.TRIANGLE_STRIP,
+      4,
+      gl.UNSIGNED_SHORT,
+      0,
+      this.count,
+    );
 
     // Reset divisors
     gl.vertexAttribDivisor(prog.spritePosLoc, 0);
