@@ -34,11 +34,16 @@ import {Icon} from '../../../widgets/icon';
 import {PopupPosition} from '../../../widgets/popup';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
+import {TargetPlatformId} from '../interfaces/target_platform';
+import {Callout} from '../../../widgets/callout';
+import {Anchor} from '../../../widgets/anchor';
 
 type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
+type PlatformGetter = () => TargetPlatformId;
 
 export function chromeRecordSection(
   chromeCategoryGetter: ChromeCatFunction,
+  platformGetter: PlatformGetter,
 ): RecordSubpage {
   return {
     kind: 'PROBES_PAGE',
@@ -46,11 +51,14 @@ export function chromeRecordSection(
     title: 'Chrome browser',
     subtitle: 'Chrome tracing',
     icon: 'laptop_chromebook',
-    probes: [chromeProbe(chromeCategoryGetter)],
+    probes: [chromeProbe(chromeCategoryGetter, platformGetter)],
   };
 }
 
-function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
+function chromeProbe(
+  chromeCategoryGetter: ChromeCatFunction,
+  platformGetter: PlatformGetter,
+): RecordProbe {
   const privacyToggle = new Toggle({
     title: 'Remove untyped and sensitive data like URLs from the trace',
     descr:
@@ -60,6 +68,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
 
   const categories = new ChromeCategoriesWidget(
     chromeCategoryGetter,
+    platformGetter,
     privacyToggle,
   );
 
@@ -173,9 +182,11 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   private enabledPresets = new Set<string>();
 
   private fetchedRuntimeCategories = false;
+  private hasActiveExtension = false;
 
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
+    private platformGetter: PlatformGetter,
     private privacyToggle: Toggle,
   ) {
     // Initialize first with the static list of builtin categories (in case
@@ -405,15 +416,36 @@ export class ChromeCategoriesWidget implements ProbeSetting {
         };
       },
     );
+    const warnMissingTracingExtension =
+      !this.hasActiveExtension && this.platformGetter() === 'CHROME';
+    const TRACING_EXTENSION_URL = 'https://g.co/chrome/tracing-extension';
     return m(
       'div.chrome-probe-settings',
       {
         // This shouldn't be necessary in most cases. It's only needed:
         // 1. The first time the user installs the extension.
-        // 2. In rare cases if the extension fails to respond to the call in the
+        // 2. In rare cases if the extension fails to extensionMissing to the call in the
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
+      warnMissingTracingExtension &&
+        m(
+          Callout,
+          {
+            intent: Intent.Warning,
+            icon: Icons.Warning,
+          },
+          'The Perfetto Tracing extension is not installed or disabled. ',
+          'Please install it to display the complete settings: ',
+          m(
+            Anchor,
+            {
+              href: TRACING_EXTENSION_URL,
+              target: '_blank',
+            },
+            TRACING_EXTENSION_URL,
+          ),
+        ),
       hasAnyTags &&
         this.renderMultiSelectWithChips(
           'Enabled Tags',

@@ -39,6 +39,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -143,6 +144,9 @@ export type BaseRow = typeof BASE_ROW;
 interface SliceInternal {
   x: number;
   w: number;
+  // Pre-computed relative timestamp (nanoseconds relative to dataStart) for
+  // fast pixel calculation in render loop.
+  startRelNs: number;
 }
 
 // We use this to avoid exposing subclasses to the properties that live on
@@ -479,13 +483,24 @@ export abstract class BaseSliceTrack<
     // beyond the visible portion of the canvas.
     const pxEnd = size.width;
 
+    // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(this.slicesKey.start);
+
+    // Update relative timestamps for incomplete slices (they persist across
+    // slicesKey changes, so we need to recompute relative to current reference).
+    const refStartNs = this.slicesKey.start;
+    for (const slice of this.incomplete) {
+      slice.startRelNs = Number(slice.startNs - refStartNs);
+    }
+
     for (const slice of vizSlices) {
       // Compute the basic geometry for any visible slice, even if only
       // partially visible. This might end up with a negative x if the
       // slice starts before the visible time or with a width that overflows
       // pxEnd.
-      slice.x = timescale.timeToPx(slice.startNs);
-      slice.w = timescale.durationToPx(slice.durNs);
+      slice.x = slice.startRelNs * pxPerNs + baseOffsetPx;
+      slice.w = Number(slice.durNs) * pxPerNs;
 
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         // In the case of an instant slice, set the slice geometry on the
@@ -667,13 +682,15 @@ export abstract class BaseSliceTrack<
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
+    const slicesKeyEndPx =
+      Number(this.slicesKey.end - refStartNs) * pxPerNs + baseOffsetPx;
     checkerboardExcept(
       ctx,
       this.getHeight(),
       0,
       size.width,
-      timescale.timeToPx(this.slicesKey.start),
-      timescale.timeToPx(this.slicesKey.end),
+      baseOffsetPx,
+      slicesKeyEndPx,
     );
 
     // TODO(hjd): Remove this.
@@ -737,10 +754,16 @@ export abstract class BaseSliceTrack<
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
+    const task = await deferChunkedTask();
+
     const it = queryRes.iter(this.rowSpec);
 
     let maxDataDepth = this.maxDataDepth;
     for (let i = 0; it.valid(); it.next(), ++i) {
+      if (i % 50 === 0 && task.shouldYield()) {
+        await task.yield();
+      }
+
       if (it.dur === -1n) {
         continue;
       }
@@ -757,10 +780,19 @@ export abstract class BaseSliceTrack<
     this.maxDataDepth = maxDataDepth;
 
     this.slicesKey = slicesKey;
+
+    // Pre-compute relative timestamps for fast pixel calculation in render.
+    const refStartNs = slicesKey.start;
+    for (const slice of slices) {
+      slice.startRelNs = Number(slice.startNs - refStartNs);
+    }
+
     this.onUpdatedSlices(slices);
     this.slices = slices;
 
-    raf.scheduleCanvasRedraw();
+    // We need to schedule a full redraw here as the track height could have
+    // changed, which requires a full DOM redraw.
+    raf.scheduleFullRedraw();
   }
 
   private rowToSliceInternal(row: RowT): CastInternal<SliceT> {
@@ -776,6 +808,7 @@ export abstract class BaseSliceTrack<
       ...slice,
       x: -1,
       w: -1,
+      startRelNs: 0, // Will be computed in maybeRequestData
     };
   }
 
@@ -958,11 +991,13 @@ export abstract class BaseSliceTrack<
   // onUpdatedSlices() this gives them a chance to call the highlighting without
   // having to reimplement it.
   protected highlightHoveredAndSameTitle(slices: Slice[]) {
+    const highlightedSliceId = this.trace.timeline.highlightedSliceId;
+    const hoveredTitle = this.hoveredSlice?.title;
     for (const slice of slices) {
       const isHovering =
-        this.trace.timeline.highlightedSliceId === slice.id ||
-        (this.hoveredSlice && this.hoveredSlice.title === slice.title);
-      slice.isHighlighted = !!isHovering;
+        highlightedSliceId === slice.id ||
+        (hoveredTitle && hoveredTitle === slice.title);
+      slice.isHighlighted = Boolean(isHovering);
     }
   }
 

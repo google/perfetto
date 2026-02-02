@@ -612,6 +612,15 @@
       padding-top: var(--record-section-padding);
     }
 
+    .pf-callout {
+      margin-bottom: calc(var(--record-section-padding) / 2);
+    }
+
+    > section {
+      flex: 1;
+      min-width: 0;
+    }
+
     > h2,
     .chrome-categories,
     .chrome-privacy-setting {

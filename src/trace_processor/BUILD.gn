@@ -184,6 +184,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/etw:full",
       "importers/ftrace:full",
       "importers/fuchsia:full",
+      "importers/gecko",
+      "importers/json",
       "importers/ninja",
       "importers/perf",
       "importers/perf_text",
@@ -230,12 +232,6 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
     if (enable_perfetto_trace_processor_mac_instruments) {
       deps += [ "importers/instruments" ]
-    }
-    if (enable_perfetto_trace_processor_json) {
-      deps += [
-        "importers/gecko",
-        "importers/json",
-      ]
     }
   }
 
@@ -359,6 +355,7 @@ perfetto_unittest_source_set("unittests") {
     "importers/common:unittests",
     "importers/ftrace:unittests",
     "importers/fuchsia:unittests",
+    "importers/json:unittests",
     "importers/memory_tracker:unittests",
     "importers/perf:unittests",
     "importers/proto:unittests",
@@ -370,9 +367,6 @@ perfetto_unittest_source_set("unittests") {
     "types:unittests",
     "util:unittests",
   ]
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ "importers/json:unittests" ]
-  }
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
       "perfetto_sql/engine:unittests",

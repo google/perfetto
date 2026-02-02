@@ -37,6 +37,7 @@ import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {checkerboardExcept} from '../checkerboard';
 import {CacheKey} from './timeline_cache';
 import {valueIfAllEqual} from '../../base/array_utils';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
@@ -134,6 +135,9 @@ interface CounterData {
   maxDisplayValues: Float64Array;
   lastDisplayValues: Float64Array;
   displayValueRange: [number, number];
+  // Relative timestamps for fast rendering (relative to dataStart)
+  dataStart: time;
+  timestampsRelNs: Float64Array;
 }
 
 // 0.5 Makes the horizontal lines sharp.
@@ -419,6 +423,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     maxDisplayValues: new Float64Array(0),
     lastDisplayValues: new Float64Array(0),
     displayValueRange: [0, 0],
+    dataStart: Time.ZERO,
+    timestampsRelNs: new Float64Array(0),
   };
 
   private limits?: CounterLimits;
@@ -680,6 +686,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       maxDisplayValues: new Float64Array(0),
       lastDisplayValues: new Float64Array(0),
       displayValueRange: [0, 0],
+      dataStart: Time.ZERO,
+      timestampsRelNs: new Float64Array(0),
     };
     this.hover = undefined;
 
@@ -819,8 +827,12 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     ctx.fillStyle = `hsla(${hue}, 45%, 50%, 0.6)`;
     ctx.strokeStyle = `hsl(${hue}, 45%, 50%)`;
 
-    const calculateX = (ts: time) => {
-      return Math.floor(timescale.timeToPx(ts));
+    // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(data.dataStart);
+
+    const calculateX = (relNs: number) => {
+      return Math.floor(relNs * pxPerNs + baseOffsetPx);
     };
     const calculateY = (value: number) => {
       return (
@@ -839,12 +851,10 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     }
 
     ctx.beginPath();
-    const timestamp = Time.fromRaw(timestamps[0]);
-    ctx.moveTo(Math.max(0, calculateX(timestamp)), zeroY);
+    ctx.moveTo(Math.max(0, calculateX(data.timestampsRelNs[0])), zeroY);
     let lastDrawnY = zeroY;
     for (let i = 0; i < timestamps.length; i++) {
-      const timestamp = Time.fromRaw(timestamps[i]);
-      const x = Math.max(0, calculateX(timestamp));
+      const x = Math.max(0, calculateX(data.timestampsRelNs[i]));
       const minY = calculateY(minValues[i]);
       const maxY = calculateY(maxValues[i]);
       const lastY = calculateY(lastValues[i]);
@@ -884,12 +894,14 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-      const rawXStart = calculateX(hover.ts);
+      // Convert hover timestamps to relative for calculateX
+      const hoverRelNs = Number(hover.ts - data.dataStart);
+      const rawXStart = calculateX(hoverRelNs);
       const xStart = Math.max(0, rawXStart);
       const xEnd =
         hover.tsEnd === undefined
           ? endPx
-          : Math.floor(timescale.timeToPx(hover.tsEnd));
+          : calculateX(Number(hover.tsEnd - data.dataStart));
       const y =
         MARGIN_TOP +
         effectiveHeight -
@@ -1119,6 +1131,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       );
     `);
 
+    const task = await deferChunkedTask();
+
     const it = queryRes.iter({
       ts: LONG,
       minDisplayValue: NUM,
@@ -1127,18 +1141,26 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     });
 
     const numRows = queryRes.numRows();
+    const dataStart = countersKey.start;
     const data: CounterData = {
       timestamps: new BigInt64Array(numRows),
       minDisplayValues: new Float64Array(numRows),
       maxDisplayValues: new Float64Array(numRows),
       lastDisplayValues: new Float64Array(numRows),
       displayValueRange: [0, 0],
+      dataStart,
+      timestampsRelNs: new Float64Array(numRows),
     };
 
     let min = 0;
     let max = 0;
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 50 === 0 && task.shouldYield()) {
+        await task.yield();
+      }
+
       data.timestamps[row] = Time.fromRaw(it.ts);
+      data.timestampsRelNs[row] = Number(it.ts - dataStart);
       data.minDisplayValues[row] = it.minDisplayValue;
       data.maxDisplayValues[row] = it.maxDisplayValue;
       data.lastDisplayValues[row] = it.lastDisplayValue;

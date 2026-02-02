@@ -98,6 +98,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/metadata.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/package_lookup.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/replace_numbers_function.h"
@@ -809,9 +810,11 @@ base::Status TraceProcessorImpl::AnalyzeStructuredQuery(
   const QueryBytes& target_query = *target_query_ptr;
 
   // Generate SQL for the target query (which can reference other queries via
-  // inner_query_id).
+  // inner_query_id). Use inline_shared_queries=true to include all referenced
+  // queries as CTEs, making the SQL self-contained.
   ASSIGN_OR_RETURN(output->sql,
-                   sqg.Generate(target_query.ptr, target_query.size));
+                   sqg.Generate(target_query.ptr, target_query.size,
+                                /*inline_shared_queries=*/true));
   output->textproto =
       perfetto::trace_processor::protozero_to_text::ProtozeroToText(
           metrics_descriptor_pool_,
@@ -1340,6 +1343,11 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
   {
     base::Status status = RegisterMathFunctions(*engine);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterMetadataFunctions(*engine, storage);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
