@@ -37,6 +37,7 @@ import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
 import {Color} from '../../base/color';
 import {deferChunkedTask} from '../../base/chunked_task';
+import {StepAreaBuffers} from '../../base/renderer';
 
 export interface Data extends TrackData {
   timestamps: BigInt64Array;
@@ -44,8 +45,12 @@ export interface Data extends TrackData {
   maxFreqKHz: Uint32Array;
   lastFreqKHz: Uint32Array;
   lastIdleValues: Int8Array;
-  // Relative timestamps for fast rendering (relative to data.start)
-  timestampsRelNs: Float64Array;
+  // Pre-built buffers for step area rendering.
+  // xs: relative timestamps in ns (multiply by pxPerNs and add baseOffsetPx)
+  // ys: frequency values in kHz (apply Y transform)
+  // minYs/maxYs: min/max freq values for wiggle
+  // fills: 1.0 when not idle, 0.0 when idle
+  stepAreaBuffers: StepAreaBuffers;
 }
 
 interface Config {
@@ -247,18 +252,20 @@ export class CpuFreqTrack implements TrackRenderer {
     const idleRows = idleResult.numRows();
     assertTrue(freqRows == idleRows);
 
-    const data: Data = {
-      start,
-      end,
-      resolution,
-      length: freqRows,
-      timestamps: new BigInt64Array(freqRows),
-      minFreqKHz: new Uint32Array(freqRows),
-      maxFreqKHz: new Uint32Array(freqRows),
-      lastFreqKHz: new Uint32Array(freqRows),
-      lastIdleValues: new Int8Array(freqRows),
-      timestampsRelNs: new Float64Array(freqRows),
-    };
+    // Allocate arrays for Data and StepAreaBuffers
+    const timestamps = new BigInt64Array(freqRows);
+    const minFreqKHz = new Uint32Array(freqRows);
+    const maxFreqKHz = new Uint32Array(freqRows);
+    const lastFreqKHz = new Uint32Array(freqRows);
+    const lastIdleValues = new Int8Array(freqRows);
+
+    // StepAreaBuffers arrays (raw data values, transform applied at render time)
+    const xs = new Float32Array(freqRows); // Relative timestamps in ns
+    const xnext = new Float32Array(freqRows); // Next relative timestamp in ns
+    const ys = new Float32Array(freqRows); // Frequency values in kHz
+    const minYs = new Float32Array(freqRows); // Max freq (higher value = lower Y after transform)
+    const maxYs = new Float32Array(freqRows); // Min freq (lower value = higher Y after transform)
+    const fills = new Float32Array(freqRows); // 1.0 when not idle, 0.0 when idle
 
     const freqIt = freqResult.iter({
       ts: LONG,
@@ -274,13 +281,53 @@ export class CpuFreqTrack implements TrackRenderer {
         await task.yield();
       }
 
-      data.timestamps[i] = freqIt.ts;
-      data.timestampsRelNs[i] = Number(freqIt.ts - start);
-      data.minFreqKHz[i] = freqIt.minFreq;
-      data.maxFreqKHz[i] = freqIt.maxFreq;
-      data.lastFreqKHz[i] = freqIt.lastFreq;
-      data.lastIdleValues[i] = idleIt.lastIdle;
+      timestamps[i] = freqIt.ts;
+      minFreqKHz[i] = freqIt.minFreq;
+      maxFreqKHz[i] = freqIt.maxFreq;
+      lastFreqKHz[i] = freqIt.lastFreq;
+      lastIdleValues[i] = idleIt.lastIdle;
+
+      // Populate step area buffers with raw values
+      const x = Number(freqIt.ts - start);
+      xs[i] = Math.max(0, x); // Clamp to the start of the frame
+      ys[i] = freqIt.lastFreq;
+
+      fills[i] = idleIt.lastIdle < 0 ? 1.0 : 0.0;
+      if (i > 0) {
+        xnext[i - 1] = x;
+        const yprev = ys[i - 1];
+        minYs[i] = Math.min(freqIt.minFreq, yprev);
+        maxYs[i] = Math.max(freqIt.maxFreq, yprev);
+      } else {
+        minYs[i] = freqIt.minFreq;
+        maxYs[i] = freqIt.maxFreq;
+      }
     }
+
+    // The final xnext extends to the end of the frame
+    xnext[freqRows - 1] = Number(end - start);
+
+    const data: Data = {
+      start,
+      end,
+      resolution,
+      length: freqRows,
+      timestamps,
+      minFreqKHz,
+      maxFreqKHz,
+      lastFreqKHz,
+      lastIdleValues,
+      stepAreaBuffers: {
+        xs,
+        xnext,
+        ys,
+        minYs,
+        maxYs,
+        fillAlpha: fills,
+        count: freqRows,
+      },
+    };
+
     return data;
   }
 
@@ -304,26 +351,10 @@ export class CpuFreqTrack implements TrackRenderer {
     return text;
   }
 
-  render({
-    ctx,
-    size,
-    timescale,
-    visibleWindow,
-    colors,
-    renderer,
-  }: TrackRenderContext): void {
+  render({ctx, size, timescale, colors, renderer}: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
-
-    if (data === undefined || data.timestamps.length === 0) {
-      // Can't possibly draw anything.
-      return;
-    }
-
-    assertTrue(data.timestamps.length === data.lastFreqKHz.length);
-    assertTrue(data.timestamps.length === data.minFreqKHz.length);
-    assertTrue(data.timestamps.length === data.maxFreqKHz.length);
-    assertTrue(data.timestamps.length === data.lastIdleValues.length);
+    if (!data) return;
 
     const endPx = size.width;
     const zeroY = MARGIN_TOP + RECT_HEIGHT;
@@ -346,57 +377,24 @@ export class CpuFreqTrack implements TrackRenderer {
 
     const fillColor = this.color.setHSL({s: saturation, l: 50}).setAlpha(0.6);
 
-    // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
+    // Build transform for converting raw data to screen coordinates.
+    // X: screenX = x * pxPerNs + baseOffsetPx (ns -> pixels)
+    // Y: screenY = y * (-RECT_HEIGHT / yMax) + zeroY (kHz -> pixels, inverted)
     const pxPerNs = timescale.durationToPx(1n);
     const baseOffsetPx = timescale.timeToPx(data.start);
-
-    const calculateY = (value: number) => {
-      return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
+    const transform = {
+      offsetX: baseOffsetPx,
+      scaleX: pxPerNs,
+      offsetY: zeroY,
+      scaleY: -RECT_HEIGHT / yMax,
     };
 
-    const timespan = visibleWindow.toTimeSpan();
-    const start = timespan.start;
-    const end = timespan.end;
-
-    const [rawStartIdx] = searchSegment(data.timestamps, start);
-    const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
-
-    const [, rawEndIdx] = searchSegment(data.timestamps, end);
-    const endIdx = rawEndIdx === -1 ? data.timestamps.length : rawEndIdx;
-
-    // Draw the CPU frequency graph using the renderer.
-    const visibleCount = endIdx - startIdx;
-
-    // Build arrays for renderer
-    const xs = new Float64Array(visibleCount);
-    const ys = new Float32Array(visibleCount);
-    const minYs = new Float32Array(visibleCount);
-    const maxYs = new Float32Array(visibleCount);
-    const fills = new Float32Array(visibleCount);
-
-    for (let i = 0; i < visibleCount; i++) {
-      const dataIdx = startIdx + i;
-      xs[i] = data.timestampsRelNs[dataIdx] * pxPerNs + baseOffsetPx;
-      // minFreqKHz gives the minimum value, which is the TOP of the stroke (lower Y)
-      // maxFreqKHz gives the maximum value, which is the BOTTOM of the stroke (higher Y)
-      ys[i] = calculateY(data.lastFreqKHz[dataIdx]);
-      minYs[i] = calculateY(data.maxFreqKHz[dataIdx]);
-      maxYs[i] = calculateY(data.minFreqKHz[dataIdx]);
-      // Fill = 1.0 when not idle (lastIdleValues < 0), 0.0 when idle
-      fills[i] = data.lastIdleValues[dataIdx] < 0 ? 1.0 : 0.0;
-    }
-
     renderer.drawStepArea(
-      xs,
-      ys,
-      minYs,
-      maxYs,
-      fills,
-      visibleCount,
+      data.stepAreaBuffers,
+      transform,
+      fillColor,
       MARGIN_TOP,
       MARGIN_TOP + RECT_HEIGHT,
-      zeroY,
-      fillColor,
     );
     renderer.flush();
 

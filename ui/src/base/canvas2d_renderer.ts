@@ -18,7 +18,12 @@
 
 import {Color} from './color';
 import {Transform2D} from './geom';
-import {Renderer, RECT_PATTERN_HATCHED, MarkerRenderFunc} from './renderer';
+import {
+  Renderer,
+  RECT_PATTERN_HATCHED,
+  MarkerRenderFunc,
+  StepAreaBuffers,
+} from './renderer';
 
 // Clip bounds stored in physical screen coordinates (post-transform).
 // This allows correct culling regardless of what transforms are active.
@@ -137,87 +142,66 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   drawStepArea(
-    xs: ArrayLike<number>,
-    ys: ArrayLike<number>,
-    minYs: ArrayLike<number>,
-    maxYs: ArrayLike<number>,
-    fills: ArrayLike<number>,
-    count: number,
-    _trackTop: number,
-    _trackBottom: number,
-    baselineY: number,
+    buffers: StepAreaBuffers,
+    transform: Transform2D,
     color: Color,
   ): void {
+    const {xs, ys, minYs, maxYs, fillAlpha, xnext, count} = buffers;
     if (count < 1) return;
+
     const ctx = this.ctx;
     const canvasWidth = ctx.canvas.width;
 
-    // Find the range of visible points (cull offscreen points)
-    // Each point represents a step that continues until the next point (or end of visible area)
-    let startIdx = 0;
-    let endIdx = count;
-
-    // Find first point whose segment is visible (next point > 0, or last point)
-    while (startIdx < count - 1 && xs[startIdx + 1] <= 0) {
-      startIdx++;
-    }
-
-    // Find last point that starts before canvasWidth
-    while (endIdx > startIdx + 1 && xs[endIdx - 1] >= canvasWidth) {
-      endIdx--;
-    }
-
-    // No visible points
-    if (startIdx >= endIdx) return;
+    // Transform functions: screenCoord = raw * scale + offset
+    const tx = (x: number) => x * transform.scaleX + transform.offsetX;
+    const ty = (y: number) => y * transform.scaleY + transform.offsetY;
+    // Baseline is where y=0 maps to
+    const baselineY = transform.offsetY;
 
     // Fill the area under the step line
     ctx.fillStyle = color.cssString;
 
-    for (let i = startIdx; i < endIdx; i++) {
-      const fill = fills[i];
-      if (fill < 0.01) continue;
-
-      // Clamp x values to visible area
-      // Last point extends to canvasWidth
-      const x = Math.max(0, xs[i]);
-      const nextX =
-        i + 1 < count ? Math.min(canvasWidth, xs[i + 1]) : canvasWidth;
-      const width = nextX - x;
-      if (width <= 0) continue;
-
-      const y = ys[i];
-      const height = baselineY - y;
-
-      ctx.globalAlpha = fill;
-      ctx.fillRect(x, y, width, height);
-    }
-
-    ctx.globalAlpha = 1.0;
-
-    // Draw the stroke line on top (from minY to maxY thickness)
+    // Draw the stroke line on top
     const strokeColor = color.setAlpha(1.0);
     ctx.strokeStyle = strokeColor.cssString;
-
     ctx.beginPath();
-    const firstX = Math.max(0, xs[startIdx]);
-    ctx.moveTo(firstX, baselineY);
+    let strokeStarted = false;
 
-    for (let i = startIdx; i < endIdx; i++) {
-      // Clamp x values to visible area
-      // Last point extends to canvasWidth
-      const x = Math.max(0, xs[i]);
-      const nextX =
-        i + 1 < count ? Math.min(canvasWidth, xs[i + 1]) : canvasWidth;
-      const y = ys[i];
-      const minY = minYs[i];
-      const maxY = maxYs[i];
+    for (let i = 0; i < count; i++) {
+      // Compute segment bounds
+      const x = Math.round(tx(xs[i]));
+      const nextX = Math.round(tx(xnext[i]));
 
+      // Skip segments entirely off the left edge
+      if (nextX <= 0) continue;
+      // Stop once we're past the right edge
+      if (x >= canvasWidth) break;
+
+      const y = ty(ys[i]);
+      const minY = ty(minYs[i]);
+      const maxY = ty(maxYs[i]);
+      const fill = fillAlpha[i];
+
+      // If fillAlpha is close to zero, don't draw anything at all
+      if (fill >= 0.01) {
+        const width = nextX - x;
+        const height = baselineY - y;
+        ctx.globalAlpha = fill;
+        ctx.fillRect(x, y, width, height);
+      }
+
+      // Stroke
+      if (!strokeStarted) {
+        ctx.moveTo(x, baselineY);
+        strokeStarted = true;
+      }
       ctx.lineTo(x, maxY);
       ctx.lineTo(x, minY);
       ctx.lineTo(x, y);
       ctx.lineTo(nextX, y);
     }
 
+    ctx.globalAlpha = 1.0;
     ctx.stroke();
   }
 

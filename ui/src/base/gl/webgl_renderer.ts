@@ -17,7 +17,7 @@
 // 1. Rects pipeline - plain/hatched rectangles
 // 2. Markers pipeline - SDF-based shapes like chevrons
 
-import {Renderer, MarkerRenderFunc} from './../renderer';
+import {Renderer, MarkerRenderFunc, StepAreaBuffers} from './../renderer';
 import {DisposableStack} from './../disposable_stack';
 import {RectBatch} from './rects';
 import {ChevronBatch} from './chevrons';
@@ -104,67 +104,26 @@ export class WebGLRenderer implements Renderer {
   }
 
   drawStepArea(
-    xs: ArrayLike<number>,
-    ys: ArrayLike<number>,
-    minYs: ArrayLike<number>,
-    maxYs: ArrayLike<number>,
-    fills: ArrayLike<number>,
-    count: number,
-    trackTop: number,
-    trackBottom: number,
-    baselineY: number,
+    buffers: StepAreaBuffers,
+    dataTransform: Transform2D,
     color: Color,
+    top: number,
+    bottom: number,
   ): void {
-    if (count < 1) return;
-
-    // Canvas width in CSS pixels (before DPR scaling)
-    const canvasWidth = this.gl.canvas.width / this.transform.scaleX;
-
-    // Find the range of visible points (cull offscreen points)
-    let startIdx = 0;
-    let endIdx = count;
-
-    // Find first point whose segment is visible (next point > 0, or last point)
-    while (startIdx < count - 1 && xs[startIdx + 1] <= 0) {
-      startIdx++;
-    }
-
-    // Find last point that starts before canvasWidth
-    while (endIdx > startIdx + 1 && xs[endIdx - 1] >= canvasWidth) {
-      endIdx--;
-    }
-
-    // No visible points
-    if (startIdx >= endIdx) return;
-
-    this.stepArea.begin(trackTop, trackBottom, baselineY, color.rgba);
-    for (let i = startIdx; i < endIdx; i++) {
-      if (this.stepArea.isFull) {
-        this.stepArea.flush(this.transform);
-        this.stepArea.begin(trackTop, trackBottom, baselineY, color.rgba);
-      }
-      // For the first visible segment, connect from baseline (like Canvas2D moveTo)
-      const prevY = i === startIdx ? baselineY : ys[i - 1];
-      // Clamp x values to visible area; last point extends to canvasWidth
-      const x0 = Math.max(0, xs[i]);
-      const x1 = i + 1 < count ? Math.min(canvasWidth, xs[i + 1]) : canvasWidth;
-      this.stepArea.addSegment(
-        x0,
-        x1,
-        ys[i],
-        minYs[i],
-        maxYs[i],
-        prevY,
-        fills[i],
-      );
-    }
-    this.stepArea.flush(this.transform);
+    this.stepArea.draw(
+      buffers,
+      dataTransform,
+      this.transform,
+      top,
+      bottom,
+      color.rgba,
+    );
   }
 
   flush(): void {
     this.rects.flush(this.transform);
     this.markers.flush(this.transform);
-    this.stepArea.flush(this.transform);
+    // StepAreaBatch.draw() is immediate, no flush needed
   }
 
   resetTransform(): void {

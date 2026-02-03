@@ -138,6 +138,7 @@ interface CounterData {
   displayValueRange: [number, number];
   // Relative timestamps for fast rendering (relative to dataStart)
   dataStart: time;
+  dataEnd: time;
   timestampsRelNs: Float64Array;
 }
 
@@ -425,6 +426,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     lastDisplayValues: new Float64Array(0),
     displayValueRange: [0, 0],
     dataStart: Time.ZERO,
+    dataEnd: Time.ZERO,
     timestampsRelNs: new Float64Array(0),
   };
 
@@ -688,6 +690,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       lastDisplayValues: new Float64Array(0),
       displayValueRange: [0, 0],
       dataStart: Time.ZERO,
+      dataEnd: Time.ZERO,
       timestampsRelNs: new Float64Array(0),
     };
     this.hover = undefined;
@@ -830,16 +833,10 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
     const pxPerNs = timescale.durationToPx(1n);
     const baseOffsetPx = timescale.timeToPx(data.dataStart);
+    const frameEndRelNs = Number(data.dataEnd - data.dataStart);
 
     const calculateX = (relNs: number) => {
       return Math.floor(relNs * pxPerNs + baseOffsetPx);
-    };
-    const calculateY = (value: number) => {
-      return (
-        MARGIN_TOP +
-        effectiveHeight -
-        Math.round(((value - yMin) / yRange) * effectiveHeight)
-      );
     };
     let zeroY;
     if (yMin >= 0) {
@@ -853,33 +850,46 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     // Draw the counter graph using the renderer
     const count = timestamps.length;
     if (count >= 1) {
-      const xs = new Float64Array(count);
-      const ys = new Float64Array(count);
+      // Pass raw data values - transform converts to screen coordinates This
+      // could be a lot more efficient if we allocated these buffers when the
+      // data changes and reused them every render cycle.
+      const xs = new Float32Array(count);
+      const ys = new Float32Array(count);
       const minYs = new Float32Array(count);
       const maxYs = new Float32Array(count);
-      const fills = new Float32Array(count);
+      const fillAlpha = new Float32Array(count);
+      const xnext = new Float32Array(count);
 
       for (let i = 0; i < count; i++) {
-        xs[i] = data.timestampsRelNs[i] * pxPerNs + baseOffsetPx;
-        // minValues are lower values = higher Y (toward baseline)
-        // maxValues are higher values = lower Y (toward top)
-        minYs[i] = calculateY(maxValues[i]);
-        maxYs[i] = calculateY(minValues[i]);
-        ys[i] = calculateY(lastValues[i]);
-        fills[i] = 1.0;
+        xs[i] = Math.max(0, data.timestampsRelNs[i]); // Clamp to the start of the frame
+        ys[i] = lastValues[i];
+        minYs[i] = minValues[i];
+        maxYs[i] = maxValues[i];
+        fillAlpha[i] = 1.0;
+        if (i > 0) {
+          xnext[i - 1] = xs[i];
+        }
       }
 
+      // Final xnext is the end of the frame
+      xnext[count - 1] = frameEndRelNs;
+
+      // Build transform: raw data -> screen coordinates
+      // X: screenX = relNs * pxPerNs + baseOffsetPx
+      // Y: screenY = value * scaleY + offsetY (where y=0 maps to zeroY)
+      const transform = {
+        offsetX: baseOffsetPx,
+        scaleX: pxPerNs,
+        offsetY: zeroY,
+        scaleY: -effectiveHeight / yRange,
+      };
+
       renderer.drawStepArea(
-        xs,
-        ys,
-        minYs,
-        maxYs,
-        fills,
-        count,
+        {xs, ys, minYs, maxYs, fillAlpha, count, xnext},
+        transform,
+        fillColor,
         MARGIN_TOP,
         this.getHeight(),
-        zeroY,
-        fillColor,
       );
       renderer.flush();
     }
@@ -1157,6 +1167,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       lastDisplayValues: new Float64Array(numRows),
       displayValueRange: [0, 0],
       dataStart,
+      dataEnd: countersKey.end,
       timestampsRelNs: new Float64Array(numRows),
     };
 

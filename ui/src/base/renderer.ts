@@ -19,6 +19,26 @@ import {Transform2D} from './geom';
 export const RECT_PATTERN_HATCHED = 1; // Draw diagonal crosshatch pattern
 export const RECT_PATTERN_FADE_RIGHT = 2; // Fade alpha from full left to 0 right across width
 
+// Buffers for step-area chart data.
+// Each array contains one element per data point.
+// Values are in data space and transformed to screen coordinates by drawStepArea.
+export interface StepAreaBuffers {
+  // X positions for each data point
+  readonly xs: Float32Array;
+  // X positions for the next data point
+  readonly xnext: Float32Array;
+  // Y positions for fill top and horizontal stroke line
+  readonly ys: Float32Array;
+  // Minimum Y of the range indicator at each transition
+  readonly minYs: Float32Array;
+  // Maximum Y of the range indicator at each transition
+  readonly maxYs: Float32Array;
+  // Fill alpha per segment (0 = transparent, 1 = filled)
+  readonly fillAlpha: Float32Array;
+  // Number of valid data points in the arrays
+  readonly count: number;
+}
+
 // Describes a marker render function to customize the marker.
 export type MarkerRenderFunc = (
   ctx: CanvasRenderingContext2D,
@@ -75,32 +95,21 @@ export interface Renderer {
   // Draw a step-area chart (filled area under a step function).
   //
   // For each segment i, draws:
-  // - A filled rectangle from ys[i] to baselineY with alpha fills[i]
-  // - A 1px stroke line at ys[i] extending horizontally to xs[i+1]
-  // - A vertical "wiggle" at xs[i] connecting the previous segment's y to
-  //   minYs[i], maxYs[i], then ys[i] (visualizes min/max range at transitions)
+  // - A filled rectangle from ys[i] to baseline (y=0 in data space) with alpha fillAlpha[i]
+  // - A 1px horizontal stroke line at ys[i] extending to xs[i+1]
+  // - A vertical range indicator at xs[i] showing the min/max range at each transition
   //
-  // xs: x positions for each data point
-  // ys: y positions for fill top and horizontal stroke line
-  // minYs: minimum Y of the wiggle at each transition
-  // maxYs: maximum Y of the wiggle at each transition
-  // fills: fill alpha per segment (0 = transparent, 1 = filled)
-  // count: number of data points
-  // trackTop: Y coordinate of top of track (for WebGL quad bounds)
-  // trackBottom: Y coordinate of bottom of track (for WebGL quad bounds)
-  // baselineY: Y coordinate of baseline (bottom of fill region)
+  // buffers: the data arrays (xs, ys, minYs, maxYs, fillAlpha, count)
+  // transform: coordinate transform - baseline is where y=0 maps to (transform.offsetY)
   // color: fill and stroke color
+  // top: Y coordinate of top of rendering area (for WebGL quad bounds)
+  // bottom: Y coordinate of bottom of rendering area (for WebGL quad bounds)
   drawStepArea(
-    xs: ArrayLike<number>,
-    ys: ArrayLike<number>,
-    minYs: ArrayLike<number>,
-    maxYs: ArrayLike<number>,
-    fills: ArrayLike<number>,
-    count: number,
-    trackTop: number,
-    trackBottom: number,
-    baselineY: number,
+    buffers: StepAreaBuffers,
+    transform: Transform2D,
     color: Color,
+    top: number,
+    bottom: number,
   ): void;
 
   // Flush all pending draw/marker calls to the underlying backend and
