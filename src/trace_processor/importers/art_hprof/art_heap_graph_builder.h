@@ -161,6 +161,9 @@ class HeapGraphBuilder {
   // Build and return the final heap graph
   HeapGraph BuildGraph();
 
+  // Clear all parsed data for idempotency
+  void Clear();
+
  private:
   //--------------------------------------------------------------------------
   // Phase 1: File Header & Record Parsing
