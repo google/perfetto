@@ -38,6 +38,7 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
 
   base::Status Parse(TraceBlobView) override;
   void Flush() override;
+  base::Status ProcessEndOfFileDeferredPackets() override;
   base::Status NotifyEndOfFile() override;
 
   void DestroyContext();
