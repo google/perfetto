@@ -239,7 +239,7 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
       this.resizeObs = undefined;
     }
     this.detachAllHandlers();
-    if (this.chart) {
+    if (this.chart !== undefined) {
       this.chart.dispose();
       this.chart = undefined;
     }

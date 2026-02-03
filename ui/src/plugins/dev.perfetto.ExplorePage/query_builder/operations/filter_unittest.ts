@@ -16,6 +16,7 @@ import {
   UIFilter,
   createFiltersProto,
   createExperimentalFiltersProto,
+  createAutoGroupedFiltersProto,
 } from './filter';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
@@ -134,64 +135,142 @@ describe('filter operations', () => {
     });
 
     describe('createExperimentalFiltersProto', () => {
-      describe('without groups', () => {
-        it('should return undefined for empty filters and no groups', () => {
-          const result = createExperimentalFiltersProto([], sourceCols, 'AND');
+      it('should return undefined for empty filters', () => {
+        const result = createExperimentalFiltersProto([], sourceCols, 'AND');
 
-          expect(result).toBeUndefined();
-        });
+        expect(result).toBeUndefined();
+      });
 
-        it('should create AND group for multiple filters', () => {
-          const filters: UIFilter[] = [
-            createFilter('id', 1),
-            createFilter('name', 'test'),
-          ];
+      it('should create AND group for multiple filters', () => {
+        const filters: UIFilter[] = [
+          createFilter('id', 1),
+          createFilter('name', 'test'),
+        ];
 
-          const result = createExperimentalFiltersProto(
-            filters,
-            sourceCols,
-            'AND',
-          );
+        const result = createExperimentalFiltersProto(
+          filters,
+          sourceCols,
+          'AND',
+        );
 
-          expect(result).toBeDefined();
-          expect(result!.op).toBe(
-            protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator
-              .AND,
-          );
-          expect(result!.filters).toHaveLength(2);
-        });
+        expect(result).toBeDefined();
+        expect(result!.op).toBe(
+          protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator
+            .AND,
+        );
+        expect(result!.filters).toHaveLength(2);
+      });
 
-        it('should create OR group for multiple filters', () => {
-          const filters: UIFilter[] = [
-            createFilter('id', 1),
-            createFilter('name', 'test'),
-          ];
+      it('should create OR group for multiple filters', () => {
+        const filters: UIFilter[] = [
+          createFilter('id', 1),
+          createFilter('name', 'test'),
+        ];
 
-          const result = createExperimentalFiltersProto(
-            filters,
-            sourceCols,
-            'OR',
-          );
+        const result = createExperimentalFiltersProto(
+          filters,
+          sourceCols,
+          'OR',
+        );
 
-          expect(result).toBeDefined();
-          expect(result!.op).toBe(
-            protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator
-              .OR,
-          );
-          expect(result!.filters).toHaveLength(2);
-        });
+        expect(result).toBeDefined();
+        expect(result!.op).toBe(
+          protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.OR,
+        );
+        expect(result!.filters).toHaveLength(2);
+      });
 
-        it('should default to AND when operator not specified', () => {
-          const filters: UIFilter[] = [createFilter('id', 1)];
+      it('should default to AND when operator not specified', () => {
+        const filters: UIFilter[] = [createFilter('id', 1)];
 
-          const result = createExperimentalFiltersProto(filters, sourceCols);
+        const result = createExperimentalFiltersProto(filters, sourceCols);
 
-          expect(result).toBeDefined();
-          expect(result!.op).toBe(
-            protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator
-              .AND,
-          );
-        });
+        expect(result).toBeDefined();
+        expect(result!.op).toBe(
+          protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator
+            .AND,
+        );
+      });
+    });
+
+    describe('createAutoGroupedFiltersProto', () => {
+      it('should return undefined for empty filters', () => {
+        const result = createAutoGroupedFiltersProto([], sourceCols);
+
+        expect(result).toBeUndefined();
+      });
+
+      it('should create OR group for equality filters on same column', () => {
+        const filters: UIFilter[] = [
+          createFilter('id', 1),
+          createFilter('id', 2),
+        ];
+
+        const result = createAutoGroupedFiltersProto(filters, sourceCols);
+
+        expect(result).toBeDefined();
+        expect(result!.op).toBe(
+          protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.OR,
+        );
+        expect(result!.filters).toHaveLength(2);
+      });
+
+      it('should create AND group for range filters on same column', () => {
+        const rangeFilters: UIFilter[] = [
+          {column: 'age', op: '>=', value: 18, enabled: true},
+          {column: 'age', op: '<', value: 65, enabled: true},
+        ];
+
+        const result = createAutoGroupedFiltersProto(rangeFilters, sourceCols);
+
+        expect(result).toBeDefined();
+        expect(result!.op).toBe(
+          protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator
+            .AND,
+        );
+        expect(result!.filters).toHaveLength(2);
+      });
+
+      it('should create nested groups for filters on different columns', () => {
+        const filters: UIFilter[] = [
+          createFilter('id', 1),
+          createFilter('name', 'test'),
+        ];
+
+        const result = createAutoGroupedFiltersProto(filters, sourceCols);
+
+        expect(result).toBeDefined();
+        // Top level is AND for different columns
+        expect(result!.op).toBe(
+          protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator
+            .AND,
+        );
+        // Has nested groups instead of direct filters
+        expect(result!.groups).toHaveLength(2);
+      });
+
+      it('should filter out disabled filters', () => {
+        const filters: UIFilter[] = [
+          createFilter('id', 1, true),
+          createFilter('id', 2, false),
+          createFilter('id', 3, true),
+        ];
+
+        const result = createAutoGroupedFiltersProto(filters, sourceCols);
+
+        expect(result).toBeDefined();
+        expect(result!.filters).toHaveLength(2);
+      });
+
+      it('should return undefined if all filters are disabled', () => {
+        const filters: UIFilter[] = [
+          createFilter('id', 1, false),
+          createFilter('name', 'test', false),
+        ];
+
+        const result = createAutoGroupedFiltersProto(filters, sourceCols);
+
+        expect(result).toBeUndefined();
       });
     });
   });

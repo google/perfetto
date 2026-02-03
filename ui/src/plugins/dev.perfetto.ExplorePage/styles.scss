@@ -154,3 +154,435 @@
     margin-top: 0.5rem;
   }
 }
+
+// Visualisation node details in node graph
+.pf-visualisation-node-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &__config {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__type {
+    font-weight: 500;
+  }
+
+  &__column {
+    color: var(--pf-color-text-secondary);
+  }
+}
+
+// Chart view container (for DataExplorer integration)
+.pf-chart-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  &__title {
+    font-size: var(--pf-font-size-m);
+    font-weight: 500;
+    color: var(--pf-color-text);
+  }
+
+  &__charts {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    overflow: auto;
+    // Prevent flex lines from stretching to fill container height.
+    // Cards have fixed height and should not resize with the panel.
+    align-content: flex-start;
+  }
+
+  &__column-picker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    height: 100%;
+
+    select {
+      max-width: 250px;
+    }
+  }
+
+  // Single chart container (extends Card widget)
+  &__single {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    position: relative;
+    // Fixed height: header (~36px) + content (250px) + padding (8px top)
+    height: 294px;
+    flex-shrink: 0;
+    // Override Card padding
+    padding: 0;
+
+    // Resize handle positioned on right edge
+    > .pf-resize-handle {
+      position: absolute;
+      right: -3px;
+      top: 0;
+      bottom: 0;
+      height: auto;
+      background: transparent;
+
+      // Hide the default line - chart border is sufficient
+      &::after {
+        display: none;
+      }
+    }
+  }
+
+  &__single-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0;
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    color: var(--pf-color-text);
+    background: var(--pf-color-background-secondary);
+    border-bottom: 1px solid var(--pf-color-border);
+    flex-shrink: 0;
+  }
+
+  &__single-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-right: 8px;
+  }
+
+  &__single-header-text {
+    flex: 1;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: var(--pf-color-hover);
+    }
+  }
+
+  &__single-header-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    outline: none;
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    font-family: inherit;
+    background: var(--pf-color-background);
+    color: var(--pf-color-text);
+    box-sizing: border-box;
+  }
+
+  // Draggable header styling
+  &__single-header--draggable {
+    cursor: grab;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  &__single--dragging {
+    opacity: 0.5;
+  }
+
+  &__single--drag-over {
+    border-color: var(--pf-color-primary);
+    border-style: dashed;
+  }
+
+  &__single-content {
+    height: 250px; // Fixed height for chart container
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 8px 0;
+    overflow: hidden;
+
+    // Datagrid fills the content area edge-to-edge with no padding.
+    &--datagrid {
+      padding: 0;
+      align-items: stretch;
+      justify-content: stretch;
+    }
+  }
+}
+
+// Chart grid layouts
+.pf-chart-grid {
+  &--1 {
+    .pf-chart-view__single {
+      flex: 1 1 100%;
+      min-width: 300px;
+    }
+  }
+
+  &--2 {
+    .pf-chart-view__single {
+      flex: 1 1 calc(50% - 8px);
+      min-width: 250px;
+    }
+  }
+
+  &--2x2 {
+    .pf-chart-view__single {
+      flex: 1 1 calc(50% - 8px);
+      min-width: 250px;
+    }
+  }
+
+  &--3 {
+    .pf-chart-view__single {
+      flex: 1 1 calc(33.333% - 11px);
+      min-width: 200px;
+    }
+  }
+}
+
+// Applied when the user resizes a chart via the resize handle.
+// Doubled class selector bumps specificity to (0,2,0) so it overrides
+// the .pf-chart-grid--X .pf-chart-view__single rules above.
+.pf-chart-view__single--custom-width.pf-chart-view__single--custom-width {
+  width: var(--pf-chart-width);
+  flex: none;
+}
+
+// Chart config popup - horizontal form layout
+.pf-chart-config-popup {
+  // Override form styles for horizontal layout
+  .pf-form {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 16px;
+    align-items: center;
+    padding: 12px;
+    min-width: 280px;
+  }
+
+  // FormLabel uses display:contents so its children become grid items
+  .pf-form__label {
+    display: contents;
+    margin-bottom: 0;
+
+    // Label text (the span)
+    > span {
+      font-size: var(--pf-font-size-s);
+      color: var(--pf-color-text-secondary);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+  }
+
+  // Inputs take full width of their column
+  .pf-select {
+    width: 100%;
+    min-width: 140px;
+    margin-bottom: 0;
+  }
+
+  input[type="number"] {
+    width: 100%;
+    min-width: 140px;
+    padding: 6px 8px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+    font-size: var(--pf-font-size-s);
+    font-family: inherit;
+    background: var(--pf-color-background);
+    color: var(--pf-color-text);
+    box-sizing: border-box;
+
+    &:focus {
+      outline: none;
+      border-color: var(--pf-color-primary);
+    }
+
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+      opacity: 1;
+    }
+  }
+
+  // Button bar spans full width
+  .pf-form__button-bar {
+    grid-column: 1 / -1;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--pf-color-border);
+  }
+}
+
+// Chart cards container in modify panel
+.pf-chart-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Individual chart card (extends Card widget)
+.pf-chart-card {
+  overflow: hidden;
+  padding: 0;
+
+  &--collapsed {
+    .pf-chart-card__header {
+      border-bottom: none;
+    }
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--pf-color-background-secondary);
+    border-bottom: 1px solid var(--pf-color-border);
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background: var(--pf-color-hover);
+    }
+  }
+
+  &__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--pf-color-text-secondary);
+  }
+
+  &__info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    color: var(--pf-color-text);
+
+    .pf-icon {
+      color: var(--pf-color-primary);
+      flex-shrink: 0;
+    }
+  }
+
+  &__title {
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: text;
+
+    &:hover {
+      color: var(--pf-color-primary);
+    }
+  }
+
+  &__title-input {
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    outline: none;
+    padding: 0;
+    margin: 0;
+    font-family: inherit;
+    color: var(--pf-color-text);
+    flex: 1;
+    min-width: 0;
+
+    &::placeholder {
+      color: var(--pf-color-text-muted);
+      font-style: italic;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__filter-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 4px 0 8px;
+    border-radius: 10px;
+    background: var(--pf-color-primary);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  &__filter-count-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0.7;
+
+    &:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.3);
+    }
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  &__filter-label {
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-secondary);
+  }
+
+  &__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__empty-message {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+    font-style: italic;
+    text-align: center;
+    padding: 16px 8px;
+  }
+}

@@ -45,6 +45,8 @@ import {
 } from '../../../trace_processor/perfetto_sql_type';
 import {ColumnType} from '../../../components/widgets/datagrid/datagrid_schema';
 import {QueryExecutionService} from './query_execution_service';
+import {VisualisationNode} from './nodes/visualisation_node';
+import {ChartView} from './charts/chart_view';
 
 // Map PerfettoSqlType to DataGrid ColumnType
 function getColumnType(type: PerfettoSqlType): ColumnType {
@@ -160,7 +162,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     // Show spinner when actually executing the query
     const statusIndicator =
       attrs.isAnalyzing && !attrs.isQueryRunning
-        ? m('span.status-indicator', 'Queued...')
+        ? m('span.pf-status-indicator', 'Queued...')
         : attrs.isQueryRunning
           ? m(Spinner)
           : null;
@@ -361,6 +363,17 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     // Show data if we have response and dataSource (even without query)
     // This handles the case where we load existing materialized data
     if (attrs.response && attrs.dataSource && attrs.node.validate()) {
+      // Show chart view for visualisation nodes
+      if (attrs.node instanceof VisualisationNode) {
+        return m(ChartView, {
+          trace: attrs.trace,
+          node: attrs.node,
+          queryExecutionService: attrs.queryExecutionService,
+          onFilterChange: () => {
+            attrs.onchange?.();
+          },
+        });
+      }
       // Show warning for multiple statements with centered icon
       const warning =
         attrs.response.statementWithOutputCount > 1
@@ -431,10 +444,13 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             if (!tableToJoinidColumns.has(targetTableName)) {
               tableToJoinidColumns.set(targetTableName, []);
             }
-            tableToJoinidColumns.get(targetTableName)!.push({
-              joinidColumn: c,
-              targetTable: targetTableName,
-            });
+            const columns = tableToJoinidColumns.get(targetTableName);
+            if (columns !== undefined) {
+              columns.push({
+                joinidColumn: c,
+                targetTable: targetTableName,
+              });
+            }
           }
         }
 
@@ -563,7 +579,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     const isServiceBusy = attrs.queryExecutionService.isQueryExecuting();
     if (isServiceBusy && !attrs.response && !attrs.isQueryRunning) {
       return m(DataExplorerEmptyState, {}, [
-        m('span.status-indicator', 'Queued...'),
+        m('span.pf-status-indicator', 'Queued...'),
         m(Spinner, {easing: true}),
       ]);
     }

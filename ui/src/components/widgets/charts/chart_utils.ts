@@ -15,6 +15,13 @@
 import {AggregateFunction} from '../datagrid/model';
 
 /**
+ * Aggregation functions available for charts.
+ * Extends the datagrid's AggregateFunction with COUNT, which is
+ * field-independent (counts rows rather than aggregating a column).
+ */
+export type ChartAggregation = AggregateFunction | 'COUNT';
+
+/**
  * Format a number for display on chart axes.
  */
 export function formatNumber(value: number): string {
@@ -34,8 +41,8 @@ export function formatNumber(value: number): string {
 /**
  * Whether an aggregation always produces integer results.
  */
-export function isIntegerAggregation(agg: AggregateFunction): boolean {
-  return agg === 'COUNT_DISTINCT';
+export function isIntegerAggregation(agg: ChartAggregation): boolean {
+  return agg === 'COUNT' || agg === 'COUNT_DISTINCT';
 }
 
 // ---------------------------------------------------------------------------

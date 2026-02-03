@@ -19,13 +19,14 @@ import {
   QueryResult,
 } from '../../../trace_processor/query_result';
 import {
-  createChartLoader,
-  ChartLoader,
+  ChartSource,
+  SQLChartLoader,
+  QueryConfig,
+  ChartLoaderResult,
   PointColumnSpec,
   rangeFilters,
 } from './chart_sql_source';
 import {LineChartData, LineChartPoint, LineChartSeries} from './line_chart';
-import type {QueryResult as SlotResult} from '../../../base/query_slot';
 
 /**
  * Configuration for SQLLineChartLoader.
@@ -69,7 +70,7 @@ export interface LineChartLoaderConfig {
 }
 
 /** Result returned by the line chart loader. */
-export type LineChartLoaderResult = SlotResult<LineChartData>;
+export type LineChartLoaderResult = ChartLoaderResult<LineChartData>;
 
 /**
  * SQL-based line chart loader with async loading and caching.
@@ -77,8 +78,13 @@ export type LineChartLoaderResult = SlotResult<LineChartData>;
  * Fetches ordered (x, y) points directly from SQL, optionally grouped
  * into multiple series by a grouping column.
  */
-export class SQLLineChartLoader {
-  private readonly loader: ChartLoader<LineChartLoaderConfig, LineChartData>;
+export class SQLLineChartLoader extends SQLChartLoader<
+  LineChartLoaderConfig,
+  LineChartData
+> {
+  private readonly xCol: string;
+  private readonly yCol: string;
+  private readonly seriesCol: string | undefined;
 
   constructor(opts: SQLLineChartLoaderOpts) {
     const xCol = opts.xColumn;
@@ -93,69 +99,70 @@ export class SQLLineChartLoader {
       schema[seriesCol] = 'text';
     }
 
-    this.loader = createChartLoader({
-      engine: opts.engine,
-      query: opts.query,
-      schema,
-      buildQueryConfig: (config) => {
-        const columns: PointColumnSpec[] = [
-          {column: xCol, alias: '_x', cast: 'real'},
-          {column: yCol, alias: '_y', cast: 'real'},
-        ];
-        // When no breakdown column is configured, buildPoints() won't add
-        // _series to the SELECT. Add NULL AS _series explicitly so that
-        // parseResult's iter spec always finds the column.
-        if (seriesCol === undefined) {
-          columns.push({alias: '_series', cast: 'text'});
-        }
-        return {
-          type: 'points',
-          columns,
-          breakdown: seriesCol,
-          filters: rangeFilters(xCol, config.xRange),
-          orderBy:
-            seriesCol !== undefined
-              ? [{column: '_series'}, {column: '_x'}]
-              : [{column: '_x'}],
-        };
-      },
-      parseResult: (queryResult: QueryResult, config) => {
-        const seriesMap = new Map<string, LineChartPoint[]>();
-        const defaultName = seriesCol !== undefined ? '' : yCol;
-        const iter = queryResult.iter({_x: NUM, _y: NUM, _series: STR_NULL});
-
-        for (; iter.valid(); iter.next()) {
-          const name = iter._series ?? defaultName;
-          let points = seriesMap.get(name);
-          if (points === undefined) {
-            points = [];
-            seriesMap.set(name, points);
-          }
-          points.push({x: iter._x, y: iter._y});
-        }
-
-        const series: LineChartSeries[] = [];
-        for (const [name, points] of seriesMap) {
-          series.push({
-            name,
-            points:
-              config.maxPoints !== undefined
-                ? downsample(points, config.maxPoints)
-                : points,
-          });
-        }
-        return {series};
-      },
-      extraCacheKey: (config) => ({maxPoints: config.maxPoints}),
-    });
+    super(opts.engine, new ChartSource({query: opts.query, schema}));
+    this.xCol = xCol;
+    this.yCol = yCol;
+    this.seriesCol = seriesCol;
   }
 
-  use(config: LineChartLoaderConfig): LineChartLoaderResult {
-    return this.loader.use(config);
+  protected buildQueryConfig(config: LineChartLoaderConfig): QueryConfig {
+    const columns: PointColumnSpec[] = [
+      {column: this.xCol, alias: '_x', cast: 'real'},
+      {column: this.yCol, alias: '_y', cast: 'real'},
+    ];
+    // When no breakdown column is configured, buildPoints() won't add
+    // _series to the SELECT. Add NULL AS _series explicitly so that
+    // parseResult's iter spec always finds the column.
+    if (this.seriesCol === undefined) {
+      columns.push({alias: '_series', cast: 'text'});
+    }
+    return {
+      type: 'points',
+      columns,
+      breakdown: this.seriesCol,
+      filters: rangeFilters(this.xCol, config.xRange),
+      orderBy:
+        this.seriesCol !== undefined
+          ? [{column: '_series'}, {column: '_x'}]
+          : [{column: '_x'}],
+    };
   }
 
-  dispose(): void {
-    this.loader.dispose();
+  protected parseResult(
+    queryResult: QueryResult,
+    config: LineChartLoaderConfig,
+  ): LineChartData {
+    const seriesMap = new Map<string, LineChartPoint[]>();
+    const defaultName = this.seriesCol !== undefined ? '' : this.yCol;
+    const iter = queryResult.iter({_x: NUM, _y: NUM, _series: STR_NULL});
+
+    for (; iter.valid(); iter.next()) {
+      const name = iter._series ?? defaultName;
+      let points = seriesMap.get(name);
+      if (points === undefined) {
+        points = [];
+        seriesMap.set(name, points);
+      }
+      points.push({x: iter._x, y: iter._y});
+    }
+
+    const series: LineChartSeries[] = [];
+    for (const [name, points] of seriesMap) {
+      series.push({
+        name,
+        points:
+          config.maxPoints !== undefined
+            ? downsample(points, config.maxPoints)
+            : points,
+      });
+    }
+    return {series};
+  }
+
+  protected override extraCacheKey(
+    config: LineChartLoaderConfig,
+  ): Record<string, string | number | boolean | undefined> {
+    return {maxPoints: config.maxPoints};
   }
 }
 
