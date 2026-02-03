@@ -282,11 +282,11 @@ export class VirtualOverlayCanvas
 
     // Offse by the virtual canvas position and scale by device pixel ratio
     const dpr = window.devicePixelRatio;
-    renderer.pushTransform({
+    using _transform = renderer.pushTransform({
       scaleX: dpr,
       scaleY: dpr,
     });
-    renderer.pushTransform({
+    using _scale = renderer.pushTransform({
       offsetX: -virtualCanvas.canvasRect.left,
       offsetY: -virtualCanvas.canvasRect.top,
     });
