@@ -17,13 +17,12 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h"
 
 #include <sqlite3.h>
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -34,6 +33,7 @@
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/galloping_search.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -181,6 +181,63 @@ int SliceMipmapOperator::Close(sqlite3_vtab_cursor* cursor) {
   return SQLITE_OK;
 }
 
+void SliceMipmapOperator::FilterImpl(State& state,
+                                     int64_t window_start,
+                                     int64_t window_end,
+                                     int64_t window_step,
+                                     std::vector<int64_t>& queries,
+                                     std::vector<uint32_t>& positions,
+                                     std::vector<Result>& results) {
+  // Build the array of query timestamps (window boundaries).
+  queries.clear();
+  queries.reserve(
+      static_cast<size_t>((window_end - window_start) / window_step) + 2);
+  queries.push_back(window_start);
+  for (int64_t s = window_start; s < window_end; s += window_step) {
+    queries.push_back(s + window_step);
+  }
+
+  for (uint32_t depth = 0; depth < state.by_depth.size(); ++depth) {
+    auto& by_depth = state.by_depth[depth];
+    const auto& ids = by_depth.ids;
+    const auto& tses = by_depth.timestamps;
+
+    // Use galloping search for batched lower_bound queries.
+    GallopingSearch searcher(tses.data(), static_cast<uint32_t>(tses.size()));
+    positions.resize(queries.size());
+    searcher.BatchedLowerBound(queries.data(),
+                               static_cast<uint32_t>(queries.size()),
+                               positions.data());
+
+    // If the slice before this window overlaps with the current window, move
+    // the iterator back one to consider it as well.
+    uint32_t start_idx = positions[0];
+    if (start_idx != 0 &&
+        (static_cast<size_t>(start_idx) == tses.size() ||
+         (tses[start_idx] != window_start &&
+          tses[start_idx] + by_depth.forest[start_idx].dur > window_start))) {
+      --start_idx;
+    }
+
+    // Process each window using pre-computed positions.
+    for (size_t i = 1; i < positions.size(); ++i) {
+      uint32_t end_idx = positions[i];
+      if (start_idx == end_idx) {
+        continue;
+      }
+      auto res = by_depth.forest.Query(start_idx, end_idx);
+      results.emplace_back(Result{
+          tses[res.idx],
+          res.dur,
+          res.count,
+          ids[res.idx],
+          depth,
+      });
+      start_idx = end_idx;
+    }
+  }
+}
+
 int SliceMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
                                 int,
                                 const char*,
@@ -199,41 +256,7 @@ int SliceMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
   int64_t end = sqlite3_value_int64(argv[1]);
   int64_t step = sqlite3_value_int64(argv[2]);
 
-  for (uint32_t depth = 0; depth < state->by_depth.size(); ++depth) {
-    auto& by_depth = state->by_depth[depth];
-    const auto& ids = by_depth.ids;
-    const auto& tses = by_depth.timestamps;
-
-    // If the slice before this window overlaps with the current window, move
-    // the iterator back one to consider it as well.
-    auto start_idx = static_cast<uint32_t>(std::distance(
-        tses.begin(), std::lower_bound(tses.begin(), tses.end(), start)));
-    if (start_idx != 0 &&
-        (static_cast<size_t>(start_idx) == tses.size() ||
-         (tses[start_idx] != start &&
-          tses[start_idx] + by_depth.forest[start_idx].dur > start))) {
-      --start_idx;
-    }
-
-    for (int64_t s = start; s < end; s += step) {
-      auto end_idx = static_cast<uint32_t>(std::distance(
-          tses.begin(),
-          std::lower_bound(tses.begin() + static_cast<int64_t>(start_idx),
-                           tses.end(), s + step)));
-      if (start_idx == end_idx) {
-        continue;
-      }
-      auto res = by_depth.forest.Query(start_idx, end_idx);
-      c->results.emplace_back(Cursor::Result{
-          tses[res.idx],
-          res.dur,
-          res.count,
-          ids[res.idx],
-          depth,
-      });
-      start_idx = end_idx;
-    }
-  }
+  FilterImpl(*state, start, end, step, c->queries, c->positions, c->results);
   return SQLITE_OK;
 }
 
