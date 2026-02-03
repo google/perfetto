@@ -43,6 +43,7 @@ class PprofTraceReader : public ChunkedTraceReader {
 
   TraceProcessorContext* const context_;
   std::vector<uint8_t> buffer_;
+  bool parsed_any_data_ = false;
 
   // Constant strings interned at construction time
   const StringId unknown_string_id_;

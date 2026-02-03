@@ -41,6 +41,8 @@ class ChunkedTraceReader {
   // For other trace formats, this may write directly to storage tables.
   [[nodiscard]] virtual base::Status OnPushDataToSorter() = 0;
 
+  // Phase 2 (implicit): TraceSorter extracts and sorts all pushed events.
+
   // Phase 3: Called after events are extracted from sorter.
   // Parsers do post-extraction processing and cleanup here.
   virtual void OnEventsFullyExtracted() = 0;
