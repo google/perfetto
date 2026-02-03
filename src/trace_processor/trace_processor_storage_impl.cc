@@ -164,13 +164,13 @@ void TraceProcessorStorageImpl::OnEventsFullyExtracted() {
   auto& machines = context()->forked_context_state->machine_to_context;
   for (auto it = machines.GetIterator(); it; ++it) {
     it.value()->symbol_tracker->OnEventsFullyExtracted();
+    it.value()->process_tracker->OnEventsFullyExtracted();
   }
   auto& all = context()->forked_context_state->trace_and_machine_to_context;
   for (auto it = all.GetIterator(); it; ++it) {
     it.value()->file_io_tracker->OnEventsFullyExtracted();
     it.value()->event_tracker->FlushPendingEvents();
     it.value()->slice_tracker->FlushPendingSlices();
-    it.value()->process_tracker->OnEventsFullyExtracted();
   }
 }
 
