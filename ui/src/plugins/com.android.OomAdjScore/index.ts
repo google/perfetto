@@ -22,7 +22,7 @@ import {
 import {TrackRenderer} from '../../public/track';
 import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
-import {TimeSpan} from '../../base/time';
+import {time, TimeSpan} from '../../base/time';
 
 export default class OomAdjScore implements PerfettoPlugin {
   static readonly id = 'com.android.OomAdjScore';
@@ -48,8 +48,17 @@ export default class OomAdjScore implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'com.android.OomAdjScore.visualize',
       name: 'OOM Adjuster Score: Visualize',
-      callback: async () => {
-        const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
+      callback: async (...args: unknown[]) => {
+        const params = args[0] as {[key: string]: unknown} | undefined;
+        const window = await (async (): Promise<TimeSpan> => {
+          if (params?.ts_start !== undefined && params?.ts_end !== undefined) {
+            const start = BigInt(params.ts_start as number) as time;
+            const end = BigInt(params.ts_end as number) as time;
+            return new TimeSpan(start, end);
+          }
+          return getTimeSpanOfSelectionOrVisibleWindow(ctx);
+        })();
+
         const buckets = await ctx.engine.query(
           `SELECT DISTINCT bucket FROM android_oom_adj_intervals WHERE ts < ${window.end} AND ts + dur > ${window.start}`,
         );
@@ -103,65 +112,6 @@ export default class OomAdjScore implements PerfettoPlugin {
     }
   }
 
-  private getConcurrencyTrackQuery(
-    window: Awaited<ReturnType<typeof getTimeSpanOfSelectionOrVisibleWindow>>,
-    bucket: string,
-  ): string {
-    return `
-SELECT
-  iif(ts < ${window.start}, ${window.start}, ts) AS ts,
-  concurrency AS value
-FROM
-  _com_android_oom_adj_score_oom_count
-WHERE
-  bucket = '${bucket}' AND
-  ts < ${window.end} AND
-  ts + dur > ${window.start}
-UNION SELECT ${window.end} AS ts, 0 AS value
-`;
-  }
-
-  private getProcessesQuery(
-    window: Awaited<ReturnType<typeof getTimeSpanOfSelectionOrVisibleWindow>>,
-    bucket: string,
-  ): string {
-    return `
-SELECT
-  coalesce(process.name, 'Unknown process') as process_name,
-  upid
-FROM _com_android_oom_adj_score_oom_intervals
-JOIN process USING(upid)
-WHERE
-  bucket = '${bucket}' AND
-  ts < ${window.end} AND
-  ts + dur > ${window.start}
-GROUP BY
-  upid, process_name
-ORDER BY
-  SUM(MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start})) DESC,
-  MAX(score) DESC,
-  process_name ASC
-`;
-  }
-
-  private getOomScoreTrackQuery(
-    window: Awaited<ReturnType<typeof getTimeSpanOfSelectionOrVisibleWindow>>,
-    upid: number,
-  ): string {
-    return `
-SELECT
-  iif(ts < ${window.start}, ${window.start}, ts) AS ts,
-  score AS value
-FROM
-  android_oom_adj_intervals
-WHERE
-  upid = ${upid} AND
-  ts < ${window.end} AND
-  ts + dur > ${window.start}
-UNION SELECT ${window.end} AS ts, 0 AS value
-`;
-  }
-
   private async createCounterTrackNode(
     trace: Trace,
     name: string,
@@ -200,5 +150,64 @@ UNION SELECT ${window.end} AS ts, 0 AS value
       name,
       uri,
     });
+  }
+
+  private getConcurrencyTrackQuery(
+    window: Awaited<ReturnType<typeof getTimeSpanOfSelectionOrVisibleWindow>>,
+    bucket: string,
+  ): string {
+    return `
+      SELECT
+        iif(ts < ${window.start}, ${window.start}, ts) AS ts,
+        concurrency AS value
+      FROM
+        _com_android_oom_adj_score_oom_count
+      WHERE
+        bucket = '${bucket}' AND
+        ts < ${window.end} AND
+        ts + dur > ${window.start}
+      UNION SELECT ${window.end} AS ts, 0 AS value
+    `;
+  }
+
+  private getProcessesQuery(
+    window: Awaited<ReturnType<typeof getTimeSpanOfSelectionOrVisibleWindow>>,
+    bucket: string,
+  ): string {
+    return `
+      SELECT
+        coalesce(process.name, 'Unknown process') as process_name,
+        upid
+      FROM _com_android_oom_adj_score_oom_intervals
+      JOIN process USING(upid)
+      WHERE
+        bucket = '${bucket}' AND
+        ts < ${window.end} AND
+        ts + dur > ${window.start}
+      GROUP BY
+        upid, process_name
+      ORDER BY
+        SUM(MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start})) DESC,
+        MAX(score) DESC,
+        process_name ASC
+    `;
+  }
+
+  private getOomScoreTrackQuery(
+    window: Awaited<ReturnType<typeof getTimeSpanOfSelectionOrVisibleWindow>>,
+    upid: number,
+  ): string {
+    return `
+      SELECT
+        iif(ts < ${window.start}, ${window.start}, ts) AS ts,
+        score AS value
+      FROM
+        android_oom_adj_intervals
+      WHERE
+        upid = ${upid} AND
+        ts < ${window.end} AND
+        ts + dur > ${window.start}
+      UNION SELECT ${window.end} AS ts, 0 AS value
+    `;
   }
 }
