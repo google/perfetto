@@ -19,35 +19,37 @@ import {
   createQueryCounterTrack,
   SqlTableCounterTrack,
 } from '../../components/tracks/query_counter_track';
-import {TrackRenderer} from '../../public/track';
 import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {time, TimeSpan} from '../../base/time';
 
-export default class OomAdjScore implements PerfettoPlugin {
-  static readonly id = 'com.android.OomAdjScore';
+export default class OomAdjScoreViz implements PerfettoPlugin {
+  static readonly id = 'com.android.OomAdjScoreViz';
+
+  private static readonly TBL_INTERVALS = `_${OomAdjScoreViz.id.replace(/\./g, '_')}_oom_intervals`;
+  private static readonly TBL_COUNT = `_${OomAdjScoreViz.id.replace(/\./g, '_')}_oom_count`;
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.oom_adjuster;
       INCLUDE PERFETTO MODULE intervals.overlap;
 
-      CREATE OR REPLACE PERFETTO TABLE _com_android_oom_adj_score_oom_intervals AS
+      CREATE OR REPLACE PERFETTO TABLE ${OomAdjScoreViz.TBL_INTERVALS} AS
       SELECT row_number() OVER () AS id, * FROM android_oom_adj_intervals
       WHERE dur > 0;
 
-      CREATE OR REPLACE PERFETTO TABLE _com_android_oom_adj_score_oom_count AS
+      CREATE OR REPLACE PERFETTO TABLE ${OomAdjScoreViz.TBL_COUNT} AS
       SELECT
         ts,
         lead(ts) OVER(PARTITION BY group_name ORDER BY ts) - ts AS dur,
         group_name AS bucket,
         value AS concurrency
-      FROM intervals_overlap_count_by_group!(_com_android_oom_adj_score_oom_intervals, ts, dur, bucket);
+      FROM intervals_overlap_count_by_group!(${OomAdjScoreViz.TBL_INTERVALS}, ts, dur, bucket);
     `);
 
     ctx.commands.registerCommand({
-      id: 'com.android.OomAdjScore.visualize',
-      name: 'OOM Adjuster Score: Visualize',
+      id: `${OomAdjScoreViz.id}.visualize`,
+      name: 'OOM Adjuster Score: Visualize (over selection)',
       callback: async (...args: unknown[]) => {
         const params = args[0] as {[key: string]: unknown} | undefined;
         const window = await (async (): Promise<TimeSpan> => {
@@ -64,24 +66,25 @@ export default class OomAdjScore implements PerfettoPlugin {
         );
         for (const iter = buckets.iter({}); iter.valid(); iter.next()) {
           const bucket = iter.get('bucket') as string;
-          await this.addTracksForBucket(ctx, window, bucket);
+          const track = await this.createTracksForBucket(ctx, window, bucket);
+          ctx.defaultWorkspace.pinnedTracksNode.addChildLast(track);
         }
       },
     });
   }
 
-  private async addTracksForBucket(
+  private async createTracksForBucket(
     ctx: Trace,
-    window: Awaited<TimeSpan>,
+    window: TimeSpan,
     bucket: string,
-  ) {
-    const concurrencyUri = `com.android.OomAdjScore.${bucket}.concurrency.${uuidv4()}`;
+  ): Promise<TrackNode> {
+    const concurrencyUri = `${OomAdjScoreViz.id}.${bucket}.concurrency.${uuidv4()}`;
     ctx.tracks.registerTrack({
       uri: concurrencyUri,
       renderer: new SqlTableCounterTrack(
         ctx,
         concurrencyUri,
-        this.getConcurrencyTrackQuery(window, bucket),
+        OomAdjScoreViz.getConcurrencyTrackQuery(window, bucket),
       ),
     });
 
@@ -90,10 +93,9 @@ export default class OomAdjScore implements PerfettoPlugin {
       name: `OOM Score: ${bucket} concurrency`,
       removable: true,
     });
-    ctx.defaultWorkspace.pinnedTracksNode.addChildLast(concurrencyNode);
 
     const processes = await ctx.engine.query(
-      this.getProcessesQuery(window, bucket),
+      OomAdjScoreViz.getProcessesQuery(window, bucket),
     );
     for (
       const procIter = processes.iter({});
@@ -102,58 +104,49 @@ export default class OomAdjScore implements PerfettoPlugin {
     ) {
       const processName = procIter.get('process_name') as string;
       const upid = procIter.get('upid') as number;
-      const processNode = await this.createCounterTrackNode(
+      const processNode = await this.createSingleProcessTrack(
         ctx,
-        `Process: ${processName}`,
-        upid,
         window,
+        upid,
+        processName,
       );
       concurrencyNode.addChildLast(processNode);
     }
+    return concurrencyNode;
   }
 
-  private async createCounterTrackNode(
-    trace: Trace,
-    name: string,
+  private async createSingleProcessTrack(
+    ctx: Trace,
+    window: TimeSpan,
     upid: number,
-    window: Awaited<TimeSpan>,
+    processName: string,
   ): Promise<TrackNode> {
-    return await this.createTrackNode(trace, name, (uri: string) => {
-      return createQueryCounterTrack({
-        trace: trace,
-        uri,
-        materialize: false,
-        data: {
-          sqlSource: this.getOomScoreTrackQuery(window, upid),
-        },
-        columns: {
-          ts: 'ts',
-          value: 'value',
-        },
-      });
+    const name = `Process: ${processName}`;
+    const uri = `${OomAdjScoreViz.id}.process.${upid}.${uuidv4()}`;
+    const renderer = await createQueryCounterTrack({
+      trace: ctx,
+      uri,
+      materialize: false,
+      data: {
+        sqlSource: OomAdjScoreViz.getOomScoreTrackQuery(window, upid),
+      },
+      columns: {
+        ts: 'ts',
+        value: 'value',
+      },
     });
-  }
-
-  private async createTrackNode(
-    trace: Trace,
-    name: string,
-    createTrack: (uri: string, filtersClause: string) => Promise<TrackRenderer>,
-  ) {
-    const uri = `name_${uuidv4()}`;
-    const renderer = await createTrack(uri, '');
-    trace.tracks.registerTrack({
+    ctx.tracks.registerTrack({
       uri,
       renderer,
     });
-
     return new TrackNode({
       name,
       uri,
     });
   }
 
-  private getConcurrencyTrackQuery(
-    window: Awaited<ReturnType<typeof getTimeSpanOfSelectionOrVisibleWindow>>,
+  private static getConcurrencyTrackQuery(
+    window: TimeSpan,
     bucket: string,
   ): string {
     return `
@@ -161,7 +154,7 @@ export default class OomAdjScore implements PerfettoPlugin {
         iif(ts < ${window.start}, ${window.start}, ts) AS ts,
         concurrency AS value
       FROM
-        _com_android_oom_adj_score_oom_count
+        ${this.TBL_COUNT}
       WHERE
         bucket = '${bucket}' AND
         ts < ${window.end} AND
@@ -170,15 +163,12 @@ export default class OomAdjScore implements PerfettoPlugin {
     `;
   }
 
-  private getProcessesQuery(
-    window: Awaited<ReturnType<typeof getTimeSpanOfSelectionOrVisibleWindow>>,
-    bucket: string,
-  ): string {
+  private static getProcessesQuery(window: TimeSpan, bucket: string): string {
     return `
       SELECT
         coalesce(process.name, 'Unknown process') as process_name,
         upid
-      FROM _com_android_oom_adj_score_oom_intervals
+      FROM ${this.TBL_INTERVALS}
       JOIN process USING(upid)
       WHERE
         bucket = '${bucket}' AND
@@ -193,10 +183,7 @@ export default class OomAdjScore implements PerfettoPlugin {
     `;
   }
 
-  private getOomScoreTrackQuery(
-    window: Awaited<ReturnType<typeof getTimeSpanOfSelectionOrVisibleWindow>>,
-    upid: number,
-  ): string {
+  private static getOomScoreTrackQuery(window: TimeSpan, upid: number): string {
     return `
       SELECT
         iif(ts < ${window.start}, ${window.start}, ts) AS ts,
