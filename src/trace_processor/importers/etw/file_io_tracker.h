@@ -165,7 +165,7 @@ class FileIoTracker {
                         UniqueTid utid,
                         protozero::ConstBytes);
 
-  void NotifyEndOfFile();
+  void OnEventsFullyExtracted();
 
  private:
   struct StartedEvent {
