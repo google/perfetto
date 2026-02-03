@@ -750,13 +750,6 @@ export default class CoreCommands implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.ToggleDrawer',
-      name: 'Toggle drawer',
-      defaultHotkey: 'Q',
-      callback: () => ctx.tabs.toggleTabPanelVisibility(),
-    });
-
-    ctx.commands.registerCommand({
       id: 'dev.perfetto.CopyPinnedToWorkspace',
       name: 'Copy pinned tracks to workspace',
       callback: async () => {

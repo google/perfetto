@@ -37,6 +37,7 @@ import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {checkerboardExcept} from '../checkerboard';
 import {CacheKey} from './timeline_cache';
 import {valueIfAllEqual} from '../../base/array_utils';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
@@ -1130,6 +1131,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       );
     `);
 
+    const task = await deferChunkedTask();
+
     const it = queryRes.iter({
       ts: LONG,
       minDisplayValue: NUM,
@@ -1152,6 +1155,10 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     let min = 0;
     let max = 0;
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (row % 50 === 0 && task.shouldYield()) {
+        await task.yield();
+      }
+
       data.timestamps[row] = Time.fromRaw(it.ts);
       data.timestampsRelNs[row] = Number(it.ts - dataStart);
       data.minDisplayValues[row] = it.minDisplayValue;

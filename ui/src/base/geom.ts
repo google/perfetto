@@ -308,3 +308,36 @@ export class Rect2D implements Bounds2D, Size2D, Point2D {
     );
   }
 }
+
+// 2D transformation (offset + scale).
+// - Offsets add: newOffset = currentOffset + transform.offset
+// - Scales multiply: newScale = currentScale * transform.scale
+// For time-to-pixel conversion, use scaleX as pixels-per-time-unit.
+export interface Transform2D {
+  readonly offsetX: number; // Pixel offset in X
+  readonly offsetY: number; // Pixel offset in Y
+  readonly scaleX: number; // Scale factor for X (use as pxPerTime for time conversion)
+  readonly scaleY: number; // Scale factor for Y
+}
+
+export namespace Transform2D {
+  export const Identity: Transform2D = {
+    offsetX: 0,
+    offsetY: 0,
+    scaleX: 1,
+    scaleY: 1,
+  };
+
+  export function compose(
+    a: Transform2D,
+    b: Partial<Transform2D>,
+  ): Transform2D {
+    const {offsetX = 0, offsetY = 0, scaleX = 1, scaleY = 1} = b;
+    return {
+      offsetX: a.offsetX + offsetX * a.scaleX,
+      offsetY: a.offsetY + offsetY * a.scaleY,
+      scaleX: a.scaleX * scaleX,
+      scaleY: a.scaleY * scaleY,
+    };
+  }
+}

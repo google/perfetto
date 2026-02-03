@@ -2839,6 +2839,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_clock",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -16390,6 +16391,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_clock",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -16688,6 +16690,11 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:galloping_search
+filegroup {
+    name: "perfetto_src_trace_processor_util_galloping_search",
+}
+
 // GN: //src/trace_processor/util:glob
 filegroup {
     name: "perfetto_src_trace_processor_util_glob",
@@ -16849,6 +16856,7 @@ filegroup {
     srcs: [
         "src/trace_processor/util/bump_allocator_unittest.cc",
         "src/trace_processor/util/debug_annotation_parser_unittest.cc",
+        "src/trace_processor/util/galloping_search_unittest.cc",
         "src/trace_processor/util/glob_unittest.cc",
         "src/trace_processor/util/gzip_utils_unittest.cc",
         "src/trace_processor/util/json_parser_unittest.cc",
@@ -18732,6 +18740,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_clock",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -19595,6 +19604,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_clock",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -20112,6 +20122,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_clock",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",

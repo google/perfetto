@@ -36,6 +36,7 @@ source_set("operators") {
     "../../../../base",
     "../../../containers",
     "../../../sqlite",
+    "../../../util:galloping_search",
     "../../engine",
   ]
   if (enable_perfetto_etm_importer) {
@@ -76,4 +77,19 @@ perfetto_unittest_source_set("unittests") {
     "../../../sqlite",
     "../../engine",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "slice_mipmap_operator_benchmark.cc" ]
+    deps = [
+      ":operators",
+      "../../../../../gn:benchmark",
+      "../../../../../gn:default_deps",
+      "../../../../../gn:sqlite",
+      "../../../../base",
+      "../../../sqlite",
+    ]
+  }
 }

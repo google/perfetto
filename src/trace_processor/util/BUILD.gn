@@ -197,6 +197,11 @@ source_set("zip_reader") {
   }
 }
 
+source_set("galloping_search") {
+  sources = [ "galloping_search.h" ]
+  deps = [ "../../../gn:default_deps" ]
+}
+
 source_set("glob") {
   sources = [
     "glob.cc",
@@ -419,6 +424,7 @@ source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
     "debug_annotation_parser_unittest.cc",
+    "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
     "json_serializer_unittest.cc",
@@ -444,6 +450,7 @@ source_set("unittests") {
   deps = [
     ":bump_allocator",
     ":descriptors",
+    ":galloping_search",
     ":glob",
     ":gzip",
     ":json_parser",

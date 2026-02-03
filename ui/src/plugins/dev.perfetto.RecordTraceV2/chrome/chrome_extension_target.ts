@@ -169,14 +169,35 @@ export class ChromeExtensionTarget implements RecordingTarget {
         }),
       );
     } else if (msg.type === 'GetTrackEventDescriptorResponse') {
-      const descriptor = (msg as {type: string; encodedDescriptor: string})
-        .encodedDescriptor;
-      this.trackEventDescriptorPromise.resolve(
-        protos.TrackEventDescriptor.decode(base64Decode(descriptor)),
-      );
+      const encodedDescriptor = (
+        msg as {type: string; encodedDescriptor: string}
+      ).encodedDescriptor;
+      const descriptor =
+        this.deserializeTrackEventDescriptor(encodedDescriptor);
+      this.trackEventDescriptorPromise.resolve(descriptor);
     } else {
       this.session?.onExtensionMessage(`${msg.type}`, msg);
     }
+  }
+
+  private deserializeTrackEventDescriptor(
+    encodedDescriptor: string,
+  ): protos.TrackEventDescriptor {
+    const descriptor = protos.TrackEventDescriptor.decode(
+      base64Decode(encodedDescriptor),
+    );
+    // The API might return duplicate categories so we need to sanitize them
+    // for the UI first.
+    const seenCategoryNames = new Set<string>();
+    const uniqueCategories: protos.ITrackEventCategory[] = [];
+    for (const cat of descriptor.availableCategories) {
+      if (!cat.name) continue;
+      if (seenCategoryNames.has(cat.name)) continue;
+      uniqueCategories.push(cat);
+      seenCategoryNames.add(cat.name);
+    }
+    descriptor.availableCategories = uniqueCategories;
+    return descriptor;
   }
 
   invokeExtensionMethod(method: string, data?: Uint8Array) {

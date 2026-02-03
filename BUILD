@@ -430,6 +430,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_clock",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
+        ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
@@ -644,6 +645,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_clock",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
+        ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
@@ -4215,6 +4217,14 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/descriptors.cc",
         "src/trace_processor/util/descriptors.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:galloping_search
+perfetto_filegroup(
+    name = "src_trace_processor_util_galloping_search",
+    srcs = [
+        "src/trace_processor/util/galloping_search.h",
     ],
 )
 
@@ -8269,6 +8279,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_clock",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
+        ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
@@ -8510,6 +8521,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_clock",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
+        ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
@@ -8712,6 +8724,14 @@ perfetto_go_proto_library(
     visibility = PERFETTO_CONFIG.go_proto_library_visibility,
     deps = [
         ":protos_perfetto_metrics_protos",
+    ],
+)
+
+perfetto_go_proto_library(
+    name = "protos_perfetto_trace_interned_data_protos_go_proto",
+    visibility = PERFETTO_CONFIG.go_proto_library_visibility,
+    deps = [
+        ":protos_perfetto_trace_interned_data_protos",
     ],
 )
 
