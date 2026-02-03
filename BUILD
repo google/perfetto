@@ -549,8 +549,6 @@ perfetto_cc_library(
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
-        ":src_profiling_symbolizer_symbolize_database",
-        ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -660,6 +658,8 @@ perfetto_cc_library(
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_symbolizer_symbolize_database",
+        ":src_trace_processor_util_symbolizer_symbolizer",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_winscope_proto_mapping",
@@ -764,9 +764,9 @@ perfetto_cc_library(
     name = "libpprofbuilder",
     srcs = [
         ":src_profiling_deobfuscator",
-        ":src_profiling_symbolizer_symbolize_database",
-        ":src_profiling_symbolizer_symbolizer",
         ":src_trace_processor_util_build_id",
+        ":src_trace_processor_util_symbolizer_symbolize_database",
+        ":src_trace_processor_util_symbolizer_symbolizer",
         ":src_traceconv_pprofbuilder",
         ":src_traceconv_utils",
     ],
@@ -1768,37 +1768,6 @@ perfetto_filegroup(
     srcs = [
         "src/perfetto_cmd/trigger_producer.cc",
         "src/perfetto_cmd/trigger_producer.h",
-    ],
-)
-
-# GN target: //src/profiling/symbolizer:symbolize_database
-perfetto_filegroup(
-    name = "src_profiling_symbolizer_symbolize_database",
-    srcs = [
-        "src/profiling/symbolizer/symbolize_database.cc",
-        "src/profiling/symbolizer/symbolize_database.h",
-    ],
-)
-
-# GN target: //src/profiling/symbolizer:symbolizer
-perfetto_filegroup(
-    name = "src_profiling_symbolizer_symbolizer",
-    srcs = [
-        "src/profiling/symbolizer/breakpad_parser.cc",
-        "src/profiling/symbolizer/breakpad_parser.h",
-        "src/profiling/symbolizer/breakpad_symbolizer.cc",
-        "src/profiling/symbolizer/breakpad_symbolizer.h",
-        "src/profiling/symbolizer/elf.h",
-        "src/profiling/symbolizer/filesystem.h",
-        "src/profiling/symbolizer/filesystem_posix.cc",
-        "src/profiling/symbolizer/filesystem_windows.cc",
-        "src/profiling/symbolizer/local_symbolizer.cc",
-        "src/profiling/symbolizer/local_symbolizer.h",
-        "src/profiling/symbolizer/subprocess.h",
-        "src/profiling/symbolizer/subprocess_posix.cc",
-        "src/profiling/symbolizer/subprocess_windows.cc",
-        "src/profiling/symbolizer/symbolizer.cc",
-        "src/profiling/symbolizer/symbolizer.h",
     ],
 )
 
@@ -4148,6 +4117,37 @@ perfetto_filegroup(
         "src/trace_processor/util/elf/binary_info.cc",
         "src/trace_processor/util/elf/binary_info.h",
         "src/trace_processor/util/elf/elf.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util/symbolizer:symbolize_database
+perfetto_filegroup(
+    name = "src_trace_processor_util_symbolizer_symbolize_database",
+    srcs = [
+        "src/trace_processor/util/symbolizer/symbolize_database.cc",
+        "src/trace_processor/util/symbolizer/symbolize_database.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util/symbolizer:symbolizer
+perfetto_filegroup(
+    name = "src_trace_processor_util_symbolizer_symbolizer",
+    srcs = [
+        "src/trace_processor/util/symbolizer/breakpad_parser.cc",
+        "src/trace_processor/util/symbolizer/breakpad_parser.h",
+        "src/trace_processor/util/symbolizer/breakpad_symbolizer.cc",
+        "src/trace_processor/util/symbolizer/breakpad_symbolizer.h",
+        "src/trace_processor/util/symbolizer/elf.h",
+        "src/trace_processor/util/symbolizer/filesystem.h",
+        "src/trace_processor/util/symbolizer/filesystem_posix.cc",
+        "src/trace_processor/util/symbolizer/filesystem_windows.cc",
+        "src/trace_processor/util/symbolizer/local_symbolizer.cc",
+        "src/trace_processor/util/symbolizer/local_symbolizer.h",
+        "src/trace_processor/util/symbolizer/subprocess.h",
+        "src/trace_processor/util/symbolizer/subprocess_posix.cc",
+        "src/trace_processor/util/symbolizer/subprocess_windows.cc",
+        "src/trace_processor/util/symbolizer/symbolizer.cc",
+        "src/trace_processor/util/symbolizer/symbolizer.h",
     ],
 )
 
@@ -8382,8 +8382,6 @@ perfetto_cc_binary(
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
-        ":src_profiling_symbolizer_symbolize_database",
-        ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -8490,6 +8488,8 @@ perfetto_cc_binary(
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_symbolizer_symbolize_database",
+        ":src_trace_processor_util_symbolizer_symbolizer",
         ":src_trace_processor_util_tar_writer",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",

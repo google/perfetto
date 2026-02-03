@@ -106,8 +106,8 @@ source_set("functions") {
       "symbolize.h",
     ]
     deps += [
-      "../../../../profiling/symbolizer:llvm_symbolizer",
-      "../../../../profiling/symbolizer:llvm_symbolizer_c_api",
+      "../../../util/symbolizer:llvm_symbolizer",
+      "../../../util/symbolizer:llvm_symbolizer_c_api",
     ]
   }
 }

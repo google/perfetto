@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_SYMBOLIZER_FILESYSTEM_H_
-#define SRC_PROFILING_SYMBOLIZER_FILESYSTEM_H_
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
-#include <cstddef>
-#include <functional>
-#include <string>
-#include <vector>
+namespace perfetto {
+namespace profiling {
 
-namespace perfetto::profiling {
+Symbolizer::~Symbolizer() = default;
 
-using FileCallback = std::function<void(const char*, size_t)>;
-bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn);
-
-}  // namespace perfetto::profiling
-
-#endif  // SRC_PROFILING_SYMBOLIZER_FILESYSTEM_H_
+}  // namespace profiling
+}  // namespace perfetto

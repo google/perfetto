@@ -18,7 +18,7 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
-#include "src/profiling/symbolizer/breakpad_parser.h"
+#include "src/trace_processor/util/symbolizer/breakpad_parser.h"
 
 namespace perfetto {
 namespace profiling {

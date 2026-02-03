@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/symbolizer/filesystem.h"
+#include "src/trace_processor/util/symbolizer/filesystem.h"
 
 #include "perfetto/base/build_config.h"
 

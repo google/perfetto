@@ -22,7 +22,7 @@
 #include <dlfcn.h>
 #include <limits>
 
-#include "src/profiling/symbolizer/llvm_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/llvm_symbolizer.h"
 
 namespace perfetto {
 namespace profiling {

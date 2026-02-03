@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/symbolizer/subprocess.h"
+#include "src/trace_processor/util/symbolizer/subprocess.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 

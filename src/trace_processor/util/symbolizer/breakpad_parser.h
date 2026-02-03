@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_SYMBOLIZER_BREAKPAD_PARSER_H_
-#define SRC_PROFILING_SYMBOLIZER_BREAKPAD_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_BREAKPAD_PARSER_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_BREAKPAD_PARSER_H_
 
 #include <optional>
 #include <string>
@@ -124,4 +124,4 @@ class BreakpadParser {
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_SYMBOLIZER_BREAKPAD_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_BREAKPAD_PARSER_H_

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_SYMBOLIZER_BREAKPAD_SYMBOLIZER_H_
-#define SRC_PROFILING_SYMBOLIZER_BREAKPAD_SYMBOLIZER_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_BREAKPAD_SYMBOLIZER_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_BREAKPAD_SYMBOLIZER_H_
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 namespace perfetto::profiling {
 
@@ -57,4 +57,4 @@ class BreakpadSymbolizer : public Symbolizer {
 
 }  // namespace perfetto::profiling
 
-#endif  // SRC_PROFILING_SYMBOLIZER_BREAKPAD_SYMBOLIZER_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_BREAKPAD_SYMBOLIZER_H_

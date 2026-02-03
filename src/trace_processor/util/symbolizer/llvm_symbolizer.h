@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_SYMBOLIZER_LLVM_SYMBOLIZER_H_
-#define SRC_PROFILING_SYMBOLIZER_LLVM_SYMBOLIZER_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_LLVM_SYMBOLIZER_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_LLVM_SYMBOLIZER_H_
 
 #include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_view.h"
-#include "src/profiling/symbolizer/llvm_symbolizer_c_api.h"
+#include "src/trace_processor/util/symbolizer/llvm_symbolizer_c_api.h"
 
 namespace perfetto::profiling {
 
@@ -107,4 +107,4 @@ class LlvmSymbolizer {
 
 }  // namespace perfetto::profiling
 
-#endif  // SRC_PROFILING_SYMBOLIZER_LLVM_SYMBOLIZER_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_LLVM_SYMBOLIZER_H_

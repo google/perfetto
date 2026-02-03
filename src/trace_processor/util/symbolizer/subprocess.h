@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_SYMBOLIZER_SUBPROCESS_H_
-#define SRC_PROFILING_SYMBOLIZER_SUBPROCESS_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SUBPROCESS_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SUBPROCESS_H_
 
 #include <cstdint>
 #include <string>
@@ -58,4 +58,4 @@ class Subprocess {
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_SYMBOLIZER_SUBPROCESS_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SUBPROCESS_H_
