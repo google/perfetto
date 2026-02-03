@@ -49,7 +49,7 @@ base::Status PrimesTraceTokenizer::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status PrimesTraceTokenizer::NotifyEndOfFile() {
+base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
   size_t available_bytes = reader_.avail();
   auto slice = reader_.SliceOff(reader_.start_offset(), available_bytes);
   if (!slice.has_value()) {

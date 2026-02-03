@@ -33,7 +33,8 @@ class PrimesTraceTokenizer : public ChunkedTraceReader {
   explicit PrimesTraceTokenizer(TraceProcessorContext*);
   ~PrimesTraceTokenizer() override;
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
+  void OnEventsFullyExtracted() override {}
 
  private:
   util::TraceBlobViewReader reader_;
