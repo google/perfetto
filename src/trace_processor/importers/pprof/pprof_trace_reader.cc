@@ -70,12 +70,17 @@ PprofTraceReader::~PprofTraceReader() = default;
 
 base::Status PprofTraceReader::Parse(TraceBlobView blob) {
   buffer_.insert(buffer_.end(), blob.data(), blob.data() + blob.size());
+  parsed_any_data_ = true;
   return base::OkStatus();
 }
 
 base::Status PprofTraceReader::OnPushDataToSorter() {
   // Idempotency: if buffer is empty, we've already pushed
   if (buffer_.empty()) {
+    // If no data was ever parsed, this is an error
+    if (!parsed_any_data_) {
+      return base::ErrStatus("Empty pprof data");
+    }
     return base::OkStatus();
   }
 

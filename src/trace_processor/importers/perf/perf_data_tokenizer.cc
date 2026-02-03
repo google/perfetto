@@ -572,11 +572,7 @@ base::Status PerfDataTokenizer::OnPushDataToSorter() {
 
 void PerfDataTokenizer::OnEventsFullyExtracted() {
   // Phase 3: Finalize tracker
-  auto status = perf_tracker_.OnEventsFullyExtracted();
-  if (!status.ok()) {
-    PERFETTO_ELOG("Failed to finalize perf tracker: %s",
-                  status.message().c_str());
-  }
+  perf_tracker_.OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
