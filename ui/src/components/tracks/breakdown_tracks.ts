@@ -29,7 +29,7 @@ import {
   NUM,
 } from '../../trace_processor/query_result';
 import {TrackRenderer} from '../../public/track';
-import {TrackEventDetailsPanel} from 'src/public/details_panel';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 
 /**
  * Aggregation types for the BreakdownTracks.
@@ -154,7 +154,7 @@ export interface BreakdownTrackProps {
   /**
    * Optional custom details panel for the slice tracks.
    */
-  detailsPanel?: new (trace: Trace, id: bigint) => TrackEventDetailsPanel;
+  detailsPanel?: (trace: Trace) => TrackEventDetailsPanel;
 }
 
 interface Filter {
@@ -442,13 +442,7 @@ export class BreakdownTracks {
             `,
           }),
           detailsPanel: this.props.detailsPanel
-            ? (row: {
-                id: number;
-                ts: bigint;
-                dur: bigint | null;
-                name: string;
-              }) =>
-                new this.props.detailsPanel!(this.props.trace, BigInt(row.id))
+            ? () => this.props.detailsPanel!(this.props.trace)
             : undefined,
         });
       },

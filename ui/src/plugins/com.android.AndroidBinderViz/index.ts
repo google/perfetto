@@ -69,7 +69,7 @@ export default class implements PerfettoPlugin {
       },
       sliceIdColumn: sliceIdColumn,
       sortTracks: false,
-      detailsPanel: BinderSliceDetailsPanel,
+      detailsPanel: (trace: Trace) => new BinderSliceDetailsPanel(trace),
     });
 
     ctx.defaultWorkspace.addChildInOrder(
