@@ -39,6 +39,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -143,6 +144,9 @@ export type BaseRow = typeof BASE_ROW;
 interface SliceInternal {
   x: number;
   w: number;
+  // Pre-computed relative timestamp (nanoseconds relative to dataStart) for
+  // fast pixel calculation in render loop.
+  startRelNs: number;
 }
 
 // We use this to avoid exposing subclasses to the properties that live on
@@ -427,13 +431,7 @@ export abstract class BaseSliceTrack<
     await this.maybeRequestData(rawSlicesKey);
   }
 
-  render({
-    ctx,
-    size,
-    visibleWindow,
-    timescale,
-    colors,
-  }: TrackRenderContext): void {
+  render({ctx, size, timescale, colors, renderer}: TrackRenderContext): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
 
@@ -445,13 +443,7 @@ export abstract class BaseSliceTrack<
       charWidth = this.charWidth = ctx.measureText('dbpqaouk').width / 8;
     }
 
-    // Filter only the visible slices. |this.slices| will have more slices than
-    // needed because maybeRequestData() over-fetches to handle small pan/zooms.
-    // We don't want to waste time drawing slices that are off screen.
-    const vizSlices = this.getVisibleSlicesInternal(
-      visibleWindow.start.toTime('floor'),
-      visibleWindow.end.toTime('ceil'),
-    );
+    const vizSlices = this.getVisibleSlicesInternal();
 
     const selection = this.trace.selection.selection;
     const selectedId =
@@ -479,13 +471,24 @@ export abstract class BaseSliceTrack<
     // beyond the visible portion of the canvas.
     const pxEnd = size.width;
 
+    // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(this.slicesKey.start);
+
+    // Update relative timestamps for incomplete slices (they persist across
+    // slicesKey changes, so we need to recompute relative to current reference).
+    const refStartNs = this.slicesKey.start;
+    for (const slice of this.incomplete) {
+      slice.startRelNs = Number(slice.startNs - refStartNs);
+    }
+
     for (const slice of vizSlices) {
       // Compute the basic geometry for any visible slice, even if only
       // partially visible. This might end up with a negative x if the
       // slice starts before the visible time or with a width that overflows
       // pxEnd.
-      slice.x = timescale.timeToPx(slice.startNs);
-      slice.w = timescale.durationToPx(slice.durNs);
+      slice.x = slice.startRelNs * pxPerNs + baseOffsetPx;
+      slice.w = Number(slice.durNs) * pxPerNs;
 
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         // In the case of an instant slice, set the slice geometry on the
@@ -516,7 +519,7 @@ export abstract class BaseSliceTrack<
         //                   [slice]
         // So that the slice title stays within the visible region.
         const sliceVizLimit = Math.min(slice.x + slice.w, pxEnd);
-        slice.x = Math.max(slice.x, 0);
+        slice.x = Math.max(slice.x, -1);
         slice.w = sliceVizLimit - slice.x;
       }
 
@@ -532,23 +535,28 @@ export abstract class BaseSliceTrack<
         colorCompare(a.colorScheme.base, b.colorScheme.base),
       );
     }
-    let lastColor = undefined;
     for (const slice of vizSlices) {
       const color = slice.isHighlighted
         ? slice.colorScheme.variant
         : slice.colorScheme.base;
-      const colorString = color.cssString;
-      if (colorString !== lastColor) {
-        lastColor = colorString;
-        ctx.fillStyle = colorString;
-      }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
-        this.drawChevron(ctx, slice.x, y, sliceHeight);
+        renderer.drawMarker(
+          slice.x,
+          y,
+          CHEVRON_WIDTH_PX,
+          sliceHeight,
+          color,
+          () => this.drawChevron(ctx, slice.x, y, sliceHeight),
+        );
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
+        // Draw incomplete slice
         const w = CROP_INCOMPLETE_SLICE_FLAG.get()
           ? slice.w
           : Math.max(slice.w - 2, 2);
+        // Flush renderer before accessing the canvas2d context directly to
+        // synchronize any reordering and invalidate caches.
+        renderer.flush();
         drawIncompleteSlice(
           ctx,
           slice.x,
@@ -565,9 +573,13 @@ export abstract class BaseSliceTrack<
             ? SLICE_MIN_WIDTH_FADED_PX
             : SLICE_MIN_WIDTH_PX,
         );
-        ctx.fillRect(slice.x, y, w, sliceHeight);
+        renderer.drawRect(slice.x, y, slice.x + w, y + sliceHeight, color);
       }
     }
+
+    // Flush renderer before accessing the canvas2d context directly to
+    // synchronize any reordering and invalidate caches.
+    renderer.flush();
 
     // Pass 2.5: Draw fillRatio light section.
     ctx.fillStyle = `#FFFFFF50`;
@@ -667,13 +679,15 @@ export abstract class BaseSliceTrack<
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
+    const slicesKeyEndPx =
+      Number(this.slicesKey.end - refStartNs) * pxPerNs + baseOffsetPx;
     checkerboardExcept(
       ctx,
       this.getHeight(),
       0,
       size.width,
-      timescale.timeToPx(this.slicesKey.start),
-      timescale.timeToPx(this.slicesKey.end),
+      baseOffsetPx,
+      slicesKeyEndPx,
     );
 
     // TODO(hjd): Remove this.
@@ -737,10 +751,16 @@ export abstract class BaseSliceTrack<
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
+    const task = await deferChunkedTask();
+
     const it = queryRes.iter(this.rowSpec);
 
     let maxDataDepth = this.maxDataDepth;
     for (let i = 0; it.valid(); it.next(), ++i) {
+      if (i % 50 === 0 && task.shouldYield()) {
+        await task.yield();
+      }
+
       if (it.dur === -1n) {
         continue;
       }
@@ -757,10 +777,19 @@ export abstract class BaseSliceTrack<
     this.maxDataDepth = maxDataDepth;
 
     this.slicesKey = slicesKey;
+
+    // Pre-compute relative timestamps for fast pixel calculation in render.
+    const refStartNs = slicesKey.start;
+    for (const slice of slices) {
+      slice.startRelNs = Number(slice.startNs - refStartNs);
+    }
+
     this.onUpdatedSlices(slices);
     this.slices = slices;
 
-    raf.scheduleCanvasRedraw();
+    // We need to schedule a full redraw here as the track height could have
+    // changed, which requires a full DOM redraw.
+    raf.scheduleFullRedraw();
   }
 
   private rowToSliceInternal(row: RowT): CastInternal<SliceT> {
@@ -776,6 +805,7 @@ export abstract class BaseSliceTrack<
       ...slice,
       x: -1,
       w: -1,
+      startRelNs: 0, // Will be computed in maybeRequestData
     };
   }
 
@@ -886,29 +916,8 @@ export abstract class BaseSliceTrack<
     return true;
   }
 
-  private getVisibleSlicesInternal(
-    start: time,
-    end: time,
-  ): Array<CastInternal<SliceT>> {
-    // Slice visibility is computed using tsq / endTsq. The means an
-    // event at ts=100n can end up with tsq=90n depending on the bucket
-    // calculation. start and end here are the direct unquantised
-    // boundaries so when start=100n we should see the event at tsq=90n
-    // Ideally we would quantize start and end via the same calculation
-    // we used for slices but since that calculation happens in SQL
-    // this is hard. Instead we increase the range by +1 bucket in each
-    // direction. It's fine to overestimate since false positives
-    // (incorrectly marking a slice as visible) are not a problem it's
-    // only false negatives we have to avoid.
-    start = Time.sub(start, this.slicesKey.bucketSize);
-    end = Time.add(end, this.slicesKey.bucketSize);
-
-    let slices = filterVisibleSlices<CastInternal<SliceT>>(
-      this.slices,
-      start,
-      end,
-    );
-    slices = slices.concat(this.incomplete);
+  private getVisibleSlicesInternal(): Array<CastInternal<SliceT>> {
+    const slices = this.slices.concat(this.incomplete);
     // The selected slice is always visible:
     if (this.selectedSlice && !this.slices.includes(this.selectedSlice)) {
       slices.push(this.selectedSlice);
@@ -958,11 +967,13 @@ export abstract class BaseSliceTrack<
   // onUpdatedSlices() this gives them a chance to call the highlighting without
   // having to reimplement it.
   protected highlightHoveredAndSameTitle(slices: Slice[]) {
+    const highlightedSliceId = this.trace.timeline.highlightedSliceId;
+    const hoveredTitle = this.hoveredSlice?.title;
     for (const slice of slices) {
       const isHovering =
-        this.trace.timeline.highlightedSliceId === slice.id ||
-        (this.hoveredSlice && this.hoveredSlice.title === slice.title);
-      slice.isHighlighted = !!isHovering;
+        highlightedSliceId === slice.id ||
+        (hoveredTitle && hoveredTitle === slice.title);
+      slice.isHighlighted = Boolean(isHovering);
     }
   }
 

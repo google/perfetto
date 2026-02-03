@@ -60,6 +60,32 @@ struct String {
 // TypeSet of all possible storage value types.
 using StorageType = core::TypeSet<Id, Uint32, Int32, Int64, Double, String>;
 
+// Maps a C++ type to its corresponding storage type tag.
+// E.g., TypeTagFor<int64_t>::type = Int64
+template <typename CppType>
+struct TypeTagFor;
+
+template <>
+struct TypeTagFor<uint32_t> {
+  using type = Uint32;
+};
+template <>
+struct TypeTagFor<int32_t> {
+  using type = Int32;
+};
+template <>
+struct TypeTagFor<int64_t> {
+  using type = Int64;
+};
+template <>
+struct TypeTagFor<double> {
+  using type = Double;
+};
+template <>
+struct TypeTagFor<StringPool::Id> {
+  using type = String;
+};
+
 }  // namespace perfetto::trace_processor::core
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_STORAGE_TYPES_H_

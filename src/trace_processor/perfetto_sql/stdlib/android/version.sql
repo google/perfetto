@@ -19,4 +19,5 @@ SELECT
   int_value AS sdk_version
 FROM metadata
 WHERE
-  name = 'android_sdk_version';
+  name = 'android_sdk_version'
+LIMIT 1;

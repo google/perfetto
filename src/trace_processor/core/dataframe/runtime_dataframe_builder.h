@@ -80,6 +80,8 @@ namespace perfetto::trace_processor::core::dataframe {
 // ```
 class RuntimeDataframeBuilder {
  public:
+  using Options = AdhocDataframeBuilder::Options;
+
   // Constructs a RuntimeDataframeBuilder.
   //
   // Args:
@@ -93,21 +95,18 @@ class RuntimeDataframeBuilder {
   //         of the columns. If empty, types are inferred from the first
   //         non-null value added to each column. If provided, must match
   //         the size of `names`.
-  RuntimeDataframeBuilder(
-      std::vector<std::string> names,
-      StringPool* pool,
-      const std::vector<AdhocDataframeBuilder::ColumnType>& types = {})
+  RuntimeDataframeBuilder(std::vector<std::string> names,
+                          StringPool* pool,
+                          const Options& options = {})
       : coulumn_count_(static_cast<uint32_t>(names.size())),
-        builder_(std::move(names),
-                 pool,
-                 AdhocDataframeBuilder::Options{types,
-                                                NullabilityType::kSparseNull}),
+        builder_(std::move(names), pool, options),
         pool_(pool) {}
   ~RuntimeDataframeBuilder() = default;
 
   // Movable but not copyable
-  RuntimeDataframeBuilder(RuntimeDataframeBuilder&&) noexcept;
-  RuntimeDataframeBuilder& operator=(RuntimeDataframeBuilder&&) noexcept;
+  RuntimeDataframeBuilder(RuntimeDataframeBuilder&&) noexcept = default;
+  RuntimeDataframeBuilder& operator=(RuntimeDataframeBuilder&&) noexcept =
+      default;
   RuntimeDataframeBuilder(const RuntimeDataframeBuilder&) = delete;
   RuntimeDataframeBuilder& operator=(const RuntimeDataframeBuilder&) = delete;
 
@@ -166,6 +165,9 @@ class RuntimeDataframeBuilder {
           break;
         case ValueFetcherImpl::kNull:
           builder_.PushNull(i);
+          break;
+        case ValueFetcherImpl::kBytes:
+          PERFETTO_FATAL("Blob type not supported in Dataframe");
           break;
       }
     }

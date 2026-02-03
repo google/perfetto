@@ -80,12 +80,13 @@ import "protos/perfetto/metrics/android/wattson_tasks_attribution.proto";
 import "protos/perfetto/metrics/common/clone_duration.proto";
 
 // Trace processor metadata
-// Next id: 20
+// Next id: 21
 message TraceMetadata {
   reserved 1;
   optional int64 trace_duration_ns = 2;
   optional string trace_uuid = 3;
   optional string android_build_fingerprint = 4;
+  optional string android_incremental_build = 20;
   optional string android_device_manufacturer = 16;
   optional int64 android_profile_boot_classpath = 18;
   optional int64 android_profile_system_server = 19;

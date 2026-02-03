@@ -14,8 +14,8 @@
 
 source_set("trees") {
   sources = [
-    "tree_from_table.cc",
-    "tree_from_table.h",
+    "tree_conversion.cc",
+    "tree_conversion.h",
     "tree_functions.cc",
     "tree_functions.h",
   ]
@@ -25,6 +25,9 @@ source_set("trees") {
     "../../../../../../include/perfetto/trace_processor:basic_types",
     "../../../../../base",
     "../../../../containers",
+    "../../../../core/common",
+    "../../../../core/dataframe",
+    "../../../../core/tree",
     "../../../../sqlite",
     "../../../engine",
   ]

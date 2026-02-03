@@ -170,6 +170,7 @@ from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
+from diff_tests.stdlib.trees.table_conversion_tests import TreeRoundtrip
 from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
@@ -309,6 +310,7 @@ def fetch_all_diff_tests(
       DominatorTree,
       CriticalPathTests,
       GraphScanTests,
+      TreeRoundtrip,
       ExportTests,
       Frames,
       GraphSearchTests,

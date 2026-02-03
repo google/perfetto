@@ -20,13 +20,14 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_from_table.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_conversion.h"
 
 namespace perfetto::trace_processor {
 
 base::Status RegisterTreeFunctions(PerfettoSqlEngine& engine,
                                    StringPool& pool) {
   RETURN_IF_ERROR(engine.RegisterAggregateFunction<TreeFromTable>(&pool));
+  RETURN_IF_ERROR(engine.RegisterFunction<TreeToTable>(nullptr));
   return base::OkStatus();
 }
 
