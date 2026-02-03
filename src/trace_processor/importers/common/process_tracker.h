@@ -41,6 +41,7 @@ enum class ThreadNamePriority : uint8_t {
   kEtwTrace = 1,
   kGenericKernelTask = 1,
   kProcessTree = 2,
+  kPerfComm = 2,
   kTrackDescriptorThreadType = 3,
   kTrackDescriptor = 4,
 
