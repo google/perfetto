@@ -72,6 +72,33 @@ export interface Renderer {
     pattern?: number,
   ): void;
 
+  // Draw a step-area chart (filled area under a step function).
+  //
+  // For each segment i, draws:
+  // - A filled rectangle from ys[i] to baselineY with alpha fills[i]
+  // - A 1px stroke line at ys[i] extending horizontally to xs[i+1]
+  // - A vertical "wiggle" at xs[i] connecting the previous segment's y to
+  //   minYs[i], maxYs[i], then ys[i] (visualizes min/max range at transitions)
+  //
+  // xs: x positions for each data point
+  // ys: y positions for fill top and horizontal stroke line
+  // minYs: minimum Y of the wiggle at each transition
+  // maxYs: maximum Y of the wiggle at each transition
+  // fills: fill alpha per segment (0 = transparent, 1 = filled)
+  // count: number of data points
+  // baselineY: Y coordinate of baseline (bottom of fill region)
+  // color: fill and stroke color
+  drawStepArea(
+    xs: ArrayLike<number>,
+    ys: ArrayLike<number>,
+    minYs: ArrayLike<number>,
+    maxYs: ArrayLike<number>,
+    fills: ArrayLike<number>,
+    count: number,
+    baselineY: number,
+    color: Color,
+  ): void;
+
   // Flush all pending draw/marker calls to the underlying backend and
   // invalidate caches. Users should ensure that they call flush before
   // accessing the canvas2d context directly in order to synchronize draws and

@@ -38,6 +38,7 @@ import {checkerboardExcept} from '../checkerboard';
 import {CacheKey} from './timeline_cache';
 import {valueIfAllEqual} from '../../base/array_utils';
 import {deferChunkedTask} from '../../base/chunked_task';
+import {HSLColor} from '../../base/color';
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
@@ -784,7 +785,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     await this.maybeRequestData(rawCountersKey);
   }
 
-  render({ctx, size, timescale, colors}: TrackRenderContext): void {
+  render({ctx, size, timescale, colors, renderer}: TrackRenderContext): void {
     // In any case, draw whatever we have (which might be stale/incomplete).
     const limits = this.limits;
     const data = this.counters;
@@ -824,8 +825,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     const expCapped = Math.min(exp - 3, 9);
     const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
 
-    ctx.fillStyle = `hsla(${hue}, 45%, 50%, 0.6)`;
-    ctx.strokeStyle = `hsl(${hue}, 45%, 50%)`;
+    const fillColor = new HSLColor([hue, 45, 50], 0.6);
 
     // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
     const pxPerNs = timescale.durationToPx(1n);
@@ -850,31 +850,43 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       zeroY = effectiveHeight * (yMax / (yMax - yMin)) + MARGIN_TOP;
     }
 
-    ctx.beginPath();
-    ctx.moveTo(Math.max(0, calculateX(data.timestampsRelNs[0])), zeroY);
-    let lastDrawnY = zeroY;
-    for (let i = 0; i < timestamps.length; i++) {
-      const x = Math.max(0, calculateX(data.timestampsRelNs[i]));
-      const minY = calculateY(minValues[i]);
-      const maxY = calculateY(maxValues[i]);
-      const lastY = calculateY(lastValues[i]);
+    // Draw the counter graph using the renderer
+    const count = timestamps.length;
+    if (count >= 1) {
+      const xs = new Float64Array(count + 1);
+      const ys = new Float64Array(count + 1);
+      const minYs = new Float32Array(count + 1);
+      const maxYs = new Float32Array(count + 1);
+      const fills = new Float32Array(count + 1);
 
-      ctx.lineTo(x, lastDrawnY);
-      if (minY === maxY) {
-        assertTrue(lastY === minY);
-        ctx.lineTo(x, lastY);
-      } else {
-        ctx.lineTo(x, minY);
-        ctx.lineTo(x, maxY);
-        ctx.lineTo(x, lastY);
+      for (let i = 0; i < count; i++) {
+        xs[i] = data.timestampsRelNs[i] * pxPerNs + baseOffsetPx;
+        // minValues are lower values = higher Y (toward baseline)
+        // maxValues are higher values = lower Y (toward top)
+        minYs[i] = calculateY(maxValues[i]);
+        maxYs[i] = calculateY(minValues[i]);
+        ys[i] = calculateY(lastValues[i]);
+        fills[i] = 1.0;
       }
-      lastDrawnY = lastY;
+
+      // Add final point at the end of the visible area
+      xs[count] = endPx;
+      minYs[count] = minYs[count - 1];
+      maxYs[count] = maxYs[count - 1];
+      fills[count] = 1.0;
+
+      renderer.drawStepArea(
+        xs,
+        ys,
+        minYs,
+        maxYs,
+        fills,
+        count + 1,
+        zeroY,
+        fillColor,
+      );
+      renderer.flush();
     }
-    ctx.lineTo(endPx, lastDrawnY);
-    ctx.lineTo(endPx, zeroY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
 
     if (yMin < 0 && yMax > 0) {
       // Draw the Y=0 dashed line.

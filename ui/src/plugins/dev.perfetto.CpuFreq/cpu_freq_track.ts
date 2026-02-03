@@ -310,6 +310,7 @@ export class CpuFreqTrack implements TrackRenderer {
     timescale,
     visibleWindow,
     colors,
+    renderer,
   }: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -343,18 +344,12 @@ export class CpuFreqTrack implements TrackRenderer {
       saturation = 0;
     }
 
-    ctx.fillStyle = this.color
-      .setHSL({s: saturation, l: 50})
-      .setAlpha(0.6).cssString;
-    ctx.strokeStyle = this.color.setHSL({s: saturation, l: 50}).cssString;
+    const fillColor = this.color.setHSL({s: saturation, l: 50}).setAlpha(0.6);
 
     // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
     const pxPerNs = timescale.durationToPx(1n);
     const baseOffsetPx = timescale.timeToPx(data.start);
 
-    const calculateX = (relNs: number) => {
-      return Math.floor(relNs * pxPerNs + baseOffsetPx);
-    };
     const calculateY = (value: number) => {
       return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
     };
@@ -369,63 +364,45 @@ export class CpuFreqTrack implements TrackRenderer {
     const [, rawEndIdx] = searchSegment(data.timestamps, end);
     const endIdx = rawEndIdx === -1 ? data.timestamps.length : rawEndIdx;
 
-    // Draw the CPU frequency graph.
-    {
-      ctx.beginPath();
-      ctx.moveTo(
-        Math.max(calculateX(data.timestampsRelNs[startIdx]), 0),
+    // Draw the CPU frequency graph using the renderer.
+    const visibleCount = endIdx - startIdx;
+    if (visibleCount >= 2) {
+      // Build arrays for renderer
+      const xs = new Float64Array(visibleCount + 1);
+      const ys = new Float32Array(visibleCount + 1);
+      const minYs = new Float32Array(visibleCount + 1);
+      const maxYs = new Float32Array(visibleCount + 1);
+      const fills = new Float32Array(visibleCount + 1);
+
+      for (let i = 0; i < visibleCount; i++) {
+        const dataIdx = startIdx + i;
+        xs[i] = data.timestampsRelNs[dataIdx] * pxPerNs + baseOffsetPx;
+        // minFreqKHz gives the minimum value, which is the TOP of the stroke (lower Y)
+        // maxFreqKHz gives the maximum value, which is the BOTTOM of the stroke (higher Y)
+        ys[i] = calculateY(data.lastFreqKHz[dataIdx]);
+        minYs[i] = calculateY(data.maxFreqKHz[dataIdx]);
+        maxYs[i] = calculateY(data.minFreqKHz[dataIdx]);
+        // Fill = 1.0 when not idle (lastIdleValues < 0), 0.0 when idle
+        fills[i] = data.lastIdleValues[dataIdx] < 0 ? 1.0 : 0.0;
+      }
+
+      // Add final point at the end of the visible area
+      xs[visibleCount] = endPx;
+      minYs[visibleCount] = minYs[visibleCount - 1];
+      maxYs[visibleCount] = maxYs[visibleCount - 1];
+      fills[visibleCount] = fills[visibleCount - 1];
+
+      renderer.drawStepArea(
+        xs,
+        ys,
+        minYs,
+        maxYs,
+        fills,
+        visibleCount + 1,
         zeroY,
+        fillColor,
       );
-
-      let lastDrawnY = zeroY;
-      for (let i = startIdx; i < endIdx; i++) {
-        const x = Math.max(0, calculateX(data.timestampsRelNs[i]));
-        const minY = calculateY(data.minFreqKHz[i]);
-        const maxY = calculateY(data.maxFreqKHz[i]);
-        const lastY = calculateY(data.lastFreqKHz[i]);
-
-        ctx.lineTo(x, lastDrawnY);
-        if (minY === maxY) {
-          assertTrue(lastY === minY);
-          ctx.lineTo(x, lastY);
-        } else {
-          ctx.lineTo(x, minY);
-          ctx.lineTo(x, maxY);
-          ctx.lineTo(x, lastY);
-        }
-        lastDrawnY = lastY;
-      }
-      ctx.lineTo(endPx, lastDrawnY);
-      ctx.lineTo(endPx, zeroY);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    // Draw CPU idle rectangles that overlay the CPU freq graph.
-    ctx.fillStyle = `rgba(128,128,128, 0.2)`;
-    {
-      for (let i = startIdx; i < endIdx; i++) {
-        if (data.lastIdleValues[i] < 0) {
-          continue;
-        }
-
-        // We intentionally don't use the floor function here when computing x
-        // coordinates. Instead we use floating point which prevents flickering as
-        // we pan and zoom; this relies on the browser anti-aliasing pixels
-        // correctly.
-        const x = data.timestampsRelNs[i] * pxPerNs + baseOffsetPx;
-        const xEnd =
-          i === data.lastIdleValues.length - 1
-            ? endPx
-            : data.timestampsRelNs[i + 1] * pxPerNs + baseOffsetPx;
-
-        const width = xEnd - x;
-        const height = calculateY(data.lastFreqKHz[i]) - zeroY;
-
-        ctx.clearRect(x, zeroY, width, height);
-        ctx.fillRect(x, zeroY, width, height);
-      }
+      renderer.flush();
     }
 
     ctx.font = '10px Roboto Condensed';

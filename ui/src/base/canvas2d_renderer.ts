@@ -136,6 +136,61 @@ export class Canvas2DRenderer implements Renderer {
     }
   }
 
+  drawStepArea(
+    xs: ArrayLike<number>,
+    ys: ArrayLike<number>,
+    minYs: ArrayLike<number>,
+    maxYs: ArrayLike<number>,
+    fills: ArrayLike<number>,
+    count: number,
+    baselineY: number,
+    color: Color,
+  ): void {
+    if (count < 2) return;
+    const ctx = this.ctx;
+
+    // Fill the area under the step line
+    ctx.fillStyle = color.cssString;
+
+    for (let i = 0; i < count - 1; i++) {
+      const fill = fills[i];
+      if (fill < 0.01) continue;
+
+      const x = xs[i];
+      const nextX = xs[i + 1];
+      const width = nextX - x;
+      const y = ys[i];
+      const height = baselineY - y;
+
+      ctx.globalAlpha = fill;
+      ctx.fillRect(x, y, width, height);
+    }
+
+    ctx.globalAlpha = 1.0;
+
+    // Draw the stroke line on top (from minY to maxY thickness)
+    const strokeColor = color.setAlpha(1.0);
+    ctx.strokeStyle = strokeColor.cssString;
+
+    ctx.beginPath();
+    ctx.moveTo(xs[0], baselineY);
+
+    for (let i = 0; i < count - 1; i++) {
+      const x = xs[i];
+      const nextX = xs[i + 1];
+      const y = ys[i];
+      const minY = minYs[i];
+      const maxY = maxYs[i];
+
+      ctx.lineTo(x, maxY);
+      ctx.lineTo(x, minY);
+      ctx.lineTo(x, y);
+      ctx.lineTo(nextX, y);
+    }
+
+    ctx.stroke();
+  }
+
   flush(): void {
     // Draw calls are immediate in Canvas2D, so nothing to do here. Reset the
     // previous color cache as the ctx might be used and the fillStyle changed

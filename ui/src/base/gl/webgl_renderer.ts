@@ -21,6 +21,7 @@ import {Renderer, MarkerRenderFunc} from './../renderer';
 import {DisposableStack} from './../disposable_stack';
 import {RectBatch} from './rects';
 import {ChevronBatch} from './chevrons';
+import {StepAreaBatch} from './step_area';
 import {Color} from './../color';
 import {Transform2D} from '../geom';
 
@@ -29,6 +30,7 @@ export class WebGLRenderer implements Renderer {
   readonly gl: WebGL2RenderingContext;
   private readonly rects: RectBatch;
   private readonly markers: ChevronBatch;
+  private readonly stepArea: StepAreaBatch;
   private transform = Transform2D.Identity;
 
   constructor(c2d: CanvasRenderingContext2D, gl: WebGL2RenderingContext) {
@@ -36,6 +38,7 @@ export class WebGLRenderer implements Renderer {
     this.gl = gl;
     this.rects = new RectBatch(gl);
     this.markers = new ChevronBatch(gl);
+    this.stepArea = new StepAreaBatch(gl);
   }
 
   pushTransform(transform: Partial<Transform2D>): Disposable {
@@ -100,9 +103,43 @@ export class WebGLRenderer implements Renderer {
     this.rects.add(left, top, right, bottom, color.rgba, flags);
   }
 
+  drawStepArea(
+    xs: ArrayLike<number>,
+    ys: ArrayLike<number>,
+    minYs: ArrayLike<number>,
+    maxYs: ArrayLike<number>,
+    fills: ArrayLike<number>,
+    count: number,
+    baselineY: number,
+    color: Color,
+  ): void {
+    if (count < 2) return;
+
+    this.stepArea.begin(baselineY, color.rgba);
+    for (let i = 0; i < count - 1; i++) {
+      if (this.stepArea.isFull) {
+        this.stepArea.flush(this.transform);
+        this.stepArea.begin(baselineY, color.rgba);
+      }
+      // For the first segment, use current y (no vertical stroke to prev)
+      const prevY = i === 0 ? ys[0] : ys[i - 1];
+      this.stepArea.addSegment(
+        xs[i],
+        xs[i + 1],
+        ys[i],
+        minYs[i],
+        maxYs[i],
+        prevY,
+        fills[i],
+      );
+    }
+    this.stepArea.flush(this.transform);
+  }
+
   flush(): void {
     this.rects.flush(this.transform);
     this.markers.flush(this.transform);
+    this.stepArea.flush(this.transform);
   }
 
   resetTransform(): void {
