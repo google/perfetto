@@ -63,7 +63,7 @@ class DeobfuscationTracker : public Destructible {
   }
 
   void AddDeobfuscationMapping(protozero::ConstBytes blob);
-  void NotifyEndOfFile();
+  void OnEventsFullyExtracted();
 
  private:
   using JavaFrameMap = base::

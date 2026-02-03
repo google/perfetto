@@ -454,8 +454,7 @@ void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp,
       timestamp, utid, std::move(args));
 }
 
-void FileIoTracker::NotifyEndOfFile() {
-  // Record each unmatched event one at a time.
+void FileIoTracker::OnEventsFullyExtracted() {
   while (!started_events_.empty()) {
     // `EndUnmatchedStart()` removes the recorded event, so retrieve the first
     // event each loop.

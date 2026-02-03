@@ -102,7 +102,7 @@ base::Status ChunkedLineReader::Parse(TraceBlobView data) {
   return base::OkStatus();
 }
 
-base::Status ChunkedLineReader::NotifyEndOfFile() {
+base::Status ChunkedLineReader::OnPushDataToSorter() {
   EndOfStream(base::StringView(reinterpret_cast<const char*>(buffer_.data()),
                                buffer_.size()));
   return base::OkStatus();
