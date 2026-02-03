@@ -366,44 +366,39 @@ export class CpuFreqTrack implements TrackRenderer {
 
     // Draw the CPU frequency graph using the renderer.
     const visibleCount = endIdx - startIdx;
-    if (visibleCount >= 2) {
-      // Build arrays for renderer
-      const xs = new Float64Array(visibleCount + 1);
-      const ys = new Float32Array(visibleCount + 1);
-      const minYs = new Float32Array(visibleCount + 1);
-      const maxYs = new Float32Array(visibleCount + 1);
-      const fills = new Float32Array(visibleCount + 1);
 
-      for (let i = 0; i < visibleCount; i++) {
-        const dataIdx = startIdx + i;
-        xs[i] = data.timestampsRelNs[dataIdx] * pxPerNs + baseOffsetPx;
-        // minFreqKHz gives the minimum value, which is the TOP of the stroke (lower Y)
-        // maxFreqKHz gives the maximum value, which is the BOTTOM of the stroke (higher Y)
-        ys[i] = calculateY(data.lastFreqKHz[dataIdx]);
-        minYs[i] = calculateY(data.maxFreqKHz[dataIdx]);
-        maxYs[i] = calculateY(data.minFreqKHz[dataIdx]);
-        // Fill = 1.0 when not idle (lastIdleValues < 0), 0.0 when idle
-        fills[i] = data.lastIdleValues[dataIdx] < 0 ? 1.0 : 0.0;
-      }
+    // Build arrays for renderer
+    const xs = new Float64Array(visibleCount);
+    const ys = new Float32Array(visibleCount);
+    const minYs = new Float32Array(visibleCount);
+    const maxYs = new Float32Array(visibleCount);
+    const fills = new Float32Array(visibleCount);
 
-      // Add final point at the end of the visible area
-      xs[visibleCount] = endPx;
-      minYs[visibleCount] = minYs[visibleCount - 1];
-      maxYs[visibleCount] = maxYs[visibleCount - 1];
-      fills[visibleCount] = fills[visibleCount - 1];
-
-      renderer.drawStepArea(
-        xs,
-        ys,
-        minYs,
-        maxYs,
-        fills,
-        visibleCount + 1,
-        zeroY,
-        fillColor,
-      );
-      renderer.flush();
+    for (let i = 0; i < visibleCount; i++) {
+      const dataIdx = startIdx + i;
+      xs[i] = data.timestampsRelNs[dataIdx] * pxPerNs + baseOffsetPx;
+      // minFreqKHz gives the minimum value, which is the TOP of the stroke (lower Y)
+      // maxFreqKHz gives the maximum value, which is the BOTTOM of the stroke (higher Y)
+      ys[i] = calculateY(data.lastFreqKHz[dataIdx]);
+      minYs[i] = calculateY(data.maxFreqKHz[dataIdx]);
+      maxYs[i] = calculateY(data.minFreqKHz[dataIdx]);
+      // Fill = 1.0 when not idle (lastIdleValues < 0), 0.0 when idle
+      fills[i] = data.lastIdleValues[dataIdx] < 0 ? 1.0 : 0.0;
     }
+
+    renderer.drawStepArea(
+      xs,
+      ys,
+      minYs,
+      maxYs,
+      fills,
+      visibleCount,
+      MARGIN_TOP,
+      MARGIN_TOP + RECT_HEIGHT,
+      zeroY,
+      fillColor,
+    );
+    renderer.flush();
 
     ctx.font = '10px Roboto Condensed';
 

@@ -33,6 +33,8 @@ interface StepAreaProgram {
   readonly resolutionLoc: WebGLUniformLocation;
   readonly offsetLoc: WebGLUniformLocation;
   readonly scaleLoc: WebGLUniformLocation;
+  readonly trackTopLoc: WebGLUniformLocation;
+  readonly trackBottomLoc: WebGLUniformLocation;
   readonly baselineYLoc: WebGLUniformLocation;
   readonly colorLoc: WebGLUniformLocation;
 }
@@ -40,8 +42,7 @@ interface StepAreaProgram {
 function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
   // Coordinates are in CSS pixels (logical pixels before DPR).
   // Transform applies offset (track position) and scale (DPR) to match Canvas2D.
-  // Each quad spans from y to baseline vertically, x0 to x1 horizontally.
-  // The stroke "wiggles" from minY to maxY at the left edge before settling at y.
+  // Each quad spans the full track height; fragment shader decides what to draw.
   const vsSource = `#version 300 es
     in vec2 a_quadCorner;
     in float a_x0;
@@ -65,6 +66,8 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
     uniform vec2 u_resolution;
     uniform vec2 u_offset;
     uniform vec2 u_scale;
+    uniform float u_trackTop;
+    uniform float u_trackBottom;
     uniform float u_baselineY;
 
     void main() {
@@ -80,13 +83,12 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
       float pixelMaxY = floor(u_offset.y + a_maxY * u_scale.y + 0.5);
       float pixelPrevY = floor(u_offset.y + a_prevY * u_scale.y + 0.5);
       float pixelBaseline = floor(u_offset.y + u_baselineY * u_scale.y + 0.5);
+      float pixelTrackTop = floor(u_offset.y + u_trackTop * u_scale.y + 0.5);
+      float pixelTrackBottom = floor(u_offset.y + u_trackBottom * u_scale.y + 0.5);
 
-      // Find the topmost point the stroke reaches (for quad bounds)
-      float strokeTop = min(min(pixelMinY, pixelMaxY), min(pixelY, pixelPrevY));
-
-      // Quad spans from stroke top to baseline
+      // Quad spans full track height - fragment shader decides what to draw
       float physX = mix(pixelX0, pixelX1, a_quadCorner.x);
-      float physY = mix(strokeTop, pixelBaseline, a_quadCorner.y);
+      float physY = mix(pixelTrackTop, pixelTrackBottom, a_quadCorner.y);
 
       vec2 clipSpace = ((vec2(physX, physY) / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
@@ -137,11 +139,15 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
           pixelRow >= wiggleTop &&
           pixelRow <= wiggleBottom;
 
-      // Fill region: from y to baseline
-      bool inFillRegion = pixelRow >= v_yPhysY && pixelRow <= v_baselinePhysY;
+      // Fill region: from y to baseline (handles y above or below baseline)
+      float fillTop = min(v_yPhysY, v_baselinePhysY);
+      float fillBottom = max(v_yPhysY, v_baselinePhysY);
+      bool inFillRegion = pixelRow >= fillTop && pixelRow <= fillBottom;
 
-      // Discard pixels above the stroke region
-      if (pixelRow < wiggleTop) {
+      // Discard pixels outside the rendered region (both stroke and fill)
+      float renderTop = min(wiggleTop, fillTop);
+      float renderBottom = max(wiggleBottom, fillBottom);
+      if (pixelRow < renderTop || pixelRow > renderBottom) {
         discard;
       }
 
@@ -182,6 +188,8 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
     resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
     offsetLoc: getUniformLocation(gl, program, 'u_offset'),
     scaleLoc: getUniformLocation(gl, program, 'u_scale'),
+    trackTopLoc: getUniformLocation(gl, program, 'u_trackTop'),
+    trackBottomLoc: getUniformLocation(gl, program, 'u_trackBottom'),
     baselineYLoc: getUniformLocation(gl, program, 'u_baselineY'),
     colorLoc: getUniformLocation(gl, program, 'u_color'),
   };
@@ -216,6 +224,8 @@ export class StepAreaBatch {
   private count = 0;
 
   // Current step area properties (set by begin())
+  private trackTop = 0;
+  private trackBottom = 0;
   private baselineY = 0;
   private colorR = 0;
   private colorG = 0;
@@ -275,10 +285,17 @@ export class StepAreaBatch {
   }
 
   /**
-   * Begin a new step area with the given baseline and color.
+   * Begin a new step area with the given track bounds, baseline, and color.
    * Call addSegment() to add segments, then flush() to draw.
    */
-  begin(baselineY: number, color: number): void {
+  begin(
+    trackTop: number,
+    trackBottom: number,
+    baselineY: number,
+    color: number,
+  ): void {
+    this.trackTop = trackTop;
+    this.trackBottom = trackBottom;
     this.baselineY = baselineY;
     this.colorR = ((color >> 24) & 0xff) / 255;
     this.colorG = ((color >> 16) & 0xff) / 255;
@@ -333,6 +350,8 @@ export class StepAreaBatch {
     gl.uniform2f(prog.resolutionLoc, gl.canvas.width, gl.canvas.height);
     gl.uniform2f(prog.offsetLoc, transform.offsetX, transform.offsetY);
     gl.uniform2f(prog.scaleLoc, transform.scaleX, transform.scaleY);
+    gl.uniform1f(prog.trackTopLoc, this.trackTop);
+    gl.uniform1f(prog.trackBottomLoc, this.trackBottom);
     gl.uniform1f(prog.baselineYLoc, this.baselineY);
     gl.uniform4f(
       prog.colorLoc,

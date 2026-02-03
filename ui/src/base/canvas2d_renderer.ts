@@ -143,22 +143,48 @@ export class Canvas2DRenderer implements Renderer {
     maxYs: ArrayLike<number>,
     fills: ArrayLike<number>,
     count: number,
+    _trackTop: number,
+    _trackBottom: number,
     baselineY: number,
     color: Color,
   ): void {
-    if (count < 2) return;
+    if (count < 1) return;
     const ctx = this.ctx;
+    const canvasWidth = ctx.canvas.width;
+
+    // Find the range of visible points (cull offscreen points)
+    // Each point represents a step that continues until the next point (or end of visible area)
+    let startIdx = 0;
+    let endIdx = count;
+
+    // Find first point whose segment is visible (next point > 0, or last point)
+    while (startIdx < count - 1 && xs[startIdx + 1] <= 0) {
+      startIdx++;
+    }
+
+    // Find last point that starts before canvasWidth
+    while (endIdx > startIdx + 1 && xs[endIdx - 1] >= canvasWidth) {
+      endIdx--;
+    }
+
+    // No visible points
+    if (startIdx >= endIdx) return;
 
     // Fill the area under the step line
     ctx.fillStyle = color.cssString;
 
-    for (let i = 0; i < count - 1; i++) {
+    for (let i = startIdx; i < endIdx; i++) {
       const fill = fills[i];
       if (fill < 0.01) continue;
 
-      const x = xs[i];
-      const nextX = xs[i + 1];
+      // Clamp x values to visible area
+      // Last point extends to canvasWidth
+      const x = Math.max(0, xs[i]);
+      const nextX =
+        i + 1 < count ? Math.min(canvasWidth, xs[i + 1]) : canvasWidth;
       const width = nextX - x;
+      if (width <= 0) continue;
+
       const y = ys[i];
       const height = baselineY - y;
 
@@ -173,11 +199,15 @@ export class Canvas2DRenderer implements Renderer {
     ctx.strokeStyle = strokeColor.cssString;
 
     ctx.beginPath();
-    ctx.moveTo(xs[0], baselineY);
+    const firstX = Math.max(0, xs[startIdx]);
+    ctx.moveTo(firstX, baselineY);
 
-    for (let i = 0; i < count - 1; i++) {
-      const x = xs[i];
-      const nextX = xs[i + 1];
+    for (let i = startIdx; i < endIdx; i++) {
+      // Clamp x values to visible area
+      // Last point extends to canvasWidth
+      const x = Math.max(0, xs[i]);
+      const nextX =
+        i + 1 < count ? Math.min(canvasWidth, xs[i + 1]) : canvasWidth;
       const y = ys[i];
       const minY = minYs[i];
       const maxY = maxYs[i];

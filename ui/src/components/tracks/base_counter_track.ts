@@ -853,11 +853,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     // Draw the counter graph using the renderer
     const count = timestamps.length;
     if (count >= 1) {
-      const xs = new Float64Array(count + 1);
-      const ys = new Float64Array(count + 1);
-      const minYs = new Float32Array(count + 1);
-      const maxYs = new Float32Array(count + 1);
-      const fills = new Float32Array(count + 1);
+      const xs = new Float64Array(count);
+      const ys = new Float64Array(count);
+      const minYs = new Float32Array(count);
+      const maxYs = new Float32Array(count);
+      const fills = new Float32Array(count);
 
       for (let i = 0; i < count; i++) {
         xs[i] = data.timestampsRelNs[i] * pxPerNs + baseOffsetPx;
@@ -869,19 +869,15 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         fills[i] = 1.0;
       }
 
-      // Add final point at the end of the visible area
-      xs[count] = endPx;
-      minYs[count] = minYs[count - 1];
-      maxYs[count] = maxYs[count - 1];
-      fills[count] = 1.0;
-
       renderer.drawStepArea(
         xs,
         ys,
         minYs,
         maxYs,
         fills,
-        count + 1,
+        count,
+        MARGIN_TOP,
+        this.getHeight(),
         zeroY,
         fillColor,
       );

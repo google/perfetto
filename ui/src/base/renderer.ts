@@ -86,6 +86,8 @@ export interface Renderer {
   // maxYs: maximum Y of the wiggle at each transition
   // fills: fill alpha per segment (0 = transparent, 1 = filled)
   // count: number of data points
+  // trackTop: Y coordinate of top of track (for WebGL quad bounds)
+  // trackBottom: Y coordinate of bottom of track (for WebGL quad bounds)
   // baselineY: Y coordinate of baseline (bottom of fill region)
   // color: fill and stroke color
   drawStepArea(
@@ -95,6 +97,8 @@ export interface Renderer {
     maxYs: ArrayLike<number>,
     fills: ArrayLike<number>,
     count: number,
+    trackTop: number,
+    trackBottom: number,
     baselineY: number,
     color: Color,
   ): void;
