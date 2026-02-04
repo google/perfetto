@@ -1709,9 +1709,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         const cells: m.Children[] = [];
 
         // For multi-level pivots, get the rollup level from __depth column
-        // Level indicates how many groupBy columns have real values (0 to N-1)
+        // __depth is 0 for root, 1 for first groupBy level, etc.
+        // Subtract 1 to get 0-indexed column position for chevron placement.
         const rowLevel = isMultiLevel
-          ? Number(row['__depth'] ?? numGroupBy - 1)
+          ? Number(row['__depth'] ?? numGroupBy) - 1
           : numGroupBy - 1;
 
         // Render groupBy columns

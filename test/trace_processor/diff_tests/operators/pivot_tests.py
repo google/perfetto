@@ -49,17 +49,17 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, __has_children, __child_count, __agg_0 FROM pivot
+          SELECT category, item, __depth, __child_count, __agg_0 FROM pivot
         """,
         out=Csv("""
-"category","item","__depth","__has_children","__child_count","__agg_0"
-"[NULL]","[NULL]",0,1,2,70
-"fruit","[NULL]",1,1,2,45
-"fruit","apple",2,0,0,30
-"fruit","banana",2,0,0,15
-"vegetable","[NULL]",1,1,2,25
-"vegetable","carrot",2,0,0,13
-"vegetable","potato",2,0,0,12
+"category","item","__depth","__child_count","__agg_0"
+"[NULL]","[NULL]",0,2,70
+"fruit","[NULL]",1,2,45
+"fruit","apple",2,0,30
+"fruit","banana",2,0,15
+"vegetable","[NULL]",1,2,25
+"vegetable","carrot",2,0,13
+"vegetable","potato",2,0,12
         """))
 
   def test_pivot_expanded(self):
@@ -68,16 +68,16 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, __has_children, __child_count, __agg_0 FROM pivot
+          SELECT category, item, __depth, __child_count, __agg_0 FROM pivot
           WHERE __expanded_ids = '1'
         """,
         out=Csv("""
-"category","item","__depth","__has_children","__child_count","__agg_0"
-"[NULL]","[NULL]",0,1,2,70
-"fruit","[NULL]",1,1,2,45
-"fruit","apple",2,0,0,30
-"fruit","banana",2,0,0,15
-"vegetable","[NULL]",1,1,2,25
+"category","item","__depth","__child_count","__agg_0"
+"[NULL]","[NULL]",0,2,70
+"fruit","[NULL]",1,2,45
+"fruit","apple",2,0,30
+"fruit","banana",2,0,15
+"vegetable","[NULL]",1,2,25
         """))
 
   def test_pivot_collapsed(self):
@@ -86,16 +86,16 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, __has_children, __child_count, __agg_0 FROM pivot
+          SELECT category, item, __depth, __child_count, __agg_0 FROM pivot
           WHERE __collapsed_ids = '1'
         """,
         out=Csv("""
-"category","item","__depth","__has_children","__child_count","__agg_0"
-"[NULL]","[NULL]",0,1,2,70
-"fruit","[NULL]",1,1,2,45
-"vegetable","[NULL]",1,1,2,25
-"vegetable","carrot",2,0,0,13
-"vegetable","potato",2,0,0,12
+"category","item","__depth","__child_count","__agg_0"
+"[NULL]","[NULL]",0,2,70
+"fruit","[NULL]",1,2,45
+"vegetable","[NULL]",1,2,25
+"vegetable","carrot",2,0,13
+"vegetable","potato",2,0,12
         """))
 
   def test_pivot_sort_asc(self):

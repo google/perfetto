@@ -65,7 +65,6 @@ struct PivotFlatRow {
   int64_t id = 0;
   int64_t parent_id = -1;  // -1 means no parent (root's children)
   int depth = 0;
-  bool has_children = false;
   int child_count = 0;
 
   // Hierarchy values at each level (empty string = NULL)

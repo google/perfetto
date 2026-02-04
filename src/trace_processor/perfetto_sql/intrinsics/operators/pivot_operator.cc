@@ -49,7 +49,6 @@
 //   - __id: Unique node identifier
 //   - __parent_id: Parent node ID (NULL for root)
 //   - __depth: Tree depth (0 for root, 1 for first group level, etc.)
-//   - __has_children: 1 if node has children, 0 otherwise
 //   - __child_count: Number of direct children
 //   - __agg_0, __agg_1, ...: Aggregated values for each aggregation expression
 //
@@ -118,7 +117,6 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   schema += ",__id INTEGER";
   schema += ",__parent_id INTEGER";
   schema += ",__depth INTEGER";
-  schema += ",__has_children INTEGER";
   schema += ",__child_count INTEGER";
 
   // Add aggregate columns (no type = dynamic typing for any SQL type)
@@ -661,9 +659,8 @@ int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
   // [num_hier+0]: __id
   // [num_hier+1]: __parent_id
   // [num_hier+2]: __depth
-  // [num_hier+3]: __has_children
-  // [num_hier+4]: __child_count
-  // [num_hier+5..]: __agg_0, __agg_1, ...
+  // [num_hier+3]: __child_count
+  // [num_hier+4..]: __agg_0, __agg_1, ...
 
   if (col < num_hier) {
     // Hierarchy column - return value if level >= col, else NULL
@@ -686,8 +683,6 @@ int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
     }
   } else if (col == num_hier + kDepthOffset) {
     sqlite::result::Long(ctx, row.depth);
-  } else if (col == num_hier + kHasChildrenOffset) {
-    sqlite::result::Long(ctx, row.has_children ? 1 : 0);
   } else if (col == num_hier + kChildCountOffset) {
     sqlite::result::Long(ctx, static_cast<int64_t>(row.child_count));
   } else {

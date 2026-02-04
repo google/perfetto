@@ -191,13 +191,7 @@ WHERE ${expansionConstraint}`;
 }
 
 // Metadata columns that should always be included
-const METADATA_COLUMNS = [
-  '__id',
-  '__parent_id',
-  '__depth',
-  '__has_children',
-  '__child_count',
-];
+const METADATA_COLUMNS = ['__id', '__parent_id', '__depth', '__child_count'];
 
 function buildSelectWithAliases(aliases: Record<string, string>): string {
   const clauses: string[] = [];

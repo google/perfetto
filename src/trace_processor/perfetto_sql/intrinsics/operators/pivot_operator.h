@@ -64,18 +64,16 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
   // [num_hier]              : __id
   // [num_hier+1]            : __parent_id
   // [num_hier+2]            : __depth
-  // [num_hier+3]            : __has_children
-  // [num_hier+4]            : __child_count
-  // [num_hier+5..+5+num_agg]: __agg_0, __agg_1, ...
+  // [num_hier+3]            : __child_count
+  // [num_hier+4..+4+num_agg]: __agg_0, __agg_1, ...
   // [after aggs]            : hidden columns
 
   // Metadata column offsets from num_hier
   static constexpr int kIdOffset = 0;
   static constexpr int kParentIdOffset = 1;
   static constexpr int kDepthOffset = 2;
-  static constexpr int kHasChildrenOffset = 3;
-  static constexpr int kChildCountOffset = 4;
-  static constexpr int kMetadataColCount = 5;
+  static constexpr int kChildCountOffset = 3;
+  static constexpr int kMetadataColCount = 4;
 
   // Hidden columns for query parameters (after aggregate columns)
   enum HiddenColumn {

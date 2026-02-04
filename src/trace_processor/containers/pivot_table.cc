@@ -203,7 +203,6 @@ PivotFlatRow PivotTable::NodeToFlatRow(const PivotNode* node) const {
   row.id = node->id;
   row.parent_id = node->parent ? node->parent->id : -1;
   row.depth = node->level + 1;  // Root is level -1, so depth starts at 0
-  row.has_children = !node->children.empty();
   row.child_count = static_cast<int>(node->children.size());
   row.hierarchy_values = node->hierarchy_values;
   row.aggregates = node->aggs;
