@@ -132,6 +132,8 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   schema += ",__sort TEXT HIDDEN";
   schema += ",__offset INTEGER HIDDEN";
   schema += ",__limit INTEGER HIDDEN";
+  schema += ",__min_depth INTEGER HIDDEN";
+  schema += ",__max_depth INTEGER HIDDEN";
 
   schema += ")";
   return schema;
@@ -387,10 +389,10 @@ int PivotOperatorModule::Create(sqlite3* db,
   res->base_table = std::move(base_table);
   res->aggregations = std::move(aggregations);
 
-  // Column layout: hierarchy cols + 5 metadata + agg cols + 6 hidden
+  // Column layout: hierarchy cols + 4 metadata + agg cols + 8 hidden
   size_t num_hier = hierarchy_cols.size();
   res->total_col_count = static_cast<int>(num_hier + kMetadataColCount +
-                                          res->aggregations.size() + 6);
+                                          res->aggregations.size() + 8);
 
   // Create the PivotTable
   res->table = std::make_unique<PivotTable>(std::move(hierarchy_cols),
@@ -443,13 +445,15 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
   int sort_col = hidden_start + kSortSpec;
   int offset_col = hidden_start + kOffset;
   int limit_col = hidden_start + kLimit;
+  int min_depth_col = hidden_start + kMinDepth;
+  int max_depth_col = hidden_start + kMaxDepth;
 
   // Build idxStr to encode argv index for each constraint type.
-  // Format: 6 characters, one per constraint type (aggs, expanded, collapsed,
-  // sort, offset, limit). Each char is '0'-'5' indicating the argv index,
-  // or '-' if not present.
+  // Format: 8 characters, one per constraint type (aggs, expanded, collapsed,
+  // sort, offset, limit, min_depth, max_depth). Each char is '0'-'7' indicating
+  // the argv index, or '-' if not present.
   // This allows Filter() to know exactly which argv slot each value is in.
-  char idx_flags[7] = "------";
+  char idx_flags[9] = "--------";
 
   int argv_index = 1;  // argvIndex is 1-based in SQLite
   for (int i = 0; i < info->nConstraint; i++) {
@@ -483,6 +487,14 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
       info->aConstraintUsage[i].omit = true;
     } else if (col == limit_col) {
       idx_flags[5] = static_cast<char>('0' + argv_index - 1);
+      info->aConstraintUsage[i].argvIndex = argv_index++;
+      info->aConstraintUsage[i].omit = true;
+    } else if (col == min_depth_col) {
+      idx_flags[6] = static_cast<char>('0' + argv_index - 1);
+      info->aConstraintUsage[i].argvIndex = argv_index++;
+      info->aConstraintUsage[i].omit = true;
+    } else if (col == max_depth_col) {
+      idx_flags[7] = static_cast<char>('0' + argv_index - 1);
       info->aConstraintUsage[i].argvIndex = argv_index++;
       info->aConstraintUsage[i].omit = true;
     }
@@ -526,8 +538,8 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   bool expansion_specified = false;
 
   // Parse idxStr to determine which arguments are present and their argv index.
-  // Each char in idxStr is either '-' (not present) or '0'-'5' (argv index).
-  std::string flags = idxStr ? idxStr : "------";
+  // Each char in idxStr is either '-' (not present) or '0'-'7' (argv index).
+  std::string flags = idxStr ? idxStr : "--------";
 
   std::string sort_spec_str;
 
@@ -606,6 +618,16 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   if (sqlite3_value* val = get_argv(5)) {
     options.limit = sqlite3_value_int(val);
     c->limit = options.limit;
+  }
+
+  // Process __min_depth (flag position 6)
+  if (sqlite3_value* val = get_argv(6)) {
+    options.min_depth = sqlite3_value_int(val);
+  }
+
+  // Process __max_depth (flag position 7)
+  if (sqlite3_value* val = get_argv(7)) {
+    options.max_depth = sqlite3_value_int(val);
   }
 
   // Parse sort spec (default to "__agg_0 DESC")

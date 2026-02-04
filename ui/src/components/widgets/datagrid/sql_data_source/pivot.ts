@@ -24,8 +24,8 @@ import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../data_source';
 import {
   buildAggregateExpr,
+  buildPivotQuery,
   createPivotTable,
-  queryPivotTable,
 } from '../pivot_operator';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
@@ -55,6 +55,8 @@ export class SQLDataSourcePivot {
 
   // Summaries slot (aggregate totals across all filtered rows)
   private readonly summariesSlot: QuerySlot<Row>;
+  // Tree summaries slot (uses pivot table root node with maxDepth: 0)
+  private readonly treeSummariesSlot: QuerySlot<Row>;
 
   constructor(
     // A short SQL safe UUID to use for naming temporary tables
@@ -79,8 +81,9 @@ export class SQLDataSourcePivot {
       readonly rowOffset: number;
     }>(queue);
 
-    // Summaries slot
+    // Summaries slots
     this.summariesSlot = new QuerySlot<Row>(queue);
+    this.treeSummariesSlot = new QuerySlot<Row>(queue);
   }
 
   getRows(model: PivotModel): DataSourceRows {
@@ -92,11 +95,60 @@ export class SQLDataSourcePivot {
   }
 
   /**
+   * Creates or reuses a pivot virtual table for the given model.
+   * Returns the table result from the slot, which may be pending.
+   */
+  private useVirtualPivotTable(model: PivotModel): QueryResult<DisposableSqlEntity> {
+    const {groupBy, aggregates, filters = []} = model;
+
+    // Build the source subquery with filters applied
+    const sourceQuery = this.buildSourceQuery(filters);
+
+    // Build groupBy column names (raw field names for the pivot table)
+    const groupByColumns = groupBy.map((col) => col.field);
+
+    // Build aggregate expressions
+    const aggregateExprs = aggregates.map((agg) => {
+      if (agg.function === 'COUNT') {
+        return 'COUNT(*)';
+      } else {
+        return buildAggregateExpr(agg.function, agg.field);
+      }
+    });
+
+    // Create/get the pivot virtual table
+    return this.tempTableSlot.use({
+      key: {
+        sourceQuery,
+        groupByColumns,
+        aggregateExprs,
+      },
+      queryFn: async () => {
+        return await createPivotTable(this.engine, {
+          sourceTable: sourceQuery,
+          groupByColumns,
+          aggregateExprs,
+          tableName: `pivot_${this.uuid}`,
+        });
+      },
+    });
+  }
+
+  /**
    * Get aggregate summaries across all filtered rows (no grouping).
+   * In tree mode, efficiently fetches the root node using maxDepth: 0.
+   * In flat mode, runs a direct aggregate query.
    */
   getSummaries(model: PivotModel): QueryResult<Row> {
-    const {aggregates, filters = []} = model;
+    const {groupBy, aggregates, filters = [], groupDisplay} = model;
 
+    // In tree mode, use the pivot table's root node (maxDepth: 0)
+    // This is efficient because it only fetches 1 row - O(1)
+    if (groupDisplay === 'tree' && groupBy.length > 0) {
+      return this.getTreeSummaries(model);
+    }
+
+    // Flat mode: run direct aggregate query
     return this.summariesSlot.use({
       key: {
         aggregates,
@@ -106,6 +158,50 @@ export class SQLDataSourcePivot {
         const query = this.buildSummariesQuery(model);
         const result = await this.engine.query(query);
         return result.firstRow({}) as Row;
+      },
+    });
+  }
+
+  /**
+   * Get summaries from the pivot table root node.
+   * Uses maxDepth: 0 to efficiently fetch only the root (grand totals).
+   */
+  private getTreeSummaries(model: PivotModel): QueryResult<Row> {
+    const {groupBy, aggregates, filters = []} = model;
+
+    // Reuse the shared pivot virtual table
+    const pivotTableResult = this.useVirtualPivotTable(model);
+
+    // If the pivot table is still being created, return pending
+    if (pivotTableResult.isPending || !pivotTableResult.data) {
+      return {isPending: true, data: undefined, isFresh: false};
+    }
+
+    const pivotTableName = pivotTableResult.data.name;
+
+    // Build column aliases for the result
+    const columnAliases: Record<string, string> = {};
+    for (let i = 0; i < groupBy.length; i++) {
+      columnAliases[groupBy[i].field] = toAlias(groupBy[i].alias);
+    }
+    for (let i = 0; i < aggregates.length; i++) {
+      columnAliases[`__agg_${i}`] = toAlias(aggregates[i].alias);
+    }
+
+    return this.treeSummariesSlot.use({
+      key: {
+        groupBy,
+        aggregates,
+        filters: serializeFilters(filters),
+      },
+      queryFn: async () => {
+        // Fetch only the root node using maxDepth: 0
+        const query = buildPivotQuery(pivotTableName, {
+          maxDepth: 0,
+          columnAliases,
+        });
+        const result = await runQueryForQueryTable(query, this.engine);
+        return (result.rows[0] as Row) ?? ({} as Row);
       },
     });
   }
@@ -170,37 +266,8 @@ export class SQLDataSourcePivot {
       sort,
     } = model;
 
-    // Build the source subquery with filters applied
-    const sourceQuery = this.buildSourceQuery(filters);
-
-    // Build groupBy column names (raw field names for the pivot table)
-    const groupByColumns = groupBy.map((col) => col.field);
-
-    // Build aggregate expressions
-    const aggregateExprs = aggregates.map((agg) => {
-      if (agg.function === 'COUNT') {
-        return 'COUNT(*)';
-      } else {
-        return buildAggregateExpr(agg.function, agg.field);
-      }
-    });
-
     // Create/get the pivot virtual table
-    const pivotTableResult = this.tempTableSlot.use({
-      key: {
-        sourceQuery,
-        groupByColumns,
-        aggregateExprs,
-      },
-      queryFn: async () => {
-        return await createPivotTable(this.engine, {
-          sourceTable: sourceQuery,
-          groupByColumns,
-          aggregateExprs,
-          tableName: `pivot_${this.uuid}`,
-        });
-      },
-    });
+    const pivotTableResult = this.useVirtualPivotTable(model);
 
     // Don't proceed until the pivot table is ready
     if (pivotTableResult.isPending || !pivotTableResult.data) {
@@ -228,12 +295,40 @@ export class SQLDataSourcePivot {
       ? `${aliasToColumn[sort.alias] ?? sort.alias} ${sort.direction}`
       : undefined;
 
+    // Key for slots - based on model properties that affect the pivot table
+    const pivotKey = {
+      groupBy,
+      aggregates,
+      filters: serializeFilters(filters),
+    };
+
+    // Get total row count (based on expansion state only, not pagination/sort)
+    const rowCountResult = this.treeRowCountSlot.use({
+      key: {
+        ...pivotKey,
+        expandedIds: expandedIds ? Array.from(expandedIds) : undefined,
+        collapsedIds: collapsedIds ? Array.from(collapsedIds) : undefined,
+      },
+      retainOn: ['expandedIds', 'collapsedIds'],
+      queryFn: async () => {
+        // Query with same expansion state but no pagination to get total
+        // Use minDepth: 1 to exclude root node (depth 0)
+        // Use countOnly: true to efficiently get just the count
+        const query = buildPivotQuery(pivotTableName, {
+          expandedIds,
+          collapsedIds,
+          minDepth: 1,
+          countOnly: true,
+        });
+        const result = await this.engine.query(query);
+        return result.firstRow({count: NUM}).count;
+      },
+    });
+
     // Query rows from the pivot table
     const rowsResult = this.treeRowsSlot.use({
       key: {
-        sourceQuery,
-        groupByColumns,
-        aggregateExprs,
+        ...pivotKey,
         expandedIds: expandedIds ? Array.from(expandedIds) : undefined,
         collapsedIds: collapsedIds ? Array.from(collapsedIds) : undefined,
         pagination,
@@ -241,40 +336,21 @@ export class SQLDataSourcePivot {
       },
       retainOn: ['pagination', 'expandedIds', 'collapsedIds'],
       queryFn: async () => {
-        const result = await queryPivotTable(this.engine, pivotTableName, {
+        // Use minDepth: 1 to exclude root node (depth 0)
+        const query = buildPivotQuery(pivotTableName, {
           expandedIds,
           collapsedIds,
           sort: sortStr,
           offset: pagination?.offset,
           limit: pagination?.limit,
+          minDepth: 1,
           columnAliases,
         });
+        const result = await runQueryForQueryTable(query, this.engine);
         return {
-          rows: result.rows,
+          rows: result.rows as Row[],
           rowOffset: pagination?.offset ?? 0,
         };
-      },
-    });
-
-    // Get total row count (based on expansion state only, not pagination/sort)
-    const rowCountResult = this.treeRowCountSlot.use({
-      key: {
-        sourceQuery,
-        groupByColumns,
-        aggregateExprs,
-        expandedIds: expandedIds ? Array.from(expandedIds) : undefined,
-        collapsedIds: collapsedIds ? Array.from(collapsedIds) : undefined,
-      },
-      retainOn: ['expandedIds', 'collapsedIds'],
-      queryFn: async () => {
-        // Query with same expansion state but no pagination to get total
-        const result = await queryPivotTable(this.engine, pivotTableName, {
-          expandedIds,
-          collapsedIds,
-          sort: sortStr,
-          columnAliases,
-        });
-        return result.totalRows;
       },
     });
 
@@ -462,6 +538,7 @@ export class SQLDataSourcePivot {
     this.flatRowCountSlot.dispose();
     this.flatRowsSlot.dispose();
     this.summariesSlot.dispose();
+    this.treeSummariesSlot.dispose();
   }
 }
 

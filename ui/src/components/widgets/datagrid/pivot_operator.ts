@@ -13,12 +13,10 @@
 // limitations under the License.
 
 import {Engine} from '../../../trace_processor/engine';
-import {NUM, Row} from '../../../trace_processor/query_result';
 import {
   createVirtualTable,
   DisposableSqlEntity,
 } from '../../../trace_processor/sql_utils';
-import {runQueryForQueryTable} from '../../query_table/queries';
 import {AggregateFunction} from './model';
 
 const DEFAULT_PIVOT_TABLE_NAME = '__intrinsic_pivot_default__';
@@ -52,20 +50,27 @@ export interface PivotQueryOptions {
   /** Pagination limit. */
   limit?: number;
   /**
+   * Minimum depth to include (filters out shallower rows).
+   * e.g., 1 to exclude the root node (depth 0).
+   */
+  minDepth?: number;
+  /**
+   * Maximum depth to include (efficient - stops tree traversal).
+   * e.g., 0 to get only the root node.
+   */
+  maxDepth?: number;
+  /**
    * Column aliases to apply to result rows.
    * Maps original column names to new names.
    * e.g., { 'category': 'col_cat', '__agg_0': 'col_count' }
    * Metadata columns (__id, __depth, etc.) are always preserved.
    */
   columnAliases?: Record<string, string>;
-}
-
-/**
- * Result from querying the pivot table.
- */
-export interface PivotQueryResult {
-  rows: Row[];
-  totalRows: number;
+  /**
+   * If true, returns COUNT(*) instead of full rows.
+   * Useful for getting total row count without fetching all data.
+   */
+  countOnly?: boolean;
 }
 
 /**
@@ -124,25 +129,27 @@ export async function createPivotTable(
 }
 
 /**
- * Queries rows from a pivot virtual table.
+ * Builds a query for fetching rows from a pivot virtual table.
  *
  * The virtual table uses WHERE constraints to control:
  * - Expansion state (__expanded_ids or __collapsed_ids)
  * - Sorting (__sort)
  * - Pagination (__offset, __limit)
  */
-export async function queryPivotTable(
-  engine: Engine,
+export function buildPivotQuery(
   tableName: string,
   options: PivotQueryOptions = {},
-): Promise<PivotQueryResult> {
+): string {
   const {
     expandedIds,
     collapsedIds,
     sort = '__agg_0 DESC',
     offset,
     limit,
+    minDepth,
+    maxDepth,
     columnAliases,
+    countOnly,
   } = options;
 
   // Build expansion constraint
@@ -164,30 +171,28 @@ export async function queryPivotTable(
   if (limit !== undefined) {
     whereConditions.push(`__limit = ${limit}`);
   }
+  if (minDepth !== undefined) {
+    whereConditions.push(`__min_depth = ${minDepth}`);
+  }
+  if (maxDepth !== undefined) {
+    whereConditions.push(`__max_depth = ${maxDepth}`);
+  }
 
   // Build SELECT clause with aliases
   const selectClause = columnAliases
     ? buildSelectWithAliases(columnAliases)
     : '*';
 
-  const query = `
-SELECT ${selectClause}
+  const baseQuery = `SELECT ${selectClause}
 FROM ${tableName}
 WHERE ${whereConditions.join('\n  AND ')}
 ORDER BY rowid`;
 
-  const result = await runQueryForQueryTable(query, engine);
+  if (countOnly) {
+    return `SELECT COUNT(*) as count FROM (${baseQuery})`;
+  }
 
-  // Get total count (without pagination)
-  const countQuery = `
-SELECT COUNT(*) as total_count
-FROM ${tableName}
-WHERE ${expansionConstraint}`;
-
-  const countResult = await engine.query(countQuery);
-  const totalRows = countResult.firstRow({total_count: NUM}).total_count;
-
-  return {rows: result.rows as Row[], totalRows};
+  return baseQuery;
 }
 
 // Metadata columns that should always be included

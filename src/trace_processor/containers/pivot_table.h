@@ -58,6 +58,12 @@ struct PivotFlattenOptions {
   // Pagination
   int offset = 0;
   int limit = std::numeric_limits<int>::max();
+
+  // Depth filtering (applied efficiently during traversal)
+  // min_depth: exclude nodes with depth < min_depth (e.g., 1 to exclude root)
+  // max_depth: exclude nodes with depth > max_depth and don't recurse deeper
+  int min_depth = 0;
+  int max_depth = std::numeric_limits<int>::max();
 };
 
 // A flattened row from the pivot table, ready for output.
@@ -181,6 +187,8 @@ class PivotTable {
   void FlattenTree(PivotNode* node,
                    const std::set<int64_t>& ids,
                    bool denylist_mode,
+                   int min_depth,
+                   int max_depth,
                    std::vector<PivotNode*>* out);
 
   // Converts a PivotNode to a PivotFlatRow.

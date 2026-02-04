@@ -173,13 +173,25 @@ void PivotTable::SortTree(PivotNode* node, const PivotSortSpec& spec) {
 void PivotTable::FlattenTree(PivotNode* node,
                              const std::set<int64_t>& ids,
                              bool denylist_mode,
+                             int min_depth,
+                             int max_depth,
                              std::vector<PivotNode*>* out) {
   if (!node) {
     return;
   }
 
-  // Add this node to output
-  out->push_back(node);
+  // Calculate depth (root is level -1, so depth = level + 1)
+  int depth = node->level + 1;
+
+  // Don't recurse past max_depth - this is the efficiency win for max_depth
+  if (depth > max_depth) {
+    return;
+  }
+
+  // Add this node to output only if within depth range
+  if (depth >= min_depth) {
+    out->push_back(node);
+  }
 
   // Determine if this node is expanded (shows children).
   // Root node (id=0) is always expanded so level-0 nodes are always visible.
@@ -193,7 +205,7 @@ void PivotTable::FlattenTree(PivotNode* node,
   // Recursively add children if this node is expanded
   if (is_expanded) {
     for (auto& child : node->children) {
-      FlattenTree(child.get(), ids, denylist_mode, out);
+      FlattenTree(child.get(), ids, denylist_mode, min_depth, max_depth, out);
     }
   }
 }
@@ -221,7 +233,8 @@ std::vector<PivotFlatRow> PivotTable::GetRows(
 
   // Flatten the tree
   std::vector<PivotNode*> flat;
-  FlattenTree(root_.get(), options.ids, options.denylist_mode, &flat);
+  FlattenTree(root_.get(), options.ids, options.denylist_mode, options.min_depth,
+              options.max_depth, &flat);
 
   // Apply pagination and convert to output format
   std::vector<PivotFlatRow> result;
@@ -247,7 +260,8 @@ int PivotTable::GetTotalRows(const PivotFlattenOptions& options) {
 
   // Flatten without pagination to count
   std::vector<PivotNode*> flat;
-  FlattenTree(root_.get(), options.ids, options.denylist_mode, &flat);
+  FlattenTree(root_.get(), options.ids, options.denylist_mode, options.min_depth,
+              options.max_depth, &flat);
   return static_cast<int>(flat.size());
 }
 

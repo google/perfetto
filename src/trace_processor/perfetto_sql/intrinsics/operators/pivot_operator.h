@@ -83,6 +83,8 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
     kSortSpec = 3,      // Sort specification
     kOffset = 4,        // Pagination offset
     kLimit = 5,         // Pagination limit
+    kMinDepth = 6,      // Minimum depth to include (filters out shallower rows)
+    kMaxDepth = 7,      // Maximum depth to include (efficient - stops traversal)
   };
 
   struct Context {
