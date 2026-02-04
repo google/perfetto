@@ -99,9 +99,15 @@ extern "C" void __asan_unpoison_memory_region(void const volatile*, size_t);
 #define PERFETTO_ASAN_UNPOISON(addr, size)
 #endif  // __clang__
 
-#if defined(__clang__) && __has_feature(memory_sanitizer)
+// __has_feature is Clang-specific so must be gated behind a __clang__ check.
+// Using && doesn't work because the preprocessor doesn't short-circuit.
+#if defined(__clang__)
+#if __has_feature(memory_sanitizer)
 extern "C" void __msan_unpoison(void const volatile*, size_t);
 #define PERFETTO_MSAN_UNPOISON(a, s) __msan_unpoison((a), (s))
+#else
+#define PERFETTO_MSAN_UNPOISON(addr, size)
+#endif  // __has_feature(memory_sanitizer)
 #else
 #define PERFETTO_MSAN_UNPOISON(addr, size)
 #endif  // __clang__
