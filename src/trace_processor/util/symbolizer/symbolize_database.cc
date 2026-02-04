@@ -167,31 +167,25 @@ std::string SymbolizeDatabaseWithSymbolizer(trace_processor::TraceProcessor* tp,
 SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config) {
   SymbolizerResult result;
-  bool has_index =
-      !config.index_symbol_paths.empty() || !config.symbol_files.empty();
-  bool has_find = !config.find_symbol_paths.empty();
-  bool has_breakpad = !config.breakpad_paths.empty();
+  bool has_any_paths = !config.index_symbol_paths.empty() ||
+                       !config.symbol_files.empty() ||
+                       !config.find_symbol_paths.empty() ||
+                       !config.breakpad_paths.empty();
 
-  if (!has_index && !has_find && !has_breakpad) {
+  if (!has_any_paths) {
     result.error = SymbolizerError::kSymbolizerNotAvailable;
     result.error_details = "No symbol paths or breakpad paths provided";
     return result;
   }
 
   // Run "index" mode symbolizer if paths are provided.
-  if (has_index) {
-    auto symbolizer = CreateIndexSymbolizer(config);
-    if (symbolizer) {
-      result.symbols += SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
-    }
+  if (auto symbolizer = CreateIndexSymbolizer(config); symbolizer) {
+    result.symbols += SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
   }
 
   // Run "find" mode symbolizer if paths are provided.
-  if (has_find) {
-    auto symbolizer = CreateFindSymbolizer(config);
-    if (symbolizer) {
-      result.symbols += SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
-    }
+  if (auto symbolizer = CreateFindSymbolizer(config); symbolizer) {
+    result.symbols += SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
   }
 
   // Run breakpad symbolizers for each breakpad path.
