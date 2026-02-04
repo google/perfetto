@@ -167,7 +167,6 @@ source_set("integrationtests") {
   sources = [
     "pprof_reader.cc",
     "pprof_reader.h",
-    "trace_to_bundle_integrationtest.cc",
     "trace_to_pprof_integrationtest.cc",
     "trace_to_text_integrationtest.cc",
   ]
