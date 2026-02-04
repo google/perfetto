@@ -20,8 +20,6 @@
 #include <string>
 #include <vector>
 
-#include "src/trace_processor/util/symbolizer/symbolizer.h"
-
 namespace perfetto::trace_processor {
 class TraceProcessor;
 }
@@ -38,13 +36,21 @@ enum class SymbolizerError {
 
 // Configuration for symbolization.
 struct SymbolizerConfig {
-  // Directories to search for symbols. These are added to paths from
-  // PERFETTO_BINARY_PATH env var.
-  std::vector<std::string> symbol_paths;
+  // Directories to search using "index" mode (builds an index by build ID).
+  // Faster for repeated lookups.
+  std::vector<std::string> index_symbol_paths;
+
+  // Directories to search using "find" mode (searches each time).
+  // Slower but uses less memory.
+  std::vector<std::string> find_symbol_paths;
 
   // Specific files to check for symbols (e.g., binary paths from mappings
-  // that might contain embedded symbols).
+  // that might contain embedded symbols). Used with "index" mode.
   std::vector<std::string> symbol_files;
+
+  // Directories containing breakpad symbol files (.breakpad format).
+  // Each directory will be searched for symbol files matching build IDs.
+  std::vector<std::string> breakpad_paths;
 };
 
 // Result of symbolization operation.
@@ -64,31 +70,13 @@ struct SymbolizerResult {
 //
 // This function:
 // 1. Queries the trace for stack_profile_mapping entries with build IDs
-// 2. Discovers symbol paths from:
-//    - PERFETTO_BINARY_PATH environment variable (always)
-//    - User-provided paths in config
-//    - Binary paths from mappings (for embedded symbols)
-// 3. Creates a symbolizer and runs symbolization
-// 4. Returns the result as serialized TracePacket protos
-//
-// Args:
-//   tp: TraceProcessor instance with the trace already loaded
-//   config: Configuration for symbolization (paths)
-//
-// Returns:
-//   SymbolizerResult containing error code and symbols (if successful)
+// 2. Creates local and/or breakpad symbolizers based on config
+// 3. Runs symbolization and returns the result as serialized TracePacket protos
 SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config);
 
 // Returns paths from PERFETTO_BINARY_PATH environment variable.
-// Used internally but exposed for callers that need to inspect paths.
 std::vector<std::string> GetPerfettoBinaryPath();
-
-// Low-level symbolization with a pre-created symbolizer.
-// Use this when you need custom symbolizer configuration (e.g., Breakpad).
-// Returns serialized TracePacket protos containing symbol data.
-std::string SymbolizeDatabaseWithSymbolizer(trace_processor::TraceProcessor* tp,
-                                            Symbolizer* symbolizer);
 
 }  // namespace perfetto::profiling
 
