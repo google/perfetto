@@ -202,10 +202,9 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
   // Get mappings and frame count for frames with empty build IDs.
   result.mappings_without_build_id = GetMappingsWithoutBuildId(tp);
 
-  bool has_any_paths = !config.index_symbol_paths.empty() ||
-                       !config.symbol_files.empty() ||
-                       !config.find_symbol_paths.empty() ||
-                       !config.breakpad_paths.empty();
+  bool has_any_paths =
+      !config.index_symbol_paths.empty() || !config.symbol_files.empty() ||
+      !config.find_symbol_paths.empty() || !config.breakpad_paths.empty();
   if (!has_any_paths) {
     result.error = SymbolizerError::kSymbolizerNotAvailable;
     result.error_details = "No symbol paths or breakpad paths provided";
