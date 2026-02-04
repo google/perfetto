@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/deobfuscator.h"
+#include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 
 #include <string>
 #include <utility>

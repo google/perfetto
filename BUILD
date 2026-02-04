@@ -548,7 +548,6 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
-        ":src_profiling_deobfuscator",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -637,6 +636,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
+        ":src_trace_processor_util_deobfuscation_deobfuscator",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_galloping_search",
@@ -763,8 +763,8 @@ perfetto_cc_library(
 perfetto_cc_library(
     name = "libpprofbuilder",
     srcs = [
-        ":src_profiling_deobfuscator",
         ":src_trace_processor_util_build_id",
+        ":src_trace_processor_util_deobfuscation_deobfuscator",
         ":src_trace_processor_util_symbolizer_symbolize_database",
         ":src_trace_processor_util_symbolizer_symbolizer",
         ":src_traceconv_pprofbuilder",
@@ -1768,15 +1768,6 @@ perfetto_filegroup(
     srcs = [
         "src/perfetto_cmd/trigger_producer.cc",
         "src/perfetto_cmd/trigger_producer.h",
-    ],
-)
-
-# GN target: //src/profiling:deobfuscator
-perfetto_filegroup(
-    name = "src_profiling_deobfuscator",
-    srcs = [
-        "src/profiling/deobfuscator.cc",
-        "src/profiling/deobfuscator.h",
     ],
 )
 
@@ -4107,6 +4098,15 @@ perfetto_filegroup(
         "src/trace_processor/types/trace_processor_context_ptr.h",
         "src/trace_processor/types/variadic.h",
         "src/trace_processor/types/version_number.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util/deobfuscation:deobfuscator
+perfetto_filegroup(
+    name = "src_trace_processor_util_deobfuscation_deobfuscator",
+    srcs = [
+        "src/trace_processor/util/deobfuscation/deobfuscator.cc",
+        "src/trace_processor/util/deobfuscation/deobfuscator.h",
     ],
 )
 
@@ -8381,7 +8381,6 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_util",
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
-        ":src_profiling_deobfuscator",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -8467,6 +8466,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
+        ":src_trace_processor_util_deobfuscation_deobfuscator",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_galloping_search",
