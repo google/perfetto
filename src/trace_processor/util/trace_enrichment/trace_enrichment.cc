@@ -138,9 +138,8 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
 
     // Add discovered paths if auto-discovery is enabled.
     if (!config.no_auto_symbol_paths) {
-      std::vector<std::string> discovered =
-          DiscoverSymbolPaths(android_product_out, working_dir, home_dir,
-                              root_dir);
+      std::vector<std::string> discovered = DiscoverSymbolPaths(
+          android_product_out, working_dir, home_dir, root_dir);
       for (const auto& path : discovered) {
         sym_config.symbol_paths.push_back(path);
       }
