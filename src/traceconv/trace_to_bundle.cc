@@ -16,13 +16,21 @@
 
 #include "src/traceconv/trace_to_bundle.h"
 
+#include <cstdio>
 #include <string>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/tar_writer.h"
 #include "src/trace_processor/util/trace_enrichment/trace_enrichment.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+#include <unistd.h>  // For isatty()
+#endif
 
 namespace perfetto::trace_to_text {
 
@@ -50,10 +58,16 @@ int TraceToBundle(const std::string& input_file_path,
   trace_processor::util::EnrichmentConfig enrich_config;
   enrich_config.symbol_paths = context.symbol_paths;
   enrich_config.no_auto_symbol_paths = context.no_auto_symbol_paths;
+  enrich_config.verbose = context.verbose;
   enrich_config.android_product_out = context.android_product_out;
   enrich_config.home_dir = context.home_dir;
   enrich_config.working_dir = context.working_dir;
   enrich_config.root_dir = context.root_dir;
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+  enrich_config.colorize = isatty(STDERR_FILENO);
+#endif
 
   // Add explicit ProGuard maps from context.
   for (const auto& map_spec : context.proguard_maps) {
@@ -85,9 +99,9 @@ int TraceToBundle(const std::string& input_file_path,
     }
   }
 
-  // Log any issues.
+  // Log any issues to stderr (without PERFETTO_LOG noise).
   if (!enrich_result.details.empty()) {
-    PERFETTO_ELOG("%s", enrich_result.details.c_str());
+    fprintf(stderr, "%s", enrich_result.details.c_str());
   }
 
   // Explicit user-provided paths must succeed.

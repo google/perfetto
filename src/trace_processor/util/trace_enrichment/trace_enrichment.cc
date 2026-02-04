@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
@@ -53,6 +52,17 @@ void AddIfExists(std::vector<std::string>& result, const std::string& path) {
   if (!path.empty() && base::FileExists(path)) {
     result.push_back(path);
   }
+}
+
+// Joins two path components, avoiding double slashes.
+std::string JoinPath(const std::string& base, const std::string& suffix) {
+  if (base.empty()) {
+    return suffix;
+  }
+  if (base.back() == '/') {
+    return base + suffix.substr(suffix[0] == '/' ? 1 : 0);
+  }
+  return base + suffix;
 }
 
 // Discovers ProGuard/R8 mapping files in an Android Gradle project structure.
@@ -91,28 +101,28 @@ std::vector<std::string> DiscoverSymbolPaths(
 
   // Default system debug directories.
   if (!root_dir.empty()) {
-    AddIfExists(paths, root_dir + "/usr/lib/debug");
+    AddIfExists(paths, JoinPath(root_dir, "/usr/lib/debug"));
   }
   if (!home_dir.empty()) {
-    AddIfExists(paths, home_dir + "/.debug");
+    AddIfExists(paths, JoinPath(home_dir, "/.debug"));
   }
 
   // ANDROID_PRODUCT_OUT/symbols (AOSP builds).
   if (!android_product_out.empty()) {
-    AddIfExists(paths, android_product_out + "/symbols");
+    AddIfExists(paths, JoinPath(android_product_out, "/symbols"));
   }
 
   // Gradle project paths (only if working_dir is provided).
   if (!working_dir.empty()) {
     // Gradle CMake output.
-    AddIfExists(paths, working_dir + "/app/build/intermediates/cmake");
+    AddIfExists(paths, JoinPath(working_dir, "/app/build/intermediates/cmake"));
 
     // Gradle merged native libs.
-    AddIfExists(paths,
-                working_dir + "/app/build/intermediates/merged_native_libs");
+    AddIfExists(paths, JoinPath(working_dir,
+                                "/app/build/intermediates/merged_native_libs"));
 
     // Local .build-id cache.
-    AddIfExists(paths, working_dir + "/.build-id");
+    AddIfExists(paths, JoinPath(working_dir, "/.build-id"));
   }
 
   return paths;
@@ -154,20 +164,13 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     auto sym_result = profiling::SymbolizeDatabase(tp, sym_config);
     if (sym_result.error == profiling::SymbolizerError::kOk) {
       result.native_symbols = std::move(sym_result.symbols);
-      if (!sym_result.mappings_without_build_id.empty()) {
-        std::vector<std::string> mapping_strs;
-        mapping_strs.reserve(sym_result.mappings_without_build_id.size());
-        for (const auto& [name, count] : sym_result.mappings_without_build_id) {
-          mapping_strs.push_back(name + " (" + std::to_string(count) +
-                                 " frames)");
-        }
-        result.details +=
-            "Some frames could not be symbolized because their "
-            "mapping has an empty build ID. Mappings: " +
-            base::Join(mapping_strs, ", ") + "\n";
+      std::string sym_summary = profiling::FormatSymbolizationSummary(
+          sym_result, config.verbose, config.colorize);
+      if (!sym_summary.empty()) {
+        result.details += "Symbolization: " + sym_summary;
       }
     } else {
-      result.details += sym_result.error_details + "\n";
+      result.details += "Symbolization: " + sym_result.error_details + "\n";
     }
   }
 
@@ -193,6 +196,7 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     }
 
     // Process all maps, tracking whether explicit ones succeeded.
+    std::vector<std::string> failed_explicit_maps;
     for (size_t i = 0; i < maps.size(); ++i) {
       bool is_explicit = i < explicit_count;
       bool success = profiling::ReadProguardMapsToDeobfuscationPackets(
@@ -201,8 +205,15 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
           });
       if (!success && is_explicit) {
         explicit_maps_failed = true;
-        result.details +=
-            "Failed to read ProGuard map: " + maps[i].filename + "\n";
+        failed_explicit_maps.push_back(maps[i].filename);
+      }
+    }
+
+    // Add deobfuscation failures to details if any explicit maps failed.
+    if (!failed_explicit_maps.empty()) {
+      result.details += "Deobfuscation: failed to read ProGuard map(s):\n";
+      for (const auto& path : failed_explicit_maps) {
+        result.details += "  - " + path + "\n";
       }
     }
   }

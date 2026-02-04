@@ -39,6 +39,9 @@ struct BundleContext {
   // If true, disables automatic symbol path discovery
   bool no_auto_symbol_paths = false;
 
+  // If true, output verbose details (all paths tried, etc.)
+  bool verbose = false;
+
   // Value of ANDROID_PRODUCT_OUT for AOSP builds symbol discovery
   std::string android_product_out;
 

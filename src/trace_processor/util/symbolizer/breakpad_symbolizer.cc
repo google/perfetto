@@ -25,6 +25,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/util/symbolizer/breakpad_parser.h"
 #include "src/trace_processor/util/symbolizer/symbolizer.h"
@@ -36,21 +37,18 @@ namespace {
 // Returns the file path for a breakpad symbol file with the given |build_id|.
 std::string MakeFilePath(const std::string& build_id,
                          const std::string& symbol_dir_path) {
-  // The directory of the symbol file is stored in an environment variable.
   constexpr char kBreakpadSuffix[] = ".breakpad";
-  std::string file_path;
-  // Append file name to symbol directory path using |build_id| and
-  // |kBreakpadSuffix|.
-  file_path.append(symbol_dir_path);
-// TODO: Add a path utility for perfetto to use here.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  file_path.append("\\");
+  constexpr char kPathSep = '\\';
 #else
-  file_path.append("/");
+  constexpr char kPathSep = '/';
 #endif
+  std::string file_path = symbol_dir_path;
+  if (!file_path.empty() && file_path.back() != kPathSep) {
+    file_path += kPathSep;
+  }
   file_path.append(build_id);
   file_path.append(kBreakpadSuffix);
-
   return file_path;
 }
 
@@ -59,15 +57,14 @@ std::string MakeFilePath(const std::string& build_id,
 BreakpadSymbolizer::BreakpadSymbolizer(const std::string& symbol_dir_path)
     : symbol_dir_path_(symbol_dir_path) {}
 
-std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
+SymbolizeResult BreakpadSymbolizer::Symbolize(
     const Environment&,
     const std::string&,
     const std::string& build_id,
     uint64_t,
     const std::vector<uint64_t>& address) {
-  std::vector<std::vector<SymbolizedFrame>> result;
-  size_t num_symbolized_frames = 0;
-  result.reserve(address.size());
+  SymbolizeResult result;
+  result.frames.reserve(address.size());
   std::string file_path;
   std::string raw_build_id = base::ToHex(build_id.c_str(), build_id.length());
 
@@ -79,13 +76,20 @@ std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
     file_path = file_path_for_testing_;
   }
 
-  BreakpadParser parser(file_path);
-  if (!parser.ParseFile()) {
-    PERFETTO_ELOG("Failed to parse file %s.", file_path.c_str());
-    PERFETTO_PLOG("Symbolized %zu of %zu frames.", num_symbolized_frames,
-                  address.size());
+  // Check if file exists first to distinguish file-not-found from parse errors.
+  if (!base::FileExists(file_path)) {
+    result.attempts.push_back({file_path, SymbolPathError::kFileNotFound});
     return result;
   }
+
+  BreakpadParser parser(file_path);
+  if (!parser.ParseFile()) {
+    result.attempts.push_back({file_path, SymbolPathError::kParseError});
+    return result;
+  }
+
+  // Record the successful lookup.
+  result.attempts.push_back({file_path, SymbolPathError::kOk});
 
   // Add each address's function name to the |result| vector in the same order.
   for (uint64_t addr : address) {
@@ -103,12 +107,9 @@ std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
       }
 
       frame.function_name = *opt_func_name;
-      num_symbolized_frames++;
     }
-    result.push_back({std::move(frame)});
+    result.frames.push_back({std::move(frame)});
   }
-  PERFETTO_PLOG("Symbolized %zu of %zu frames on symbol file %s.",
-                num_symbolized_frames, address.size(), file_path.c_str());
   return result;
 }
 

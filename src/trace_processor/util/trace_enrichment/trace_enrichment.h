@@ -52,6 +52,13 @@ struct EnrichmentConfig {
   // PERFETTO_PROGUARD_MAP is always respected.
   bool no_auto_proguard_maps = false;
 
+  // If true, output verbose details (all paths tried, etc.).
+  // If false, output a concise summary with hint to use --verbose for failures.
+  bool verbose = false;
+
+  // If true, include ANSI color codes in the output.
+  bool colorize = false;
+
   // Environment values for path discovery.
   // Must be provided by caller; if empty, related paths are not discovered.
   std::string android_product_out;

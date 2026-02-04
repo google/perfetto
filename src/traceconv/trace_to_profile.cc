@@ -54,7 +54,7 @@ uint64_t ToConversionFlags(bool annotate_frames) {
                                    : ConversionFlags::kNone);
 }
 
-void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
+void MaybeSymbolize(trace_processor::TraceProcessor* tp, bool verbose) {
   profiling::SymbolizerConfig sym_config;
   const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
   std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
@@ -66,7 +66,7 @@ void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
   } else {
     sym_config.index_symbol_paths = std::move(paths);
   }
-  auto result = profiling::SymbolizeDatabase(tp, sym_config);
+  auto result = profiling::SymbolizeDatabaseAndLog(tp, sym_config, verbose);
   if (result.error == profiling::SymbolizerError::kOk &&
       !result.symbols.empty()) {
     IngestTraceOrDie(tp, result.symbols);
@@ -160,7 +160,8 @@ int TraceToProfile(std::istream* input,
                    const std::vector<uint64_t>& timestamps,
                    bool annotate_frames,
                    const std::string& output_dir,
-                   std::optional<ConversionMode> explicit_mode) {
+                   std::optional<ConversionMode> explicit_mode,
+                   bool verbose) {
   // Pre-parse trace.
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
@@ -206,7 +207,7 @@ int TraceToProfile(std::istream* input,
   }
 
   // Add symbolisation and deobfuscation packets.
-  MaybeSymbolize(tp.get());
+  MaybeSymbolize(tp.get(), verbose);
   MaybeDeobfuscate(tp.get());
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return -1;

@@ -31,6 +31,39 @@ struct SymbolizedFrame {
   uint32_t line = 0;
 };
 
+// Reason why a path lookup failed during symbolization.
+enum class SymbolPathError : uint8_t {
+  // Path lookup succeeded (not an error).
+  kOk,
+  // The file path didn't exist on disk.
+  kFileNotFound,
+  // A file was found but had the wrong build ID.
+  kBuildIdMismatch,
+  // The file exists but couldn't be parsed (e.g., invalid breakpad file).
+  kParseError,
+};
+
+// Record of a single path attempt during symbolization.
+struct SymbolPathAttempt {
+  std::string path;
+  SymbolPathError error = SymbolPathError::kOk;
+};
+
+// Result of a symbolization operation for a single mapping.
+struct SymbolizeResult {
+  // For each input address, the symbolized frames (may be empty if address
+  // couldn't be symbolized even though binary was found).
+  std::vector<std::vector<SymbolizedFrame>> frames;
+
+  // All paths that were tried to find the binary. Empty if binary was found
+  // without searching (e.g., kernel symbols). On failure, contains all
+  // attempted paths with their individual errors.
+  std::vector<SymbolPathAttempt> attempts;
+
+  // Returns true if symbolization produced frames.
+  bool ok() const { return !frames.empty(); }
+};
+
 class Symbolizer {
  public:
   struct Environment {
@@ -43,13 +76,12 @@ class Symbolizer {
   // representing the functions corresponding to that address. When inlining
   // occurs, this can be more than one function for a single address.
   //
-  // On failure, return an empty vector.
-  virtual std::vector<std::vector<SymbolizedFrame>> Symbolize(
-      const Environment& env,
-      const std::string& mapping_name,
-      const std::string& build_id,
-      uint64_t load_bias,
-      const std::vector<uint64_t>& address) = 0;
+  // On failure, returns empty frames with an error code.
+  virtual SymbolizeResult Symbolize(const Environment& env,
+                                    const std::string& mapping_name,
+                                    const std::string& build_id,
+                                    uint64_t load_bias,
+                                    const std::vector<uint64_t>& address) = 0;
   virtual ~Symbolizer();
 };
 
