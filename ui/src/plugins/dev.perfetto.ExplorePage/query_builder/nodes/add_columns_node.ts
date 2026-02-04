@@ -1327,7 +1327,7 @@ export class AddColumnsNode implements QueryNode {
           this.state.suggestionAliases?.delete(colName);
         }
         this.state.suggestionSelections.set(selectedTable, updated);
-        m.redraw();
+        redrawModal();
       },
       onColumnAlias: (colName: string, alias: string) => {
         if (!this.state.suggestionAliases) {
@@ -1338,7 +1338,7 @@ export class AddColumnsNode implements QueryNode {
         } else {
           this.state.suggestionAliases.set(colName, alias);
         }
-        m.redraw();
+        redrawModal();
       },
     });
   }
@@ -1357,11 +1357,11 @@ export class AddColumnsNode implements QueryNode {
         this.getJoinColumnErrors(cols, false),
       onLeftColumnChange: (columnName: string) => {
         this.state.leftColumn = columnName;
-        this.state.onchange?.();
+        redrawModal();
       },
       onRightColumnChange: (columnName: string) => {
         this.state.rightColumn = columnName;
-        this.state.onchange?.();
+        redrawModal();
       },
       onColumnToggle: (colName: string, checked: boolean) => {
         if (!this.state.selectedColumns) {
@@ -1378,7 +1378,7 @@ export class AddColumnsNode implements QueryNode {
           this.state.columnAliases?.delete(colName);
           this.state.columnTypes?.delete(colName);
         }
-        this.state.onchange?.();
+        redrawModal();
       },
       onColumnAlias: (colName: string, alias: string) => {
         if (!this.state.columnAliases) {
@@ -1389,7 +1389,7 @@ export class AddColumnsNode implements QueryNode {
         } else {
           this.state.columnAliases.set(colName, alias);
         }
-        this.state.onchange?.();
+        redrawModal();
       },
     });
   }
@@ -1398,7 +1398,6 @@ export class AddColumnsNode implements QueryNode {
     if (col.type === 'switch') {
       return m(
         Form,
-        nameError && m(Callout, {icon: 'error'}, nameError),
         m(FormSection, {label: 'Column Name'}, [
           m(TextInput, {
             placeholder: 'Enter column name',
@@ -1408,6 +1407,7 @@ export class AddColumnsNode implements QueryNode {
               redrawModal();
             },
           }),
+          nameError && m(Callout, {icon: 'error'}, nameError),
         ]),
         m(SwitchComponent, {
           column: col,
@@ -1422,7 +1422,6 @@ export class AddColumnsNode implements QueryNode {
     if (col.type === 'if') {
       return m(
         Form,
-        nameError && m(Callout, {icon: 'error'}, nameError),
         m(FormSection, {label: 'Column Name'}, [
           m(TextInput, {
             placeholder: 'Enter column name',
@@ -1432,6 +1431,7 @@ export class AddColumnsNode implements QueryNode {
               redrawModal();
             },
           }),
+          nameError && m(Callout, {icon: 'error'}, nameError),
         ]),
         m(IfComponent, {
           column: col,
@@ -1444,7 +1444,6 @@ export class AddColumnsNode implements QueryNode {
 
     return m(
       Form,
-      nameError && m(Callout, {icon: 'error'}, nameError),
       m(
         'p',
         'Create a computed column using any SQL expression. Example: ',
@@ -1470,6 +1469,7 @@ export class AddColumnsNode implements QueryNode {
           placeholder: 'Enter column name (e.g., dur_ms)',
           value: col.name,
         }),
+        nameError && m(Callout, {icon: 'error'}, nameError),
       ]),
     );
   }
@@ -1552,6 +1552,7 @@ export class AddColumnsNode implements QueryNode {
       filters: this.state.filters?.map((f) => ({...f})),
       filterOperator: this.state.filterOperator,
       onchange: this.state.onchange,
+      sqlModules: this.state.sqlModules,
     };
     return new AddColumnsNode(stateCopy);
   }
@@ -1572,9 +1573,12 @@ export class AddColumnsNode implements QueryNode {
         });
       }
 
-      // If there are no computed columns, just pass through
+      // If there are no computed columns, return passthrough to maintain reference chain
       if (computedColumns.length === 0) {
-        return this.primaryInput.getStructuredQuery();
+        return StructuredQueryBuilder.passthrough(
+          this.primaryInput,
+          this.nodeId,
+        );
       }
 
       // Build column specifications including existing columns and computed columns
@@ -1643,8 +1647,8 @@ export class AddColumnsNode implements QueryNode {
       };
     } else if (joinColumns.length > 0) {
       // If we have JOIN columns but no condition, this is an invalid state
-      // Fall back to just returning the base query
-      return this.primaryInput.getStructuredQuery();
+      // Return passthrough to maintain reference chain
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
     }
 
     // Collect referenced modules from computed columns
@@ -1652,14 +1656,16 @@ export class AddColumnsNode implements QueryNode {
       ?.map((col) => col.module)
       .filter((mod): mod is string => mod !== undefined);
 
+    // If no columns to add (neither JOIN columns nor computed columns), return passthrough
+    if (joinColumns.length === 0 && computedColumns.length === 0) {
+      return StructuredQueryBuilder.passthrough(this.primaryInput, this.nodeId);
+    }
+
     // Get all base columns from the source (needed when we have JOIN or computed columns)
-    const allBaseColumns: ColumnSpec[] =
-      joinColumns.length > 0 || computedColumns.length > 0
-        ? this.sourceCols.map((col) => ({
-            columnNameOrExpression: col.column.name,
-            alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
-          }))
-        : [];
+    const allBaseColumns: ColumnSpec[] = this.sourceCols.map((col) => ({
+      columnNameOrExpression: col.column.name,
+      alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
+    }));
 
     // Use the builder to handle the complexity of composing JOIN + computed columns
     return StructuredQueryBuilder.withAddColumnsAndExpressions(

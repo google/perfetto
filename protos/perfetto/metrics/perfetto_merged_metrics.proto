@@ -1177,6 +1177,23 @@ message AndroidDisplayMetrics {
   }
 
   optional DpuState dpu_state = 7;
+
+  message DdicUnderrunDetail {
+    // panel index
+    optional string name = 1;
+
+    // The number of dpu underrun occurs.
+    optional uint32 ddic_underrun_count = 2;
+  }
+
+  message PanelState {
+    // Stat that reports the number of dpu underrrun occurs count.
+    optional uint32 total_ddic_underrun_count = 1;
+
+    repeated DdicUnderrunDetail ddic_underrun_detail = 2;
+  }
+
+  optional PanelState panel_state = 8;
 }
 
 // End of protos/perfetto/metrics/android/display_metrics.proto
@@ -1726,7 +1743,7 @@ message AndroidJankCujMetric {
     optional string layer_name = 11;
   }
 
-  // Next id: 10
+  // Next id: 11
   message Frame {
     // Index of the frame within the single user journey.
     optional int64 frame_number = 1;
@@ -1744,6 +1761,9 @@ message AndroidJankCujMetric {
 
     // Whether SF missed the frame deadline.
     optional bool sf_missed = 6;
+
+    // Jank severity weight score for janky frames.
+    optional double jank_score = 10;
 
     // Whether the SF callback missed before emitting jank metrics.
     // SF callback is used to get the jank classification.
@@ -3250,12 +3270,13 @@ message CloneDuration {
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
-// Next id: 20
+// Next id: 21
 message TraceMetadata {
   reserved 1;
   optional int64 trace_duration_ns = 2;
   optional string trace_uuid = 3;
   optional string android_build_fingerprint = 4;
+  optional string android_incremental_build = 20;
   optional string android_device_manufacturer = 16;
   optional int64 android_profile_boot_classpath = 18;
   optional int64 android_profile_system_server = 19;

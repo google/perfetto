@@ -25,10 +25,12 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/iterator_impl.h"
@@ -132,17 +134,17 @@ class TraceProcessorImpl : public TraceProcessor,
   // |  Experimental   |
   // ===================
 
-  base::Status AnalyzeStructuredQueries(
-      const std::vector<StructuredQueryBytes>&,
-      std::vector<AnalyzedStructuredQuery>*) override;
+  base::Status AnalyzeStructuredQuery(const TraceSummarySpecBytes& spec,
+                                      const std::string& query_id,
+                                      AnalyzedStructuredQuery* output) override;
 
  private:
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
-  void FlushInternal(bool should_build_bounds_table);
-
   bool IsRootMetricField(const std::string& metric_name);
+
+  void CacheBoundsAndBuildTable();
 
   static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
       TraceProcessorContext* context,

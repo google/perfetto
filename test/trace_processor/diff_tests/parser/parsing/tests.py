@@ -629,20 +629,24 @@ class Parsing(TestSuite):
         }
         packet {
           system_info {
-            android_build_fingerprint: "the fingerprint"
+            android_build_fingerprint: "google/coral/coral:12/SP1A.210812.015/7679548:userdebug/dev-keys"
           }
         }
         """),
         query="""
-        SELECT name, str_value FROM metadata WHERE str_value IS NOT NULL ORDER BY name;
+        SELECT name, str_value, int_value FROM metadata WHERE str_value IS NOT NULL OR int_value IS NOT NULL ORDER BY name;
         """,
         out=Csv("""
-        "name","str_value"
-        "android_build_fingerprint","the fingerprint"
+        "name","str_value","int_value"
+        "android_build_fingerprint","google/coral/coral:12/SP1A.210812.015/7679548:userdebug/dev-keys","[NULL]"
+        "android_incremental_build","7679548","[NULL]"
+        "android_sdk_version","[NULL]",31
         "trace_config_pbtxt","trace_uuid_msb: 1314564453825188563
-        trace_uuid_lsb: -6605018796207623390"
-        "trace_type","proto"
-        "trace_uuid","123e4567-e89b-12d3-a456-426655443322"
+        trace_uuid_lsb: -6605018796207623390","[NULL]"
+        "trace_size_bytes","[NULL]",124
+        "trace_time_clock_id","[NULL]",6
+        "trace_type","proto","[NULL]"
+        "trace_uuid","123e4567-e89b-12d3-a456-426655443322","[NULL]"
         """))
 
   def test_triggers_packets_trigger_packet_trace(self):
@@ -1764,8 +1768,8 @@ class Parsing(TestSuite):
         5230331837332,0,1,1
         5230421799455,0,49,1
         5230421810047,0,1,1
-        5230422048874,0,1305,"[NULL]"
-        5230422153284,0,1305,"[NULL]"
+        5230422048874,0,1305,0
+        5230422153284,0,1305,0
         5230425693562,0,49,1
         """))
 

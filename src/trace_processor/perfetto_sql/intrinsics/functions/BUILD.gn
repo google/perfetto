@@ -44,6 +44,8 @@ source_set("functions") {
     "layout_functions.h",
     "math.cc",
     "math.h",
+    "metadata.cc",
+    "metadata.h",
     "package_lookup.cc",
     "package_lookup.h",
     "pprof_functions.cc",
@@ -77,7 +79,7 @@ source_set("functions") {
     "../../../../../protos/perfetto/trace_processor:zero",
     "../../../../base",
     "../../../containers",
-    "../../../dataframe",
+    "../../../core/dataframe",
     "../../../importers/common",
     "../../../importers/ftrace:ftrace_descriptors",
     "../../../perfetto_sql/intrinsics/table_functions",
@@ -87,9 +89,10 @@ source_set("functions") {
     "../../../types",
     "../../../util:args_utils",
     "../../../util:glob",
-    "../../../util:json_writer",
+    "../../../util:json_serializer",
     "../../../util:profile_builder",
     "../../../util:regex",
+    "../../../util:simple_json_serializer",
     "../../../util:sql_argument",
     "../../../util:stdlib",
     "../../engine",
@@ -103,8 +106,8 @@ source_set("functions") {
       "symbolize.h",
     ]
     deps += [
-      "../../../../profiling/symbolizer:llvm_symbolizer",
-      "../../../../profiling/symbolizer:llvm_symbolizer_c_api",
+      "../../../util/symbolizer:llvm_symbolizer",
+      "../../../util/symbolizer:llvm_symbolizer_c_api",
     ]
   }
 }

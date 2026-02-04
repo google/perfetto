@@ -131,25 +131,27 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
     const rows = trace.minimap.getLoad();
     if (rows) {
       const numTracks = rows.length;
-      const trackHeight = (tracksHeight - 1) / numTracks;
+      const trackHeight = tracksHeight / numTracks;
+
       let y = 0;
       for (const row of rows) {
+        const topFloat = headerHeight + y * trackHeight;
+        const top = Math.round(topFloat);
+        const bottom = Math.round(topFloat + trackHeight);
+        ctx.fillStyle = colorForCpu(y).setHSL({s: 50}).cssString;
+
         for (const cell of row) {
-          const x = Math.floor(timescale.timeToPx(cell.ts));
-          const width = Math.ceil(timescale.durationToPx(cell.dur));
-          const yOff = Math.floor(headerHeight + y * trackHeight);
-          const color = colorForCpu(y).setHSL({s: 50}).setAlpha(cell.load);
-          ctx.fillStyle = color.cssString;
-          ctx.clearRect(x, yOff, width, Math.ceil(trackHeight));
-          ctx.fillRect(x, yOff, width, Math.ceil(trackHeight));
+          const x = Math.round(timescale.timeToPx(cell.ts));
+          const xEnd = Math.round(
+            timescale.timeToPx(Time.fromRaw(cell.ts + cell.dur)),
+          );
+          ctx.globalAlpha = cell.load;
+          ctx.fillRect(x, top, xEnd - x, bottom - top);
         }
         y++;
       }
+      ctx.globalAlpha = 1.0;
     }
-
-    // Draw bottom border.
-    // ctx.fillStyle = '#dadada';
-    ctx.fillRect(0, size.height - 1, size.width, 1);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
     const {left, right} = timescale.hpTimeSpanToPxSpan(

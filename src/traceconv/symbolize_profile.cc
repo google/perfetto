@@ -21,10 +21,10 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
-#include "src/profiling/symbolizer/breakpad_symbolizer.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
-#include "src/profiling/symbolizer/symbolize_database.h"
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/symbolizer/breakpad_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/local_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolize_database.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"

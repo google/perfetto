@@ -542,7 +542,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       gpu_power_state_unknown_id_(context->storage->InternString("Unknown")),
       gpu_power_state_off_id_(context->storage->InternString("OFF")),
       gpu_power_state_pg_id_(context->storage->InternString("PG")),
-      gpu_power_state_on_id_(context->storage->InternString("ON")) {
+      gpu_power_state_on_id_(context->storage->InternString("ON")),
+      ddic_underrun_id_(context_->storage->InternString("ddic_underrun")) {
   static const char* kReasonStrings[] = {
       "Umount",  "Fastboot", "Sync",  "Recovery",
       "Discard", "Trimmed",  "Pause", "Resize",
@@ -1149,6 +1150,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kDpuDispDpuUnderrunFieldNumber: {
         ParseDpuDispDpuUnderrun(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kGramCollisionFieldNumber: {
+        ParseGramCollision(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kDpuDispVblankIrqEnableFieldNumber: {
@@ -2021,6 +2026,29 @@ void FtraceParser::ParseDpuDispDpuUnderrun(int64_t timestamp, ConstBytes blob) {
         inserter->AddArg(
             context_->storage->InternString(base::StringView("pending_frame")),
             Variadic::Integer(ex.frames_pending()));
+      });
+}
+
+void FtraceParser::ParseGramCollision(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::GramCollisionFtraceEvent::Decoder ex(blob);
+  static constexpr auto kBluePrint = tracks::SliceBlueprint(
+      "ddic_underrun",
+      tracks::DimensionBlueprints(
+          tracks::UintDimensionBlueprint("panel_index")),
+      tracks::FnNameBlueprint([](uint32_t panel_index) {
+        return base::StackString<256>("ddic_underrun[%u]", panel_index);
+      }));
+
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBluePrint, tracks::Dimensions(ex.panel_index()));
+  StringId slice_name_id = ddic_underrun_id_;
+
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, slice_name_id, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("collision_cnt")),
+            Variadic::Integer(ex.collision_cnt()));
       });
 }
 

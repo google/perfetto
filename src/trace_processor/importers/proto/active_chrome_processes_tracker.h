@@ -48,7 +48,7 @@ class ActiveChromeProcessesTracker {
     process_data_[upid].descriptor_timestamps.insert(timestamp);
   }
   std::vector<ProcessWithDataLoss> GetProcessesWithDataLoss() const;
-  void NotifyEndOfFile();
+  void OnEventsFullyExtracted();
 
  private:
   struct ProcessData {

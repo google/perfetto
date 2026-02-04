@@ -205,6 +205,7 @@ export interface BuilderAttrs {
   readonly onLoadEmptyTemplate?: () => void;
   readonly onLoadExampleByPath?: (jsonPath: string) => void;
   readonly onLoadExploreTemplate?: () => void;
+  readonly onLoadRecentGraph?: (json: string) => void;
 
   // Node state change callback
   readonly onNodeStateChange?: () => void;
@@ -410,6 +411,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               onLoadExampleByPath: attrs.onLoadExampleByPath,
               onLoadExploreTemplate: attrs.onLoadExploreTemplate,
               onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
+              onLoadRecentGraph: attrs.onLoadRecentGraph,
             }),
           );
 
@@ -432,6 +434,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               node: selectedNode,
               response: this.response,
               dataSource: this.dataSource,
+              sqlModules: attrs.sqlModules,
               isQueryRunning: this.isQueryRunning,
               isAnalyzing: this.isAnalyzing,
               onchange: () => {

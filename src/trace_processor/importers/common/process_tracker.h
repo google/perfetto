@@ -41,6 +41,7 @@ enum class ThreadNamePriority : uint8_t {
   kEtwTrace = 1,
   kGenericKernelTask = 1,
   kProcessTree = 2,
+  kPerfComm = 2,
   kTrackDescriptorThreadType = 3,
   kTrackDescriptor = 4,
 
@@ -102,6 +103,9 @@ class ProcessTracker {
 
   // Mark whether a thread is the main thread or not.
   void SetMainThread(UniqueTid utid, bool is_main_thread);
+
+  // Mark whether a thread is an idle thread or not.
+  void SetIdleThread(UniqueTid utid, bool is_idle);
 
   // Associates trusted_pid with track UUID.
   void UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid);
@@ -221,7 +225,7 @@ class ProcessTracker {
   ArgsTracker::BoundInserter AddArgsToThread(UniqueTid utid);
 
   // Called when the trace was fully loaded.
-  void NotifyEndOfFile();
+  void OnEventsFullyExtracted();
 
   // Tracks the namespace-local pids for a process running in a pid namespace.
   void UpdateNamespacedProcess(int64_t pid, std::vector<int64_t> nspid);

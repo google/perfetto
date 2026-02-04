@@ -16,21 +16,18 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import {NUM} from '../../trace_processor/query_result';
 
 const PERF_TRACE_COUNTERS_PRECONDITION = `
   SELECT
-    str_value
-  FROM metadata
-  WHERE
-    name = 'trace_config_pbtxt'
-    AND str_value GLOB '*ftrace_events: "perf_trace_counters/sched_switch_with_ctrs"*'
+    ifnull(extract_metadata('trace_config_pbtxt') GLOB '*ftrace_events: "perf_trace_counters/sched_switch_with_ctrs"*', 0) AS result
 `;
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidPerfTraceCounters';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const resp = await ctx.engine.query(PERF_TRACE_COUNTERS_PRECONDITION);
-    if (resp.numRows() === 0) return;
+    if (resp.firstRow({result: NUM}).result !== 1) return;
     ctx.commands.registerCommand({
       id: 'com.android.AddThreadRuntimeIPCTrack',
       name: 'Add a track to show a thread runtime ipc',

@@ -173,12 +173,10 @@ RUN set -ex; \
     chmod 755 ./*; \
     mkdir github-action-runner; \
     cd github-action-runner; \
-    # As of May 2024, a recent version. Please check for the latest.
-    # For example, on May 8 2025, 2.323.0 was a version.
     # You should update GHAR_VER to the latest from:
     # https://api.github.com/repos/actions/runner/releases/latest
     # Example: response.tag_name gives "v2.317.0", so GHAR_VER would be "2.317.0"
-    GHAR_VER=${GHAR_VER:-2.323.0}; \
+    GHAR_VER=${GHAR_VER:-2.331.0}; \
     GHAR_URL=https://github.com/actions/runner/releases/download/v${GHAR_VER}/actions-runner-linux-x64-${GHAR_VER}.tar.gz; \
     echo "Downloading GitHub Actions Runner version ${GHAR_VER} from ${GHAR_URL}"; \
     curl -L -o actions-runner.tar.gz $GHAR_URL; \

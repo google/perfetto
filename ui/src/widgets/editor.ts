@@ -68,6 +68,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
   }
 
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
+    this.latestText = attrs.text;
     const keymaps = [indentWithTab];
     const onExecute = attrs.onExecute;
     const onSave = attrs.onSave;
@@ -108,17 +109,16 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     }
 
     const dispatch = (tr: Transaction, view: EditorView) => {
-      // Maybe don't bother doing this if onUpdate is not defined...?
       view.update([tr]);
       const text = view.state.doc.toString();
-      // Cache the latest text so that we don't immediately have to overwrite
-      // this every time we make an edit to the doc if the caller just passes in
-      // the exact same string again on the next redraw.
-      this.latestText = text;
-
-      if (onUpdate) {
+      // Only fire onUpdate when text actually changes, not for cursor
+      // movements, selection changes, or other non-text transactions.
+      if (onUpdate && text !== this.latestText) {
+        this.latestText = text;
         onUpdate(text);
         m.redraw();
+      } else {
+        this.latestText = text;
       }
     };
 

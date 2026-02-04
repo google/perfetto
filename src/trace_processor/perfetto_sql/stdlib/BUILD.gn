@@ -35,6 +35,8 @@ perfetto_amalgamated_sql_header("stdlib") {
     "slices",
     "stack_trace",
     "stacks",
+    "std/traceinfo",
+    "std/trees",
     "time",
     "traced",
     "v8",

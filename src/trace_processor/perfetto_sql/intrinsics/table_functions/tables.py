@@ -35,9 +35,14 @@ TABLE_INFO_TABLE = Table(
     class_name="PerfettoTableInfoTable",
     sql_name="perfetto_table_info",
     columns=[
-        C("table_name", CppString(), flags=ColumnFlag.HIDDEN),
-        C('name', CppString()),
-        C('col_type', CppString()),
+        C("table_name",
+          CppString(),
+          flags=ColumnFlag.HIDDEN,
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('name', CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('col_type',
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C('nullable', CppInt64()),
         C('sorted', CppInt64()),
     ])
@@ -51,15 +56,31 @@ SLICE_SUBSET_TABLE = Table(
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('dur', CppInt64()),
         C('track_id', CppTableId(TRACK_TABLE)),
-        C('category', CppOptional(CppString())),
-        C('name', CppOptional(CppString())),
+        C('category',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('name',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C('depth', CppUint32()),
-        C('parent_id', CppOptional(CppTableId(SLICE_TABLE))),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('thread_ts', CppOptional(CppInt64())),
-        C('thread_dur', CppOptional(CppInt64())),
-        C('thread_instruction_count', CppOptional(CppInt64())),
-        C('thread_instruction_delta', CppOptional(CppInt64())),
+        C('parent_id',
+          CppOptional(CppTableId(SLICE_TABLE)),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('arg_set_id',
+          CppOptional(CppUint32()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('thread_ts',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('thread_dur',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('thread_instruction_count',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('thread_instruction_delta',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ],
     add_implicit_column=False,
 )
@@ -75,7 +96,9 @@ ANCESTOR_STACK_PROFILE_CALLSITE_TABLE = Table(
             flags=ColumnFlag.SORTED,
         ),
         C('depth', CppUint32()),
-        C('parent_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
+        C('parent_id',
+          CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C('frame_id', CppTableId(STACK_PROFILE_FRAME_TABLE)),
     ],
     add_implicit_column=False,
@@ -88,8 +111,12 @@ CONNECTED_FLOW_TABLE = Table(
     columns=[
         C('slice_out', CppTableId(SLICE_TABLE)),
         C('slice_in', CppTableId(SLICE_TABLE)),
-        C('trace_id', CppOptional(CppInt64())),
-        C('arg_set_id', CppOptional(CppUint32())),
+        C('trace_id',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('arg_set_id',
+          CppOptional(CppUint32()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ],
 )
 
@@ -98,7 +125,10 @@ ARGS_WITH_DEFAULTS_TABLE = Table(
     class_name='WinscopeArgsWithDefaultsTable',
     sql_name='__intrinsic_winscope_proto_to_args_with_defaults',
     columns=[
-        C("table_name", CppString(), flags=ColumnFlag.HIDDEN),
+        C("table_name",
+          CppString(),
+          flags=ColumnFlag.HIDDEN,
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C(
             'base64_proto_id',
             CppUint32(),
@@ -107,12 +137,12 @@ ARGS_WITH_DEFAULTS_TABLE = Table(
         C(
             'flat_key',
             CppString(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
         C(
             'key',
             CppString(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
         C(
             'int_value',
@@ -122,7 +152,7 @@ ARGS_WITH_DEFAULTS_TABLE = Table(
         C(
             'string_value',
             CppOptional(CppString()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
         C(
             'real_value',
@@ -132,7 +162,7 @@ ARGS_WITH_DEFAULTS_TABLE = Table(
         C(
             'value_type',
             CppString(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
     ],
 )
@@ -144,9 +174,13 @@ EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE = Table(
     columns=[
         C('id', CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
         C('depth', CppUint32()),
-        C('parent_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
+        C('parent_id',
+          CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C('frame_id', CppTableId(STACK_PROFILE_FRAME_TABLE)),
-        C("annotation", CppString()),
+        C("annotation",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ],
     add_implicit_column=False,
 )
@@ -169,7 +203,9 @@ DFS_WEIGHT_BOUNDED_TABLE = Table(
     columns=[
         C("root_node_id", CppUint32()),
         C("node_id", CppUint32()),
-        C("parent_node_id", CppOptional(CppUint32())),
+        C("parent_node_id",
+          CppOptional(CppUint32()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ],
 )
 
@@ -178,8 +214,13 @@ DATAFRAME_QUERY_PLAN_DECODER_TABLE_TABLE = Table(
     class_name="DataframeQueryPlanDecoderTable",
     sql_name="not_exposed_to_sql",
     columns=[
-        C("bytecode_str", CppString()),
-        C("serialized_bc", CppString(), flags=ColumnFlag.HIDDEN),
+        C("bytecode_str",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("serialized_bc",
+          CppString(),
+          flags=ColumnFlag.HIDDEN,
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ],
 )
 

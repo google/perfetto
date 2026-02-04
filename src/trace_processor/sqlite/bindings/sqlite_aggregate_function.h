@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_AGGREGATE_FUNCTION_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_AGGREGATE_FUNCTION_H_
 
-#include <sqlite3.h>
+#include <sqlite3.h>  // IWYU pragma: export
 
 #include "perfetto/ext/base/scoped_file.h"
 

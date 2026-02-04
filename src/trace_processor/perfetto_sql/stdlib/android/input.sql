@@ -24,6 +24,7 @@ SELECT
   str_split(str_split(slice.name, '=', 1), ',', 0) AS event_channel,
   thread.tid,
   thread.name AS thread_name,
+  process.upid,
   process.pid,
   process.name AS process_name,
   slice.ts,
@@ -48,6 +49,7 @@ SELECT
   str_split(str_split(slice.name, '=', 1), ',', 0) AS event_channel,
   thread.tid,
   thread.name AS thread_name,
+  process.upid,
   process.pid,
   process.name AS process_name,
   slice.ts,
@@ -202,6 +204,8 @@ CREATE PERFETTO TABLE android_input_events (
   tid LONG,
   -- Name of thread receiving the input event.
   thread_name STRING,
+  -- Upid of process receiving the input event.
+  upid JOINID(process.upid),
   -- Pid of process receiving the input event.
   pid LONG,
   -- Name of process receiving the input event.
@@ -234,7 +238,7 @@ CREATE PERFETTO TABLE android_input_events (
   frame_id LONG
 ) AS
 WITH
-  dispatch AS MATERIALIZED (
+  dispatch AS (
     SELECT
       *
     FROM _input_message_sent
@@ -244,7 +248,7 @@ WITH
       event_seq,
       event_channel
   ),
-  receive AS MATERIALIZED (
+  receive AS (
     SELECT
       *,
       replace(event_channel, '(client)', '(server)') AS dispatch_event_channel
@@ -255,7 +259,7 @@ WITH
       event_seq,
       dispatch_event_channel
   ),
-  finish AS MATERIALIZED (
+  finish AS (
     SELECT
       *,
       replace(event_channel, '(client)', '(server)') AS dispatch_event_channel
@@ -266,7 +270,7 @@ WITH
       event_seq,
       dispatch_event_channel
   ),
-  finish_ack AS MATERIALIZED (
+  finish_ack AS (
     SELECT
       *
     FROM _input_message_received
@@ -284,6 +288,7 @@ SELECT
   frame.present_time - frame.read_time AS end_to_end_latency_dur,
   finish.tid AS tid,
   finish.thread_name AS thread_name,
+  finish.upid AS upid,
   finish.pid AS pid,
   finish.process_name AS process_name,
   dispatch.event_type,

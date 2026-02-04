@@ -180,6 +180,14 @@ export interface NodeGraphApi {
   autoLayout: () => void;
   recenter: () => void;
   findPlacementForNode: (node: Omit<Node, 'x' | 'y'>) => Position;
+  panBy: (dx: number, dy: number) => void;
+  /**
+   * Zooms the canvas by the given delta factor.
+   * @param deltaZoom - The zoom delta (e.g., 0.1 for 10% zoom in, -0.1 for 10% zoom out)
+   * @param centerX - X coordinate to zoom around (in viewport space). Defaults to canvas center.
+   * @param centerY - Y coordinate to zoom around (in viewport space). Defaults to canvas center.
+   */
+  zoomBy: (deltaZoom: number, centerX?: number, centerY?: number) => void;
 }
 
 export interface NodeGraphAttrs {
@@ -358,6 +366,42 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   let latestVnode: m.Vnode<NodeGraphAttrs> | null = null;
   let canvasElement: HTMLElement | null = null;
 
+  // Shared pan function used by both internal handlers and external API
+  const panBy = (dx: number, dy: number) => {
+    canvasState.panOffset.x += dx;
+    canvasState.panOffset.y += dy;
+  };
+
+  // Shared zoom function used by both internal handlers and external API
+  // Zooms around the center of the canvas (or specified point)
+  const zoomBy = (deltaZoom: number, centerX?: number, centerY?: number) => {
+    if (!canvasElement) return;
+    const canvas = canvasElement;
+    const canvasRect = canvas.getBoundingClientRect();
+
+    // Use center of canvas if no center point specified
+    const zoomX = centerX ?? canvasRect.width / 2;
+    const zoomY = centerY ?? canvasRect.height / 2;
+
+    const newZoom = Math.max(
+      0.1,
+      Math.min(5.0, canvasState.zoom * (1 + deltaZoom)),
+    );
+
+    // Calculate the point in canvas space (before zoom)
+    const canvasX = (zoomX - canvasState.panOffset.x) / canvasState.zoom;
+    const canvasY = (zoomY - canvasState.panOffset.y) / canvasState.zoom;
+
+    // Update zoom
+    canvasState.zoom = newZoom;
+
+    // Adjust pan to keep the same point under the zoom center
+    canvasState.panOffset = {
+      x: zoomX - canvasX * newZoom,
+      y: zoomY - canvasY * newZoom,
+    };
+  };
+
   // API functions that are exposed to parent components via onReady callback
   // These are initialized in oncreate and can be used in subsequent lifecycle hooks
   let autoLayoutApi: (() => void) | null = null;
@@ -444,10 +488,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       // Pan the canvas
       const dx = e.clientX - canvasState.panStart.x;
       const dy = e.clientY - canvasState.panStart.y;
-      canvasState.panOffset = {
-        x: canvasState.panOffset.x + dx,
-        y: canvasState.panOffset.y + dy,
-      };
+      panBy(dx, dy);
       canvasState.panStart = {x: e.clientX, y: e.clientY};
       m.redraw();
     } else if (canvasState.undockCandidate !== null) {
@@ -1452,10 +1493,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       };
     } else {
       // Pan the canvas based on wheel delta
-      canvasState.panOffset = {
-        x: canvasState.panOffset.x - e.deltaX,
-        y: canvasState.panOffset.y - e.deltaY,
-      };
+      panBy(-e.deltaX, -e.deltaY);
     }
 
     m.redraw();
@@ -2103,6 +2141,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           autoLayout: autoLayoutApi,
           recenter: recenterApi,
           findPlacementForNode: findPlacementForNodeApi,
+          panBy,
+          zoomBy,
         });
       }
     },
@@ -2139,6 +2179,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           autoLayout: autoLayoutApi,
           recenter: recenterApi,
           findPlacementForNode: findPlacementForNodeApi,
+          panBy,
+          zoomBy,
         });
       }
     },
