@@ -250,7 +250,7 @@ async function addWattsonCpuElements(
     createAggregationTab(ctx, new WattsonEstimateSelectionAggregator()),
   );
   ctx.selection.registerAreaSelectionTab(
-    createAggregationTab(ctx, new WattsonThreadSelectionAggregator()),
+    createAggregationTab(ctx, new WattsonThreadSelectionAggregator(ctx)),
   );
   ctx.selection.registerAreaSelectionTab(
     createAggregationTab(ctx, new WattsonProcessSelectionAggregator()),
