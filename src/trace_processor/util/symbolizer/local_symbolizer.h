@@ -21,6 +21,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -52,6 +53,9 @@ enum class BinaryPathError : uint8_t {
   kFileNotFound,
   // A file was found but had the wrong build ID.
   kBuildIdMismatch,
+  // A directory was indexed but didn't contain a binary with the requested
+  // build ID.
+  kBuildIdNotInIndex,
 };
 
 // Record of a single path attempt during binary lookup.
@@ -88,6 +92,8 @@ class LocalBinaryIndexer : public BinaryFinder {
   ~LocalBinaryIndexer() override;
 
  private:
+  std::vector<std::string> indexed_directories_;
+  std::set<std::string> symbol_files_;
   std::map<std::string, FoundBinary> buildid_to_file_;
 };
 
