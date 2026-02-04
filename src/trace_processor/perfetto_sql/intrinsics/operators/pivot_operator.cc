@@ -26,12 +26,16 @@
 //       'SUM(value), COUNT(*), AVG(price)'   -- Aggregation expressions
 //   );
 //
+// QUERYING (default - all groups expanded):
+//   SELECT * FROM my_pivot
+//   WHERE __sort__ = 'agg_0 DESC'      -- Optional: sort by aggregate or 'name'
+//     AND __offset__ = 0               -- Optional: pagination offset
+//     AND __limit__ = 100;             -- Optional: pagination limit
+//
 // QUERYING (allowlist mode - only specified IDs expanded):
 //   SELECT * FROM my_pivot
 //   WHERE __expanded_ids__ = '1,2,3'   -- Comma-separated node IDs to expand
-//     AND __sort__ = 'agg_0 DESC'      -- Optional: sort by aggregate or 'name'
-//     AND __offset__ = 0               -- Optional: pagination offset
-//     AND __limit__ = 100;             -- Optional: pagination limit
+//     AND __sort__ = 'agg_0 DESC';
 //
 // QUERYING (denylist mode - all expanded except specified IDs):
 //   SELECT * FROM my_pivot
@@ -53,6 +57,7 @@
 //   - Each level groups by cumulative hierarchy columns (level 1 by col1,
 //     level 2 by col1+col2, etc.)
 //   - Tree is built once at CREATE time and cached
+//   - By default (no expansion constraint), all groups are expanded
 
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/pivot_operator.h"
 
@@ -683,8 +688,9 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Map of expanded/collapsed node IDs and mode
   base::FlatHashMap<int64_t, bool> expansion_ids;
-  bool denylist_mode = false;  // false = allowlist (expanded_ids), true =
-                               // denylist (collapsed_ids)
+  bool denylist_mode = false;        // false = allowlist (expanded_ids), true =
+                                     // denylist (collapsed_ids)
+  bool expansion_specified = false;  // Track if any expansion constraint given
 
   // Parse idxStr to determine which arguments are present and their argv index.
   // Each char in idxStr is either '-' (not present) or '0'-'5' (argv index).
@@ -728,6 +734,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
         reinterpret_cast<const char*>(sqlite3_value_text(val));
     parse_ids(ids_str);
     denylist_mode = false;
+    expansion_specified = true;
   }
 
   // Process __collapsed_ids__ (flag position 2) - denylist mode (expand all
@@ -739,6 +746,12 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     expansion_ids.Clear();
     parse_ids(ids_str);
     denylist_mode = true;
+    expansion_specified = true;
+  }
+
+  // Default: expand all groups when no expansion constraint is specified
+  if (!expansion_specified) {
+    denylist_mode = true;  // Denylist with empty set = expand all
   }
 
   // Process __sort__ (flag position 3)
