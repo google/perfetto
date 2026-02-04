@@ -4151,6 +4151,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util/trace_enrichment:trace_enrichment
+perfetto_filegroup(
+    name = "src_trace_processor_util_trace_enrichment_trace_enrichment",
+    srcs = [
+        "src/trace_processor/util/trace_enrichment/trace_enrichment.cc",
+        "src/trace_processor/util/trace_enrichment/trace_enrichment.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:args_utils
 perfetto_filegroup(
     name = "src_trace_processor_util_args_utils",
@@ -8492,6 +8501,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_symbolizer_symbolizer",
         ":src_trace_processor_util_tar_writer",
         ":src_trace_processor_util_trace_blob_view_reader",
+        ":src_trace_processor_util_trace_enrichment_trace_enrichment",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
