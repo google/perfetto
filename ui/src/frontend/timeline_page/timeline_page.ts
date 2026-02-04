@@ -27,7 +27,10 @@ import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
+import {TrackSearchManager} from '../../core/track_search_manager';
+import {HotkeyContext} from '../../widgets/hotkey_context';
 import {ResizeHandle} from '../../widgets/resize_handle';
+import {TrackSearchPanel} from './track_search_panel';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -52,81 +55,104 @@ interface TimelinePageAttrs {
 
 class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private readonly trash = new DisposableStack();
+  private readonly trackSearch = new TrackSearchManager();
   private timelineBounds?: Rect2D;
   private pinnedTracksHeight: number | 'auto' = 'auto';
 
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
     return m(
-      '.pf-timeline-page',
+      HotkeyContext,
+      {
+        hotkeys: [
+          {
+            hotkey: '!Mod+F',
+            callback: () => this.trackSearch.show(),
+          },
+        ],
+        focusable: false, // Global hotkey, works without element focus
+        fillHeight: true,
+      },
       m(
-        TabPanel,
-        {trace},
-        OVERVIEW_PANEL_FLAG.get() &&
-          m(Minimap, {
+        '.pf-timeline-page',
+
+        m(
+          TabPanel,
+          {trace},
+          OVERVIEW_PANEL_FLAG.get() &&
+            m(Minimap, {
+              trace,
+              className: 'pf-timeline-page__overview',
+            }),
+          m(TimelineHeader, {
             trace,
-            className: 'pf-timeline-page__overview',
+            className: 'pf-timeline-page__header',
+            // There are three independent canvases on this page which we could
+            // use keep track of the timeline width, but we use the header one
+            // because it's always rendered.
+            onTimelineBoundsChange: (rect) => (this.timelineBounds = rect),
           }),
-        m(TimelineHeader, {
-          trace,
-          className: 'pf-timeline-page__header',
-          // There are three independent canvases on this page which we could
-          // use keep track of the timeline width, but we use the header one
-          // because it's always rendered.
-          onTimelineBoundsChange: (rect) => (this.timelineBounds = rect),
-        }),
-        // Hide tracks while the trace is loading to prevent thrashing.
-        !AppImpl.instance.isLoadingTrace && [
-          // Don't render pinned tracks if we have none.
-          trace.currentWorkspace.pinnedTracks.length > 0 && [
-            m(
-              '.pf-timeline-page__pinned-track-tree',
-              {
-                style:
-                  this.pinnedTracksHeight === 'auto'
-                    ? {maxHeight: '40%'}
-                    : {height: `${this.pinnedTracksHeight}px`},
-              },
-              m(TrackTreeView, {
-                trace,
-                rootNode: trace.currentWorkspace.pinnedTracksNode,
-                canReorderNodes: true,
-                scrollToNewTracks: true,
+          // Track search panel (shown at top when active)
+          this.trackSearch.isVisible &&
+            m(TrackSearchPanel, {searchManager: this.trackSearch}),
+          // Hide tracks while the trace is loading to prevent thrashing.
+          !AppImpl.instance.isLoadingTrace && [
+            // Don't render pinned tracks if we have none.
+            trace.currentWorkspace.pinnedTracks.length > 0 && [
+              m(
+                '.pf-timeline-page__pinned-track-tree',
+                {
+                  style:
+                    this.pinnedTracksHeight === 'auto'
+                      ? {maxHeight: '40%'}
+                      : {height: `${this.pinnedTracksHeight}px`},
+                },
+                m(TrackTreeView, {
+                  trace,
+                  rootNode: trace.currentWorkspace.pinnedTracksNode,
+                  canReorderNodes: true,
+                  scrollToNewTracks: true,
+                  trackSearch: this.trackSearch,
+                }),
+              ),
+              m(ResizeHandle, {
+                onResize: (deltaPx: number) => {
+                  if (this.pinnedTracksHeight === 'auto') {
+                    this.pinnedTracksHeight = toHTMLElement(
+                      document.querySelector(
+                        '.pf-timeline-page__pinned-track-tree',
+                      )!,
+                    ).getBoundingClientRect().height;
+                  }
+                  this.pinnedTracksHeight = this.pinnedTracksHeight + deltaPx;
+                  m.redraw();
+                },
+                ondblclick: () => {
+                  this.pinnedTracksHeight = 'auto';
+                },
               }),
-            ),
-            m(ResizeHandle, {
-              onResize: (deltaPx: number) => {
-                if (this.pinnedTracksHeight === 'auto') {
-                  this.pinnedTracksHeight = toHTMLElement(
-                    document.querySelector(
-                      '.pf-timeline-page__pinned-track-tree',
-                    )!,
-                  ).getBoundingClientRect().height;
-                }
-                this.pinnedTracksHeight = this.pinnedTracksHeight + deltaPx;
-                m.redraw();
-              },
-              ondblclick: () => {
-                this.pinnedTracksHeight = 'auto';
-              },
+            ],
+
+            m(TrackTreeView, {
+              trace,
+              className: 'pf-timeline-page__scrolling-track-tree',
+              rootNode: trace.currentWorkspace.tracks,
+              canReorderNodes: trace.currentWorkspace.userEditable,
+              canRemoveNodes: trace.currentWorkspace.userEditable,
+              trackFilter: (track) => trackMatchesFilter(trace, track),
+              trackSearch: this.trackSearch,
             }),
           ],
-
-          m(TrackTreeView, {
-            trace,
-            className: 'pf-timeline-page__scrolling-track-tree',
-            rootNode: trace.currentWorkspace.tracks,
-            canReorderNodes: trace.currentWorkspace.userEditable,
-            canRemoveNodes: trace.currentWorkspace.userEditable,
-            trackFilter: (track) => trackMatchesFilter(trace, track),
-          }),
-        ],
+        ),
       ),
     );
   }
 
   oncreate(vnode: m.VnodeDOM<TimelinePageAttrs>) {
     const {attrs, dom} = vnode;
+
+    // Connect track search manager to tracks for scrolling support
+    this.trackSearch.setTrackManager(attrs.trace.tracks);
 
     // Handles WASD keybindings to pan & zoom
     const panZoomHandler = new KeyboardNavigationHandler({

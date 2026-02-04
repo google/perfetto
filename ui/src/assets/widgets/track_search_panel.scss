@@ -1,0 +1,39 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../theme";
+
+.pf-track-search-panel {
+  background: var(--pf-color-background);
+  border-bottom: 1px solid var(--pf-color-border);
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--pf-font-family);
+  font-size: var(--pf-font-size-m);
+  flex-shrink: 0;
+
+  &__count {
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+    min-width: 80px;
+    text-align: center;
+  }
+
+  &__buttons {
+    display: flex;
+    gap: 2px;
+  }
+}
