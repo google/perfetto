@@ -209,8 +209,8 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
   result.frames_without_build_id = mappings_without_build_id.frame_count;
   result.mappings_without_build_id = std::move(mappings_without_build_id.names);
 
-  bool has_index = !config.index_symbol_paths.empty() ||
-                   !config.symbol_files.empty();
+  bool has_index =
+      !config.index_symbol_paths.empty() || !config.symbol_files.empty();
   bool has_find = !config.find_symbol_paths.empty();
   bool has_breakpad = !config.breakpad_paths.empty();
 
