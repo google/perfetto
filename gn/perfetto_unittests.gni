@@ -35,8 +35,6 @@ _base_unittests_targets += [
   "src/protovm:unittests",
 ]
 
-_profiling_unittests_targets += [ "src/profiling:unittests" ]
-
 _tracing_unittests_targets += [
   "src/tracing/core:unittests",
   "src/tracing/service:unittests",

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto.gni")
-import("../../gn/test.gni")
+import("../../../../gn/perfetto.gni")
+import("../../../../gn/test.gni")
 
 source_set("deobfuscator") {
   sources = [
@@ -21,11 +21,11 @@ source_set("deobfuscator") {
     "deobfuscator.h",
   ]
   deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/ext/base:base",
-    "../../protos/perfetto/trace:zero",
-    "../../protos/perfetto/trace/profiling:zero",
-    "../../src/protozero:protozero",
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base:base",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../../src/protozero:protozero",
   ]
 }
 
@@ -33,10 +33,10 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":deobfuscator",
-    "../../gn:default_deps",
-    "../../gn:gtest_and_gmock",
-    "../base",
-    "../base:test_support",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../base",
+    "../../../base:test_support",
   ]
   sources = [ "deobfuscator_unittest.cc" ]
 }

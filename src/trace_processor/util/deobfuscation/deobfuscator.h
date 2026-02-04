@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_DEOBFUSCATOR_H_
-#define SRC_PROFILING_DEOBFUSCATOR_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_DEOBFUSCATION_DEOBFUSCATOR_H_
+#define SRC_TRACE_PROCESSOR_UTIL_DEOBFUSCATION_DEOBFUSCATOR_H_
 
 #include <cstdint>
 #include <functional>
@@ -114,4 +114,4 @@ bool ReadProguardMapsToDeobfuscationPackets(
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_DEOBFUSCATOR_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_DEOBFUSCATION_DEOBFUSCATOR_H_
