@@ -133,10 +133,10 @@
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/android_tables_py.h"
-#include "src/trace_processor/tables/jit_tables_py.h"     // IWYU pragma: keep
-#include "src/trace_processor/tables/memory_tables_py.h"  // IWYU pragma: keep
-#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/android_tables_py.h"   // IWYU pragma: keep
+#include "src/trace_processor/tables/jit_tables_py.h"       // IWYU pragma: keep
+#include "src/trace_processor/tables/memory_tables_py.h"    // IWYU pragma: keep
+#include "src/trace_processor/tables/metadata_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
@@ -423,6 +423,24 @@ sql_modules::NameToPackage GetStdlibPackages() {
   return packages;
 }
 
+// IMPORTANT: GetBoundsMutationCount and GetTraceTimestampBoundsNs must be kept
+// in sync.
+uint64_t GetBoundsMutationCount(const TraceStorage& storage) {
+  return storage.ftrace_event_table().mutations() +
+         storage.sched_slice_table().mutations() +
+         storage.counter_table().mutations() +
+         storage.slice_table().mutations() +
+         storage.heap_profile_allocation_table().mutations() +
+         storage.thread_state_table().mutations() +
+         storage.android_log_table().mutations() +
+         storage.heap_graph_object_table().mutations() +
+         storage.perf_sample_table().mutations() +
+         storage.instruments_sample_table().mutations() +
+         storage.cpu_profile_stack_sample_table().mutations();
+}
+
+// IMPORTANT: GetBoundsMutationCount and GetTraceTimestampBoundsNs must be kept
+// in sync.
 std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
     const TraceStorage& storage) {
   int64_t start_ns = std::numeric_limits<int64_t>::max();
@@ -673,6 +691,11 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
 }
 
 void TraceProcessorImpl::CacheBoundsAndBuildTable() {
+  uint64_t mutations = GetBoundsMutationCount(*context()->storage);
+  if (mutations == bounds_tables_mutations_) {
+    return;
+  }
+  bounds_tables_mutations_ = mutations;
   cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
   BuildBoundsTable(engine_->sqlite_engine()->db(), cached_trace_bounds_);
 }
