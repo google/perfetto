@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/symbolizer/llvm_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/llvm_symbolizer.h"
 
 #include <dlfcn.h>
 

@@ -24,9 +24,9 @@
 
 #include "src/base/test/tmp_dir_tree.h"
 #include "src/base/test/utils.h"
-#include "src/profiling/symbolizer/elf.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
-#include "src/profiling/symbolizer/subprocess.h"
+#include "src/trace_processor/util/symbolizer/elf.h"
+#include "src/trace_processor/util/symbolizer/local_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/subprocess.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \

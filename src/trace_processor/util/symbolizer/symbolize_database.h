@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_SYMBOLIZER_SYMBOLIZE_DATABASE_H_
-#define SRC_PROFILING_SYMBOLIZER_SYMBOLIZE_DATABASE_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZE_DATABASE_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZE_DATABASE_H_
 
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 #include <functional>
 #include <string>
@@ -37,4 +37,4 @@ void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_SYMBOLIZER_SYMBOLIZE_DATABASE_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZE_DATABASE_H_

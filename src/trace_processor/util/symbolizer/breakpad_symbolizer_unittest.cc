@@ -20,12 +20,12 @@
 #include <vector>
 
 #include "perfetto/ext/base/utils.h"
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 #include "test/gtest_and_gmock.h"
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
-#include "src/profiling/symbolizer/breakpad_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/breakpad_symbolizer.h"
 
 namespace perfetto::profiling {
 

@@ -62,9 +62,6 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/profiling/deobfuscator.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
-#include "src/profiling/symbolizer/symbolize_database.h"
-#include "src/profiling/symbolizer/symbolizer.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
@@ -73,6 +70,9 @@
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/sql_modules.h"
+#include "src/trace_processor/util/symbolizer/local_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolize_database.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 

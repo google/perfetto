@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_SYMBOLIZER_SYMBOLIZER_H_
-#define SRC_PROFILING_SYMBOLIZER_SYMBOLIZER_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZER_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZER_H_
 
 #include <cstdint>
 #include <optional>
@@ -56,4 +56,4 @@ class Symbolizer {
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_SYMBOLIZER_SYMBOLIZER_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZER_H_

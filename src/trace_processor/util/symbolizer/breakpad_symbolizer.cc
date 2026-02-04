@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/symbolizer/breakpad_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/breakpad_symbolizer.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -26,8 +26,8 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/profiling/symbolizer/breakpad_parser.h"
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/symbolizer/breakpad_parser.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 namespace perfetto::profiling {
 

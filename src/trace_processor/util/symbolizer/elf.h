@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_SYMBOLIZER_ELF_H_
-#define SRC_PROFILING_SYMBOLIZER_ELF_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_ELF_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_ELF_H_
 
 #include <stddef.h>
 #include <cinttypes>
@@ -169,4 +169,4 @@ typename E::Phdr* GetPhdr(void* mem, const typename E::Ehdr* ehdr, size_t i) {
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_SYMBOLIZER_ELF_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_ELF_H_

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/symbolizer/symbolize_database.h"
+#include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -34,7 +34,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 #include "src/trace_processor/util/build_id.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"

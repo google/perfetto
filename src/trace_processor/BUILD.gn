@@ -246,8 +246,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../include/perfetto/ext/trace_processor:trace_processor_shell",
       "../../protos/perfetto/trace_processor:zero",
       "../../src/profiling:deobfuscator",
-      "../../src/profiling/symbolizer",
-      "../../src/profiling/symbolizer:symbolize_database",
       "../base",
       "../base:version",
       "metrics",
@@ -257,6 +255,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "sqlite",
       "trace_summary",
       "util:stdlib",
+      "util/symbolizer",
+      "util/symbolizer:symbolize_database",
     ]
     if (enable_perfetto_trace_processor_linenoise) {
       deps += [ "../../gn:linenoise" ]
@@ -288,7 +288,7 @@ if (enable_perfetto_trace_processor_sqlite) {
         "../../protos/third_party/simpleperf:descriptor",
       ]
       if (enable_perfetto_llvm_symbolizer) {
-        data_deps += [ "../profiling/symbolizer:llvm_symbolizer_wrapper" ]
+        data_deps += [ "util/symbolizer:llvm_symbolizer_wrapper" ]
       }
     }
   }
@@ -366,6 +366,7 @@ perfetto_unittest_source_set("unittests") {
     "sorter:unittests",
     "types:unittests",
     "util:unittests",
+    "util/symbolizer:unittests",
   ]
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [

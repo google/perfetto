@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/symbolizer/local_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/local_symbolizer.h"
 
 #include <fcntl.h>
 #include <algorithm>
@@ -42,9 +42,9 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/profiling/symbolizer/elf.h"
-#include "src/profiling/symbolizer/filesystem.h"
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/symbolizer/elf.h"
+#include "src/trace_processor/util/symbolizer/filesystem.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 namespace perfetto::profiling {
 
