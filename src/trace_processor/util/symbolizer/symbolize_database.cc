@@ -167,8 +167,8 @@ std::string SymbolizeDatabaseWithSymbolizer(trace_processor::TraceProcessor* tp,
 SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config) {
   SymbolizerResult result;
-  bool has_index = !config.index_symbol_paths.empty() ||
-                   !config.symbol_files.empty();
+  bool has_index =
+      !config.index_symbol_paths.empty() || !config.symbol_files.empty();
   bool has_find = !config.find_symbol_paths.empty();
   bool has_breakpad = !config.breakpad_paths.empty();
 
