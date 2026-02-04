@@ -27,7 +27,7 @@ metric_spec {
 }
 
 metric_template_spec {
-  id_prefix: "wattson_rails_marker"
+  id_prefix: "wattson_rails_markers"
 
   # ==========================================================
   # Dimensions
@@ -35,30 +35,36 @@ metric_template_spec {
 
   # 1. Period Identifier
   dimensions_specs {
-    name: "period_name"
-    type: STRING
+    name: "period_id"
+    type: INT64
   }
 
-  # 2. Hardware Subsystem
+  # 2. Period Duration
+  dimensions_specs {
+    name: "period_dur"
+    type: INT64
+  }
+
+  # 3. Hardware Subsystem
   dimensions_specs {
     name: "subsystem"
     type: STRING
   }
 
-  # 3. Hierarchy Type
+  # 4. Hierarchy Type
   dimensions_specs {
     name: "breakdown_type"
     type: STRING
   }
 
-  # 4. Component Identifier
+  # 5. Component Identifier
   dimensions_specs {
     name: "component_id"
     type: INT64
     display_name: "ID"
   }
 
-  # 5. Parent Relation
+  # 6. Parent Relation
   dimensions_specs {
     name: "parent_id"
     type: INT64
@@ -91,7 +97,7 @@ metric_template_spec {
 
   query {
     table {
-      table_name: "_wattson_rails_marker"
+      table_name: "_wattson_rails_markers"
     }
     referenced_modules: "wattson.metrics.rails_metrics"
   }
@@ -108,30 +114,36 @@ metric_template_spec {
 
   # 1. Period Identifier
   dimensions_specs {
-    name: "period_name"
-    type: STRING
+    name: "period_id"
+    type: INT64
   }
 
-  # 2. Hardware Subsystem
+  # 2. Period Duration
+  dimensions_specs {
+    name: "period_dur"
+    type: INT64
+  }
+
+  # 3. Hardware Subsystem
   dimensions_specs {
     name: "subsystem"
     type: STRING
   }
 
-  # 3. Hierarchy Type
+  # 4. Hierarchy Type
   dimensions_specs {
     name: "breakdown_type"
     type: STRING
   }
 
-  # 4. Component Identifier
+  # 5. Component Identifier
   dimensions_specs {
     name: "component_id"
     type: INT64
     display_name: "ID"
   }
 
-  # 5. Parent Relation
+  # 6. Parent Relation
   dimensions_specs {
     name: "parent_id"
     type: INT64
@@ -173,7 +185,7 @@ metric_template_spec {
 }
 
 metric_template_spec {
-  id_prefix: "wattson_rails_startup"
+  id_prefix: "wattson_rails_app_startup"
 
   # ==========================================================
   # Dimensions
@@ -181,30 +193,36 @@ metric_template_spec {
 
   # 1. Period Identifier
   dimensions_specs {
-    name: "period_name"
-    type: STRING
+    name: "period_id"
+    type: INT64
   }
 
-  # 2. Hardware Subsystem
+  # 2. Period Duration
+  dimensions_specs {
+    name: "period_dur"
+    type: INT64
+  }
+
+  # 3. Hardware Subsystem
   dimensions_specs {
     name: "subsystem"
     type: STRING
   }
 
-  # 3. Hierarchy Type
+  # 4. Hierarchy Type
   dimensions_specs {
     name: "breakdown_type"
     type: STRING
   }
 
-  # 4. Component Identifier
+  # 5. Component Identifier
   dimensions_specs {
     name: "component_id"
     type: INT64
     display_name: "ID"
   }
 
-  # 5. Parent Relation
+  # 6. Parent Relation
   dimensions_specs {
     name: "parent_id"
     type: INT64
@@ -237,7 +255,7 @@ metric_template_spec {
 
   query {
     table {
-      table_name: "_wattson_rails_startup"
+      table_name: "_wattson_rails_app_startup"
     }
     referenced_modules: "wattson.metrics.rails_metrics"
   }
@@ -246,7 +264,7 @@ metric_template_spec {
 }
 
 metric_template_spec {
-  id_prefix: "wattson_rails_cuj"
+  id_prefix: "wattson_rails_atrace_apps"
 
   # ==========================================================
   # Dimensions
@@ -254,30 +272,36 @@ metric_template_spec {
 
   # 1. Period Identifier
   dimensions_specs {
-    name: "period_name"
-    type: STRING
+    name: "period_id"
+    type: INT64
   }
 
-  # 2. Hardware Subsystem
+  # 2. Period Duration
+  dimensions_specs {
+    name: "period_dur"
+    type: INT64
+  }
+
+  # 3. Hardware Subsystem
   dimensions_specs {
     name: "subsystem"
     type: STRING
   }
 
-  # 3. Hierarchy Type
+  # 4. Hierarchy Type
   dimensions_specs {
     name: "breakdown_type"
     type: STRING
   }
 
-  # 4. Component Identifier
+  # 5. Component Identifier
   dimensions_specs {
     name: "component_id"
     type: INT64
     display_name: "ID"
   }
 
-  # 5. Parent Relation
+  # 6. Parent Relation
   dimensions_specs {
     name: "parent_id"
     type: INT64
@@ -310,7 +334,7 @@ metric_template_spec {
 
   query {
     table {
-      table_name: "_wattson_rails_cuj"
+      table_name: "_wattson_rails_atrace_apps"
     }
     referenced_modules: "wattson.metrics.rails_metrics"
   }

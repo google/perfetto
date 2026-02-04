@@ -28,11 +28,10 @@ metric_spec {
 
 # Marker
 metric_template_spec {
-  id_prefix: "wattson_threads_marker"
+  id_prefix: "wattson_threads_markers"
 
   # --- Dimensions ---
   # 1. Period
-  dimensions_specs { name: "period_name" type: STRING }
   dimensions_specs { name: "period_id" type: INT64 }
 
   # 2. Process Info
@@ -71,7 +70,7 @@ metric_template_spec {
 
   # --- Source ---
   query {
-    table { table_name: "_wattson_threads_marker" }
+    table { table_name: "_wattson_threads_markers" }
     referenced_modules: "wattson.metrics.threads_metrics"
   }
 }
@@ -82,7 +81,6 @@ metric_template_spec {
 
   # --- Dimensions ---
   # 1. Period
-  dimensions_specs { name: "period_name" type: STRING }
   dimensions_specs { name: "period_id" type: INT64 }
 
   # 2. Process Info
@@ -128,11 +126,10 @@ metric_template_spec {
 
 # App Startup
 metric_template_spec {
-  id_prefix: "wattson_threads_startup"
+  id_prefix: "wattson_threads_app_startup"
 
   # --- Dimensions ---
   # 1. Period
-  dimensions_specs { name: "period_name" type: STRING }
   dimensions_specs { name: "period_id" type: INT64 }
 
   # 2. Process Info
@@ -171,18 +168,17 @@ metric_template_spec {
 
   # --- Source ---
   query {
-    table { table_name: "_wattson_threads_startup" }
+    table { table_name: "_wattson_threads_app_startup" }
     referenced_modules: "wattson.metrics.threads_metrics"
   }
 }
 
 # CUJ
 metric_template_spec {
-  id_prefix: "wattson_threads_cuj"
+  id_prefix: "wattson_threads_atrace_apps"
 
   # --- Dimensions ---
   # 1. Period
-  dimensions_specs { name: "period_name" type: STRING }
   dimensions_specs { name: "period_id" type: INT64 }
 
   # 2. Process Info
@@ -221,7 +217,7 @@ metric_template_spec {
 
   # --- Source ---
   query {
-    table { table_name: "_wattson_threads_cuj" }
+    table { table_name: "_wattson_threads_atrace_apps" }
     referenced_modules: "wattson.metrics.threads_metrics"
   }
 }

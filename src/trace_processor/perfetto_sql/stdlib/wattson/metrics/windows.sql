@@ -24,7 +24,7 @@ INCLUDE PERFETTO MODULE wattson.utils;
 -- ========================================================
 
 -- Standardized window for Wattson markers
-CREATE PERFETTO VIEW _wattson_window_marker AS
+CREATE PERFETTO VIEW _wattson_window_markers AS
 SELECT
   ts,
   dur,
@@ -39,7 +39,7 @@ SELECT
   1 AS period_id;
 
 -- Standardized window for Android app startups
-CREATE PERFETTO VIEW _wattson_window_startup AS
+CREATE PERFETTO VIEW _wattson_window_app_startup AS
 SELECT
   ts,
   dur,
@@ -47,7 +47,7 @@ SELECT
 FROM android_startups;
 
 -- Standardized window for Android CUJs
-CREATE PERFETTO VIEW _wattson_window_cuj AS
+CREATE PERFETTO VIEW _wattson_window_atrace_apps AS
 SELECT
   ts,
   dur,

@@ -332,7 +332,8 @@ RETURNS TableOrSubquery AS
     flat_view_raw AS (
       -- A. CPU Cores
       SELECT
-        CAST(c.period_id AS STRING) AS period_name,
+        c.period_id,
+        c.period_dur,
         'CPU' AS subsystem,
         'CORE' AS breakdown_type,
         c.cpu_id AS component_id,
@@ -345,7 +346,8 @@ RETURNS TableOrSubquery AS
       UNION ALL
       -- B. CPU Policies
       SELECT
-        CAST(c.period_id AS STRING) AS period_name,
+        c.period_id,
+        c.period_dur,
         'CPU' AS subsystem,
         'POLICY' AS breakdown_type,
         c.policy_id AS component_id,
@@ -360,7 +362,8 @@ RETURNS TableOrSubquery AS
       UNION ALL
       -- C. DSU/SCU
       SELECT
-        CAST(base.period_id AS STRING) AS period_name,
+        base.period_id,
+        base.period_dur,
         'CPU' AS subsystem,
         'DSU' AS breakdown_type,
         NULL AS component_id,
@@ -375,7 +378,8 @@ RETURNS TableOrSubquery AS
       UNION ALL
       -- D. GPU Subsystem
       SELECT
-        CAST(base.period_id AS STRING) AS period_name,
+        base.period_id,
+        base.period_dur,
         'GPU' AS subsystem,
         'TOTAL' AS breakdown_type,
         NULL AS component_id,
@@ -396,7 +400,8 @@ RETURNS TableOrSubquery AS
   -- E. CPU TOTAL (Auto-calculated)
   -- Sum only Policy and DSU (exclude Cores to avoid double counting)
   SELECT
-    period_name,
+    period_id,
+    period_dur,
     subsystem,
     'TOTAL' AS breakdown_type,
     NULL AS component_id,
@@ -407,7 +412,8 @@ RETURNS TableOrSubquery AS
   WHERE
     subsystem = 'CPU' AND breakdown_type IN ('POLICY', 'DSU')
   GROUP BY
-    period_name,
+    period_id,
+    period_dur,
     subsystem
 );
 

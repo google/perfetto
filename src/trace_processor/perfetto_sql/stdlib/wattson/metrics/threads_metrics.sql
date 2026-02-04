@@ -22,10 +22,10 @@ INCLUDE PERFETTO MODULE wattson.metrics.windows;
 -- ========================================================
 
 -- Wattson thread aggregation for Marker window
-CREATE PERFETTO VIEW _wattson_threads_marker AS
+CREATE PERFETTO VIEW _wattson_threads_markers AS
 SELECT
   *
-FROM _wattson_threads_build_flat_view!(_wattson_window_marker);
+FROM _wattson_threads_build_flat_view!(_wattson_window_markers);
 
 -- Wattson thread aggregation for Full Trace
 CREATE PERFETTO VIEW _wattson_threads_trace AS
@@ -34,13 +34,13 @@ SELECT
 FROM _wattson_threads_build_flat_view!(_wattson_window_trace);
 
 -- Wattson thread aggregation for Startup
-CREATE PERFETTO VIEW _wattson_threads_startup AS
+CREATE PERFETTO VIEW _wattson_threads_app_startup AS
 SELECT
   *
-FROM _wattson_threads_build_flat_view!(_wattson_window_startup);
+FROM _wattson_threads_build_flat_view!(_wattson_window_app_startup);
 
 -- Wattson thread aggregation for CUJ
-CREATE PERFETTO VIEW _wattson_threads_cuj AS
+CREATE PERFETTO VIEW _wattson_threads_atrace_apps AS
 SELECT
   *
-FROM _wattson_threads_build_flat_view!(_wattson_window_cuj);
+FROM _wattson_threads_build_flat_view!(_wattson_window_atrace_apps);

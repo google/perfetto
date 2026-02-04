@@ -22,10 +22,10 @@ INCLUDE PERFETTO MODULE wattson.metrics.windows;
 -- ========================================================
 
 -- Wattson rail aggregation for Marker window
-CREATE PERFETTO VIEW _wattson_rails_marker AS
+CREATE PERFETTO VIEW _wattson_rails_markers AS
 SELECT
   *
-FROM _wattson_rail_build_flat_view!(_wattson_window_marker);
+FROM _wattson_rail_build_flat_view!(_wattson_window_markers);
 
 -- Wattson rail aggregation for Full Trace
 CREATE PERFETTO VIEW _wattson_rails_trace AS
@@ -34,13 +34,13 @@ SELECT
 FROM _wattson_rail_build_flat_view!(_wattson_window_trace);
 
 -- Wattson rail aggregation for Startup
-CREATE PERFETTO VIEW _wattson_rails_startup AS
+CREATE PERFETTO VIEW _wattson_rails_app_startup AS
 SELECT
   *
-FROM _wattson_rail_build_flat_view!(_wattson_window_startup);
+FROM _wattson_rail_build_flat_view!(_wattson_window_app_startup);
 
 -- Wattson rail aggregation for CUJ
-CREATE PERFETTO VIEW _wattson_rails_cuj AS
+CREATE PERFETTO VIEW _wattson_rails_atrace_apps AS
 SELECT
   *
-FROM _wattson_rail_build_flat_view!(_wattson_window_cuj);
+FROM _wattson_rail_build_flat_view!(_wattson_window_atrace_apps);
