@@ -51,6 +51,9 @@ export interface Color {
   // Uint32 packed RGBA value (0xRRGGBBAA).
   readonly rgba: number;
 
+  // Alpha value in the range 0-1, or fully opaque if undefined.
+  readonly alpha?: number;
+
   // The perceived brightness of the color using a weighted average of the
   // r, g and b channels based on human perception.
   readonly perceivedBrightness: number;

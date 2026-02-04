@@ -17,10 +17,11 @@
 // 1. Rects pipeline - plain/hatched rectangles
 // 2. Markers pipeline - SDF-based shapes like chevrons
 
-import {Renderer, MarkerRenderFunc} from './../renderer';
+import {Renderer, MarkerRenderFunc, StepAreaBuffers} from './../renderer';
 import {DisposableStack} from './../disposable_stack';
 import {RectBatch} from './rects';
 import {ChevronBatch} from './chevrons';
+import {StepAreaBatch} from './step_area';
 import {Color} from './../color';
 import {Transform2D} from '../geom';
 
@@ -29,6 +30,7 @@ export class WebGLRenderer implements Renderer {
   readonly gl: WebGL2RenderingContext;
   private readonly rects: RectBatch;
   private readonly markers: ChevronBatch;
+  private readonly stepArea: StepAreaBatch;
   private transform = Transform2D.Identity;
 
   constructor(c2d: CanvasRenderingContext2D, gl: WebGL2RenderingContext) {
@@ -36,6 +38,7 @@ export class WebGLRenderer implements Renderer {
     this.gl = gl;
     this.rects = new RectBatch(gl);
     this.markers = new ChevronBatch(gl);
+    this.stepArea = new StepAreaBatch(gl);
   }
 
   pushTransform(transform: Partial<Transform2D>): Disposable {
@@ -100,9 +103,27 @@ export class WebGLRenderer implements Renderer {
     this.rects.add(left, top, right, bottom, color.rgba, flags);
   }
 
+  drawStepArea(
+    buffers: StepAreaBuffers,
+    dataTransform: Transform2D,
+    color: Color,
+    top: number,
+    bottom: number,
+  ): void {
+    this.stepArea.draw(
+      buffers,
+      dataTransform,
+      this.transform,
+      top,
+      bottom,
+      color.rgba,
+    );
+  }
+
   flush(): void {
     this.rects.flush(this.transform);
     this.markers.flush(this.transform);
+    // StepAreaBatch.draw() is immediate, no flush needed
   }
 
   resetTransform(): void {
