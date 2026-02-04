@@ -32,20 +32,19 @@ namespace perfetto::profiling {
 // Caller uses these to decide what user-facing message to show.
 enum class SymbolizerError {
   kOk,
-  kNoMappingsToSymbolize,   // No mappings with build IDs found in trace
   kSymbolizerNotAvailable,  // llvm-symbolizer not found
   kSymbolizationFailed,     // Symbolizer ran but failed
 };
 
 // Configuration for symbolization.
 struct SymbolizerConfig {
-  // Paths to search for symbols. These are added to paths from env vars
-  // and default system paths (unless disabled).
+  // Directories to search for symbols. These are added to paths from
+  // PERFETTO_BINARY_PATH env var.
   std::vector<std::string> symbol_paths;
 
-  // If true, disables automatic symbol path discovery (e.g., /usr/lib/debug,
-  // ~/.debug). PERFETTO_BINARY_PATH env var is always respected.
-  bool no_auto_symbol_paths = false;
+  // Specific files to check for symbols (e.g., binary paths from mappings
+  // that might contain embedded symbols).
+  std::vector<std::string> symbol_files;
 };
 
 // Result of symbolization operation.
@@ -67,7 +66,6 @@ struct SymbolizerResult {
 // 1. Queries the trace for stack_profile_mapping entries with build IDs
 // 2. Discovers symbol paths from:
 //    - PERFETTO_BINARY_PATH environment variable (always)
-//    - Default system paths like /usr/lib/debug, ~/.debug (unless disabled)
 //    - User-provided paths in config
 //    - Binary paths from mappings (for embedded symbols)
 // 3. Creates a symbolizer and runs symbolization
@@ -75,7 +73,7 @@ struct SymbolizerResult {
 //
 // Args:
 //   tp: TraceProcessor instance with the trace already loaded
-//   config: Configuration for symbolization (paths, flags)
+//   config: Configuration for symbolization (paths)
 //
 // Returns:
 //   SymbolizerResult containing error code and symbols (if successful)

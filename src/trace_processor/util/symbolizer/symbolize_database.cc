@@ -107,40 +107,8 @@ std::optional<std::string> GetOsRelease(trace_processor::TraceProcessor* tp) {
   return std::nullopt;
 }
 
-// Returns all mapping names from the trace that have build IDs.
-std::vector<std::string> GetAllMappingNames(
-    trace_processor::TraceProcessor* tp) {
-  std::vector<std::string> mapping_names;
-  auto it = tp->ExecuteQuery(R"(
-    SELECT DISTINCT name
-    FROM stack_profile_mapping
-    WHERE build_id != '' AND name != ''
-  )");
-  while (it.Next()) {
-    mapping_names.push_back(it.Get(0).AsString());
-  }
-  return mapping_names;
-}
-
-// Returns default symbol paths (system debug directories).
-std::vector<std::string> GetDefaultSymbolPaths() {
-  std::vector<std::string> paths;
-  paths.emplace_back("/usr/lib/debug");
-  const char* home = getenv("HOME");
-  if (home) {
-    paths.emplace_back(std::string(home) + "/.debug");
-  }
-  return paths;
-}
-
-// Creates a symbolizer based on provided config and mapping names.
-std::unique_ptr<Symbolizer> CreateSymbolizer(
-    const SymbolizerConfig& config,
-    const std::vector<std::string>& mapping_names) {
-  if (mapping_names.empty()) {
-    return nullptr;
-  }
-
+// Creates a symbolizer based on provided config.
+std::unique_ptr<Symbolizer> CreateSymbolizer(const SymbolizerConfig& config) {
   std::unordered_set<std::string> dirs;
   std::unordered_set<std::string> files;
 
@@ -150,23 +118,16 @@ std::unique_ptr<Symbolizer> CreateSymbolizer(
     dirs.insert(env_binary_paths.begin(), env_binary_paths.end());
   }
 
-  // Add automatic paths unless disabled.
-  if (!config.no_auto_symbol_paths) {
-    std::vector<std::string> auto_paths = GetDefaultSymbolPaths();
-    dirs.insert(auto_paths.begin(), auto_paths.end());
-  }
-
   // Add user-provided paths.
   if (!config.symbol_paths.empty()) {
     dirs.insert(config.symbol_paths.begin(), config.symbol_paths.end());
   }
 
-  // Add binary paths from mappings (they might contain embedded symbols).
-  for (const auto& name : mapping_names) {
-    if (!name.empty() && name[0] == '/') {
-      files.insert(name);
-    }
+  // Add user-provided files.
+  if (!config.symbol_files.empty()) {
+    files.insert(config.symbol_files.begin(), config.symbol_files.end());
   }
+
   return MaybeLocalSymbolizer(
       std::vector<std::string>(dirs.begin(), dirs.end()),
       std::vector<std::string>(files.begin(), files.end()), "index");
@@ -214,16 +175,8 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config) {
   SymbolizerResult result;
 
-  // Get all mappings with build IDs from the trace.
-  std::vector<std::string> mapping_names = GetAllMappingNames(tp);
-  if (mapping_names.empty()) {
-    result.error = SymbolizerError::kNoMappingsToSymbolize;
-    result.error_details = "No mappings with build IDs found in trace";
-    return result;
-  }
-
   // Create the symbolizer.
-  auto symbolizer = CreateSymbolizer(config, mapping_names);
+  auto symbolizer = CreateSymbolizer(config);
   if (!symbolizer) {
     result.error = SymbolizerError::kSymbolizerNotAvailable;
     result.error_details =
