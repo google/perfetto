@@ -19,11 +19,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -34,8 +35,9 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/util/symbolizer/symbolizer.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/symbolizer/local_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -62,8 +64,6 @@ constexpr const char* kQueryUnsymbolized =
         )
         and spf.symbol_set_id IS NULL
     )";
-
-using NameAndBuildIdPair = std::pair<std::string, std::string>;
 
 struct UnsymbolizedMapping {
   std::string name;
@@ -107,14 +107,41 @@ std::optional<std::string> GetOsRelease(trace_processor::TraceProcessor* tp) {
   return std::nullopt;
 }
 
+// Creates a symbolizer based on provided config.
+std::unique_ptr<Symbolizer> CreateSymbolizer(const SymbolizerConfig& config) {
+  std::unordered_set<std::string> dirs;
+  std::unordered_set<std::string> files;
+
+  // Always add paths from PERFETTO_BINARY_PATH environment variable.
+  std::vector<std::string> env_binary_paths = GetPerfettoBinaryPath();
+  if (!env_binary_paths.empty()) {
+    dirs.insert(env_binary_paths.begin(), env_binary_paths.end());
+  }
+
+  // Add user-provided paths.
+  if (!config.symbol_paths.empty()) {
+    dirs.insert(config.symbol_paths.begin(), config.symbol_paths.end());
+  }
+
+  // Add user-provided files.
+  if (!config.symbol_files.empty()) {
+    files.insert(config.symbol_files.begin(), config.symbol_files.end());
+  }
+
+  return MaybeLocalSymbolizer(
+      std::vector<std::string>(dirs.begin(), dirs.end()),
+      std::vector<std::string>(files.begin(), files.end()), "index");
+}
+
 }  // namespace
 
-void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
-                       Symbolizer* symbolizer,
-                       std::function<void(const std::string&)> callback) {
+std::string SymbolizeDatabaseWithSymbolizer(trace_processor::TraceProcessor* tp,
+                                            Symbolizer* symbolizer) {
   PERFETTO_CHECK(symbolizer);
   auto unsymbolized = GetUnsymbolizedFrames(tp);
   Symbolizer::Environment env = {GetOsRelease(tp)};
+
+  std::string symbols_proto;
   for (const auto& [unsymbolized_mapping, rel_pcs] : unsymbolized) {
     auto res = symbolizer->Symbolize(env, unsymbolized_mapping.name,
                                      unsymbolized_mapping.build_id,
@@ -139,8 +166,28 @@ void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
         line->set_line_number(frame.line);
       }
     }
-    callback(trace.SerializeAsString());
+    symbols_proto += trace.SerializeAsString();
   }
+  return symbols_proto;
+}
+
+SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
+                                   const SymbolizerConfig& config) {
+  SymbolizerResult result;
+
+  // Create the symbolizer.
+  auto symbolizer = CreateSymbolizer(config);
+  if (!symbolizer) {
+    result.error = SymbolizerError::kSymbolizerNotAvailable;
+    result.error_details =
+        "Could not create symbolizer (llvm-symbolizer not found?)";
+    return result;
+  }
+
+  // Run symbolization.
+  result.symbols = SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
+  result.error = SymbolizerError::kOk;
+  return result;
 }
 
 std::vector<std::string> GetPerfettoBinaryPath() {

@@ -372,6 +372,13 @@ int Main(int argc, char** argv) {
     BundleContext context;
     context.symbol_paths = symbol_paths;
     context.no_auto_symbol_paths = no_auto_symbol_paths;
+    if (const char* val = getenv("ANDROID_PRODUCT_OUT")) {
+      context.android_product_out = val;
+    }
+    if (const char* val = getenv("HOME")) {
+      context.home_dir = val;
+    }
+    context.root_dir = "/";
     return TraceToBundle(input_file, output_file, context);
   }
 

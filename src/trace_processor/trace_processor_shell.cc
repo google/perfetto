@@ -1365,19 +1365,17 @@ base::Status LoadTrace(TraceProcessor* trace_processor,
   if (symbolizer) {
     if (is_proto_trace) {
       trace_processor->Flush();
-      profiling::SymbolizeDatabase(
-          trace_processor, symbolizer.get(),
-          [trace_processor](const std::string& trace_proto) {
-            std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
-            memcpy(buf.get(), trace_proto.data(), trace_proto.size());
-            auto status =
-                trace_processor->Parse(std::move(buf), trace_proto.size());
-            if (!status.ok()) {
-              PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                      status.message().c_str());
-              return;
-            }
-          });
+      std::string symbols = profiling::SymbolizeDatabaseWithSymbolizer(
+          trace_processor, symbolizer.get());
+      if (!symbols.empty()) {
+        std::unique_ptr<uint8_t[]> buf(new uint8_t[symbols.size()]);
+        memcpy(buf.get(), symbols.data(), symbols.size());
+        auto status = trace_processor->Parse(std::move(buf), symbols.size());
+        if (!status.ok()) {
+          PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                  status.message().c_str());
+        }
+      }
     } else {
       // TODO(lalitm): support symbolization for non-proto traces.
       PERFETTO_ELOG("Skipping symbolization for non-proto trace");

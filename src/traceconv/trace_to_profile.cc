@@ -62,10 +62,11 @@ void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
                                       getenv("PERFETTO_SYMBOLIZER_MODE"));
   if (!symbolizer)
     return;
-  profiling::SymbolizeDatabase(tp, symbolizer.get(),
-                               [tp](const std::string& trace_proto) {
-                                 IngestTraceOrDie(tp, trace_proto);
-                               });
+  std::string symbols =
+      profiling::SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
+  if (!symbols.empty()) {
+    IngestTraceOrDie(tp, symbols);
+  }
   tp->Flush();
 }
 
