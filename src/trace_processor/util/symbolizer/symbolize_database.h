@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZE_DATABASE_H_
 #define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZE_DATABASE_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -64,6 +65,13 @@ struct SymbolizerResult {
   // Serialized TracePacket protos containing symbol data.
   // Empty if no symbols were found or on error.
   std::string symbols;
+
+  // Number of frames that could not be symbolized because their mapping
+  // has an empty build ID.
+  uint32_t frames_without_build_id = 0;
+
+  // Names of mappings with empty build IDs that could not be symbolized.
+  std::vector<std::string> mappings_without_build_id;
 };
 
 // Performs native symbolization on a trace.

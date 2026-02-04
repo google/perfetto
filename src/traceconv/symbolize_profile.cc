@@ -16,11 +16,13 @@
 
 #include "src/traceconv/symbolize_profile.h"
 
+#include <cinttypes>
 #include <cstdlib>
 #include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 #include "src/traceconv/utils.h"
@@ -67,6 +69,13 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
   auto result = profiling::SymbolizeDatabase(tp.get(), sym_config);
   if (result.error != profiling::SymbolizerError::kOk) {
     PERFETTO_FATAL("Symbolization failed: %s", result.error_details.c_str());
+  }
+  if (result.frames_without_build_id > 0) {
+    std::string mappings = base::Join(result.mappings_without_build_id, ", ");
+    PERFETTO_ELOG("%" PRIu32
+                  " frames could not be symbolized because their "
+                  "mapping has an empty build ID. Mappings: %s",
+                  result.frames_without_build_id, mappings.c_str());
   }
   *output << result.symbols;
 

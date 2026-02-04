@@ -65,6 +65,20 @@ constexpr const char* kQueryUnsymbolized =
         and spf.symbol_set_id IS NULL
     )";
 
+// Query to get mappings with empty build IDs and their frame counts.
+// These frames cannot be symbolized because we cannot look up symbols without
+// a build ID.
+constexpr const char* kQueryMappingsWithoutBuildId =
+    R"(
+      select iif(spm.name = '', '[empty mapping name]', spm.name), count(*)
+      from stack_profile_frame spf
+      join stack_profile_mapping spm on spf.mapping = spm.id
+      where spm.build_id = ''
+        and spm.name NOT GLOB '[[]kernel.kallsyms]*'
+        and spf.symbol_set_id IS NULL
+      group by spm.name
+    )";
+
 struct UnsymbolizedMapping {
   std::string name;
   std::string build_id;
@@ -95,6 +109,28 @@ std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
     return {};
   }
   return res;
+}
+
+struct MappingsWithoutBuildId {
+  std::vector<std::string> names;
+  uint32_t frame_count = 0;
+};
+
+MappingsWithoutBuildId GetMappingsWithoutBuildId(
+    trace_processor::TraceProcessor* tp) {
+  MappingsWithoutBuildId result;
+  Iterator it = tp->ExecuteQuery(kQueryMappingsWithoutBuildId);
+  while (it.Next()) {
+    result.names.emplace_back(it.Get(0).AsString());
+    int64_t count = it.Get(1).AsLong();
+    PERFETTO_CHECK(count >= 0);
+    result.frame_count += static_cast<uint32_t>(count);
+  }
+  if (!it.Status().ok()) {
+    PERFETTO_DFATAL_OR_ELOG("Failed to query mappings without build ID: %s",
+                            it.Status().message().c_str());
+  }
+  return result;
 }
 
 std::optional<std::string> GetOsRelease(trace_processor::TraceProcessor* tp) {
@@ -167,6 +203,12 @@ std::string SymbolizeDatabaseWithSymbolizer(trace_processor::TraceProcessor* tp,
 SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config) {
   SymbolizerResult result;
+
+  // Get mappings and frame count for frames with empty build IDs.
+  auto mappings_without_build_id = GetMappingsWithoutBuildId(tp);
+  result.frames_without_build_id = mappings_without_build_id.frame_count;
+  result.mappings_without_build_id = std::move(mappings_without_build_id.names);
+
   bool has_index = !config.index_symbol_paths.empty() ||
                    !config.symbol_files.empty();
   bool has_find = !config.find_symbol_paths.empty();

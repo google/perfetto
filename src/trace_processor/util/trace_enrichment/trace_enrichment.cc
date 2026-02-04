@@ -16,12 +16,14 @@
 
 #include "src/trace_processor/util/trace_enrichment/trace_enrichment.h"
 
+#include <cinttypes>
 #include <cstddef>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
@@ -153,6 +155,16 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     auto sym_result = profiling::SymbolizeDatabase(tp, sym_config);
     if (sym_result.error == profiling::SymbolizerError::kOk) {
       result.native_symbols = std::move(sym_result.symbols);
+      if (sym_result.frames_without_build_id > 0) {
+        base::StackString<64> msg(
+            "%" PRIu32
+            " frames could not be symbolized because their "
+            "mapping has an empty build ID. Mappings: ",
+            sym_result.frames_without_build_id);
+        result.details +=
+            msg.ToStdString() +
+            base::Join(sym_result.mappings_without_build_id, ", ") + "\n";
+      }
     } else {
       result.details += sym_result.error_details + "\n";
     }
