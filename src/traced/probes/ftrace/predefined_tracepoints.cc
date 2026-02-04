@@ -83,6 +83,8 @@ base::FlatSet<GroupAndName> GenerateGfxTracePoints(
   AddEventGroup(table, "dpu", &events);
   InsertEvent("dpu", "tracing_mark_write", &events);
   InsertEvent("dpu", "disp_dpu_underrun", &events);
+  InsertEvent("dpu", "disp_frame_start_timeout", &events);
+  InsertEvent("dpu", "disp_frame_done_timeout", &events);
 
   AddEventGroup(table, "g2d", &events);
   InsertEvent("g2d", "tracing_mark_write", &events);
