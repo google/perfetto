@@ -18,58 +18,22 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_PIVOT_OPERATOR_H_
 
 #include <cstddef>
-#include <cstdint>
 #include <limits>
 #include <memory>
 #include <string>
-#include <variant>
 #include <vector>
 
+#include "src/trace_processor/containers/pivot_table.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 
 namespace perfetto::trace_processor {
 
 class PerfettoSqlEngine;
 
-// A value that can be stored in a pivot node (mirrors SQL types).
-using PivotValue = std::variant<std::monostate,  // NULL
-                                int64_t,         // INTEGER
-                                double,          // REAL
-                                std::string>;    // TEXT
-
-// A hierarchical pivot node representing a group in the pivot table.
-struct PivotNode {
-  // Unique node ID (assigned during tree build)
-  int64_t id = 0;
-
-  // Depth in tree: 0, 1, 2, ...
-  int level = 0;
-
-  // Hierarchy column values at each level (for ROLLUP-style output)
-  // Values up to and including 'level' are set, rest are empty (NULL)
-  std::vector<std::string> hierarchy_values;
-
-  // Aggregate values, one per aggregation expression
-  std::vector<PivotValue> aggs;
-
-  // Tree structure
-  PivotNode* parent = nullptr;
-  std::vector<std::unique_ptr<PivotNode>> children;
-
-  // Query-time state (not persisted across queries)
-  bool expanded = false;
-};
-
-// Sort specification for ordering children at each level.
-struct PivotSortSpec {
-  // Which aggregate to sort by (-1 for sorting by name)
-  int agg_index = -1;
-
-  // Sort direction
-  bool descending = true;
-};
-
-// Operator table for hierarchical pivot functionality.
+// SQLite virtual table module for hierarchical pivot functionality.
+//
+// This module wraps PivotTable to expose it as a SQLite virtual table,
+// allowing SQL queries with expand/collapse, sorting, and pagination.
 //
 // Usage:
 //   CREATE VIRTUAL TABLE my_pivot USING __intrinsic_pivot(
@@ -78,16 +42,21 @@ struct PivotSortSpec {
 //       'SUM(value), COUNT(*), AVG(price)'    -- aggregation expressions
 //   );
 //
-// Query (whitelist mode - only specified IDs expanded):
+// Query (default - all groups expanded):
 //   SELECT * FROM my_pivot
-//   WHERE __expanded_ids = '1,2,3'     -- comma-separated node IDs to expand
-//     AND __sort = '__agg_0 DESC'        -- sort by aggregate or 'name'
-//     AND __offset = 0                 -- pagination offset
-//     AND __limit = 100;               -- pagination limit
+//   WHERE __sort = '__agg_0 DESC'        -- sort by aggregate or 'name'
+//     AND __offset = 0                   -- pagination offset
+//     AND __limit = 100;                 -- pagination limit
 //
-// Query (blacklist mode - all expanded except specified IDs):
+// Query (allowlist mode - only specified IDs expanded):
 //   SELECT * FROM my_pivot
-//   WHERE __collapsed_ids = '4,5'      -- comma-separated node IDs to collapse
+//   WHERE __expanded_ids = '1,2,3'       -- comma-separated node IDs to expand
+//     AND __sort = '__agg_0 DESC';
+//
+// Query (denylist mode - all expanded except specified IDs):
+//   SELECT * FROM my_pivot
+//   WHERE __collapsed_ids = '4,5'        -- comma-separated node IDs to
+//   collapse
 //     AND __sort = '__agg_0 DESC';
 struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
   // Column layout (indices computed at runtime based on hierarchy_cols.size()):
@@ -97,7 +66,7 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
   // [num_hier+2]            : __depth
   // [num_hier+3]            : __has_children
   // [num_hier+4]            : __child_count
-  // [num_hier+5..+5+num_agg]: __agg_0, agg_1, ...
+  // [num_hier+5..+5+num_agg]: __agg_0, __agg_1, ...
   // [after aggs]            : hidden columns
 
   // Metadata column offsets from num_hier
@@ -111,8 +80,8 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
   // Hidden columns for query parameters (after aggregate columns)
   enum HiddenColumn {
     kAggsSpec = 0,      // Aggregate specification (e.g., "SUM(col1), COUNT(*)")
-    kExpandedIds = 1,   // Comma-separated expanded node IDs (whitelist mode)
-    kCollapsedIds = 2,  // Comma-separated collapsed node IDs (blacklist mode)
+    kExpandedIds = 1,   // Comma-separated expanded node IDs (allowlist mode)
+    kCollapsedIds = 2,  // Comma-separated collapsed node IDs (denylist mode)
     kSortSpec = 3,      // Sort specification
     kOffset = 4,        // Pagination offset
     kLimit = 5,         // Pagination limit
@@ -128,29 +97,20 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
 
     // Configuration from CREATE TABLE
     std::string base_table;
-    std::vector<std::string> hierarchy_cols;
     std::vector<std::string> aggregations;  // e.g., "SUM(col)", "COUNT(*)"
 
-    // Cached tree structure
-    std::unique_ptr<PivotNode> root;
-    int total_nodes = 0;
+    // The pivot table with all tree logic
+    std::unique_ptr<PivotTable> table;
 
-    // Flattened view of visible nodes (rebuilt on state change)
-    std::vector<PivotNode*> flat;
-    bool flat_dirty = true;
-
-    // Current sort specification (to avoid redundant re-sorts)
-    std::string current_sort_spec;
-
-    // Number of aggregate columns in output
-    size_t agg_col_count = 0;
+    // Cached flattened rows for current query
+    std::vector<PivotFlatRow> flat_rows;
 
     // Total column count for the schema
     int total_col_count = 0;
   };
 
   struct Cursor : sqlite::Module<PivotOperatorModule>::Cursor {
-    // Current position in flat array
+    // Current position in flat_rows array
     int row_index = 0;
 
     // Pagination parameters

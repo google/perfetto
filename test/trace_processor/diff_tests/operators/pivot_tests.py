@@ -53,12 +53,13 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__has_children","__child_count","__agg_0"
-"fruit","[NULL]",0,1,2,45
-"fruit","apple",1,0,0,30
-"fruit","banana",1,0,0,15
-"vegetable","[NULL]",0,1,2,25
-"vegetable","carrot",1,0,0,13
-"vegetable","potato",1,0,0,12
+"[NULL]","[NULL]",0,1,2,70
+"fruit","[NULL]",1,1,2,45
+"fruit","apple",2,0,0,30
+"fruit","banana",2,0,0,15
+"vegetable","[NULL]",1,1,2,25
+"vegetable","carrot",2,0,0,13
+"vegetable","potato",2,0,0,12
         """))
 
   def test_pivot_expanded(self):
@@ -72,10 +73,11 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__has_children","__child_count","__agg_0"
-"fruit","[NULL]",0,1,2,45
-"fruit","apple",1,0,0,30
-"fruit","banana",1,0,0,15
-"vegetable","[NULL]",0,1,2,25
+"[NULL]","[NULL]",0,1,2,70
+"fruit","[NULL]",1,1,2,45
+"fruit","apple",2,0,0,30
+"fruit","banana",2,0,0,15
+"vegetable","[NULL]",1,1,2,25
         """))
 
   def test_pivot_collapsed(self):
@@ -89,10 +91,11 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__has_children","__child_count","__agg_0"
-"fruit","[NULL]",0,1,2,45
-"vegetable","[NULL]",0,1,2,25
-"vegetable","carrot",1,0,0,13
-"vegetable","potato",1,0,0,12
+"[NULL]","[NULL]",0,1,2,70
+"fruit","[NULL]",1,1,2,45
+"vegetable","[NULL]",1,1,2,25
+"vegetable","carrot",2,0,0,13
+"vegetable","potato",2,0,0,12
         """))
 
   def test_pivot_sort_asc(self):
@@ -106,12 +109,13 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"vegetable","[NULL]",0,25
-"vegetable","potato",1,12
-"vegetable","carrot",1,13
-"fruit","[NULL]",0,45
-"fruit","banana",1,15
-"fruit","apple",1,30
+"[NULL]","[NULL]",0,70
+"vegetable","[NULL]",1,25
+"vegetable","potato",2,12
+"vegetable","carrot",2,13
+"fruit","[NULL]",1,45
+"fruit","banana",2,15
+"fruit","apple",2,30
         """))
 
   def test_pivot_sort_by_name(self):
@@ -125,12 +129,13 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"fruit","[NULL]",0,45
-"fruit","apple",1,30
-"fruit","banana",1,15
-"vegetable","[NULL]",0,25
-"vegetable","carrot",1,13
-"vegetable","potato",1,12
+"[NULL]","[NULL]",0,70
+"fruit","[NULL]",1,45
+"fruit","apple",2,30
+"fruit","banana",2,15
+"vegetable","[NULL]",1,25
+"vegetable","carrot",2,13
+"vegetable","potato",2,12
         """))
 
   def test_pivot_limit(self):
@@ -144,9 +149,9 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"fruit","[NULL]",0,45
-"fruit","apple",1,30
-"fruit","banana",1,15
+"[NULL]","[NULL]",0,70
+"fruit","[NULL]",1,45
+"fruit","apple",2,30
         """))
 
   def test_pivot_offset_and_limit(self):
@@ -160,8 +165,8 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"fruit","banana",1,15
-"vegetable","[NULL]",0,25
+"fruit","apple",2,30
+"fruit","banana",2,15
         """))
 
   def test_pivot_multiple_aggregates(self):
@@ -178,12 +183,13 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0","__agg_1","__agg_2"
-"fruit","[NULL]",0,45,3,15.000000
-"fruit","apple",1,30,2,15.000000
-"fruit","banana",1,15,1,15.000000
-"vegetable","[NULL]",0,25,3,8.333333
-"vegetable","carrot",1,13,2,6.500000
-"vegetable","potato",1,12,1,12.000000
+"[NULL]","[NULL]",0,70,6,11.666667
+"fruit","[NULL]",1,45,3,15.000000
+"fruit","apple",2,30,2,15.000000
+"fruit","banana",2,15,1,15.000000
+"vegetable","[NULL]",1,25,3,8.333333
+"vegetable","carrot",2,13,2,6.500000
+"vegetable","potato",2,12,1,12.000000
         """))
 
   def test_pivot_expand_multiple(self):
@@ -197,12 +203,13 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"fruit","[NULL]",0,45
-"fruit","apple",1,30
-"fruit","banana",1,15
-"vegetable","[NULL]",0,25
-"vegetable","carrot",1,13
-"vegetable","potato",1,12
+"[NULL]","[NULL]",0,70
+"fruit","[NULL]",1,45
+"fruit","apple",2,30
+"fruit","banana",2,15
+"vegetable","[NULL]",1,25
+"vegetable","carrot",2,13
+"vegetable","potato",2,12
         """))
 
   def test_pivot_table_name_input(self):
@@ -219,12 +226,13 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"fruit","[NULL]",0,45
-"fruit","apple",1,30
-"fruit","banana",1,15
-"vegetable","[NULL]",0,25
-"vegetable","carrot",1,13
-"vegetable","potato",1,12
+"[NULL]","[NULL]",0,70
+"fruit","[NULL]",1,45
+"fruit","apple",2,30
+"fruit","banana",2,15
+"vegetable","[NULL]",1,25
+"vegetable","carrot",2,13
+"vegetable","potato",2,12
         """))
 
   def test_pivot_sort_expanded_asc(self):
@@ -238,12 +246,13 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"vegetable","[NULL]",0,25
-"vegetable","potato",1,12
-"vegetable","carrot",1,13
-"fruit","[NULL]",0,45
-"fruit","banana",1,15
-"fruit","apple",1,30
+"[NULL]","[NULL]",0,70
+"vegetable","[NULL]",1,25
+"vegetable","potato",2,12
+"vegetable","carrot",2,13
+"fruit","[NULL]",1,45
+"fruit","banana",2,15
+"fruit","apple",2,30
         """))
 
   def test_pivot_sort_expanded_desc(self):
@@ -257,12 +266,13 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"fruit","[NULL]",0,45
-"fruit","apple",1,30
-"fruit","banana",1,15
-"vegetable","[NULL]",0,25
-"vegetable","carrot",1,13
-"vegetable","potato",1,12
+"[NULL]","[NULL]",0,70
+"fruit","[NULL]",1,45
+"fruit","apple",2,30
+"fruit","banana",2,15
+"vegetable","[NULL]",1,25
+"vegetable","carrot",2,13
+"vegetable","potato",2,12
         """))
 
   def test_pivot_offset_only(self):
@@ -276,8 +286,9 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"vegetable","carrot",1,13
-"vegetable","potato",1,12
+"vegetable","[NULL]",1,25
+"vegetable","carrot",2,13
+"vegetable","potato",2,12
         """))
 
   def test_pivot_limit_with_sort(self):
@@ -291,9 +302,9 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"vegetable","[NULL]",0,25
-"vegetable","potato",1,12
-"vegetable","carrot",1,13
+"[NULL]","[NULL]",0,70
+"vegetable","[NULL]",1,25
+"vegetable","potato",2,12
         """))
 
   def test_pivot_offset_limit_with_sort(self):
@@ -307,9 +318,9 @@ class Pivot(TestSuite):
         """,
         out=Csv("""
 "category","item","__depth","__agg_0"
-"vegetable","potato",1,12
-"vegetable","carrot",1,13
-"fruit","[NULL]",0,45
+"vegetable","[NULL]",1,25
+"vegetable","potato",2,12
+"vegetable","carrot",2,13
         """))
 
   def test_pivot_offset_past_data(self):

@@ -25,9 +25,13 @@ perfetto_component("containers") {
     "interval_intersector.h",
     "interval_tree.h",
     "null_term_string_view.h",
+    "pivot_table.h",
     "string_pool.h",
   ]
-  sources = [ "string_pool.cc" ]
+  sources = [
+    "pivot_table.cc",
+    "string_pool.cc",
+  ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/protozero",
