@@ -150,32 +150,33 @@ export class Canvas2DRenderer implements Renderer {
     if (count < 1) return;
 
     const ctx = this.ctx;
-    const canvasWidth = ctx.canvas.width;
+    const clip = this.physicalClipBounds;
+    const baselineY = transform.offsetY;
+    const strokeColor = color.setAlpha(1.0);
 
     // Transform functions: screenCoord = raw * scale + offset
     const tx = (x: number) => x * transform.scaleX + transform.offsetX;
     const ty = (y: number) => y * transform.scaleY + transform.offsetY;
-    // Baseline is where y=0 maps to
-    const baselineY = transform.offsetY;
 
-    // Fill the area under the step line
     ctx.fillStyle = color.cssString;
-
-    // Draw the stroke line on top
-    const strokeColor = color.setAlpha(1.0);
     ctx.strokeStyle = strokeColor.cssString;
     ctx.beginPath();
-    let strokeStarted = false;
 
     for (let i = 0; i < count; i++) {
       // Compute segment bounds
       const x = Math.round(tx(xs[i]));
       const nextX = Math.round(tx(xnext[i]));
 
-      // Skip segments entirely off the left edge
-      if (nextX <= 0) continue;
-      // Stop once we're past the right edge
-      if (x >= canvasWidth) break;
+      // Don't render segments that are fully outside the clip region
+      if (clip) {
+        const physX = this.transform.offsetX + x * this.transform.scaleX;
+        const physNextX =
+          this.transform.offsetX + nextX * this.transform.scaleX;
+        // Skip segments entirely off the left edge
+        if (physNextX < clip.left) continue;
+        // Stop once we're past the right edge
+        if (physX >= clip.right) break;
+      }
 
       const y = ty(ys[i]);
       const minY = ty(minYs[i]);
@@ -190,14 +191,16 @@ export class Canvas2DRenderer implements Renderer {
         ctx.fillRect(x, y, width, height);
       }
 
-      // Stroke
-      if (!strokeStarted) {
-        ctx.moveTo(x, baselineY);
-        strokeStarted = true;
-      }
-      ctx.lineTo(x, maxY);
+      // Draws a sideways T (range indicator) at the transition x:
+      //
+      //  maxY +  (Top of range)
+      //       |
+      //     y +-------+ (nextX, y)
+      //       |
+      //  minY +  (Bottom of range)
+      ctx.moveTo(x, maxY);
       ctx.lineTo(x, minY);
-      ctx.lineTo(x, y);
+      ctx.moveTo(x, y);
       ctx.lineTo(nextX, y);
     }
 
