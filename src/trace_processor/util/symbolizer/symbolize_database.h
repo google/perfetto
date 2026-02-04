@@ -22,6 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
+
 namespace perfetto::trace_processor {
 class TraceProcessor;
 }
@@ -55,6 +57,26 @@ struct SymbolizerConfig {
   std::vector<std::string> breakpad_paths;
 };
 
+// Record of a successful symbolization for a mapping.
+struct SuccessfulMapping {
+  std::string mapping_name;
+  std::string build_id;
+  // The path where symbols were found.
+  std::string symbol_path;
+  // Number of frames that were symbolized.
+  uint32_t frame_count = 0;
+};
+
+// Record of a failed symbolization attempt for a mapping.
+struct FailedMapping {
+  std::string mapping_name;
+  std::string build_id;
+  // All paths that were tried and their individual errors.
+  std::vector<SymbolPathAttempt> attempts;
+  // Number of frames that could not be symbolized.
+  uint32_t frame_count = 0;
+};
+
 // Result of symbolization operation.
 struct SymbolizerResult {
   SymbolizerError error = SymbolizerError::kOk;
@@ -70,6 +92,14 @@ struct SymbolizerResult {
   // Mappings with empty build IDs that could not be symbolized.
   // Each pair contains {mapping_name, frame_count}.
   std::vector<std::pair<std::string, uint32_t>> mappings_without_build_id;
+
+  // Mappings that were successfully symbolized.
+  std::vector<SuccessfulMapping> successful_mappings;
+
+  // Mappings that failed to symbolize with their attempted paths.
+  // Callers can use this to decide what/how to log based on whether
+  // paths were explicit or speculative.
+  std::vector<FailedMapping> failed_mappings;
 };
 
 // Performs native symbolization on a trace.
@@ -80,6 +110,19 @@ struct SymbolizerResult {
 // 3. Runs symbolization and returns the result as serialized TracePacket protos
 SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config);
+
+// Generate a human-readable summary of symbolization results.
+// If colorize is true, ANSI color codes are included in the output.
+std::string FormatSymbolizationSummary(const SymbolizerResult& result,
+                                       bool verbose,
+                                       bool colorize);
+
+// Convenience function: calls SymbolizeDatabase then logs the summary to
+// stderr. For callers who want unconditional logging (non-enrichment use
+// cases). Automatically uses ANSI color codes when stderr is a terminal.
+SymbolizerResult SymbolizeDatabaseAndLog(trace_processor::TraceProcessor* tp,
+                                         const SymbolizerConfig& config,
+                                         bool verbose);
 
 // Returns paths from PERFETTO_BINARY_PATH environment variable.
 std::vector<std::string> GetPerfettoBinaryPath();

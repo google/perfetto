@@ -44,12 +44,38 @@ struct FoundBinary {
   BinaryType type;
 };
 
+// Reason why a path lookup failed.
+enum class BinaryPathError : uint8_t {
+  // Path lookup succeeded (not an error).
+  kOk,
+  // The file path didn't exist on disk.
+  kFileNotFound,
+  // A file was found but had the wrong build ID.
+  kBuildIdMismatch,
+};
+
+// Record of a single path attempt during binary lookup.
+struct BinaryPathAttempt {
+  std::string path;
+  BinaryPathError error = BinaryPathError::kOk;
+};
+
+// Result of a binary lookup operation.
+struct BinaryLookupResult {
+  std::optional<FoundBinary> binary;
+  // All paths that were tried (including the successful one, if any).
+  // Empty only if no paths were applicable (e.g., empty roots list).
+  std::vector<BinaryPathAttempt> attempts;
+
+  // Returns true if a binary was found.
+  bool ok() const { return binary.has_value(); }
+};
+
 class BinaryFinder {
  public:
   virtual ~BinaryFinder();
-  virtual std::optional<FoundBinary> FindBinary(
-      const std::string& abspath,
-      const std::string& build_id) = 0;
+  virtual BinaryLookupResult FindBinary(const std::string& abspath,
+                                        const std::string& build_id) = 0;
 };
 
 class LocalBinaryIndexer : public BinaryFinder {
@@ -57,8 +83,8 @@ class LocalBinaryIndexer : public BinaryFinder {
   LocalBinaryIndexer(std::vector<std::string> directories,
                      std::vector<std::string> individual_files);
 
-  std::optional<FoundBinary> FindBinary(const std::string& abspath,
-                                        const std::string& build_id) override;
+  BinaryLookupResult FindBinary(const std::string& abspath,
+                                const std::string& build_id) override;
   ~LocalBinaryIndexer() override;
 
  private:
@@ -69,14 +95,14 @@ class LocalBinaryFinder : public BinaryFinder {
  public:
   explicit LocalBinaryFinder(std::vector<std::string> roots);
 
-  std::optional<FoundBinary> FindBinary(const std::string& abspath,
-                                        const std::string& build_id) override;
+  BinaryLookupResult FindBinary(const std::string& abspath,
+                                const std::string& build_id) override;
 
   ~LocalBinaryFinder() override;
 
  private:
   std::vector<std::string> roots_;
-  std::map<std::string, std::optional<FoundBinary>> cache_;
+  std::map<std::string, BinaryLookupResult> cache_;
 };
 
 class LLVMSymbolizerProcess {
@@ -97,12 +123,11 @@ class LocalSymbolizer : public Symbolizer {
 
   explicit LocalSymbolizer(std::unique_ptr<BinaryFinder> finder);
 
-  std::vector<std::vector<SymbolizedFrame>> Symbolize(
-      const Environment& env,
-      const std::string& mapping_name,
-      const std::string& build_id,
-      uint64_t load_bias,
-      const std::vector<uint64_t>& address) override;
+  SymbolizeResult Symbolize(const Environment& env,
+                            const std::string& mapping_name,
+                            const std::string& build_id,
+                            uint64_t load_bias,
+                            const std::vector<uint64_t>& address) override;
 
   ~LocalSymbolizer() override;
 

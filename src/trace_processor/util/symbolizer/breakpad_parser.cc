@@ -67,7 +67,6 @@ BreakpadParser::BreakpadParser(const std::string& file_path)
 bool BreakpadParser::ParseFile() {
   std::optional<std::string> file_contents = GetFileContents(file_path_);
   if (!file_contents) {
-    PERFETTO_ELOG("Could not get file contents of %s.", file_path_.c_str());
     return false;
   }
 
