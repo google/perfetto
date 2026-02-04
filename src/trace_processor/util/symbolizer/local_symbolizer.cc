@@ -816,7 +816,9 @@ BinaryFinder::~BinaryFinder() = default;
 LocalBinaryIndexer::LocalBinaryIndexer(
     std::vector<std::string> directories,
     std::vector<std::string> individual_files)
-    : buildid_to_file_(
+    : indexed_directories_(directories),
+      symbol_files_(individual_files.begin(), individual_files.end()),
+      buildid_to_file_(
           BuildIdIndex(std::move(directories), std::move(individual_files))) {}
 
 BinaryLookupResult LocalBinaryIndexer::FindBinary(const std::string& abspath,
@@ -826,8 +828,17 @@ BinaryLookupResult LocalBinaryIndexer::FindBinary(const std::string& abspath,
     // Success - record the successful path lookup.
     return {it->second, {{it->second.file_name, BinaryPathError::kOk}}};
   }
-  // Build ID not in index - report as file not found for the mapping path.
-  return {{}, {{abspath, BinaryPathError::kFileNotFound}}};
+  // Build ID not in index - report what was searched.
+  std::vector<BinaryPathAttempt> attempts;
+  // If the mapping path was explicitly in symbol_files, report it.
+  if (symbol_files_.count(abspath)) {
+    attempts.push_back({abspath, BinaryPathError::kFileNotFound});
+  }
+  // Report all indexed directories.
+  for (const std::string& dir : indexed_directories_) {
+    attempts.push_back({dir, BinaryPathError::kBuildIdNotInIndex});
+  }
+  return {{}, std::move(attempts)};
 }
 
 LocalBinaryIndexer::~LocalBinaryIndexer() = default;
@@ -904,6 +915,8 @@ SymbolPathError ToSymbolPathError(BinaryPathError error) {
       return SymbolPathError::kFileNotFound;
     case BinaryPathError::kBuildIdMismatch:
       return SymbolPathError::kBuildIdMismatch;
+    case BinaryPathError::kBuildIdNotInIndex:
+      return SymbolPathError::kBuildIdNotInIndex;
   }
   PERFETTO_FATAL("Unknown BinaryPathError");
 }

@@ -41,6 +41,9 @@ enum class SymbolPathError : uint8_t {
   kBuildIdMismatch,
   // The file exists but couldn't be parsed (e.g., invalid breakpad file).
   kParseError,
+  // A directory was indexed but didn't contain a binary with the requested
+  // build ID.
+  kBuildIdNotInIndex,
 };
 
 // Record of a single path attempt during symbolization.

@@ -65,6 +65,12 @@ SymbolizeResult BreakpadSymbolizer::Symbolize(
     const std::vector<uint64_t>& address) {
   SymbolizeResult result;
   result.frames.reserve(address.size());
+
+  // Skip lookup if build_id is empty (e.g., kernel symbols).
+  if (build_id.empty()) {
+    return result;
+  }
+
   std::string file_path;
   std::string raw_build_id = base::ToHex(build_id.c_str(), build_id.length());
 
