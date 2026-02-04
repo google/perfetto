@@ -253,6 +253,8 @@ const char* SymbolPathErrorToString(SymbolPathError error) {
       return "build ID mismatch";
     case SymbolPathError::kParseError:
       return "failed to parse";
+    case SymbolPathError::kBuildIdNotInIndex:
+      return "no matching build ID";
   }
   return "unknown";
 }
@@ -290,7 +292,7 @@ void FormatKernelHint(bool colorize, std::string* out, const char* indent) {
   *out += indent;
   *out +=
       "  Linux (Debian/Ubuntu): sudo apt install "
-      "linux-image-$(uname -r)-dbgsym\n";
+      "linux-image-$(uname -r)-dbg\n";
   *out += indent;
   *out += "  Linux (Fedora): sudo dnf debuginfo-install kernel\n";
   *out += indent;
