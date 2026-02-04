@@ -16,7 +16,7 @@ import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SLICE_TABLE_TRACK, SLICE_TRACK} from '../../public/track_kinds';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 
@@ -77,7 +77,7 @@ export default class implements PerfettoPlugin {
         uri,
         tags: {
           trackIds: [trackId],
-          kinds: [SLICE_TRACK_KIND],
+          kinds: [SLICE_TRACK, SLICE_TABLE_TRACK],
         },
         renderer: track,
       });
