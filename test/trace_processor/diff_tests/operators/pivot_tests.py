@@ -49,10 +49,10 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, __has_children, __child_count, agg_0 FROM pivot
+          SELECT category, item, __depth, __has_children, __child_count, __agg_0 FROM pivot
         """,
         out=Csv("""
-"category","item","__depth","__has_children","__child_count","agg_0"
+"category","item","__depth","__has_children","__child_count","__agg_0"
 "fruit","[NULL]",0,1,2,45
 "fruit","apple",1,0,0,30
 "fruit","banana",1,0,0,15
@@ -67,11 +67,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, __has_children, __child_count, agg_0 FROM pivot
+          SELECT category, item, __depth, __has_children, __child_count, __agg_0 FROM pivot
           WHERE __expanded_ids = '1'
         """,
         out=Csv("""
-"category","item","__depth","__has_children","__child_count","agg_0"
+"category","item","__depth","__has_children","__child_count","__agg_0"
 "fruit","[NULL]",0,1,2,45
 "fruit","apple",1,0,0,30
 "fruit","banana",1,0,0,15
@@ -84,11 +84,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, __has_children, __child_count, agg_0 FROM pivot
+          SELECT category, item, __depth, __has_children, __child_count, __agg_0 FROM pivot
           WHERE __collapsed_ids = '1'
         """,
         out=Csv("""
-"category","item","__depth","__has_children","__child_count","agg_0"
+"category","item","__depth","__has_children","__child_count","__agg_0"
 "fruit","[NULL]",0,1,2,45
 "vegetable","[NULL]",0,1,2,25
 "vegetable","carrot",1,0,0,13
@@ -101,11 +101,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
-          WHERE __sort = 'agg_0 ASC'
+          SELECT category, item, __depth, __agg_0 FROM pivot
+          WHERE __sort = '__agg_0 ASC'
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "vegetable","[NULL]",0,25
 "vegetable","potato",1,12
 "vegetable","carrot",1,13
@@ -120,11 +120,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
+          SELECT category, item, __depth, __agg_0 FROM pivot
           WHERE __sort = 'name ASC'
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "fruit","[NULL]",0,45
 "fruit","apple",1,30
 "fruit","banana",1,15
@@ -139,11 +139,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
+          SELECT category, item, __depth, __agg_0 FROM pivot
           WHERE __expanded_ids = '1,2' AND __limit = 3
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "fruit","[NULL]",0,45
 "fruit","apple",1,30
 "fruit","banana",1,15
@@ -155,11 +155,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
+          SELECT category, item, __depth, __agg_0 FROM pivot
           WHERE __expanded_ids = '1,2' AND __offset = 2 AND __limit = 2
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "fruit","banana",1,15
 "vegetable","[NULL]",0,25
         """))
@@ -174,10 +174,10 @@ class Pivot(TestSuite):
             'category, item',
             'SUM(value), COUNT(*), AVG(value)'
           );
-          SELECT category, item, __depth, agg_0, agg_1, agg_2 FROM pivot_multi
+          SELECT category, item, __depth, __agg_0, __agg_1, __agg_2 FROM pivot_multi
         """,
         out=Csv("""
-"category","item","__depth","agg_0","agg_1","agg_2"
+"category","item","__depth","__agg_0","__agg_1","__agg_2"
 "fruit","[NULL]",0,45,3,15.000000
 "fruit","apple",1,30,2,15.000000
 "fruit","banana",1,15,1,15.000000
@@ -192,11 +192,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
+          SELECT category, item, __depth, __agg_0 FROM pivot
           WHERE __expanded_ids = '1,2'
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "fruit","[NULL]",0,45
 "fruit","apple",1,30
 "fruit","banana",1,15
@@ -215,10 +215,10 @@ class Pivot(TestSuite):
             'category, item',
             'SUM(value)'
           );
-          SELECT category, item, __depth, agg_0 FROM pivot_direct
+          SELECT category, item, __depth, __agg_0 FROM pivot_direct
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "fruit","[NULL]",0,45
 "fruit","apple",1,30
 "fruit","banana",1,15
@@ -233,11 +233,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
-          WHERE __expanded_ids = '1,2' AND __sort = 'agg_0 ASC'
+          SELECT category, item, __depth, __agg_0 FROM pivot
+          WHERE __expanded_ids = '1,2' AND __sort = '__agg_0 ASC'
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "vegetable","[NULL]",0,25
 "vegetable","potato",1,12
 "vegetable","carrot",1,13
@@ -252,11 +252,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
-          WHERE __expanded_ids = '1,2' AND __sort = 'agg_0 DESC'
+          SELECT category, item, __depth, __agg_0 FROM pivot
+          WHERE __expanded_ids = '1,2' AND __sort = '__agg_0 DESC'
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "fruit","[NULL]",0,45
 "fruit","apple",1,30
 "fruit","banana",1,15
@@ -271,11 +271,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
+          SELECT category, item, __depth, __agg_0 FROM pivot
           WHERE __expanded_ids = '1,2' AND __offset = 4
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "vegetable","carrot",1,13
 "vegetable","potato",1,12
         """))
@@ -286,11 +286,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
-          WHERE __expanded_ids = '1,2' AND __sort = 'agg_0 ASC' AND __limit = 3
+          SELECT category, item, __depth, __agg_0 FROM pivot
+          WHERE __expanded_ids = '1,2' AND __sort = '__agg_0 ASC' AND __limit = 3
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "vegetable","[NULL]",0,25
 "vegetable","potato",1,12
 "vegetable","carrot",1,13
@@ -302,11 +302,11 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
-          WHERE __expanded_ids = '1,2' AND __sort = 'agg_0 ASC' AND __offset = 1 AND __limit = 3
+          SELECT category, item, __depth, __agg_0 FROM pivot
+          WHERE __expanded_ids = '1,2' AND __sort = '__agg_0 ASC' AND __offset = 1 AND __limit = 3
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
 "vegetable","potato",1,12
 "vegetable","carrot",1,13
 "fruit","[NULL]",0,45
@@ -318,9 +318,9 @@ class Pivot(TestSuite):
         query=f"""
           {CREATE_TEST_TABLE}
           {CREATE_PIVOT_TABLE_QUERY}
-          SELECT category, item, __depth, agg_0 FROM pivot
+          SELECT category, item, __depth, __agg_0 FROM pivot
           WHERE __offset = 100
         """,
         out=Csv("""
-"category","item","__depth","agg_0"
+"category","item","__depth","__agg_0"
         """))

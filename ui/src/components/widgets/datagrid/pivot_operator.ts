@@ -45,7 +45,7 @@ export interface PivotQueryOptions {
   expandedIds?: ReadonlySet<bigint>;
   /** IDs of collapsed nodes (denylist mode, takes precedence). */
   collapsedIds?: ReadonlySet<bigint>;
-  /** Sort specification (e.g., 'agg_0 DESC', 'name ASC'). */
+  /** Sort specification (e.g., '__agg_0 DESC', 'name ASC'). */
   sort?: string;
   /** Pagination offset. */
   offset?: number;
@@ -54,7 +54,7 @@ export interface PivotQueryOptions {
   /**
    * Column aliases to apply to result rows.
    * Maps original column names to new names.
-   * e.g., { 'category': 'col_cat', 'agg_0': 'col_count' }
+   * e.g., { 'category': 'col_cat', '__agg_0': 'col_count' }
    * Metadata columns (__id, __depth, etc.) are always preserved.
    */
   columnAliases?: Record<string, string>;
@@ -87,7 +87,7 @@ export interface PivotQueryResult {
  *
  * const result = await queryPivotTable(engine, table.name, {
  *   expandedIds: new Set([1, 2]),
- *   sort: 'agg_0 DESC',
+ *   sort: '__agg_0 DESC',
  *   offset: 0,
  *   limit: 100,
  * });
@@ -139,7 +139,7 @@ export async function queryPivotTable(
   const {
     expandedIds,
     collapsedIds,
-    sort = 'agg_0 DESC',
+    sort = '__agg_0 DESC',
     offset,
     limit,
     columnAliases,

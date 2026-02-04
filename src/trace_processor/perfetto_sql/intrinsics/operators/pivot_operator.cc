@@ -28,19 +28,20 @@
 //
 // QUERYING (default - all groups expanded):
 //   SELECT * FROM my_pivot
-//   WHERE __sort = 'agg_0 DESC'        -- Optional: sort by aggregate or 'name'
+//   WHERE __sort = '__agg_0 DESC'        -- Optional: sort by aggregate or
+//   'name'
 //     AND __offset = 0                 -- Optional: pagination offset
 //     AND __limit = 100;               -- Optional: pagination limit
 //
 // QUERYING (allowlist mode - only specified IDs expanded):
 //   SELECT * FROM my_pivot
 //   WHERE __expanded_ids = '1,2,3'     -- Comma-separated node IDs to expand
-//     AND __sort = 'agg_0 DESC';
+//     AND __sort = '__agg_0 DESC';
 //
 // QUERYING (denylist mode - all expanded except specified IDs):
 //   SELECT * FROM my_pivot
 //   WHERE __collapsed_ids = '4,5'      -- Nodes to keep collapsed
-//     AND __sort = 'agg_1 ASC';
+//     AND __sort = '__agg_1 ASC';
 //
 // OUTPUT COLUMNS:
 //   - Hierarchy columns (with NULLs like ROLLUP - deeper levels have earlier
@@ -50,7 +51,7 @@
 //   - __depth: Tree depth (0 for root, 1 for first group level, etc.)
 //   - __has_children: 1 if node has children, 0 otherwise
 //   - __child_count: Number of direct children
-//   - agg_0, agg_1, ...: Aggregated values for each aggregation expression
+//   - __agg_0, __agg_1, ...: Aggregated values for each aggregation expression
 //
 // BEHAVIOR:
 //   - Root node (depth 0) contains grand totals across all data
@@ -137,13 +138,14 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
 
   // Add aggregate columns (no type = dynamic typing for any SQL type)
   for (size_t i = 0; i < measure_col_count; i++) {
-    schema += ",agg_" + std::to_string(i);
+    schema += ",__agg_" + std::to_string(i);
   }
 
   // Add hidden columns for query parameters
   schema += ",__aggs TEXT HIDDEN";
   schema += ",__expanded_ids TEXT HIDDEN";
-  schema += ",__collapsed_ids TEXT HIDDEN";  // Denylist mode (expand all except)
+  schema +=
+      ",__collapsed_ids TEXT HIDDEN";  // Denylist mode (expand all except)
   schema += ",__sort TEXT HIDDEN";
   schema += ",__offset INTEGER HIDDEN";
   schema += ",__limit INTEGER HIDDEN";
@@ -277,7 +279,7 @@ void FlattenTree(PivotNode* node,
   }
 }
 
-// Parses a sort specification string like "agg_0 DESC".
+// Parses a sort specification string like "__agg_0 DESC".
 PivotSortSpec ParseSortSpec(const std::string& sort_str) {
   PivotSortSpec spec;
   spec.agg_index = 0;  // Default: sort by first aggregate
@@ -292,11 +294,11 @@ PivotSortSpec ParseSortSpec(const std::string& sort_str) {
     spec.agg_index = -1;  // Sort by name
   }
 
-  // Try to extract aggregate index from "agg_N" pattern
-  size_t agg_pos = lower.find("agg_");
+  // Try to extract aggregate index from "__agg_N" pattern
+  size_t agg_pos = lower.find("__agg_");
   if (agg_pos != std::string::npos) {
-    // Extract only the digits after "agg_"
-    size_t start = agg_pos + 4;
+    // Extract only the digits after "__agg_"
+    size_t start = agg_pos + 6;
     size_t end = start;
     while (end < lower.size() && lower[end] >= '0' && lower[end] <= '9') {
       end++;
@@ -568,7 +570,7 @@ int PivotOperatorModule::Create(sqlite3* db,
   default_sort.agg_index = 0;
   default_sort.descending = true;
   SortTree(res->root.get(), default_sort);
-  res->current_sort_spec = "agg_0 DESC";
+  res->current_sort_spec = "____agg_0 DESC";
 
   *vtab = res.release();
   return SQLITE_OK;
@@ -773,9 +775,9 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   }
 
   // Resort if sort spec changed or if we haven't sorted yet
-  // Default to "agg_0 DESC" if no sort spec provided
+  // Default to "____agg_0 DESC" if no sort spec provided
   if (sort_spec_str.empty()) {
-    sort_spec_str = "agg_0 DESC";
+    sort_spec_str = "____agg_0 DESC";
   }
   if (sort_spec_str != t->current_sort_spec) {
     PivotSortSpec spec = ParseSortSpec(sort_spec_str);
@@ -834,7 +836,7 @@ int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
   // [num_hier+2]: __depth
   // [num_hier+3]: __has_children
   // [num_hier+4]: __child_count
-  // [num_hier+5..]: agg_0, agg_1, ...
+  // [num_hier+5..]: __agg_0, __agg_1, ...
 
   if (col < num_hier) {
     // Hierarchy column - return value if level >= col, else NULL

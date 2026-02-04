@@ -219,11 +219,11 @@ export class SQLDataSourcePivot {
       aliasToColumn[groupBy[i].alias] = groupBy[i].field;
     }
     for (let i = 0; i < aggregates.length; i++) {
-      columnAliases[`agg_${i}`] = toAlias(aggregates[i].alias);
-      aliasToColumn[aggregates[i].alias] = `agg_${i}`;
+      columnAliases[`__agg_${i}`] = toAlias(aggregates[i].alias);
+      aliasToColumn[aggregates[i].alias] = `__agg_${i}`;
     }
 
-    // Build sort string for pivot table (e.g., 'agg_0 DESC')
+    // Build sort string for pivot table (e.g., '__agg_0 DESC')
     const sortStr = sort
       ? `${aliasToColumn[sort.alias] ?? sort.alias} ${sort.direction}`
       : undefined;
