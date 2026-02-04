@@ -17,6 +17,7 @@
 #include "src/trace_processor/util/symbolizer/filesystem.h"
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
@@ -45,7 +46,10 @@ bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
   }
   FTSENT* ent;
   while ((ent = fts_read(*fts))) {
-    if (ent->fts_info & FTS_F)
+    // glibc's fts_* functions don't have MSan interceptors, so we need to
+    // manually unpoison the returned FTSENT structure.
+    PERFETTO_MSAN_UNPOISON(ent, sizeof(*ent));
+    if (ent->fts_info == FTS_F)
       fn(ent->fts_path, static_cast<size_t>(ent->fts_statp->st_size));
   }
   return true;
