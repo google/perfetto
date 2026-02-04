@@ -15,16 +15,22 @@
 import m from 'mithril';
 import {exists} from '../../base/utils';
 import {ColumnDef} from '../../components/aggregation';
+import {addWattsonThreadTrack} from './wattson_thread_utils';
 import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
+import {Intent} from '../../widgets/common';
 import {SqlValue} from '../../trace_processor/query_result';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {Trace} from '../../public/trace';
 
 export class WattsonThreadSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_thread_aggregation';
   private scaleNumericData: boolean = false;
+
+  constructor(private trace: Trace) {}
 
   probe(area: AreaSelection): Aggregation | undefined {
     const selectedCpus: number[] = [];
@@ -152,8 +158,26 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
     return String(value);
   }
 
+  private renderShowButton(utid: SqlValue): m.Children {
+    return m(Button, {
+      label: 'Show',
+      intent: Intent.Primary,
+      variant: ButtonVariant.Filled,
+      compact: true,
+      onclick: () => {
+        const utidNum = typeof utid === 'number' ? utid : Number(utid);
+        addWattsonThreadTrack(this.trace, utidNum);
+      },
+    });
+  }
+
   getColumnDefinitions(): ColumnDef[] {
     return [
+      {
+        title: 'Track',
+        columnId: 'utid',
+        cellRenderer: this.renderShowButton.bind(this),
+      },
       {
         title: 'Thread Name',
         columnId: 'thread_name',
