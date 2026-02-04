@@ -28,9 +28,9 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
-#include "src/profiling/symbolizer/symbolize_database.h"
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/symbolizer/local_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolize_database.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 #include "src/trace_processor/util/tar_writer.h"
 #include "src/traceconv/utils.h"
 

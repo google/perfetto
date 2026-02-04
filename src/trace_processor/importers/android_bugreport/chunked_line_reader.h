@@ -29,7 +29,8 @@ namespace perfetto ::trace_processor {
 class ChunkedLineReader : public ChunkedTraceReader {
  public:
   base::Status Parse(TraceBlobView) final;
-  base::Status NotifyEndOfFile() final;
+  base::Status OnPushDataToSorter() final;
+  void OnEventsFullyExtracted() final {}
 
   // Called for each line in the input. Each line is terminated by a '\n'
   // character. The new line character will be included the `line`.

@@ -135,12 +135,12 @@
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
-#include "src/trace_processor/tables/jit_tables_py.h"
-#include "src/trace_processor/tables/memory_tables_py.h"
+#include "src/trace_processor/tables/jit_tables_py.h"     // IWYU pragma: keep
+#include "src/trace_processor/tables/memory_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/metadata_tables_py.h"
-#include "src/trace_processor/tables/trace_proto_tables_py.h"
-#include "src/trace_processor/tables/v8_tables_py.h"
-#include "src/trace_processor/tables/winscope_tables_py.h"
+#include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
+#include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
+#include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/trace_reader_registry.h"
@@ -152,7 +152,6 @@
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/regex.h"
-#include "src/trace_processor/util/simple_json_parser.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -625,59 +624,58 @@ base::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
 }
 
 void TraceProcessorImpl::Flush() {
-  FlushInternal(true);
-}
-
-void TraceProcessorImpl::FlushInternal(bool should_build_bounds_table) {
   TraceProcessorStorageImpl::Flush();
-  if (should_build_bounds_table) {
-    // Update cached bounds and rebuild bounds table.
-    cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
-    BuildBoundsTable(engine_->sqlite_engine()->db(), cached_trace_bounds_);
-  }
+  CacheBoundsAndBuildTable();
 }
 
 base::Status TraceProcessorImpl::NotifyEndOfFile() {
   if (notify_eof_called_) {
-    const char kMessage[] =
+    constexpr char kMessage[] =
         "NotifyEndOfFile should only be called once. Try calling Flush instead "
         "if trying to commit the contents of the trace to tables.";
     PERFETTO_ELOG(kMessage);
     return base::ErrStatus(kMessage);
   }
+  eof_ = true;
   notify_eof_called_ = true;
 
-  if (current_trace_name_.empty())
+  if (current_trace_name_.empty()) {
     current_trace_name_ = "Unnamed trace";
+  }
 
-  // Last opportunity to flush all pending data.
-  FlushInternal(false);
+  // Note: we very intentionally do not call
+  // TraceProcessorStorageImpl::NotifyEndOfFile as we have very special
+  // ordering requirements on how we need to push data to the sorter and
+  // finalize trackers. In any case, all logic of TraceProcessorStorage
+  // is confined to OnPushDataToSorter and OnEventsFullyExtracted,
+  // so we can just call those directly here.
 
+  // Stage 1: push all data to the sorter
+  RETURN_IF_ERROR(TraceProcessorStorageImpl::OnPushDataToSorter());
+
+  // Stage 2: finalize all data.
   HeapGraphTracker::Get(context())->FinalizeAllProfiles();
-  RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
-  DeobfuscationTracker::Get(context())->NotifyEndOfFile();
+  TraceProcessorStorageImpl::OnEventsFullyExtracted();
+  DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
+  CacheBoundsAndBuildTable();
 
-  // Rebuild the bounds table once everything has been completed: we do this
-  // so that if any data was added to tables in
-  // TraceProcessorStorageImpl::NotifyEndOfFile, this will be counted in
-  // trace bounds: this is important for parsers like ninja which wait until
-  // the end to flush all their data.
-  //
-  // Cache the bounds before finalization so we can reuse them in
-  // RestoreInitialTables without iterating over finalized dataframes.
-  cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
-  BuildBoundsTable(engine_->sqlite_engine()->db(), cached_trace_bounds_);
-
+  // Stage 3: reduce memory usage by both destroying parser context *and*
+  // finalizing dataframes.
   TraceProcessorStorageImpl::DestroyContext();
-  context()->storage->ShrinkToFitTables();
   for (const auto& table : GetStaticTables(context()->storage.get())) {
     table.dataframe->Finalize();
   }
 
+  // Stage 4: prepare the engine for queries.
   IncludeAfterEofPrelude(engine_.get());
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
   return base::OkStatus();
+}
+
+void TraceProcessorImpl::CacheBoundsAndBuildTable() {
+  cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
+  BuildBoundsTable(engine_->sqlite_engine()->db(), cached_trace_bounds_);
 }
 
 // =================================================================
@@ -1490,11 +1488,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       InsertIntoTraceMetricsTable(db, *metric.proto_field_name);
     }
   }
-
-  // Fill trace bounds table with the passed in bounds. The bounds should be
-  // computed in Flush/NotifyEndOfFile before tables are finalized.
   BuildBoundsTable(db, cached_trace_bounds);
-
   return engine;
 }
 

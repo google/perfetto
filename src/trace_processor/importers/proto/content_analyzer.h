@@ -63,7 +63,7 @@ class ProtoContentAnalyzer : public PacketAnalyzer {
 
   void ProcessPacket(const TraceBlobView&, const SampleAnnotation&) override;
 
-  void NotifyEndOfFile() override;
+  void OnEventsFullyExtracted() override;
 
  private:
   TraceProcessorContext* context_;

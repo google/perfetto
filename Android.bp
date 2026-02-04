@@ -2836,6 +2836,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_clock",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -13199,14 +13200,6 @@ filegroup {
     ],
 }
 
-// GN: //src/profiling:deobfuscator
-filegroup {
-    name: "perfetto_src_profiling_deobfuscator",
-    srcs: [
-        "src/profiling/deobfuscator.cc",
-    ],
-}
-
 // GN: //src/profiling/memory:bionic_libc_platform_headers_on_android
 filegroup {
     name: "perfetto_src_profiling_memory_bionic_libc_platform_headers_on_android",
@@ -13387,47 +13380,6 @@ filegroup {
     srcs: [
         "src/profiling/perf/frame_pointer_unwinder.cc",
         "src/profiling/perf/unwinding.cc",
-    ],
-}
-
-// GN: //src/profiling/symbolizer:symbolize_database
-filegroup {
-    name: "perfetto_src_profiling_symbolizer_symbolize_database",
-    srcs: [
-        "src/profiling/symbolizer/symbolize_database.cc",
-    ],
-}
-
-// GN: //src/profiling/symbolizer:symbolizer
-filegroup {
-    name: "perfetto_src_profiling_symbolizer_symbolizer",
-    srcs: [
-        "src/profiling/symbolizer/breakpad_parser.cc",
-        "src/profiling/symbolizer/breakpad_symbolizer.cc",
-        "src/profiling/symbolizer/filesystem_posix.cc",
-        "src/profiling/symbolizer/filesystem_windows.cc",
-        "src/profiling/symbolizer/local_symbolizer.cc",
-        "src/profiling/symbolizer/subprocess_posix.cc",
-        "src/profiling/symbolizer/subprocess_windows.cc",
-        "src/profiling/symbolizer/symbolizer.cc",
-    ],
-}
-
-// GN: //src/profiling/symbolizer:unittests
-filegroup {
-    name: "perfetto_src_profiling_symbolizer_unittests",
-    srcs: [
-        "src/profiling/symbolizer/breakpad_parser_unittest.cc",
-        "src/profiling/symbolizer/breakpad_symbolizer_unittest.cc",
-        "src/profiling/symbolizer/local_symbolizer_unittest.cc",
-    ],
-}
-
-// GN: //src/profiling:unittests
-filegroup {
-    name: "perfetto_src_profiling_unittests",
-    srcs: [
-        "src/profiling/deobfuscator_unittest.cc",
     ],
 }
 
@@ -16190,9 +16142,6 @@ cc_library_static {
         ":perfetto_src_base_version",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
-        ":perfetto_src_profiling_deobfuscator",
-        ":perfetto_src_profiling_symbolizer_symbolize_database",
-        ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
@@ -16280,8 +16229,10 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -16300,6 +16251,8 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_symbolizer_symbolize_database",
+        ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
@@ -16560,6 +16513,22 @@ filegroup {
     name: "perfetto_src_trace_processor_util_clock",
 }
 
+// GN: //src/trace_processor/util/deobfuscation:deobfuscator
+filegroup {
+    name: "perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
+    srcs: [
+        "src/trace_processor/util/deobfuscation/deobfuscator.cc",
+    ],
+}
+
+// GN: //src/trace_processor/util/deobfuscation:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_util_deobfuscation_unittests",
+    srcs: [
+        "src/trace_processor/util/deobfuscation/deobfuscator_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util:descriptors
 filegroup {
     name: "perfetto_src_trace_processor_util_descriptors",
@@ -16574,6 +16543,11 @@ filegroup {
     srcs: [
         "src/trace_processor/util/elf/binary_info.cc",
     ],
+}
+
+// GN: //src/trace_processor/util:galloping_search
+filegroup {
+    name: "perfetto_src_trace_processor_util_galloping_search",
 }
 
 // GN: //src/trace_processor/util:glob
@@ -16707,6 +16681,39 @@ filegroup {
     name: "perfetto_src_trace_processor_util_stdlib",
 }
 
+// GN: //src/trace_processor/util/symbolizer:symbolize_database
+filegroup {
+    name: "perfetto_src_trace_processor_util_symbolizer_symbolize_database",
+    srcs: [
+        "src/trace_processor/util/symbolizer/symbolize_database.cc",
+    ],
+}
+
+// GN: //src/trace_processor/util/symbolizer:symbolizer
+filegroup {
+    name: "perfetto_src_trace_processor_util_symbolizer_symbolizer",
+    srcs: [
+        "src/trace_processor/util/symbolizer/breakpad_parser.cc",
+        "src/trace_processor/util/symbolizer/breakpad_symbolizer.cc",
+        "src/trace_processor/util/symbolizer/filesystem_posix.cc",
+        "src/trace_processor/util/symbolizer/filesystem_windows.cc",
+        "src/trace_processor/util/symbolizer/local_symbolizer.cc",
+        "src/trace_processor/util/symbolizer/subprocess_posix.cc",
+        "src/trace_processor/util/symbolizer/subprocess_windows.cc",
+        "src/trace_processor/util/symbolizer/symbolizer.cc",
+    ],
+}
+
+// GN: //src/trace_processor/util/symbolizer:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_util_symbolizer_unittests",
+    srcs: [
+        "src/trace_processor/util/symbolizer/breakpad_parser_unittest.cc",
+        "src/trace_processor/util/symbolizer/breakpad_symbolizer_unittest.cc",
+        "src/trace_processor/util/symbolizer/local_symbolizer_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util:tar_writer
 filegroup {
     name: "perfetto_src_trace_processor_util_tar_writer",
@@ -16737,6 +16744,7 @@ filegroup {
     srcs: [
         "src/trace_processor/util/bump_allocator_unittest.cc",
         "src/trace_processor/util/debug_annotation_parser_unittest.cc",
+        "src/trace_processor/util/galloping_search_unittest.cc",
         "src/trace_processor/util/glob_unittest.cc",
         "src/trace_processor/util/gzip_utils_unittest.cc",
         "src/trace_processor/util/json_parser_unittest.cc",
@@ -18450,7 +18458,6 @@ cc_test {
         ":perfetto_src_profiling_common_profiler_guardrails",
         ":perfetto_src_profiling_common_unittests",
         ":perfetto_src_profiling_common_unwind_support",
-        ":perfetto_src_profiling_deobfuscator",
         ":perfetto_src_profiling_memory_client",
         ":perfetto_src_profiling_memory_daemon",
         ":perfetto_src_profiling_memory_ring_buffer",
@@ -18464,9 +18471,6 @@ cc_test {
         ":perfetto_src_profiling_perf_producer_unittests",
         ":perfetto_src_profiling_perf_regs_parsing",
         ":perfetto_src_profiling_perf_unwinding",
-        ":perfetto_src_profiling_symbolizer_symbolizer",
-        ":perfetto_src_profiling_symbolizer_unittests",
-        ":perfetto_src_profiling_unittests",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protovm_test_messages_lite_gen",
         ":perfetto_src_protovm_unittests",
@@ -18615,8 +18619,11 @@ cc_test {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
+        ":perfetto_src_trace_processor_util_deobfuscation_unittests",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -18635,6 +18642,8 @@ cc_test {
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
+        ":perfetto_src_trace_processor_util_symbolizer_unittests",
         ":perfetto_src_trace_processor_util_tar_writer",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
@@ -19475,6 +19484,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_clock",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -19896,9 +19906,6 @@ cc_binary_host {
         ":perfetto_src_base_version",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
-        ":perfetto_src_profiling_deobfuscator",
-        ":perfetto_src_profiling_symbolizer_symbolize_database",
-        ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
@@ -19983,8 +19990,10 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -20003,6 +20012,8 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_symbolizer_symbolize_database",
+        ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_tar_writer",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",

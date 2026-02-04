@@ -17,6 +17,7 @@ import {Card} from '../../../widgets/card';
 import {Icon} from '../../../widgets/icon';
 import {QueryNode} from '../query_node';
 import {EXAMPLE_GRAPHS} from '../example_graphs';
+import {RecentGraphsSection} from '../recent_graphs';
 
 // Helper function for keyboard-accessible card interactions
 function createKeyboardHandler(callback: () => void) {
@@ -64,6 +65,7 @@ export interface NavigationSidePanelAttrs {
   readonly onLoadExampleByPath?: (jsonPath: string) => void;
   readonly onLoadExploreTemplate?: () => void;
   readonly onLoadEmptyTemplate?: () => void;
+  readonly onLoadRecentGraph?: (json: string) => void;
 }
 
 export class NavigationSidePanel
@@ -153,6 +155,15 @@ export class NavigationSidePanel
           }),
         );
         results.push(m('.pf-solution-cards', ...solutionCards));
+      }
+
+      // Recent graphs section
+      if (attrs.onLoadRecentGraph !== undefined) {
+        results.push(
+          m(RecentGraphsSection, {
+            onLoadGraph: attrs.onLoadRecentGraph,
+          }),
+        );
       }
     }
 

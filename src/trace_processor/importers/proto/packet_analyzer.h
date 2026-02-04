@@ -45,7 +45,8 @@ class PacketAnalyzer : public Destructible {
   virtual void ProcessPacket(const TraceBlobView& packet,
                              const SampleAnnotation& packet_annotation) = 0;
 
-  virtual void NotifyEndOfFile() = 0;
+  // Phase 3 - post-extraction processing and cleanup.
+  virtual void OnEventsFullyExtracted() = 0;
 };
 
 }  // namespace trace_processor

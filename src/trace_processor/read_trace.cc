@@ -60,7 +60,8 @@ class SerializingProtoTraceReader : public ChunkedTraceReader {
     });
   }
 
-  base::Status NotifyEndOfFile() override { return base::OkStatus(); }
+  base::Status OnPushDataToSorter() override { return base::OkStatus(); }
+  void OnEventsFullyExtracted() override {}
 
  private:
   static constexpr uint8_t kTracePacketTag =
@@ -99,7 +100,9 @@ base::Status DecompressTrace(const uint8_t* data,
         new SerializingProtoTraceReader(output));
     GzipTraceParser parser(std::move(reader));
     RETURN_IF_ERROR(parser.ParseUnowned(data, size));
-    return parser.NotifyEndOfFile();
+    RETURN_IF_ERROR(parser.OnPushDataToSorter());
+    parser.OnEventsFullyExtracted();
+    return base::OkStatus();
   }
 
   PERFETTO_CHECK(type == TraceType::kProtoTraceType);

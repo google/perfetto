@@ -518,7 +518,7 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
   }
 }
 
-void ProfileModule::NotifyEndOfFile() {
+void ProfileModule::OnEventsFullyExtracted() {
   for (auto it = context_->storage->stack_profile_mapping_table().IterateRows();
        it; ++it) {
     NullTermStringView path = context_->storage->GetString(it.name());

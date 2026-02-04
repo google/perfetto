@@ -15,7 +15,7 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Monitor} from '../../base/monitor';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
-import {assertExists, assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {cropText} from '../../base/string_utils';
@@ -39,6 +39,7 @@ import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {deferChunkedTask} from '../../base/chunked_task';
+import {RECT_PATTERN_HATCHED} from '../../base/renderer';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -49,6 +50,7 @@ export interface Data extends TrackData {
   tses: BigInt64Array;
   durs: BigInt64Array;
   utids: Uint32Array;
+  pids: BigInt64Array;
   flags: Uint8Array;
   lastRowId: number;
   // Cached color schemes to avoid lookups in render hot path
@@ -209,6 +211,7 @@ export class CpuSliceTrack implements TrackRenderer {
       tses: new BigInt64Array(numRows),
       durs: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
+      pids: new BigInt64Array(numRows),
       flags: new Uint8Array(numRows),
       colorSchemes: new Array(numRows),
       // Relative timestamps for fast rendering (relative to data.start)
@@ -238,6 +241,7 @@ export class CpuSliceTrack implements TrackRenderer {
       slices.tses[row] = it.ts;
       slices.durs[row] = it.dur;
       slices.utids[row] = it.utid;
+      slices.pids[row] = this.threads.get(it.utid)?.pid ?? -1n;
       slices.ids[row] = it.id;
 
       // Store relative timestamps as floats for fast rendering
@@ -293,7 +297,7 @@ export class CpuSliceTrack implements TrackRenderer {
   }
 
   render(trackCtx: TrackRenderContext): void {
-    const {ctx, size, timescale} = trackCtx;
+    const {ctx, size, timescale, visibleWindow, renderer} = trackCtx;
 
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
@@ -311,13 +315,6 @@ export class CpuSliceTrack implements TrackRenderer {
       timescale.timeToPx(data.end),
     );
 
-    this.renderSlices(trackCtx, data);
-  }
-
-  renderSlices(
-    {ctx, timescale, size, visibleWindow}: TrackRenderContext,
-    data: Data,
-  ): void {
     assertTrue(data.startQs.length === data.endQs.length);
     assertTrue(data.startQs.length === data.utids.length);
 
@@ -344,9 +341,31 @@ export class CpuSliceTrack implements TrackRenderer {
     const endIdx = rawEndIdx === -1 ? data.startQs.length : rawEndIdx;
 
     const timeline = this.trace.timeline;
+    const hoveredUtid = timeline.hoveredUtid;
+    const hoveredPid = timeline.hoveredPid;
 
+    // Collect text labels to render in a second pass (allows batching rects)
+    const textLabels: Array<{
+      title: string;
+      subTitle: string;
+      textColor: Color;
+      rectXCenter: number;
+    }> = [];
+
+    // Collect incomplete slices to render after flushing
+    const incompleteSlices: Array<{
+      rectStart: number;
+      rectWidth: number;
+      color: Color;
+    }> = [];
+
+    // First pass: draw all rects (batched via renderer)
     for (let i = startIdx; i < endIdx; i++) {
       const utid = data.utids[i];
+      const pid = data.pids[i];
+      const colorScheme = data.colorSchemes[i];
+      const flags = data.flags[i];
+      const id = data.ids[i];
 
       // Use pre-computed relative timestamps for fast pixel conversion
       const rectStart = data.startRelNs[i] * pxPerNs + baseOffsetPx;
@@ -355,21 +374,15 @@ export class CpuSliceTrack implements TrackRenderer {
       // window, else it might spill over the window and the end would not be
       // visible as a zigzag line.
       const isIncomplete =
-        data.ids[i] === data.lastRowId &&
-        data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE;
+        id === data.lastRowId && flags & CPU_SLICE_FLAGS_INCOMPLETE;
       const rectEnd = Boolean(isIncomplete)
         ? visWindowEndPx
         : data.endRelNs[i] * pxPerNs + baseOffsetPx;
       const rectWidth = Math.max(1, rectEnd - rectStart);
+      const isHovering = hoveredUtid !== undefined;
+      const isThreadHovered = hoveredUtid === utid;
+      const isProcessHovered = hoveredPid === pid;
 
-      const threadInfo = this.threads.get(utid);
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
-
-      const isHovering = timeline.hoveredUtid !== undefined;
-      const isThreadHovered = timeline.hoveredUtid === utid;
-      const isProcessHovered = timeline.hoveredPid === pid;
-      const colorScheme = data.colorSchemes[i];
       let color: Color;
       let textColor: Color;
       if (isHovering && !isThreadHovered) {
@@ -384,35 +397,41 @@ export class CpuSliceTrack implements TrackRenderer {
         color = colorScheme.base;
         textColor = colorScheme.textBase;
       }
-      ctx.fillStyle = color.cssString;
 
-      if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
-        drawIncompleteSlice(
-          ctx,
+      if (flags & CPU_SLICE_FLAGS_INCOMPLETE) {
+        // Defer incomplete slices to render after flush
+        incompleteSlices.push({rectStart, rectWidth, color});
+      } else {
+        renderer.drawRect(
           rectStart,
           MARGIN_TOP,
-          rectWidth,
-          RECT_HEIGHT,
+          rectStart + rectWidth,
+          MARGIN_TOP + RECT_HEIGHT,
           color,
         );
-      } else {
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+      }
+
+      // Stylize real-time threads. We don't do it when zoomed out as the
+      // fillRect is expensive.
+      if (flags & CPU_SLICE_FLAGS_REALTIME) {
+        renderer.drawRect(
+          rectStart,
+          MARGIN_TOP,
+          rectStart + rectWidth,
+          MARGIN_TOP + RECT_HEIGHT,
+          color,
+          RECT_PATTERN_HATCHED,
+        );
       }
 
       // Don't render text when we have less than 5px to play with.
       if (rectWidth < 5) continue;
 
-      // Stylize real-time threads. We don't do it when zoomed out as the
-      // fillRect is expensive.
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
-        ctx.fillStyle = getHatchedPattern(ctx);
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
-      }
-
       // TODO: consider de-duplicating this code with the copied one from
       // chrome_slices/frontend.ts.
       let title = `[utid:${utid}]`;
       let subTitle = '';
+      const threadInfo = this.threads.get(utid);
       if (threadInfo) {
         if (threadInfo.pid !== undefined && threadInfo.pid !== 0n) {
           let procName = threadInfo.procName ?? '';
@@ -427,16 +446,40 @@ export class CpuSliceTrack implements TrackRenderer {
         }
       }
 
-      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
+      if (flags & CPU_SLICE_FLAGS_REALTIME) {
         subTitle = subTitle + ' (RT)';
       }
 
       const right = Math.min(visWindowEndPx, rectEnd);
       const left = Math.max(rectStart, 0);
       const visibleWidth = Math.max(right - left, 1);
-      title = cropText(title, charWidth, visibleWidth);
-      subTitle = cropText(subTitle, charWidth, visibleWidth);
-      const rectXCenter = left + visibleWidth / 2;
+
+      textLabels.push({
+        title: cropText(title, charWidth, visibleWidth),
+        subTitle: cropText(subTitle, charWidth, visibleWidth),
+        textColor,
+        rectXCenter: left + visibleWidth / 2,
+      });
+    }
+
+    // Flush once after all rects are batched
+    renderer.flush();
+
+    // Draw incomplete slices (requires direct canvas access)
+    for (const {rectStart, rectWidth, color} of incompleteSlices) {
+      ctx.fillStyle = color.cssString;
+      drawIncompleteSlice(
+        ctx,
+        rectStart,
+        MARGIN_TOP,
+        rectWidth,
+        RECT_HEIGHT,
+        color,
+      );
+    }
+
+    // Second pass: draw all text labels
+    for (const {title, subTitle, textColor, rectXCenter} of textLabels) {
       ctx.fillStyle = textColor.cssString;
       ctx.font = '12px Roboto Condensed';
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
@@ -591,27 +634,4 @@ export class CpuSliceTrack implements TrackRenderer {
   detailsPanel() {
     return new SchedSliceDetailsPanel(this.trace, this.threads);
   }
-}
-
-// Creates a diagonal hatched pattern to be used for distinguishing slices with
-// real-time priorities. The pattern is created once as an offscreen canvas and
-// is kept cached inside the Context2D of the main canvas, without making
-// assumptions on the lifetime of the main canvas.
-function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
-  const mctx = mainCtx as CanvasRenderingContext2D & {
-    sliceHatchedPattern?: CanvasPattern;
-  };
-  if (mctx.sliceHatchedPattern !== undefined) return mctx.sliceHatchedPattern;
-  const canvas = document.createElement('canvas');
-  const SIZE = 8;
-  canvas.width = canvas.height = SIZE;
-  const ctx = assertExists(canvas.getContext('2d'));
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.beginPath();
-  ctx.lineWidth = 1;
-  ctx.moveTo(0, SIZE);
-  ctx.lineTo(SIZE, 0);
-  ctx.stroke();
-  mctx.sliceHatchedPattern = assertExists(mctx.createPattern(canvas, 'repeat'));
-  return mctx.sliceHatchedPattern;
 }

@@ -128,7 +128,7 @@ void DeobfuscationTracker::AddDeobfuscationMapping(ConstBytes blob) {
   packets_.emplace_back(TraceBlob::CopyFrom(blob.data, blob.size));
 }
 
-void DeobfuscationTracker::NotifyEndOfFile() {
+void DeobfuscationTracker::OnEventsFullyExtracted() {
   // Maps (name, package) -> set of FrameIds for deobfuscation
   JavaFrameMap java_frames_for_name;
 

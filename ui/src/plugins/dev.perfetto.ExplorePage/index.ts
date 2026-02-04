@@ -19,29 +19,16 @@ import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExplorePageState} from './explore_page';
 import {nodeRegistry} from './query_builder/node_registry';
 import {QueryNodeState} from './query_node';
-import {serializeState, deserializeState} from './json_handler';
-
-const LOCAL_STORAGE_KEY = 'perfetto.explorePage.lastState';
-
-/**
- * Saves the Explore Page state to local storage.
- */
-function saveStateToLocalStorage(state: ExplorePageState): void {
-  try {
-    const json = serializeState(state);
-    localStorage.setItem(LOCAL_STORAGE_KEY, json);
-  } catch (error) {
-    console.warn('Failed to save Explore Page state to local storage:', error);
-  }
-}
+import {deserializeState} from './json_handler';
+import {recentGraphsStorage} from './recent_graphs';
 
 /**
- * Loads the Explore Page state from local storage.
+ * Loads the Explore Page state from recent graphs storage.
  * Returns undefined if no state is found or if deserialization fails.
  */
-function loadStateFromLocalStorage(trace: Trace): ExplorePageState | undefined {
+function loadStateFromRecentGraphs(trace: Trace): ExplorePageState | undefined {
   try {
-    const json = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const json = recentGraphsStorage.getCurrentJson();
     if (!json) {
       return undefined;
     }
@@ -56,11 +43,11 @@ function loadStateFromLocalStorage(trace: Trace): ExplorePageState | undefined {
     return deserializeState(json, trace, sqlModules);
   } catch (error) {
     console.debug(
-      'Failed to load Explore Page state from local storage:',
+      'Failed to load Explore Page state from recent graphs:',
       error,
     );
-    // Clear invalid state
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    // Clear corrupted data to prevent repeated failures
+    recentGraphsStorage.clear();
     return undefined;
   }
 }
@@ -97,18 +84,19 @@ export default class implements PerfettoPlugin {
       this.state = update;
     }
 
-    saveStateToLocalStorage(this.state);
+    // Save current state to recent graphs (updates the first entry)
+    recentGraphsStorage.saveCurrentState(this.state);
 
     m.redraw();
   };
 
-  // Try to load state from local storage. Called lazily when the page renders.
+  // Try to load state from recent graphs. Called lazily when the page renders.
   private tryLoadState(trace: Trace): void {
     if (this.hasAttemptedStateLoad) return;
 
-    const savedState = loadStateFromLocalStorage(trace);
+    const savedState = loadStateFromRecentGraphs(trace);
     if (savedState !== undefined) {
-      // Load saved state from localStorage (preserves work across page refreshes)
+      // Load saved state from recent graphs (preserves work across page refreshes)
       this.state = savedState;
       this.hasAttemptedStateLoad = true;
       // Only mark as auto-initialized if the saved state has nodes

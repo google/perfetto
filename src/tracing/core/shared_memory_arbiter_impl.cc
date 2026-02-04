@@ -101,7 +101,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
   static const unsigned kMaxStallIntervalUs = 100000;
   static const int kLogAfterNStalls = 3;
   static const int kFlushCommitsAfterEveryNStalls = 2;
-  static const int kAssertAtNStalls = 200;
+  static const int kAssertAtNStalls = 300;
 
   bool should_stall = false;
   bool should_abort = false;

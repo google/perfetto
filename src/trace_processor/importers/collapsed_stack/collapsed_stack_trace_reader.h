@@ -40,7 +40,8 @@ class CollapsedStackTraceReader : public ChunkedTraceReader {
   ~CollapsedStackTraceReader() override;
 
   base::Status Parse(TraceBlobView blob) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
+  void OnEventsFullyExtracted() override {}
 
  private:
   base::Status ParseLine(std::string_view line);
