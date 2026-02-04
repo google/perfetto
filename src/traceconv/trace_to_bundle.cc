@@ -51,7 +51,9 @@ int TraceToBundle(const std::string& input_file_path,
   enrich_config.symbol_paths = context.symbol_paths;
   enrich_config.no_auto_symbol_paths = context.no_auto_symbol_paths;
   enrich_config.android_product_out = context.android_product_out;
+  enrich_config.home_dir = context.home_dir;
   enrich_config.working_dir = context.working_dir;
+  enrich_config.root_dir = context.root_dir;
 
   // Add explicit ProGuard maps from context.
   for (const auto& map_spec : context.proguard_maps) {

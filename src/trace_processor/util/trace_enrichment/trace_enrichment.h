@@ -52,12 +52,11 @@ struct EnrichmentConfig {
   bool no_auto_proguard_maps = false;
 
   // Environment values for path discovery.
-  // If android_product_out is empty, ANDROID_PRODUCT_OUT env var is read.
+  // Must be provided by caller; if empty, related paths are not discovered.
   std::string android_product_out;
-
-  // Working directory for Gradle project detection.
-  // Must be provided by caller; if empty, Gradle paths are not discovered.
+  std::string home_dir;
   std::string working_dir;
+  std::string root_dir;
 };
 
 // Error codes for enrichment operations.

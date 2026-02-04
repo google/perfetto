@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/util/trace_enrichment/trace_enrichment.h"
 
-#include <cstdlib>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,6 +28,23 @@
 namespace perfetto::trace_processor::util {
 
 namespace {
+
+// Returns binary paths from mappings that might contain embedded symbols.
+std::vector<std::string> GetSymbolFilesFromMappings(TraceProcessor* tp) {
+  std::vector<std::string> files;
+  auto it = tp->ExecuteQuery(R"(
+    SELECT DISTINCT name
+    FROM stack_profile_mapping
+    WHERE build_id != '' AND name != ''
+  )");
+  while (it.Next()) {
+    std::string name = it.Get(0).AsString();
+    if (!name.empty() && name[0] == '/') {
+      files.push_back(name);
+    }
+  }
+  return files;
+}
 
 // Adds path to result if it exists.
 void AddIfExists(std::vector<std::string>& result, const std::string& path) {
@@ -66,8 +82,18 @@ std::vector<std::string> DiscoverGradleMappings(
 // Discovers native symbol paths from well-known locations.
 std::vector<std::string> DiscoverSymbolPaths(
     const std::string& android_product_out,
-    const std::string& working_dir) {
+    const std::string& working_dir,
+    const std::string& home_dir,
+    const std::string& root_dir) {
   std::vector<std::string> paths;
+
+  // Default system debug directories.
+  if (!root_dir.empty()) {
+    AddIfExists(paths, root_dir + "/usr/lib/debug");
+  }
+  if (!home_dir.empty()) {
+    AddIfExists(paths, home_dir + "/.debug");
+  }
 
   // ANDROID_PRODUCT_OUT/symbols (AOSP builds).
   if (!android_product_out.empty()) {
@@ -90,12 +116,6 @@ std::vector<std::string> DiscoverSymbolPaths(
   return paths;
 }
 
-// Get environment variable or return empty string.
-std::string GetEnvOrEmpty(const char* name) {
-  const char* val = getenv(name);
-  return val ? std::string(val) : std::string();
-}
-
 }  // namespace
 
 EnrichmentResult EnrichTrace(TraceProcessor* tp,
@@ -104,16 +124,14 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
   bool symbolization_ok = false;
   bool deobfuscation_ok = false;
 
-  // Resolve environment values (or use provided values for testing).
-  std::string android_product_out = config.android_product_out.empty()
-                                        ? GetEnvOrEmpty("ANDROID_PRODUCT_OUT")
-                                        : config.android_product_out;
+  const std::string& android_product_out = config.android_product_out;
+  const std::string& home_dir = config.home_dir;
   const std::string& working_dir = config.working_dir;
+  const std::string& root_dir = config.root_dir;
 
   // === Native Symbolization ===
   {
     profiling::SymbolizerConfig sym_config;
-    sym_config.no_auto_symbol_paths = config.no_auto_symbol_paths;
 
     // Start with explicit paths from config.
     sym_config.symbol_paths = config.symbol_paths;
@@ -121,20 +139,20 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     // Add discovered paths if auto-discovery is enabled.
     if (!config.no_auto_symbol_paths) {
       std::vector<std::string> discovered =
-          DiscoverSymbolPaths(android_product_out, working_dir);
+          DiscoverSymbolPaths(android_product_out, working_dir, home_dir,
+                              root_dir);
       for (const auto& path : discovered) {
         sym_config.symbol_paths.push_back(path);
       }
     }
 
+    // Add binary paths from mappings (they might contain embedded symbols).
+    sym_config.symbol_files = GetSymbolFilesFromMappings(tp);
+
     auto sym_result = profiling::SymbolizeDatabase(tp, sym_config);
     switch (sym_result.error) {
       case profiling::SymbolizerError::kOk:
         result.native_symbols = std::move(sym_result.symbols);
-        symbolization_ok = true;
-        break;
-      case profiling::SymbolizerError::kNoMappingsToSymbolize:
-        // No mappings to symbolize is not an error.
         symbolization_ok = true;
         break;
       case profiling::SymbolizerError::kSymbolizerNotAvailable:

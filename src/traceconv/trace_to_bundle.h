@@ -42,8 +42,14 @@ struct BundleContext {
   // Value of ANDROID_PRODUCT_OUT for AOSP builds symbol discovery
   std::string android_product_out;
 
+  // Home directory for ~/.debug symbol discovery
+  std::string home_dir;
+
   // Working directory for Gradle project detection
   std::string working_dir;
+
+  // Root directory for /usr/lib/debug symbol discovery
+  std::string root_dir;
 };
 
 // Creates a bundle from the input trace with symbolization,
