@@ -1371,6 +1371,21 @@ base::Status LoadTrace(TraceProcessor* trace_processor,
       trace_processor->Flush();
       auto sym_result =
           profiling::SymbolizeDatabase(trace_processor, sym_config);
+      if (sym_result.error == profiling::SymbolizerError::kOk) {
+        if (!sym_result.mappings_without_build_id.empty()) {
+          std::vector<std::string> mapping_strs;
+          mapping_strs.reserve(sym_result.mappings_without_build_id.size());
+          for (const auto& [name, count] :
+               sym_result.mappings_without_build_id) {
+            mapping_strs.push_back(name + " (" + std::to_string(count) +
+                                   " frames)");
+          }
+          PERFETTO_ELOG(
+              "Some frames could not be symbolized because their "
+              "mapping has an empty build ID. Mappings: %s",
+              base::Join(mapping_strs, ", ").c_str());
+        }
+      }
       if (sym_result.error == profiling::SymbolizerError::kOk &&
           !sym_result.symbols.empty()) {
         std::unique_ptr<uint8_t[]> buf(new uint8_t[sym_result.symbols.size()]);

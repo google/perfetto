@@ -17,10 +17,12 @@
 #include "src/traceconv/symbolize_profile.h"
 
 #include <cstdlib>
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 #include "src/traceconv/utils.h"
@@ -67,6 +69,17 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
   auto result = profiling::SymbolizeDatabase(tp.get(), sym_config);
   if (result.error != profiling::SymbolizerError::kOk) {
     PERFETTO_FATAL("Symbolization failed: %s", result.error_details.c_str());
+  }
+  if (!result.mappings_without_build_id.empty()) {
+    std::vector<std::string> mapping_strs;
+    mapping_strs.reserve(result.mappings_without_build_id.size());
+    for (const auto& [name, count] : result.mappings_without_build_id) {
+      mapping_strs.push_back(name + " (" + std::to_string(count) + " frames)");
+    }
+    PERFETTO_ELOG(
+        "Some frames could not be symbolized because their "
+        "mapping has an empty build ID. Mappings: %s",
+        base::Join(mapping_strs, ", ").c_str());
   }
   *output << result.symbols;
 

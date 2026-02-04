@@ -17,7 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZE_DATABASE_H_
 #define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_SYMBOLIZE_DATABASE_H_
 
+#include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace perfetto::trace_processor {
@@ -64,6 +66,10 @@ struct SymbolizerResult {
   // Serialized TracePacket protos containing symbol data.
   // Empty if no symbols were found or on error.
   std::string symbols;
+
+  // Mappings with empty build IDs that could not be symbolized.
+  // Each pair contains {mapping_name, frame_count}.
+  std::vector<std::pair<std::string, uint32_t>> mappings_without_build_id;
 };
 
 // Performs native symbolization on a trace.

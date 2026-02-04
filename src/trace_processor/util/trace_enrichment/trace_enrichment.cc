@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
@@ -153,6 +154,18 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     auto sym_result = profiling::SymbolizeDatabase(tp, sym_config);
     if (sym_result.error == profiling::SymbolizerError::kOk) {
       result.native_symbols = std::move(sym_result.symbols);
+      if (!sym_result.mappings_without_build_id.empty()) {
+        std::vector<std::string> mapping_strs;
+        mapping_strs.reserve(sym_result.mappings_without_build_id.size());
+        for (const auto& [name, count] : sym_result.mappings_without_build_id) {
+          mapping_strs.push_back(name + " (" + std::to_string(count) +
+                                 " frames)");
+        }
+        result.details +=
+            "Some frames could not be symbolized because their "
+            "mapping has an empty build ID. Mappings: " +
+            base::Join(mapping_strs, ", ") + "\n";
+      }
     } else {
       result.details += sym_result.error_details + "\n";
     }
