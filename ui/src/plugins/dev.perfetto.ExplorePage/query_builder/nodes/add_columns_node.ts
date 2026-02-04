@@ -1327,7 +1327,7 @@ export class AddColumnsNode implements QueryNode {
           this.state.suggestionAliases?.delete(colName);
         }
         this.state.suggestionSelections.set(selectedTable, updated);
-        m.redraw();
+        redrawModal();
       },
       onColumnAlias: (colName: string, alias: string) => {
         if (!this.state.suggestionAliases) {
@@ -1338,7 +1338,7 @@ export class AddColumnsNode implements QueryNode {
         } else {
           this.state.suggestionAliases.set(colName, alias);
         }
-        m.redraw();
+        redrawModal();
       },
     });
   }
@@ -1357,11 +1357,11 @@ export class AddColumnsNode implements QueryNode {
         this.getJoinColumnErrors(cols, false),
       onLeftColumnChange: (columnName: string) => {
         this.state.leftColumn = columnName;
-        this.state.onchange?.();
+        redrawModal();
       },
       onRightColumnChange: (columnName: string) => {
         this.state.rightColumn = columnName;
-        this.state.onchange?.();
+        redrawModal();
       },
       onColumnToggle: (colName: string, checked: boolean) => {
         if (!this.state.selectedColumns) {
@@ -1378,7 +1378,7 @@ export class AddColumnsNode implements QueryNode {
           this.state.columnAliases?.delete(colName);
           this.state.columnTypes?.delete(colName);
         }
-        this.state.onchange?.();
+        redrawModal();
       },
       onColumnAlias: (colName: string, alias: string) => {
         if (!this.state.columnAliases) {
@@ -1389,7 +1389,7 @@ export class AddColumnsNode implements QueryNode {
         } else {
           this.state.columnAliases.set(colName, alias);
         }
-        this.state.onchange?.();
+        redrawModal();
       },
     });
   }
