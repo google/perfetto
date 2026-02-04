@@ -111,20 +111,15 @@ std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
   return res;
 }
 
-struct MappingsWithoutBuildId {
-  std::vector<std::string> names;
-  uint32_t frame_count = 0;
-};
-
-MappingsWithoutBuildId GetMappingsWithoutBuildId(
+std::vector<std::pair<std::string, uint32_t>> GetMappingsWithoutBuildId(
     trace_processor::TraceProcessor* tp) {
-  MappingsWithoutBuildId result;
+  std::vector<std::pair<std::string, uint32_t>> result;
   Iterator it = tp->ExecuteQuery(kQueryMappingsWithoutBuildId);
   while (it.Next()) {
-    result.names.emplace_back(it.Get(0).AsString());
+    std::string name = it.Get(0).AsString();
     int64_t count = it.Get(1).AsLong();
     PERFETTO_CHECK(count >= 0);
-    result.frame_count += static_cast<uint32_t>(count);
+    result.emplace_back(std::move(name), static_cast<uint32_t>(count));
   }
   if (!it.Status().ok()) {
     PERFETTO_DFATAL_OR_ELOG("Failed to query mappings without build ID: %s",
@@ -205,9 +200,7 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
   SymbolizerResult result;
 
   // Get mappings and frame count for frames with empty build IDs.
-  auto mappings_without_build_id = GetMappingsWithoutBuildId(tp);
-  result.frames_without_build_id = mappings_without_build_id.frame_count;
-  result.mappings_without_build_id = std::move(mappings_without_build_id.names);
+  result.mappings_without_build_id = GetMappingsWithoutBuildId(tp);
 
   bool has_index =
       !config.index_symbol_paths.empty() || !config.symbol_files.empty();

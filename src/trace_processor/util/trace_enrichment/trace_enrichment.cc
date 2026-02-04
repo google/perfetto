@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/util/trace_enrichment/trace_enrichment.h"
 
-#include <cinttypes>
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -155,15 +154,17 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     auto sym_result = profiling::SymbolizeDatabase(tp, sym_config);
     if (sym_result.error == profiling::SymbolizerError::kOk) {
       result.native_symbols = std::move(sym_result.symbols);
-      if (sym_result.frames_without_build_id > 0) {
-        base::StackString<64> msg(
-            "%" PRIu32
-            " frames could not be symbolized because their "
-            "mapping has an empty build ID. Mappings: ",
-            sym_result.frames_without_build_id);
+      if (!sym_result.mappings_without_build_id.empty()) {
+        std::vector<std::string> mapping_strs;
+        mapping_strs.reserve(sym_result.mappings_without_build_id.size());
+        for (const auto& [name, count] : sym_result.mappings_without_build_id) {
+          mapping_strs.push_back(name + " (" + std::to_string(count) +
+                                 " frames)");
+        }
         result.details +=
-            msg.ToStdString() +
-            base::Join(sym_result.mappings_without_build_id, ", ") + "\n";
+            "Some frames could not be symbolized because their "
+            "mapping has an empty build ID. Mappings: " +
+            base::Join(mapping_strs, ", ") + "\n";
       }
     } else {
       result.details += sym_result.error_details + "\n";

@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace perfetto::trace_processor {
@@ -66,12 +67,9 @@ struct SymbolizerResult {
   // Empty if no symbols were found or on error.
   std::string symbols;
 
-  // Number of frames that could not be symbolized because their mapping
-  // has an empty build ID.
-  uint32_t frames_without_build_id = 0;
-
-  // Names of mappings with empty build IDs that could not be symbolized.
-  std::vector<std::string> mappings_without_build_id;
+  // Mappings with empty build IDs that could not be symbolized.
+  // Each pair contains {mapping_name, frame_count}.
+  std::vector<std::pair<std::string, uint32_t>> mappings_without_build_id;
 };
 
 // Performs native symbolization on a trace.
