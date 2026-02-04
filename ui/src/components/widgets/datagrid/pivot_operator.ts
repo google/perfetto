@@ -55,7 +55,7 @@ export interface PivotQueryOptions {
    * Column aliases to apply to result rows.
    * Maps original column names to new names.
    * e.g., { 'category': 'col_cat', 'agg_0': 'col_count' }
-   * Metadata columns (__id__, __depth__, etc.) are always preserved.
+   * Metadata columns (__id, __depth, etc.) are always preserved.
    */
   columnAliases?: Record<string, string>;
 }
@@ -127,9 +127,9 @@ export async function createPivotTable(
  * Queries rows from a pivot virtual table.
  *
  * The virtual table uses WHERE constraints to control:
- * - Expansion state (__expanded_ids__ or __collapsed_ids__)
- * - Sorting (__sort__)
- * - Pagination (__offset__, __limit__)
+ * - Expansion state (__expanded_ids or __collapsed_ids)
+ * - Sorting (__sort)
+ * - Pagination (__offset, __limit)
  */
 export async function queryPivotTable(
   engine: Engine,
@@ -149,20 +149,20 @@ export async function queryPivotTable(
   let expansionConstraint: string;
   if (collapsedIds !== undefined) {
     const ids = Array.from(collapsedIds).join(',');
-    expansionConstraint = `__collapsed_ids__ = '${ids}'`;
+    expansionConstraint = `__collapsed_ids = '${ids}'`;
   } else {
     const ids = expandedIds ? Array.from(expandedIds).join(',') : '';
-    expansionConstraint = `__expanded_ids__ = '${ids}'`;
+    expansionConstraint = `__expanded_ids = '${ids}'`;
   }
 
   // Build WHERE clause
-  const whereConditions = [expansionConstraint, `__sort__ = '${sort}'`];
+  const whereConditions = [expansionConstraint, `__sort = '${sort}'`];
 
   if (offset !== undefined) {
-    whereConditions.push(`__offset__ = ${offset}`);
+    whereConditions.push(`__offset = ${offset}`);
   }
   if (limit !== undefined) {
-    whereConditions.push(`__limit__ = ${limit}`);
+    whereConditions.push(`__limit = ${limit}`);
   }
 
   // Build SELECT clause with aliases
@@ -192,11 +192,11 @@ WHERE ${expansionConstraint}`;
 
 // Metadata columns that should always be included
 const METADATA_COLUMNS = [
-  '__id__',
-  '__parent_id__',
-  '__depth__',
-  '__has_children__',
-  '__child_count__',
+  '__id',
+  '__parent_id',
+  '__depth',
+  '__has_children',
+  '__child_count',
 ];
 
 function buildSelectWithAliases(aliases: Record<string, string>): string {

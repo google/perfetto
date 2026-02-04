@@ -80,23 +80,23 @@ struct PivotSortSpec {
 //
 // Query (whitelist mode - only specified IDs expanded):
 //   SELECT * FROM my_pivot
-//   WHERE __expanded_ids__ = '1,2,3'   -- comma-separated node IDs to expand
-//     AND __sort__ = 'agg_0 DESC'      -- sort by aggregate or 'name'
-//     AND __offset__ = 0               -- pagination offset
-//     AND __limit__ = 100;             -- pagination limit
+//   WHERE __expanded_ids = '1,2,3'     -- comma-separated node IDs to expand
+//     AND __sort = 'agg_0 DESC'        -- sort by aggregate or 'name'
+//     AND __offset = 0                 -- pagination offset
+//     AND __limit = 100;               -- pagination limit
 //
 // Query (blacklist mode - all expanded except specified IDs):
 //   SELECT * FROM my_pivot
-//   WHERE __collapsed_ids__ = '4,5'    -- comma-separated node IDs to collapse
-//     AND __sort__ = 'agg_0 DESC';
+//   WHERE __collapsed_ids = '4,5'      -- comma-separated node IDs to collapse
+//     AND __sort = 'agg_0 DESC';
 struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
   // Column layout (indices computed at runtime based on hierarchy_cols.size()):
   // [0..num_hier-1]         : hierarchy columns (with NULLs like ROLLUP)
-  // [num_hier]              : __id__
-  // [num_hier+1]            : __parent_id__
-  // [num_hier+2]            : __depth__
-  // [num_hier+3]            : __has_children__
-  // [num_hier+4]            : __child_count__
+  // [num_hier]              : __id
+  // [num_hier+1]            : __parent_id
+  // [num_hier+2]            : __depth
+  // [num_hier+3]            : __has_children
+  // [num_hier+4]            : __child_count
   // [num_hier+5..+5+num_agg]: agg_0, agg_1, ...
   // [after aggs]            : hidden columns
 

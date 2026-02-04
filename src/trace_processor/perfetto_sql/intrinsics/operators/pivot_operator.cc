@@ -28,28 +28,28 @@
 //
 // QUERYING (default - all groups expanded):
 //   SELECT * FROM my_pivot
-//   WHERE __sort__ = 'agg_0 DESC'      -- Optional: sort by aggregate or 'name'
-//     AND __offset__ = 0               -- Optional: pagination offset
-//     AND __limit__ = 100;             -- Optional: pagination limit
+//   WHERE __sort = 'agg_0 DESC'        -- Optional: sort by aggregate or 'name'
+//     AND __offset = 0                 -- Optional: pagination offset
+//     AND __limit = 100;               -- Optional: pagination limit
 //
 // QUERYING (allowlist mode - only specified IDs expanded):
 //   SELECT * FROM my_pivot
-//   WHERE __expanded_ids__ = '1,2,3'   -- Comma-separated node IDs to expand
-//     AND __sort__ = 'agg_0 DESC';
+//   WHERE __expanded_ids = '1,2,3'     -- Comma-separated node IDs to expand
+//     AND __sort = 'agg_0 DESC';
 //
 // QUERYING (denylist mode - all expanded except specified IDs):
 //   SELECT * FROM my_pivot
-//   WHERE __collapsed_ids__ = '4,5'    -- Nodes to keep collapsed
-//     AND __sort__ = 'agg_1 ASC';
+//   WHERE __collapsed_ids = '4,5'      -- Nodes to keep collapsed
+//     AND __sort = 'agg_1 ASC';
 //
 // OUTPUT COLUMNS:
 //   - Hierarchy columns (with NULLs like ROLLUP - deeper levels have earlier
 //     columns NULL)
-//   - __id__: Unique node identifier
-//   - __parent_id__: Parent node ID (NULL for root)
-//   - __depth__: Tree depth (0 for root, 1 for first group level, etc.)
-//   - __has_children__: 1 if node has children, 0 otherwise
-//   - __child_count__: Number of direct children
+//   - __id: Unique node identifier
+//   - __parent_id: Parent node ID (NULL for root)
+//   - __depth: Tree depth (0 for root, 1 for first group level, etc.)
+//   - __has_children: 1 if node has children, 0 otherwise
+//   - __child_count: Number of direct children
 //   - agg_0, agg_1, ...: Aggregated values for each aggregation expression
 //
 // BEHAVIOR:
@@ -129,11 +129,11 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   }
 
   // Metadata columns
-  schema += ",__id__ INTEGER";
-  schema += ",__parent_id__ INTEGER";
-  schema += ",__depth__ INTEGER";
-  schema += ",__has_children__ INTEGER";
-  schema += ",__child_count__ INTEGER";
+  schema += ",__id INTEGER";
+  schema += ",__parent_id INTEGER";
+  schema += ",__depth INTEGER";
+  schema += ",__has_children INTEGER";
+  schema += ",__child_count INTEGER";
 
   // Add aggregate columns (no type = dynamic typing for any SQL type)
   for (size_t i = 0; i < measure_col_count; i++) {
@@ -141,13 +141,12 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   }
 
   // Add hidden columns for query parameters
-  schema += ",__aggs__ TEXT HIDDEN";
-  schema += ",__expanded_ids__ TEXT HIDDEN";
-  schema +=
-      ",__collapsed_ids__ TEXT HIDDEN";  // Denylist mode (expand all except)
-  schema += ",__sort__ TEXT HIDDEN";
-  schema += ",__offset__ INTEGER HIDDEN";
-  schema += ",__limit__ INTEGER HIDDEN";
+  schema += ",__aggs TEXT HIDDEN";
+  schema += ",__expanded_ids TEXT HIDDEN";
+  schema += ",__collapsed_ids TEXT HIDDEN";  // Denylist mode (expand all except)
+  schema += ",__sort TEXT HIDDEN";
+  schema += ",__offset INTEGER HIDDEN";
+  schema += ",__limit INTEGER HIDDEN";
 
   schema += ")";
   return schema;
@@ -289,7 +288,7 @@ PivotSortSpec ParseSortSpec(const std::string& sort_str) {
     spec.descending = false;
   }
   if (lower.find("name") != std::string::npos ||
-      lower.find("__name__") != std::string::npos) {
+      lower.find("__name") != std::string::npos) {
     spec.agg_index = -1;  // Sort by name
   }
 
@@ -725,10 +724,10 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     }
   };
 
-  // Process __aggs__ (flag position 0)
+  // Process __aggs (flag position 0)
   // Currently unused, but could parse to select specific aggregates
 
-  // Process __expanded_ids__ (flag position 1) - allowlist mode
+  // Process __expanded_ids (flag position 1) - allowlist mode
   if (sqlite3_value* val = get_argv(1)) {
     const char* ids_str =
         reinterpret_cast<const char*>(sqlite3_value_text(val));
@@ -737,8 +736,8 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     expansion_specified = true;
   }
 
-  // Process __collapsed_ids__ (flag position 2) - denylist mode (expand all
-  // except) Note: If both expanded_ids and collapsed_ids are provided,
+  // Process __collapsed_ids (flag position 2) - denylist mode (expand all
+  // except). Note: If both expanded_ids and collapsed_ids are provided,
   // collapsed_ids wins
   if (sqlite3_value* val = get_argv(2)) {
     const char* ids_str =
@@ -754,7 +753,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     denylist_mode = true;  // Denylist with empty set = expand all
   }
 
-  // Process __sort__ (flag position 3)
+  // Process __sort (flag position 3)
   if (sqlite3_value* val = get_argv(3)) {
     const char* sort_str =
         reinterpret_cast<const char*>(sqlite3_value_text(val));
@@ -763,12 +762,12 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
     }
   }
 
-  // Process __offset__ (flag position 4)
+  // Process __offset (flag position 4)
   if (sqlite3_value* val = get_argv(4)) {
     c->offset = sqlite3_value_int(val);
   }
 
-  // Process __limit__ (flag position 5)
+  // Process __limit (flag position 5)
   if (sqlite3_value* val = get_argv(5)) {
     c->limit = sqlite3_value_int(val);
   }
@@ -830,11 +829,11 @@ int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
 
   // Column layout:
   // [0..num_hier-1]: hierarchy columns (with NULLs like ROLLUP)
-  // [num_hier+0]: __id__
-  // [num_hier+1]: __parent_id__
-  // [num_hier+2]: __depth__
-  // [num_hier+3]: __has_children__
-  // [num_hier+4]: __child_count__
+  // [num_hier+0]: __id
+  // [num_hier+1]: __parent_id
+  // [num_hier+2]: __depth
+  // [num_hier+3]: __has_children
+  // [num_hier+4]: __child_count
   // [num_hier+5..]: agg_0, agg_1, ...
 
   if (col < num_hier) {

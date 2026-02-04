@@ -1154,7 +1154,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   /**
    * Toggles the expansion state of a group identified by its node ID.
    * Used for collapsible rollup rows in multi-level pivot tables.
-   * @param nodeId The __id__ value of the node to toggle
+   * @param nodeId The __id value of the node to toggle
    */
   private toggleExpansion(nodeId: bigint, attrs: DataGridAttrs): void {
     if (!this.pivot) return;
@@ -1708,10 +1708,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
         const cells: m.Children[] = [];
 
-        // For multi-level pivots, get the rollup level from __depth__ column
+        // For multi-level pivots, get the rollup level from __depth column
         // Level indicates how many groupBy columns have real values (0 to N-1)
         const rowLevel = isMultiLevel
-          ? Number(row['__depth__'] ?? numGroupBy - 1)
+          ? Number(row['__depth'] ?? numGroupBy - 1)
           : numGroupBy - 1;
 
         // Render groupBy columns
@@ -1750,8 +1750,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             const isSummaryRow = rowLevel === i;
 
             if (isSummaryRow && i < numGroupBy - 1) {
-              // Use the node's __id__ for expansion state
-              const nodeId = row['__id__'] as bigint;
+              // Use the node's __id for expansion state
+              const nodeId = row['__id'] as bigint;
               // This is a summary row at this level - show expand/collapse chevron
               const isExpanded = this.isGroupExpanded(nodeId);
               chevron = isExpanded ? 'expanded' : 'collapsed';
