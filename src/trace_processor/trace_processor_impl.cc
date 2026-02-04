@@ -24,7 +24,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -134,10 +133,10 @@
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/android_tables_py.h"  // IWYU pragma: keep
-#include "src/trace_processor/tables/jit_tables_py.h"      // IWYU pragma: keep
-#include "src/trace_processor/tables/memory_tables_py.h"   // IWYU pragma: keep
-#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/android_tables_py.h"   // IWYU pragma: keep
+#include "src/trace_processor/tables/jit_tables_py.h"       // IWYU pragma: keep
+#include "src/trace_processor/tables/memory_tables_py.h"    // IWYU pragma: keep
+#include "src/trace_processor/tables/metadata_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
@@ -424,67 +423,71 @@ sql_modules::NameToPackage GetStdlibPackages() {
   return packages;
 }
 
-auto GetBoundsTables(const TraceStorage& storage) {
-  return std::tie(
-      storage.ftrace_event_table(), storage.sched_slice_table(),
-      storage.counter_table(), storage.slice_table(),
-      storage.heap_profile_allocation_table(), storage.thread_state_table(),
-      storage.android_log_table(), storage.heap_graph_object_table(),
-      storage.perf_sample_table(), storage.instruments_sample_table(),
-      storage.cpu_profile_stack_sample_table());
+// IMPORTANT: GetBoundsMutationCount and GetTraceTimestampBoundsNs must be kept
+// in sync.
+uint64_t GetBoundsMutationCount(const TraceStorage& storage) {
+  return storage.ftrace_event_table().mutations() +
+         storage.sched_slice_table().mutations() +
+         storage.counter_table().mutations() +
+         storage.slice_table().mutations() +
+         storage.heap_profile_allocation_table().mutations() +
+         storage.thread_state_table().mutations() +
+         storage.android_log_table().mutations() +
+         storage.heap_graph_object_table().mutations() +
+         storage.perf_sample_table().mutations() +
+         storage.instruments_sample_table().mutations() +
+         storage.cpu_profile_stack_sample_table().mutations();
 }
 
-template <typename T>
-uint64_t SumMutations(const T& tables) {
-  return std::apply([](const auto&... t) { return (t.mutations() + ...); },
-                    tables);
-}
-
-template <typename T>
-std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(const T& tables) {
+// IMPORTANT: GetBoundsMutationCount and GetTraceTimestampBoundsNs must be kept
+// in sync.
+std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
+    const TraceStorage& storage) {
   int64_t start_ns = std::numeric_limits<int64_t>::max();
   int64_t end_ns = 0;
-  for (auto it = std::get<0>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.ftrace_event_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
-  for (auto it = std::get<1>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.sched_slice_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts() + it.dur(), end_ns);
   }
-  for (auto it = std::get<2>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.counter_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
-  for (auto it = std::get<3>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.slice_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts() + it.dur(), end_ns);
   }
-  for (auto it = std::get<4>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.heap_profile_allocation_table().IterateRows(); it;
+       ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
-  for (auto it = std::get<5>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.thread_state_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts() + it.dur(), end_ns);
   }
-  for (auto it = std::get<6>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.android_log_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
-  for (auto it = std::get<7>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.heap_graph_object_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.graph_sample_ts(), start_ns);
     end_ns = std::max(it.graph_sample_ts(), end_ns);
   }
-  for (auto it = std::get<8>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.perf_sample_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
-  for (auto it = std::get<9>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.instruments_sample_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
-  for (auto it = std::get<10>(tables).IterateRows(); it; ++it) {
+  for (auto it = storage.cpu_profile_stack_sample_table().IterateRows(); it;
+       ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
@@ -600,8 +603,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   }
 
   // Compute initial trace bounds before any tables are finalized.
-  cached_trace_bounds_ =
-      GetTraceTimestampBoundsNs(GetBoundsTables(*context()->storage));
+  cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
 
   engine_ = InitPerfettoSqlEngine(
       context(), context()->storage.get(), config_, registered_sql_packages_,
@@ -689,13 +691,12 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
 }
 
 void TraceProcessorImpl::CacheBoundsAndBuildTable() {
-  auto tables = GetBoundsTables(*context()->storage);
-  uint64_t mutations = SumMutations(tables);
+  uint64_t mutations = GetBoundsMutationCount(*context()->storage);
   if (mutations == bounds_tables_mutations_) {
     return;
   }
   bounds_tables_mutations_ = mutations;
-  cached_trace_bounds_ = GetTraceTimestampBoundsNs(tables);
+  cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
   BuildBoundsTable(engine_->sqlite_engine()->db(), cached_trace_bounds_);
 }
 

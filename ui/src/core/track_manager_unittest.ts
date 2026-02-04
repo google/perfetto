@@ -49,6 +49,7 @@ function makeMockRenderer(): Renderer {
     }),
     drawMarker: jest.fn(),
     drawRect: jest.fn(),
+    drawStepArea: jest.fn(),
     flush: jest.fn(),
     resetTransform: jest.fn(),
     clear: jest.fn(),
