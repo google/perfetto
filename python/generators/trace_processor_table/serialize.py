@@ -590,6 +590,10 @@ class {self.table_name} {{
     return dataframe_.row_count();
   }}
 
+  uint64_t mutations() const {{
+    return dataframe_.mutations();
+  }}
+
   std::optional<ConstRowReference> FindById(Id id) const {{
     return ConstRowReference(this, id.value);
   }}
