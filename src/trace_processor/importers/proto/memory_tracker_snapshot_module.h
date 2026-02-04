@@ -40,7 +40,7 @@ class MemoryTrackerSnapshotModule : public ProtoImporterModule {
                             const TracePacketData&,
                             uint32_t field_id) override;
 
-  void NotifyEndOfFile() override;
+  void OnEventsFullyExtracted() override;
 
  private:
   MemoryTrackerSnapshotParser parser_;

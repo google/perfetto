@@ -266,8 +266,4 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status SystraceTraceParser::NotifyEndOfFile() {
-  return base::OkStatus();
-}
-
 }  // namespace perfetto::trace_processor

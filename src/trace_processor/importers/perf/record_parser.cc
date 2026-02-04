@@ -257,7 +257,7 @@ base::Status RecordParser::ParseComm(Record record) {
   auto utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
       utid, context_->storage->InternString(base::StringView(comm)),
-      ThreadNamePriority::kFtrace);
+      ThreadNamePriority::kPerfComm);
 
   return base::OkStatus();
 }
