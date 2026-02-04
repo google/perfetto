@@ -167,10 +167,9 @@ std::string SymbolizeDatabaseWithSymbolizer(trace_processor::TraceProcessor* tp,
 SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config) {
   SymbolizerResult result;
-  bool has_any_paths = !config.index_symbol_paths.empty() ||
-                       !config.symbol_files.empty() ||
-                       !config.find_symbol_paths.empty() ||
-                       !config.breakpad_paths.empty();
+  bool has_any_paths =
+      !config.index_symbol_paths.empty() || !config.symbol_files.empty() ||
+      !config.find_symbol_paths.empty() || !config.breakpad_paths.empty();
 
   if (!has_any_paths) {
     result.error = SymbolizerError::kSymbolizerNotAvailable;
