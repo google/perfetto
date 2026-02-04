@@ -31,6 +31,7 @@ namespace perfetto::trace_processor::util {
 // If auto-discovery is enabled, well-known locations are also searched.
 struct EnrichmentConfig {
   // Explicit paths to search for native symbols (highest priority).
+  // These paths are also searched for breakpad symbol files.
   std::vector<std::string> symbol_paths;
 
   // Explicit ProGuard/R8 mapping file specifications.

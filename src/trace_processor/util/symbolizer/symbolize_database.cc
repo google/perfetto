@@ -24,7 +24,6 @@
 #include <optional>
 #include <string>
 #include <tuple>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -36,6 +35,7 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/symbolizer/breakpad_symbolizer.h"
 #include "src/trace_processor/util/symbolizer/local_symbolizer.h"
 #include "src/trace_processor/util/symbolizer/symbolizer.h"
 
@@ -107,33 +107,24 @@ std::optional<std::string> GetOsRelease(trace_processor::TraceProcessor* tp) {
   return std::nullopt;
 }
 
-// Creates a symbolizer based on provided config.
-std::unique_ptr<Symbolizer> CreateSymbolizer(const SymbolizerConfig& config) {
-  std::unordered_set<std::string> dirs;
-  std::unordered_set<std::string> files;
-
-  // Always add paths from PERFETTO_BINARY_PATH environment variable.
-  std::vector<std::string> env_binary_paths = GetPerfettoBinaryPath();
-  if (!env_binary_paths.empty()) {
-    dirs.insert(env_binary_paths.begin(), env_binary_paths.end());
+// Creates a local symbolizer for "index" mode.
+std::unique_ptr<Symbolizer> CreateIndexSymbolizer(
+    const SymbolizerConfig& config) {
+  if (config.index_symbol_paths.empty() && config.symbol_files.empty()) {
+    return nullptr;
   }
-
-  // Add user-provided paths.
-  if (!config.symbol_paths.empty()) {
-    dirs.insert(config.symbol_paths.begin(), config.symbol_paths.end());
-  }
-
-  // Add user-provided files.
-  if (!config.symbol_files.empty()) {
-    files.insert(config.symbol_files.begin(), config.symbol_files.end());
-  }
-
-  return MaybeLocalSymbolizer(
-      std::vector<std::string>(dirs.begin(), dirs.end()),
-      std::vector<std::string>(files.begin(), files.end()), "index");
+  return MaybeLocalSymbolizer(config.index_symbol_paths, config.symbol_files,
+                              "index");
 }
 
-}  // namespace
+// Creates a local symbolizer for "find" mode.
+std::unique_ptr<Symbolizer> CreateFindSymbolizer(
+    const SymbolizerConfig& config) {
+  if (config.find_symbol_paths.empty()) {
+    return nullptr;
+  }
+  return MaybeLocalSymbolizer(config.find_symbol_paths, {}, "find");
+}
 
 std::string SymbolizeDatabaseWithSymbolizer(trace_processor::TraceProcessor* tp,
                                             Symbolizer* symbolizer) {
@@ -171,21 +162,37 @@ std::string SymbolizeDatabaseWithSymbolizer(trace_processor::TraceProcessor* tp,
   return symbols_proto;
 }
 
+}  // namespace
+
 SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config) {
   SymbolizerResult result;
+  bool has_any_paths =
+      !config.index_symbol_paths.empty() || !config.symbol_files.empty() ||
+      !config.find_symbol_paths.empty() || !config.breakpad_paths.empty();
 
-  // Create the symbolizer.
-  auto symbolizer = CreateSymbolizer(config);
-  if (!symbolizer) {
+  if (!has_any_paths) {
     result.error = SymbolizerError::kSymbolizerNotAvailable;
-    result.error_details =
-        "Could not create symbolizer (llvm-symbolizer not found?)";
+    result.error_details = "No symbol paths or breakpad paths provided";
     return result;
   }
 
-  // Run symbolization.
-  result.symbols = SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
+  // Run "index" mode symbolizer if paths are provided.
+  if (auto symbolizer = CreateIndexSymbolizer(config); symbolizer) {
+    result.symbols += SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
+  }
+
+  // Run "find" mode symbolizer if paths are provided.
+  if (auto symbolizer = CreateFindSymbolizer(config); symbolizer) {
+    result.symbols += SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
+  }
+
+  // Run breakpad symbolizers for each breakpad path.
+  for (const std::string& breakpad_path : config.breakpad_paths) {
+    BreakpadSymbolizer symbolizer(breakpad_path);
+    result.symbols += SymbolizeDatabaseWithSymbolizer(tp, &symbolizer);
+  }
+
   result.error = SymbolizerError::kOk;
   return result;
 }

@@ -70,9 +70,7 @@
 #include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/sql_modules.h"
-#include "src/trace_processor/util/symbolizer/local_symbolizer.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
-#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
@@ -1359,18 +1357,26 @@ base::Status LoadTrace(TraceProcessor* trace_processor,
     }
   }
 
-  std::unique_ptr<profiling::Symbolizer> symbolizer =
-      profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(), {},
-                                      getenv("PERFETTO_SYMBOLIZER_MODE"));
-  if (symbolizer) {
+  profiling::SymbolizerConfig sym_config;
+  const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
+  std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
+  if (mode && std::string_view(mode) == "find") {
+    sym_config.find_symbol_paths = std::move(paths);
+  } else {
+    sym_config.index_symbol_paths = std::move(paths);
+  }
+  if (!sym_config.index_symbol_paths.empty() ||
+      !sym_config.find_symbol_paths.empty()) {
     if (is_proto_trace) {
       trace_processor->Flush();
-      std::string symbols = profiling::SymbolizeDatabaseWithSymbolizer(
-          trace_processor, symbolizer.get());
-      if (!symbols.empty()) {
-        std::unique_ptr<uint8_t[]> buf(new uint8_t[symbols.size()]);
-        memcpy(buf.get(), symbols.data(), symbols.size());
-        auto status = trace_processor->Parse(std::move(buf), symbols.size());
+      auto sym_result =
+          profiling::SymbolizeDatabase(trace_processor, sym_config);
+      if (sym_result.error == profiling::SymbolizerError::kOk &&
+          !sym_result.symbols.empty()) {
+        std::unique_ptr<uint8_t[]> buf(new uint8_t[sym_result.symbols.size()]);
+        memcpy(buf.get(), sym_result.symbols.data(), sym_result.symbols.size());
+        auto status =
+            trace_processor->Parse(std::move(buf), sym_result.symbols.size());
         if (!status.ok()) {
           PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
                                   status.message().c_str());

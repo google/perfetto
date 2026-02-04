@@ -17,22 +17,20 @@
 #include "src/traceconv/trace_to_profile.h"
 
 #include <cerrno>
-#include <cinttypes>
+#include <cstdlib>
 #include <random>
 #include <string>
+#include <string_view>
 #include <vector>
-
-#include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/util/symbolizer/local_symbolizer.h"
-#include "src/trace_processor/util/symbolizer/symbolize_database.h"
-#include "src/traceconv/utils.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/profiling/pprof_builder.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
-#include "src/trace_processor/util/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolize_database.h"
+#include "src/traceconv/utils.h"
 
 namespace {
 constexpr const char* kDefaultTmp = "/tmp";
@@ -57,15 +55,21 @@ uint64_t ToConversionFlags(bool annotate_frames) {
 }
 
 void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
-  std::unique_ptr<profiling::Symbolizer> symbolizer =
-      profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(), {},
-                                      getenv("PERFETTO_SYMBOLIZER_MODE"));
-  if (!symbolizer)
+  profiling::SymbolizerConfig sym_config;
+  const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
+  std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
+  if (paths.empty()) {
     return;
-  std::string symbols =
-      profiling::SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get());
-  if (!symbols.empty()) {
-    IngestTraceOrDie(tp, symbols);
+  }
+  if (mode && std::string_view(mode) == "find") {
+    sym_config.find_symbol_paths = std::move(paths);
+  } else {
+    sym_config.index_symbol_paths = std::move(paths);
+  }
+  auto result = profiling::SymbolizeDatabase(tp, sym_config);
+  if (result.error == profiling::SymbolizerError::kOk &&
+      !result.symbols.empty()) {
+    IngestTraceOrDie(tp, result.symbols);
   }
   tp->Flush();
 }
