@@ -63,8 +63,8 @@ struct EnrichmentConfig {
 // Error codes for enrichment operations.
 enum class EnrichmentError {
   kOk,
-  kPartialSuccess,          // Some optional enrichment failed
-  kExplicitMapsFailed,      // Explicitly provided ProGuard maps couldn't be read
+  kPartialSuccess,      // Some optional enrichment failed
+  kExplicitMapsFailed,  // Explicitly provided ProGuard maps couldn't be read
   kSymbolizerNotAvailable,
   kDeobfuscationFailed,
   kAllFailed,
@@ -112,7 +112,8 @@ struct EnrichmentResult {
 //
 // Returns:
 //   EnrichmentResult containing error info and enriched data
-EnrichmentResult EnrichTrace(TraceProcessor* tp, const EnrichmentConfig& config);
+EnrichmentResult EnrichTrace(TraceProcessor* tp,
+                             const EnrichmentConfig& config);
 
 }  // namespace perfetto::trace_processor::util
 

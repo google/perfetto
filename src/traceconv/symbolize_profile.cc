@@ -60,8 +60,8 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
     PERFETTO_FATAL("%s", status.c_message());
   }
 
-  std::string symbols = profiling::SymbolizeDatabaseWithSymbolizer(
-      tp.get(), symbolizer.get());
+  std::string symbols =
+      profiling::SymbolizeDatabaseWithSymbolizer(tp.get(), symbolizer.get());
   *output << symbols;
 
   return 0;

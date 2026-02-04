@@ -59,7 +59,8 @@ int TraceToBundle(const std::string& input_file_path,
   }
 
   // Perform trace enrichment (symbolization + deobfuscation).
-  auto enrich_result = trace_processor::util::EnrichTrace(tp.get(), enrich_config);
+  auto enrich_result =
+      trace_processor::util::EnrichTrace(tp.get(), enrich_config);
 
   // Add symbols if available.
   if (!enrich_result.native_symbols.empty()) {
@@ -73,8 +74,8 @@ int TraceToBundle(const std::string& input_file_path,
 
   // Add deobfuscation data if available.
   if (!enrich_result.deobfuscation_data.empty()) {
-    auto add_status = tar.AddFile("deobfuscation.pb",
-                                  enrich_result.deobfuscation_data);
+    auto add_status =
+        tar.AddFile("deobfuscation.pb", enrich_result.deobfuscation_data);
     if (!add_status.ok()) {
       PERFETTO_ELOG("Failed to add deobfuscation data to TAR: %s",
                     add_status.c_message());
@@ -88,8 +89,10 @@ int TraceToBundle(const std::string& input_file_path,
   }
 
   // Explicit user-provided paths must succeed.
-  if (enrich_result.error == trace_processor::util::EnrichmentError::kExplicitMapsFailed ||
-      enrich_result.error == trace_processor::util::EnrichmentError::kAllFailed) {
+  if (enrich_result.error ==
+          trace_processor::util::EnrichmentError::kExplicitMapsFailed ||
+      enrich_result.error ==
+          trace_processor::util::EnrichmentError::kAllFailed) {
     return 1;
   }
 

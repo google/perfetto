@@ -86,7 +86,6 @@ source_set("lib") {
     "../protozero:proto_ring_buffer",
     "../trace_processor:lib",
     "../trace_processor:storage_minimal",
-    "../trace_processor/util/trace_enrichment",
     "../trace_processor/util:descriptors",
     "../trace_processor/util:gzip",
     "../trace_processor/util:protozero_to_text",
@@ -95,6 +94,7 @@ source_set("lib") {
     "../trace_processor/util/deobfuscation:deobfuscator",
     "../trace_processor/util/symbolizer",
     "../trace_processor/util/symbolizer:symbolize_database",
+    "../trace_processor/util/trace_enrichment",
   ]
   sources = [
     "deobfuscate_profile.cc",

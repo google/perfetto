@@ -39,7 +39,8 @@ void AddIfExists(std::vector<std::string>& result, const std::string& path) {
 
 // Discovers ProGuard/R8 mapping files in an Android Gradle project structure.
 // Scans app/build/outputs/mapping/{buildVariant}/mapping.txt for all variants.
-std::vector<std::string> DiscoverGradleMappings(const std::string& working_dir) {
+std::vector<std::string> DiscoverGradleMappings(
+    const std::string& working_dir) {
   std::vector<std::string> mappings;
 
   std::string mapping_base = working_dir + "/app/build/outputs/mapping";
@@ -137,12 +138,12 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
         symbolization_ok = true;
         break;
       case profiling::SymbolizerError::kSymbolizerNotAvailable:
-        result.details += "Symbolizer not available: " +
-                          sym_result.error_details + "\n";
+        result.details +=
+            "Symbolizer not available: " + sym_result.error_details + "\n";
         break;
       case profiling::SymbolizerError::kSymbolizationFailed:
-        result.details += "Symbolization failed: " +
-                          sym_result.error_details + "\n";
+        result.details +=
+            "Symbolization failed: " + sym_result.error_details + "\n";
         break;
     }
   }
@@ -159,9 +160,8 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     if (!explicit_maps.empty()) {
       std::string explicit_data;
       bool success = profiling::ReadProguardMapsToDeobfuscationPackets(
-          explicit_maps, [&explicit_data](std::string packet) {
-            explicit_data += packet;
-          });
+          explicit_maps,
+          [&explicit_data](std::string packet) { explicit_data += packet; });
 
       if (success) {
         result.deobfuscation_data = std::move(explicit_data);
@@ -187,7 +187,8 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
 
       // Discover Gradle ProGuard maps.
       if (!working_dir.empty()) {
-        std::vector<std::string> gradle_maps = DiscoverGradleMappings(working_dir);
+        std::vector<std::string> gradle_maps =
+            DiscoverGradleMappings(working_dir);
         for (const auto& path : gradle_maps) {
           auto_maps.push_back({"", path});
         }
@@ -196,9 +197,8 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
       if (!auto_maps.empty()) {
         std::string auto_data;
         bool success = profiling::ReadProguardMapsToDeobfuscationPackets(
-            auto_maps, [&auto_data](std::string packet) {
-              auto_data += packet;
-            });
+            auto_maps,
+            [&auto_data](std::string packet) { auto_data += packet; });
 
         if (success) {
           result.deobfuscation_data += auto_data;

@@ -89,9 +89,8 @@ std::vector<std::string> GetPerfettoBinaryPath();
 // Low-level symbolization with a pre-created symbolizer.
 // Use this when you need custom symbolizer configuration (e.g., Breakpad).
 // Returns serialized TracePacket protos containing symbol data.
-std::string SymbolizeDatabaseWithSymbolizer(
-    trace_processor::TraceProcessor* tp,
-    Symbolizer* symbolizer);
+std::string SymbolizeDatabaseWithSymbolizer(trace_processor::TraceProcessor* tp,
+                                            Symbolizer* symbolizer);
 
 }  // namespace perfetto::profiling
 
