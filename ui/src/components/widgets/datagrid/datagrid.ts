@@ -1707,7 +1707,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const aggregates = pivot.aggregates ?? [];
     const numGroupBy = pivot.groupBy.length;
     // In flat mode, don't use multi-level UI (no chevrons, no indent)
-    const isMultiLevel = numGroupBy > 1 && pivot.groupDisplay !== 'flat';
+    const isMultiLevel = numGroupBy > 1 && pivot.groupDisplay === 'tree';
 
     return rowIndices
       .map((index) => {
