@@ -15,9 +15,7 @@
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {
-  createQueryCounterTrack,
-} from '../../components/tracks/query_counter_track';
+import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {TimeSpan} from '../../base/time';
@@ -140,7 +138,10 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
     });
   }
 
-  private async createRootTrack(ctx: Trace, window: TimeSpan): Promise<TrackNode> {
+  private async createRootTrack(
+    ctx: Trace,
+    window: TimeSpan,
+  ): Promise<TrackNode> {
     const uri = `${RssAnonSwapMemory.id}.rss_anon_swap.${uuidv4()}`;
     const track = await createQueryCounterTrack({
       trace: ctx,
@@ -175,7 +176,12 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
       'mem.rss.anon',
       'RSS Anon',
     );
-    const swapNode = await this.createBreakdownTrack(ctx, window, 'mem.swap', 'Swap');
+    const swapNode = await this.createBreakdownTrack(
+      ctx,
+      window,
+      'mem.swap',
+      'Swap',
+    );
 
     rootNode.addChildLast(rssAnonNode);
     rootNode.addChildLast(swapNode);
@@ -303,18 +309,18 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
     _window: TimeSpan,
     upid: number,
     processName: string,
-    column: string,
+    trackName: string,
     bucket: string,
   ): Promise<TrackNode> {
     const name = `${processName} : ${upid}`;
-    const uri = `${RssAnonSwapMemory.id}.process.${upid}.${column}.${uuidv4()}`;
+    const uri = `${RssAnonSwapMemory.id}.process.${upid}.${trackName}.${uuidv4()}`;
     const renderer = await createQueryCounterTrack({
       trace: ctx,
       uri,
       materialize: false,
       data: {
         sqlSource: `
-          SELECT iss.ts as ts, iss.dur, IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0) as value FROM interval_self_intersect!((SELECT id, ts, dur FROM mem_with_buckets_indexed WHERE bucket = '${bucket}' AND track_name = '${column}' AND upid = ${upid} AND process_name = '${processName}')) iss JOIN mem_with_buckets_indexed m USING(id)
+          SELECT iss.ts as ts, iss.dur, IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0) as value FROM interval_self_intersect!((SELECT id, ts, dur FROM mem_with_buckets_indexed WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND upid = ${upid} AND process_name = '${processName}')) iss JOIN mem_with_buckets_indexed m USING(id)
         `,
       },
       columns: {
