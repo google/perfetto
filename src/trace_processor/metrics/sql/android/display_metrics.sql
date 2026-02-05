@@ -49,6 +49,17 @@ UNION ALL
 
 ;
 
+DROP VIEW IF EXISTS ddic_underrun_detail;
+CREATE PERFETTO VIEW ddic_underrun_detail AS
+SELECT *
+FROM (
+  SELECT track.name, COUNT(*) AS ddic_underrun_count
+  FROM slices
+  JOIN track ON track.id = slices.track_id
+  WHERE slices.name = "ddic_underrun"
+  GROUP BY track.name
+);
+
 DROP VIEW IF EXISTS non_repeated_panel_fps;
 CREATE PERFETTO VIEW non_repeated_panel_fps AS
 SELECT *
@@ -103,6 +114,22 @@ SELECT AndroidDisplayMetrics(
             'dpu_underrun_count', dpu_underrun_count
           ) AS metric
           FROM dpu_underrun_detail
+        )
+      )
+    )
+  ),
+  'panel_state', (
+    SELECT AndroidDisplayMetrics_PanelState(
+      'total_ddic_underrun_count', (SELECT COALESCE(SUM(ddic_underrun_count), 0)
+        FROM ddic_underrun_detail),
+      'ddic_underrun_detail', (
+        SELECT RepeatedField(metric)
+        FROM (
+          SELECT AndroidDisplayMetrics_DdicUnderrunDetail (
+            'name', name,
+            'ddic_underrun_count', ddic_underrun_count
+          ) AS metric
+          FROM ddic_underrun_detail
         )
       )
     )

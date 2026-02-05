@@ -61,7 +61,7 @@ message AndroidJankCujMetric {
     optional string layer_name = 11;
   }
 
-  // Next id: 10
+  // Next id: 11
   message Frame {
     // Index of the frame within the single user journey.
     optional int64 frame_number = 1;
@@ -79,6 +79,9 @@ message AndroidJankCujMetric {
 
     // Whether SF missed the frame deadline.
     optional bool sf_missed = 6;
+
+    // Jank severity weight score for janky frames.
+    optional double jank_score = 10;
 
     // Whether the SF callback missed before emitting jank metrics.
     // SF callback is used to get the jank classification.

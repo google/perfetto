@@ -624,6 +624,11 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
   }
 
+  oncreate(vnode: m.VnodeDOM<GraphAttrs>) {
+    // Focus the graph container so WSAD keyboard controls work immediately
+    (vnode.dom as HTMLElement).focus();
+  }
+
   onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
     // Only update labels if the reference changed (indicating external state update)
     if (vnode.attrs.labels !== old.attrs.labels) {
@@ -833,6 +838,43 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       '.pf-exp-node-graph',
       {
         tabindex: 0,
+        onkeydown: (e: KeyboardEvent) => {
+          // Skip if user is typing in an input or textarea
+          const target = e.target as HTMLElement;
+          if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+            return;
+          }
+
+          // Shift+W/S for zoom in/out (matches Timeline behavior)
+          // Use KeyboardEvent.code for physical key position (layout-independent)
+          const ZOOM_STEP = 0.1;
+          if (e.shiftKey && this.nodeGraphApi !== null) {
+            if (e.code === 'KeyW') {
+              this.nodeGraphApi.zoomBy(ZOOM_STEP);
+              e.preventDefault();
+              return;
+            }
+            if (e.code === 'KeyS') {
+              this.nodeGraphApi.zoomBy(-ZOOM_STEP);
+              e.preventDefault();
+              return;
+            }
+          }
+
+          // WASD keyboard panning (only without Shift modifier)
+          const PAN_STEP = 50;
+          const panMap: Record<string, [number, number]> = {
+            KeyW: [0, PAN_STEP],
+            KeyA: [PAN_STEP, 0],
+            KeyS: [0, -PAN_STEP],
+            KeyD: [-PAN_STEP, 0],
+          };
+          const pan = panMap[e.code];
+          if (pan !== undefined && this.nodeGraphApi !== null) {
+            this.nodeGraphApi.panBy(pan[0], pan[1]);
+            e.preventDefault();
+          }
+        },
       },
       [
         m(NodeGraph, {

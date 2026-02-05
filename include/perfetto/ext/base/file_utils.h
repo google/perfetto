@@ -131,6 +131,12 @@ std::string Dirname(const std::string& path);
 base::Status ListFilesRecursive(const std::string& dir_path,
                                 std::vector<std::string>& output);
 
+// Lists immediate subdirectories in |dir_path| (non-recursive). Directory names
+// are relative to |dir_path| and do not include the path separator. Returns
+// only directories, not files. Works on both Unix and Windows.
+base::Status ListDirectories(const std::string& dir_path,
+                             std::vector<std::string>& output);
+
 // Sets |path|'s owner group to |group_name| and permission mode bits to
 // |mode_bits|.
 base::Status SetFilePermissions(const std::string& path,

@@ -26,3 +26,7 @@ message PanelWriteGenericFtraceEvent {
   optional uint32 type = 5;
   optional int32 value = 6;
 }
+message GramCollisionFtraceEvent {
+  optional int32 panel_index = 1;
+  optional uint32 collision_cnt = 2;
+}

@@ -128,7 +128,7 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
   // parsed first so that we do not get issues with
   // SetPidZeroIsUpidZeroIdleProcess()
-  trace_context_ = input_context_->ForkContextForTrace(file_id_.value, 0);
+  trace_context_ = input_context_->ForkContextForTrace(file_id_, 0);
   if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
     trace_context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
   }
@@ -147,14 +147,20 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
   return reader_->Parse(std::move(blob));
 }
 
-base::Status ForwardingTraceParser::NotifyEndOfFile() {
+base::Status ForwardingTraceParser::OnPushDataToSorter() {
   if (reader_) {
-    RETURN_IF_ERROR(reader_->NotifyEndOfFile());
+    return reader_->OnPushDataToSorter();
+  }
+  return base::OkStatus();
+}
+
+void ForwardingTraceParser::OnEventsFullyExtracted() {
+  if (reader_) {
+    reader_->OnEventsFullyExtracted();
   }
   if (trace_type_ != kUnknownTraceType) {
     input_context_->trace_file_tracker->DoneParsing(file_id_, trace_size_);
   }
-  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor

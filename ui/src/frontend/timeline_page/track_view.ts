@@ -23,7 +23,6 @@
  */
 
 import m from 'mithril';
-import {canvasClip, canvasSave} from '../../base/canvas_utils';
 import {classNames} from '../../base/classnames';
 import {Bounds2D, Rect2D, Size2D, VerticalBounds} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
@@ -49,6 +48,7 @@ import {showModal} from '../../widgets/modal';
 import {Popup} from '../../widgets/popup';
 import {CanvasColors} from '../../public/canvas_colors';
 import {CodeSnippet} from '../../widgets/code_snippet';
+import {Renderer} from '../../base/renderer';
 
 export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
 export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
@@ -261,6 +261,7 @@ export class TrackView {
     );
   }
 
+  // Render the track - both WebGL rectangles and Canvas 2D content
   drawCanvas(
     ctx: CanvasRenderingContext2D,
     rect: Rect2D,
@@ -268,25 +269,35 @@ export class TrackView {
     perfStatsEnabled: boolean,
     trackPerfStats: WeakMap<TrackNode, PerfStats>,
     colors: CanvasColors,
+    renderer: Renderer,
   ) {
     // For each track we rendered in view(), render it to the canvas. We know the
     // vertical bounds, so we just need to combine it with the horizontal bounds
     // and we're golden.
-    const {node, renderer, verticalBounds} = this;
+    const {node, renderer: trackRenderer, verticalBounds} = this;
 
     if (node.isSummary && node.expanded) return;
-    if (renderer?.getError()) return;
+    if (trackRenderer?.getError()) return;
 
     const trackRect = new Rect2D({
       ...rect,
       ...verticalBounds,
     });
 
+    // Clip to the track area
+    using _clip = renderer.clip(
+      trackRect.left,
+      trackRect.top,
+      trackRect.width,
+      trackRect.height,
+    );
+
     // Track renderers expect to start rendering at (0, 0), so we need to
     // translate the canvas and create a new timescale.
-    using _ = canvasSave(ctx);
-    canvasClip(ctx, trackRect);
-    ctx.translate(trackRect.left, trackRect.top);
+    using _translate = renderer.pushTransform({
+      offsetX: trackRect.left,
+      offsetY: trackRect.top,
+    });
 
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
@@ -303,7 +314,7 @@ export class TrackView {
 
     const start = performance.now();
     node.uri &&
-      renderer?.render({
+      trackRenderer?.render({
         trackUri: node.uri,
         trackNode: node,
         visibleWindow,
@@ -312,7 +323,11 @@ export class TrackView {
         ctx,
         timescale,
         colors,
+        renderer: renderer,
       });
+
+    // Flush after each track
+    renderer.flush();
 
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);
 

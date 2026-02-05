@@ -181,7 +181,7 @@ export class SqlSourceNode implements QueryNode {
       connections: new Map(),
       min: 0,
       max: 'unbounded',
-      portNames: (portIndex: number) => `input_${portIndex}`,
+      portNames: (portIndex: number) => `$input_${portIndex}`,
     };
   }
 
@@ -315,6 +315,9 @@ export class SqlSourceNode implements QueryNode {
       m(SqlEditor, {
         sql: this.state.sql ?? '',
         onUpdate: (text: string) => {
+          if (this.state.sql === text) {
+            return;
+          }
           this.state.sql = text;
           // Clear columns when SQL changes to prevent stale column usage
           this.finalCols = [];

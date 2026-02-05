@@ -90,6 +90,7 @@ WITH
         FROM metadata
         WHERE
           name = 'android_guest_soc_model'
+        LIMIT 1
       ) IN (
         SELECT
           device

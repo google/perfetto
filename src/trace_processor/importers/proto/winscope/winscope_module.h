@@ -53,7 +53,7 @@ class WinscopeModule : public ProtoImporterModule {
                             const TracePacketData&,
                             uint32_t field_id) override;
 
-  void NotifyEndOfFile() override;
+  void OnEventsFullyExtracted() override;
 
  private:
   void ParseWinscopeExtensionsData(protozero::ConstBytes blob,

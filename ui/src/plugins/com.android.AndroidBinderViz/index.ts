@@ -18,19 +18,31 @@ import {
 } from '../../components/tracks/breakdown_tracks';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import {BinderSliceDetailsPanel} from './details_panel';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidBinderViz';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await this.createBinderTransactionTrack(ctx, 'server', 'client');
-    await this.createBinderTransactionTrack(ctx, 'client', 'server');
+    await this.createBinderTransactionTrack(
+      ctx,
+      'server',
+      'client',
+      'binder_txn_id',
+    );
+    await this.createBinderTransactionTrack(
+      ctx,
+      'client',
+      'server',
+      'binder_reply_id',
+    );
   }
 
   async createBinderTransactionTrack(
     ctx: Trace,
     perspective: string,
     oppositePerspective: string,
+    sliceIdColumn?: string,
   ) {
     const binderCounterBreakdowns = new BreakdownTracks({
       trace: ctx,
@@ -55,7 +67,9 @@ export default class implements PerfettoPlugin {
         tsCol: `${oppositePerspective}_ts`,
         durCol: `${oppositePerspective}_dur`,
       },
+      sliceIdColumn: sliceIdColumn,
       sortTracks: false,
+      detailsPanel: (trace: Trace) => new BinderSliceDetailsPanel(trace),
     });
 
     ctx.defaultWorkspace.addChildInOrder(

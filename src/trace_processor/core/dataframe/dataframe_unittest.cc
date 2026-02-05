@@ -32,18 +32,18 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/common/bit_vector.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe_test_utils.h"
-#include "src/trace_processor/core/dataframe/impl/query_plan.h"
+#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/core/interpreter/bytecode_instructions.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/interpreter/bytecode_to_string.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 inline std::string TrimSpacePerLine(const std::string& s) {
   std::string result;
@@ -65,8 +65,8 @@ inline std::string TrimSpacePerLine(const std::string& s) {
 }
 
 template <typename... Args>
-std::vector<impl::Column> MakeColumnVector(Args&&... args) {
-  std::vector<impl::Column> container;
+std::vector<Column> MakeColumnVector(Args&&... args) {
+  std::vector<Column> container;
   container.reserve(sizeof...(Args));
   ((container.emplace_back(std::forward<Args>(args))), ...);
   return container;
@@ -95,12 +95,12 @@ class DataframeBytecodeTest : public ::testing::Test {
   static std::string FormatBytecode(const Dataframe::QueryPlan& plan) {
     std::string result;
     for (const auto& bc : plan.GetImplForTesting().bytecode) {
-      result += impl::bytecode::ToString(bc) + "\n";
+      result += interpreter::ToString(bc) + "\n";
     }
     return result;
   }
 
-  void RunBytecodeTest(std::vector<impl::Column>& cols,
+  void RunBytecodeTest(std::vector<Column>& cols,
                        std::vector<FilterSpec>& filters,
                        const std::vector<DistinctSpec>& distinct_specs,
                        const std::vector<SortSpec>& sort_specs,
@@ -137,12 +137,11 @@ class DataframeBytecodeTest : public ::testing::Test {
   }
 
   std::unique_ptr<Dataframe> MakeDatafame(std::vector<std::string> col_names,
-                                          std::vector<impl::Column> cols) {
-    std::vector<std::shared_ptr<impl::Column>> col_fixed_vec;
+                                          std::vector<Column> cols) {
+    std::vector<std::shared_ptr<Column>> col_fixed_vec;
     col_fixed_vec.reserve(cols.size());
     for (auto& col : cols) {
-      col_fixed_vec.emplace_back(
-          std::make_shared<impl::Column>(std::move(col)));
+      col_fixed_vec.emplace_back(std::make_shared<Column>(std::move(col)));
     }
     return std::unique_ptr<Dataframe>(new Dataframe(false, std::move(col_names),
                                                     std::move(col_fixed_vec), 0,
@@ -154,11 +153,10 @@ class DataframeBytecodeTest : public ::testing::Test {
 
 // Simple test case with no filters
 TEST_F(DataframeBytecodeTest, NoFilters) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{},
+             NoDuplicates{}});
   std::vector<FilterSpec> filters;
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
@@ -169,31 +167,28 @@ TEST_F(DataframeBytecodeTest, NoFilters) {
 
 // Test case with a single filter
 TEST_F(DataframeBytecodeTest, SingleFilter) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{},
+             NoDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
+    SortedFilter<Id, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    Iota: [source_register=Register(0), update_register=Register(4)]
   )");
 }
 
 // Test case with multiple filters
 TEST_F(DataframeBytecodeTest, MultipleFilters) {
   // Direct initialization of column specs
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{},
+             NoDuplicates{}});
 
   // Direct initialization of filter specs
   std::vector<FilterSpec> filters = {
@@ -203,119 +198,113 @@ TEST_F(DataframeBytecodeTest, MultipleFilters) {
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(2), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [col=1, val_register=Register(2), update_register=Register(0), write_result_to=BoundModifier(0)]
+    SortedFilter<Id, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(3), op=NonNullOp(0)]
+    SortedFilter<Id, EqualRange>: [storage_register=Register(4), val_register=Register(3), update_register=Register(0), write_result_to=BoundModifier(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    Iota: [source_register=Register(0), update_register=Register(6)]
+  )");
+}
+
+TEST_F(DataframeBytecodeTest, NumericSortedEq) {
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    SortedFilter<Uint32, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
     Iota: [source_register=Register(0), update_register=Register(4)]
   )");
 }
 
-TEST_F(DataframeBytecodeTest, NumericSortedEq) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}});
-  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
-  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Uint32, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-  )");
-}
-
 TEST_F(DataframeBytecodeTest, InFilter) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, In{}, std::nullopt}};
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    In<Uint32>: [col=0, value_list_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    In<Uint32>: [storage_register=Register(4), value_list_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
 }
 
 TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Sorted{}, HasDuplicates{}});
+    std::vector<Column> cols = MakeColumnVector(Column{
+        Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Lt{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(2)]
-      SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
-      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      Iota: [source_register=Register(0), update_register=Register(3)]
+      SortedFilter<Uint32, LowerBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
+      AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+      Iota: [source_register=Register(0), update_register=Register(4)]
     )");
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Sorted{}, HasDuplicates{}});
+    std::vector<Column> cols = MakeColumnVector(Column{
+        Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Le{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(3)]
-      SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
-      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      Iota: [source_register=Register(0), update_register=Register(3)]
+      SortedFilter<Uint32, UpperBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(2)]
+      AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+      Iota: [source_register=Register(0), update_register=Register(4)]
     )");
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Sorted{}, HasDuplicates{}});
+    std::vector<Column> cols = MakeColumnVector(Column{
+        Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Gt{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
-      SortedFilter<Uint32, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      Iota: [source_register=Register(0), update_register=Register(3)]
+      SortedFilter<Uint32, UpperBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+      AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+      Iota: [source_register=Register(0), update_register=Register(4)]
     )");
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Sorted{}, HasDuplicates{}});
+    std::vector<Column> cols = MakeColumnVector(Column{
+        Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Ge{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
-      SortedFilter<Uint32, LowerBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-      AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      Iota: [source_register=Register(0), update_register=Register(3)]
+      SortedFilter<Uint32, LowerBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+      AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+      Iota: [source_register=Register(0), update_register=Register(4)]
     )");
   }
 }
 
 TEST_F(DataframeBytecodeTest, Numeric) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                                Unsorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Eq{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
       AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+      LinearFilterEq<Uint32>: [storage_register=Register(4), filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
     )");
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                                Unsorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters;
     filters = {{0, 0, Ge{}, std::nullopt}};
     RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -323,23 +312,22 @@ TEST_F(DataframeBytecodeTest, Numeric) {
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(5)]
       AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
       Iota: [source_register=Register(0), update_register=Register(3)]
-      NonStringFilter<Uint32, Ge>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+      NonStringFilter<Uint32, Ge>: [storage_register=Register(4), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
   }
 }
 
 TEST_F(DataframeBytecodeTest, SortingOfFilters) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Uint32{}, NullStorage::NonNull{}, Sorted{},
+             HasDuplicates{}},
+      Column{Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}},
+      Column{Storage::String{}, NullStorage::NonNull{}, Sorted{},
+             HasDuplicates{}},
+      Column{Storage::String{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}});
   std::vector<FilterSpec> filters = {
       {0, 0, Le{}, std::nullopt}, {1, 0, Eq{}, std::nullopt},
       {0, 0, Eq{}, std::nullopt}, {4, 0, Le{}, std::nullopt},
@@ -349,23 +337,23 @@ TEST_F(DataframeBytecodeTest, SortingOfFilters) {
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(2), op=NonNullOp(3)]
-    SortedFilter<Id, UpperBound>: [col=0, val_register=Register(2), update_register=Register(0), write_result_to=BoundModifier(2)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(2), write_register=Register(3), op=NonNullOp(0)]
-    SortedFilter<Uint32, EqualRange>: [col=1, val_register=Register(3), update_register=Register(0), write_result_to=BoundModifier(0)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(3), write_register=Register(4), op=NonNullOp(3)]
-    SortedFilter<Uint32, UpperBound>: [col=1, val_register=Register(4), update_register=Register(0), write_result_to=BoundModifier(2)]
-    CastFilterValue<String>: [fval_handle=FilterValue(4), write_register=Register(5), op=NonNullOp(0)]
-    SortedFilter<String, EqualRange>: [col=3, val_register=Register(5), update_register=Register(0), write_result_to=BoundModifier(0)]
-    CastFilterValue<String>: [fval_handle=FilterValue(5), write_register=Register(6), op=NonNullOp(3)]
-    SortedFilter<String, UpperBound>: [col=3, val_register=Register(6), update_register=Register(0), write_result_to=BoundModifier(2)]
-    CastFilterValue<String>: [fval_handle=FilterValue(6), write_register=Register(7), op=NonNullOp(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(8), dest_span_register=Register(9)]
-    Iota: [source_register=Register(0), update_register=Register(9)]
-    StringFilter<Le>: [col=4, val_register=Register(7), source_register=Register(9), update_register=Register(9)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(7), write_register=Register(10), op=NonNullOp(0)]
-    NonStringFilter<Uint32, Eq>: [col=2, val_register=Register(10), source_register=Register(9), update_register=Register(9)]
+    SortedFilter<Id, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<Id>: [fval_handle=FilterValue(1), write_register=Register(3), op=NonNullOp(3)]
+    SortedFilter<Id, UpperBound>: [storage_register=Register(2), val_register=Register(3), update_register=Register(0), write_result_to=BoundModifier(2)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(2), write_register=Register(4), op=NonNullOp(0)]
+    SortedFilter<Uint32, EqualRange>: [storage_register=Register(5), val_register=Register(4), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(3), write_register=Register(6), op=NonNullOp(3)]
+    SortedFilter<Uint32, UpperBound>: [storage_register=Register(5), val_register=Register(6), update_register=Register(0), write_result_to=BoundModifier(2)]
+    CastFilterValue<String>: [fval_handle=FilterValue(4), write_register=Register(7), op=NonNullOp(0)]
+    SortedFilter<String, EqualRange>: [storage_register=Register(8), val_register=Register(7), update_register=Register(0), write_result_to=BoundModifier(0)]
+    CastFilterValue<String>: [fval_handle=FilterValue(5), write_register=Register(9), op=NonNullOp(3)]
+    SortedFilter<String, UpperBound>: [storage_register=Register(8), val_register=Register(9), update_register=Register(0), write_result_to=BoundModifier(2)]
+    CastFilterValue<String>: [fval_handle=FilterValue(6), write_register=Register(10), op=NonNullOp(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(11), dest_span_register=Register(12)]
+    Iota: [source_register=Register(0), update_register=Register(12)]
+    StringFilter<Le>: [storage_register=Register(13), val_register=Register(10), source_register=Register(12), update_register=Register(12)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(7), write_register=Register(14), op=NonNullOp(0)]
+    NonStringFilter<Uint32, Eq>: [storage_register=Register(15), val_register=Register(14), source_register=Register(12), update_register=Register(12)]
   )");
 }
 
@@ -373,9 +361,8 @@ TEST_F(DataframeBytecodeTest, StringFilter) {
   if constexpr (!regex::IsRegexSupported()) {
     GTEST_SKIP() << "Regex is not supported";
   }
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::String{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {
       {0, 0, Regex{}, std::nullopt},
   };
@@ -384,14 +371,13 @@ TEST_F(DataframeBytecodeTest, StringFilter) {
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(7)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    StringFilter<Regex>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    StringFilter<Regex>: [storage_register=Register(4), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
 }
 
 TEST_F(DataframeBytecodeTest, StringFilterGlob) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::String{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {
       {0, 0, Glob{}, std::nullopt},
   };
@@ -400,29 +386,29 @@ TEST_F(DataframeBytecodeTest, StringFilterGlob) {
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(6)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    StringFilter<Glob>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    StringFilter<Glob>: [storage_register=Register(4), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )");
 }
 
 TEST_F(DataframeBytecodeTest, SparseNullFilters) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::SparseNull{},
+                                Unsorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
     RunBytecodeTest(cols, filters_isnull, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullFilter<IsNull>: [col=0, update_register=Register(2)]
+    NullFilter<IsNull>: [null_bv_register=Register(3), update_register=Register(2)]
   )",
                     /*cols_used=*/0);
   }
 
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::SparseNull{},
+                                Unsorted{}, HasDuplicates{}});
     std::vector<FilterSpec> filters_isnotnull = {
         {0, 0, IsNotNull{}, std::nullopt},
     };
@@ -430,7 +416,7 @@ TEST_F(DataframeBytecodeTest, SparseNullFilters) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(2)]
+    NullFilter<IsNotNull>: [null_bv_register=Register(3), update_register=Register(2)]
   )",
                     /*cols_used=*/0);
   }
@@ -438,9 +424,9 @@ TEST_F(DataframeBytecodeTest, SparseNullFilters) {
 
 TEST_F(DataframeBytecodeTest, DenseNullFilters) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::DenseNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::DenseNull{},
+                                Unsorted{}, HasDuplicates{}});
 
     // Test IsNull
     std::vector<FilterSpec> filters_isnull = {{0, 0, IsNull{}, std::nullopt}};
@@ -448,14 +434,14 @@ TEST_F(DataframeBytecodeTest, DenseNullFilters) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullFilter<IsNull>: [col=0, update_register=Register(2)]
+    NullFilter<IsNull>: [null_bv_register=Register(3), update_register=Register(2)]
   )",
                     /*cols_used=*/0);
   }
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::DenseNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::DenseNull{},
+                                Unsorted{}, HasDuplicates{}});
 
     // Test IsNotNull
     std::vector<FilterSpec> filters_isnotnull = {
@@ -464,7 +450,7 @@ TEST_F(DataframeBytecodeTest, DenseNullFilters) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(2)]
+    NullFilter<IsNotNull>: [null_bv_register=Register(3), update_register=Register(2)]
   )",
                     /*cols_used=*/0);
   }
@@ -472,9 +458,9 @@ TEST_F(DataframeBytecodeTest, DenseNullFilters) {
 
 TEST_F(DataframeBytecodeTest, NonNullFilters) {
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                                Unsorted{}, HasDuplicates{}});
 
     // Test IsNull: Should result in an empty result set as the column is
     // NonNull
@@ -486,9 +472,9 @@ TEST_F(DataframeBytecodeTest, NonNullFilters) {
   }
 
   {
-    std::vector<impl::Column> cols = MakeColumnVector(
-        impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                     Unsorted{}, HasDuplicates{}});
+    std::vector<Column> cols =
+        MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                                Unsorted{}, HasDuplicates{}});
 
     // Test IsNotNull: Should have no effect as the column is already NonNull
     std::vector<FilterSpec> filters_isnotnull = {
@@ -504,9 +490,9 @@ TEST_F(DataframeBytecodeTest, NonNullFilters) {
 TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
   // Test a standard filter (Eq) on a SparseNull column.
   // Expect bytecode to handle nulls first, then apply the filter.
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -514,11 +500,11 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    PrefixPopcount: [col=0, dest_register=Register(6)]
-    TranslateSparseNullIndices: [col=0, popcount_register=Register(6), source_register=Register(3), update_register=Register(5)]
-    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(5), update_register=Register(3)]
+    NullFilter<IsNotNull>: [null_bv_register=Register(4), update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    PrefixPopcount: [null_bv_register=Register(4), dest_register=Register(7)]
+    TranslateSparseNullIndices: [null_bv_register=Register(4), popcount_register=Register(7), source_register=Register(3), update_register=Register(6)]
+    NonStringFilter<Uint32, Eq>: [storage_register=Register(8), val_register=Register(1), source_register=Register(6), update_register=Register(3)]
   )",
                   /*cols_used=*/0);
 }
@@ -526,9 +512,9 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnSparseNull) {
 TEST_F(DataframeBytecodeTest, StandardFilterOnDenseNull) {
   // Test a standard filter (Eq) on a DenseNull column.
   // Expect bytecode to handle nulls first, then apply the filter directly.
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::DenseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::DenseNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
@@ -537,19 +523,19 @@ TEST_F(DataframeBytecodeTest, StandardFilterOnDenseNull) {
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(3)]
-    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    NullFilter<IsNotNull>: [null_bv_register=Register(4), update_register=Register(3)]
+    NonStringFilter<Uint32, Eq>: [storage_register=Register(5), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )",
                   /*cols_used=*/0);
 }
 
 TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
   // Test requesting a SparseNull column in the output
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Int64{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters;  // No filters
 
@@ -568,19 +554,19 @@ TEST_F(DataframeBytecodeTest, OutputSparseNullColumn) {
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
     StrideCopy: [source_register=Register(2), update_register=Register(4), stride=2]
-    PrefixPopcount: [col=1, dest_register=Register(5)]
-    StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(5), update_register=Register(4), offset=1, stride=2]
+    PrefixPopcount: [null_bv_register=Register(6), dest_register=Register(5)]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(6), popcount_register=Register(5), update_register=Register(4), offset=1, stride=2]
   )",
                   cols_used);
 }
 
 TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
   // Test requesting a DenseNull column in the output
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::DenseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Int64{}, NullStorage::DenseNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters;  // No filters
 
@@ -599,20 +585,20 @@ TEST_F(DataframeBytecodeTest, OutputDenseNullColumn) {
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
     StrideCopy: [source_register=Register(2), update_register=Register(4), stride=2]
-    StrideCopyDenseNullIndices: [col=1, update_register=Register(4), offset=1, stride=2]
+    StrideCopyDenseNullIndices: [null_bv_register=Register(5), update_register=Register(4), offset=1, stride=2]
   )",
                   cols_used);
 }
 
 TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
   // Test requesting both a SparseNull and a DenseNull column
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Double{}, impl::NullStorage::DenseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Int64{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Double{}, NullStorage::DenseNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;  // No filters
 
   // cols_used_bitmap: 0b110 means use columns at index 1 (sparse) and 2
@@ -632,33 +618,32 @@ TEST_F(DataframeBytecodeTest, OutputMultipleNullableColumns) {
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
     StrideCopy: [source_register=Register(2), update_register=Register(4), stride=3]
-    PrefixPopcount: [col=1, dest_register=Register(5)]
-    StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(5), update_register=Register(4), offset=1, stride=3]
-    StrideCopyDenseNullIndices: [col=2, update_register=Register(4), offset=2, stride=3]
+    PrefixPopcount: [null_bv_register=Register(6), dest_register=Register(5)]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(6), popcount_register=Register(5), update_register=Register(4), offset=1, stride=3]
+    StrideCopyDenseNullIndices: [null_bv_register=Register(7), update_register=Register(4), offset=2, stride=3]
   )",
                   cols_used);
 }
 
 TEST_F(DataframeBytecodeTest, Uint32SetIdSortedEqGeneration) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   SetIdSorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              SetIdSorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
 
   // Expect the specialized Uint32SetIdSortedEq bytecode for this combination
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    Uint32SetIdSortedEq: [col=0, val_register=Register(1), update_register=Register(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
+    Uint32SetIdSortedEq: [storage_register=Register(2), val_register=Register(1), update_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    Iota: [source_register=Register(0), update_register=Register(4)]
   )");
 }
 // Test sorting by a single Uint32 column, ascending.
 TEST_F(DataframeBytecodeTest, SortSingleUint32Asc) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -666,7 +651,7 @@ TEST_F(DataframeBytecodeTest, SortSingleUint32Asc) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=4, indices_register=Register(2)]
   )",
                   /*cols_used=*/1);
@@ -674,9 +659,8 @@ TEST_F(DataframeBytecodeTest, SortSingleUint32Asc) {
 
 // Test sorting by a single String column, descending.
 TEST_F(DataframeBytecodeTest, SortSingleStringDesc) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::String{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -684,22 +668,22 @@ TEST_F(DataframeBytecodeTest, SortSingleStringDesc) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     InitRankMap: [dest_register=Register(3)]
-    CollectIdIntoRankMap: [col=0, source_register=Register(2), rank_map_register=Register(3)]
+    CollectIdIntoRankMap: [storage_register=Register(4), source_register=Register(2), rank_map_register=Register(3)]
     FinalizeRanksInMap: [update_register=Register(3)]
-    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(4)]
-    CopyToRowLayout<String, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(4), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(3)]
-    SortRowLayout: [buffer_register=Register(4), total_row_stride=4, indices_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(5)]
+    CopyToRowLayout<String, NonNull>: [storage_register=Register(4), null_bv_register=Register(6), source_indices_register=Register(2), dest_buffer_register=Register(5), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(3)]
+    SortRowLayout: [buffer_register=Register(5), total_row_stride=4, indices_register=Register(2)]
   )",
                   /*cols_used=*/1);
 }
 
 // Test multi-column sorting (Stable Sort).
 TEST_F(DataframeBytecodeTest, SortMultiColumnStable) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Double{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Int64{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Double{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   // Sort specs: Primary Int64 DESC, Secondary Double ASC
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending},
@@ -709,8 +693,8 @@ TEST_F(DataframeBytecodeTest, SortMultiColumnStable) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Int64, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=16, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<Double, NonNull>: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=8, row_layout_stride=16, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Int64, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=16, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Double, NonNull>: [storage_register=Register(6), null_bv_register=Register(7), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=8, row_layout_stride=16, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=16, indices_register=Register(2)]
   )",
                   /*cols_used=*/3);
@@ -718,31 +702,30 @@ TEST_F(DataframeBytecodeTest, SortMultiColumnStable) {
 
 // Test sorting combined with filtering.
 TEST_F(DataframeBytecodeTest, SortWithFilter) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{}, NoDuplicates{}},
-      impl::Column{impl::Storage::Double{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Double{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Gt{}, std::nullopt}};
   std::vector<SortSpec> sorts = {{1, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
-    SortedFilter<Id, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(4)]
-    CopyToRowLayout<Double, NonNull>: [col=1, source_indices_register=Register(3), dest_buffer_register=Register(4), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    SortRowLayout: [buffer_register=Register(4), total_row_stride=8, indices_register=Register(3)]
+    SortedFilter<Id, UpperBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    Iota: [source_register=Register(0), update_register=Register(4)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(5)]
+    CopyToRowLayout<Double, NonNull>: [storage_register=Register(6), null_bv_register=Register(7), source_indices_register=Register(4), dest_buffer_register=Register(5), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(5), total_row_stride=8, indices_register=Register(4)]
   )",
                   /*cols_used=*/3);
 }
 
 // Test planning sort on a nullable column.
 TEST_F(DataframeBytecodeTest, SortNullableColumn) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Int32{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Int32{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -750,22 +733,22 @@ TEST_F(DataframeBytecodeTest, SortNullableColumn) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    PrefixPopcount: [col=0, dest_register=Register(4)]
-    CopyToRowLayout<Int32, SparseNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=1, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
+    CopyToRowLayout<Int32, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=1, popcount_register=Register(4), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=5, indices_register=Register(2)]
-    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
-    StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
+    AllocateIndices: [size=0, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    StrideCopy: [source_register=Register(2), update_register=Register(8), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(8), offset=1, stride=2]
   )",
                   /*cols_used=*/1);
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Int32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Int32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::String{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters;
   std::vector<DistinctSpec> distinct_specs = {{0}, {1}};
@@ -776,8 +759,8 @@ TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Int32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<String, NonNull>: [storage_register=Register(6), null_bv_register=Register(7), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     Distinct: [buffer_register=Register(3), total_row_stride=8, indices_register=Register(2)]
   )";
 
@@ -786,11 +769,11 @@ TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
 }
 
 TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int64{}, impl::NullStorage::SparseNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}},
+                       Column{Storage::Int64{}, NullStorage::SparseNull{},
+                              Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   LimitSpec spec;
@@ -801,20 +784,19 @@ TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+    LinearFilterEq<Uint32>: [storage_register=Register(4), filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
     LimitOffsetIndices: [offset_value=2, limit_value=10, update_register=Register(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    StrideCopy: [source_register=Register(3), update_register=Register(5), stride=2]
-    PrefixPopcount: [col=1, dest_register=Register(6)]
-    StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(6), update_register=Register(5), offset=1, stride=2]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    StrideCopy: [source_register=Register(3), update_register=Register(6), stride=2]
+    PrefixPopcount: [null_bv_register=Register(8), dest_register=Register(7)]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(8), popcount_register=Register(7), update_register=Register(6), offset=1, stride=2]
   )",
                   /*cols_used=*/2);
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationApplied) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<DistinctSpec> distinct_specs;
   std::vector<SortSpec> sort_specs = {{0, SortDirection::kAscending}};
@@ -825,7 +807,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationApplied) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    FindMinMaxIndex<Uint32, MinOp>: [col=0, update_register=Register(2)]
+    FindMinMaxIndex<Uint32, MinOp>: [storage_register=Register(3), update_register=Register(2)]
   )";
 
   RunBytecodeTest(cols, filters, distinct_specs, sort_specs, limit_spec,
@@ -833,9 +815,8 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationApplied) {
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimizationApplied_SingleAscNonNullSorted) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -847,11 +828,11 @@ TEST_F(DataframeBytecodeTest, SortOptimizationApplied_SingleAscNonNullSorted) {
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_MultipleSpecs) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}},
-      impl::Column{impl::Storage::Int32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols =
+      MakeColumnVector(Column{Storage::Uint32{}, NullStorage::NonNull{},
+                              Sorted{}, HasDuplicates{}},
+                       Column{Storage::Int32{}, NullStorage::NonNull{},
+                              Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending},
                                  {1, SortDirection::kAscending}};
@@ -860,17 +841,16 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_MultipleSpecs) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<Int32, NonNull>: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Int32, NonNull>: [storage_register=Register(6), null_bv_register=Register(7), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=8, indices_register=Register(2)]
   )",
                   /*cols_used=*/3);  // 0b11
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimization_Reverse) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Sorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Sorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -883,9 +863,8 @@ TEST_F(DataframeBytecodeTest, SortOptimization_Reverse) {
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_NullableColumn) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},
-                   Sorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::SparseNull{}, Sorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -893,20 +872,19 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_NullableColumn) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    PrefixPopcount: [col=0, dest_register=Register(4)]
-    CopyToRowLayout<Uint32, SparseNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
+    CopyToRowLayout<Uint32, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=5, indices_register=Register(2)]
-    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
-    StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
+    AllocateIndices: [size=0, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    StrideCopy: [source_register=Register(2), update_register=Register(8), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(8), offset=1, stride=2]
   )",
                   /*cols_used=*/1);
 }
 
 TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_UnsortedColumn) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
@@ -914,7 +892,7 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_UnsortedColumn) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=4, indices_register=Register(2)]
   )",
                   /*cols_used=*/1);
@@ -922,10 +900,10 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_UnsortedColumn) {
 
 TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
   auto bv = core::BitVector::CreateWithSize(0);
-  std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
-      impl::Storage::Uint32{},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Uint32{},
+             NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
+             Unsorted{}, HasDuplicates{}});
 
   std::vector<FilterSpec> filters;
   std::vector<DistinctSpec> distinct_specs;
@@ -938,13 +916,13 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    PrefixPopcount: [col=0, dest_register=Register(4)]
-    CopyToRowLayout<Uint32, SparseNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
+    CopyToRowLayout<Uint32, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=5, indices_register=Register(2)]
     LimitOffsetIndices: [offset_value=0, limit_value=1, update_register=Register(2)]
-    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
-    StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
+    AllocateIndices: [size=0, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    StrideCopy: [source_register=Register(2), update_register=Register(8), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(8), offset=1, stride=2]
   )";
   RunBytecodeTest(cols, filters, distinct_specs, sort_specs, limit_spec,
                   expected_bytecode, /*cols_used=*/1);
@@ -967,11 +945,10 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_NonNullInt) {
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   std::string expected_bytecode = R"(
     InitRange: [size=100, dest_register=Register(0)]
-    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
-    AllocateIndices: [size=100, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    AllocateIndices: [size=100, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode,
                   /*cols_used=*/1);
@@ -998,15 +975,14 @@ TEST_F(DataframeBytecodeTest,
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
-    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
-    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
-    PrefixPopcount: [col=0, dest_register=Register(3)]
-    IndexedFilterEq<String, SparseNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
-    AllocateIndices: [size=4, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
-    AllocateIndices: [size=8, dest_slab_register=Register(6), dest_span_register=Register(7)]
-    StrideCopy: [source_register=Register(5), update_register=Register(7), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(3), update_register=Register(7), offset=1, stride=2]
+    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
+    IndexedFilterEq<String, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    AllocateIndices: [size=4, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
+    AllocateIndices: [size=8, dest_slab_register=Register(9), dest_span_register=Register(10)]
+    StrideCopy: [source_register=Register(8), update_register=Register(10), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(10), offset=1, stride=2]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
@@ -1028,14 +1004,13 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_DenseNullInt) {
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
-    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, DenseNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
-    AllocateIndices: [size=4, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
-    AllocateIndices: [size=8, dest_slab_register=Register(6), dest_span_register=Register(7)]
-    StrideCopy: [source_register=Register(5), update_register=Register(7), stride=2]
-    StrideCopyDenseNullIndices: [col=0, update_register=Register(7), offset=1, stride=2]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, DenseNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    AllocateIndices: [size=4, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
+    AllocateIndices: [size=8, dest_slab_register=Register(9), dest_span_register=Register(10)]
+    StrideCopy: [source_register=Register(8), update_register=Register(10), stride=2]
+    StrideCopyDenseNullIndices: [null_bv_register=Register(6), update_register=Register(10), offset=1, stride=2]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
@@ -1064,21 +1039,19 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
   };
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
-    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(4), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [col=1, filter_value_reg=Register(4), popcount_register=Register(5), update_register=Register(1)]
-    AllocateIndices: [size=4, dest_slab_register=Register(6), dest_span_register=Register(7)]
-    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(7)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(7), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(9), null_bv_register=Register(10), filter_value_reg=Register(7), popcount_register=Register(8), source_register=Register(2), dest_register=Register(2)]
+    AllocateIndices: [size=4, dest_slab_register=Register(11), dest_span_register=Register(12)]
+    CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(12)]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullUint32) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   // Expect LinearFilterEq because:
   // 1. Input is a Range (initially).
@@ -1088,33 +1061,31 @@ TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullUint32) {
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+    LinearFilterEq<Uint32>: [storage_register=Register(4), filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
   )",
                   /*cols_used=*/1);
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullString) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::String{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    LinearFilterEq<String>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+    LinearFilterEq<String>: [storage_register=Register(4), filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
   )",
                   /*cols_used=*/1);
 }
 
 TEST_F(DataframeBytecodeTest,
        PlanQuery_NoLinearFilterEq_IfInputNotRangeAfterSortedFilter) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
-                   IdSorted{},
-                   NoDuplicates{}},  // col0, sorted, used to make input a Span
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}}  // col1, target for filter
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{},
+             NoDuplicates{}},  // col0, sorted, used to make input a Span
+      Column{Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}}  // col1, target for filter
   );
   std::vector<FilterSpec> filters = {
       {0, 0, Gt{}, std::nullopt},  // This filter makes indices_reg_ a Span
@@ -1126,18 +1097,17 @@ TEST_F(DataframeBytecodeTest,
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
-    SortedFilter<Id, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(2), op=NonNullOp(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
-    LinearFilterEq<Uint32>: [col=1, filter_value_reg=Register(2), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(4)]
+    SortedFilter<Id, UpperBound>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(3), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    LinearFilterEq<Uint32>: [storage_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(5)]
   )",
                   /*cols_used=*/3);  // 0b11
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNotEqOperator) {
-  std::vector<impl::Column> cols = MakeColumnVector(
-      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
-                   Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(Column{
+      Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Gt{}, std::nullopt}};  // Not Eq
   // Should use NonStringFilter because op is Gt, not Eq.
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -1145,15 +1115,15 @@ TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNotEqOperator) {
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    NonStringFilter<Uint32, Gt>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    NonStringFilter<Uint32, Gt>: [storage_register=Register(4), val_register=Register(1), source_register=Register(3), update_register=Register(3)]
   )",
                   /*cols_used=*/1);
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNullableColumn) {
-  std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
-      impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},  // Nullable
-      Unsorted{}, HasDuplicates{}});
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Uint32{}, NullStorage::SparseNull{},  // Nullable
+             Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   // Should use NonStringFilter because column is nullable.
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
@@ -1161,14 +1131,14 @@ TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNullableColumn) {
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    NullFilter<IsNotNull>: [col=0, update_register=Register(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
-    PrefixPopcount: [col=0, dest_register=Register(6)]
-    TranslateSparseNullIndices: [col=0, popcount_register=Register(6), source_register=Register(3), update_register=Register(5)]
-    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(5), update_register=Register(3)]
-    AllocateIndices: [size=0, dest_slab_register=Register(7), dest_span_register=Register(8)]
-    StrideCopy: [source_register=Register(3), update_register=Register(8), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(6), update_register=Register(8), offset=1, stride=2]
+    NullFilter<IsNotNull>: [null_bv_register=Register(4), update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    PrefixPopcount: [null_bv_register=Register(4), dest_register=Register(7)]
+    TranslateSparseNullIndices: [null_bv_register=Register(4), popcount_register=Register(7), source_register=Register(3), update_register=Register(6)]
+    NonStringFilter<Uint32, Eq>: [storage_register=Register(8), val_register=Register(1), source_register=Register(6), update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(9), dest_span_register=Register(10)]
+    StrideCopy: [source_register=Register(3), update_register=Register(10), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(4), popcount_register=Register(7), update_register=Register(10), offset=1, stride=2]
   )",
                   /*cols_used=*/1);
 }
@@ -1689,4 +1659,87 @@ TEST(DataframeTest, SortedFilterWithDuplicatesAndRowCountOfZero) {
   EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 0u);
 }
 
-}  // namespace perfetto::trace_processor::dataframe
+TEST(DataframeTest, HorizontalConcat) {
+  StringPool pool;
+
+  AdhocDataframeBuilder left_builder({"col_a"}, &pool);
+  left_builder.PushNonNull(0, int64_t{1});
+  left_builder.PushNonNull(0, int64_t{2});
+  auto left_or = std::move(left_builder).Build();
+  ASSERT_OK(left_or.status());
+  Dataframe left = std::move(left_or.value());
+
+  AdhocDataframeBuilder right_builder({"col_b"}, &pool);
+  right_builder.PushNonNull(0, int64_t{10});
+  right_builder.PushNonNull(0, int64_t{20});
+  auto right_or = std::move(right_builder).Build();
+  ASSERT_OK(right_or.status());
+  Dataframe right = std::move(right_or.value());
+
+  auto result_or =
+      Dataframe::HorizontalConcat(std::move(left), std::move(right));
+  ASSERT_OK(result_or.status());
+  Dataframe result = std::move(result_or.value());
+
+  EXPECT_EQ(result.row_count(), 2u);
+  EXPECT_THAT(result.column_names(),
+              testing::ElementsAre("col_a", "col_b", "_auto_id"));
+}
+
+TEST(DataframeTest, HorizontalConcat_RowCountMismatch) {
+  StringPool pool;
+
+  AdhocDataframeBuilder left_builder({"col_a"}, &pool);
+  left_builder.PushNonNull(0, int64_t{1});
+  left_builder.PushNonNull(0, int64_t{2});
+  auto left_or = std::move(left_builder).Build();
+  ASSERT_OK(left_or.status());
+
+  AdhocDataframeBuilder right_builder({"col_b"}, &pool);
+  right_builder.PushNonNull(0, int64_t{10});
+  auto right_or = std::move(right_builder).Build();
+  ASSERT_OK(right_or.status());
+
+  auto result = Dataframe::HorizontalConcat(std::move(left_or.value()),
+                                            std::move(right_or.value()));
+  EXPECT_FALSE(result.ok());
+}
+
+TEST(DataframeTest, HorizontalConcat_DuplicateColumnName) {
+  StringPool pool;
+
+  AdhocDataframeBuilder left_builder({"col_a"}, &pool);
+  left_builder.PushNonNull(0, int64_t{1});
+  auto left_or = std::move(left_builder).Build();
+  ASSERT_OK(left_or.status());
+
+  AdhocDataframeBuilder right_builder({"col_a"}, &pool);
+  right_builder.PushNonNull(0, int64_t{10});
+  auto right_or = std::move(right_builder).Build();
+  ASSERT_OK(right_or.status());
+
+  auto result = Dataframe::HorizontalConcat(std::move(left_or.value()),
+                                            std::move(right_or.value()));
+  EXPECT_FALSE(result.ok());
+}
+
+TEST(DataframeTest, SelectRows) {
+  StringPool pool;
+
+  AdhocDataframeBuilder builder({"col_a"}, &pool);
+  builder.PushNonNull(0, int64_t{10});
+  builder.PushNonNull(0, int64_t{20});
+  builder.PushNonNull(0, int64_t{30});
+  builder.PushNonNull(0, int64_t{40});
+  auto df_or = std::move(builder).Build();
+  ASSERT_OK(df_or.status());
+
+  std::vector<uint32_t> indices = {1, 3};
+  Dataframe result =
+      std::move(df_or.value())
+          .SelectRows(indices.data(), static_cast<uint32_t>(indices.size()));
+
+  EXPECT_EQ(result.row_count(), 2u);
+}
+
+}  // namespace perfetto::trace_processor::core::dataframe

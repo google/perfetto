@@ -25,9 +25,14 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/range.h"
+#include "src/trace_processor/core/util/slab.h"
+#include "src/trace_processor/core/util/span.h"
 
-namespace perfetto::trace_processor::interpreter::reg {
+namespace perfetto::trace_processor::core::interpreter {
 
 // Register system for the bytecode interpreter.
 // Provides typed handles for accessing virtual registers with appropriate
@@ -92,16 +97,25 @@ struct Empty {};
 using StringIdToRankMap =
     std::unique_ptr<base::FlatHashMap<StringPool::Id, uint32_t>>;
 
-// Values that can be stored in a register.
-using Value = std::variant<Empty,
-                           Range,
-                           Slab<uint32_t>,
-                           Span<uint32_t>,
-                           CastFilterValueResult,
-                           CastFilterValueListResult,
-                           Slab<uint8_t>,
-                           StringIdToRankMap>;
+// Pointer to storage data along with its type.
+struct StoragePtr {
+  const void* ptr;
+  StorageType type;
+};
 
-}  // namespace perfetto::trace_processor::interpreter::reg
+// Values that can be stored in a register.
+using RegValue = std::variant<Empty,
+                              Range,
+                              Slab<uint32_t>,
+                              Span<uint32_t>,
+                              CastFilterValueResult,
+                              CastFilterValueListResult,
+                              Slab<uint8_t>,
+                              StringIdToRankMap,
+                              StoragePtr,
+                              const BitVector*,
+                              Span<const uint32_t>>;
+
+}  // namespace perfetto::trace_processor::core::interpreter
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_REGISTERS_H_

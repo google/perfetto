@@ -20,13 +20,20 @@
 #include <string>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/json_utils.h"
+
+namespace perfetto::trace_processor {
+class DummyMemoryMapping;
+}
 
 namespace perfetto::trace_processor::gecko_importer {
+
+// Forward declaration for internal struct.
+struct GeckoThread;
 
 class GeckoTraceTokenizer : public ChunkedTraceReader {
  public:
@@ -34,19 +41,23 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
   ~GeckoTraceTokenizer() override;
 
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
+  void OnEventsFullyExtracted() override {}
 
  private:
-  // Parses the legacy Gecko format with "stringTable" and schema+data tables.
-  void ParseLegacyFormat(const Json::Value& value);
+  // Processes a parsed thread in legacy format.
+  void ProcessLegacyThread(const GeckoThread& t);
 
-  // Parses the preprocessed Gecko format with "stringArray" and separate column
-  // arrays (used by Firefox Profiler's preprocessed output).
-  void ParsePreprocessedFormat(const Json::Value& value);
+  // Processes a parsed thread in preprocessed format.
+  void ProcessPreprocessedThread(const GeckoThread& t);
 
   TraceProcessorContext* const context_;
   std::unique_ptr<TraceSorter::Stream<GeckoEvent>> stream_;
   std::string pending_json_;
+
+  // Shared across all threads to avoid creating duplicate mappings.
+  DummyMemoryMapping* dummy_mapping_ = nullptr;
+  base::FlatHashMap<std::string, DummyMemoryMapping*> mappings_;
 };
 
 }  // namespace perfetto::trace_processor::gecko_importer

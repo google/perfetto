@@ -32,6 +32,7 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_builder.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -61,7 +62,11 @@ base::Status ParseDebugAnnotation(
 class DebugAnnotationParserTest : public ::testing::Test,
                                   public ProtoToArgsParser::Delegate {
  protected:
-  DebugAnnotationParserTest() { context_.storage.reset(new TraceStorage()); }
+  DebugAnnotationParserTest() {
+    context_.storage.reset(new TraceStorage());
+    context_.machine_tracker.reset(
+        new MachineTracker(&context_, kDefaultMachineId));
+  }
 
   const std::vector<std::string>& args() const { return args_; }
 

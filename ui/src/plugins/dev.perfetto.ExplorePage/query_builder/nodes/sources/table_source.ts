@@ -47,7 +47,6 @@ export interface TableSourceSerializedState {
 
 export interface TableSourceState extends QueryNodeState {
   readonly trace: Trace;
-  readonly sqlModules: SqlModules;
 
   sqlTable?: SqlTable;
   onchange?: () => void;
@@ -178,7 +177,6 @@ export class TableSourceNode implements QueryNode {
   clone(): QueryNode {
     const stateCopy: TableSourceState = {
       trace: this.state.trace,
-      sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
       onchange: this.state.onchange,
     };
@@ -269,7 +267,6 @@ export class TableSourceNode implements QueryNode {
     return {
       ...state,
       trace,
-      sqlModules,
       sqlTable,
     };
   }

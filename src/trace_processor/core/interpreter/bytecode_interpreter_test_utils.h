@@ -17,19 +17,37 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_TEST_UTILS_H_
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_TEST_UTILS_H_
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <initializer_list>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
+#include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/duplicate_types.h"
+#include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/core/common/sort_types.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
+#include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_core.h"
+#include "src/trace_processor/core/interpreter/bytecode_instruction_macros.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
-#include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/core/dataframe/value_fetcher.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/span.h"
 
-namespace perfetto::trace_processor::interpreter {
+namespace perfetto::trace_processor::core::interpreter {
 
 using FilterValue = std::variant<int64_t, double, const char*, std::nullptr_t>;
 
@@ -178,12 +196,14 @@ inline Bytecode ParseBytecode(const std::string& bytecode_str) {
       PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_AS_STRING)};
 
 #define PERFETTO_DATAFRAME_BYTECODE_OFFSETS(...) __VA_ARGS__::kOffsets,
-  static constexpr std::array<std::array<uint32_t, 9>, kNumBytecodeCount>
+  static constexpr std::array<std::array<uint32_t, kMaxBytecodeArgs + 1>,
+                              kNumBytecodeCount>
       offsets{PERFETTO_DATAFRAME_BYTECODE_LIST(
           PERFETTO_DATAFRAME_BYTECODE_OFFSETS)};
 
 #define PERFETTO_DATAFRAME_BYTECODE_NAMES(...) __VA_ARGS__::kNames,
-  static constexpr std::array<std::array<const char*, 8>, kNumBytecodeCount>
+  static constexpr std::array<std::array<const char*, kMaxBytecodeArgs>,
+                              kNumBytecodeCount>
       names{
           PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_NAMES)};
 
@@ -245,31 +265,32 @@ inline Bytecode ParseBytecode(const std::string& bytecode_str) {
 }
 
 template <typename T, typename U>
-inline Column CreateNonNullColumn(std::initializer_list<U> data,
-                                  SortState sort_state,
-                                  DuplicateState duplicate_state) {
+inline dataframe::Column CreateNonNullColumn(std::initializer_list<U> data,
+                                             SortState sort_state,
+                                             DuplicateState duplicate_state) {
   core::FlexVector<T> vec;
   for (const U& val : data) {
     vec.push_back(val);
   }
-  return Column{Storage{std::move(vec)},
-                      NullStorage::NonNull{}, sort_state,
-                      duplicate_state};
+  return dataframe::Column{dataframe::Storage{std::move(vec)},
+                           dataframe::NullStorage::NonNull{}, sort_state,
+                           duplicate_state};
 }
 
 template <typename U>
-inline Column CreateNonNullStringColumn(std::initializer_list<U> data,
-                                        SortState sort_state,
-                                        DuplicateState duplicate_state,
-                                        StringPool* pool) {
+inline dataframe::Column CreateNonNullStringColumn(
+    std::initializer_list<U> data,
+    SortState sort_state,
+    DuplicateState duplicate_state,
+    StringPool* pool) {
   PERFETTO_CHECK(pool);
   core::FlexVector<StringPool::Id> vec;
   for (const auto& str_like : data) {
     vec.push_back(pool->InternString(str_like));
   }
-  return Column{Storage{std::move(vec)},
-                      NullStorage::NonNull{}, sort_state,
-                      duplicate_state};
+  return dataframe::Column{dataframe::Storage{std::move(vec)},
+                           dataframe::NullStorage::NonNull{}, sort_state,
+                           duplicate_state};
 }
 
 template <typename T>
@@ -283,7 +304,7 @@ inline FlexVector<T> CreateFlexVectorForTesting(
 }
 
 template <typename T>
-inline Column CreateSparseNullableColumn(
+inline dataframe::Column CreateSparseNullableColumn(
     const std::vector<std::optional<T>>& data_with_nulls,
     SortState sort_state,
     DuplicateState duplicate_state) {
@@ -296,13 +317,13 @@ inline Column CreateSparseNullableColumn(
       bv.set(i);
     }
   }
-  return Column{
-      Storage{std::move(data_vec)},
-      NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
-      sort_state, duplicate_state};
+  return dataframe::Column{
+      dataframe::Storage{std::move(data_vec)},
+      dataframe::NullStorage::SparseNull{std::move(bv), {}}, sort_state,
+      duplicate_state};
 }
 
-inline Column CreateSparseNullableStringColumn(
+inline dataframe::Column CreateSparseNullableStringColumn(
     const std::vector<std::optional<const char*>>& data_with_nulls,
     StringPool* pool,
     SortState sort_state,
@@ -316,13 +337,14 @@ inline Column CreateSparseNullableStringColumn(
       bv.set(i);
     }
   }
-  return Column{Storage{std::move(data_vec)},
-                NullStorage{NullStorage::SparseNull{std::move(bv), {}}},
-                sort_state, duplicate_state};
+  return dataframe::Column{
+      dataframe::Storage{std::move(data_vec)},
+      dataframe::NullStorage::SparseNull{std::move(bv), {}}, sort_state,
+      duplicate_state};
 }
 
 template <typename T>
-inline Column CreateDenseNullableColumn(
+inline dataframe::Column CreateDenseNullableColumn(
     const std::vector<std::optional<T>>& data_with_nulls,
     SortState sort_state,
     DuplicateState duplicate_state) {
@@ -338,12 +360,12 @@ inline Column CreateDenseNullableColumn(
       data_vec[i] = T{};  // Default construct T for null storage slot
     }
   }
-  return Column{Storage{std::move(data_vec)},
-                NullStorage{NullStorage::DenseNull{std::move(bv)}}, sort_state,
-                duplicate_state};
+  return dataframe::Column{dataframe::Storage{std::move(data_vec)},
+                           dataframe::NullStorage::DenseNull{std::move(bv)},
+                           sort_state, duplicate_state};
 }
 
-inline Column CreateDenseNullableStringColumn(
+inline dataframe::Column CreateDenseNullableStringColumn(
     const std::vector<std::optional<const char*>>& data_with_nulls,
     StringPool* pool,
     SortState sort_state,
@@ -360,9 +382,9 @@ inline Column CreateDenseNullableStringColumn(
       data_vec[i] = StringPool::Id::Null();
     }
   }
-  return Column{Storage{std::move(data_vec)},
-                NullStorage{NullStorage::DenseNull{std::move(bv)}}, sort_state,
-                duplicate_state};
+  return dataframe::Column{dataframe::Storage{std::move(data_vec)},
+                           dataframe::NullStorage::DenseNull{std::move(bv)},
+                           sort_state, duplicate_state};
 }
 
 PERFETTO_NO_INLINE BytecodeVector inline ParseBytecodeToVec(
@@ -378,6 +400,6 @@ PERFETTO_NO_INLINE BytecodeVector inline ParseBytecodeToVec(
   return bytecode_vector;
 }
 
-}  // namespace perfetto::trace_processor::interpreter
+}  // namespace perfetto::trace_processor::core::interpreter
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_TEST_UTILS_H_

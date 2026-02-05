@@ -24,8 +24,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "src/profiling/symbolizer/llvm_symbolizer.h"
-#include "src/profiling/symbolizer/llvm_symbolizer_c_api.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
@@ -35,6 +33,8 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/symbolizer/llvm_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/llvm_symbolizer_c_api.h"
 
 namespace perfetto::trace_processor::perfetto_sql {
 namespace {
@@ -73,8 +73,10 @@ struct Symbolize : public sqlite::Function<Symbolize> {
     std::vector<CT> col_types{
         CT::kString, CT::kString, CT::kInt64, CT::kInt64, CT::kInt64,
     };
-    dataframe::AdhocDataframeBuilder builder(col_names, user_data->pool,
-                                             col_types);
+    dataframe::AdhocDataframeBuilder builder(
+        col_names, user_data->pool,
+        dataframe::AdhocDataframeBuilder::Options{
+            col_types, dataframe::NullabilityType::kSparseNullWithPopcount});
 
     profiling::LlvmSymbolizer* symbolizer = &user_data->symbolizer;
 

@@ -53,13 +53,20 @@ class StructuredQueryGenerator {
   // `referenced_modules` have been included and all shared queries indicated
   // by `referenced_shared_queries` are available, either by tables or views or
   // as a common table expression (CTE).
-  base::StatusOr<std::string> Generate(const uint8_t* data, size_t size);
+  //
+  // If `inline_shared_queries` is true, shared queries will be inlined as CTEs
+  // in the generated SQL instead of being added to `referenced_queries()`.
+  // This makes the generated SQL self-contained.
+  base::StatusOr<std::string> Generate(const uint8_t* data,
+                                       size_t size,
+                                       bool inline_shared_queries = false);
 
   // Generates an SQL query for a query with the given id. The query should have
   // been added with `AddQuery`
   //
   // See `Generate` above for expectations of this function
-  base::StatusOr<std::string> GenerateById(const std::string& id);
+  base::StatusOr<std::string> GenerateById(const std::string& id,
+                                           bool inline_shared_queries = false);
 
   // Adds a query to the internal state to reference in all future calls to
   // `Generate*`. Returns the query's ID on success.

@@ -28,13 +28,14 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/common/bit_vector.h"
-#include "src/trace_processor/core/common/sort.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/slab.h"
+#include "src/trace_processor/core/util/sort.h"
+#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/regex.h"
 
-namespace perfetto::trace_processor::interpreter::ops {
+namespace perfetto::trace_processor::core::interpreter::ops {
 
 namespace {
 
@@ -202,7 +203,7 @@ uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
   if (size_t(end - begin) < string_pool->size() ||
       string_pool->HasLargeString()) {
     return ops::Filter(data, begin, end, output, matcher,
-                  GlobComparator{string_pool});
+                       GlobComparator{string_pool});
   }
 
   // Pre-compute matches for all strings in the pool.
@@ -229,7 +230,7 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
     return output;
   }
   return ops::Filter(data, begin, end, output, regex.value(),
-                RegexComparator{string_pool});
+                     RegexComparator{string_pool});
 }
 
-}  // namespace perfetto::trace_processor::interpreter::ops
+}  // namespace perfetto::trace_processor::core::interpreter::ops

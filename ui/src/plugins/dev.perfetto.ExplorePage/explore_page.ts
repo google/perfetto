@@ -56,6 +56,8 @@ import {
   showStateOverwriteWarning,
   showExportWarning,
 } from './query_builder/widgets';
+import {recentGraphsStorage} from './recent_graphs';
+import {showDataExplorerHelp} from './data_explorer_help_modal';
 
 registerCoreNodes();
 
@@ -112,6 +114,22 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   private historyManager?: HistoryManager;
   private initializedNodes = new Set<string>();
   private executeFn?: () => Promise<void>;
+
+  /**
+   * Shows confirmation dialog if there are unsaved changes, and finalizes
+   * the current graph before loading a new one. Returns true if the user
+   * confirmed (or there was nothing to confirm), false if cancelled.
+   */
+  private async confirmAndFinalizeCurrentGraph(
+    state: ExplorePageState,
+  ): Promise<boolean> {
+    if (state.rootNodes.length > 0 || state.labels.length > 0) {
+      const confirmed = await showStateOverwriteWarning();
+      if (!confirmed) return false;
+      recentGraphsStorage.finalizeCurrentGraph();
+    }
+    return true;
+  }
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -1576,11 +1594,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       if (files && files.length > 0) {
         const file = files[0];
 
-        // Show warning modal after file is selected (only if canvas has nodes or labels)
-        if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
-          const confirmed = await showStateOverwriteWarning();
-          if (!confirmed) return;
-        }
+        // Show warning modal and finalize current graph before loading
+        if (!(await this.confirmAndFinalizeCurrentGraph(attrs.state))) return;
 
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -1605,6 +1620,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLTextAreaElement
     ) {
+      return;
+    }
+
+    // Handle "?" to show help modal
+    if (event.key === '?') {
+      showDataExplorerHelp();
+      event.preventDefault();
       return;
     }
 
@@ -1708,11 +1730,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     jsonPath: string,
     errorTitle: string = 'Failed to Load',
   ): Promise<void> {
-    // Show warning modal before loading (only if canvas has nodes or labels)
-    if (attrs.state.rootNodes.length > 0 || attrs.state.labels.length > 0) {
-      const confirmed = await showStateOverwriteWarning();
-      if (!confirmed) return;
-    }
+    // Show warning modal and finalize current graph before loading
+    if (!(await this.confirmAndFinalizeCurrentGraph(attrs.state))) return;
 
     try {
       const response = await fetch(assetSrc(jsonPath));
@@ -1936,11 +1955,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onImport: () => this.handleImport(wrappedAttrs),
         onExport: () => this.handleExport(state, trace),
         onLoadEmptyTemplate: async () => {
-          // Show warning modal before clearing (only if canvas has nodes or labels)
-          if (state.rootNodes.length > 0 || state.labels.length > 0) {
-            const confirmed = await showStateOverwriteWarning();
-            if (!confirmed) return;
-          }
+          // Show warning modal and finalize current graph before clearing
+          if (!(await this.confirmAndFinalizeCurrentGraph(state))) return;
 
           // Clear all nodes for empty graph and increment loadGeneration
           wrappedAttrs.onStateUpdate((currentState) => {
@@ -1957,13 +1973,15 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         onLoadExampleByPath: (jsonPath: string) =>
           this.loadJsonFromPath(wrappedAttrs, jsonPath, 'Failed to Load'),
         onLoadExploreTemplate: async () => {
-          // Show warning modal before loading (only if canvas has nodes or labels)
-          if (state.rootNodes.length > 0 || state.labels.length > 0) {
-            const confirmed = await showStateOverwriteWarning();
-            if (!confirmed) return;
-          }
+          // Show warning modal and finalize current graph before loading
+          if (!(await this.confirmAndFinalizeCurrentGraph(state))) return;
 
           await this.createExploreGraph(wrappedAttrs);
+        },
+        onLoadRecentGraph: async (json: string) => {
+          // Show warning modal and finalize current graph before loading
+          if (!(await this.confirmAndFinalizeCurrentGraph(state))) return;
+          await this.loadStateFromJson(wrappedAttrs, json);
         },
         onFilterAdd: (node, filter, filterOperator) => {
           this.handleFilterAdd(wrappedAttrs, node, filter, filterOperator);

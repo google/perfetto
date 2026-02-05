@@ -48,6 +48,12 @@ interface HSL {
 export interface Color {
   readonly cssString: string;
 
+  // Uint32 packed RGBA value (0xRRGGBBAA).
+  readonly rgba: number;
+
+  // Alpha value in the range 0-1, or fully opaque if undefined.
+  readonly alpha?: number;
+
   // The perceived brightness of the color using a weighted average of the
   // r, g and b channels based on human perception.
   readonly perceivedBrightness: number;
@@ -134,6 +140,7 @@ abstract class HSLColorBase<T extends Color> {
 // Describes a color defined in standard HSL color space.
 export class HSLColor extends HSLColorBase<HSLColor> implements Color {
   readonly cssString: string;
+  readonly rgba: number;
   readonly perceivedBrightness: number;
 
   // Values are in the range:
@@ -146,6 +153,8 @@ export class HSLColor extends HSLColorBase<HSLColor> implements Color {
 
     const [r, g, b] = hslToRgb(...this.hsl);
 
+    this.rgba =
+      (r << 24) | (g << 16) | (b << 8) | Math.round((this.alpha ?? 1) * 255);
     this.perceivedBrightness = perceivedBrightness(r, g, b);
 
     if (this.alpha === undefined) {
@@ -164,6 +173,7 @@ export class HSLColor extends HSLColorBase<HSLColor> implements Color {
 // See: https://www.hsluv.org/
 export class HSLuvColor extends HSLColorBase<HSLuvColor> implements Color {
   readonly cssString: string;
+  readonly rgba: number;
   readonly perceivedBrightness: number;
 
   constructor(hsl: ColorTuple | HSL, alpha?: number) {
@@ -174,6 +184,8 @@ export class HSLuvColor extends HSLColorBase<HSLuvColor> implements Color {
     const g = Math.floor(rgb[1] * 255);
     const b = Math.floor(rgb[2] * 255);
 
+    this.rgba =
+      (r << 24) | (g << 16) | (b << 8) | Math.round((this.alpha ?? 1) * 255);
     this.perceivedBrightness = perceivedBrightness(r, g, b);
 
     if (this.alpha === undefined) {
