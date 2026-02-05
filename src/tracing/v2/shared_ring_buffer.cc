@@ -23,8 +23,24 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 
 namespace perfetto {
-
 using ChunkHeader = SharedRingBuffer::ChunkHeader;
+
+// TODO this mostly works %:
+// - data loss auditing that needs to be improved (that's easy)
+// - there is one logical bug in the protocol: the writer does this:
+//   1. increment the wr_offset
+//   2. try to acquire the chunk at that offset (there are 99.99% chances it
+//      will get it, it's rare it won't, ignore this case)
+//  When a writer acquires a chunk it does a CAS 0 -> (header with its writerId)
+// Now the problem is in the reader: up until which point should it read?
+// when does it stop? initially i thought naively "well you read up until the
+// wr_off". But that open an interesting case, if a thread is stuck in between
+// 1 and 2, the reader sees a "0" header at that offset so what does the reader
+// do? if it stops conservatively, well now we are "stalling the reader", which
+// means if one of the many writers is descheduled, the reader does read the
+// chunks from other threads, and that is bad.
+// if it just skips it, now it moves past ignoring that chunk. which is going to
+// be filled up only later on. and it will go out of order for that thread.
 
 // --- SharedRingBuffer ---
 
@@ -190,8 +206,7 @@ void SharedRingBuffer_Writer::EndWriteInternal(uint8_t extra_flags) {
 
     uint8_t actual_flags = ChunkHeader::GetFlags(expected);
     uint8_t old_flags = ChunkHeader::GetFlags(cached_header_);
-    if (actual_flags !=
-        (cached_header_ | SharedRingBuffer::kFlagNeedsRewrite)) {
+    if (actual_flags != (old_flags | SharedRingBuffer::kFlagNeedsRewrite)) {
       // There is no other reason why the CAS should fail. Nobody else should
       // ever touch a chunk while we own it. If this happens, this is a bug.
       PERFETTO_FATAL("shmem buffer corrupted. old=%x actual=%x", old_flags,
@@ -203,7 +218,9 @@ void SharedRingBuffer_Writer::EndWriteInternal(uint8_t extra_flags) {
     uint8_t* old_payload = payload_start();
     size_t old_payload_size = write_off_;
 
-    AcquireNewChunk(/*extra_flags=*/0);
+    // Preserve the chunk flags, but not the kFlagNeedsRewrite.
+    uint8_t copy_flags = old_flags & ~SharedRingBuffer::kFlagNeedsRewrite;
+    AcquireNewChunk(copy_flags);
     WriteBytesUnchecked(old_payload, old_payload_size);
     chunk_hdr->store(0, std::memory_order_release);  // Free the old chunk.
 
@@ -375,6 +392,7 @@ bool SharedRingBuffer_Reader::ReadOneChunk() {
     // If chunk header is 0, it was freed (e.g., by writer after needs_rewrite).
     // We are done here, move on to the next one.
     if (PERFETTO_UNLIKELY(hdr == 0))
+      // TODO this needs to invalidate the writer otherwise it breaks ordering.
       break;  // Break the loop, increment rd_off and return true.
 
     const uint8_t payload_size = ChunkHeader::GetPayloadSize(hdr);
@@ -455,8 +473,17 @@ void SharedRingBuffer_Reader::ProcessChunkPayload(const uint8_t* payload,
   WriterState& ws = writer_states_[writer_id];
 
   // If there was data loss and this chunk continues from a previous one,
-  // the pending data is corrupted - discard it. Only check on first pass.
+  // the pending data is corrupted - discard it.
   if (data_loss && continues_from_prev) {
+    ws.pending_data.clear();
+  }
+
+  // If this chunk does NOT continue from prev, but we have pending data,
+  // the previous message's continuation chain was broken (e.g., a chunk was
+  // skipped due to NeedsRewrite and later rewritten elsewhere). Discard the
+  // incomplete message as data loss.
+  if (!continues_from_prev && !ws.pending_data.empty()) {
+    // TODO mark data loss.
     ws.pending_data.clear();
   }
 
@@ -479,6 +506,13 @@ void SharedRingBuffer_Reader::ProcessChunkPayload(const uint8_t* payload,
 
     // Case 1: First fragment and continues_from_prev - append to pending data.
     if (is_first_frag && continues_from_prev) {
+      // If pending_data is empty, we missed the start of this message
+      // (e.g., the starting chunk was skipped). This is data loss - skip
+      // this continuation fragment entirely.
+      if (ws.pending_data.empty()) {
+        // TODO mark data loss.
+        continue;
+      }
       if (!data_loss) {
         ws.pending_data.append(reinterpret_cast<const char*>(frag_data),
                                frag_size);
