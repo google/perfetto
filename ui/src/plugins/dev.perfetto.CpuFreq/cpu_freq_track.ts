@@ -22,6 +22,7 @@ import {colorForCpu} from '../../components/colorizer';
 import m from 'mithril';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
+import {CHUNKED_TASK_BACKGROUND_PRIORITY} from '../../components/tracks/feature_flags';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {TrackRenderer} from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
@@ -246,7 +247,10 @@ export class CpuFreqTrack implements TrackRenderer {
       );
     `);
 
-    const task = await deferChunkedTask();
+    const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
+      ? 'background'
+      : undefined;
+    const task = await deferChunkedTask({priority});
 
     const freqRows = freqResult.numRows();
     const idleRows = idleResult.numRows();

@@ -40,6 +40,7 @@ import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
 import {deferChunkedTask} from '../../base/chunked_task';
+import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -751,7 +752,10 @@ export abstract class BaseSliceTrack<
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
-    const task = await deferChunkedTask();
+    const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
+      ? 'background'
+      : undefined;
+    const task = await deferChunkedTask({priority});
 
     const it = queryRes.iter(this.rowSpec);
 

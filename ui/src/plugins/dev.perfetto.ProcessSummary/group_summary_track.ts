@@ -22,6 +22,7 @@ import {colorForThread, colorForTid} from '../../components/colorizer';
 import {ColorScheme} from '../../base/color_scheme';
 import {TrackData} from '../../components/tracks/track_data';
 import {TimelineFetcher} from '../../components/tracks/track_helper';
+import {CHUNKED_TASK_BACKGROUND_PRIORITY} from '../../components/tracks/feature_flags';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {TrackRenderer} from '../../public/track';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
@@ -321,7 +322,10 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     const queryRes = await this.queryData(start, end, resolution);
 
-    const task = await deferChunkedTask();
+    const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
+      ? 'background'
+      : undefined;
+    const task = await deferChunkedTask({priority});
 
     const numRows = queryRes.numRows();
     const slices: Data = {
