@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <set>
 #include <string>
@@ -31,28 +30,69 @@ namespace perfetto::trace_processor {
 
 namespace {
 
-// Convert a RollupValue to a sortable double for comparison.
-double RollupValueToDouble(const RollupValue& val) {
+// Type priority for SQLite ordering: NULL (0) < numeric (1) < text (2)
+int RollupValueTypeOrder(const RollupValue& val) {
   if (std::holds_alternative<std::monostate>(val)) {
-    return std::numeric_limits<double>::lowest();
+    return 0;  // NULL sorts first
   }
-  if (std::holds_alternative<int64_t>(val)) {
-    return static_cast<double>(std::get<int64_t>(val));
+  if (std::holds_alternative<int64_t>(val) ||
+      std::holds_alternative<double>(val)) {
+    return 1;  // Numeric values
   }
-  if (std::holds_alternative<double>(val)) {
-    return std::get<double>(val);
-  }
-  // For strings, return 0 (can't meaningfully convert to double)
-  return 0.0;
+  return 2;  // Text values
 }
 
-// Gets the display name for a node (the hierarchy value at its level).
-std::string GetNodeName(const RollupNode* node) {
+// Compare two RollupValues using SQLite semantics.
+// Returns: -1 if a < b, 0 if a == b, 1 if a > b
+int CompareRollupValues(const RollupValue& a, const RollupValue& b) {
+  int type_a = RollupValueTypeOrder(a);
+  int type_b = RollupValueTypeOrder(b);
+
+  // Different type priorities: order by type
+  if (type_a != type_b) {
+    return (type_a < type_b) ? -1 : 1;
+  }
+
+  // Same type priority
+  if (type_a == 0) {
+    // Both NULL - equal
+    return 0;
+  }
+
+  if (type_a == 1) {
+    // Both numeric - compare as double
+    double d_a = std::holds_alternative<int64_t>(a)
+                     ? static_cast<double>(std::get<int64_t>(a))
+                     : std::get<double>(a);
+    double d_b = std::holds_alternative<int64_t>(b)
+                     ? static_cast<double>(std::get<int64_t>(b))
+                     : std::get<double>(b);
+    if (d_a < d_b) return -1;
+    if (d_a > d_b) return 1;
+    return 0;
+  }
+
+  // Both text - lexicographic comparison
+  const std::string& str_a = std::get<std::string>(a);
+  const std::string& str_b = std::get<std::string>(b);
+  if (str_a < str_b) return -1;
+  if (str_a > str_b) return 1;
+  return 0;
+}
+
+// Equality check for node matching.
+bool RollupValuesEqual(const RollupValue& a, const RollupValue& b) {
+  return CompareRollupValues(a, b) == 0;
+}
+
+// Gets the hierarchy value for a node at its level.
+// Returns a pointer to the value, or nullptr if not available.
+const RollupValue* GetNodeValue(const RollupNode* node) {
   if (node->level < 0 ||
       static_cast<size_t>(node->level) >= node->hierarchy_values.size()) {
-    return "";
+    return nullptr;
   }
-  return node->hierarchy_values[static_cast<size_t>(node->level)];
+  return &node->hierarchy_values[static_cast<size_t>(node->level)];
 }
 
 }  // namespace
@@ -65,7 +105,7 @@ RollupTree::RollupTree(std::vector<std::string> hierarchy_cols,
   root_ = std::make_unique<RollupNode>();
   root_->id = 0;
   root_->level = -1;
-  root_->hierarchy_values.resize(hierarchy_cols_.size());
+  root_->hierarchy_values.resize(hierarchy_cols_.size(), std::monostate{});
   root_->aggs.resize(num_aggregates_, std::monostate{});
 }
 
@@ -75,7 +115,7 @@ RollupTree::RollupTree(RollupTree&&) noexcept = default;
 RollupTree& RollupTree::operator=(RollupTree&&) noexcept = default;
 
 RollupNode* RollupTree::FindOrCreateNode(
-    const std::vector<std::string>& segments,
+    const std::vector<RollupValue>& segments,
     int level) {
   if (segments.empty() || level < 0) {
     return root_.get();
@@ -83,13 +123,14 @@ RollupNode* RollupTree::FindOrCreateNode(
 
   RollupNode* current = root_.get();
   for (int i = 0; i <= level && i < static_cast<int>(segments.size()); i++) {
-    const std::string& segment = segments[static_cast<size_t>(i)];
+    const RollupValue& segment = segments[static_cast<size_t>(i)];
     RollupNode* found = nullptr;
 
     // Look for existing child with matching hierarchy value at this level
     for (auto& child : current->children) {
       if (static_cast<size_t>(i) < child->hierarchy_values.size() &&
-          child->hierarchy_values[static_cast<size_t>(i)] == segment) {
+          RollupValuesEqual(child->hierarchy_values[static_cast<size_t>(i)],
+                            segment)) {
         found = child.get();
         break;
       }
@@ -101,8 +142,8 @@ RollupNode* RollupTree::FindOrCreateNode(
       node->level = i;
       node->parent = current;
 
-      // Store hierarchy values (values up to level i, rest empty for NULL)
-      node->hierarchy_values.resize(hierarchy_cols_.size());
+      // Store hierarchy values (values up to level i, rest are NULL)
+      node->hierarchy_values.resize(hierarchy_cols_.size(), std::monostate{});
       for (int j = 0; j <= i && j < static_cast<int>(segments.size()); j++) {
         node->hierarchy_values[static_cast<size_t>(j)] =
             segments[static_cast<size_t>(j)];
@@ -117,7 +158,7 @@ RollupNode* RollupTree::FindOrCreateNode(
 }
 
 void RollupTree::AddRow(int level,
-                        const std::vector<std::string>& hierarchy_path,
+                        const std::vector<RollupValue>& hierarchy_path,
                         std::vector<RollupValue> aggregates) {
   RollupNode* node = FindOrCreateNode(hierarchy_path, level);
   if (node && node != root_.get()) {
@@ -139,10 +180,15 @@ void RollupTree::SortTree(RollupNode* node, const RollupSortSpec& spec) {
             [&spec](const std::unique_ptr<RollupNode>& a,
                     const std::unique_ptr<RollupNode>& b) {
               if (spec.agg_index < 0) {
-                // Sort by name (hierarchy value at node's level)
-                std::string name_a = GetNodeName(a.get());
-                std::string name_b = GetNodeName(b.get());
-                return spec.descending ? (name_a > name_b) : (name_a < name_b);
+                // Sort by hierarchy value at node's level
+                const RollupValue* val_a = GetNodeValue(a.get());
+                const RollupValue* val_b = GetNodeValue(b.get());
+                // Handle nullptr (shouldn't happen, but be safe)
+                if (!val_a && !val_b) return false;
+                if (!val_a) return !spec.descending;  // NULL sorts first
+                if (!val_b) return spec.descending;
+                int cmp = CompareRollupValues(*val_a, *val_b);
+                return spec.descending ? (cmp > 0) : (cmp < 0);
               }
               size_t idx = static_cast<size_t>(spec.agg_index);
               if (idx >= a->aggs.size() || idx >= b->aggs.size()) {
@@ -150,19 +196,8 @@ void RollupTree::SortTree(RollupNode* node, const RollupSortSpec& spec) {
               }
               const RollupValue& val_a = a->aggs[idx];
               const RollupValue& val_b = b->aggs[idx];
-
-              // Handle string comparison for MIN/MAX of text
-              if (std::holds_alternative<std::string>(val_a) &&
-                  std::holds_alternative<std::string>(val_b)) {
-                const std::string& str_a = std::get<std::string>(val_a);
-                const std::string& str_b = std::get<std::string>(val_b);
-                return spec.descending ? (str_a > str_b) : (str_a < str_b);
-              }
-
-              // For numeric types, convert to double
-              double d_a = RollupValueToDouble(val_a);
-              double d_b = RollupValueToDouble(val_b);
-              return spec.descending ? (d_a > d_b) : (d_a < d_b);
+              int cmp = CompareRollupValues(val_a, val_b);
+              return spec.descending ? (cmp > 0) : (cmp < 0);
             });
 
   for (auto& child : node->children) {
@@ -238,9 +273,12 @@ std::vector<RollupFlatRow> RollupTree::GetRows(
 
   // Apply pagination and convert to output format
   std::vector<RollupFlatRow> result;
+  int flat_size = static_cast<int>(flat.size());
   int start = options.offset;
-  int end = std::min(static_cast<int>(flat.size()),
-                     options.offset + options.limit);
+  // Avoid integer overflow: if limit is large, just use flat_size
+  int end = (options.limit > flat_size - start)
+                ? flat_size
+                : options.offset + options.limit;
 
   for (int i = start; i < end; i++) {
     result.push_back(NodeToFlatRow(flat[static_cast<size_t>(i)]));

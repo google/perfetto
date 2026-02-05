@@ -73,8 +73,8 @@ struct RollupFlatRow {
   int depth = 0;
   int child_count = 0;
 
-  // Hierarchy values at each level (empty string = NULL)
-  std::vector<std::string> hierarchy_values;
+  // Hierarchy values at each level
+  std::vector<RollupValue> hierarchy_values;
 
   // Aggregate values
   std::vector<RollupValue> aggregates;
@@ -86,7 +86,7 @@ struct RollupNode {
   int level = -1;  // -1 for root, 0+ for hierarchy levels
 
   // Hierarchy column values at each level
-  std::vector<std::string> hierarchy_values;
+  std::vector<RollupValue> hierarchy_values;
 
   // Aggregate values
   std::vector<RollupValue> aggs;
@@ -150,7 +150,7 @@ class RollupTree {
   // - hierarchy_path: values for hierarchy columns up to and including 'level'
   // - aggregates: aggregate values for this group
   void AddRow(int level,
-              const std::vector<std::string>& hierarchy_path,
+              const std::vector<RollupValue>& hierarchy_path,
               std::vector<RollupValue> aggregates);
 
   // Sets the root node's aggregates (grand total across all data).
@@ -177,7 +177,7 @@ class RollupTree {
 
  private:
   // Finds or creates a node at the given path in the tree.
-  RollupNode* FindOrCreateNode(const std::vector<std::string>& segments,
+  RollupNode* FindOrCreateNode(const std::vector<RollupValue>& segments,
                                int level);
 
   // Sorts all children recursively using the given spec.

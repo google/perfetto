@@ -335,3 +335,101 @@ class Pivot(TestSuite):
         out=Csv("""
 "category","item","__depth","__agg_0"
         """))
+
+  def test_pivot_integer_groupby(self):
+    """Test grouping by integer columns preserves integer type."""
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+          CREATE PERFETTO TABLE int_data AS
+          WITH data(region_id, store_id, sales) AS (
+            VALUES
+              (1, 100, 50),
+              (1, 100, 30),
+              (1, 200, 40),
+              (2, 300, 60),
+              (2, 300, 20)
+          )
+          SELECT * FROM data;
+
+          CREATE VIRTUAL TABLE int_pivot USING __intrinsic_rollup_tree(
+            '(SELECT * FROM int_data)',
+            'region_id, store_id',
+            'SUM(sales)'
+          );
+
+          SELECT region_id, store_id, __depth, __agg_0 FROM int_pivot
+        """,
+        out=Csv("""
+"region_id","store_id","__depth","__agg_0"
+"[NULL]","[NULL]",0,200
+1,"[NULL]",1,120
+1,100,2,80
+1,200,2,40
+2,"[NULL]",1,80
+2,300,2,80
+        """))
+
+  def test_pivot_null_groupby_values(self):
+    """Test that NULL values in groupby columns are handled correctly."""
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+          CREATE PERFETTO TABLE null_data AS
+          WITH data(category, subcategory, amount) AS (
+            VALUES
+              ('A', 'x', 10),
+              ('A', NULL, 20),
+              (NULL, 'y', 30),
+              (NULL, NULL, 40)
+          )
+          SELECT * FROM data;
+
+          CREATE VIRTUAL TABLE null_pivot USING __intrinsic_rollup_tree(
+            '(SELECT * FROM null_data)',
+            'category, subcategory',
+            'SUM(amount)'
+          );
+
+          SELECT category, subcategory, __depth, __agg_0 FROM null_pivot
+        """,
+        out=Csv("""
+"category","subcategory","__depth","__agg_0"
+"[NULL]","[NULL]",0,100
+"[NULL]","[NULL]",1,70
+"[NULL]","[NULL]",2,40
+"[NULL]","y",2,30
+"A","[NULL]",1,30
+"A","[NULL]",2,20
+"A","x",2,10
+        """))
+
+  def test_pivot_real_groupby(self):
+    """Test grouping by REAL (floating point) columns."""
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+          CREATE PERFETTO TABLE real_data AS
+          WITH data(price_tier, quantity) AS (
+            VALUES
+              (1.5, 10),
+              (1.5, 20),
+              (2.5, 30),
+              (2.5, 15)
+          )
+          SELECT * FROM data;
+
+          CREATE VIRTUAL TABLE real_pivot USING __intrinsic_rollup_tree(
+            '(SELECT * FROM real_data)',
+            'price_tier',
+            'SUM(quantity)'
+          );
+
+          SELECT price_tier, __depth, __agg_0 FROM real_pivot
+        """,
+        out=Csv("""
+"price_tier","__depth","__agg_0"
+"[NULL]",0,75
+2.500000,1,45
+1.500000,1,30
+        """))

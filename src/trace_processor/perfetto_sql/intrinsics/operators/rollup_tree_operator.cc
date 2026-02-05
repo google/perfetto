@@ -64,7 +64,6 @@
 #include <sqlite3.h>
 #include <cstdint>
 #include <cstring>
-#include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -184,18 +183,17 @@ base::Status BuildRollupTree(PerfettoSqlEngine* engine,
                              RollupTree* table) {
   // Build the aggregation query using UNION ALL (SQLite doesn't support ROLLUP)
   // We create one query per aggregation level and union them together.
+  // Each query includes an explicit __level column to distinguish rollup levels
+  // from actual NULL data values.
   std::string query;
 
   size_t num_hier = hierarchy_cols.size();
   size_t num_aggs = aggregations.size();
 
   // Grand total query (level -1): all hierarchy cols are NULL
-  query += "SELECT ";
+  query += "SELECT -1 AS __level";
   for (size_t i = 0; i < num_hier; i++) {
-    if (i > 0) {
-      query += ", ";
-    }
-    query += "NULL AS " + hierarchy_cols[i];
+    query += ", NULL AS " + hierarchy_cols[i];
   }
   for (size_t i = 0; i < num_aggs; i++) {
     query += ", " + aggregations[i] + " AS agg_" + std::to_string(i);
@@ -204,17 +202,15 @@ base::Status BuildRollupTree(PerfettoSqlEngine* engine,
 
   // One query per hierarchy level
   for (size_t level = 0; level < num_hier; level++) {
-    query += " UNION ALL SELECT ";
+    query += " UNION ALL SELECT " + std::to_string(static_cast<int>(level)) +
+             " AS __level";
 
     // Columns up to and including this level are real, rest are NULL
     for (size_t i = 0; i < num_hier; i++) {
-      if (i > 0) {
-        query += ", ";
-      }
       if (i <= level) {
-        query += hierarchy_cols[i];
+        query += ", " + hierarchy_cols[i];
       } else {
-        query += "NULL AS " + hierarchy_cols[i];
+        query += ", NULL AS " + hierarchy_cols[i];
       }
     }
 
@@ -232,8 +228,6 @@ base::Status BuildRollupTree(PerfettoSqlEngine* engine,
     }
   }
 
-  std::cout << "Built rollup query:\n" << query << "\n";
-
   // Execute the query
   auto result = engine->ExecuteUntilLastStatement(
       SqlSource::FromTraceProcessorImplementation(query));
@@ -244,27 +238,46 @@ base::Status BuildRollupTree(PerfettoSqlEngine* engine,
   auto& stmt = result->stmt;
 
   // Helper lambda to process a single row from the statement.
+  // Column layout: [__level, hier_0, hier_1, ..., agg_0, agg_1, ...]
   auto process_row = [&]() {
-    // Determine level by counting non-NULL hierarchy columns
-    int level = -1;
-    std::vector<std::string> segments;
+    // Read explicit level from column 0 (supports NULL as valid data)
+    int level = static_cast<int>(
+        sqlite3_column_int64(stmt.sqlite_stmt(), 0));
 
-    for (size_t i = 0; i < num_hier; i++) {
-      if (sqlite3_column_type(stmt.sqlite_stmt(), static_cast<int>(i)) !=
-          SQLITE_NULL) {
-        level = static_cast<int>(i);
-        const char* val = reinterpret_cast<const char*>(
-            sqlite3_column_text(stmt.sqlite_stmt(), static_cast<int>(i)));
-        segments.push_back(val ? val : "");
-      } else {
-        break;
+    // Read hierarchy values up to and including level (type-aware)
+    // Hierarchy columns start at index 1 (after __level)
+    std::vector<RollupValue> segments;
+    for (int i = 0; i <= level; i++) {
+      int col_idx = 1 + i;  // Skip __level column
+      int sql_type = sqlite3_column_type(stmt.sqlite_stmt(), col_idx);
+      RollupValue val;
+
+      switch (sql_type) {
+        case SQLITE_INTEGER:
+          val = sqlite3_column_int64(stmt.sqlite_stmt(), col_idx);
+          break;
+        case SQLITE_FLOAT:
+          val = sqlite3_column_double(stmt.sqlite_stmt(), col_idx);
+          break;
+        case SQLITE_TEXT: {
+          const char* text = reinterpret_cast<const char*>(
+              sqlite3_column_text(stmt.sqlite_stmt(), col_idx));
+          val = std::string(text ? text : "");
+          break;
+        }
+        case SQLITE_NULL:
+        default:
+          val = std::monostate{};
+          break;
       }
+      segments.push_back(std::move(val));
     }
 
     // Get aggregate values (type-aware)
+    // Aggregate columns start at index 1 + num_hier (after __level and hierarchy)
     std::vector<RollupValue> aggs;
     for (size_t i = 0; i < num_aggs; i++) {
-      int col_idx = static_cast<int>(num_hier + i);
+      int col_idx = static_cast<int>(1 + num_hier + i);
       int sql_type = sqlite3_column_type(stmt.sqlite_stmt(), col_idx);
       RollupValue val;
 
@@ -691,11 +704,19 @@ int RollupTreeOperatorModule::Column(sqlite3_vtab_cursor* cursor,
   if (col < num_hier) {
     // Hierarchy column - return value if level >= col, else NULL
     size_t hier_idx = static_cast<size_t>(col);
-    if (row.depth >= col && hier_idx < row.hierarchy_values.size() &&
-        !row.hierarchy_values[hier_idx].empty()) {
-      const std::string& val = row.hierarchy_values[hier_idx];
-      sqlite::result::StaticString(ctx, val.c_str(),
-                                   static_cast<int>(val.size()));
+    if (row.depth >= col && hier_idx < row.hierarchy_values.size()) {
+      const RollupValue& val = row.hierarchy_values[hier_idx];
+      if (std::holds_alternative<std::monostate>(val)) {
+        sqlite::result::Null(ctx);
+      } else if (std::holds_alternative<int64_t>(val)) {
+        sqlite::result::Long(ctx, std::get<int64_t>(val));
+      } else if (std::holds_alternative<double>(val)) {
+        sqlite::result::Double(ctx, std::get<double>(val));
+      } else if (std::holds_alternative<std::string>(val)) {
+        const std::string& str = std::get<std::string>(val);
+        sqlite::result::StaticString(ctx, str.c_str(),
+                                     static_cast<int>(str.size()));
+      }
     } else {
       sqlite::result::Null(ctx);
     }
