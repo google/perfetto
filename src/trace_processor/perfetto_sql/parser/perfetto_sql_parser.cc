@@ -112,18 +112,24 @@ PerfettoSqlArgumentList* OnPerfettoSqlCreateOrAppendArgument(
     PerfettoSqlParserState* state,
     PerfettoSqlArgumentList* list,
     PerfettoSqlToken* name,
-    PerfettoSqlToken* type) {
+    PerfettoSqlToken* type,
+    int is_variadic) {
   std::unique_ptr<PerfettoSqlArgumentList> owned_list(list);
   if (!owned_list) {
     owned_list = std::make_unique<PerfettoSqlArgumentList>();
+  }
+  // If there's already a variadic argument, we can't add more arguments
+  if (!owned_list->inner.empty() && owned_list->inner.back().is_variadic()) {
+    state->ErrorAtToken("Variadic argument must be the last argument", *name);
+    return nullptr;
   }
   auto parsed = sql_argument::ParseType(base::StringView(type->ptr, type->n));
   if (!parsed) {
     state->ErrorAtToken("Failed to parse type", *type);
     return nullptr;
   }
-  owned_list->inner.emplace_back("$" + std::string(name->ptr, name->n),
-                                 *parsed);
+  owned_list->inner.emplace_back("$" + std::string(name->ptr, name->n), *parsed,
+                                 is_variadic != 0);
   return owned_list.release();
 }
 
@@ -212,6 +218,20 @@ void OnPerfettoSqlCreateFunction(PerfettoSqlParserState* state,
                                  PerfettoSqlToken* body_end) {
   std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
   std::unique_ptr<PerfettoSqlFnReturnType> returns_deleter(returns);
+
+  // Variadic arguments are not allowed in SQL functions (only in delegate
+  // functions)
+  if (args) {
+    for (const auto& arg : args->inner) {
+      if (arg.is_variadic()) {
+        state->ErrorAtToken(
+            "Variadic arguments are only allowed in delegate functions (use "
+            "DELEGATES TO instead of AS)",
+            *name);
+        return;
+      }
+    }
+  }
 
   // Convert the return type
   PerfettoSqlParser::CreateFunction::Returns returns_res;
