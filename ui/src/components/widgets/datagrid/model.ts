@@ -16,6 +16,8 @@ import {SqlValue} from '../../../trace_processor/query_result';
 
 export type AggregateFunction = 'ANY' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
 export type SortDirection = 'ASC' | 'DESC';
+export type GroupDisplay = 'flat' | 'tree';
+export const DEFAULT_GROUP_DISPLAY: GroupDisplay = 'flat';
 
 interface ColumnBase {
   // Unique identifier for this column. Allows multiple columns with the same
@@ -86,7 +88,7 @@ export interface Pivot {
 
   // How to display grouped data: 'flat' shows leaf rows only, 'tree' shows
   // hierarchical structure with expand/collapse.
-  readonly groupDisplay?: 'flat' | 'tree';
+  readonly groupDisplay?: GroupDisplay;
 
   // Allowlist mode: only these node IDs are expanded
   readonly expandedIds?: ReadonlySet<bigint>;

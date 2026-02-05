@@ -70,6 +70,7 @@ import {
   AggregateColumn,
   AggregateFunction,
   Column,
+  DEFAULT_GROUP_DISPLAY,
   Filter,
   Pivot,
   SortDirection,
@@ -492,39 +493,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       m(DataGridToolbar, {
         leftItems: [
           toolbarItemsLeft,
-          // Show expand/collapse/flat buttons for pivot mode (not in drill-down)
-          this.pivot &&
-            !this.pivot.drillDown && [
-              m(Button, {
-                icon: 'unfold_more',
-                tooltip: 'Expand all groups',
-                onclick: () => this.expandAll(attrs),
-                disabled: this.pivot.groupDisplay === 'flat',
-              }),
-              m(Button, {
-                icon: 'unfold_less',
-                tooltip: 'Collapse all groups',
-                onclick: () => this.collapseAll(attrs),
-                disabled: this.pivot.groupDisplay === 'flat',
-              }),
-              m(
-                ButtonGroup,
-                m(Button, {
-                  label: 'Flat',
-                  icon: 'view_list',
-                  active: this.pivot?.groupDisplay === 'flat',
-                  onclick: () => this.enableFlatMode(attrs),
-                  tooltip: 'Show all groups in a flat list (no hierarchy)',
-                }),
-                m(Button, {
-                  label: 'Tree',
-                  icon: 'account_tree',
-                  active: this.pivot?.groupDisplay !== 'flat',
-                  onclick: () => this.enableTreeMode(attrs),
-                  tooltip: 'Show rollups in a hierarchical tree structure',
-                }),
-              ),
-            ],
+          this.renderPivotToolbarItems(attrs),
         ],
         rightItems: [
           toolbarItemsRight,
@@ -683,7 +652,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             }
           })
           .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
-        groupDisplay: this.pivot.groupDisplay ?? 'tree',
+        groupDisplay: this.pivot.groupDisplay ?? DEFAULT_GROUP_DISPLAY,
         expandedIds: this.pivot.expandedIds,
         collapsedIds: this.pivot.collapsedIds,
       };
@@ -937,7 +906,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const newPivot: Pivot = {
       groupBy: [{id: shortUuid(), field}],
       aggregates,
-      groupDisplay: 'tree',
+      groupDisplay: DEFAULT_GROUP_DISPLAY,
     };
     this.pivot = newPivot;
     attrs.onPivotChanged?.(newPivot);
@@ -1185,6 +1154,49 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       this.pivot = newPivot;
       attrs.onPivotChanged?.(newPivot);
     }
+  }
+
+  /**
+   * Renders the pivot toolbar items (expand/collapse buttons and flat/tree toggle).
+   * Only shown when in pivot mode and not drilling down.
+   */
+  private renderPivotToolbarItems(attrs: DataGridAttrs): m.Children {
+    if (!this.pivot || this.pivot.drillDown) return null;
+
+    const mode = this.pivot.groupDisplay ?? DEFAULT_GROUP_DISPLAY;
+    const isFlat = mode === 'flat';
+
+    return [
+      m(Button, {
+        icon: 'unfold_more',
+        tooltip: 'Expand all groups',
+        onclick: () => this.expandAll(attrs),
+        disabled: isFlat,
+      }),
+      m(Button, {
+        icon: 'unfold_less',
+        tooltip: 'Collapse all groups',
+        onclick: () => this.collapseAll(attrs),
+        disabled: isFlat,
+      }),
+      m(
+        ButtonGroup,
+        m(Button, {
+          label: 'Flat',
+          icon: 'view_list',
+          active: isFlat,
+          onclick: () => this.enableFlatMode(attrs),
+          tooltip: 'Show all groups in a flat list (no hierarchy)',
+        }),
+        m(Button, {
+          label: 'Tree',
+          icon: 'account_tree',
+          active: !isFlat,
+          onclick: () => this.enableTreeMode(attrs),
+          tooltip: 'Show rollups in a hierarchical tree structure',
+        }),
+      ),
+    ];
   }
 
   /**
