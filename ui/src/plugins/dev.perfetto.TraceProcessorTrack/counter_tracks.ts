@@ -206,6 +206,11 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: 'GPU Counters',
   },
   {
+    type: 'gpu_frequency',
+    topLevelGroup: 'GPU',
+    group: 'GPU Frequency',
+  },
+  {
     type: 'gpu_memory',
     topLevelGroup: 'GPU',
     group: undefined,
