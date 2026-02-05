@@ -28,6 +28,7 @@
 #include <optional>
 #include <random>
 #include <set>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -126,7 +127,45 @@ class TraceProcessorContext;
 // depending on the template instantiation.
 class ClockSynchronizerBase {
  public:
-  using ClockId = int64_t;
+  // Represents a clock identifier with explicit fields for the raw clock ID,
+  // the sequence ID (for sequence-scoped clocks), and the trace file ID
+  // (to isolate sequence-scoped state across different trace files in a TAR).
+  // Non-sequence clocks have seq_id=0, trace_file_id=0.
+  struct ClockId {
+    uint32_t clock_id = 0;
+    uint32_t seq_id = 0;
+    uint32_t trace_file_id = 0;
+
+    constexpr ClockId() = default;
+    constexpr explicit ClockId(int64_t cid)
+        : clock_id(static_cast<uint32_t>(cid)) {}
+    constexpr ClockId(uint32_t cid, uint32_t sid, uint32_t tfi)
+        : clock_id(cid), seq_id(sid), trace_file_id(tfi) {}
+
+    bool operator==(const ClockId& o) const {
+      return clock_id == o.clock_id && seq_id == o.seq_id &&
+             trace_file_id == o.trace_file_id;
+    }
+    bool operator!=(const ClockId& o) const { return !(*this == o); }
+    bool operator<(const ClockId& o) const {
+      return std::tie(clock_id, seq_id, trace_file_id) <
+             std::tie(o.clock_id, o.seq_id, o.trace_file_id);
+    }
+
+    std::string ToString() const {
+      if (seq_id == 0 && trace_file_id == 0)
+        return std::to_string(clock_id);
+      return std::to_string(clock_id) + "(seq=" + std::to_string(seq_id) +
+             ",tf=" + std::to_string(trace_file_id) + ")";
+    }
+
+    friend base::MurmurHashCombiner PerfettoHashValue(
+        base::MurmurHashCombiner h,
+        const ClockId& c) {
+      return base::MurmurHashCombiner::Combine(std::move(h), c.clock_id,
+                                               c.seq_id, c.trace_file_id);
+    }
+  };
 
   // Error type when clock conversion fails (used internally for listener)
   enum class ErrorType {
@@ -142,7 +181,7 @@ class ClockSynchronizer : public ClockSynchronizerBase {
  public:
   explicit ClockSynchronizer(
       std::unique_ptr<TClockEventListener> clock_event_listener)
-      : trace_time_clock_id_(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+      : trace_time_clock_id_(ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME)),
         clock_event_listener_(std::move(clock_event_listener)) {}
 
   // Clock description.
@@ -168,29 +207,18 @@ class ClockSynchronizer : public ClockSynchronizerBase {
 
   // IDs in the range [64, 128) are reserved for sequence-scoped clock ids.
   // They can't be passed directly in ClockSynchronizer calls and must be
-  // resolved to 64-bit global clock ids by calling SeqScopedClockIdToGlobal().
-  static bool IsSequenceClock(ClockId clock_id) {
-    return clock_id >= 64 && clock_id < 128;
+  // resolved to global clock ids by calling SequenceToGlobalClock().
+  static bool IsSequenceClock(uint32_t raw_clock_id) {
+    return raw_clock_id >= 64 && raw_clock_id < 128;
   }
 
-  // Converts a sequence-scoped clock ids to a global clock id that can be
+  // Converts a sequence-scoped clock id to a global clock id that can be
   // passed as argument to ClockSynchronizer functions.
-  static ClockId SequenceToGlobalClock(uint32_t seq_id, uint32_t clock_id) {
+  static ClockId SequenceToGlobalClock(uint32_t trace_file_id,
+                                       uint32_t seq_id,
+                                       uint32_t clock_id) {
     PERFETTO_DCHECK(IsSequenceClock(clock_id));
-    return (static_cast<int64_t>(seq_id) << 32) | clock_id;
-  }
-
-  // Extracts the sequence ID and raw clock ID from a converted sequence-scoped
-  // clock (i.e., one created via SequenceToGlobalClock).
-  // Returns {sequence_id, raw_clock_id}.
-  static std::pair<uint32_t, uint32_t> ExtractSequenceClockId(
-      ClockId global_clock_id) {
-    PERFETTO_DCHECK(!IsSequenceClock(global_clock_id));  // Must be converted
-    auto raw_clock_id = static_cast<uint32_t>(global_clock_id & 0xFFFFFFFF);
-    PERFETTO_DCHECK(
-        IsSequenceClock(raw_clock_id));  // Raw ID must be sequence-scoped
-    auto seq_id = static_cast<uint32_t>(global_clock_id >> 32);
-    return {seq_id, raw_clock_id};
+    return ClockId{clock_id, seq_id, trace_file_id};
   }
 
   // Converts a timestamp from an arbitrary clock domain to the trace time.
@@ -244,10 +272,10 @@ class ClockSynchronizer : public ClockSynchronizerBase {
             !IsConvertedSequenceClock(clock_id)) {
           clock_event_listener_->OnInvalidClockSnapshot();
           return base::ErrStatus(
-              "Clock sync error: the global clock with id=%" PRId64
+              "Clock sync error: the global clock with id=%s"
               " cannot use incremental encoding; this is only "
               "supported for sequence-scoped clocks.",
-              clock_id);
+              clock_id.ToString().c_str());
         }
         domain.unit_multiplier_ns = clock_ts.clock.unit_multiplier_ns;
         domain.is_incremental = clock_ts.clock.is_incremental;
@@ -257,11 +285,11 @@ class ClockSynchronizer : public ClockSynchronizerBase {
                                        clock_ts.clock.is_incremental)) {
         clock_event_listener_->OnInvalidClockSnapshot();
         return base::ErrStatus(
-            "Clock sync error: the clock domain with id=%" PRId64
+            "Clock sync error: the clock domain with id=%s"
             " (unit=%" PRId64
             ", incremental=%d), was previously registered with "
             "different properties (unit=%" PRId64 ", incremental=%d).",
-            clock_id, clock_ts.clock.unit_multiplier_ns,
+            clock_id.ToString().c_str(), clock_ts.clock.unit_multiplier_ns,
             clock_ts.clock.is_incremental, domain.unit_multiplier_ns,
             domain.is_incremental);
       }
@@ -270,9 +298,9 @@ class ClockSynchronizer : public ClockSynchronizerBase {
         // The trace time clock must always be in nanoseconds.
         clock_event_listener_->OnInvalidClockSnapshot();
         return base::ErrStatus(
-            "Clock sync error: the trace clock (id=%" PRId64
+            "Clock sync error: the trace clock (id=%s"
             ") must always use nanoseconds as unit multiplier.",
-            clock_id);
+            clock_id.ToString().c_str());
       }
       const int64_t timestamp_ns =
           clock_ts.timestamp * domain.unit_multiplier_ns;
@@ -283,15 +311,16 @@ class ClockSynchronizer : public ClockSynchronizerBase {
           PERFETTO_UNLIKELY(vect.snapshot_ids.back() == snapshot_id)) {
         clock_event_listener_->OnInvalidClockSnapshot();
         return base::ErrStatus(
-            "Clock sync error: duplicate clock domain with id=%" PRId64
+            "Clock sync error: duplicate clock domain with id=%s"
             " at snapshot %" PRIu32 ".",
-            clock_id, snapshot_id);
+            clock_id.ToString().c_str(), snapshot_id);
       }
 
       // Clock ids in the range [64, 128) are sequence-scoped and must be
-      // translated to global ids via SeqScopedClockIdToGlobal() before calling
+      // translated to global ids via SequenceToGlobalClock() before calling
       // this function.
-      PERFETTO_DCHECK(!IsSequenceClock(clock_id));
+      PERFETTO_DCHECK(!IsSequenceClock(clock_id.clock_id) ||
+                      clock_id.seq_id != 0);
 
       // Snapshot IDs must be always monotonic.
       PERFETTO_DCHECK(vect.snapshot_ids.empty() ||
@@ -305,14 +334,15 @@ class ClockSynchronizer : public ClockSynchronizerBase {
           clock_event_listener_->OnInvalidClockSnapshot();
           // The trace clock cannot be non-monotonic.
           return base::ErrStatus(
-              "Clock sync error: the trace clock (id=%" PRId64
+              "Clock sync error: the trace clock (id=%s"
               ") is not monotonic at snapshot %" PRIu32 ". %" PRId64
               " not >= %" PRId64 ".",
-              clock_id, snapshot_id, timestamp_ns, vect.timestamps_ns.back());
+              clock_id.ToString().c_str(), snapshot_id, timestamp_ns,
+              vect.timestamps_ns.back());
         }
 
-        PERFETTO_DLOG("Detected non-monotonic clock with ID %" PRId64,
-                      clock_id);
+        PERFETTO_DLOG("Detected non-monotonic clock with ID %s",
+                      clock_id.ToString().c_str());
 
         // For the other clocks the best thing we can do is mark it as
         // non-monotonic and refuse to use it as a source clock in the
@@ -327,8 +357,12 @@ class ClockSynchronizer : public ClockSynchronizerBase {
 
         // Erase all edges from the graph that start from this clock (but keep
         // the ones that end on this clock).
-        auto begin = graph_.lower_bound(ClockGraphEdge{clock_id, 0, 0});
-        auto end = graph_.lower_bound(ClockGraphEdge{clock_id + 1, 0, 0});
+        PERFETTO_CHECK(clock_id.trace_file_id <
+                       std::numeric_limits<uint32_t>::max());
+        auto begin = graph_.lower_bound(ClockGraphEdge{clock_id, ClockId{}, 0});
+        ClockId upper = {clock_id.clock_id, clock_id.seq_id,
+                         clock_id.trace_file_id + 1};
+        auto end = graph_.lower_bound(ClockGraphEdge{upper, ClockId{}, 0});
         graph_.erase(begin, end);
       }
       vect.snapshot_ids.emplace_back(snapshot_id);
@@ -386,14 +420,14 @@ class ClockSynchronizer : public ClockSynchronizerBase {
   // and do nothing if called with a different clock_id after a timestamp
   // conversion has already occurred.
   base::Status SetTraceTimeClock(ClockId clock_id) {
-    PERFETTO_DCHECK(!IsSequenceClock(clock_id));
+    PERFETTO_DCHECK(!IsSequenceClock(clock_id.clock_id));
     if (trace_time_clock_id_used_for_conversion_ &&
         trace_time_clock_id_ != clock_id) {
       return base::ErrStatus(
-          "Not updating trace time clock from %" PRId64 " to %" PRId64
+          "Not updating trace time clock from %s to %s"
           " because the old clock was already used for timestamp "
           "conversion - ClockSnapshot too late in trace?",
-          trace_time_clock_id_, clock_id);
+          trace_time_clock_id_.ToString().c_str(), clock_id.ToString().c_str());
     }
     trace_time_clock_id_ = clock_id;
     clock_event_listener_->OnSetTraceTimeClock(clock_id);
@@ -455,7 +489,7 @@ class ClockSynchronizer : public ClockSynchronizerBase {
     }
 
     uint32_t len = 0;
-    ClockId last = 0;
+    ClockId last;
     std::array<ClockGraphEdge, kMaxLen> path;  // Deliberately uninitialized.
   };
 
@@ -518,8 +552,10 @@ class ClockSynchronizer : public ClockSynchronizerBase {
       std::optional<int64_t> src_timestamp_ns,
       ClockId target_clock_id,
       std::optional<size_t> byte_offset) {
-    PERFETTO_DCHECK(!IsSequenceClock(src_clock_id));
-    PERFETTO_DCHECK(!IsSequenceClock(target_clock_id));
+    PERFETTO_DCHECK(!IsSequenceClock(src_clock_id.clock_id) ||
+                    src_clock_id.seq_id != 0);
+    PERFETTO_DCHECK(!IsSequenceClock(target_clock_id.clock_id) ||
+                    target_clock_id.seq_id != 0);
     clock_event_listener_->OnClockSyncCacheMiss();
 
     ClockPath path = FindPath(src_clock_id, target_clock_id);
@@ -672,11 +708,9 @@ class ClockSynchronizer : public ClockSynchronizerBase {
   }
 
   // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.
-  // a ClockId returned by SeqScopedClockIdToGlobal().
+  // a ClockId returned by SequenceToGlobalClock().
   static bool IsConvertedSequenceClock(ClockId global_clock_id) {
-    // If the id is > 2**32, this is a sequence-scoped clock id translated into
-    // the global namespace.
-    return (global_clock_id >> 32) > 0;
+    return global_clock_id.seq_id != 0;
   }
 
   // Finds the shortest clock resolution path in the graph that allows to
@@ -713,7 +747,8 @@ class ClockSynchronizer : public ClockSynchronizerBase {
       // Expore all the adjacent clocks.
       // The lower_bound() below returns an iterator to the first edge that
       // starts on |cur_clock_id|. The edges are sorted by (src, target, hash).
-      for (auto it = graph_.lower_bound(ClockGraphEdge(cur_clock_id, 0, 0));
+      for (auto it =
+               graph_.lower_bound(ClockGraphEdge(cur_clock_id, ClockId{}, 0));
            it != graph_.end() && std::get<0>(*it) == cur_clock_id; ++it) {
         ClockId next_clock_id = std::get<1>(*it);
         SnapshotHash hash = std::get<2>(*it);
@@ -745,7 +780,7 @@ class ClockSynchronizer : public ClockSynchronizerBase {
     return timestamp - clock_offset;
   }
 
-  ClockId trace_time_clock_id_ = 0;
+  ClockId trace_time_clock_id_;
   std::map<ClockId, ClockDomain> clocks_;
   std::set<ClockGraphEdge> graph_;
   std::set<ClockId> non_monotonic_clocks_;

@@ -362,14 +362,15 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       // TODO(eseckler): Set timestamp_clock_id and emit ClockSnapshots in
       // chrome and then remove this.
       auto trace_ts = context_->clock_tracker->ToTraceTime(
-          protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
+          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+          timestamp);
       if (trace_ts)
         timestamp = *trace_ts;
     } else if (timestamp_clock_id) {
       // If the TracePacket specifies a non-zero clock-id, translate the
       // timestamp into the trace-time clock domain.
-      ClockTracker::ClockId converted_clock_id = timestamp_clock_id;
-      if (ClockTracker::IsSequenceClock(converted_clock_id)) {
+      ClockTracker::ClockId converted_clock_id(timestamp_clock_id);
+      if (ClockTracker::IsSequenceClock(timestamp_clock_id)) {
         if (!seq_id) {
           return base::ErrStatus(
               "TracePacket specified a sequence-local clock id (%" PRIu32
@@ -377,8 +378,8 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
               "probably too old)",
               timestamp_clock_id);
         }
-        converted_clock_id =
-            ClockTracker::SequenceToGlobalClock(seq_id, timestamp_clock_id);
+        converted_clock_id = ClockTracker::SequenceToGlobalClock(
+            context_->trace_id().value, seq_id, timestamp_clock_id);
       }
       auto trace_ts = context_->clock_tracker->ToTraceTime(
           converted_clock_id, timestamp, packet.offset());
@@ -539,15 +540,17 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   }
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
-    ClockTracker::ClockId clock_id = clk.clock_id();
-    if (ClockTracker::IsSequenceClock(clk.clock_id())) {
+    ClockTracker::ClockId clock_id(clk.clock_id());
+    if (ClockTracker::IsSequenceClock(static_cast<uint32_t>(clk.clock_id()))) {
       if (!seq_id) {
         return base::ErrStatus(
             "ClockSnapshot packet is specifying a sequence-scoped clock id "
-            "(%" PRId64 ") but the TracePacket sequence_id is zero",
-            clock_id);
+            "(%" PRIu32 ") but the TracePacket sequence_id is zero",
+            clock_id.clock_id);
       }
-      clock_id = ClockTracker::SequenceToGlobalClock(seq_id, clk.clock_id());
+      clock_id = ClockTracker::SequenceToGlobalClock(
+          context_->trace_id().value, seq_id,
+          static_cast<uint32_t>(clk.clock_id()));
     }
     int64_t unit_multiplier_ns =
         clk.unit_multiplier_ns()
@@ -600,10 +603,11 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
 
     tables::ClockSnapshotTable::Row row;
     row.ts = trace_ts_value;
-    row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id);
+    row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id.clock_id);
     row.clock_value =
         clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
-    row.clock_name = GetBuiltinClockNameOrNull(clock_timestamp.clock.id);
+    row.clock_name =
+        GetBuiltinClockNameOrNull(clock_timestamp.clock.id.clock_id);
     row.snapshot_id = *snapshot_id;
     row.machine_id = context_->machine_id();
 
@@ -637,8 +641,8 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
       protos::pbzero::ClockSnapshot::ClockSnapshot::Clock::Decoder clock(
           *clock_it);
       sync_clocks[clock.clock_id()].second = clock.timestamp();
-      clock_timestamps.emplace_back(clock.clock_id(), clock.timestamp(), 1,
-                                    false);
+      clock_timestamps.emplace_back(ClockTracker::ClockId(clock.clock_id()),
+                                    clock.timestamp(), 1, false);
     }
 
     // In addition for calculating clock offsets, client clock snapshots are
@@ -652,7 +656,8 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
   // Calculate clock offsets and report to the ClockTracker.
   auto clock_offsets = CalculateClockOffsets(sync_clock_snapshots);
   for (auto it = clock_offsets.GetIterator(); it; ++it) {
-    context_->clock_tracker->SetRemoteClockOffset(it.key(), it.value());
+    context_->clock_tracker->SetRemoteClockOffset(
+        ClockTracker::ClockId(it.key()), it.value());
   }
 
   return base::OkStatus();

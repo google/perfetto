@@ -156,8 +156,8 @@ class InstrumentsXmlTokenizer::Impl {
             std::make_unique<RowParser>(context, data_))) {
     static constexpr std::string_view kSubsystem =
         "dev.perfetto.instruments_clock";
-    clock_ = static_cast<ClockTracker::ClockId>(
-        base::MurmurHashValue(kSubsystem) | 0x80000000);
+    clock_ = ClockTracker::ClockId(
+        static_cast<int64_t>(base::MurmurHashValue(kSubsystem) | 0x80000000));
 
     // Use the above clock if we can, in case there is no other trace and
     // no clock sync events.
@@ -417,7 +417,8 @@ class InstrumentsXmlTokenizer::Impl {
             latest_clock_sync_timestamp_ = clock_sync_timestamp;
             auto status = context_->clock_tracker->AddSnapshot(
                 {{clock_, current_row_.timestamp_},
-                 {protos::pbzero::ClockSnapshot::Clock::BOOTTIME,
+                 {ClockTracker::ClockId(
+                      protos::pbzero::ClockSnapshot::Clock::BOOTTIME),
                   static_cast<int64_t>(latest_clock_sync_timestamp_)}});
             if (!status.ok()) {
               PERFETTO_FATAL("Error adding clock snapshot: %s",

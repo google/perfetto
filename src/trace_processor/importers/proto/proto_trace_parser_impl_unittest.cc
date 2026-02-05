@@ -2416,8 +2416,10 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
-  clock_->AddSnapshot({{protos::pbzero::BUILTIN_CLOCK_BOOTTIME, 0},
-                       {protos::pbzero::BUILTIN_CLOCK_MONOTONIC, 1000000}});
+  clock_->AddSnapshot(
+      {{ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), 0},
+       {ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+        1000000}});
 
   {
     auto* packet = trace_->add_packet();

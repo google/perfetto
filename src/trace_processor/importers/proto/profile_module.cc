@@ -132,7 +132,8 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   auto packet_ts =
       sequence_state->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-      protos::pbzero::BUILTIN_CLOCK_MONOTONIC, packet_ts);
+      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      packet_ts);
   if (trace_ts)
     packet_ts = *trace_ts;
 
@@ -340,7 +341,8 @@ void ProfileModule::ParseProfilePacket(
 
     std::optional<int64_t> maybe_timestamp =
         context_->clock_tracker->ToTraceTime(
-            protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE,
+            ClockTracker::ClockId(
+                protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE),
             static_cast<int64_t>(entry.timestamp()));
     if (!maybe_timestamp)
       continue;
