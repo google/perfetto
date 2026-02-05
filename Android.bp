@@ -16730,6 +16730,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util/trace_enrichment:trace_enrichment
+filegroup {
+    name: "perfetto_src_trace_processor_util_trace_enrichment_trace_enrichment",
+    srcs: [
+        "src/trace_processor/util/trace_enrichment/trace_enrichment.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util:trace_type
 filegroup {
     name: "perfetto_src_trace_processor_util_trace_type",
@@ -20016,6 +20024,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_tar_writer",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
+        ":perfetto_src_trace_processor_util_trace_enrichment_trace_enrichment",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
         ":perfetto_src_trace_processor_util_zip_reader",

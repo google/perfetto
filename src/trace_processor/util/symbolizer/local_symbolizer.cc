@@ -276,7 +276,6 @@ std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
   }
   base::ScopedMmap map = base::ReadMmapFilePart(fname, size);
   if (!map.IsValid()) {
-    PERFETTO_PLOG("Failed to mmap %s", fname);
     return std::nullopt;
   }
   char* mem = static_cast<char*>(map.data());
@@ -318,10 +317,13 @@ void ProcessBinaryFile(const char* fname,
   char magic[EI_MAG3 + 1];
   // Scope file access. On windows OpenFile opens an exclusive lock.
   // This lock needs to be released before mapping the file.
+  // Check if file exists first to avoid noisy errors for speculative paths.
+  if (!base::FileExists(fname)) {
+    return;
+  }
   {
     base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
     if (!fd) {
-      PERFETTO_PLOG("Failed to open %s", fname);
       return;
     }
     auto rd = base::Read(*fd, &magic, sizeof(magic));
@@ -572,7 +574,6 @@ std::optional<FoundBinary> IsCorrectFile(
   // Openfile opens the file with an exclusive lock on windows.
   std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
   if (!file_size.has_value()) {
-    PERFETTO_PLOG("Failed to get file size %s", symbol_file.c_str());
     return std::nullopt;
   }
 
@@ -595,17 +596,40 @@ std::optional<FoundBinary> IsCorrectFile(
                      binary_info->type};
 }
 
-std::optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
-                                            const std::string& abspath,
-                                            const std::string& build_id) {
+// Try a path and record the attempt.
+// Returns true if the binary was found.
+bool TryPath(const std::string& path,
+             const std::string& build_id,
+             std::optional<FoundBinary>& out_binary,
+             std::vector<BinaryPathAttempt>& attempts) {
+  if (!base::FileExists(path)) {
+    attempts.push_back({path, BinaryPathError::kFileNotFound});
+    return false;
+  }
+  std::optional<FoundBinary> found = IsCorrectFile(path, build_id);
+  if (found) {
+    out_binary = std::move(found);
+    attempts.push_back({path, BinaryPathError::kOk});
+    return true;
+  }
+  attempts.push_back({path, BinaryPathError::kBuildIdMismatch});
+  return false;
+}
+
+std::optional<FoundBinary> FindBinaryInRoot(
+    const std::string& root_str,
+    const std::string& abspath,
+    const std::string& build_id,
+    std::vector<BinaryPathAttempt>& attempts) {
   constexpr char kApkPrefix[] = "base.apk!";
 
   std::string filename;
   std::string dirname;
 
   for (base::StringSplitter sp(abspath, '/'); sp.Next();) {
-    if (!dirname.empty())
+    if (!dirname.empty()) {
       dirname += "/";
+    }
     dirname += filename;
     filename = sp.cur_token();
   }
@@ -631,30 +655,31 @@ std::optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
   // * $ROOT/.build-id/ab/cd1234.debug
 
   std::optional<FoundBinary> result;
+  std::string symbol_file;
 
-  std::string symbol_file = root_str + "/" + dirname + "/" + filename;
-  result = IsCorrectFile(symbol_file, build_id);
-  if (result)
+  symbol_file = root_str + "/" + dirname + "/" + filename;
+  if (TryPath(symbol_file, build_id, result, attempts)) {
     return result;
+  }
 
   if (base::StartsWith(filename, kApkPrefix)) {
     symbol_file = root_str + "/" + dirname + "/" +
                   filename.substr(sizeof(kApkPrefix) - 1);
-    result = IsCorrectFile(symbol_file, build_id);
-    if (result)
+    if (TryPath(symbol_file, build_id, result, attempts)) {
       return result;
+    }
   }
 
   symbol_file = root_str + "/" + filename;
-  result = IsCorrectFile(symbol_file, build_id);
-  if (result)
+  if (TryPath(symbol_file, build_id, result, attempts)) {
     return result;
+  }
 
   if (base::StartsWith(filename, kApkPrefix)) {
     symbol_file = root_str + "/" + filename.substr(sizeof(kApkPrefix) - 1);
-    result = IsCorrectFile(symbol_file, build_id);
-    if (result)
+    if (TryPath(symbol_file, build_id, result, attempts)) {
       return result;
+    }
   }
 
   std::string hex_build_id = base::ToHex(build_id.c_str(), build_id.size());
@@ -662,39 +687,59 @@ std::optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
   if (!split_hex_build_id.empty()) {
     symbol_file =
         root_str + "/" + ".build-id" + "/" + split_hex_build_id + ".debug";
-    result = IsCorrectFile(symbol_file, build_id);
-    if (result)
+    if (TryPath(symbol_file, build_id, result, attempts)) {
       return result;
+    }
   }
 
   return std::nullopt;
 }
 
-std::optional<FoundBinary> FindKernelBinary(const std::string& os_release) {
+std::optional<FoundBinary> FindKernelBinary(
+    const std::string& os_release,
+    std::vector<BinaryPathAttempt>& attempts) {
   using SS = base::StackString<512>;
   const char* rel = os_release.c_str();
-  auto find_kernel = [](base::StackString<512> path) {
-    return IsCorrectFile(path.ToStdString(), std::nullopt);
+
+  // Helper to try a kernel path and record the attempt.
+  auto try_kernel_path =
+      [&](base::StackString<512> path_ss) -> std::optional<FoundBinary> {
+    std::string path = path_ss.ToStdString();
+    if (!base::FileExists(path)) {
+      attempts.push_back({path, BinaryPathError::kFileNotFound});
+      return std::nullopt;
+    }
+    std::optional<FoundBinary> found = IsCorrectFile(path, std::nullopt);
+    if (found) {
+      attempts.push_back({path, BinaryPathError::kOk});
+      return found;
+    }
+    // File exists but isn't a valid binary.
+    attempts.push_back({path, BinaryPathError::kBuildIdMismatch});
+    return std::nullopt;
   };
+
   // This list comes from the perf symbolization code [1]: it's an incomplete
   // list (it doesn't include pre-symbolized kernels or reading /proc/kallsyms)
   // but works if you just install e.g. the symbol packages for the kernel.
   //
   // [1]
   // https://elixir.bootlin.com/linux/v6.12.2/source/tools/perf/util/symbol.c#L2294
-  if (auto b = find_kernel(SS("/boot/vmlinux-%s", rel))) {
+  if (auto b = try_kernel_path(SS("/boot/vmlinux-%s", rel))) {
     return b;
   }
-  if (auto b = find_kernel(SS("/usr/lib/debug/boot/vmlinux-%s", rel))) {
+  if (auto b = try_kernel_path(SS("/usr/lib/debug/boot/vmlinux-%s", rel))) {
     return b;
   }
-  if (auto b = find_kernel(SS("/lib/modules/%s/build/vmlinux", rel))) {
+  if (auto b = try_kernel_path(SS("/lib/modules/%s/build/vmlinux", rel))) {
     return b;
   }
-  if (auto b = find_kernel(SS("/usr/lib/debug/lib/modules/%s/vmlinux", rel))) {
+  if (auto b =
+          try_kernel_path(SS("/usr/lib/debug/lib/modules/%s/vmlinux", rel))) {
     return b;
   }
-  if (auto b = find_kernel(SS("/usr/lib/debug/boot/vmlinux-%s.debug", rel))) {
+  if (auto b =
+          try_kernel_path(SS("/usr/lib/debug/boot/vmlinux-%s.debug", rel))) {
     return b;
   }
   return std::nullopt;
@@ -771,19 +816,29 @@ BinaryFinder::~BinaryFinder() = default;
 LocalBinaryIndexer::LocalBinaryIndexer(
     std::vector<std::string> directories,
     std::vector<std::string> individual_files)
-    : buildid_to_file_(
+    : indexed_directories_(directories),
+      symbol_files_(individual_files.begin(), individual_files.end()),
+      buildid_to_file_(
           BuildIdIndex(std::move(directories), std::move(individual_files))) {}
 
-std::optional<FoundBinary> LocalBinaryIndexer::FindBinary(
-    const std::string& abspath,
-    const std::string& build_id) {
+BinaryLookupResult LocalBinaryIndexer::FindBinary(const std::string& abspath,
+                                                  const std::string& build_id) {
   auto it = buildid_to_file_.find(build_id);
   if (it != buildid_to_file_.end()) {
-    return it->second;
+    // Success - record the successful path lookup.
+    return {it->second, {{it->second.file_name, BinaryPathError::kOk}}};
   }
-  PERFETTO_ELOG("Could not find Build ID: %s (file %s).",
-                base::ToHex(build_id).c_str(), abspath.c_str());
-  return std::nullopt;
+  // Build ID not in index - report what was searched.
+  std::vector<BinaryPathAttempt> attempts;
+  // If the mapping path was explicitly in symbol_files, report it.
+  if (symbol_files_.count(abspath)) {
+    attempts.push_back({abspath, BinaryPathError::kFileNotFound});
+  }
+  // Report all indexed directories.
+  for (const std::string& dir : indexed_directories_) {
+    attempts.push_back({dir, BinaryPathError::kBuildIdNotInIndex});
+  }
+  return {{}, std::move(attempts)};
 }
 
 LocalBinaryIndexer::~LocalBinaryIndexer() = default;
@@ -791,30 +846,31 @@ LocalBinaryIndexer::~LocalBinaryIndexer() = default;
 LocalBinaryFinder::LocalBinaryFinder(std::vector<std::string> roots)
     : roots_(std::move(roots)) {}
 
-std::optional<FoundBinary> LocalBinaryFinder::FindBinary(
-    const std::string& abspath,
-    const std::string& build_id) {
-  auto p = cache_.emplace(abspath, std::nullopt);
+BinaryLookupResult LocalBinaryFinder::FindBinary(const std::string& abspath,
+                                                 const std::string& build_id) {
+  auto p = cache_.emplace(abspath, BinaryLookupResult{});
   if (!p.second)
     return p.first->second;
 
-  std::optional<FoundBinary>& cache_entry = p.first->second;
+  BinaryLookupResult& result = p.first->second;
 
   // Try the absolute path first.
   if (base::StartsWith(abspath, "/")) {
-    cache_entry = IsCorrectFile(abspath, build_id);
-    if (cache_entry)
-      return cache_entry;
+    if (TryPath(abspath, build_id, result.binary, result.attempts)) {
+      return result;
+    }
   }
 
+  // Try each root directory.
   for (const std::string& root_str : roots_) {
-    cache_entry = FindBinaryInRoot(root_str, abspath, build_id);
-    if (cache_entry)
-      return cache_entry;
+    std::optional<FoundBinary> found =
+        FindBinaryInRoot(root_str, abspath, build_id, result.attempts);
+    if (found) {
+      result.binary = std::move(found);
+      return result;
+    }
   }
-  PERFETTO_ELOG("Could not find %s (Build ID: %s).", abspath.c_str(),
-                base::ToHex(build_id).c_str());
-  return cache_entry;
+  return result;
 }
 
 LocalBinaryFinder::~LocalBinaryFinder() = default;
@@ -850,7 +906,33 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
   return result;
 }
 
-std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
+namespace {
+SymbolPathError ToSymbolPathError(BinaryPathError error) {
+  switch (error) {
+    case BinaryPathError::kOk:
+      return SymbolPathError::kOk;
+    case BinaryPathError::kFileNotFound:
+      return SymbolPathError::kFileNotFound;
+    case BinaryPathError::kBuildIdMismatch:
+      return SymbolPathError::kBuildIdMismatch;
+    case BinaryPathError::kBuildIdNotInIndex:
+      return SymbolPathError::kBuildIdNotInIndex;
+  }
+  PERFETTO_FATAL("Unknown BinaryPathError");
+}
+
+std::vector<SymbolPathAttempt> ToSymbolPathAttempts(
+    const std::vector<BinaryPathAttempt>& attempts) {
+  std::vector<SymbolPathAttempt> result;
+  result.reserve(attempts.size());
+  for (const auto& attempt : attempts) {
+    result.push_back({attempt.path, ToSymbolPathError(attempt.error)});
+  }
+  return result;
+}
+}  // namespace
+
+SymbolizeResult LocalSymbolizer::Symbolize(
     const Environment& env,
     const std::string& mapping_name,
     const std::string& build_id,
@@ -858,15 +940,20 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
     const std::vector<uint64_t>& addresses) {
   bool is_kernel = base::StartsWith(mapping_name, "[kernel.kallsyms]");
   std::optional<FoundBinary> binary;
+  std::vector<BinaryPathAttempt> binary_attempts;
   if (is_kernel) {
     if (env.os_release) {
-      binary = FindKernelBinary(*env.os_release);
+      binary = FindKernelBinary(*env.os_release, binary_attempts);
     }
   } else {
-    binary = finder_->FindBinary(mapping_name, build_id);
+    BinaryLookupResult lookup = finder_->FindBinary(mapping_name, build_id);
+    binary = std::move(lookup.binary);
+    binary_attempts = std::move(lookup.attempts);
   }
+  std::vector<SymbolPathAttempt> attempts =
+      ToSymbolPathAttempts(binary_attempts);
   if (!binary) {
-    return {};
+    return {{}, std::move(attempts)};
   }
   uint64_t binary_load_bias = binary->p_vaddr - binary->p_offset;
   uint64_t addr_correction = 0;
@@ -889,14 +976,14 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
     // Whereas with libunwindstack, `p_offset` should always be greater than
     // zero.
     addr_correction = (binary->p_vaddr - binary->p_offset) - load_bias;
-    PERFETTO_LOG("Correcting load bias by %" PRIu64 " for %s", addr_correction,
-                 mapping_name.c_str());
+    PERFETTO_DLOG("Correcting load bias by %" PRIu64 " for %s", addr_correction,
+                  mapping_name.c_str());
   }
-  std::vector<std::vector<SymbolizedFrame>> result;
-  result.reserve(addresses.size());
+  SymbolizeResult result;
+  result.frames.reserve(addresses.size());
   for (uint64_t address : addresses) {
-    result.emplace_back(llvm_symbolizer_.Symbolize(binary->file_name,
-                                                   address + addr_correction));
+    result.frames.emplace_back(llvm_symbolizer_.Symbolize(
+        binary->file_name, address + addr_correction));
   }
   return result;
 }
