@@ -128,7 +128,11 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
   // parsed first so that we do not get issues with
   // SetPidZeroIsUpidZeroIdleProcess()
-  trace_context_ = input_context_->ForkContextForTrace(file_id_, 0);
+  // Use file_id as the machine ID to ensure each trace file in a multi-trace
+  // session gets its own clock tracker. This prevents timestamp offsets when
+  // loading multiple traces from a TAR container.
+  trace_context_ =
+      input_context_->ForkContextForTrace(file_id_, file_id_.value);
   if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
     trace_context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
   }
