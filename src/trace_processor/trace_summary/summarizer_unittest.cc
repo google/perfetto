@@ -32,6 +32,11 @@ namespace perfetto::trace_processor::summary {
 namespace {
 
 using ::testing::HasSubstr;
+// Import public types from parent namespace.
+using ::perfetto::trace_processor::Summarizer;
+using ::perfetto::trace_processor::SummarizerQueryResult;
+using ::perfetto::trace_processor::SummarizerUpdateSpecResult;
+using QuerySyncInfo = SummarizerUpdateSpecResult::QuerySyncInfo;
 
 class SummarizerTest : public ::testing::Test {
  protected:
@@ -41,7 +46,7 @@ class SummarizerTest : public ::testing::Test {
     // TP's internal state (tables, functions) so we can execute queries against
     // it. The Summarizer doesn't need trace data, just a working SQL engine.
     tp_->NotifyEndOfFile();
-    summarizer_ = std::make_unique<Summarizer>(tp_.get(), nullptr);
+    summarizer_ = std::make_unique<SummarizerImpl>(tp_.get(), nullptr);
   }
 
   // Helper to create a TraceSummarySpec with queries.
@@ -95,13 +100,13 @@ class SummarizerTest : public ::testing::Test {
   }
 
   std::unique_ptr<TraceProcessor> tp_;
-  std::unique_ptr<Summarizer> summarizer_;
+  std::unique_ptr<SummarizerImpl> summarizer_;
 };
 
 TEST_F(SummarizerTest, BasicMaterialization) {
   auto spec_data = CreateSpec({{"test_query", "SELECT 42 as value"}});
 
-  UpdateSpecResult result;
+  SummarizerUpdateSpecResult result;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
 
@@ -113,7 +118,7 @@ TEST_F(SummarizerTest, BasicMaterialization) {
   EXPECT_FALSE(result.queries[0].error.has_value());
 
   // Should be able to fetch the result.
-  QueryResult info;
+  SummarizerQueryResult info;
   ASSERT_OK(summarizer_->Query("test_query", &info));
   EXPECT_TRUE(info.exists);
   EXPECT_FALSE(info.table_name.empty());
@@ -126,24 +131,24 @@ TEST_F(SummarizerTest, UnchangedQueryNotRematerialized) {
   auto spec_data = CreateSpec({{"test_query", "SELECT 42 as value"}});
 
   // First update - should materialize.
-  UpdateSpecResult result1;
+  SummarizerUpdateSpecResult result1;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result1));
   ASSERT_EQ(result1.queries.size(), 1u);
   EXPECT_TRUE(result1.queries[0].was_updated);
 
-  QueryResult info1;
+  SummarizerQueryResult info1;
   ASSERT_OK(summarizer_->Query("test_query", &info1));
   std::string first_table_name = info1.table_name;
 
   // Second update with same spec - should NOT rematerialize.
-  UpdateSpecResult result2;
+  SummarizerUpdateSpecResult result2;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result2));
   ASSERT_EQ(result2.queries.size(), 1u);
   EXPECT_FALSE(result2.queries[0].was_updated);
 
-  QueryResult info2;
+  SummarizerQueryResult info2;
   ASSERT_OK(summarizer_->Query("test_query", &info2));
   EXPECT_EQ(info2.table_name, first_table_name);
 }
@@ -152,26 +157,26 @@ TEST_F(SummarizerTest, ChangedQueryRematerialized) {
   auto spec_data1 = CreateSpec({{"test_query", "SELECT 42 as value"}});
 
   // First update.
-  UpdateSpecResult result1;
+  SummarizerUpdateSpecResult result1;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data1.data(), spec_data1.size(), &result1));
   ASSERT_EQ(result1.queries.size(), 1u);
   EXPECT_TRUE(result1.queries[0].was_updated);
 
-  QueryResult info1;
+  SummarizerQueryResult info1;
   ASSERT_OK(summarizer_->Query("test_query", &info1));
   std::string first_table_name = info1.table_name;
 
   // Second update with changed SQL.
   auto spec_data2 = CreateSpec({{"test_query", "SELECT 100 as value"}});
 
-  UpdateSpecResult result2;
+  SummarizerUpdateSpecResult result2;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data2.data(), spec_data2.size(), &result2));
   ASSERT_EQ(result2.queries.size(), 1u);
   EXPECT_TRUE(result2.queries[0].was_updated);
 
-  QueryResult info2;
+  SummarizerQueryResult info2;
   ASSERT_OK(summarizer_->Query("test_query", &info2));
   // Table name should be different (new materialization).
   EXPECT_NE(info2.table_name, first_table_name);
@@ -182,7 +187,7 @@ TEST_F(SummarizerTest, AutoDropWhenQueryRemoved) {
       {{"query_a", "SELECT 1 as value"}, {"query_b", "SELECT 2 as value"}});
 
   // First update with both queries.
-  UpdateSpecResult result1;
+  SummarizerUpdateSpecResult result1;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data1.data(), spec_data1.size(), &result1));
   ASSERT_EQ(result1.queries.size(), 2u);
@@ -190,7 +195,7 @@ TEST_F(SummarizerTest, AutoDropWhenQueryRemoved) {
   // Second update with only query_a.
   auto spec_data2 = CreateSpec({{"query_a", "SELECT 1 as value"}});
 
-  UpdateSpecResult result2;
+  SummarizerUpdateSpecResult result2;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data2.data(), spec_data2.size(), &result2));
 
@@ -213,7 +218,7 @@ TEST_F(SummarizerTest, AutoDropWhenQueryRemoved) {
   EXPECT_TRUE(found_query_b_dropped);
 
   // query_b should no longer exist.
-  QueryResult info_b;
+  SummarizerQueryResult info_b;
   ASSERT_OK(summarizer_->Query("query_b", &info_b));
   EXPECT_FALSE(info_b.exists);
 }
@@ -227,7 +232,7 @@ TEST_F(SummarizerTest, ChainedQueriesWithOptimization) {
       CreateChainedSpec("SELECT 1 as value UNION ALL SELECT 2 as value");
 
   // First update - all should be materialized.
-  UpdateSpecResult result1;
+  SummarizerUpdateSpecResult result1;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result1));
   ASSERT_EQ(result1.queries.size(), 3u);
@@ -238,18 +243,18 @@ TEST_F(SummarizerTest, ChainedQueriesWithOptimization) {
   }
 
   // Get the table names.
-  QueryResult info_a1;
+  SummarizerQueryResult info_a1;
   ASSERT_OK(summarizer_->Query("A", &info_a1));
-  QueryResult info_b1;
+  SummarizerQueryResult info_b1;
   ASSERT_OK(summarizer_->Query("B", &info_b1));
-  QueryResult info_c1;
+  SummarizerQueryResult info_c1;
   ASSERT_OK(summarizer_->Query("C", &info_c1));
   ASSERT_TRUE(info_a1.exists);
   ASSERT_TRUE(info_b1.exists);
   ASSERT_TRUE(info_c1.exists);
 
   // Second update with same spec - none should be rematerialized.
-  UpdateSpecResult result2;
+  SummarizerUpdateSpecResult result2;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result2));
   ASSERT_EQ(result2.queries.size(), 3u);
@@ -261,11 +266,11 @@ TEST_F(SummarizerTest, ChainedQueriesWithOptimization) {
   }
 
   // Table names should be the same.
-  QueryResult info_a2;
+  SummarizerQueryResult info_a2;
   ASSERT_OK(summarizer_->Query("A", &info_a2));
-  QueryResult info_b2;
+  SummarizerQueryResult info_b2;
   ASSERT_OK(summarizer_->Query("B", &info_b2));
-  QueryResult info_c2;
+  SummarizerQueryResult info_c2;
   ASSERT_OK(summarizer_->Query("C", &info_c2));
   EXPECT_EQ(info_a2.table_name, info_a1.table_name);
   EXPECT_EQ(info_b2.table_name, info_b1.table_name);
@@ -308,16 +313,16 @@ TEST_F(SummarizerTest, ChainedQueriesPartialRematerialization) {
   auto spec1_data = spec1_proto.SerializeAsArray();
 
   // First update.
-  UpdateSpecResult result1;
+  SummarizerUpdateSpecResult result1;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec1_data.data(), spec1_data.size(), &result1));
   ASSERT_EQ(result1.queries.size(), 3u);
 
-  QueryResult info_a1;
+  SummarizerQueryResult info_a1;
   ASSERT_OK(summarizer_->Query("A", &info_a1));
-  QueryResult info_b1;
+  SummarizerQueryResult info_b1;
   ASSERT_OK(summarizer_->Query("B", &info_b1));
-  QueryResult info_c1;
+  SummarizerQueryResult info_c1;
   ASSERT_OK(summarizer_->Query("C", &info_c1));
   ASSERT_TRUE(info_a1.exists);
   ASSERT_TRUE(info_b1.exists);
@@ -358,7 +363,7 @@ TEST_F(SummarizerTest, ChainedQueriesPartialRematerialization) {
 
   auto spec2_data = spec2_proto.SerializeAsArray();
 
-  UpdateSpecResult result2;
+  SummarizerUpdateSpecResult result2;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec2_data.data(), spec2_data.size(), &result2));
   ASSERT_EQ(result2.queries.size(), 3u);
@@ -384,14 +389,14 @@ TEST_F(SummarizerTest, ChainedQueriesPartialRematerialization) {
   EXPECT_TRUE(c_updated) << "C should be rematerialized (B changed)";
 
   // Verify A's table name is preserved.
-  QueryResult info_a2;
+  SummarizerQueryResult info_a2;
   ASSERT_OK(summarizer_->Query("A", &info_a2));
   EXPECT_EQ(info_a2.table_name, info_a1.table_name);
 
   // B and C should have new table names.
-  QueryResult info_b2;
+  SummarizerQueryResult info_b2;
   ASSERT_OK(summarizer_->Query("B", &info_b2));
-  QueryResult info_c2;
+  SummarizerQueryResult info_c2;
   ASSERT_OK(summarizer_->Query("C", &info_c2));
   EXPECT_NE(info_b2.table_name, info_b1.table_name);
   EXPECT_NE(info_c2.table_name, info_c1.table_name);
@@ -411,10 +416,10 @@ TEST_F(SummarizerTest, OldTableAccessibleUntilNewMaterialization) {
   auto spec_data1 = CreateSpec({{"test_query", "SELECT 42 as value"}});
 
   // First update and materialize.
-  UpdateSpecResult result1;
+  SummarizerUpdateSpecResult result1;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data1.data(), spec_data1.size(), &result1));
-  QueryResult info1;
+  SummarizerQueryResult info1;
   ASSERT_OK(summarizer_->Query("test_query", &info1));
   ASSERT_TRUE(info1.exists);
   std::string old_table_name = info1.table_name;
@@ -432,7 +437,7 @@ TEST_F(SummarizerTest, OldTableAccessibleUntilNewMaterialization) {
   // but should NOT drop the old table yet.
   auto spec_data2 = CreateSpec({{"test_query", "SELECT 100 as value"}});
 
-  UpdateSpecResult result2;
+  SummarizerUpdateSpecResult result2;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec_data2.data(), spec_data2.size(), &result2));
   ASSERT_EQ(result2.queries.size(), 1u);
@@ -449,7 +454,7 @@ TEST_F(SummarizerTest, OldTableAccessibleUntilNewMaterialization) {
   }  // Iterator goes out of scope, releasing any locks.
 
   // Now fetch the result, which triggers materialization of the new table.
-  QueryResult info2;
+  SummarizerQueryResult info2;
   ASSERT_OK(summarizer_->Query("test_query", &info2));
   ASSERT_TRUE(info2.exists);
   EXPECT_NE(info2.table_name, old_table_name);  // New table created.
@@ -518,17 +523,17 @@ TEST_F(SummarizerTest, NestedEmbeddedQueryDependencyPropagation) {
   auto spec1_data = spec1_proto.SerializeAsArray();
 
   // First update.
-  UpdateSpecResult result1;
+  SummarizerUpdateSpecResult result1;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec1_data.data(), spec1_data.size(), &result1));
   ASSERT_EQ(result1.queries.size(), 3u);
 
   // Materialize all queries.
-  QueryResult info_a1;
+  SummarizerQueryResult info_a1;
   ASSERT_OK(summarizer_->Query("A", &info_a1));
-  QueryResult info_b1;
+  SummarizerQueryResult info_b1;
   ASSERT_OK(summarizer_->Query("B", &info_b1));
-  QueryResult info_c1;
+  SummarizerQueryResult info_c1;
   ASSERT_OK(summarizer_->Query("C", &info_c1));
   ASSERT_TRUE(info_a1.exists);
   ASSERT_TRUE(info_b1.exists);
@@ -575,7 +580,7 @@ TEST_F(SummarizerTest, NestedEmbeddedQueryDependencyPropagation) {
 
   auto spec2_data = spec2_proto.SerializeAsArray();
 
-  UpdateSpecResult result2;
+  SummarizerUpdateSpecResult result2;
   ASSERT_OK(
       summarizer_->UpdateSpec(spec2_data.data(), spec2_data.size(), &result2));
   ASSERT_EQ(result2.queries.size(), 3u);
@@ -604,9 +609,9 @@ TEST_F(SummarizerTest, NestedEmbeddedQueryDependencyPropagation) {
       << "C should be rematerialized (nested dependency A changed)";
 
   // Verify the results reflect the change.
-  QueryResult info_a2;
+  SummarizerQueryResult info_a2;
   ASSERT_OK(summarizer_->Query("A", &info_a2));
-  QueryResult info_c2;
+  SummarizerQueryResult info_c2;
   ASSERT_OK(summarizer_->Query("C", &info_c2));
 
   // A now has 1 row.

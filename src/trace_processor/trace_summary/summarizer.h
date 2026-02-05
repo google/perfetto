@@ -24,6 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/trace_processor/summarizer.h"
 
 namespace perfetto::trace_processor {
 
@@ -36,31 +37,7 @@ class StructuredQueryGenerator;
 
 namespace summary {
 
-// Per-query sync info returned by UpdateSpec().
-struct QuerySyncInfo {
-  std::string query_id;
-  std::optional<std::string> error;
-  bool was_updated = false;
-  bool was_dropped = false;
-};
-
-// Result of UpdateSpec().
-struct UpdateSpecResult {
-  std::vector<QuerySyncInfo> queries;
-};
-
-// Result of Query().
-struct QueryResult {
-  bool exists = false;
-  std::string table_name;
-  int64_t row_count = 0;
-  std::vector<std::string> columns;
-  double duration_ms = 0.0;
-  std::string sql;  // Complete runnable SQL (includes + preambles + query).
-  std::string textproto;       // Text proto representation.
-  std::string standalone_sql;  // Fully standalone SQL (no materialized refs).
-};
-
+// Internal implementation of the public Summarizer interface.
 // Manages lazy materialization of structured queries.
 //
 // Key behaviors:
@@ -68,26 +45,23 @@ struct QueryResult {
 // - Change detection: Uses proto hash to detect changes.
 // - Dependency propagation: If A changes, dependents B->C->D re-materialize.
 // - Table substitution: Unchanged queries reference their materialized tables.
-// - Cleanup: All materialized tables are dropped when the Summarizer is
+// - Cleanup: All materialized tables are dropped when the SummarizerImpl is
 //   destroyed.
-class Summarizer {
+class SummarizerImpl : public Summarizer {
  public:
-  Summarizer(TraceProcessor* tp, DescriptorPool* descriptor_pool);
-  ~Summarizer();
+  SummarizerImpl(TraceProcessor* tp, DescriptorPool* descriptor_pool);
+  ~SummarizerImpl() override;
 
-  Summarizer(const Summarizer&) = delete;
-  Summarizer& operator=(const Summarizer&) = delete;
+  SummarizerImpl(const SummarizerImpl&) = delete;
+  SummarizerImpl& operator=(const SummarizerImpl&) = delete;
 
-  // Updates the spec. Compares proto hashes to detect changes, auto-drops
-  // removed queries, marks changed queries for re-materialization.
-  // Materialization is lazy (deferred to Query()).
+  // Summarizer implementation.
   base::Status UpdateSpec(const uint8_t* spec_data,
                           size_t spec_size,
-                          UpdateSpecResult* result);
+                          SummarizerUpdateSpecResult* result) override;
 
-  // Fetches a query result, materializing on demand if needed.
-  // Returns OK with exists=false if query_id not found.
-  base::Status Query(const std::string& query_id, QueryResult* result);
+  base::Status Query(const std::string& query_id,
+                     SummarizerQueryResult* result) override;
 
  private:
   struct QueryState {

@@ -115,8 +115,10 @@ export interface Engine {
   stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult>;
 
   // Summarizer API for Data Explorer.
-  // Returns a result containing the server-generated summarizer ID.
-  createSummarizer(): Promise<protos.CreateSummarizerResult>;
+  // Creates a summarizer with the given ID. Returns error if ID already exists.
+  createSummarizer(
+    summarizerId: string,
+  ): Promise<protos.CreateSummarizerResult>;
 
   updateSummarizerSpec(
     summarizerId: string,
@@ -668,14 +670,18 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
-  createSummarizer(): Promise<protos.CreateSummarizerResult> {
+  createSummarizer(
+    summarizerId: string,
+  ): Promise<protos.CreateSummarizerResult> {
     if (this.pendingCreateSummarizer) {
       return Promise.reject(new Error('Already creating summarizer'));
     }
     const result = defer<protos.CreateSummarizerResult>();
     const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_CREATE_SUMMARIZER;
-    rpc.createSummarizerArgs = new protos.CreateSummarizerArgs();
+    rpc.createSummarizerArgs = new protos.CreateSummarizerArgs({
+      summarizerId,
+    });
     this.pendingCreateSummarizer = result;
     this.rpcSendRequest(rpc);
     return result;
@@ -836,8 +842,10 @@ export class EngineProxy implements Engine, Disposable {
     return this.engine.stopAndGetMetatrace();
   }
 
-  createSummarizer(): Promise<protos.CreateSummarizerResult> {
-    return this.engine.createSummarizer();
+  createSummarizer(
+    summarizerId: string,
+  ): Promise<protos.CreateSummarizerResult> {
+    return this.engine.createSummarizer(summarizerId);
   }
 
   updateSummarizerSpec(

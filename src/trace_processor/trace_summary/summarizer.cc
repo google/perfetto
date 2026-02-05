@@ -35,7 +35,12 @@
 #include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 
-namespace perfetto::trace_processor::summary {
+namespace perfetto::trace_processor {
+
+// Base class destructor (must be defined for the interface).
+Summarizer::~Summarizer() = default;
+
+namespace summary {
 
 namespace {
 
@@ -191,22 +196,23 @@ void ExtractInnerQueryIds(const uint8_t* data,
 
 }  // namespace
 
-Summarizer::Summarizer(TraceProcessor* tp, DescriptorPool* descriptor_pool)
+SummarizerImpl::SummarizerImpl(TraceProcessor* tp,
+                               DescriptorPool* descriptor_pool)
     : tp_(tp), descriptor_pool_(descriptor_pool) {}
 
-Summarizer::~Summarizer() {
+SummarizerImpl::~SummarizerImpl() {
   DropAll();
 }
 
-std::string Summarizer::ComputeProtoHash(const uint8_t* data, size_t size) {
+std::string SummarizerImpl::ComputeProtoHash(const uint8_t* data, size_t size) {
   base::FnvHasher hasher;
   hasher.Update(reinterpret_cast<const char*>(data), size);
   return std::to_string(hasher.digest());
 }
 
-base::Status Summarizer::UpdateSpec(const uint8_t* spec_data,
-                                    size_t spec_size,
-                                    UpdateSpecResult* result) {
+base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
+                                        size_t spec_size,
+                                        SummarizerUpdateSpecResult* result) {
   TraceSummarySpec::Decoder spec_decoder(spec_data, spec_size);
 
   // Track which query IDs are in the new spec.
@@ -272,7 +278,7 @@ base::Status Summarizer::UpdateSpec(const uint8_t* spec_data,
         }
       }
       // Record the drop in the result.
-      QuerySyncInfo sync_info;
+      SummarizerUpdateSpecResult::QuerySyncInfo sync_info;
       sync_info.query_id = state_it.key();
       sync_info.was_dropped = true;
       result->queries.push_back(std::move(sync_info));
@@ -314,7 +320,7 @@ base::Status Summarizer::UpdateSpec(const uint8_t* spec_data,
 
   // Report status for all queries (no materialization yet - that's lazy).
   for (auto state_it = query_states_.GetIterator(); state_it; ++state_it) {
-    QuerySyncInfo sync_info;
+    SummarizerUpdateSpecResult::QuerySyncInfo sync_info;
     sync_info.query_id = state_it.key();
     sync_info.was_updated = state_it.value().needs_materialization;
     result->queries.push_back(std::move(sync_info));
@@ -323,7 +329,7 @@ base::Status Summarizer::UpdateSpec(const uint8_t* spec_data,
   return base::OkStatus();
 }
 
-std::vector<std::string> Summarizer::CollectDependencies(
+std::vector<std::string> SummarizerImpl::CollectDependencies(
     const std::string& query_id) {
   std::vector<std::string> deps;
   base::FlatHashMap<std::string, bool> visited;
@@ -359,7 +365,7 @@ std::vector<std::string> Summarizer::CollectDependencies(
   return deps;
 }
 
-base::Status Summarizer::PrepareGenerator(
+base::Status SummarizerImpl::PrepareGenerator(
     StructuredQueryGenerator& generator,
     std::vector<std::vector<uint8_t>>& table_source_protos) {
   // Add ALL queries from query_states_ to the generator.
@@ -422,9 +428,10 @@ base::Status Summarizer::PrepareGenerator(
   return base::OkStatus();
 }
 
-base::Status Summarizer::MaterializeQuery(const std::string& query_id,
-                                          QueryState& state,
-                                          StructuredQueryGenerator& generator) {
+base::Status SummarizerImpl::MaterializeQuery(
+    const std::string& query_id,
+    QueryState& state,
+    StructuredQueryGenerator& generator) {
   // Generate SQL for this query.
   // Use inline_shared_queries=true so that shared queries (referenced via
   // inner_query_id) are included as CTEs in the generated SQL rather than being
@@ -535,7 +542,7 @@ base::Status Summarizer::MaterializeQuery(const std::string& query_id,
   return base::OkStatus();
 }
 
-void Summarizer::GenerateStandaloneSql(QueryState& state) {
+void SummarizerImpl::GenerateStandaloneSql(QueryState& state) {
   // Skip if already generated.
   if (!state.standalone_sql.empty()) {
     return;
@@ -591,7 +598,7 @@ void Summarizer::GenerateStandaloneSql(QueryState& state) {
   state.standalone_sql = standalone_complete;
 }
 
-void Summarizer::DropAll() {
+void SummarizerImpl::DropAll() {
   for (auto it = query_states_.GetIterator(); it; ++it) {
     if (!it.value().table_name.empty()) {
       auto drop_it =
@@ -604,8 +611,8 @@ void Summarizer::DropAll() {
   query_states_.Clear();
 }
 
-base::Status Summarizer::Query(const std::string& query_id,
-                               QueryResult* result) {
+base::Status SummarizerImpl::Query(const std::string& query_id,
+                                   SummarizerQueryResult* result) {
   QueryState* state = query_states_.Find(query_id);
   if (!state) {
     result->exists = false;
@@ -673,4 +680,5 @@ base::Status Summarizer::Query(const std::string& query_id,
   return base::OkStatus();
 }
 
-}  // namespace perfetto::trace_processor::summary
+}  // namespace summary
+}  // namespace perfetto::trace_processor

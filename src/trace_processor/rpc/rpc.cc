@@ -40,9 +40,6 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
-#include "src/trace_processor/trace_summary/summarizer.h"
-#include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
-#include "src/trace_processor/util/descriptors.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -122,6 +119,10 @@ void Rpc::ResetTraceProcessorInternal(const Config& config) {
   current_config_ = config;
   bytes_parsed_ = bytes_last_progress_ = 0;
   t_parse_started_ = base::GetWallTimeNs().count();
+
+  // Clear all summarizers before destroying the old trace processor, as they
+  // hold pointers to it.
+  summarizers_.Clear();
 
   trace_processor_ = TraceProcessor::CreateInstance(config);
   if (on_trace_processor_created_) {
@@ -370,22 +371,24 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     }
     case RpcProto::TPM_CREATE_SUMMARIZER: {
       Response resp(tx_seq_id_++, req_type);
-
-      // Generate a unique summarizer ID.
-      std::string summarizer_id =
-          "summarizer_" + std::to_string(next_summarizer_id_++);
+      protozero::ConstBytes args = req.create_summarizer_args();
+      protos::pbzero::CreateSummarizerArgs::Decoder decoder(args.data,
+                                                            args.size);
+      std::string summarizer_id = decoder.summarizer_id().ToStdString();
 
       auto* result = resp->set_create_summarizer_result();
-      // Lazily initialize the descriptor pool for textproto generation.
-      if (!summarizer_descriptor_pool_) {
-        summarizer_descriptor_pool_ = std::make_unique<DescriptorPool>();
-        summarizer_descriptor_pool_->AddFromFileDescriptorSet(
-            kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
+      if (summarizers_.Find(summarizer_id)) {
+        result->set_error("Summarizer already exists: " + summarizer_id);
+      } else {
+        std::unique_ptr<Summarizer> summarizer;
+        base::Status status = trace_processor_->CreateSummarizer(&summarizer);
+        if (!status.ok()) {
+          result->set_error(status.message());
+        } else {
+          summarizers_.Insert(summarizer_id, std::move(summarizer));
+          result->set_summarizer_id(summarizer_id);
+        }
       }
-      auto summarizer = std::make_unique<summary::Summarizer>(
-          trace_processor_.get(), summarizer_descriptor_pool_.get());
-      summarizers_.Insert(summarizer_id, std::move(summarizer));
-      result->set_summarizer_id(summarizer_id);
       resp.Send(rpc_response_fn_);
       break;
     }
@@ -397,15 +400,15 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       std::string summarizer_id = decoder.summarizer_id().ToStdString();
 
       auto* result = resp->set_update_summarizer_spec_result();
-      auto* summarizer = summarizers_.Find(summarizer_id);
-      if (!summarizer) {
+      auto* summarizer_ptr = summarizers_.Find(summarizer_id);
+      if (!summarizer_ptr) {
         result->set_error("Summarizer not found: " + summarizer_id);
       } else {
+        Summarizer* summarizer = summarizer_ptr->get();
         protozero::ConstBytes spec_bytes = decoder.spec();
-        summary::UpdateSpecResult update_result;
-        base::Status status =
-            (*summarizer)
-                ->UpdateSpec(spec_bytes.data, spec_bytes.size, &update_result);
+        SummarizerUpdateSpecResult update_result;
+        base::Status status = summarizer->UpdateSpec(
+            spec_bytes.data, spec_bytes.size, &update_result);
         if (!status.ok()) {
           result->set_error(status.message());
         }
@@ -431,12 +434,13 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       std::string query_id = decoder.query_id().ToStdString();
 
       auto* result = resp->set_query_summarizer_result();
-      auto* summarizer = summarizers_.Find(summarizer_id);
-      if (!summarizer) {
+      auto* summarizer_ptr = summarizers_.Find(summarizer_id);
+      if (!summarizer_ptr) {
         result->set_error("Summarizer not found: " + summarizer_id);
       } else {
-        summary::QueryResult query_result;
-        base::Status status = (*summarizer)->Query(query_id, &query_result);
+        Summarizer* summarizer = summarizer_ptr->get();
+        SummarizerQueryResult query_result;
+        base::Status status = summarizer->Query(query_id, &query_result);
         if (!status.ok()) {
           result->set_error(status.message());
         } else {

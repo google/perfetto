@@ -16,6 +16,7 @@ import protos from '../../../protos';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {Engine} from '../../../trace_processor/engine';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
+import {uuidv4Sql} from '../../../base/uuid';
 import {Query, QueryNode} from '../query_node';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 
@@ -197,7 +198,8 @@ export async function analyzeNode(
 
   // Create the summarizer if it doesn't exist yet
   if (analyzeNodeSummarizerId === undefined) {
-    const createRes = await engine.createSummarizer();
+    const newId = `analyze_summarizer_${uuidv4Sql()}`;
+    const createRes = await engine.createSummarizer(newId);
     if (
       createRes.error !== undefined &&
       createRes.error !== null &&
@@ -205,10 +207,7 @@ export async function analyzeNode(
     ) {
       return new Error(createRes.error);
     }
-    if (createRes.summarizerId === undefined || createRes.summarizerId === '') {
-      return new Error('createSummarizer did not return a summarizer ID');
-    }
-    analyzeNodeSummarizerId = createRes.summarizerId;
+    analyzeNodeSummarizerId = newId;
   }
 
   // Update the spec with our queries

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {uuidv4Sql} from '../../../base/uuid';
 import protos from '../../../protos';
 import {Engine} from '../../../trace_processor/engine';
 import {Query, QueryNode} from '../query_node';
@@ -82,15 +83,13 @@ export class QueryExecutionService {
     if (this.summarizerId !== undefined) {
       return undefined;
     }
-    const result = await this.engine.createSummarizer();
+    const newId = `summarizer_${uuidv4Sql()}`;
+    const result = await this.engine.createSummarizer(newId);
     const error = toError(result.error);
     if (error !== undefined) {
       return error;
     }
-    if (result.summarizerId === undefined || result.summarizerId === '') {
-      return new Error('CreateSummarizer did not return a summarizer ID');
-    }
-    this.summarizerId = result.summarizerId;
+    this.summarizerId = newId;
     return undefined;
   }
 

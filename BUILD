@@ -1404,6 +1404,7 @@ perfetto_filegroup(
         "include/perfetto/trace_processor/iterator.h",
         "include/perfetto/trace_processor/metatrace_config.h",
         "include/perfetto/trace_processor/read_trace.h",
+        "include/perfetto/trace_processor/summarizer.h",
         "include/perfetto/trace_processor/trace_processor.h",
     ],
 )

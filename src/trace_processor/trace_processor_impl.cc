@@ -143,6 +143,7 @@
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/trace_summary/summarizer.h"
 #include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -1445,6 +1446,25 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
       metrics_descriptor_pool_.descriptors()[*desc_idx].FindFieldByName(
           metric_name);
   return field_idx != nullptr;
+}
+
+// =================================================================
+// |                        Summarizer                              |
+// =================================================================
+
+base::Status TraceProcessorImpl::CreateSummarizer(
+    std::unique_ptr<Summarizer>* out) {
+  // Lazily initialize the descriptor pool for textproto generation.
+  auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(
+      ".perfetto.protos.TraceSummarySpec");
+  if (!opt_idx) {
+    metrics_descriptor_pool_.AddFromFileDescriptorSet(
+        kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
+  }
+
+  *out = std::make_unique<summary::SummarizerImpl>(this,
+                                                   &metrics_descriptor_pool_);
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor
