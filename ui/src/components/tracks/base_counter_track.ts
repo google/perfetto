@@ -43,8 +43,9 @@ import {
   SerialTaskQueue,
 } from '../../base/query_slot';
 import {BufferedBounds} from './buffered_bounds';
-import {BUCKETS_PER_PIXEL} from './timeline_cache';
 import {createVirtualTable} from '../../trace_processor/sql_utils';
+
+const BUCKETS_PER_PIXEL = 2;
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));

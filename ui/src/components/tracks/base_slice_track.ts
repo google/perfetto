@@ -35,7 +35,6 @@ import {
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
-import {BUCKETS_PER_PIXEL} from './timeline_cache';
 import {deferChunkedTask} from '../../base/chunked_task';
 import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 import {
@@ -47,8 +46,9 @@ import {
 import {createVirtualTable} from '../../trace_processor/sql_utils';
 import {BufferedBounds} from './buffered_bounds';
 
-// The common class that underpins all tracks drawing slices.
+const BUCKETS_PER_PIXEL = 2;
 
+// The common class that underpins all tracks drawing slices.
 export const SLICE_FLAGS_INCOMPLETE = 1;
 export const SLICE_FLAGS_INSTANT = 2;
 
@@ -819,7 +819,7 @@ export abstract class BaseSliceTrack<
         ${end},
         ${resolution}
       ) z
-      CROSS JOIN (${this.getSqlSource()}) s using (id)
+      CROSS JOIN (${this.getSqlSource()}) s using (id) jalskdfjlsakdfjlsakdf
     `);
 
     if (signal.isCancelled) throw QUERY_CANCELLED;
