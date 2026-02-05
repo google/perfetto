@@ -26,8 +26,10 @@ import {
   STR,
   LONG_NULL,
   QueryResult,
+  NUM,
 } from '../../trace_processor/query_result';
 import {TrackRenderer} from '../../public/track';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
 
 /**
  * Aggregation types for the BreakdownTracks.
@@ -136,6 +138,10 @@ export interface BreakdownTrackProps {
    */
   slice?: BreakdownTrackSqlInfo;
   /**
+   * The column name that uniquely identifies a slice in the slice table.
+   */
+  sliceIdColumn?: string;
+  /**
    * Data to be pivoted. This is simlar to the debug pivot tracks where
    * the values of each column will be displayed in a separate track with
    * the corresponding slices.
@@ -145,6 +151,10 @@ export interface BreakdownTrackProps {
    * Whether to sort the tracks based on their maximum value.
    */
   sortTracks?: boolean;
+  /**
+   * Optional custom details panel for the slice tracks.
+   */
+  detailsPanel?: (trace: Trace) => TrackEventDetailsPanel;
 }
 
 interface Filter {
@@ -415,12 +425,14 @@ export class BreakdownTracks {
           uri,
           dataset: new SourceDataset({
             schema: {
+              id: NUM,
               ts: LONG,
               dur: LONG_NULL,
               name: STR,
             },
             src: `
               SELECT
+                ${this.props.sliceIdColumn ? this.props.sliceIdColumn : 'ROW_NUMBER() OVER()'} AS id,
                 ${sqlInfo.tsCol} AS ts,
                 ${sqlInfo.durCol} AS dur,
                 ${sqlInfo.columns[columnIndex]} AS name
@@ -429,6 +441,9 @@ export class BreakdownTracks {
               ${filtersClause}
             `,
           }),
+          detailsPanel: this.props.detailsPanel
+            ? () => this.props.detailsPanel!(this.props.trace)
+            : undefined,
         });
       },
     );

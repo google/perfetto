@@ -181,6 +181,13 @@ export interface NodeGraphApi {
   recenter: () => void;
   findPlacementForNode: (node: Omit<Node, 'x' | 'y'>) => Position;
   panBy: (dx: number, dy: number) => void;
+  /**
+   * Zooms the canvas by the given delta factor.
+   * @param deltaZoom - The zoom delta (e.g., 0.1 for 10% zoom in, -0.1 for 10% zoom out)
+   * @param centerX - X coordinate to zoom around (in viewport space). Defaults to canvas center.
+   * @param centerY - Y coordinate to zoom around (in viewport space). Defaults to canvas center.
+   */
+  zoomBy: (deltaZoom: number, centerX?: number, centerY?: number) => void;
 }
 
 export interface NodeGraphAttrs {
@@ -363,6 +370,36 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   const panBy = (dx: number, dy: number) => {
     canvasState.panOffset.x += dx;
     canvasState.panOffset.y += dy;
+  };
+
+  // Shared zoom function used by both internal handlers and external API
+  // Zooms around the center of the canvas (or specified point)
+  const zoomBy = (deltaZoom: number, centerX?: number, centerY?: number) => {
+    if (!canvasElement) return;
+    const canvas = canvasElement;
+    const canvasRect = canvas.getBoundingClientRect();
+
+    // Use center of canvas if no center point specified
+    const zoomX = centerX ?? canvasRect.width / 2;
+    const zoomY = centerY ?? canvasRect.height / 2;
+
+    const newZoom = Math.max(
+      0.1,
+      Math.min(5.0, canvasState.zoom * (1 + deltaZoom)),
+    );
+
+    // Calculate the point in canvas space (before zoom)
+    const canvasX = (zoomX - canvasState.panOffset.x) / canvasState.zoom;
+    const canvasY = (zoomY - canvasState.panOffset.y) / canvasState.zoom;
+
+    // Update zoom
+    canvasState.zoom = newZoom;
+
+    // Adjust pan to keep the same point under the zoom center
+    canvasState.panOffset = {
+      x: zoomX - canvasX * newZoom,
+      y: zoomY - canvasY * newZoom,
+    };
   };
 
   // API functions that are exposed to parent components via onReady callback
@@ -2105,6 +2142,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           recenter: recenterApi,
           findPlacementForNode: findPlacementForNodeApi,
           panBy,
+          zoomBy,
         });
       }
     },
@@ -2142,6 +2180,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           recenter: recenterApi,
           findPlacementForNode: findPlacementForNodeApi,
           panBy,
+          zoomBy,
         });
       }
     },

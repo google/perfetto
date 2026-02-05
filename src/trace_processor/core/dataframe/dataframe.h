@@ -280,6 +280,17 @@ class Dataframe {
     return static_cast<uint32_t>(column_ptrs_.size());
   }
 
+  // Returns the total number of mutations to the dataframe. This includes
+  // both non-column mutations (e.g. adding rows, adding indexes) and
+  // column mutations (e.g. setting cell values).
+  uint64_t mutations() const {
+    uint64_t total = non_column_mutations_;
+    for (const auto& col : columns_) {
+      total += col->mutations;
+    }
+    return total;
+  }
+
   // Gets the value of a cell at the specified row and column, calling the
   // appropriate callback method with the value.
   //

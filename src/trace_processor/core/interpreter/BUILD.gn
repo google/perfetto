@@ -16,6 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("interpreter") {
   sources = [
+    "bytecode_builder.cc",
+    "bytecode_builder.h",
     "bytecode_core.h",
     "bytecode_instruction_macros.h",
     "bytecode_instructions.h",

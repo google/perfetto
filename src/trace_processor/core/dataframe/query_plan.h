@@ -25,7 +25,6 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <utility>
 #include <variant>
 #include <vector>
 
@@ -33,12 +32,12 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/interpreter/bytecode_builder.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
@@ -85,7 +84,7 @@ struct QueryPlanImpl {
     double estimated_cost = 0;
 
     // Register holding the final filtered indices.
-    interpreter::ReadHandle<Span<uint32_t>> output_register{};
+    interpreter::ReadHandle<Span<uint32_t>> output_register;
 
     // The maximum number of rows it's possible for this query plan to return.
     uint32_t max_row_count = 0;
@@ -224,6 +223,10 @@ struct QueryPlanImpl {
 // needed to execute a query.
 class QueryPlanBuilder {
  public:
+  // Represents register types for holding indices.
+  using IndicesReg = std::variant<interpreter::RwHandle<Range>,
+                                  interpreter::RwHandle<Span<uint32_t>>>;
+
   static base::StatusOr<QueryPlanImpl> Build(
       uint32_t row_count,
       const std::vector<std::shared_ptr<Column>>& columns,
@@ -232,25 +235,33 @@ class QueryPlanBuilder {
       const std::vector<DistinctSpec>& distinct,
       const std::vector<SortSpec>& sort_specs,
       const LimitSpec& limit_spec,
-      uint64_t cols_used) {
-    QueryPlanBuilder builder(row_count, columns, indexes);
-    RETURN_IF_ERROR(builder.Filter(specs));
-    builder.Distinct(distinct);
-    if (builder.CanUseMinMaxOptimization(sort_specs, limit_spec)) {
-      builder.MinMax(sort_specs[0]);
-      builder.Output({}, cols_used);
-    } else {
-      builder.Sort(sort_specs);
-      builder.Output(limit_spec, cols_used);
-    }
-    return std::move(builder).Build();
-  }
+      uint64_t cols_used);
+
+  // Applies filter constraints to an existing BytecodeBuilder.
+  // This is useful for callers (like TreeTransformer) that want to reuse
+  // the filtering logic without building a full query plan.
+  //
+  // Parameters:
+  //   builder: The BytecodeBuilder to emit bytecode into
+  //   scope_id: Caller-managed cache scope for column register caching
+  //   input_indices: Input indices to filter
+  //   row_count: Total number of rows in the dataframe
+  //   columns: Column definitions
+  //   indexes: Index definitions
+  //   specs: Filter specifications (may be reordered)
+  //
+  // Returns the filtered indices register.
+  // Cost tracking is done internally and discarded at end of call.
+  static base::StatusOr<IndicesReg> Filter(
+      interpreter::BytecodeBuilder& builder,
+      uint32_t scope_id,
+      IndicesReg input_indices,
+      uint32_t row_count,
+      const std::vector<std::shared_ptr<Column>>& columns,
+      const std::vector<Index>& indexes,
+      std::vector<FilterSpec>& specs);
 
  private:
-  // Represents register types for holding indices.
-  using IndicesReg = std::variant<interpreter::RwHandle<Range>,
-                                  interpreter::RwHandle<Span<uint32_t>>>;
-
   // Indicates that the bytecode does not change the estimated or maximum number
   // of rows.
   struct UnchangedRowCount {};
@@ -284,23 +295,12 @@ class QueryPlanBuilder {
                                         ZeroRowCount,
                                         LimitOffsetRowCount>;
 
-  struct IndexState {
-    std::optional<interpreter::RwHandle<Span<uint32_t>>> index_register;
-  };
-
-  struct ColumnState {
-    std::optional<interpreter::RwHandle<Slab<uint32_t>>> prefix_popcount;
-    std::optional<interpreter::RwHandle<interpreter::StoragePtr>>
-        storage_register;
-    std::optional<interpreter::ReadHandle<const BitVector*>> null_bv_register;
-    std::optional<interpreter::ReadHandle<const BitVector*>>
-        small_value_eq_bv_register;
-    std::optional<interpreter::ReadHandle<Span<const uint32_t>>>
-        small_value_eq_popcount_register;
-  };
-
-  // Constructs a builder for the given number of rows and columns.
-  QueryPlanBuilder(uint32_t row_count,
+  // Constructs a builder for the given indices and columns.
+  // scope_id is used for caching column/index registers in the BytecodeBuilder.
+  QueryPlanBuilder(interpreter::BytecodeBuilder& builder,
+                   uint32_t scope_id,
+                   IndicesReg indices,
+                   uint32_t row_count,
                    const std::vector<std::shared_ptr<Column>>& columns,
                    const std::vector<Index>& indexes);
 
@@ -415,12 +415,6 @@ class QueryPlanBuilder {
       uint32_t col,
       StorageType storage_type);
 
-  // Helper template to create or retrieve a register from ColumnState.
-  template <typename Handle, typename InitType, typename StateField>
-  Handle GetOrCreateInitRegister(uint32_t col,
-                                 StateField ColumnState::* field,
-                                 InitType init_type);
-
   // Returns the index register for the given position.
   interpreter::RwHandle<Span<uint32_t>> IndexRegisterFor(uint32_t pos);
 
@@ -485,24 +479,15 @@ class QueryPlanBuilder {
   // The query plan being built.
   QueryPlanImpl plan_;
 
-  // State information for each index during planning.
-  std::vector<IndexState> index_states_;
-
-  // State information for each column during planning.
-  std::vector<ColumnState> column_states_;
-
   // Current register holding the set of matching indices.
   IndicesReg indices_reg_;
 
-  // If scratch indices are needed, this holds the size and handles to
-  // the scratch indices in both Span and Slab forms.
-  struct ScratchIndices {
-    uint32_t size;
-    interpreter::RwHandle<Slab<uint32_t>> slab;
-    interpreter::RwHandle<Span<uint32_t>> span;
-    bool in_use = false;
-  };
-  std::optional<ScratchIndices> scratch_indices_;
+  // Low-level bytecode builder for register allocation, bytecode storage,
+  // and scratch management.
+  interpreter::BytecodeBuilder& builder_;
+
+  // Scope ID for caching column/index registers across Filter() calls.
+  uint32_t scope_id_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

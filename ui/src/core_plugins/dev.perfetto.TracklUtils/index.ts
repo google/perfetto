@@ -17,6 +17,7 @@ import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AppImpl} from '../../core/app_impl';
+import {TraceImpl} from '../../core/trace_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists, RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
@@ -28,6 +29,7 @@ import {Time} from '../../base/time';
 export default class TrackUtilsPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackUtils';
   static dvorakSetting: Setting<boolean>;
+  static azertySetting: Setting<boolean>;
 
   static onActivate(app: App): void {
     TrackUtilsPlugin.dvorakSetting = app.settings.register({
@@ -40,9 +42,27 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       schema: z.boolean(),
       requiresReload: true, // Hotkeys are registered on trace load.
     });
+
+    TrackUtilsPlugin.azertySetting = app.settings.register({
+      id: 'azertyMode',
+      defaultValue: false,
+      name: 'AZERTY layout',
+      description: 'Adjusts shortcuts for AZERTY keyboards (ZQSD navigation).',
+      schema: z.boolean(),
+      requiresReload: true,
+    });
   }
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
+  async onTraceLoad(ctx: TraceImpl): Promise<void> {
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ToggleDrawer',
+      name: 'Toggle drawer',
+      defaultHotkey: TrackUtilsPlugin.azertySetting.get() ? 'A' : 'Q',
+      callback: () => {
+        ctx.tabs.toggleTabPanelVisibility();
+      },
+    });
+
     // Register this command up front to block the print dialog from appearing
     // when pressing the hotkey before the trace is loaded.
     ctx.commands.registerCommand({

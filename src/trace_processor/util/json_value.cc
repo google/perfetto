@@ -16,11 +16,13 @@
 
 #include "src/trace_processor/util/json_value.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/no_destructor.h"
@@ -159,12 +161,12 @@ Dom& Dom::operator[](const std::string& key) {
     data_ = Object{};
   }
   auto& obj = std::get<Object>(data_);
-  auto* ptr = obj.Find(key);
-  if (!ptr) {
-    obj.Insert(key, Dom{});
-    ptr = obj.Find(key);
+  auto it = obj.find(key);
+  if (it == obj.end()) {
+    obj.insert({key, Dom{}});
+    it = obj.find(key);
   }
-  return *ptr;
+  return it->second;
 }
 
 const Dom& Dom::operator[](const char* key) const {
@@ -173,8 +175,8 @@ const Dom& Dom::operator[](const char* key) const {
 
 const Dom& Dom::operator[](const std::string& key) const {
   if (const auto* obj = std::get_if<Object>(&data_)) {
-    auto* ptr = obj->Find(key);
-    return ptr ? *ptr : NullDom();
+    auto it = obj->find(key);
+    return it != obj->end() ? it->second : NullDom();
   }
   return NullDom();
 }
@@ -185,7 +187,7 @@ bool Dom::HasMember(const char* key) const {
 
 bool Dom::HasMember(const std::string& key) const {
   if (const auto* obj = std::get_if<Object>(&data_)) {
-    return obj->Find(key) != nullptr;
+    return obj->find(key) != obj->end();
   }
   return false;
 }
@@ -193,8 +195,8 @@ bool Dom::HasMember(const std::string& key) const {
 std::vector<std::string> Dom::GetMemberNames() const {
   std::vector<std::string> names;
   if (const auto* obj = std::get_if<Object>(&data_)) {
-    for (auto it = obj->GetIterator(); it; ++it) {
-      names.push_back(it.key());
+    for (const auto& it : *obj) {
+      names.push_back(it.first);
     }
   }
   return names;
@@ -206,7 +208,7 @@ void Dom::RemoveMember(const char* key) {
 
 void Dom::RemoveMember(const std::string& key) {
   if (auto* obj = std::get_if<Object>(&data_)) {
-    obj->Erase(key);
+    obj->erase(key);
   }
 }
 
@@ -269,7 +271,7 @@ void Dom::Clear() {
   if (auto* arr = std::get_if<Array>(&data_))
     arr->clear();
   else if (auto* obj = std::get_if<Object>(&data_))
-    obj->Clear();
+    obj->clear();
 }
 
 Dom::ArrayIterator Dom::begin() const {
@@ -310,8 +312,8 @@ Dom Dom::Copy() const {
     case Type::kObject: {
       Dom result(Type::kObject);
       if (const auto* obj = GetObject()) {
-        for (auto it = obj->GetIterator(); it; ++it) {
-          result[it.key()] = it.value().Copy();
+        for (const auto& it : *obj) {
+          result[it.first] = it.second.Copy();
         }
       }
       return result;
@@ -354,9 +356,9 @@ void SerializeValue(const Dom& value, JsonSerializer& s) {
     case Type::kObject:
       s.OpenObject();
       if (const auto* obj = value.GetObject()) {
-        for (auto it = obj->GetIterator(); it; ++it) {
-          s.Key(it.key());
-          SerializeValue(it.value(), s);
+        for (const auto& it : *obj) {
+          s.Key(it.first);
+          SerializeValue(it.second, s);
         }
       }
       s.CloseObject();

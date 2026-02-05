@@ -606,6 +606,12 @@
     }
   }
 
+  .chrome-probe {
+    .pf-callout {
+      margin-top: calc(var(--record-section-padding) / 2);
+    }
+  }
+
   .chrome-categories {
     padding-top: calc(var(--record-section-padding) / 2);
     padding-bottom: calc(var(--record-section-padding) / 2);

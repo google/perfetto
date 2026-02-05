@@ -20,6 +20,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
 #include <utility>
 
 #include "perfetto/base/status.h"
@@ -111,45 +113,65 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
 }
 
 void TraceProcessorStorageImpl::Flush() {
+  // Do not add any additional code here. Only add to `OnPushDataToSorter`
+  // as TraceProcessorImpl::NotifyEndOfFile depends on not calling
+  // TraceProcessorStorageImpl::Flush.
   if (unrecoverable_parse_error_) {
     return;
   }
-  if (context()->sorter) {
-    context()->sorter->ExtractEventsForced();
+  auto status = OnPushDataToSorter();
+  if (!status.ok()) {
+    unrecoverable_parse_error_ = true;
   }
 }
 
 base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
-  if (!parser_) {
-    return base::OkStatus();
-  }
+  // Do not add any additional code here. Only add to `OnPushDataToSorter`
+  // `OnEventsFullyExtracted` and `DestroyContext as
+  // TraceProcessorImpl::NotifyEndOfFile depends on not calling
+  // TraceProcessorStorageImpl::NotifyEndOfFile.
+  eof_ = true;
+  RETURN_IF_ERROR(OnPushDataToSorter());
+  OnEventsFullyExtracted();
+  DestroyContext();
+  return base::OkStatus();
+}
+
+base::Status TraceProcessorStorageImpl::OnPushDataToSorter() {
   if (unrecoverable_parse_error_) {
     return base::ErrStatus("Unrecoverable parsing error already occurred");
   }
-  eof_ = true;
-  Flush();
-  RETURN_IF_ERROR(parser_->NotifyEndOfFile());
-  // NotifyEndOfFile might have pushed packets to the sorter.
-  Flush();
+  if (parser_) {
+    RETURN_IF_ERROR(parser_->OnPushDataToSorter());
+  }
+  if (context()->sorter) {
+    context()->sorter->ExtractEventsForced();
+  }
+  return base::OkStatus();
+}
 
+void TraceProcessorStorageImpl::OnEventsFullyExtracted() {
+  if (!parser_) {
+    return;
+  }
+  parser_->OnEventsFullyExtracted();
   auto& traces = context()->forked_context_state->trace_to_context;
   for (auto it = traces.GetIterator(); it; ++it) {
     if (it.value()->content_analyzer) {
-      PacketAnalyzer::Get(it.value())->NotifyEndOfFile();
+      PacketAnalyzer::Get(it.value())->OnEventsFullyExtracted();
     }
   }
   auto& machines = context()->forked_context_state->machine_to_context;
   for (auto it = machines.GetIterator(); it; ++it) {
-    it.value()->symbol_tracker->NotifyEndOfFile();
+    it.value()->symbol_tracker->OnEventsFullyExtracted();
+    it.value()->process_tracker->OnEventsFullyExtracted();
   }
   auto& all = context()->forked_context_state->trace_and_machine_to_context;
   for (auto it = all.GetIterator(); it; ++it) {
-    it.value()->file_io_tracker->NotifyEndOfFile();
+    it.value()->file_io_tracker->OnEventsFullyExtracted();
     it.value()->event_tracker->FlushPendingEvents();
     it.value()->slice_tracker->FlushPendingSlices();
-    it.value()->process_tracker->NotifyEndOfFile();
   }
-  return base::OkStatus();
 }
 
 void TraceProcessorStorageImpl::DestroyContext() {

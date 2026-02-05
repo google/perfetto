@@ -68,7 +68,7 @@ base::Status CollapsedStackTraceReader::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status CollapsedStackTraceReader::NotifyEndOfFile() {
+base::Status CollapsedStackTraceReader::OnPushDataToSorter() {
   // Process any remaining data without a trailing newline.
   if (!reader_.empty()) {
     std::optional<TraceBlobView> remaining =

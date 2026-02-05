@@ -15,24 +15,26 @@
  */
 
 #include "src/trace_processor/importers/proto/android_cpu_per_uid_module.h"
-#include <cstdint>
 
-#include <string>
+#include <algorithm>
+#include <cstdint>
 #include <unordered_set>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/protozero/field.h"
-#include "src/kernel_utils/kernel_wakelock_errors.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/proto/android_cpu_per_uid_state.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/android_tables_py.h"
 
 #include "protos/perfetto/trace/android/cpu_per_uid_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -43,16 +45,16 @@ uint64_t MakeKey(uint32_t uid, uint32_t cluster) {
   return ((uint64_t(uid)) << 32) | cluster;
 }
 
-static constexpr auto kCpuPerUidBlueprint = tracks::CounterBlueprint(
+constexpr auto kCpuPerUidBlueprint = tracks::CounterBlueprint(
     "android_cpu_per_uid",
     tracks::StaticUnitBlueprint("ms"),
     tracks::DimensionBlueprints(tracks::kUidDimensionBlueprint,
                                 tracks::UintDimensionBlueprint("cluster")),
     tracks::FnNameBlueprint([](uint32_t uid, uint32_t cluster) {
-      return base::StackString<128>("CPU for UID %d CL%d", uid, cluster);
+      return base::StackString<128>("CPU for UID %u CL%u", uid, cluster);
     }));
 
-static constexpr auto kCpuTotalsBlueprint = tracks::CounterBlueprint(
+constexpr auto kCpuTotalsBlueprint = tracks::CounterBlueprint(
     "android_cpu_per_uid_totals",
     tracks::StaticUnitBlueprint("ms"),
     // TODO(lalitm): allow FnNameBlueprint and StringIdDimensionBlueprint to
@@ -60,9 +62,11 @@ static constexpr auto kCpuTotalsBlueprint = tracks::CounterBlueprint(
     tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("type"),
                                 tracks::UintDimensionBlueprint("cluster")),
     tracks::FnNameBlueprint([](base::StringView type, uint32_t cluster) {
-      return base::StackString<128>("CPU for %.*s CL%d", int(type.size()),
-                                    type.data(), cluster);
+      return base::StackString<128>("CPU for %.*s CL%u",
+                                    static_cast<int>(type.size()), type.data(),
+                                    cluster);
     }));
+
 }  // namespace
 
 using perfetto::protos::pbzero::TracePacket;
@@ -140,7 +144,7 @@ void AndroidCpuPerUidModule::ParseTracePacketData(
   }
 }
 
-void AndroidCpuPerUidModule::NotifyEndOfFile() {
+void AndroidCpuPerUidModule::OnEventsFullyExtracted() {
   std::vector<tables::AndroidCpuPerUidTrackTable::Row> rows;
   rows.reserve(cumulative_.size());
   for (auto it = cumulative_.GetIterator(); it; ++it) {

@@ -54,7 +54,7 @@ interface QueryLog {
   readonly tag?: string;
   readonly query: string;
   readonly startTime: number;
-  readonly endTime?: number;
+  readonly elapsedTimeMs?: number;
   readonly success?: boolean;
 }
 
@@ -63,8 +63,8 @@ export interface Engine {
   readonly engineId: string;
 
   /**
-   * A list of the most recent queries along with their start times, end times
-   * and success status (if completed).
+   * A list of the most recent queries along with their start times, elapsed
+   * times and success status (if completed).
    */
   readonly queryLog: ReadonlyArray<QueryLog>;
 
@@ -77,7 +77,6 @@ export interface Engine {
    * The promise will be rejected if the query fails.
    *
    * @param sql The query to execute.
-   * @param tag An optional tag used to trace the origin of the query.
    */
   query(sql: string): Promise<QueryResult>;
 
@@ -91,7 +90,6 @@ export interface Engine {
    * received.
    *
    * @param sql The query to execute.
-   * @param tag An optional tag used to trace the origin of the query.
    */
   tryQuery(sql: string): Promise<Result<QueryResult>>;
 
@@ -533,7 +531,7 @@ export abstract class EngineBase implements Engine, Disposable {
     query: string,
     tag?: string,
   ): {
-    endTime?: number;
+    elapsedTimeMs?: number;
     success?: boolean;
   } {
     const startTime = performance.now();
@@ -556,6 +554,7 @@ export abstract class EngineBase implements Engine, Disposable {
       this.streamingQuery(result, sqlQuery, tag);
       const resolvedResult = await result;
       queryLog.success = true;
+      queryLog.elapsedTimeMs = resolvedResult.elapsedTimeMs();
       return resolvedResult;
     } catch (e) {
       // Replace the error's stack trace with the one from here
@@ -566,8 +565,6 @@ export abstract class EngineBase implements Engine, Disposable {
       captureStackTrace(e);
       queryLog.success = false;
       throw e;
-    } finally {
-      queryLog.endTime = performance.now();
     }
   }
 

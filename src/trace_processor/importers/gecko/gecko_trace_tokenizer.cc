@@ -328,7 +328,7 @@ base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
+base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
   auto threads_or = ParseGeckoProfile(pending_json_);
   if (!threads_or.ok()) {
     return base::ErrStatus(

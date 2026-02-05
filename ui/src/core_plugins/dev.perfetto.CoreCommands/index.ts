@@ -586,17 +586,20 @@ export default class CoreCommands implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAndShowTab',
       name: 'Runs an SQL query and opens results in a tab',
-      callback: async (rawSql: unknown) => {
+      callback: async (queryArg: unknown, titleArg?: unknown) => {
         const query =
-          typeof rawSql === 'string'
-            ? rawSql
+          typeof queryArg === 'string'
+            ? queryArg
             : await ctx.omnibox.prompt('Enter SQL...');
         if (!query) {
           return;
         }
+
+        const title = typeof titleArg === 'string' ? titleArg : 'Command Query';
+
         addQueryResultsTab(ctx, {
           query,
-          title: 'Command Query',
+          title,
         });
       },
     });
@@ -744,13 +747,6 @@ export default class CoreCommands implements PerfettoPlugin {
         }
       },
       defaultHotkey: 'R',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.ToggleDrawer',
-      name: 'Toggle drawer',
-      defaultHotkey: 'Q',
-      callback: () => ctx.tabs.toggleTabPanelVisibility(),
     });
 
     ctx.commands.registerCommand({

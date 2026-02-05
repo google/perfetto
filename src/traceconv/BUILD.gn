@@ -34,9 +34,9 @@ source_set("utils") {
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/interned_data:zero",
     "../../protos/perfetto/trace/profiling:zero",
-    "../../src/profiling:deobfuscator",
-    "../../src/profiling/symbolizer",
-    "../../src/profiling/symbolizer:symbolize_database",
+    "../trace_processor/util/deobfuscation:deobfuscator",
+    "../trace_processor/util/symbolizer",
+    "../trace_processor/util/symbolizer:symbolize_database",
   ]
   public_deps = [ "../../include/perfetto/ext/base" ]
   if (enable_perfetto_zlib) {
@@ -59,9 +59,9 @@ source_set("pprofbuilder") {
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/profiling:zero",
     "../../protos/third_party/pprof:zero",
-    "../../src/profiling/symbolizer",
-    "../../src/profiling/symbolizer:symbolize_database",
     "../../src/trace_processor/containers:containers",
+    "../trace_processor/util/symbolizer",
+    "../trace_processor/util/symbolizer:symbolize_database",
   ]
   sources = [ "pprof_builder.cc" ]
 }
@@ -83,9 +83,6 @@ source_set("lib") {
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../include/perfetto/protozero",
     "../../protos/perfetto/trace:zero",
-    "../profiling:deobfuscator",
-    "../profiling/symbolizer",
-    "../profiling/symbolizer:symbolize_database",
     "../protozero:proto_ring_buffer",
     "../trace_processor:lib",
     "../trace_processor:storage_minimal",
@@ -94,6 +91,10 @@ source_set("lib") {
     "../trace_processor/util:protozero_to_text",
     "../trace_processor/util:tar_writer",
     "../trace_processor/util:trace_type",
+    "../trace_processor/util/deobfuscation:deobfuscator",
+    "../trace_processor/util/symbolizer",
+    "../trace_processor/util/symbolizer:symbolize_database",
+    "../trace_processor/util/trace_enrichment",
   ]
   sources = [
     "deobfuscate_profile.cc",

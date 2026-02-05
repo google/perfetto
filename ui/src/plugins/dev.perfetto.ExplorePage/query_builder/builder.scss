@@ -229,6 +229,59 @@
   max-width: 510px;
 }
 
+.pf-recent-graphs-section {
+  margin-bottom: 24px;
+  width: 100%;
+  max-width: 510px;
+  text-align: center;
+}
+
+.pf-recent-graphs-scroll-container {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.pf-recent-graphs-empty {
+  color: var(--pf-color-text-muted);
+  font-size: var(--pf-font-size-m);
+  font-style: italic;
+}
+
+.pf-recent-graph-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+
+  > div:not(.pf-recent-graph-card__actions) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: var(--pf-font-size-m);
+    font-weight: 500;
+  }
+
+  p {
+    margin: 0;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  .pf-recent-graph-card__actions {
+    display: flex;
+    visibility: hidden;
+    flex-shrink: 0;
+  }
+
+  &:hover .pf-recent-graph-card__actions,
+  &:focus-within .pf-recent-graph-card__actions {
+    visibility: visible;
+  }
+}
+
 .pf-starting-section-title {
   font-size: 16px;
   font-weight: 500;

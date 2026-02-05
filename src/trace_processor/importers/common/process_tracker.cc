@@ -665,7 +665,7 @@ ArgsTracker::BoundInserter ProcessTracker::AddArgsToThread(UniqueTid utid) {
   return args_tracker_.AddArgsToThread(utid);
 }
 
-void ProcessTracker::NotifyEndOfFile() {
+void ProcessTracker::OnEventsFullyExtracted() {
   args_tracker_.Flush();
   tids_.Clear();
   pids_.Clear();

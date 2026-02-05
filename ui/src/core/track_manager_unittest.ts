@@ -20,6 +20,7 @@ import {HighPrecisionTime} from '../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {TrackManagerImpl} from '../core/track_manager';
 import {TrackNode} from '../public/workspace';
+import {Renderer} from '../base/renderer';
 
 function makeMockTrack() {
   return {
@@ -35,6 +36,23 @@ function makeMockTrack() {
     onMouseMove: jest.fn(),
     onMouseClick: jest.fn(),
     onMouseOut: jest.fn(),
+  };
+}
+
+function makeMockRenderer(): Renderer {
+  return {
+    pushTransform: jest.fn().mockReturnValue({
+      dispose: jest.fn(),
+    }),
+    clip: jest.fn().mockReturnValue({
+      dispose: jest.fn(),
+    }),
+    drawMarker: jest.fn(),
+    drawRect: jest.fn(),
+    drawStepArea: jest.fn(),
+    flush: jest.fn(),
+    resetTransform: jest.fn(),
+    clear: jest.fn(),
   };
 }
 
@@ -66,6 +84,7 @@ const dummyCtx: TrackRenderContext = {
     COLOR_NEUTRAL: 'hotpink',
     COLOR_TIMELINE_OVERLAY: 'hotpink',
   },
+  renderer: makeMockRenderer(),
 };
 
 beforeEach(() => {

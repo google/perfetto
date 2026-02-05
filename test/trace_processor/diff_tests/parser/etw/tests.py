@@ -56,7 +56,6 @@ class Etw(TestSuite):
         """),
         query="""
         SELECT
-          track.name AS track,
           slice.ts,
           slice.dur,
           slice.name,
@@ -64,21 +63,20 @@ class Etw(TestSuite):
           args.string_value,
           args.int_value
         FROM slice
-        LEFT JOIN track ON slice.track_id = track.id
         LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
         ORDER BY args.key
         """,
         out=Csv('''
-          "track","ts","dur","name","key","string_value","int_value"
-          "ETW File I/O",100,50,"CreateFile","Create Options","[NULL]",44444
-          "ETW File I/O",100,50,"CreateFile","Extra Info","[NULL]",777
-          "ETW File I/O",100,50,"CreateFile","File Attributes","[NULL]",55555
-          "ETW File I/O",100,50,"CreateFile","File Object","[NULL]",67890
-          "ETW File I/O",100,50,"CreateFile","I/O Request Packet","[NULL]",99999
-          "ETW File I/O",100,50,"CreateFile","NT Status","[NULL]",888
-          "ETW File I/O",100,50,"CreateFile","Open Path","C:/path/to/file.txt","[NULL]"
-          "ETW File I/O",100,50,"CreateFile","Share Access","[NULL]",66666
-          "ETW File I/O",100,50,"CreateFile","Thread ID","[NULL]",3
+          "ts","dur","name","key","string_value","int_value"
+          100,50,"CreateFile","Create Options","[NULL]",44444
+          100,50,"CreateFile","Extra Info","[NULL]",777
+          100,50,"CreateFile","File Attributes","[NULL]",55555
+          100,50,"CreateFile","File Object","[NULL]",67890
+          100,50,"CreateFile","I/O Request Packet","[NULL]",99999
+          100,50,"CreateFile","NT Status","[NULL]",888
+          100,50,"CreateFile","Open Path","C:/path/to/file.txt","[NULL]"
+          100,50,"CreateFile","Share Access","[NULL]",66666
+          100,50,"CreateFile","Thread ID","[NULL]",3
         '''))
 
   def test_dir_enum(self):
@@ -118,7 +116,6 @@ class Etw(TestSuite):
         """),
         query="""
         SELECT
-          track.name AS track,
           slice.ts,
           slice.dur,
           slice.name,
@@ -126,21 +123,20 @@ class Etw(TestSuite):
           args.string_value,
           args.int_value
         FROM slice
-        LEFT JOIN track ON slice.track_id = track.id
         LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
         ORDER BY args.key
         """,
         out=Csv('''
-          "track","ts","dur","name","key","string_value","int_value"
-          "ETW File I/O",200,50,"DirectoryEnumeration","Enumeration Path","dir/path/","[NULL]"
-          "ETW File I/O",200,50,"DirectoryEnumeration","Extra Info","[NULL]",999
-          "ETW File I/O",200,50,"DirectoryEnumeration","File Index","[NULL]",22222
-          "ETW File I/O",200,50,"DirectoryEnumeration","File Key","[NULL]",11111
-          "ETW File I/O",200,50,"DirectoryEnumeration","File Object","[NULL]",98765
-          "ETW File I/O",200,50,"DirectoryEnumeration","I/O Request Packet","[NULL]",54321
-          "ETW File I/O",200,50,"DirectoryEnumeration","Info Class","FileDirectoryInformation","[NULL]"
-          "ETW File I/O",200,50,"DirectoryEnumeration","NT Status","[NULL]",0
-          "ETW File I/O",200,50,"DirectoryEnumeration","Thread ID","[NULL]",1
+          "ts","dur","name","key","string_value","int_value"
+          200,50,"DirectoryEnumeration","Enumeration Path","dir/path/","[NULL]"
+          200,50,"DirectoryEnumeration","Extra Info","[NULL]",999
+          200,50,"DirectoryEnumeration","File Index","[NULL]",22222
+          200,50,"DirectoryEnumeration","File Key","[NULL]",11111
+          200,50,"DirectoryEnumeration","File Object","[NULL]",98765
+          200,50,"DirectoryEnumeration","I/O Request Packet","[NULL]",54321
+          200,50,"DirectoryEnumeration","Info Class","FileDirectoryInformation","[NULL]"
+          200,50,"DirectoryEnumeration","NT Status","[NULL]",0
+          200,50,"DirectoryEnumeration","Thread ID","[NULL]",1
         '''))
 
   def test_file_info(self):
@@ -179,7 +175,6 @@ class Etw(TestSuite):
         """),
         query="""
         SELECT
-          track.name AS track,
           slice.ts,
           slice.dur,
           slice.name,
@@ -187,20 +182,19 @@ class Etw(TestSuite):
           args.string_value,
           args.int_value
         FROM slice
-        LEFT JOIN track ON slice.track_id = track.id
         LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
         ORDER BY args.key
         """,
         out=Csv("""
-          "track","ts","dur","name","key","string_value","int_value"
-          "ETW File I/O",300,1,"SetInformation","Disposition","[NULL]",33333
-          "ETW File I/O",300,1,"SetInformation","Extra Info","[NULL]",111
-          "ETW File I/O",300,1,"SetInformation","File Key","[NULL]",22222
-          "ETW File I/O",300,1,"SetInformation","File Object","[NULL]",87654
-          "ETW File I/O",300,1,"SetInformation","I/O Request Packet","[NULL]",65432
-          "ETW File I/O",300,1,"SetInformation","Info Class","FileDispositionInformation","[NULL]"
-          "ETW File I/O",300,1,"SetInformation","NT Status","[NULL]",0
-          "ETW File I/O",300,1,"SetInformation","Thread ID","[NULL]",100
+          "ts","dur","name","key","string_value","int_value"
+          300,1,"SetInformation","Disposition","[NULL]",33333
+          300,1,"SetInformation","Extra Info","[NULL]",111
+          300,1,"SetInformation","File Key","[NULL]",22222
+          300,1,"SetInformation","File Object","[NULL]",87654
+          300,1,"SetInformation","I/O Request Packet","[NULL]",65432
+          300,1,"SetInformation","Info Class","FileDispositionInformation","[NULL]"
+          300,1,"SetInformation","NT Status","[NULL]",0
+          300,1,"SetInformation","Thread ID","[NULL]",100
         """),
     )
 
@@ -241,7 +235,6 @@ class Etw(TestSuite):
         """),
         query="""
         SELECT
-          track.name AS track,
           slice.ts,
           slice.dur,
           slice.name,
@@ -249,21 +242,20 @@ class Etw(TestSuite):
           args.string_value,
           args.int_value
         FROM slice
-        LEFT JOIN track ON slice.track_id = track.id
         LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
         ORDER BY args.key
         """,
         out=Csv("""
-          "track","ts","dur","name","key","string_value","int_value"
-          "ETW File I/O",400,0,"WriteFile","Extra Info","[NULL]",0
-          "ETW File I/O",400,0,"WriteFile","File Key","[NULL]",54321
-          "ETW File I/O",400,0,"WriteFile","File Object","[NULL]",12345
-          "ETW File I/O",400,0,"WriteFile","I/O Flags","[NULL]",1
-          "ETW File I/O",400,0,"WriteFile","I/O Request Packet","[NULL]",98765
-          "ETW File I/O",400,0,"WriteFile","I/O Size","[NULL]",256
-          "ETW File I/O",400,0,"WriteFile","NT Status","[NULL]",0
-          "ETW File I/O",400,0,"WriteFile","Offset","[NULL]",1024
-          "ETW File I/O",400,0,"WriteFile","Thread ID","[NULL]",5
+          "ts","dur","name","key","string_value","int_value"
+          400,0,"WriteFile","Extra Info","[NULL]",0
+          400,0,"WriteFile","File Key","[NULL]",54321
+          400,0,"WriteFile","File Object","[NULL]",12345
+          400,0,"WriteFile","I/O Flags","[NULL]",1
+          400,0,"WriteFile","I/O Request Packet","[NULL]",98765
+          400,0,"WriteFile","I/O Size","[NULL]",256
+          400,0,"WriteFile","NT Status","[NULL]",0
+          400,0,"WriteFile","Offset","[NULL]",1024
+          400,0,"WriteFile","Thread ID","[NULL]",5
         """),
     )
 
@@ -301,7 +293,6 @@ class Etw(TestSuite):
         """),
         query="""
         SELECT
-          track.name AS track,
           slice.ts,
           slice.dur,
           slice.name,
@@ -309,18 +300,17 @@ class Etw(TestSuite):
           args.string_value,
           args.int_value
         FROM slice
-        LEFT JOIN track ON slice.track_id = track.id
         LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
         ORDER BY args.key
         """,
         out=Csv("""
-          "track","ts","dur","name","key","string_value","int_value"
-          "ETW File I/O",500,50,"Flush","Extra Info","[NULL]",0
-          "ETW File I/O",500,50,"Flush","File Key","[NULL]",333333
-          "ETW File I/O",500,50,"Flush","File Object","[NULL]",222222
-          "ETW File I/O",500,50,"Flush","I/O Request Packet","[NULL]",111111
-          "ETW File I/O",500,50,"Flush","NT Status","[NULL]",0
-          "ETW File I/O",500,50,"Flush","Thread ID","[NULL]",7
+          "ts","dur","name","key","string_value","int_value"
+          500,50,"Flush","Extra Info","[NULL]",0
+          500,50,"Flush","File Key","[NULL]",333333
+          500,50,"Flush","File Object","[NULL]",222222
+          500,50,"Flush","I/O Request Packet","[NULL]",111111
+          500,50,"Flush","NT Status","[NULL]",0
+          500,50,"Flush","Thread ID","[NULL]",7
         """),
     )
 
@@ -360,7 +350,6 @@ class Etw(TestSuite):
         """),
         query="""
         SELECT
-          track.name AS track,
           slice.ts,
           slice.dur,
           slice.name,
@@ -368,23 +357,22 @@ class Etw(TestSuite):
           args.string_value,
           args.int_value
         FROM slice
-        LEFT JOIN track ON slice.track_id = track.id
         LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
         ORDER BY slice.ts, args.key
         """,
         out=Csv("""
-          "track","ts","dur","name","key","string_value","int_value"
-          "ETW File I/O",550,0,"CreateFile","Create Options","[NULL]",44444
-          "ETW File I/O",550,0,"CreateFile","File Attributes","[NULL]",55555
-          "ETW File I/O",550,0,"CreateFile","File Object","[NULL]",222222
-          "ETW File I/O",550,0,"CreateFile","I/O Request Packet","[NULL]",111112
-          "ETW File I/O",550,0,"CreateFile","Missing Event","End","[NULL]"
-          "ETW File I/O",550,0,"CreateFile","Open Path","file_path.txt","[NULL]"
-          "ETW File I/O",550,0,"CreateFile","Share Access","[NULL]",66666
-          "ETW File I/O",550,0,"CreateFile","Thread ID","[NULL]",1
-          "ETW File I/O",600,0,"EndOperation","Extra Info","[NULL]",123
-          "ETW File I/O",600,0,"EndOperation","Missing Event","Start","[NULL]"
-          "ETW File I/O",600,0,"EndOperation","NT Status","[NULL]",456
+          "ts","dur","name","key","string_value","int_value"
+          550,0,"CreateFile","Create Options","[NULL]",44444
+          550,0,"CreateFile","File Attributes","[NULL]",55555
+          550,0,"CreateFile","File Object","[NULL]",222222
+          550,0,"CreateFile","I/O Request Packet","[NULL]",111112
+          550,0,"CreateFile","Missing Event","End","[NULL]"
+          550,0,"CreateFile","Open Path","file_path.txt","[NULL]"
+          550,0,"CreateFile","Share Access","[NULL]",66666
+          550,0,"CreateFile","Thread ID","[NULL]",1
+          600,0,"EndOperation","Extra Info","[NULL]",123
+          600,0,"EndOperation","Missing Event","Start","[NULL]"
+          600,0,"EndOperation","NT Status","[NULL]",456
         """),
     )
 
@@ -422,7 +410,6 @@ class Etw(TestSuite):
         """),
         query="""
         SELECT
-          track.name AS track,
           slice.ts,
           slice.dur,
           slice.name,
@@ -430,19 +417,18 @@ class Etw(TestSuite):
           args.string_value,
           args.int_value
         FROM slice
-        LEFT JOIN track ON slice.track_id = track.id
         LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
         ORDER BY slice.ts, args.key
         """,
         out=Csv("""
-          "track","ts","dur","name","key","string_value","int_value"
-          "ETW File I/O",700,0,"CreateFile","Create Options","[NULL]",1
-          "ETW File I/O",700,0,"CreateFile","File Attributes","[NULL]",2
-          "ETW File I/O",700,0,"CreateFile","File Object","[NULL]",100000
-          "ETW File I/O",700,0,"CreateFile","Open Path","/file/path","[NULL]"
-          "ETW File I/O",700,0,"CreateFile","Share Access","[NULL]",3
-          "ETW File I/O",700,0,"CreateFile","Thread ID","[NULL]",99999
-          "ETW File I/O",750,0,"EndOperation","Extra Info","[NULL]",4
-          "ETW File I/O",750,0,"EndOperation","NT Status","[NULL]",5
+          "ts","dur","name","key","string_value","int_value"
+          700,0,"CreateFile","Create Options","[NULL]",1
+          700,0,"CreateFile","File Attributes","[NULL]",2
+          700,0,"CreateFile","File Object","[NULL]",100000
+          700,0,"CreateFile","Open Path","/file/path","[NULL]"
+          700,0,"CreateFile","Share Access","[NULL]",3
+          700,0,"CreateFile","Thread ID","[NULL]",99999
+          750,0,"EndOperation","Extra Info","[NULL]",4
+          750,0,"EndOperation","NT Status","[NULL]",5
         """),
     )

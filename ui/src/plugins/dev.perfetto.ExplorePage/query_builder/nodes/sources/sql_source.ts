@@ -181,7 +181,7 @@ export class SqlSourceNode implements QueryNode {
       connections: new Map(),
       min: 0,
       max: 'unbounded',
-      portNames: (portIndex: number) => `input_${portIndex}`,
+      portNames: (portIndex: number) => `$input_${portIndex}`,
     };
   }
 

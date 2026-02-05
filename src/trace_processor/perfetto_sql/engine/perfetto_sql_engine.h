@@ -440,8 +440,8 @@ base::Status PerfettoSqlEngine::RegisterFunction(
   function_count_++;
   const char* name = args.name ? args.name : Function::kName;
   int argc = args.argc.has_value() ? args.argc.value() : Function::kArgCount;
-  return engine_->RegisterFunction(name, argc, Function::Step, ctx, nullptr,
-                                   args.deterministic);
+  return RegisterFunctionAndAddToRegistry(name, argc, Function::Step, ctx,
+                                          nullptr, args.deterministic);
 }
 
 template <typename Function>
@@ -451,7 +451,7 @@ base::Status PerfettoSqlEngine::RegisterFunction(
   function_count_++;
   const char* name = args.name ? args.name : Function::kName;
   int argc = args.argc.has_value() ? args.argc.value() : Function::kArgCount;
-  return engine_->RegisterFunction(
+  return RegisterFunctionAndAddToRegistry(
       name, argc, Function::Step, ctx.release(),
       [](void* ptr) {
         std::unique_ptr<typename Function::UserData>(

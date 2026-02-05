@@ -252,8 +252,10 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
                             }
                           });
 
+        const auto t_start = base::GetWallTimeNs();
         auto it = trace_processor_->ExecuteQuery(sql);
-        QueryResultSerializer serializer(std::move(it));
+
+        QueryResultSerializer serializer(std::move(it), t_start);
         for (bool has_more = true; has_more;) {
           const auto seq_id = tx_seq_id_++;
           Response resp(seq_id, req_type);
@@ -542,9 +544,10 @@ void Rpc::Query(const uint8_t* args,
                       }
                     });
 
+  const auto t_start = base::GetWallTimeNs();
   auto it = trace_processor_->ExecuteQuery(sql);
 
-  QueryResultSerializer serializer(std::move(it));
+  QueryResultSerializer serializer(std::move(it), t_start);
 
   protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
                                                                 kSliceSize);

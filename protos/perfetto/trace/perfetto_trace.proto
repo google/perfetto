@@ -6755,7 +6755,7 @@ message LayerProto {
   // Layer's corner radius
   optional float corner_radius = 41 [deprecated = true];
   // Metadata map. May be empty.
-  map<int32, string> metadata = 42;
+  map<int32, bytes> metadata = 42;
 
   optional TransformProto effective_transform = 43;
   optional FloatRectProto source_bounds = 44;
@@ -7270,6 +7270,10 @@ message ChromeMetadataPacket {
 
   // List of Finch study/groups that apply to this trace.
   repeated FinchHash field_trial_hashes = 4;
+
+  // The package name of the app which is being traced. This field is only set
+  // on Android.
+  optional string app_package_name = 5;
 }
 
 // Metadata related to background tracing scenarios, states and triggers.

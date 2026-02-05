@@ -78,6 +78,15 @@ HeapGraph HeapGraphBuilder::BuildGraph() {
   return graph;
 }
 
+void HeapGraphBuilder::Clear() {
+  strings_.Clear();
+  classes_.Clear();
+  objects_.Clear();
+  roots_.Clear();
+  resolver_.reset();
+  current_heap_.clear();
+}
+
 bool HeapGraphBuilder::ParseHeader() {
   // Read format string (null-terminated)
   std::string format;

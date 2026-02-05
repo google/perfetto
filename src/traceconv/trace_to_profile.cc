@@ -17,21 +17,20 @@
 #include "src/traceconv/trace_to_profile.h"
 
 #include <cerrno>
-#include <cinttypes>
+#include <cstdlib>
 #include <random>
 #include <string>
+#include <string_view>
 #include <vector>
-
-#include "perfetto/trace_processor/trace_processor.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
-#include "src/profiling/symbolizer/symbolize_database.h"
-#include "src/traceconv/utils.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/profiling/pprof_builder.h"
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/util/deobfuscation/deobfuscator.h"
+#include "src/trace_processor/util/symbolizer/symbolize_database.h"
+#include "src/traceconv/utils.h"
 
 namespace {
 constexpr const char* kDefaultTmp = "/tmp";
@@ -55,16 +54,23 @@ uint64_t ToConversionFlags(bool annotate_frames) {
                                    : ConversionFlags::kNone);
 }
 
-void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
-  std::unique_ptr<profiling::Symbolizer> symbolizer =
-      profiling::MaybeLocalSymbolizer(profiling::GetPerfettoBinaryPath(), {},
-                                      getenv("PERFETTO_SYMBOLIZER_MODE"));
-  if (!symbolizer)
+void MaybeSymbolize(trace_processor::TraceProcessor* tp, bool verbose) {
+  profiling::SymbolizerConfig sym_config;
+  const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
+  std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
+  if (paths.empty()) {
     return;
-  profiling::SymbolizeDatabase(tp, symbolizer.get(),
-                               [tp](const std::string& trace_proto) {
-                                 IngestTraceOrDie(tp, trace_proto);
-                               });
+  }
+  if (mode && std::string_view(mode) == "find") {
+    sym_config.find_symbol_paths = std::move(paths);
+  } else {
+    sym_config.index_symbol_paths = std::move(paths);
+  }
+  auto result = profiling::SymbolizeDatabaseAndLog(tp, sym_config, verbose);
+  if (result.error == profiling::SymbolizerError::kOk &&
+      !result.symbols.empty()) {
+    IngestTraceOrDie(tp, result.symbols);
+  }
   tp->Flush();
 }
 
@@ -154,7 +160,8 @@ int TraceToProfile(std::istream* input,
                    const std::vector<uint64_t>& timestamps,
                    bool annotate_frames,
                    const std::string& output_dir,
-                   std::optional<ConversionMode> explicit_mode) {
+                   std::optional<ConversionMode> explicit_mode,
+                   bool verbose) {
   // Pre-parse trace.
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
@@ -200,7 +207,7 @@ int TraceToProfile(std::istream* input,
   }
 
   // Add symbolisation and deobfuscation packets.
-  MaybeSymbolize(tp.get());
+  MaybeSymbolize(tp.get(), verbose);
   MaybeDeobfuscate(tp.get());
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return -1;

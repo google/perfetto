@@ -189,7 +189,8 @@ class GeneratorImpl {
         referenced_modules_(modules),
         preambles_(preambles) {}
 
-  base::StatusOr<std::string> Generate(protozero::ConstBytes);
+  base::StatusOr<std::string> Generate(protozero::ConstBytes,
+                                       bool inline_shared_queries);
 
  private:
   using RepeatedString =
@@ -269,7 +270,8 @@ class GeneratorImpl {
 };
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
-    protozero::ConstBytes bytes) {
+    protozero::ConstBytes bytes,
+    bool inline_shared_queries) {
   state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt,
                       used_table_names_);
   for (; state_index_ < state_.size(); ++state_index_) {
@@ -306,9 +308,14 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
   for (size_t i = 0; i < state_.size(); ++i) {
     QueryState& state = state_[state_.size() - i - 1];
     if (state.type == QueryType::kShared) {
-      queries_.emplace_back(
-          Query{state.id_from_proto.value(), state.table_name, state.sql});
-      continue;
+      // When not inlining shared queries, add them to referenced_queries
+      // so callers can create tables for them separately.
+      if (!inline_shared_queries) {
+        queries_.emplace_back(
+            Query{state.id_from_proto.value(), state.table_name, state.sql});
+        continue;
+      }
+      // When inlining, fall through to add as CTE below.
     }
     // Skip the root query if it's just a wrapper for inner_query + operations
     if (&state == &state_[0] && root_only_has_inner_query_and_operations) {
@@ -1612,21 +1619,24 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
 
 base::StatusOr<std::string> StructuredQueryGenerator::Generate(
     const uint8_t* data,
-    size_t size) {
+    size_t size,
+    bool inline_shared_queries) {
   GeneratorImpl impl(query_protos_, referenced_queries_, referenced_modules_,
                      preambles_);
-  ASSIGN_OR_RETURN(std::string sql,
-                   impl.Generate(protozero::ConstBytes{data, size}));
+  ASSIGN_OR_RETURN(
+      std::string sql,
+      impl.Generate(protozero::ConstBytes{data, size}, inline_shared_queries));
   return sql;
 }
 
 base::StatusOr<std::string> StructuredQueryGenerator::GenerateById(
-    const std::string& id) {
+    const std::string& id,
+    bool inline_shared_queries) {
   auto* ptr = query_protos_.Find(id);
   if (!ptr) {
     return base::ErrStatus("Query with id %s not found", id.c_str());
   }
-  return Generate(ptr->data.get(), ptr->size);
+  return Generate(ptr->data.get(), ptr->size, inline_shared_queries);
 }
 
 base::StatusOr<std::string> StructuredQueryGenerator::AddQuery(

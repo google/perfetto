@@ -147,14 +147,20 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
   return reader_->Parse(std::move(blob));
 }
 
-base::Status ForwardingTraceParser::NotifyEndOfFile() {
+base::Status ForwardingTraceParser::OnPushDataToSorter() {
   if (reader_) {
-    RETURN_IF_ERROR(reader_->NotifyEndOfFile());
+    return reader_->OnPushDataToSorter();
+  }
+  return base::OkStatus();
+}
+
+void ForwardingTraceParser::OnEventsFullyExtracted() {
+  if (reader_) {
+    reader_->OnEventsFullyExtracted();
   }
   if (trace_type_ != kUnknownTraceType) {
     input_context_->trace_file_tracker->DoneParsing(file_id_, trace_size_);
   }
-  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor

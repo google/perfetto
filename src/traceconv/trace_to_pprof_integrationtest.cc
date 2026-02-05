@@ -46,7 +46,8 @@ pprof::PprofProfileReader ConvertTraceToPprof(
   trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
                                 /*timestamps=*/{},
                                 /*annotate_frames=*/false, out_dirname,
-                                /*conversion_mode=*/std::nullopt);
+                                /*conversion_mode=*/std::nullopt,
+                                /*verbose=*/false);
   std::vector<std::string> filenames;
   base::ListFilesRecursive(out_dirname, filenames);
   // assumption: all test inputs contain exactly one profile
@@ -136,7 +137,8 @@ TEST_F(TraceToPprofTest, OutputDirectory) {
   trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
                                 /*timestamps=*/{},
                                 /*annotate_frames=*/false, output_dir,
-                                ConversionMode::kJavaHeapProfile);
+                                ConversionMode::kJavaHeapProfile,
+                                /*verbose=*/false);
 
   // Check files exist
   std::vector<std::string> filenames;

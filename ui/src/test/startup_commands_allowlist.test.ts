@@ -260,6 +260,13 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
     traceFile: 'chrome_rendering_desktop.pftrace', // Chrome trace with rich slice data for queries
     maskQueryDetails: true,
   },
+  {
+    id: 'dev.perfetto.RunQueryAndShowTab',
+    args: ['select ts, dur, name from slice limit 10', 'My Custom Query'],
+    traceFile: 'chrome_rendering_desktop.pftrace',
+    maskQueryDetails: true,
+    testName: 'dev.perfetto.RunQueryAndShowTab with custom name',
+  },
 ];
 
 test('all allowlisted commands have corresponding test cases', async () => {
