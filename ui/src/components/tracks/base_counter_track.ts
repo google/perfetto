@@ -38,6 +38,7 @@ import {checkerboardExcept} from '../checkerboard';
 import {CacheKey} from './timeline_cache';
 import {valueIfAllEqual} from '../../base/array_utils';
 import {deferChunkedTask} from '../../base/chunked_task';
+import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 import {HSLColor} from '../../base/color';
 
 function roundAway(n: number): number {
@@ -1149,7 +1150,10 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       );
     `);
 
-    const task = await deferChunkedTask();
+    const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
+      ? 'background'
+      : undefined;
+    const task = await deferChunkedTask({priority});
 
     const it = queryRes.iter({
       ts: LONG,
