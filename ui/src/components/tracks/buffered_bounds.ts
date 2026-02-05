@@ -56,7 +56,9 @@ export class BufferedBounds {
     if (needsUpdate) {
       // Pad each side by the visible duration (so total is 3x visible width)
       const padded = visibleSpan.pad(visibleSpan.duration);
-      this.loadedStart = Time.fromRaw(BIMath.quantFloor(padded.start, resolution));
+      this.loadedStart = Time.fromRaw(
+        BIMath.quantFloor(padded.start, resolution),
+      );
       this.loadedEnd = Time.fromRaw(BIMath.quantCeil(padded.end, resolution));
       this.loadedResolution = resolution;
     }
