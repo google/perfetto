@@ -139,7 +139,7 @@ class IteratorImpl {
   }
 
   double QueryTimeMs() const {
-    return result_.ok() ? result_->stats.query_time_ms : 0;
+    return result_.ok() ? result_->stats.elapsed_time_ms : 0;
   }
 
  private:

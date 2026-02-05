@@ -250,8 +250,10 @@ message QueryResult {
   // The last statement in the provided SQL.
   optional string last_statement_sql = 6;
 
-  // Time taken in milliseconds to execute the query.
-  optional double query_time_ms = 7;
+  // Time taken so far to execute the query in milliseconds. If this query is
+  // comprised of multiple results packets, this field is updated on each packet
+  // with the cumulative time taken so far.
+  optional double elapsed_time_ms = 7;
 }
 
 // Input for the /status endpoint.

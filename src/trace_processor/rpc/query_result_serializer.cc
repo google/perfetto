@@ -75,7 +75,7 @@ bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res,
 
   SerializeBatch(res);
   MaybeSerializeError(res);
-  res->set_query_time_ms(elapsed_time_ms);
+  res->set_elapsed_time_ms(elapsed_time_ms);
   return !eof_reached_;
 }
 
