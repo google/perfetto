@@ -204,7 +204,8 @@ export class SQLDataSourceGroupBy {
     }
 
     if (sort) {
-      sql += `\nORDER BY ${toAlias(sort.alias)} ${sort.direction}`;
+      // Sort strings case insensitively
+      sql += `\nORDER BY ${toAlias(sort.alias)} COLLATE NOCASE ${sort.direction} `;
     }
 
     if (pagination) {

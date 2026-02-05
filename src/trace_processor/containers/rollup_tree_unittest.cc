@@ -147,7 +147,7 @@ TEST(RollupTreeTest, NullHierarchyValues) {
 
   RollupFlattenOptions opts;
   opts.denylist_mode = true;
-  opts.sort.agg_index = -1;  // Sort by name
+  opts.sort.hierarchy_level = 0;  // Sort level 0 by hierarchy value
   opts.sort.descending = false;
   auto rows = tree.GetRows(opts);
 
@@ -220,6 +220,7 @@ TEST(RollupTreeTest, SortByAggregateAsc) {
 
   RollupFlattenOptions opts;
   opts.denylist_mode = true;
+  opts.sort.hierarchy_level = -1;  // Sort by aggregate, not hierarchy
   opts.sort.agg_index = 0;
   opts.sort.descending = false;
   auto rows = tree.GetRows(opts);
@@ -241,7 +242,7 @@ TEST(RollupTreeTest, SortByName) {
 
   RollupFlattenOptions opts;
   opts.denylist_mode = true;
-  opts.sort.agg_index = -1;  // Sort by hierarchy value
+  opts.sort.hierarchy_level = 0;  // Sort level 0 by hierarchy value
   opts.sort.descending = false;
   auto rows = tree.GetRows(opts);
 

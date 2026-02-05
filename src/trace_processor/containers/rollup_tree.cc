@@ -26,6 +26,8 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/string_utils.h"
+
 namespace perfetto::trace_processor {
 
 namespace {
@@ -72,11 +74,13 @@ int CompareRollupValues(const RollupValue& a, const RollupValue& b) {
     return 0;
   }
 
-  // Both text - lexicographic comparison
+  // Both text - case-insensitive lexicographic comparison (like COLLATE NOCASE)
   const std::string& str_a = std::get<std::string>(a);
   const std::string& str_b = std::get<std::string>(b);
-  if (str_a < str_b) return -1;
-  if (str_a > str_b) return 1;
+  std::string lower_a = base::ToLower(str_a);
+  std::string lower_b = base::ToLower(str_b);
+  if (lower_a < lower_b) return -1;
+  if (lower_a > lower_b) return 1;
   return 0;
 }
 
@@ -151,6 +155,8 @@ RollupNode* RollupTree::FindOrCreateNode(
 
       found = node.get();
       current->children.push_back(std::move(node));
+      // Invalidate sort cache since we added a new node
+      cached_sort_spec_.clear();
     }
     current = found;
   }
@@ -176,28 +182,37 @@ void RollupTree::SortTree(RollupNode* node, const RollupSortSpec& spec) {
     return;
   }
 
+  // Determine which level the children are at (parent level + 1)
+  int child_level = node->level + 1;
+
   std::sort(node->children.begin(), node->children.end(),
-            [&spec](const std::unique_ptr<RollupNode>& a,
-                    const std::unique_ptr<RollupNode>& b) {
-              if (spec.agg_index < 0) {
-                // Sort by hierarchy value at node's level
-                const RollupValue* val_a = GetNodeValue(a.get());
-                const RollupValue* val_b = GetNodeValue(b.get());
-                // Handle nullptr (shouldn't happen, but be safe)
-                if (!val_a && !val_b) return false;
-                if (!val_a) return !spec.descending;  // NULL sorts first
-                if (!val_b) return spec.descending;
-                int cmp = CompareRollupValues(*val_a, *val_b);
+            [&spec, child_level](const std::unique_ptr<RollupNode>& a,
+                                 const std::unique_ptr<RollupNode>& b) {
+              // If sorting by aggregate (hierarchy_level < 0), use aggregate
+              if (spec.hierarchy_level < 0) {
+                size_t idx = static_cast<size_t>(spec.agg_index);
+                if (idx >= a->aggs.size() || idx >= b->aggs.size()) {
+                  return false;
+                }
+                const RollupValue& val_a = a->aggs[idx];
+                const RollupValue& val_b = b->aggs[idx];
+                int cmp = CompareRollupValues(val_a, val_b);
                 return spec.descending ? (cmp > 0) : (cmp < 0);
               }
-              size_t idx = static_cast<size_t>(spec.agg_index);
-              if (idx >= a->aggs.size() || idx >= b->aggs.size()) {
-                return false;
-              }
-              const RollupValue& val_a = a->aggs[idx];
-              const RollupValue& val_b = b->aggs[idx];
-              int cmp = CompareRollupValues(val_a, val_b);
-              return spec.descending ? (cmp > 0) : (cmp < 0);
+
+              // Sorting by a group column - all levels sort by hierarchy value.
+              // The specified level uses the given direction, others use ASC.
+              const RollupValue* val_a = GetNodeValue(a.get());
+              const RollupValue* val_b = GetNodeValue(b.get());
+              if (!val_a && !val_b) return false;
+              if (!val_a) return true;   // NULL sorts first (ASC behavior)
+              if (!val_b) return false;
+              int cmp = CompareRollupValues(*val_a, *val_b);
+
+              // Use specified direction for the target level, ASC for others
+              bool use_desc =
+                  spec.descending && (child_level == spec.hierarchy_level);
+              return use_desc ? (cmp > 0) : (cmp < 0);
             });
 
   for (auto& child : node->children) {
@@ -260,6 +275,7 @@ std::vector<RollupFlatRow> RollupTree::GetRows(
     const RollupFlattenOptions& options) {
   // Sort if needed
   std::string sort_key = std::to_string(options.sort.agg_index) + "_" +
+                         std::to_string(options.sort.hierarchy_level) + "_" +
                          (options.sort.descending ? "desc" : "asc");
   if (sort_key != cached_sort_spec_) {
     SortTree(root_.get(), options.sort);
@@ -290,6 +306,7 @@ std::vector<RollupFlatRow> RollupTree::GetRows(
 int RollupTree::GetTotalRows(const RollupFlattenOptions& options) {
   // Sort if needed (to ensure consistent state)
   std::string sort_key = std::to_string(options.sort.agg_index) + "_" +
+                         std::to_string(options.sort.hierarchy_level) + "_" +
                          (options.sort.descending ? "desc" : "asc");
   if (sort_key != cached_sort_spec_) {
     SortTree(root_.get(), options.sort);

@@ -143,7 +143,7 @@ export function buildRollupTreeQuery(
   const {
     expandedIds,
     collapsedIds,
-    sort = '__agg_0 DESC',
+    sort,
     offset,
     limit,
     minDepth,
@@ -163,8 +163,11 @@ export function buildRollupTreeQuery(
   }
 
   // Build WHERE clause
-  const whereConditions = [expansionConstraint, `__sort = '${sort}'`];
+  const whereConditions = [expansionConstraint];
 
+  if (sort !== undefined) {
+    whereConditions.push(`__sort = '${sort}'`);
+  }
   if (offset !== undefined) {
     whereConditions.push(`__offset = ${offset}`);
   }

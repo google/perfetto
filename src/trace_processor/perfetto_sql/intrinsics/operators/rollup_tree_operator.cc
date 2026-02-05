@@ -139,25 +139,46 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
   return schema;
 }
 
-// Parses a sort specification string like "__agg_0 DESC".
+// Parses a sort specification string like "__agg_0 DESC" or "__group_0 ASC".
+// Format:
+//   "__agg_N [ASC|DESC]" - sort all levels by aggregate N
+//   "__group_N [ASC|DESC]" - sort level N by hierarchy value, others ASC
+//   "" or unspecified - sort all levels alphabetically ASC (default)
 RollupSortSpec ParseSortSpec(const std::string& sort_str) {
   RollupSortSpec spec;
-  spec.agg_index = 0;  // Default: sort by first aggregate
-  spec.descending = true;
+  // Default: sort all levels alphabetically ASC (uses struct defaults)
+
+  if (sort_str.empty()) {
+    return spec;
+  }
 
   std::string lower = base::ToLower(sort_str);
-  if (lower.find("asc") != std::string::npos) {
-    spec.descending = false;
+  if (lower.find("desc") != std::string::npos) {
+    spec.descending = true;
   }
-  if (lower.find("name") != std::string::npos ||
-      lower.find("__name") != std::string::npos) {
-    spec.agg_index = -1;  // Sort by name
+
+  // Try to extract hierarchy level from "__group_N" pattern
+  size_t group_pos = lower.find("__group_");
+  if (group_pos != std::string::npos) {
+    size_t start = group_pos + 8;
+    size_t end = start;
+    while (end < lower.size() && lower[end] >= '0' && lower[end] <= '9') {
+      end++;
+    }
+    if (end > start) {
+      std::optional<int32_t> level =
+          base::StringToInt32(lower.substr(start, end - start));
+      if (level) {
+        spec.hierarchy_level = *level;
+      }
+    }
+    return spec;
   }
 
   // Try to extract aggregate index from "__agg_N" pattern
   size_t agg_pos = lower.find("__agg_");
   if (agg_pos != std::string::npos) {
-    // Extract only the digits after "__agg_"
+    spec.hierarchy_level = -1;  // Aggregate sort, not hierarchy
     size_t start = agg_pos + 6;
     size_t end = start;
     while (end < lower.size() && lower[end] >= '0' && lower[end] <= '9') {

@@ -36,11 +36,18 @@ using RollupValue = std::variant<std::monostate,  // NULL
 
 // Sort specification for ordering nodes.
 struct RollupSortSpec {
-  // Which aggregate to sort by (-1 for sorting by name/hierarchy value)
+  // Which aggregate to sort by (only used when hierarchy_level < 0).
   int agg_index = 0;
 
-  // Sort direction
-  bool descending = true;
+  // Which hierarchy level to sort by group value.
+  // When >= 0, all levels sort by hierarchy value (alphabetically).
+  // The specified level uses 'descending', others use ASC.
+  // When < 0, all levels sort by agg_index.
+  // Default: 0 (sort all levels alphabetically, level 0 uses direction).
+  int hierarchy_level = 0;
+
+  // Sort direction (default ASC for alphabetical sorting)
+  bool descending = false;
 };
 
 // Options for flattening the tree into a list of visible rows.

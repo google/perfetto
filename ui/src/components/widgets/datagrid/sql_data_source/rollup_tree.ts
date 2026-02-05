@@ -87,8 +87,26 @@ export class SQLDataSourceRollupTree {
       aliasToColumn[aggregates[i].alias] = `__agg_${i}`;
     }
 
+    // Build sort string for the rollup tree operator.
+    // Aggregate columns use __agg_N format, groupBy columns use __group_N
+    // to sort that level by hierarchy value (other levels sort by __agg_0).
     const sortStr = sort
-      ? `${aliasToColumn[sort.alias] ?? sort.alias} ${sort.direction}`
+      ? (() => {
+          const column = aliasToColumn[sort.alias];
+          if (column?.startsWith('__agg_')) {
+            return `${column} ${sort.direction}`;
+          } else {
+            // GroupBy column - find its index and use __group_N format
+            const groupIndex = groupBy.findIndex(
+              (col) => col.alias === sort.alias,
+            );
+            if (groupIndex >= 0) {
+              return `__group_${groupIndex} ${sort.direction}`;
+            }
+            // Fallback to first aggregate
+            return `__agg_0 ${sort.direction}`;
+          }
+        })()
       : undefined;
 
     const pivotKey = {
