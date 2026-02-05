@@ -213,11 +213,12 @@ export class QuerySlot<T> {
       throw new Error('QuerySlot.use() called after dispose()');
     }
 
-    // Throw any stored error from a previous failed query
+    // Throw any stored error from a previous failed query.
+    // The error is NOT cleared - once a slot errors, it stays in error state
+    // permanently. This prevents infinite retry loops where each use() call
+    // would schedule a new query that fails again.
     if (this.error) {
-      const error = this.error;
-      this.error = undefined; // Clear so it only throws once
-      throw error;
+      throw this.error;
     }
 
     const {key, queryFn, enabled, retainOn = []} = options;
