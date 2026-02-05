@@ -255,15 +255,11 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         const auto t_start = base::GetWallTimeNs();
         auto it = trace_processor_->ExecuteQuery(sql);
 
-        QueryResultSerializer serializer(std::move(it));
+        QueryResultSerializer serializer(std::move(it), t_start);
         for (bool has_more = true; has_more;) {
           const auto seq_id = tx_seq_id_++;
           Response resp(seq_id, req_type);
-          const double elapsed_time_ms =
-              static_cast<double>((base::GetWallTimeNs() - t_start).count()) /
-              1e6;
-          has_more =
-              serializer.Serialize(resp->set_query_result(), elapsed_time_ms);
+          has_more = serializer.Serialize(resp->set_query_result());
           const uint32_t resp_size = resp->Finalize();
           if (resp_size < protozero::proto_utils::kMaxMessageLength) {
             // This is the nominal case.
@@ -551,14 +547,12 @@ void Rpc::Query(const uint8_t* args,
   const auto t_start = base::GetWallTimeNs();
   auto it = trace_processor_->ExecuteQuery(sql);
 
-  QueryResultSerializer serializer(std::move(it));
+  QueryResultSerializer serializer(std::move(it), t_start);
 
   protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
                                                                 kSliceSize);
   for (bool has_more = true; has_more;) {
-    const double elapsed_time_ms =
-        static_cast<double>((base::GetWallTimeNs() - t_start).count()) / 1e6;
-    has_more = serializer.Serialize(buffered.get(), elapsed_time_ms);
+    has_more = serializer.Serialize(buffered.get());
     const auto& res = buffered.GetSlices();
     for (uint32_t i = 0; i < res.size(); ++i) {
       auto used = res[i].GetUsedRange();

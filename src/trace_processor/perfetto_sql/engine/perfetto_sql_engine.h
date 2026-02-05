@@ -59,7 +59,6 @@ class PerfettoSqlEngine {
     uint32_t column_count = 0;
     uint32_t statement_count = 0;
     uint32_t statement_count_with_output = 0;
-    double elapsed_time_ms = 0;
   };
   struct ExecutionResult {
     SqliteEngine::PreparedStatement stmt;

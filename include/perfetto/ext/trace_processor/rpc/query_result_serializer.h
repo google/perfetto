@@ -25,6 +25,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "perfetto/base/time.h"
+
 namespace perfetto {
 
 namespace protos::pbzero {
@@ -48,12 +50,14 @@ class IteratorImpl;
 //   A batch is guaranteed to contain a number of cells that is an integer
 //   multiple of the column count (i.e. a batch is not truncated in the middle
 //   of a row).
-// The intended use case is streaaming these batches onto through a
+// The intended use case is streaming these batches onto through a
 // chunked-encoded HTTP response, or through a repetition of Wasm calls.
+//
 class QueryResultSerializer {
  public:
   static constexpr uint32_t kDefaultBatchSplitThreshold = 128 * 1024;
-  explicit QueryResultSerializer(Iterator);
+  explicit QueryResultSerializer(Iterator,
+                                 std::optional<base::TimeNanos> t_start = {});
   ~QueryResultSerializer();
 
   // No copy or move.
@@ -63,11 +67,11 @@ class QueryResultSerializer {
   // Appends the data to the passed protozero message. It returns true if more
   // chunks are available (i.e. it returns NOT(|eof_reached_||)). The caller is
   // supposed to keep calling this function until it returns false.
-  bool Serialize(protos::pbzero::QueryResult*, double elapsed_time_ms);
+  bool Serialize(protos::pbzero::QueryResult*);
 
   // Like the above but stitches everything together in a vector. Incurs in
   // extra copies.
-  bool Serialize(std::vector<uint8_t>*, double elapsed_time_ms);
+  bool Serialize(std::vector<uint8_t>*);
 
   void set_batch_size_for_testing(uint32_t cells_per_batch, uint32_t thres) {
     cells_per_batch_ = cells_per_batch;
@@ -81,6 +85,7 @@ class QueryResultSerializer {
 
   std::unique_ptr<IteratorImpl> iter_;
   const uint32_t num_cols_;
+  const std::optional<base::TimeNanos> t_start_;
   bool did_write_metadata_ = false;
   bool eof_reached_ = false;
   uint32_t col_ = UINT32_MAX;
@@ -88,7 +93,7 @@ class QueryResultSerializer {
   // These params specify the thresholds for splitting the results in batches,
   // in terms of: (1) max cells (row x cols); (2) serialized batch size in
   // bytes, whichever is reached first. Note also that the byte limit is not
-  // 100% accurate and can occasionally yield to batches slighly larger than
+  // 100% accurate and can occasionally yield to batches slightly larger than
   // the limit (it splits on the next row *after* the limit is hit).
   // Overridable for testing only.
   uint32_t cells_per_batch_ = 50000;

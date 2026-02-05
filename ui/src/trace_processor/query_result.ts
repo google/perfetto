@@ -388,7 +388,10 @@ export interface QueryResult {
   // Returns the last SQL statement.
   lastStatementSql(): string;
 
-  // Returns the wall time taken to run the query in milliseconds.
+  // Returns the time spend processing the query so far in milliseconds. This is
+  // timed by trace processor to avoid any time spend in the queue. It's updated
+  // every time we get a new batch to convey the time taken do far, so it should
+  // be monotonically increasing and stable when isComplete() is true.
   elapsedTimeMs(): number;
 }
 

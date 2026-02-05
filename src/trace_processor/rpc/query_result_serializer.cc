@@ -45,23 +45,25 @@ uint8_t MakeLenDelimTag(uint32_t field_num) {
 
 }  // namespace
 
-QueryResultSerializer::QueryResultSerializer(Iterator iter)
-    : iter_(iter.take_impl()), num_cols_(iter_->ColumnCount()) {}
+QueryResultSerializer::QueryResultSerializer(
+    Iterator iter,
+    std::optional<base::TimeNanos> t_start)
+    : iter_(iter.take_impl()),
+      num_cols_(iter_->ColumnCount()),
+      t_start_(t_start) {}
 
 QueryResultSerializer::~QueryResultSerializer() = default;
 
-bool QueryResultSerializer::Serialize(std::vector<uint8_t>* buf,
-                                      double elapsed_time_ms) {
+bool QueryResultSerializer::Serialize(std::vector<uint8_t>* buf) {
   const size_t slice = batch_split_threshold_ + 4096;
   protozero::HeapBuffered<protos::pbzero::QueryResult> result(slice, slice);
-  bool has_more = Serialize(result.get(), elapsed_time_ms);
+  bool has_more = Serialize(result.get());
   auto arr = result.SerializeAsArray();
   buf->insert(buf->end(), arr.begin(), arr.end());
   return has_more;
 }
 
-bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res,
-                                      double elapsed_time_ms) {
+bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res) {
   PERFETTO_CHECK(!eof_reached_);
 
   if (!did_write_metadata_) {
@@ -75,7 +77,15 @@ bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res,
 
   SerializeBatch(res);
   MaybeSerializeError(res);
-  res->set_elapsed_time_ms(elapsed_time_ms);
+
+  // After iterating and serializing the batch, work out the elapsed time and
+  // include it in the proto. If t_start_ was not provided then leave it blank.
+  if (t_start_) {
+    const double elapsed_time_ms =
+        static_cast<double>((base::GetWallTimeNs() - *t_start_).count()) / 1e6;
+    res->set_elapsed_time_ms(elapsed_time_ms);
+  }
+
   return !eof_reached_;
 }
 

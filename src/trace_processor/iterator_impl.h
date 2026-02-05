@@ -138,10 +138,6 @@ class IteratorImpl {
     return result_.ok() ? result_->stmt.sql() : "";
   }
 
-  double QueryTimeMs() const {
-    return result_.ok() ? result_->stats.elapsed_time_ms : 0;
-  }
-
  private:
   // Dummy function to pass to ScopedResource.
   static int DummyClose(TraceProcessorImpl*) { return 0; }
