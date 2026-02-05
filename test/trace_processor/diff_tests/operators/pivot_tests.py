@@ -33,7 +33,7 @@ CREATE_TEST_TABLE = """
 """
 
 CREATE_PIVOT_TABLE_QUERY = """
-  CREATE VIRTUAL TABLE pivot USING __intrinsic_pivot(
+  CREATE VIRTUAL TABLE pivot USING __intrinsic_rollup_tree(
     '(SELECT * FROM sales)',
     'category, item',
     'SUM(value)'
@@ -174,7 +174,7 @@ class Pivot(TestSuite):
         trace=TextProto(''),
         query=f"""
           {CREATE_TEST_TABLE}
-          CREATE VIRTUAL TABLE pivot_multi USING __intrinsic_pivot(
+          CREATE VIRTUAL TABLE pivot_multi USING __intrinsic_rollup_tree(
             '(SELECT * FROM sales)',
             'category, item',
             'SUM(value), COUNT(*), AVG(value)'
@@ -217,7 +217,7 @@ class Pivot(TestSuite):
         trace=TextProto(''),
         query=f"""
           {CREATE_TEST_TABLE}
-          CREATE VIRTUAL TABLE pivot_direct USING __intrinsic_pivot(
+          CREATE VIRTUAL TABLE pivot_direct USING __intrinsic_rollup_tree(
             'sales',
             'category, item',
             'SUM(value)'

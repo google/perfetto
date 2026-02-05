@@ -21,12 +21,12 @@ import {Engine} from '../../../../trace_processor/engine';
 import {NUM, Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../data_source';
-import {buildAggregateExpr} from '../pivot_operator';
+import {buildAggregateExpr} from '../rollup_tree_operator';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
 
-// Flat pivot datasource - uses simple GROUP BY queries without hierarchy.
-export class SQLDataSourcePivotFlat {
+// Flat GROUP BY datasource - uses simple GROUP BY queries without hierarchy.
+export class SQLDataSourceGroupBy {
   private readonly rowCountSlot: QuerySlot<number>;
   private readonly rowsSlot: QuerySlot<{
     readonly rows: readonly Row[];

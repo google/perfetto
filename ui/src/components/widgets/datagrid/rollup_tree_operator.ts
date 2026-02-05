@@ -19,13 +19,13 @@ import {
 } from '../../../trace_processor/sql_utils';
 import {AggregateFunction} from './model';
 
-const DEFAULT_PIVOT_TABLE_NAME = '__intrinsic_pivot_default__';
+const DEFAULT_ROLLUP_TABLE_NAME = '__intrinsic_rollup_tree_default__';
 
 /**
- * Configuration for creating a pivot virtual table.
+ * Configuration for creating a rollup tree virtual table.
  */
-export interface PivotTableConfig {
-  /** The source table or subquery to pivot. */
+export interface RollupTreeConfig {
+  /** The source table or subquery. */
   sourceTable: string;
   /** Columns to group by (hierarchy columns). */
   groupByColumns: readonly string[];
@@ -36,9 +36,9 @@ export interface PivotTableConfig {
 }
 
 /**
- * Query options for fetching rows from the pivot table.
+ * Query options for fetching rows from the rollup tree table.
  */
-export interface PivotQueryOptions {
+export interface RollupTreeQueryOptions {
   /** IDs of expanded nodes (allowlist mode). */
   expandedIds?: ReadonlySet<bigint>;
   /** IDs of collapsed nodes (denylist mode, takes precedence). */
@@ -74,7 +74,7 @@ export interface PivotQueryOptions {
 }
 
 /**
- * Creates a pivot virtual table using __intrinsic_pivot.
+ * Creates a rollup tree virtual table using __intrinsic_rollup_tree.
  *
  * The virtual table supports:
  * - Hierarchical grouping with expand/collapse
@@ -84,13 +84,13 @@ export interface PivotQueryOptions {
  *
  * @example
  * ```typescript
- * const table = await createPivotTable(engine, {
+ * const table = await createRollupTree(engine, {
  *   sourceTable: 'slice',
  *   groupByColumns: ['category', 'name'],
  *   aggregateExprs: ['COUNT(*)', 'SUM(dur)'],
  * });
  *
- * const result = await queryPivotTable(engine, table.name, {
+ * const result = await queryRollupTree(engine, table.name, {
  *   expandedIds: new Set([1, 2]),
  *   sort: '__agg_0 DESC',
  *   offset: 0,
@@ -101,21 +101,21 @@ export interface PivotQueryOptions {
  * await table[Symbol.asyncDispose]();
  * ```
  */
-export async function createPivotTable(
+export async function createRollupTree(
   engine: Engine,
-  config: PivotTableConfig,
+  config: RollupTreeConfig,
 ): Promise<DisposableSqlEntity> {
   const {
     sourceTable,
     groupByColumns,
     aggregateExprs,
-    tableName = DEFAULT_PIVOT_TABLE_NAME,
+    tableName = DEFAULT_ROLLUP_TABLE_NAME,
   } = config;
 
   const hierarchyCols = groupByColumns.join(', ');
   const aggExprs = aggregateExprs.join(', ');
 
-  const usingClause = `__intrinsic_pivot(
+  const usingClause = `__intrinsic_rollup_tree(
   "${sourceTable.replace(/"/g, '""')}",
   '${hierarchyCols}',
   '${aggExprs}'
@@ -129,16 +129,16 @@ export async function createPivotTable(
 }
 
 /**
- * Builds a query for fetching rows from a pivot virtual table.
+ * Builds a query for fetching rows from a rollup tree virtual table.
  *
  * The virtual table uses WHERE constraints to control:
  * - Expansion state (__expanded_ids or __collapsed_ids)
  * - Sorting (__sort)
  * - Pagination (__offset, __limit)
  */
-export function buildPivotQuery(
+export function buildRollupTreeQuery(
   tableName: string,
-  options: PivotQueryOptions = {},
+  options: RollupTreeQueryOptions = {},
 ): string {
   const {
     expandedIds,
@@ -227,3 +227,11 @@ export function buildAggregateExpr(
   }
   return `${func}(${field})`;
 }
+
+// Legacy aliases for backward compatibility
+export {
+  createRollupTree as createPivotTable,
+  buildRollupTreeQuery as buildPivotQuery,
+};
+export type {RollupTreeConfig as PivotTableConfig};
+export type {RollupTreeQueryOptions as PivotQueryOptions};

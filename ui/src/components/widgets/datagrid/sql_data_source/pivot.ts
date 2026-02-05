@@ -16,14 +16,14 @@ import {QueryResult, SerialTaskQueue} from '../../../../base/query_slot';
 import {Engine} from '../../../../trace_processor/engine';
 import {Row} from '../../../../trace_processor/query_result';
 import {DataSourceRows, PivotModel} from '../data_source';
-import {SQLDataSourcePivotFlat} from './pivot_flat';
-import {SQLDataSourcePivotTree} from './pivot_tree';
+import {SQLDataSourceGroupBy} from './group_by';
+import {SQLDataSourceRollupTree} from './rollup_tree';
 import {SQLSchemaRegistry} from '../sql_schema';
 
 // Pivot datasource for DataGrid - delegates to flat or tree implementations.
 export class SQLDataSourcePivot {
-  private readonly flat: SQLDataSourcePivotFlat;
-  private readonly tree: SQLDataSourcePivotTree;
+  private readonly flat: SQLDataSourceGroupBy;
+  private readonly tree: SQLDataSourceRollupTree;
 
   constructor(
     uuid: string,
@@ -32,13 +32,13 @@ export class SQLDataSourcePivot {
     sqlSchema: SQLSchemaRegistry,
     rootSchemaName: string,
   ) {
-    this.flat = new SQLDataSourcePivotFlat(
+    this.flat = new SQLDataSourceGroupBy(
       queue,
       engine,
       sqlSchema,
       rootSchemaName,
     );
-    this.tree = new SQLDataSourcePivotTree(
+    this.tree = new SQLDataSourceRollupTree(
       uuid,
       queue,
       engine,

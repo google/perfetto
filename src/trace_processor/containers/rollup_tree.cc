@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/containers/pivot_table.h"
+#include "src/trace_processor/containers/rollup_tree.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -31,8 +31,8 @@ namespace perfetto::trace_processor {
 
 namespace {
 
-// Convert a PivotValue to a sortable double for comparison.
-double PivotValueToDouble(const PivotValue& val) {
+// Convert a RollupValue to a sortable double for comparison.
+double RollupValueToDouble(const RollupValue& val) {
   if (std::holds_alternative<std::monostate>(val)) {
     return std::numeric_limits<double>::lowest();
   }
@@ -47,7 +47,7 @@ double PivotValueToDouble(const PivotValue& val) {
 }
 
 // Gets the display name for a node (the hierarchy value at its level).
-std::string GetNodeName(const PivotNode* node) {
+std::string GetNodeName(const RollupNode* node) {
   if (node->level < 0 ||
       static_cast<size_t>(node->level) >= node->hierarchy_values.size()) {
     return "";
@@ -57,34 +57,34 @@ std::string GetNodeName(const PivotNode* node) {
 
 }  // namespace
 
-PivotTable::PivotTable(std::vector<std::string> hierarchy_cols,
+RollupTree::RollupTree(std::vector<std::string> hierarchy_cols,
                        size_t num_aggregates)
     : hierarchy_cols_(std::move(hierarchy_cols)),
       num_aggregates_(num_aggregates) {
   // Initialize root node
-  root_ = std::make_unique<PivotNode>();
+  root_ = std::make_unique<RollupNode>();
   root_->id = 0;
   root_->level = -1;
   root_->hierarchy_values.resize(hierarchy_cols_.size());
   root_->aggs.resize(num_aggregates_, std::monostate{});
 }
 
-PivotTable::~PivotTable() = default;
+RollupTree::~RollupTree() = default;
 
-PivotTable::PivotTable(PivotTable&&) noexcept = default;
-PivotTable& PivotTable::operator=(PivotTable&&) noexcept = default;
+RollupTree::RollupTree(RollupTree&&) noexcept = default;
+RollupTree& RollupTree::operator=(RollupTree&&) noexcept = default;
 
-PivotNode* PivotTable::FindOrCreateNode(
+RollupNode* RollupTree::FindOrCreateNode(
     const std::vector<std::string>& segments,
     int level) {
   if (segments.empty() || level < 0) {
     return root_.get();
   }
 
-  PivotNode* current = root_.get();
+  RollupNode* current = root_.get();
   for (int i = 0; i <= level && i < static_cast<int>(segments.size()); i++) {
     const std::string& segment = segments[static_cast<size_t>(i)];
-    PivotNode* found = nullptr;
+    RollupNode* found = nullptr;
 
     // Look for existing child with matching hierarchy value at this level
     for (auto& child : current->children) {
@@ -96,7 +96,7 @@ PivotNode* PivotTable::FindOrCreateNode(
     }
 
     if (!found) {
-      auto node = std::make_unique<PivotNode>();
+      auto node = std::make_unique<RollupNode>();
       node->id = next_id_++;
       node->level = i;
       node->parent = current;
@@ -116,28 +116,28 @@ PivotNode* PivotTable::FindOrCreateNode(
   return current;
 }
 
-void PivotTable::AddRow(int level,
+void RollupTree::AddRow(int level,
                         const std::vector<std::string>& hierarchy_path,
-                        std::vector<PivotValue> aggregates) {
-  PivotNode* node = FindOrCreateNode(hierarchy_path, level);
+                        std::vector<RollupValue> aggregates) {
+  RollupNode* node = FindOrCreateNode(hierarchy_path, level);
   if (node && node != root_.get()) {
     node->aggs = std::move(aggregates);
     total_nodes_++;
   }
 }
 
-void PivotTable::SetRootAggregates(std::vector<PivotValue> aggregates) {
+void RollupTree::SetRootAggregates(std::vector<RollupValue> aggregates) {
   root_->aggs = std::move(aggregates);
 }
 
-void PivotTable::SortTree(PivotNode* node, const PivotSortSpec& spec) {
+void RollupTree::SortTree(RollupNode* node, const RollupSortSpec& spec) {
   if (!node) {
     return;
   }
 
   std::sort(node->children.begin(), node->children.end(),
-            [&spec](const std::unique_ptr<PivotNode>& a,
-                    const std::unique_ptr<PivotNode>& b) {
+            [&spec](const std::unique_ptr<RollupNode>& a,
+                    const std::unique_ptr<RollupNode>& b) {
               if (spec.agg_index < 0) {
                 // Sort by name (hierarchy value at node's level)
                 std::string name_a = GetNodeName(a.get());
@@ -148,8 +148,8 @@ void PivotTable::SortTree(PivotNode* node, const PivotSortSpec& spec) {
               if (idx >= a->aggs.size() || idx >= b->aggs.size()) {
                 return false;
               }
-              const PivotValue& val_a = a->aggs[idx];
-              const PivotValue& val_b = b->aggs[idx];
+              const RollupValue& val_a = a->aggs[idx];
+              const RollupValue& val_b = b->aggs[idx];
 
               // Handle string comparison for MIN/MAX of text
               if (std::holds_alternative<std::string>(val_a) &&
@@ -160,8 +160,8 @@ void PivotTable::SortTree(PivotNode* node, const PivotSortSpec& spec) {
               }
 
               // For numeric types, convert to double
-              double d_a = PivotValueToDouble(val_a);
-              double d_b = PivotValueToDouble(val_b);
+              double d_a = RollupValueToDouble(val_a);
+              double d_b = RollupValueToDouble(val_b);
               return spec.descending ? (d_a > d_b) : (d_a < d_b);
             });
 
@@ -170,12 +170,12 @@ void PivotTable::SortTree(PivotNode* node, const PivotSortSpec& spec) {
   }
 }
 
-void PivotTable::FlattenTree(PivotNode* node,
+void RollupTree::FlattenTree(RollupNode* node,
                              const std::set<int64_t>& ids,
                              bool denylist_mode,
                              int min_depth,
                              int max_depth,
-                             std::vector<PivotNode*>* out) {
+                             std::vector<RollupNode*>* out) {
   if (!node) {
     return;
   }
@@ -210,8 +210,8 @@ void PivotTable::FlattenTree(PivotNode* node,
   }
 }
 
-PivotFlatRow PivotTable::NodeToFlatRow(const PivotNode* node) const {
-  PivotFlatRow row;
+RollupFlatRow RollupTree::NodeToFlatRow(const RollupNode* node) const {
+  RollupFlatRow row;
   row.id = node->id;
   row.parent_id = node->parent ? node->parent->id : -1;
   row.depth = node->level + 1;  // Root is level -1, so depth starts at 0
@@ -221,8 +221,8 @@ PivotFlatRow PivotTable::NodeToFlatRow(const PivotNode* node) const {
   return row;
 }
 
-std::vector<PivotFlatRow> PivotTable::GetRows(
-    const PivotFlattenOptions& options) {
+std::vector<RollupFlatRow> RollupTree::GetRows(
+    const RollupFlattenOptions& options) {
   // Sort if needed
   std::string sort_key = std::to_string(options.sort.agg_index) + "_" +
                          (options.sort.descending ? "desc" : "asc");
@@ -232,12 +232,12 @@ std::vector<PivotFlatRow> PivotTable::GetRows(
   }
 
   // Flatten the tree
-  std::vector<PivotNode*> flat;
+  std::vector<RollupNode*> flat;
   FlattenTree(root_.get(), options.ids, options.denylist_mode, options.min_depth,
               options.max_depth, &flat);
 
   // Apply pagination and convert to output format
-  std::vector<PivotFlatRow> result;
+  std::vector<RollupFlatRow> result;
   int start = options.offset;
   int end = std::min(static_cast<int>(flat.size()),
                      options.offset + options.limit);
@@ -249,7 +249,7 @@ std::vector<PivotFlatRow> PivotTable::GetRows(
   return result;
 }
 
-int PivotTable::GetTotalRows(const PivotFlattenOptions& options) {
+int RollupTree::GetTotalRows(const RollupFlattenOptions& options) {
   // Sort if needed (to ensure consistent state)
   std::string sort_key = std::to_string(options.sort.agg_index) + "_" +
                          (options.sort.descending ? "desc" : "asc");
@@ -259,7 +259,7 @@ int PivotTable::GetTotalRows(const PivotFlattenOptions& options) {
   }
 
   // Flatten without pagination to count
-  std::vector<PivotNode*> flat;
+  std::vector<RollupNode*> flat;
   FlattenTree(root_.get(), options.ids, options.denylist_mode, options.min_depth,
               options.max_depth, &flat);
   return static_cast<int>(flat.size());

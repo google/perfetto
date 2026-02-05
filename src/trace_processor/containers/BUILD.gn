@@ -25,11 +25,11 @@ perfetto_component("containers") {
     "interval_intersector.h",
     "interval_tree.h",
     "null_term_string_view.h",
-    "pivot_table.h",
+    "rollup_tree.h",
     "string_pool.h",
   ]
   sources = [
-    "pivot_table.cc",
+    "rollup_tree.cc",
     "string_pool.cc",
   ]
   deps = [

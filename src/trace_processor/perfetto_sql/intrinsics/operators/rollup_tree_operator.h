@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_PIVOT_OPERATOR_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_PIVOT_OPERATOR_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_ROLLUP_TREE_OPERATOR_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_ROLLUP_TREE_OPERATOR_H_
 
 #include <cstddef>
 #include <limits>
@@ -23,42 +23,42 @@
 #include <string>
 #include <vector>
 
-#include "src/trace_processor/containers/pivot_table.h"
+#include "src/trace_processor/containers/rollup_tree.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 
 namespace perfetto::trace_processor {
 
 class PerfettoSqlEngine;
 
-// SQLite virtual table module for hierarchical pivot functionality.
+// SQLite virtual table module for hierarchical rollup functionality.
 //
-// This module wraps PivotTable to expose it as a SQLite virtual table,
+// This module wraps RollupTree to expose it as a SQLite virtual table,
 // allowing SQL queries with expand/collapse, sorting, and pagination.
 //
 // Usage:
-//   CREATE VIRTUAL TABLE my_pivot USING __intrinsic_pivot(
+//   CREATE VIRTUAL TABLE my_rollup USING __intrinsic_rollup_tree(
 //       'base_table',
 //       'col1, col2, col3',                    -- hierarchy columns
 //       'SUM(value), COUNT(*), AVG(price)'    -- aggregation expressions
 //   );
 //
 // Query (default - all groups expanded):
-//   SELECT * FROM my_pivot
+//   SELECT * FROM my_rollup
 //   WHERE __sort = '__agg_0 DESC'        -- sort by aggregate or 'name'
 //     AND __offset = 0                   -- pagination offset
 //     AND __limit = 100;                 -- pagination limit
 //
 // Query (allowlist mode - only specified IDs expanded):
-//   SELECT * FROM my_pivot
+//   SELECT * FROM my_rollup
 //   WHERE __expanded_ids = '1,2,3'       -- comma-separated node IDs to expand
 //     AND __sort = '__agg_0 DESC';
 //
 // Query (denylist mode - all expanded except specified IDs):
-//   SELECT * FROM my_pivot
+//   SELECT * FROM my_rollup
 //   WHERE __collapsed_ids = '4,5'        -- comma-separated node IDs to
 //   collapse
 //     AND __sort = '__agg_0 DESC';
-struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
+struct RollupTreeOperatorModule : sqlite::Module<RollupTreeOperatorModule> {
   // Column layout (indices computed at runtime based on hierarchy_cols.size()):
   // [0..num_hier-1]         : hierarchy columns (with NULLs like ROLLUP)
   // [num_hier]              : __id
@@ -92,24 +92,24 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
     PerfettoSqlEngine* engine;
   };
 
-  struct Vtab : sqlite::Module<PivotOperatorModule>::Vtab {
+  struct Vtab : sqlite::Module<RollupTreeOperatorModule>::Vtab {
     PerfettoSqlEngine* engine = nullptr;
 
     // Configuration from CREATE TABLE
     std::string base_table;
     std::vector<std::string> aggregations;  // e.g., "SUM(col)", "COUNT(*)"
 
-    // The pivot table with all tree logic
-    std::unique_ptr<PivotTable> table;
+    // The rollup tree with all tree logic
+    std::unique_ptr<RollupTree> table;
 
     // Cached flattened rows for current query
-    std::vector<PivotFlatRow> flat_rows;
+    std::vector<RollupFlatRow> flat_rows;
 
     // Total column count for the schema
     int total_col_count = 0;
   };
 
-  struct Cursor : sqlite::Module<PivotOperatorModule>::Cursor {
+  struct Cursor : sqlite::Module<RollupTreeOperatorModule>::Cursor {
     // Current position in flat_rows array
     int row_index = 0;
 
@@ -161,4 +161,4 @@ struct PivotOperatorModule : sqlite::Module<PivotOperatorModule> {
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_PIVOT_OPERATOR_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_ROLLUP_TREE_OPERATOR_H_

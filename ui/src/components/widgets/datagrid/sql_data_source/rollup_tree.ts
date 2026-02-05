@@ -26,13 +26,13 @@ import {
   buildAggregateExpr,
   buildPivotQuery,
   createPivotTable,
-} from '../pivot_operator';
-import {serializeFilters} from './pivot_flat';
+} from '../rollup_tree_operator';
+import {serializeFilters} from './group_by';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
 
-// Tree pivot datasource - uses __intrinsic_pivot virtual table with hierarchy.
-export class SQLDataSourcePivotTree {
+// Rollup tree datasource - uses __intrinsic_rollup_tree virtual table.
+export class SQLDataSourceRollupTree {
   private readonly rowCountSlot: QuerySlot<number>;
   private readonly rowsSlot: QuerySlot<{
     readonly rows: readonly Row[];

@@ -21,7 +21,7 @@ import {shortUuid} from '../../../base/uuid';
 import {exists, isNumeric, maybeUndefined} from '../../../base/utils';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
-import {Button, ButtonVariant} from '../../../widgets/button';
+import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
 import {
   Grid,
@@ -74,7 +74,6 @@ import {
   Pivot,
   SortDirection,
 } from './model';
-import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 
 export interface AggregationCellAttrs extends m.Attributes {
   readonly symbol?: string;
@@ -508,26 +507,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 onclick: () => this.collapseAll(attrs),
                 disabled: this.pivot.groupDisplay === 'flat',
               }),
-              m(SegmentedButtons, {
-                options: [
-                  {
-                    label: 'Flat',
-                    icon: 'view_list',
-                  },
-                  {
-                    label: 'Tree',
-                    icon: 'account_tree',
-                  },
-                ],
-                selectedOption: this.pivot.groupDisplay === 'flat' ? 0 : 1,
-                onOptionSelected: (num: number) => {
-                  if (num === 1) {
-                    this.enableTreeMode(attrs);
-                  } else {
-                    this.enableFlatMode(attrs);
-                  }
-                },
-              }),
+              m(
+                ButtonGroup,
+                m(Button, {
+                  label: 'Flat',
+                  icon: 'view_list',
+                  active: this.pivot?.groupDisplay === 'flat',
+                  onclick: () => this.enableFlatMode(attrs),
+                  tooltip: 'Show all groups in a flat list (no hierarchy)',
+                }),
+                m(Button, {
+                  label: 'Tree',
+                  icon: 'account_tree',
+                  active: this.pivot?.groupDisplay !== 'flat',
+                  onclick: () => this.enableTreeMode(attrs),
+                  tooltip: 'Show rollups in a hierarchical tree structure',
+                }),
+              ),
             ],
         ],
         rightItems: [

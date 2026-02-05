@@ -14,32 +14,32 @@
  * limitations under the License.
  */
 
-// __intrinsic_pivot virtual table for hierarchical pivot/grouping.
+// __intrinsic_rollup_tree virtual table for hierarchical grouping.
 //
-// This operator wraps PivotTable to expose ROLLUP-style aggregation with
+// This operator wraps RollupTree to expose ROLLUP-style aggregation with
 // expand/collapse support as a SQLite virtual table.
 //
 // CREATION:
-//   CREATE VIRTUAL TABLE my_pivot USING __intrinsic_pivot(
+//   CREATE VIRTUAL TABLE my_rollup USING __intrinsic_rollup_tree(
 //       'source_table_or_subquery',           -- Table name or (SELECT ...)
 //       'col1, col2, col3',                   -- Hierarchy columns (group by)
 //       'SUM(value), COUNT(*), AVG(price)'   -- Aggregation expressions
 //   );
 //
 // QUERYING (default - all groups expanded):
-//   SELECT * FROM my_pivot
+//   SELECT * FROM my_rollup
 //   WHERE __sort = '__agg_0 DESC'        -- Optional: sort by aggregate or
 //   'name'
 //     AND __offset = 0                 -- Optional: pagination offset
 //     AND __limit = 100;               -- Optional: pagination limit
 //
 // QUERYING (allowlist mode - only specified IDs expanded):
-//   SELECT * FROM my_pivot
+//   SELECT * FROM my_rollup
 //   WHERE __expanded_ids = '1,2,3'     -- Comma-separated node IDs to expand
 //     AND __sort = '__agg_0 DESC';
 //
 // QUERYING (denylist mode - all expanded except specified IDs):
-//   SELECT * FROM my_pivot
+//   SELECT * FROM my_rollup
 //   WHERE __collapsed_ids = '4,5'      -- Nodes to keep collapsed
 //     AND __sort = '__agg_1 ASC';
 //
@@ -59,11 +59,12 @@
 //   - Tree is built once at CREATE time and cached
 //   - By default (no expansion constraint), all groups are expanded
 
-#include "src/trace_processor/perfetto_sql/intrinsics/operators/pivot_operator.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/rollup_tree_operator.h"
 
 #include <sqlite3.h>
 #include <cstdint>
 #include <cstring>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -76,8 +77,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/containers/rollup_tree.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/containers/pivot_table.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
@@ -140,8 +141,8 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
 }
 
 // Parses a sort specification string like "__agg_0 DESC".
-PivotSortSpec ParseSortSpec(const std::string& sort_str) {
-  PivotSortSpec spec;
+RollupSortSpec ParseSortSpec(const std::string& sort_str) {
+  RollupSortSpec spec;
   spec.agg_index = 0;  // Default: sort by first aggregate
   spec.descending = true;
 
@@ -175,12 +176,12 @@ PivotSortSpec ParseSortSpec(const std::string& sort_str) {
   return spec;
 }
 
-// Builds the PivotTable from the base table by executing aggregation queries.
-base::Status BuildPivotTable(PerfettoSqlEngine* engine,
+// Builds the RollupTree from the base table by executing aggregation queries.
+base::Status BuildRollupTree(PerfettoSqlEngine* engine,
                              const std::string& base_table,
                              const std::vector<std::string>& hierarchy_cols,
                              const std::vector<std::string>& aggregations,
-                             PivotTable* table) {
+                             RollupTree* table) {
   // Build the aggregation query using UNION ALL (SQLite doesn't support ROLLUP)
   // We create one query per aggregation level and union them together.
   std::string query;
@@ -231,6 +232,8 @@ base::Status BuildPivotTable(PerfettoSqlEngine* engine,
     }
   }
 
+  std::cout << "Built rollup query:\n" << query << "\n";
+
   // Execute the query
   auto result = engine->ExecuteUntilLastStatement(
       SqlSource::FromTraceProcessorImplementation(query));
@@ -259,11 +262,11 @@ base::Status BuildPivotTable(PerfettoSqlEngine* engine,
     }
 
     // Get aggregate values (type-aware)
-    std::vector<PivotValue> aggs;
+    std::vector<RollupValue> aggs;
     for (size_t i = 0; i < num_aggs; i++) {
       int col_idx = static_cast<int>(num_hier + i);
       int sql_type = sqlite3_column_type(stmt.sqlite_stmt(), col_idx);
-      PivotValue val;
+      RollupValue val;
 
       switch (sql_type) {
         case SQLITE_INTEGER:
@@ -315,12 +318,12 @@ base::Status BuildPivotTable(PerfettoSqlEngine* engine,
 
 }  // namespace
 
-int PivotOperatorModule::Create(sqlite3* db,
-                                void* raw_ctx,
-                                int argc,
-                                const char* const* argv,
-                                sqlite3_vtab** vtab,
-                                char** pzErr) {
+int RollupTreeOperatorModule::Create(sqlite3* db,
+                                     void* raw_ctx,
+                                     int argc,
+                                     const char* const* argv,
+                                     sqlite3_vtab** vtab,
+                                     char** pzErr) {
   // argv[0] = module name
   // argv[1] = database name
   // argv[2] = table name
@@ -330,8 +333,8 @@ int PivotOperatorModule::Create(sqlite3* db,
 
   if (argc < 6) {
     *pzErr = sqlite3_mprintf(
-        "__intrinsic_pivot requires 3 arguments: base_table, hierarchy_cols, "
-        "aggregations");
+        "__intrinsic_rollup_tree requires 3 arguments: base_table, "
+        "hierarchy_cols, aggregations");
     return SQLITE_ERROR;
   }
 
@@ -394,12 +397,12 @@ int PivotOperatorModule::Create(sqlite3* db,
   res->total_col_count = static_cast<int>(num_hier + kMetadataColCount +
                                           res->aggregations.size() + 8);
 
-  // Create the PivotTable
-  res->table = std::make_unique<PivotTable>(std::move(hierarchy_cols),
+  // Create the RollupTree
+  res->table = std::make_unique<RollupTree>(std::move(hierarchy_cols),
                                             res->aggregations.size());
 
   // Build the tree from base table
-  base::Status status = BuildPivotTable(ctx->engine, res->base_table,
+  base::Status status = BuildRollupTree(ctx->engine, res->base_table,
                                         res->table->hierarchy_cols(),
                                         res->aggregations, res->table.get());
   if (!status.ok()) {
@@ -411,27 +414,27 @@ int PivotOperatorModule::Create(sqlite3* db,
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::Destroy(sqlite3_vtab* vtab) {
+int RollupTreeOperatorModule::Destroy(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> tab(GetVtab(vtab));
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::Connect(sqlite3* db,
-                                 void* raw_ctx,
-                                 int argc,
-                                 const char* const* argv,
-                                 sqlite3_vtab** vtab,
-                                 char** pzErr) {
+int RollupTreeOperatorModule::Connect(sqlite3* db,
+                                      void* raw_ctx,
+                                      int argc,
+                                      const char* const* argv,
+                                      sqlite3_vtab** vtab,
+                                      char** pzErr) {
   return Create(db, raw_ctx, argc, argv, vtab, pzErr);
 }
 
-int PivotOperatorModule::Disconnect(sqlite3_vtab* vtab) {
+int RollupTreeOperatorModule::Disconnect(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> tab(GetVtab(vtab));
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
-                                   sqlite3_index_info* info) {
+int RollupTreeOperatorModule::BestIndex(sqlite3_vtab* vtab,
+                                        sqlite3_index_info* info) {
   auto* t = GetVtab(vtab);
 
   // Calculate the column indices for hidden columns
@@ -507,22 +510,23 @@ int PivotOperatorModule::BestIndex(sqlite3_vtab* vtab,
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::Open(sqlite3_vtab*, sqlite3_vtab_cursor** cursor) {
+int RollupTreeOperatorModule::Open(sqlite3_vtab*,
+                                   sqlite3_vtab_cursor** cursor) {
   auto c = std::make_unique<Cursor>();
   *cursor = c.release();
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::Close(sqlite3_vtab_cursor* cursor) {
+int RollupTreeOperatorModule::Close(sqlite3_vtab_cursor* cursor) {
   delete GetCursor(cursor);
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
-                                int /*idxNum*/,
-                                const char* idxStr,
-                                int argc,
-                                sqlite3_value** argv) {
+int RollupTreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
+                                     int /*idxNum*/,
+                                     const char* idxStr,
+                                     int argc,
+                                     sqlite3_value** argv) {
   auto* t = GetVtab(cursor->pVtab);
   auto* c = GetCursor(cursor);
 
@@ -533,7 +537,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   c->rows_returned = 0;
 
   // Build flatten options
-  PivotFlattenOptions options;
+  RollupFlattenOptions options;
   options.denylist_mode = false;
   bool expansion_specified = false;
 
@@ -636,7 +640,7 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   }
   options.sort = ParseSortSpec(sort_spec_str);
 
-  // Get flattened rows from PivotTable
+  // Get flattened rows from RollupTree
   t->flat_rows = t->table->GetRows(options);
 
   // Row index starts at 0 (pagination already applied by GetRows)
@@ -645,14 +649,14 @@ int PivotOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::Next(sqlite3_vtab_cursor* cursor) {
+int RollupTreeOperatorModule::Next(sqlite3_vtab_cursor* cursor) {
   auto* c = GetCursor(cursor);
   c->row_index++;
   c->rows_returned++;
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::Eof(sqlite3_vtab_cursor* cursor) {
+int RollupTreeOperatorModule::Eof(sqlite3_vtab_cursor* cursor) {
   auto* t = GetVtab(cursor->pVtab);
   auto* c = GetCursor(cursor);
 
@@ -662,9 +666,9 @@ int PivotOperatorModule::Eof(sqlite3_vtab_cursor* cursor) {
   return 0;
 }
 
-int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
-                                sqlite3_context* ctx,
-                                int col) {
+int RollupTreeOperatorModule::Column(sqlite3_vtab_cursor* cursor,
+                                     sqlite3_context* ctx,
+                                     int col) {
   auto* t = GetVtab(cursor->pVtab);
   auto* c = GetCursor(cursor);
 
@@ -673,7 +677,7 @@ int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
     return SQLITE_OK;
   }
 
-  const PivotFlatRow& row = t->flat_rows[static_cast<size_t>(c->row_index)];
+  const RollupFlatRow& row = t->flat_rows[static_cast<size_t>(c->row_index)];
   int num_hier = static_cast<int>(t->table->hierarchy_cols().size());
 
   // Column layout:
@@ -714,7 +718,7 @@ int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
     if (col >= agg_start && col < agg_end) {
       size_t agg_idx = static_cast<size_t>(col - agg_start);
       if (agg_idx < row.aggregates.size()) {
-        const PivotValue& val = row.aggregates[agg_idx];
+        const RollupValue& val = row.aggregates[agg_idx];
         if (std::holds_alternative<std::monostate>(val)) {
           sqlite::result::Null(ctx);
         } else if (std::holds_alternative<int64_t>(val)) {
@@ -738,8 +742,8 @@ int PivotOperatorModule::Column(sqlite3_vtab_cursor* cursor,
   return SQLITE_OK;
 }
 
-int PivotOperatorModule::Rowid(sqlite3_vtab_cursor* cursor,
-                               sqlite_int64* rowid) {
+int RollupTreeOperatorModule::Rowid(sqlite3_vtab_cursor* cursor,
+                                    sqlite_int64* rowid) {
   auto* c = GetCursor(cursor);
   *rowid = c->row_index;
   return SQLITE_OK;

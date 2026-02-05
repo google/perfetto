@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CONTAINERS_PIVOT_TABLE_H_
-#define SRC_TRACE_PROCESSOR_CONTAINERS_PIVOT_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_CONTAINERS_ROLLUP_TREE_H_
+#define SRC_TRACE_PROCESSOR_CONTAINERS_ROLLUP_TREE_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -28,14 +28,14 @@
 
 namespace perfetto::trace_processor {
 
-// A value that can be stored in a pivot node (mirrors SQL types).
-using PivotValue = std::variant<std::monostate,  // NULL
-                                int64_t,         // INTEGER
-                                double,          // REAL
-                                std::string>;    // TEXT
+// A value that can be stored in a rollup node (mirrors SQL types).
+using RollupValue = std::variant<std::monostate,  // NULL
+                                 int64_t,         // INTEGER
+                                 double,          // REAL
+                                 std::string>;    // TEXT
 
 // Sort specification for ordering nodes.
-struct PivotSortSpec {
+struct RollupSortSpec {
   // Which aggregate to sort by (-1 for sorting by name/hierarchy value)
   int agg_index = 0;
 
@@ -44,7 +44,7 @@ struct PivotSortSpec {
 };
 
 // Options for flattening the tree into a list of visible rows.
-struct PivotFlattenOptions {
+struct RollupFlattenOptions {
   // IDs of nodes to expand (allowlist mode) or collapse (denylist mode).
   std::set<int64_t> ids;
 
@@ -53,7 +53,7 @@ struct PivotFlattenOptions {
   bool denylist_mode = false;
 
   // Sort specification
-  PivotSortSpec sort;
+  RollupSortSpec sort;
 
   // Pagination
   int offset = 0;
@@ -66,8 +66,8 @@ struct PivotFlattenOptions {
   int max_depth = std::numeric_limits<int>::max();
 };
 
-// A flattened row from the pivot table, ready for output.
-struct PivotFlatRow {
+// A flattened row from the rollup tree, ready for output.
+struct RollupFlatRow {
   int64_t id = 0;
   int64_t parent_id = -1;  // -1 means no parent (root's children)
   int depth = 0;
@@ -77,11 +77,11 @@ struct PivotFlatRow {
   std::vector<std::string> hierarchy_values;
 
   // Aggregate values
-  std::vector<PivotValue> aggregates;
+  std::vector<RollupValue> aggregates;
 };
 
 // Internal tree node structure.
-struct PivotNode {
+struct RollupNode {
   int64_t id = 0;
   int level = -1;  // -1 for root, 0+ for hierarchy levels
 
@@ -89,20 +89,20 @@ struct PivotNode {
   std::vector<std::string> hierarchy_values;
 
   // Aggregate values
-  std::vector<PivotValue> aggs;
+  std::vector<RollupValue> aggs;
 
   // Tree structure
-  PivotNode* parent = nullptr;
-  std::vector<std::unique_ptr<PivotNode>> children;
+  RollupNode* parent = nullptr;
+  std::vector<std::unique_ptr<RollupNode>> children;
 
   // Query-time state (not persisted across queries)
   bool expanded = false;
 };
 
-// A hierarchical pivot table that supports expand/collapse navigation.
+// A hierarchical rollup tree that supports expand/collapse navigation.
 //
 // This class maintains a tree of aggregated data where each level groups
-// by a different hierarchy column. It provides methods to:
+// by a different hierarchy column (like SQL ROLLUP). It provides methods to:
 // - Build the tree by adding rows at different hierarchy levels
 // - Sort children at each level
 // - Flatten the tree into a list of visible rows based on expansion state
@@ -111,37 +111,37 @@ struct PivotNode {
 // query results, in-memory data, or any other source.
 //
 // Example usage:
-//   PivotTable table({"category", "item"}, 2);  // 2 aggregates
+//   RollupTree tree({"category", "item"}, 2);  // 2 aggregates
 //
 //   // Add hierarchy level 0 (category totals)
-//   table.AddRow(0, {"fruit"}, {PivotValue(45), PivotValue(3)});
-//   table.AddRow(0, {"vegetable"}, {PivotValue(25), PivotValue(3)});
+//   tree.AddRow(0, {"fruit"}, {RollupValue(45), RollupValue(3)});
+//   tree.AddRow(0, {"vegetable"}, {RollupValue(25), RollupValue(3)});
 //
 //   // Add hierarchy level 1 (item details)
-//   table.AddRow(1, {"fruit", "apple"}, {PivotValue(30), PivotValue(2)});
-//   table.AddRow(1, {"fruit", "banana"}, {PivotValue(15), PivotValue(1)});
+//   tree.AddRow(1, {"fruit", "apple"}, {RollupValue(30), RollupValue(2)});
+//   tree.AddRow(1, {"fruit", "banana"}, {RollupValue(15), RollupValue(1)});
 //
 //   // Set root aggregates (grand total)
-//   table.SetRootAggregates({PivotValue(70), PivotValue(6)});
+//   tree.SetRootAggregates({RollupValue(70), RollupValue(6)});
 //
 //   // Get flattened rows with all nodes expanded
-//   PivotFlattenOptions opts;
+//   RollupFlattenOptions opts;
 //   opts.denylist_mode = true;  // expand all
-//   auto rows = table.GetRows(opts);
+//   auto rows = tree.GetRows(opts);
 //
-class PivotTable {
+class RollupTree {
  public:
-  // Creates a pivot table with the given hierarchy column names and
+  // Creates a rollup tree with the given hierarchy column names and
   // number of aggregate columns.
-  PivotTable(std::vector<std::string> hierarchy_cols, size_t num_aggregates);
+  RollupTree(std::vector<std::string> hierarchy_cols, size_t num_aggregates);
 
-  ~PivotTable();
+  ~RollupTree();
 
   // Non-copyable, movable
-  PivotTable(const PivotTable&) = delete;
-  PivotTable& operator=(const PivotTable&) = delete;
-  PivotTable(PivotTable&&) noexcept;
-  PivotTable& operator=(PivotTable&&) noexcept;
+  RollupTree(const RollupTree&) = delete;
+  RollupTree& operator=(const RollupTree&) = delete;
+  RollupTree(RollupTree&&) noexcept;
+  RollupTree& operator=(RollupTree&&) noexcept;
 
   // Building the tree
 
@@ -151,19 +151,19 @@ class PivotTable {
   // - aggregates: aggregate values for this group
   void AddRow(int level,
               const std::vector<std::string>& hierarchy_path,
-              std::vector<PivotValue> aggregates);
+              std::vector<RollupValue> aggregates);
 
   // Sets the root node's aggregates (grand total across all data).
-  void SetRootAggregates(std::vector<PivotValue> aggregates);
+  void SetRootAggregates(std::vector<RollupValue> aggregates);
 
   // Querying
 
   // Returns flattened rows based on the given options.
   // The tree is sorted and flattened according to expansion state.
-  std::vector<PivotFlatRow> GetRows(const PivotFlattenOptions& options);
+  std::vector<RollupFlatRow> GetRows(const RollupFlattenOptions& options);
 
   // Returns the total number of visible rows (before pagination).
-  int GetTotalRows(const PivotFlattenOptions& options);
+  int GetTotalRows(const RollupFlattenOptions& options);
 
   // Accessors
 
@@ -177,26 +177,26 @@ class PivotTable {
 
  private:
   // Finds or creates a node at the given path in the tree.
-  PivotNode* FindOrCreateNode(const std::vector<std::string>& segments,
-                              int level);
+  RollupNode* FindOrCreateNode(const std::vector<std::string>& segments,
+                               int level);
 
   // Sorts all children recursively using the given spec.
-  void SortTree(PivotNode* node, const PivotSortSpec& spec);
+  void SortTree(RollupNode* node, const RollupSortSpec& spec);
 
   // Flattens the tree into the output vector based on expansion state.
-  void FlattenTree(PivotNode* node,
+  void FlattenTree(RollupNode* node,
                    const std::set<int64_t>& ids,
                    bool denylist_mode,
                    int min_depth,
                    int max_depth,
-                   std::vector<PivotNode*>* out);
+                   std::vector<RollupNode*>* out);
 
-  // Converts a PivotNode to a PivotFlatRow.
-  PivotFlatRow NodeToFlatRow(const PivotNode* node) const;
+  // Converts a RollupNode to a RollupFlatRow.
+  RollupFlatRow NodeToFlatRow(const RollupNode* node) const;
 
   std::vector<std::string> hierarchy_cols_;
   size_t num_aggregates_;
-  std::unique_ptr<PivotNode> root_;
+  std::unique_ptr<RollupNode> root_;
   int64_t next_id_ = 1;  // 0 is reserved for root
   int total_nodes_ = 0;
 
@@ -206,4 +206,4 @@ class PivotTable {
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_CONTAINERS_PIVOT_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_CONTAINERS_ROLLUP_TREE_H_

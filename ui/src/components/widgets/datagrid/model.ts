@@ -62,7 +62,7 @@ export interface GroupByColumn extends ColumnBase {
   readonly field: string;
 }
 
-// ID-based expansion mode: Uses numeric node IDs from __intrinsic_pivot virtual table.
+// ID-based expansion mode: Uses numeric node IDs from __intrinsic_rollup_tree virtual table.
 // The virtual table maintains the tree structure and handles ROLLUP-style aggregation.
 //
 // Two mutually exclusive modes:
