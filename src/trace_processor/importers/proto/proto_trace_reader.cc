@@ -369,7 +369,7 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       // If the TracePacket specifies a non-zero clock-id, translate the
       // timestamp into the trace-time clock domain.
       ClockTracker::ClockId converted_clock_id = timestamp_clock_id;
-      if (ClockTracker::IsSequenceClock(converted_clock_id)) {
+      if (ClockTracker::IsSequenceClock(timestamp_clock_id)) {
         if (!seq_id) {
           return base::ErrStatus(
               "TracePacket specified a sequence-local clock id (%" PRIu32
@@ -377,8 +377,8 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
               "probably too old)",
               timestamp_clock_id);
         }
-        converted_clock_id =
-            ClockTracker::SequenceToGlobalClock(seq_id, timestamp_clock_id);
+        converted_clock_id = ClockTracker::SequenceToGlobalClock(
+            context_->trace_id().value, seq_id, timestamp_clock_id);
       }
       auto trace_ts = context_->clock_tracker->ToTraceTime(
           converted_clock_id, timestamp, packet.offset());
@@ -540,14 +540,16 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
     ClockTracker::ClockId clock_id = clk.clock_id();
-    if (ClockTracker::IsSequenceClock(clk.clock_id())) {
+    if (ClockTracker::IsSequenceClock(static_cast<uint32_t>(clk.clock_id()))) {
       if (!seq_id) {
         return base::ErrStatus(
             "ClockSnapshot packet is specifying a sequence-scoped clock id "
-            "(%" PRId64 ") but the TracePacket sequence_id is zero",
-            clock_id);
+            "(%" PRIu32 ") but the TracePacket sequence_id is zero",
+            clock_id.clock_id);
       }
-      clock_id = ClockTracker::SequenceToGlobalClock(seq_id, clk.clock_id());
+      clock_id = ClockTracker::SequenceToGlobalClock(
+          context_->trace_id().value, seq_id,
+          static_cast<uint32_t>(clk.clock_id()));
     }
     int64_t unit_multiplier_ns =
         clk.unit_multiplier_ns()
@@ -600,10 +602,11 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
 
     tables::ClockSnapshotTable::Row row;
     row.ts = trace_ts_value;
-    row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id);
+    row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id.clock_id);
     row.clock_value =
         clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
-    row.clock_name = GetBuiltinClockNameOrNull(clock_timestamp.clock.id);
+    row.clock_name =
+        GetBuiltinClockNameOrNull(clock_timestamp.clock.id.clock_id);
     row.snapshot_id = *snapshot_id;
     row.machine_id = context_->machine_id();
 
