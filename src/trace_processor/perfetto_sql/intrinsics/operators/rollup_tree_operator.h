@@ -84,7 +84,7 @@ struct RollupTreeOperatorModule : sqlite::Module<RollupTreeOperatorModule> {
     kOffset = 4,        // Pagination offset
     kLimit = 5,         // Pagination limit
     kMinDepth = 6,      // Minimum depth to include (filters out shallower rows)
-    kMaxDepth = 7,      // Maximum depth to include (efficient - stops traversal)
+    kMaxDepth = 7,  // Maximum depth to include (efficient - stops traversal)
   };
 
   struct Context {

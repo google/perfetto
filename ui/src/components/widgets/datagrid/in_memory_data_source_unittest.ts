@@ -279,7 +279,9 @@ describe('InMemoryDataSource', () => {
       // Then unsort
       const result = dataSource.useRows(makeModel());
       // Should revert to original order if no filters applied
-      expect(result.rows?.map((r) => r.id)).toEqual(sampleData.map((r) => r.id));
+      expect(result.rows?.map((r) => r.id)).toEqual(
+        sampleData.map((r) => r.id),
+      );
     });
   });
 

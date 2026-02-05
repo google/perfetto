@@ -491,10 +491,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ),
       },
       m(DataGridToolbar, {
-        leftItems: [
-          toolbarItemsLeft,
-          this.renderPivotToolbarItems(attrs),
-        ],
+        leftItems: [toolbarItemsLeft, this.renderPivotToolbarItems(attrs)],
         rightItems: [
           toolbarItemsRight,
           showExportButton &&

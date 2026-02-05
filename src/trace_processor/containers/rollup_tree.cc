@@ -69,8 +69,10 @@ int CompareRollupValues(const RollupValue& a, const RollupValue& b) {
     double d_b = std::holds_alternative<int64_t>(b)
                      ? static_cast<double>(std::get<int64_t>(b))
                      : std::get<double>(b);
-    if (d_a < d_b) return -1;
-    if (d_a > d_b) return 1;
+    if (d_a < d_b)
+      return -1;
+    if (d_a > d_b)
+      return 1;
     return 0;
   }
 
@@ -79,8 +81,10 @@ int CompareRollupValues(const RollupValue& a, const RollupValue& b) {
   const std::string& str_b = std::get<std::string>(b);
   std::string lower_a = base::ToLower(str_a);
   std::string lower_b = base::ToLower(str_b);
-  if (lower_a < lower_b) return -1;
-  if (lower_a > lower_b) return 1;
+  if (lower_a < lower_b)
+    return -1;
+  if (lower_a > lower_b)
+    return 1;
   return 0;
 }
 
@@ -204,9 +208,12 @@ void RollupTree::SortTree(RollupNode* node, const RollupSortSpec& spec) {
               // The specified level uses the given direction, others use ASC.
               const RollupValue* val_a = GetNodeValue(a.get());
               const RollupValue* val_b = GetNodeValue(b.get());
-              if (!val_a && !val_b) return false;
-              if (!val_a) return true;   // NULL sorts first (ASC behavior)
-              if (!val_b) return false;
+              if (!val_a && !val_b)
+                return false;
+              if (!val_a)
+                return true;  // NULL sorts first (ASC behavior)
+              if (!val_b)
+                return false;
               int cmp = CompareRollupValues(*val_a, *val_b);
 
               // Use specified direction for the target level, ASC for others
@@ -248,8 +255,7 @@ void RollupTree::FlattenTree(RollupNode* node,
   // In allowlist mode: nodes are expanded if their ID is in ids.
   // In denylist mode: nodes are expanded unless their ID is in ids.
   bool in_list = (ids.find(node->id) != ids.end());
-  bool is_expanded =
-      (node->id == 0) || (denylist_mode ? !in_list : in_list);
+  bool is_expanded = (node->id == 0) || (denylist_mode ? !in_list : in_list);
   node->expanded = is_expanded;
 
   // Recursively add children if this node is expanded
@@ -284,8 +290,8 @@ std::vector<RollupFlatRow> RollupTree::GetRows(
 
   // Flatten the tree
   std::vector<RollupNode*> flat;
-  FlattenTree(root_.get(), options.ids, options.denylist_mode, options.min_depth,
-              options.max_depth, &flat);
+  FlattenTree(root_.get(), options.ids, options.denylist_mode,
+              options.min_depth, options.max_depth, &flat);
 
   // Apply pagination and convert to output format
   std::vector<RollupFlatRow> result;
@@ -315,8 +321,8 @@ int RollupTree::GetTotalRows(const RollupFlattenOptions& options) {
 
   // Flatten without pagination to count
   std::vector<RollupNode*> flat;
-  FlattenTree(root_.get(), options.ids, options.denylist_mode, options.min_depth,
-              options.max_depth, &flat);
+  FlattenTree(root_.get(), options.ids, options.denylist_mode,
+              options.min_depth, options.max_depth, &flat);
   return static_cast<int>(flat.size());
 }
 

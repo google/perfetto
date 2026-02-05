@@ -267,8 +267,7 @@ base::Status BuildRollupTree(PerfettoSqlEngine* engine,
   // Column layout: [__level, hier_0, hier_1, ..., agg_0, agg_1, ...]
   auto process_row = [&]() {
     // Read explicit level from column 0 (supports NULL as valid data)
-    int level = static_cast<int>(
-        sqlite3_column_int64(stmt.sqlite_stmt(), 0));
+    int level = static_cast<int>(sqlite3_column_int64(stmt.sqlite_stmt(), 0));
 
     // Read hierarchy values up to and including level (type-aware)
     // Hierarchy columns start at index 1 (after __level)
@@ -300,7 +299,8 @@ base::Status BuildRollupTree(PerfettoSqlEngine* engine,
     }
 
     // Get aggregate values (type-aware)
-    // Aggregate columns start at index 1 + num_hier (after __level and hierarchy)
+    // Aggregate columns start at index 1 + num_hier (after __level and
+    // hierarchy)
     std::vector<RollupValue> aggs;
     for (size_t i = 0; i < num_aggs; i++) {
       int col_idx = static_cast<int>(1 + num_hier + i);
