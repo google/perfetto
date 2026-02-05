@@ -819,7 +819,7 @@ export abstract class BaseSliceTrack<
         ${end},
         ${resolution}
       ) z
-      CROSS JOIN (${this.getSqlSource()}) s using (id) jalskdfjlsakdfjlsakdf
+      CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
 
     if (signal.isCancelled) throw QUERY_CANCELLED;

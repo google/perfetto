@@ -198,13 +198,12 @@ export class QuerySlot<T> {
   private pendingKey?: object;
   private disposed = false;
   private currentSignal?: {cancelled: boolean};
-  private error?: Error; // Stores error from failed query, thrown on next use()
 
   constructor(private readonly queue: SerialTaskQueue) {}
 
   /**
    * Call every render cycle to get the current query result.
-   * @throws Error if called after dispose() or if a previous query failed
+   * @throws Error if called after dispose()
    */
   use<K extends JSONCompatible<K>>(
     options: QueryOptions<T, K>,
@@ -212,15 +211,6 @@ export class QuerySlot<T> {
     if (this.disposed) {
       throw new Error('QuerySlot.use() called after dispose()');
     }
-
-    // Throw any stored error from a previous failed query.
-    // The error is NOT cleared - once a slot errors, it stays in error state
-    // permanently. This prevents infinite retry loops where each use() call
-    // would schedule a new query that fails again.
-    if (this.error) {
-      throw this.error;
-    }
-
     const {key, queryFn, enabled, retainOn = []} = options;
     const keyStr = stringifyJsonWithBigints(key);
 
@@ -258,15 +248,20 @@ export class QuerySlot<T> {
             },
           });
 
-          this.error = undefined; // Clear any previous error on success
           this.finaliseQuery(key, result);
         } catch (e) {
-          // Don't store QUERY_CANCELLED as an error - it's intentional
-          if (e !== QUERY_CANCELLED) {
-            this.error = e instanceof Error ? e : new Error(String(e));
+          // Support both throwing and returning QUERY_CANCELLED
+          if (e === QUERY_CANCELLED) {
+            this.finaliseQuery(key, QUERY_CANCELLED);
+          } else {
+            // Rethrow other errors to be caught by the queue's error handling
+            throw e;
           }
-          // Clear pending state so we don't appear stuck
-          this.pendingKey = undefined;
+          // } else {
+          //   // Store the error - will be thrown on next use()
+          //   this.error = e instanceof Error ? e : new Error(String(e));
+          //   this.pendingKey = undefined;
+          // }
         }
       });
     }

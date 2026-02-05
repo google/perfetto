@@ -345,14 +345,14 @@ export class GroupSummaryTrack implements TrackRenderer {
     end: time,
     resolution: duration,
     signal: CancellationSignal,
-  ): Promise<Data | typeof QUERY_CANCELLED> {
+  ): Promise<Data> {
     // Resolution must always be a power of 2 for this logic to work
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
     const queryRes = await this.queryData(tableName, start, end, resolution);
 
     // Check cancellation after query completes
-    if (signal.isCancelled) return QUERY_CANCELLED;
+    if (signal.isCancelled) throw QUERY_CANCELLED;
 
     const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
       ? 'background'
@@ -389,7 +389,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       // Periodically check for cancellation during iteration
       if (row % 50 === 0) {
         if (signal.isCancelled) {
-          return QUERY_CANCELLED;
+          throw QUERY_CANCELLED;
         }
 
         if (task.shouldYield()) {
