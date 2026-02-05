@@ -15,14 +15,11 @@
 import m from 'mithril';
 import z from 'zod';
 import {searchSegment} from '../../base/binary_search';
-import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Point2D} from '../../base/geom';
 import {assertTrue, assertUnreachable} from '../../base/logging';
 import {Monitor} from '../../base/monitor';
-import {Time, time} from '../../base/time';
+import {duration, Time, time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
-import {uuidv4Sql} from '../../base/uuid';
-import {raf} from '../../core/raf_scheduler';
 import {Trace} from '../../public/trace';
 import {
   TrackMouseEvent,
@@ -35,11 +32,19 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {Button} from '../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {checkerboardExcept} from '../checkerboard';
-import {CacheKey} from './timeline_cache';
 import {valueIfAllEqual} from '../../base/array_utils';
 import {deferChunkedTask} from '../../base/chunked_task';
 import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 import {HSLColor} from '../../base/color';
+import {
+  CancellationSignal,
+  QuerySlot,
+  QUERY_CANCELLED,
+  SerialTaskQueue,
+} from '../../base/query_slot';
+import {BufferedBounds} from './buffered_bounds';
+import {BUCKETS_PER_PIXEL} from './timeline_cache';
+import {createVirtualTable} from '../../trace_processor/sql_utils';
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
@@ -414,23 +419,30 @@ const chartHeightSizeSettingDescriptor: TrackSettingDescriptor<ChartHeightSize> 
     },
   };
 
+// Result from mipmap table creation
+interface MipmapTableResult extends AsyncDisposable {
+  tableName: string;
+  limits: CounterLimits;
+}
+
+// Result from data fetching - includes data and the reference time
+interface CounterDataResult {
+  data: CounterData;
+  refStart: time;
+}
+
 export abstract class BaseCounterTrack implements TrackRenderer {
-  protected trackUuid = uuidv4Sql();
+  // QuerySlot infrastructure
+  private readonly queue = new SerialTaskQueue();
+  private readonly initSlot = new QuerySlot<AsyncDisposable | void>(this.queue);
+  private readonly tableSlot = new QuerySlot<MipmapTableResult>(this.queue);
+  private readonly dataSlot = new QuerySlot<CounterDataResult>(this.queue);
 
-  // This is the over-skirted cached bounds:
-  private countersKey: CacheKey = CacheKey.zero();
+  // Buffered bounds tracking
+  private readonly bufferedBounds = new BufferedBounds();
 
-  private counters: CounterData = {
-    timestamps: new BigInt64Array(0),
-    minDisplayValues: new Float64Array(0),
-    maxDisplayValues: new Float64Array(0),
-    lastDisplayValues: new Float64Array(0),
-    displayValueRange: [0, 0],
-    dataStart: Time.ZERO,
-    dataEnd: Time.ZERO,
-    timestampsRelNs: new Float64Array(0),
-  };
-
+  // Cached data for rendering
+  private counters?: CounterData;
   private limits?: CounterLimits;
 
   private hover?: CounterTooltipState;
@@ -442,8 +454,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     () => this.hover?.ts,
     () => this.hover?.lastDisplayValue,
   ]);
-
-  private readonly trash: AsyncDisposableStack;
 
   private getCounterOptions(): CounterOptions {
     if (this.options === undefined) {
@@ -514,7 +524,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     protected readonly uri: string,
     protected readonly defaultOptions: Partial<CounterOptions> = {},
   ) {
-    this.trash = new AsyncDisposableStack();
     this.rangeSharer = RangeSharer.getRangeSharer(trace);
   }
 
@@ -683,20 +692,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
   protected invalidate() {
     this.limits = undefined;
-    this.countersKey = CacheKey.zero();
-    this.counters = {
-      timestamps: new BigInt64Array(0),
-      minDisplayValues: new Float64Array(0),
-      maxDisplayValues: new Float64Array(0),
-      lastDisplayValues: new Float64Array(0),
-      displayValueRange: [0, 0],
-      dataStart: Time.ZERO,
-      dataEnd: Time.ZERO,
-      timestampsRelNs: new Float64Array(0),
-    };
+    this.counters = undefined;
+    this.bufferedBounds.reset();
     this.hover = undefined;
 
-    raf.scheduleFullRedraw();
+    this.trace.raf.scheduleFullRedraw();
   }
 
   // A method to render a context menu corresponding to switching the rendering
@@ -714,12 +714,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
   getTrackShellButtons(): m.Children {
     return this.getCounterContextMenu();
-  }
-
-  async onCreate(): Promise<void> {
-    const result = await this.onInit();
-    result && this.trash.use(result);
-    this.limits = await this.createTableAndFetchLimits(false);
   }
 
   readonly yModeSetting: TrackSetting<yMode> = {
@@ -775,36 +769,97 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     this.chartHeightSizeSetting,
   ];
 
-  async onUpdate({visibleWindow, size}: TrackRenderContext): Promise<void> {
+  /**
+   * Declaratively fetches data for the track. Updates internal state
+   * (counters, limits) when data is available.
+   * @returns true if data is ready for rendering, false otherwise
+   */
+  private useData(trackCtx: TrackRenderContext): boolean {
+    const {size, visibleWindow} = trackCtx;
+
+    // Step 0: Call onInit with a constant key
+    const initResult = this.initSlot.use({
+      key: {init: true},
+      queryFn: () => this.onInit(),
+    });
+
+    if (initResult.isPending) {
+      return false;
+    }
+
+    // Step 1: Get the mipmap table (created once per SQL source + options)
+    // Include yMode and yDisplay in key since they affect the value expression
+    const options = this.getCounterOptions();
+    const tableResult = this.tableSlot.use({
+      key: {
+        sqlSource: this.getSqlSource(),
+        yMode: options.yMode,
+        yDisplay: options.yDisplay,
+      },
+      queryFn: () => this.createMipmapTable(),
+    });
+
+    const table = tableResult.data;
+    if (table === undefined) return false;
+
+    // Update limits from table result
+    this.limits = table.limits;
+
+    // Step 2: Calculate buffered bounds and fetch counter data
+    const visibleSpan = visibleWindow.toTimeSpan();
     const windowSizePx = Math.max(1, size.width);
-    const timespan = visibleWindow.toTimeSpan();
-    const rawCountersKey = CacheKey.create(
-      timespan.start,
-      timespan.end,
+    const bucketSize = this.computeBucketSize(
+      visibleSpan.duration,
       windowSizePx,
     );
+    const bounds = this.bufferedBounds.update(
+      visibleSpan,
+      bucketSize,
+      this.counters !== undefined,
+    );
 
-    // If the visible time range is outside the cached area, requests
-    // asynchronously new data from the SQL engine.
-    await this.maybeRequestData(rawCountersKey);
+    // Step 3: Fetch counter data using QuerySlot
+    const queryStart = bounds.start;
+    const queryEnd = bounds.end;
+    const dataResult = this.dataSlot.use({
+      key: {
+        start: bounds.start,
+        end: bounds.end,
+        resolution: bounds.resolution,
+      },
+      queryFn: async (signal) => {
+        const result = await this.fetchCounterData(
+          table.tableName,
+          queryStart,
+          queryEnd,
+          bounds.resolution,
+          signal,
+        );
+        this.trace.raf.scheduleFullRedraw();
+        return {data: result, refStart: queryStart};
+      },
+      retainOn: ['start', 'end', 'resolution'],
+    });
+
+    // Update counters when new data arrives
+    if (dataResult.data !== undefined) {
+      this.counters = dataResult.data.data;
+    }
+
+    // Return true if we have data to render
+    return this.counters !== undefined && this.limits !== undefined;
   }
 
-  render({ctx, size, timescale, colors, renderer}: TrackRenderContext): void {
-    // In any case, draw whatever we have (which might be stale/incomplete).
-    const limits = this.limits;
-    const data = this.counters;
+  render(trackCtx: TrackRenderContext): void {
+    const {ctx, size, timescale, colors, renderer} = trackCtx;
 
-    if (data.timestamps.length === 0 || limits === undefined) {
-      checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        timescale.timeToPx(this.countersKey.start),
-        timescale.timeToPx(this.countersKey.end),
-      );
-      return;
+    // Fetch data declaratively - updates internal state
+    if (!this.useData(trackCtx)) {
+      return; // No data ready yet
     }
+
+    const limits = this.limits!;
+    const data = this.counters!;
 
     assertTrue(data.timestamps.length === data.minDisplayValues.length);
     assertTrue(data.timestamps.length === data.maxDisplayValues.length);
@@ -973,13 +1028,14 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
+    const loadedBounds = this.bufferedBounds.bounds;
     checkerboardExcept(
       ctx,
       this.getHeight(),
       0,
       size.width,
-      timescale.timeToPx(this.countersKey.start),
-      timescale.timeToPx(this.countersKey.end),
+      timescale.timeToPx(loadedBounds.start),
+      timescale.timeToPx(loadedBounds.end),
     );
   }
 
@@ -995,10 +1051,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.raf.scheduleFullRedraw();
     }
-  }
-
-  async onDestroy(): Promise<void> {
-    await this.trash.asyncDispose();
   }
 
   // Compute the range of values to display and range label.
@@ -1117,38 +1169,75 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     }
   }
 
-  private getTableName(): string {
-    return `counter_${this.trackUuid}`;
+  // Compute bucket size for a given time span and pixel width
+  private computeBucketSize(
+    spanDuration: duration,
+    windowSizePx: number,
+  ): duration {
+    const nsPerPx = Math.max(1, Number(spanDuration) / windowSizePx);
+    const bucketNs = nsPerPx / BUCKETS_PER_PIXEL;
+    const exp = Math.ceil(Math.log2(Math.max(1, bucketNs)));
+    return BigInt(Math.pow(2, exp)) as duration;
   }
 
-  private async maybeRequestData(rawCountersKey: CacheKey) {
-    if (rawCountersKey.isCoveredBy(this.countersKey)) {
-      return; // We have the data already, no need to re-query.
-    }
+  // Creates the mipmap table - called declaratively from render via QuerySlot
+  private async createMipmapTable(): Promise<MipmapTableResult> {
+    const table = await createVirtualTable({
+      engine: this.engine,
+      using: `__intrinsic_counter_mipmap((
+        select
+          ts,
+          ${this.getValueExpression()} as value
+        from (${this.getSqlSource()})
+      ))`,
+    });
 
-    const countersKey = rawCountersKey.normalize();
-    if (!rawCountersKey.isCoveredBy(countersKey)) {
-      throw new Error(
-        `Normalization error ${countersKey.toString()} ${rawCountersKey.toString()}`,
+    // Fetch the global limits
+    const limitsQuery = await this.engine.query(`
+      select
+        min_value as minDisplayValue,
+        max_value as maxDisplayValue
+      from ${table.name}(
+        trace_start(), trace_end() + 1, trace_dur() + 1
       );
-    }
+    `);
 
-    if (this.limits === undefined) {
-      this.limits = await this.createTableAndFetchLimits(true);
-    }
+    const {minDisplayValue, maxDisplayValue} = limitsQuery.firstRow({
+      minDisplayValue: NUM,
+      maxDisplayValue: NUM,
+    });
 
+    return {
+      tableName: table.name,
+      limits: {minDisplayValue, maxDisplayValue},
+      [Symbol.asyncDispose]: async () => {
+        await table[Symbol.asyncDispose]();
+      },
+    };
+  }
+
+  // Fetches counter data for the given bounds - called from QuerySlot
+  private async fetchCounterData(
+    tableName: string,
+    start: time,
+    end: time,
+    resolution: duration,
+    signal: CancellationSignal,
+  ): Promise<CounterData> {
     const queryRes = await this.engine.query(`
       SELECT
         min_value as minDisplayValue,
         max_value as maxDisplayValue,
         last_ts as ts,
         last_value as lastDisplayValue
-      FROM ${this.getTableName()}(
-        ${countersKey.start},
-        ${countersKey.end},
-        ${countersKey.bucketSize}
+      FROM ${tableName}(
+        ${start},
+        ${end},
+        ${resolution}
       );
     `);
+
+    if (signal.isCancelled) throw QUERY_CANCELLED;
 
     const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
       ? 'background'
@@ -1163,27 +1252,27 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     });
 
     const numRows = queryRes.numRows();
-    const dataStart = countersKey.start;
     const data: CounterData = {
       timestamps: new BigInt64Array(numRows),
       minDisplayValues: new Float64Array(numRows),
       maxDisplayValues: new Float64Array(numRows),
       lastDisplayValues: new Float64Array(numRows),
       displayValueRange: [0, 0],
-      dataStart,
-      dataEnd: countersKey.end,
+      dataStart: start,
+      dataEnd: end,
       timestampsRelNs: new Float64Array(numRows),
     };
 
     let min = 0;
     let max = 0;
     for (let row = 0; it.valid(); it.next(), row++) {
+      if (signal.isCancelled) throw QUERY_CANCELLED;
       if (row % 50 === 0 && task.shouldYield()) {
         await task.yield();
       }
 
       data.timestamps[row] = Time.fromRaw(it.ts);
-      data.timestampsRelNs[row] = Number(it.ts - dataStart);
+      data.timestampsRelNs[row] = Number(it.ts - start);
       data.minDisplayValues[row] = it.minDisplayValue;
       data.maxDisplayValues[row] = it.maxDisplayValue;
       data.lastDisplayValues[row] = it.lastDisplayValue;
@@ -1192,47 +1281,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     }
 
     data.displayValueRange = [min, max];
-
-    this.countersKey = countersKey;
-    this.counters = data;
-
-    raf.scheduleCanvasRedraw();
-  }
-
-  private async createTableAndFetchLimits(
-    dropTable: boolean,
-  ): Promise<CounterLimits> {
-    const dropQuery = dropTable ? `drop table ${this.getTableName()};` : '';
-    const displayValueQuery = await this.engine.query(`
-      ${dropQuery}
-      create virtual table ${this.getTableName()}
-      using __intrinsic_counter_mipmap((
-        select
-          ts,
-          ${this.getValueExpression()} as value
-        from (${this.getSqlSource()})
-      ));
-      select
-        min_value as minDisplayValue,
-        max_value as maxDisplayValue
-      from ${this.getTableName()}(
-        trace_start(), trace_end() + 1, trace_dur() + 1
-      );
-    `);
-
-    this.trash.defer(async () => {
-      this.engine.tryQuery(`drop table if exists ${this.getTableName()}`);
-    });
-
-    const {minDisplayValue, maxDisplayValue} = displayValueQuery.firstRow({
-      minDisplayValue: NUM,
-      maxDisplayValue: NUM,
-    });
-
-    return {
-      minDisplayValue,
-      maxDisplayValue,
-    };
+    return data;
   }
 
   get unit(): string {

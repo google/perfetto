@@ -16,17 +16,14 @@ import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {colorCompare} from '../../base/color';
 import {Monitor} from '../../base/monitor';
-import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
 import {assertExists} from '../../base/logging';
 import {clamp, floatEqual} from '../../base/math_utils';
 import {cropText} from '../../base/string_utils';
 import {HighPrecisionTime} from '../../base/high_precision_time';
-import {Time, time} from '../../base/time';
+import {duration, Time, time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
-import {uuidv4Sql} from '../../base/uuid';
 import {featureFlags} from '../../core/feature_flags';
-import {raf} from '../../core/raf_scheduler';
 import {Trace} from '../../public/trace';
 import {
   Slice,
@@ -38,9 +35,17 @@ import {
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
-import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
+import {BUCKETS_PER_PIXEL} from './timeline_cache';
 import {deferChunkedTask} from '../../base/chunked_task';
 import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
+import {
+  CancellationSignal,
+  QuerySlot,
+  QUERY_CANCELLED,
+  SerialTaskQueue,
+} from '../../base/query_slot';
+import {createVirtualTable} from '../../trace_processor/sql_utils';
+import {BufferedBounds} from './buffered_bounds';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -174,16 +179,40 @@ export interface SliceLayout {
   readonly subtitleSizePx: number;
 }
 
+// Result from table creation - contains the mipmap table and incomplete slices
+interface MipmapTableResult<SliceT> extends AsyncDisposable {
+  tableName: string;
+  incomplete: SliceT[];
+}
+
+// Result from data fetching - includes slices and the reference time they're relative to
+interface SliceDataResult<SliceT> {
+  slices: SliceT[];
+  refStart: time; // The start time that startRelNs values are relative to
+}
+
 export abstract class BaseSliceTrack<
   SliceT extends Slice = Slice,
   RowT extends BaseRow = BaseRow,
 > implements TrackRenderer
 {
   protected readonly sliceLayout: SliceLayout;
-  protected trackUuid = uuidv4Sql();
 
-  // This is the over-skirted cached bounds:
-  private slicesKey: CacheKey = CacheKey.zero();
+  // QuerySlot infrastructure
+  private readonly queue = new SerialTaskQueue();
+  private readonly tableSlot = new QuerySlot<
+    MipmapTableResult<CastInternal<SliceT>>
+  >(this.queue);
+  private readonly initSlot = new QuerySlot<AsyncDisposable | void>(this.queue);
+  private readonly dataSlot = new QuerySlot<
+    SliceDataResult<CastInternal<SliceT>>
+  >(this.queue);
+
+  // Buffered bounds tracking
+  private readonly bufferedBounds = new BufferedBounds();
+
+  // Reference start time for relative timestamp calculations
+  private dataRefStart: time = Time.ZERO;
 
   // This is the currently 'cached' slices:
   private slices = new Array<CastInternal<SliceT>>();
@@ -211,8 +240,6 @@ export abstract class BaseSliceTrack<
 
   // Computed layout.
   private computedTrackHeight = 0;
-
-  private readonly trash: AsyncDisposableStack;
 
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
@@ -280,8 +307,6 @@ export abstract class BaseSliceTrack<
     const baseCols = Object.keys(BASE_ROW);
     this.extraSqlColumns = allCols.filter((key) => !baseCols.includes(key));
 
-    this.trash = new AsyncDisposableStack();
-
     this.sliceLayout = {
       padding: sliceLayout.padding ?? 3,
       rowGap: sliceLayout.rowGap ?? 0,
@@ -310,34 +335,18 @@ export abstract class BaseSliceTrack<
     return `${size}px Roboto Condensed`;
   }
 
-  private getTableName(): string {
-    return `slice_${this.trackUuid}`;
-  }
-
-  private oldQuery?: string;
-
-  private async initialize(): Promise<void> {
-    // This disposes all already initialized stuff and empties the trash.
-    await this.trash.asyncDispose();
-
-    const result = await this.onInit();
-    result && this.trash.use(result);
+  // Creates the mipmap table and fetches incomplete slices
+  // Called declaratively from render via QuerySlot
+  private async createMipmapTable(): Promise<
+    MipmapTableResult<CastInternal<SliceT>>
+  > {
+    // Call onInit hook (for subclass setup like creating tables)
+    const initResult = await this.onInit();
 
     // Calc the number of rows based on the depth col.
     const rowCount = await this.getRowCount();
 
-    // TODO(hjd): Consider case below:
-    // raw:
-    // 0123456789
-    //   [A     did not end)
-    //     [B ]
-    //
-    //
-    // quantised:
-    // 0123456789
-    //   [A     did not end)
-    // [     B  ]
-    // Does it lead to odd results?
+    // Fetch incomplete slices (dur = -1)
     const extraCols = this.extraSqlColumns.join(',');
     let queryRes;
     if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
@@ -376,23 +385,27 @@ export abstract class BaseSliceTrack<
       incomplete[i] = this.rowToSliceInternal(it);
     }
     this.onUpdatedSlices(incomplete);
-    this.incomplete = incomplete;
 
-    // Multiply the layer parameter by the rowCount
-    await this.engine.query(`
-      create virtual table ${this.getTableName()}
-      using __intrinsic_slice_mipmap((
+    // Create the virtual mipmap table
+    const table = await createVirtualTable({
+      engine: this.engine,
+      using: `__intrinsic_slice_mipmap((
         select id, ts, dur, ((layer * ${rowCount ?? 1}) + depth) as depth
         from (${this.getSqlSource()})
         where dur != -1
-      ));
-    `);
-
-    this.trash.defer(async () => {
-      await this.engine.tryQuery(`drop table ${this.getTableName()}`);
-      this.oldQuery = undefined;
-      this.slicesKey = CacheKey.zero();
+      ))`,
     });
+
+    return {
+      tableName: table.name,
+      incomplete,
+      [Symbol.asyncDispose]: async () => {
+        await table[Symbol.asyncDispose]();
+        if (initResult) {
+          await initResult[Symbol.asyncDispose]();
+        }
+      },
+    };
   }
 
   /**
@@ -412,27 +425,96 @@ export abstract class BaseSliceTrack<
     return result.maybeFirstRow({rowCount: NUM})?.rowCount;
   }
 
-  async onUpdate({visibleWindow, size}: TrackRenderContext): Promise<void> {
-    const query = this.getSqlSource();
-    if (query !== this.oldQuery) {
-      await this.initialize();
-      this.oldQuery = query;
+  /**
+   * Declaratively fetches data for the track. Updates internal state
+   * (slices, incomplete, dataRefStart) when data is available.
+   * @returns true if data is ready for rendering, false otherwise
+   */
+  private useData(trackCtx: TrackRenderContext): boolean {
+    const {size, visibleWindow} = trackCtx;
+
+    // Step 0: Call onInit with a constant key
+    const initResult = this.initSlot.use({
+      key: {init: true},
+      queryFn: () => this.onInit(),
+    });
+
+    if (initResult.isPending) {
+      return false;
     }
 
+    // Step 1: Get the mipmap table (created once per SQL source)
+    const tableResult = this.tableSlot.use({
+      key: {sqlSource: this.getSqlSource()},
+      queryFn: () => this.createMipmapTable(),
+    });
+
+    const table = tableResult.data;
+    if (table === undefined) return false;
+
+    // Update incomplete slices from table result
+    this.incomplete = table.incomplete;
+
+    // Step 2: Calculate buffered bounds and fetch slices
+    const visibleSpan = visibleWindow.toTimeSpan();
     const windowSizePx = Math.max(1, size.width);
-    const timespan = visibleWindow.toTimeSpan();
-    const rawSlicesKey = CacheKey.create(
-      timespan.start,
-      timespan.end,
+    const bucketSize = this.computeBucketSize(
+      visibleSpan.duration,
       windowSizePx,
     );
+    const bounds = this.bufferedBounds.update(
+      visibleSpan,
+      bucketSize,
+      this.slices.length > 0,
+    );
 
-    // If the visible time range is outside the cached area, requests
-    // asynchronously new data from the SQL engine.
-    await this.maybeRequestData(rawSlicesKey);
+    // Step 3: Fetch slice data using QuerySlot
+    // Capture bounds.start in a local variable so the queryFn closure
+    // uses the correct reference time for the slices it fetches.
+    const queryStart = bounds.start;
+    const dataResult = this.dataSlot.use({
+      key: {
+        start: bounds.start,
+        end: bounds.end,
+        resolution: bounds.resolution,
+      },
+      queryFn: async (signal) => {
+        const result = await this.fetchSlices(
+          table.tableName,
+          queryStart,
+          bounds.end,
+          bounds.resolution,
+          signal,
+        );
+        this.trace.raf.scheduleFullRedraw();
+        return {slices: result, refStart: queryStart};
+      },
+      retainOn: ['start', 'end', 'resolution'],
+    });
+
+    // Update slices when new data arrives
+    if (dataResult.data !== undefined) {
+      this.slices = dataResult.data.slices;
+      this.dataRefStart = dataResult.data.refStart;
+
+      // Update relative timestamps for incomplete slices
+      for (const slice of this.incomplete) {
+        slice.startRelNs = Number(slice.startNs - this.dataRefStart);
+      }
+    }
+
+    // Return true if we have data to render
+    return this.slices.length > 0 || this.incomplete.length > 0;
   }
 
-  render({ctx, size, timescale, colors, renderer}: TrackRenderContext): void {
+  render(trackCtx: TrackRenderContext): void {
+    const {ctx, size, timescale, colors, renderer} = trackCtx;
+
+    // Fetch data declaratively - updates internal state
+    if (!this.useData(trackCtx)) {
+      return; // No data ready yet
+    }
+
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
 
@@ -474,14 +556,7 @@ export abstract class BaseSliceTrack<
 
     // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
     const pxPerNs = timescale.durationToPx(1n);
-    const baseOffsetPx = timescale.timeToPx(this.slicesKey.start);
-
-    // Update relative timestamps for incomplete slices (they persist across
-    // slicesKey changes, so we need to recompute relative to current reference).
-    const refStartNs = this.slicesKey.start;
-    for (const slice of this.incomplete) {
-      slice.startRelNs = Number(slice.startNs - refStartNs);
-    }
+    const baseOffsetPx = timescale.timeToPx(this.dataRefStart);
 
     for (const slice of vizSlices) {
       // Compute the basic geometry for any visible slice, even if only
@@ -680,15 +755,15 @@ export abstract class BaseSliceTrack<
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
-    const slicesKeyEndPx =
-      Number(this.slicesKey.end - refStartNs) * pxPerNs + baseOffsetPx;
+    const loadedBounds = this.bufferedBounds.bounds;
+    const loadedEndPx = timescale.timeToPx(loadedBounds.end);
     checkerboardExcept(
       ctx,
       this.getHeight(),
       0,
       size.width,
       baseOffsetPx,
-      slicesKeyEndPx,
+      loadedEndPx,
     );
 
     // TODO(hjd): Remove this.
@@ -696,10 +771,6 @@ export abstract class BaseSliceTrack<
     // have some abstraction for that arrow (ideally the same we'd use for
     // flows).
     this.drawSchedLatencyArrow(ctx, this.selectedSlice);
-  }
-
-  async onDestroy(): Promise<void> {
-    await this.trash.asyncDispose();
   }
 
   renderTooltip() {
@@ -710,29 +781,28 @@ export abstract class BaseSliceTrack<
     return undefined;
   }
 
-  // This method figures out if the visible window is outside the bounds of
-  // the cached data and if so issues new queries (i.e. sorta subsumes the
-  // onBoundsChange).
-  private async maybeRequestData(rawSlicesKey: CacheKey) {
-    if (rawSlicesKey.isCoveredBy(this.slicesKey)) {
-      return; // We have the data already, no need to re-query
-    }
+  // Compute bucket size for a given time span and pixel width
+  private computeBucketSize(
+    spanDuration: duration,
+    windowSizePx: number,
+  ): duration {
+    // Calculate ns per pixel, then round up to nearest power of 2
+    const nsPerPx = Math.max(1, Number(spanDuration) / windowSizePx);
+    const bucketNs = nsPerPx / BUCKETS_PER_PIXEL;
+    const exp = Math.ceil(Math.log2(Math.max(1, bucketNs)));
+    return BigInt(Math.pow(2, exp)) as duration;
+  }
 
-    // Determine the cache key:
-    const slicesKey = rawSlicesKey.normalize();
-    if (!rawSlicesKey.isCoveredBy(slicesKey)) {
-      throw new Error(
-        `Normalization error ${slicesKey.toString()} ${rawSlicesKey.toString()}`,
-      );
-    }
-
-    // Here convert each row to a Slice. We do what we can do
-    // generically in the base class, and delegate the rest to the impl
-    // via that rowToSlice() abstract call.
+  // Fetches slices for the given bounds - called from QuerySlot
+  private async fetchSlices(
+    tableName: string,
+    start: time,
+    end: time,
+    resolution: duration,
+    signal: CancellationSignal,
+  ): Promise<CastInternal<SliceT>[]> {
     const slices = new Array<CastInternal<SliceT>>();
 
-    // The mipmap virtual table will error out when passed a 0 length time span.
-    const resolution = slicesKey.bucketSize;
     const extraCols = this.extraSqlColumns.join(',');
     const queryRes = await this.engine.query(`
       SELECT
@@ -744,13 +814,15 @@ export abstract class BaseSliceTrack<
         s.id,
         s.depth
         ${extraCols ? ',' + extraCols : ''}
-      FROM ${this.getTableName()}(
-        ${slicesKey.start},
-        ${slicesKey.end},
+      FROM ${tableName}(
+        ${start},
+        ${end},
         ${resolution}
       ) z
       CROSS JOIN (${this.getSqlSource()}) s using (id)
     `);
+
+    if (signal.isCancelled) throw QUERY_CANCELLED;
 
     const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
       ? 'background'
@@ -761,6 +833,7 @@ export abstract class BaseSliceTrack<
 
     let maxDataDepth = this.maxDataDepth;
     for (let i = 0; it.valid(); it.next(), ++i) {
+      if (signal.isCancelled) throw QUERY_CANCELLED;
       if (i % 50 === 0 && task.shouldYield()) {
         await task.yield();
       }
@@ -770,9 +843,6 @@ export abstract class BaseSliceTrack<
       }
 
       maxDataDepth = Math.max(maxDataDepth, it.depth);
-      // Construct the base slice. The Impl will construct and return
-      // the full derived T["slice"] (e.g. CpuSlice) in the
-      // rowToSlice() method.
       slices.push(this.rowToSliceInternal(it));
     }
     for (const incomplete of this.incomplete) {
@@ -780,20 +850,13 @@ export abstract class BaseSliceTrack<
     }
     this.maxDataDepth = maxDataDepth;
 
-    this.slicesKey = slicesKey;
-
     // Pre-compute relative timestamps for fast pixel calculation in render.
-    const refStartNs = slicesKey.start;
     for (const slice of slices) {
-      slice.startRelNs = Number(slice.startNs - refStartNs);
+      slice.startRelNs = Number(slice.startNs - start);
     }
 
     this.onUpdatedSlices(slices);
-    this.slices = slices;
-
-    // We need to schedule a full redraw here as the track height could have
-    // changed, which requires a full DOM redraw.
-    raf.scheduleFullRedraw();
+    return slices;
   }
 
   private rowToSliceInternal(row: RowT): CastInternal<SliceT> {
