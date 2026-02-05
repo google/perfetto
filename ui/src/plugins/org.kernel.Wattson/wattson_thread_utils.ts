@@ -16,6 +16,7 @@ import {createQueryCounterTrack} from '../../components/tracks/query_counter_tra
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {WATTSON_THREAD_TRACK_KIND} from './track_kinds';
 
 export async function addWattsonThreadTrack(
   trace: Trace,
@@ -75,7 +76,14 @@ export async function addWattsonThreadTrack(
     data: {sqlSource},
   });
 
-  trace.tracks.registerTrack({uri, renderer});
+  trace.tracks.registerTrack({
+    uri,
+    renderer,
+    tags: {
+      kinds: [WATTSON_THREAD_TRACK_KIND],
+      utid,
+    },
+  });
 
   // Find the thread track and add the new track as a sibling
   let threadNode: TrackNode | undefined;
