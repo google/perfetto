@@ -76,11 +76,12 @@ export class SQLDataSourceRollupTree {
     const pivotTableName = pivotTableResult.data.name;
 
     // Build column alias mappings
+    // Operator outputs __group_N and __agg_N, we map to user-facing aliases
     const columnAliases: Record<string, string> = {};
     const aliasToColumn: Record<string, string> = {};
     for (let i = 0; i < groupBy.length; i++) {
-      columnAliases[groupBy[i].field] = toAlias(groupBy[i].alias);
-      aliasToColumn[groupBy[i].alias] = groupBy[i].field;
+      columnAliases[`__group_${i}`] = toAlias(groupBy[i].alias);
+      aliasToColumn[groupBy[i].alias] = `__group_${i}`;
     }
     for (let i = 0; i < aggregates.length; i++) {
       columnAliases[`__agg_${i}`] = toAlias(aggregates[i].alias);
@@ -181,7 +182,7 @@ export class SQLDataSourceRollupTree {
 
     const columnAliases: Record<string, string> = {};
     for (let i = 0; i < groupBy.length; i++) {
-      columnAliases[groupBy[i].field] = toAlias(groupBy[i].alias);
+      columnAliases[`__group_${i}`] = toAlias(groupBy[i].alias);
     }
     for (let i = 0; i < aggregates.length; i++) {
       columnAliases[`__agg_${i}`] = toAlias(aggregates[i].alias);

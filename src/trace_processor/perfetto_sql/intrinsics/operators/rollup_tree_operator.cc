@@ -28,10 +28,14 @@
 //
 // QUERYING (default - all groups expanded):
 //   SELECT * FROM my_rollup
-//   WHERE __sort = '__agg_0 DESC'        -- Optional: sort by aggregate or
-//   'name'
-//     AND __offset = 0                 -- Optional: pagination offset
-//     AND __limit = 100;               -- Optional: pagination limit
+//   WHERE __sort = '__agg_0 DESC'        -- Sort by aggregate (all levels)
+//     AND __offset = 0                   -- Optional: pagination offset
+//     AND __limit = 100;                 -- Optional: pagination limit
+//
+// SORTING:
+//   __sort = '__agg_N [ASC|DESC]'  - Sort all levels by aggregate N
+//   __sort = '__group_N [ASC|DESC]' - Sort level N by group value, others ASC
+//   (no __sort)                    - Default: all levels alphabetically ASC
 //
 // QUERYING (allowlist mode - only specified IDs expanded):
 //   SELECT * FROM my_rollup
@@ -44,8 +48,9 @@
 //     AND __sort = '__agg_1 ASC';
 //
 // OUTPUT COLUMNS:
-//   - Hierarchy columns (with NULLs like ROLLUP - deeper levels have earlier
-//     columns NULL)
+//   - __group_0, __group_1, ...: Hierarchy column values (with NULLs like
+//     ROLLUP - deeper levels have earlier columns NULL). Allows expressions
+//     as group values since columns are not named after source fields.
 //   - __id: Unique node identifier
 //   - __parent_id: Parent node ID (NULL for root)
 //   - __depth: Tree depth (0 for root, 1 for first group level, etc.)
@@ -105,12 +110,12 @@ std::string BuildSchemaString(const std::vector<std::string>& hierarchy_cols,
                               size_t measure_col_count) {
   std::string schema = "CREATE TABLE x(";
 
-  // Hierarchy columns first (like ROLLUP output)
+  // Hierarchy columns use __group_N naming (allows expressions as groups)
   for (size_t i = 0; i < hierarchy_cols.size(); i++) {
     if (i > 0) {
       schema += ",";
     }
-    schema += hierarchy_cols[i] + " TEXT";
+    schema += "__group_" + std::to_string(i);
   }
 
   // Metadata columns
