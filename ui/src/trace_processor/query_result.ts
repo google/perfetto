@@ -387,6 +387,12 @@ export interface QueryResult {
 
   // Returns the last SQL statement.
   lastStatementSql(): string;
+
+  // Returns the time spend processing the query so far in milliseconds. This is
+  // timed by trace processor to avoid any time spend in the queue. It's updated
+  // every time we get a new batch to convey the time taken do far, so it should
+  // be monotonically increasing and stable when isComplete() is true.
+  elapsedTimeMs(): number;
 }
 
 // Interface exposed to engine.ts to pump in the data as new row batches arrive.
@@ -422,6 +428,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   private _statementCount = 0;
   private _statementWithOutputCount = 0;
   private _lastStatementSql = '';
+  private _elapsedTimeMs = 0;
 
   constructor(errorInfo: QueryErrorInfo) {
     this._errorInfo = errorInfo;
@@ -466,6 +473,9 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   }
   lastStatementSql(): string {
     return this._lastStatementSql;
+  }
+  elapsedTimeMs(): number {
+    return this._elapsedTimeMs;
   }
 
   iter<T extends Row>(spec: T): RowIterator<T> {
@@ -587,6 +597,10 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
 
         case 6:
           this._lastStatementSql = reader.string();
+          break;
+
+        case 7:
+          this._elapsedTimeMs = reader.double();
           break;
 
         default:
@@ -1047,6 +1061,9 @@ class WaitableQueryResultImpl
   }
   lastStatementSql() {
     return this.impl.lastStatementSql();
+  }
+  elapsedTimeMs() {
+    return this.impl.elapsedTimeMs();
   }
 
   // WritableQueryResult implementation.
