@@ -16,6 +16,8 @@
 
 #include <unistd.h>
 
+#include <limits>
+
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -885,6 +887,47 @@ TEST_F(SysStatsDataSourceTest, Psi) {
   EXPECT_EQ(sys_stats.psi()[4].total_ns(), 417963000u);
   EXPECT_EQ(sys_stats.psi()[5].resource(), PsiSample::PSI_RESOURCE_MEMORY_FULL);
   EXPECT_EQ(sys_stats.psi()[5].total_ns(), 205933000U);
+}
+
+TEST_F(SysStatsDataSourceTest, AcceptsMaxUint32Period) {
+  DataSourceConfig config;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_cpufreq_period_ms(std::numeric_limits<uint32_t>::max());
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
+
+  // Max uint32 is valid - just a very long polling interval (49 days)
+  WaitTick(data_source.get());
+  EXPECT_GT(data_source->tick_for_testing(), 0u);
+}
+
+TEST_F(SysStatsDataSourceTest, AcceptsLargePeriods) {
+  // Test that large periods (e.g., 24 hours) work correctly
+  constexpr uint32_t k24Hours = 1000 * 60 * 60 * 24;  // 24 hours
+  DataSourceConfig config;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_meminfo_period_ms(k24Hours);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
+
+  // Should work fine with large periods
+  WaitTick(data_source.get());
+  EXPECT_GT(data_source->tick_for_testing(), 0u);
+}
+
+TEST_F(SysStatsDataSourceTest, HandlesLargePeriodModuloCorrectly) {
+  // Ensure that even at very large periods, the tick arithmetic doesn't
+  // overflow
+  constexpr uint32_t kLargePeriod = 1000 * 60 * 60 * 10;  // 10 hours
+  DataSourceConfig config;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_meminfo_period_ms(kLargePeriod);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
+
+  // Verify tick_period_ms is set correctly and no crash or infinite loop
+  WaitTick(data_source.get());
+  EXPECT_GT(data_source->tick_for_testing(), 0u);
 }
 
 }  // namespace

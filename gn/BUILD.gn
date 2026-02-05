@@ -96,7 +96,6 @@ action("gen_buildflags") {
     "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",
     "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
     "PERFETTO_TP_HTTPD=$enable_perfetto_trace_processor_httpd",
-    "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
     "PERFETTO_TP_INSTRUMENTS=$enable_perfetto_trace_processor_mac_instruments",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",

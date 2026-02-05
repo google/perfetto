@@ -21,29 +21,25 @@
 #include <cstring>
 
 #include <limits>
+#include <utility>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
-#include "src/trace_processor/core/dataframe/types.h"
 
-namespace perfetto::trace_processor::interpreter {
+namespace perfetto::trace_processor::core::interpreter {
 
 // The state of the interpreter.
 struct InterpreterState {
   // The sequence of bytecode instructions to execute
   BytecodeVector bytecode;
   // Register file holding intermediate values
-  base::SmallVector<reg::Value, 16> registers;
-  // Pointer to the columns being processed
-  const Column* const* columns;
-  // Cached storage data pointers for each column
-  base::SmallVector<Storage::DataPointer, 16> column_storage_data_ptrs;
-  // Pointer to the indexes
-  const dataframe::Index* indexes;
+  base::SmallVector<RegValue, 16> registers;
   // Pointer to the string pool (for string operations)
   const StringPool* string_pool;
 
@@ -53,42 +49,32 @@ struct InterpreterState {
 
   void Initialize(const BytecodeVector& bytecode_,
                   uint32_t num_registers,
-                  uint32_t column_count,
-                  const Column* const* columns_,
-                  const dataframe::Index* indexes_,
                   const StringPool* string_pool_) {
     bytecode = bytecode_;
     registers.clear();
     for (uint32_t i = 0; i < num_registers; ++i) {
       registers.emplace_back();
     }
-    columns = columns_;
-    column_storage_data_ptrs.clear();
-    for (uint32_t i = 0; i < column_count; ++i) {
-      column_storage_data_ptrs.emplace_back(columns_[i]->storage.data());
-    }
-    indexes = indexes_;
     string_pool = string_pool_;
   }
 
   // Access a register for reading/writing with type safety through the
   // handle.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE T& ReadFromRegister(reg::RwHandle<T> r) {
+  PERFETTO_ALWAYS_INLINE T& ReadFromRegister(RwHandle<T> r) {
     return base::unchecked_get<T>(registers[r.index]);
   }
 
   // Access a register for reading only with type safety through the handle.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE const T& ReadFromRegister(reg::ReadHandle<T> r) const {
+  PERFETTO_ALWAYS_INLINE const T& ReadFromRegister(ReadHandle<T> r) const {
     return base::unchecked_get<T>(registers[r.index]);
   }
 
   // Conditionally access a register if it contains the expected type.
   // Returns nullptr if the register holds a different type.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE const T* MaybeReadFromRegister(
-      reg::ReadHandle<T> reg) {
+  PERFETTO_ALWAYS_INLINE const T* MaybeReadFromRegister(ReadHandle<T> reg) {
     if (reg.index != std::numeric_limits<uint32_t>::max() &&
         std::holds_alternative<T>(registers[reg.index])) {
       return &base::unchecked_get<T>(registers[reg.index]);
@@ -99,7 +85,7 @@ struct InterpreterState {
   // Conditionally access a register if it contains the expected type.
   // Returns nullptr if the register holds a different type.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE T* MaybeReadFromRegister(reg::WriteHandle<T> reg) {
+  PERFETTO_ALWAYS_INLINE T* MaybeReadFromRegister(WriteHandle<T> reg) {
     if (reg.index != std::numeric_limits<uint32_t>::max() &&
         std::holds_alternative<T>(registers[reg.index])) {
       return &base::unchecked_get<T>(registers[reg.index]);
@@ -107,21 +93,25 @@ struct InterpreterState {
     return nullptr;
   }
 
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE const auto* ReadStorageFromRegister(
+      ReadHandle<StoragePtr> reg) {
+    // For Id columns, the register contains a StoragePtr with nullptr.
+    // The caller is expected to handle this case (the row index IS the value).
+    return static_cast<const typename T::cpp_type*>(ReadFromRegister(reg).ptr);
+  }
+
   // Writes a value to the specified register, handling type safety through
   // the handle.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE void WriteToRegister(reg::WriteHandle<T> r, T value) {
+  PERFETTO_ALWAYS_INLINE void WriteToRegister(WriteHandle<T> r, T value) {
     registers[r.index] = std::move(value);
   }
-
-  const Column& GetColumn(uint32_t idx) const { return *columns[idx]; }
-
-  template <typename T>
-  const auto* GetColumnData(uint32_t idx) const {
-    return Storage::CastDataPtr<T>(column_storage_data_ptrs[idx]);
+  PERFETTO_ALWAYS_INLINE void WriteToRegister(HandleBase r, RegValue value) {
+    registers[r.index] = std::move(value);
   }
 };
 
-}  // namespace perfetto::trace_processor::interpreter
+}  // namespace perfetto::trace_processor::core::interpreter
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_STATE_H_

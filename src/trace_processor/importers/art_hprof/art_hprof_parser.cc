@@ -65,7 +65,11 @@ base::Status ArtHprofParser::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status ArtHprofParser::NotifyEndOfFile() {
+base::Status ArtHprofParser::OnPushDataToSorter() {
+  if (!parser_) {
+    return base::OkStatus();
+  }
+
   const HeapGraph graph = parser_->BuildGraph();
 
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(0);
@@ -82,6 +86,12 @@ base::Status ArtHprofParser::NotifyEndOfFile() {
 
   // Finally process references
   PopulateReferences(graph);
+
+  class_map_.Clear();
+  class_object_map_.Clear();
+  object_map_.Clear();
+  class_name_map_.Clear();
+  parser_->Clear();
 
   return base::OkStatus();
 }

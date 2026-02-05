@@ -210,7 +210,7 @@ PROCESS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='process',),
     tabledoc=TableDoc(
@@ -330,7 +330,7 @@ THREAD_TABLE = Table(
         ),
         C(
             'machine_id',
-            CppOptional(CppTableId(MACHINE_TABLE)),
+            CppTableId(MACHINE_TABLE),
             cpp_access=CppAccess.READ,
         ),
         C(
@@ -425,7 +425,7 @@ CPU_TABLE = Table(
             CppString(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
         C(
             'capacity',
             CppOptional(CppUint32()),
@@ -630,10 +630,69 @@ ARG_TABLE = Table(
             'value_type': ''''''
         }))
 
+TRACE_FILE_TABLE = Table(
+    python_module=__file__,
+    class_name='TraceFileTable',
+    sql_name='__intrinsic_trace_file',
+    columns=[
+        C(
+            'parent_id',
+            CppOptional(CppSelfTableId()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'name',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C('size', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'trace_type',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'processing_order',
+            CppOptional(CppInt64()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'is_container',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+    wrapping_sql_view=WrappingSqlView('trace_file'),
+    tabledoc=TableDoc(
+        doc='''
+            Metadata related to the trace file parsed. Note the order in which
+            the files appear in this table corresponds to the order in which
+            they are read and sent to the tokenization stage.
+        ''',
+        group='Misc',
+        columns={
+            'parent_id':
+                '''
+                  Parent file. E.g. files contained in a zip file will point to
+                  the zip file.
+                ''',
+            'name':
+                '''File name, if known, NULL otherwise''',
+            'size':
+                '''Size in bytes''',
+            'trace_type':
+                '''Trace type''',
+            'processing_order':
+                '''In which order where the files were processed.''',
+            'is_container':
+                '''Whether the file is a container (e.g. zip, gzip)''',
+        }))
+
 METADATA_TABLE = Table(
     python_module=__file__,
     class_name='MetadataTable',
-    sql_name='metadata',
+    sql_name='__intrinsic_metadata',
     columns=[
         C(
             'name',
@@ -656,6 +715,16 @@ METADATA_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'machine_id',
+            CppOptional(CppTableId(MACHINE_TABLE)),
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'trace_id',
+            CppOptional(CppTableId(TRACE_FILE_TABLE)),
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -664,7 +733,9 @@ METADATA_TABLE = Table(
             'name': '''''',
             'key_type': '''''',
             'int_value': '''''',
-            'str_value': ''''''
+            'str_value': '''''',
+            'machine_id': '''''',
+            'trace_id': '''''',
         }))
 
 FILEDESCRIPTOR_TABLE = Table(
@@ -760,7 +831,7 @@ CLOCK_SNAPSHOT_TABLE = Table(
           cpp_access=CppAccess.READ,
           cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('snapshot_id', CppUint32()),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -787,50 +858,6 @@ otherwise.''',
                   Machine identifier, non-null for clock snapshots on a remote
                   machine.
                 ''',
-        }))
-
-TRACE_FILE_TABLE = Table(
-    python_module=__file__,
-    class_name='TraceFileTable',
-    sql_name='__intrinsic_trace_file',
-    columns=[
-        C('parent_id', CppOptional(CppSelfTableId())),
-        C('name', CppOptional(CppString())),
-        C('size', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
-        C(
-            'trace_type',
-            CppString(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C(
-            'processing_order',
-            CppOptional(CppInt64()),
-            sql_access=SqlAccess.HIGH_PERF,
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
-        ),
-    ],
-    wrapping_sql_view=WrappingSqlView('trace_file'),
-    tabledoc=TableDoc(
-        doc='''
-            Metadata related to the trace file parsed. Note the order in which
-            the files appear in this table corresponds to the order in which
-            they are read and sent to the tokenization stage.
-        ''',
-        group='Misc',
-        columns={
-            'parent_id':
-                '''
-                  Parent file. E.g. files contained in a zip file will point to
-                  the zip file.
-                ''',
-            'name':
-                '''File name, if known, NULL otherwise''',
-            'size':
-                '''Size in bytes''',
-            'trace_type':
-                '''Trace type''',
-            'processing_order':
-                '''In which order where the files were processed.''',
         }))
 
 BUILD_FLAGS_TABLE = Table(
@@ -874,7 +901,7 @@ TRACE_IMPORT_LOGS_TABLE = Table(
     class_name='TraceImportLogsTable',
     sql_name='__intrinsic_trace_import_logs',
     columns=[
-        C('trace_id', CppUint32()),
+        C('trace_id', CppTableId(TRACE_FILE_TABLE)),
         C('ts', CppOptional(CppInt64())),
         C('byte_offset', CppOptional(CppInt64())),
         C('stat_key', CppInt64()),

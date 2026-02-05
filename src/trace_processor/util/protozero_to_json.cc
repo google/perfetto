@@ -16,22 +16,21 @@
 
 #include "src/trace_processor/util/protozero_to_json.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/json_serializer.h"
 
 #include "protos/perfetto/common/descriptor.pbzero.h"
 
@@ -43,238 +42,28 @@ using protos::pbzero::FieldDescriptorProto;
 using protozero::PackedRepeatedFieldIterator;
 using protozero::proto_utils::ProtoWireType;
 
+// Wrapper around JsonSerializer that adds error tracking for protozero parsing.
 class JsonBuilder {
  public:
-  explicit JsonBuilder(int flags) : flags_(flags) {}
+  explicit JsonBuilder(int flags)
+      : serializer_(flags & protozero_to_json::Flags::kPretty
+                        ? json::JsonSerializer::kPretty
+                        : json::JsonSerializer::kNone),
+        flags_(flags) {}
 
-  void OpenObject() {
-    if (is_array_scope()) {
-      if (!is_empty_scope()) {
-        Append(",");
-      }
-      MaybeAppendNewline();
-      MaybeAppendIndent();
-    }
-    Append("{");
-    stack_.push_back(Scope{ScopeContext::kObject});
-  }
-
-  void CloseObject() {
-    bool needs_newline = !is_empty_scope();
-    stack_.pop_back();
-    if (needs_newline) {
-      MaybeAppendNewline();
-      MaybeAppendIndent();
-    }
-
-    MarkScopeAsNonEmpty();
-    Append("}");
-  }
-
-  void OpenArray() {
-    Append("[");
-    stack_.push_back(Scope{ScopeContext::kArray});
-  }
-
-  void CloseArray() {
-    bool needs_newline = !is_empty_scope();
-    stack_.pop_back();
-    if (needs_newline) {
-      MaybeAppendNewline();
-      MaybeAppendIndent();
-    }
-    Append("]");
-    if (is_array_scope() && !is_empty_scope()) {
-      Append(",");
-    }
-  }
-
-  void Key(const std::string& key) {
-    if (is_object_scope() && !is_empty_scope()) {
-      Append(",");
-    }
-    MaybeAppendNewline();
-    MaybeAppendIndent();
-    Append(EscapeString(base::StringView(key)));
-    Append(":");
-    MaybeAppendSpace();
-    MarkScopeAsNonEmpty();
-  }
-
-  template <typename T>
-  void NumberValue(T v) {
-    AppendValue(std::to_string(v));
-  }
-
-  void BoolValue(bool v) { AppendValue(v ? "true" : "false"); }
-
-  void FloatValue(float v) { NumberValue(v); }
-
-  void DoubleValue(double v) { NumberValue(v); }
-
-  void StringValue(base::StringView v) { AppendValue(EscapeString(v)); }
+  json::JsonSerializer& serializer() { return serializer_; }
+  std::string ToString() const { return serializer_.ToString(); }
 
   void AddError(const std::string& s) { errors_.push_back(s); }
-
-  std::string ToString() { return base::Join(parts_, ""); }
-
-  bool is_empty_scope() { return !stack_.empty() && stack_.back().is_empty; }
-
-  bool is_pretty() const { return flags_ & Flags::kPretty; }
-
-  bool is_inline_errors() const { return flags_ & Flags::kInlineErrors; }
-
+  bool is_inline_errors() const {
+    return flags_ & protozero_to_json::Flags::kInlineErrors;
+  }
   const std::vector<std::string>& errors() const { return errors_; }
 
  private:
-  enum class ScopeContext {
-    kObject,
-    kArray,
-  };
-
-  struct Scope {
-    ScopeContext ctx;
-    bool is_empty = true;
-  };
-
+  json::JsonSerializer serializer_;
   int flags_;
-  std::vector<std::string> parts_;
-  std::vector<Scope> stack_;
   std::vector<std::string> errors_;
-
-  bool is_object_scope() {
-    return !stack_.empty() && stack_.back().ctx == ScopeContext::kObject;
-  }
-
-  bool is_array_scope() {
-    return !stack_.empty() && stack_.back().ctx == ScopeContext::kArray;
-  }
-
-  void MarkScopeAsNonEmpty() {
-    if (!stack_.empty()) {
-      stack_.back().is_empty = false;
-    }
-  }
-
-  void MaybeAppendSpace() {
-    if (is_pretty()) {
-      Append(" ");
-    }
-  }
-
-  void MaybeAppendIndent() {
-    if (is_pretty()) {
-      Append(std::string(stack_.size() * 2, ' '));
-    }
-  }
-
-  void MaybeAppendNewline() {
-    if (is_pretty()) {
-      Append("\n");
-    }
-  }
-
-  void AppendValue(const std::string& s) {
-    if (is_array_scope() && !is_empty_scope()) {
-      Append(",");
-    }
-    if (is_array_scope()) {
-      MaybeAppendNewline();
-      MaybeAppendIndent();
-    }
-    Append(s);
-    MarkScopeAsNonEmpty();
-  }
-
-  void Append(const std::string& s) { parts_.push_back(s); }
-
-  std::string EscapeString(base::StringView raw) {
-    std::string result;
-    result.reserve(raw.size() + 2);
-    result += "\"";
-    for (size_t i = 0; i < raw.size(); ++i) {
-      char c = *(raw.begin() + i);
-      switch (c) {
-        case '"':
-        case '\\':
-          result += '\\';
-          result += c;
-          break;
-        case '\n':
-          result += R"(\n)";
-          break;
-        case '\b':
-          result += R"(\b)";
-          break;
-        case '\f':
-          result += R"(\f)";
-          break;
-        case '\r':
-          result += R"(\r)";
-          break;
-        case '\t':
-          result += R"(\t)";
-          break;
-        default:
-          // ASCII characters between 0x20 (space) and 0x7e (tilde) are
-          // inserted directly. All others are escaped.
-          if (c >= 0x20 && c <= 0x7e) {
-            result += c;
-          } else {
-            unsigned char uc = static_cast<unsigned char>(c);
-            uint32_t codepoint = 0;
-
-            // Compute the number of bytes:
-            size_t extra = 1 + (uc >= 0xc0u) + (uc >= 0xe0u) + (uc >= 0xf0u);
-
-            // We want to consume |extra| bytes but also need to not
-            // read out of bounds:
-            size_t stop = std::min(raw.size(), i + extra);
-
-            // Manually insert the bits from first byte:
-            codepoint |= uc & (0xff >> (extra + 1));
-
-            // Insert remaining bits:
-            for (size_t j = i + 1; j < stop; ++j) {
-              uc = static_cast<unsigned char>(*(raw.begin() + j));
-              codepoint = (codepoint << 6) | (uc & 0x3f);
-            }
-
-            // Update i to show the consumed chars:
-            i = stop - 1;
-
-            static const char hex_chars[] = "0123456789abcdef";
-            // JSON does not have proper utf-8 escapes. Instead you
-            // have to use utf-16 codes. For the low codepoints
-            // \uXXXX and for the high codepoints a surrogate pair:
-            // \uXXXX\uYYYY
-            if (codepoint <= 0xffff) {
-              result += R"(\u)";
-              result += hex_chars[(codepoint >> 12) & 0xf];
-              result += hex_chars[(codepoint >> 8) & 0xf];
-              result += hex_chars[(codepoint >> 4) & 0xf];
-              result += hex_chars[(codepoint >> 0) & 0xf];
-            } else {
-              uint32_t high = ((codepoint - 0x10000) >> 10) + 0xD800;
-              uint32_t low = (codepoint & 0x4fff) + 0xDC00;
-              result += R"(\u)";
-              result += hex_chars[(high >> 12) & 0xf];
-              result += hex_chars[(high >> 8) & 0xf];
-              result += hex_chars[(high >> 4) & 0xf];
-              result += hex_chars[(high >> 0) & 0xf];
-              result += R"(\u)";
-              result += hex_chars[(low >> 12) & 0xf];
-              result += hex_chars[(low >> 8) & 0xf];
-              result += hex_chars[(low >> 4) & 0xf];
-              result += hex_chars[(low >> 0) & 0xf];
-            }
-          }
-          break;
-      }
-    }
-    result += "\"";
-    return result;
-  }
 };
 
 bool HasFieldOptions(const FieldDescriptor& field_desc) {
@@ -390,7 +179,7 @@ void PackedField(const DescriptorPool& pool,
                  const FieldDescriptor& fd,
                  const protozero::Field& field,
                  JsonBuilder* out) {
-  out->OpenArray();
+  out->serializer().OpenArray();
   bool e = false;
   for (PackedRepeatedFieldIterator<W, T> it(field.data(), field.size(), &e); it;
        it++) {
@@ -398,10 +187,10 @@ void PackedField(const DescriptorPool& pool,
     if (fd.type() == FieldDescriptorProto::TYPE_ENUM) {
       EnumField(pool, fd, static_cast<int32_t>(value), out);
     } else {
-      out->NumberValue<T>(value);
+      out->serializer().NumberValue<T>(value);
     }
   }
-  out->CloseArray();
+  out->serializer().CloseArray();
   if (e) {
     out->AddError(
         std::string("Decoding failure for field '" + fd.name() + "'"));
@@ -413,15 +202,15 @@ void PackedBoolField(const DescriptorPool&,
                      const FieldDescriptor& fd,
                      const protozero::Field& field,
                      JsonBuilder* out) {
-  out->OpenArray();
+  out->serializer().OpenArray();
   bool e = false;
   for (PackedRepeatedFieldIterator<W, int32_t> it(field.data(), field.size(),
                                                   &e);
        it; it++) {
     bool value = *it;
-    out->BoolValue(value);
+    out->serializer().BoolValue(value);
   }
-  out->CloseArray();
+  out->serializer().CloseArray();
   if (e) {
     out->AddError(
         std::string("Decoding failure for field '" + fd.name() + "'"));
@@ -435,12 +224,16 @@ void LengthField(const DescriptorPool& pool,
                  JsonBuilder* out) {
   uint32_t type = fd ? fd->type() : 0;
   switch (type) {
-    case FieldDescriptorProto::TYPE_BYTES:
-      out->StringValue(field.as_string());
+    case FieldDescriptorProto::TYPE_BYTES: {
+      auto s = field.as_string();
+      out->serializer().StringValue(std::string_view(s.data, s.size));
       return;
-    case FieldDescriptorProto::TYPE_STRING:
-      out->StringValue(field.as_string());
+    }
+    case FieldDescriptorProto::TYPE_STRING: {
+      auto s = field.as_string();
+      out->serializer().StringValue(std::string_view(s.data, s.size));
       return;
+    }
     case FieldDescriptorProto::TYPE_MESSAGE:
       MessageField(pool, fd->resolved_type_name(), field.as_bytes(),
                    fully_qualify_extensions, out);
@@ -488,10 +281,12 @@ void LengthField(const DescriptorPool& pool,
       PackedBoolField<ProtoWireType::kVarInt>(pool, *fd, field, out);
       return;
     case 0:
-    default:
+    default: {
       // In the absence of specific information display bytes.
-      out->StringValue(field.as_string());
+      auto s = field.as_string();
+      out->serializer().StringValue(std::string_view(s.data, s.size));
       return;
+    }
   }
 }
 
@@ -502,18 +297,18 @@ void EnumField(const DescriptorPool& pool,
   auto opt_enum_descriptor_idx =
       pool.FindDescriptorIdx(fd.resolved_type_name());
   if (!opt_enum_descriptor_idx) {
-    out->NumberValue(value);
+    out->serializer().NumberValue(value);
     return;
   }
   auto opt_enum_string =
       pool.descriptors()[*opt_enum_descriptor_idx].FindEnumString(value);
   // If the enum value is unknown, treat it like a completely unknown field.
   if (!opt_enum_string) {
-    out->NumberValue(value);
+    out->serializer().NumberValue(value);
     return;
   }
 
-  out->StringValue(base::StringView(*opt_enum_string));
+  out->serializer().StringValue(*opt_enum_string);
 }
 
 void VarIntField(const DescriptorPool& pool,
@@ -523,32 +318,32 @@ void VarIntField(const DescriptorPool& pool,
   uint32_t type = fd ? fd->type() : 0;
   switch (type) {
     case FieldDescriptorProto::TYPE_INT32:
-      out->NumberValue(field.as_int32());
+      out->serializer().NumberValue(field.as_int32());
       return;
     case FieldDescriptorProto::TYPE_SINT32:
-      out->NumberValue(field.as_sint32());
+      out->serializer().NumberValue(field.as_sint32());
       return;
     case FieldDescriptorProto::TYPE_UINT32:
-      out->NumberValue(field.as_uint32());
+      out->serializer().NumberValue(field.as_uint32());
       return;
     case FieldDescriptorProto::TYPE_INT64:
-      out->NumberValue(field.as_int64());
+      out->serializer().NumberValue(field.as_int64());
       return;
     case FieldDescriptorProto::TYPE_SINT64:
-      out->NumberValue(field.as_sint64());
+      out->serializer().NumberValue(field.as_sint64());
       return;
     case FieldDescriptorProto::TYPE_UINT64:
-      out->NumberValue(field.as_uint64());
+      out->serializer().NumberValue(field.as_uint64());
       return;
     case FieldDescriptorProto::TYPE_BOOL:
-      out->BoolValue(field.as_bool());
+      out->serializer().BoolValue(field.as_bool());
       return;
     case FieldDescriptorProto::TYPE_ENUM:
       EnumField(pool, *fd, field.as_int32(), out);
       return;
     case 0:
     default:
-      out->NumberValue(field.as_int64());
+      out->serializer().NumberValue(field.as_int64());
       return;
   }
 }
@@ -559,17 +354,17 @@ void Fixed32Field(const FieldDescriptor* fd,
   uint32_t type = fd ? fd->type() : 0;
   switch (type) {
     case FieldDescriptorProto::TYPE_SFIXED32:
-      out->NumberValue(field.as_int32());
+      out->serializer().NumberValue(field.as_int32());
       break;
     case FieldDescriptorProto::TYPE_FIXED32:
-      out->NumberValue(field.as_uint32());
+      out->serializer().NumberValue(field.as_uint32());
       break;
     case FieldDescriptorProto::TYPE_FLOAT:
-      out->FloatValue(field.as_float());
+      out->serializer().FloatValue(field.as_float());
       break;
     case 0:
     default:
-      out->NumberValue(field.as_uint32());
+      out->serializer().NumberValue(field.as_uint32());
       break;
   }
 }
@@ -580,17 +375,17 @@ void Fixed64Field(const FieldDescriptor* fd,
   uint64_t type = fd ? fd->type() : 0;
   switch (type) {
     case FieldDescriptorProto::TYPE_SFIXED64:
-      out->NumberValue(field.as_int64());
+      out->serializer().NumberValue(field.as_int64());
       break;
     case FieldDescriptorProto::TYPE_FIXED64:
-      out->NumberValue(field.as_uint64());
+      out->serializer().NumberValue(field.as_uint64());
       break;
     case FieldDescriptorProto::TYPE_DOUBLE:
-      out->DoubleValue(field.as_double());
+      out->serializer().DoubleValue(field.as_double());
       break;
     case 0:
     default:
-      out->NumberValue(field.as_uint64());
+      out->serializer().NumberValue(field.as_uint64());
       break;
   }
 }
@@ -600,7 +395,7 @@ void RepeatedVarInt(const DescriptorPool& pool,
                     const FieldDescriptor* fd,
                     uint32_t id,
                     JsonBuilder* out) {
-  out->OpenArray();
+  out->serializer().OpenArray();
   protozero::ProtoDecoder decoder(protobytes.data, protobytes.size);
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
@@ -608,7 +403,7 @@ void RepeatedVarInt(const DescriptorPool& pool,
       VarIntField(pool, fd, field, out);
     }
   }
-  out->CloseArray();
+  out->serializer().CloseArray();
 }
 
 void RepeatedLengthField(const DescriptorPool& pool,
@@ -617,7 +412,7 @@ void RepeatedLengthField(const DescriptorPool& pool,
                          uint32_t id,
                          bool fully_qualify_extensions,
                          JsonBuilder* out) {
-  out->OpenArray();
+  out->serializer().OpenArray();
   protozero::ProtoDecoder decoder(protobytes.data, protobytes.size);
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
@@ -625,14 +420,14 @@ void RepeatedLengthField(const DescriptorPool& pool,
       LengthField(pool, fd, field, fully_qualify_extensions, out);
     }
   }
-  out->CloseArray();
+  out->serializer().CloseArray();
 }
 
 void RepeatedFixed64(protozero::ConstBytes protobytes,
                      const FieldDescriptor* fd,
                      uint32_t id,
                      JsonBuilder* out) {
-  out->OpenArray();
+  out->serializer().OpenArray();
   protozero::ProtoDecoder decoder(protobytes.data, protobytes.size);
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
@@ -640,14 +435,14 @@ void RepeatedFixed64(protozero::ConstBytes protobytes,
       Fixed64Field(fd, field, out);
     }
   }
-  out->CloseArray();
+  out->serializer().CloseArray();
 }
 
 void RepeatedFixed32(protozero::ConstBytes protobytes,
                      const FieldDescriptor* fd,
                      uint32_t id,
                      JsonBuilder* out) {
-  out->OpenArray();
+  out->serializer().OpenArray();
   protozero::ProtoDecoder decoder(protobytes.data, protobytes.size);
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
@@ -655,7 +450,7 @@ void RepeatedFixed32(protozero::ConstBytes protobytes,
       Fixed32Field(fd, field, out);
     }
   }
-  out->CloseArray();
+  out->serializer().CloseArray();
 }
 
 void InnerMessageField(const DescriptorPool& pool,
@@ -672,7 +467,7 @@ void InnerMessageField(const DescriptorPool& pool,
 
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    auto* opt_field_descriptor =
+    const auto* opt_field_descriptor =
         opt_proto_descriptor ? opt_proto_descriptor->FindFieldByTag(field.id())
                              : nullptr;
     bool is_repeated = false;
@@ -684,13 +479,13 @@ void InnerMessageField(const DescriptorPool& pool,
         continue;
       }
       if (opt_field_descriptor->is_extension() && fully_qualify_extensions) {
-        out->Key(FulllyQualifiedFieldName(*opt_proto_descriptor,
-                                          *opt_field_descriptor));
+        out->serializer().Key(FulllyQualifiedFieldName(*opt_proto_descriptor,
+                                                       *opt_field_descriptor));
       } else {
-        out->Key(opt_field_descriptor->name());
+        out->serializer().Key(opt_field_descriptor->name());
       }
     } else {
-      out->Key(std::to_string(field.id()));
+      out->serializer().Key(std::to_string(field.id()));
     }
     if (is_repeated) {
       fields_seen.insert(field.id());
@@ -749,9 +544,9 @@ void MessageField(const DescriptorPool& pool,
                   protozero::ConstBytes protobytes,
                   bool fully_qualify_extensions,
                   JsonBuilder* out) {
-  out->OpenObject();
+  out->serializer().OpenObject();
   InnerMessageField(pool, type, protobytes, fully_qualify_extensions, out);
-  out->CloseObject();
+  out->serializer().CloseObject();
 }
 
 // Prints all field options for non-empty fields of a message. Example:
@@ -807,13 +602,13 @@ void MessageFieldOptionsToJson(
       continue;
     }
     if (field_desc.is_extension()) {
-      out->Key(FulllyQualifiedFieldName(desc, field_desc));
+      out->serializer().Key(FulllyQualifiedFieldName(desc, field_desc));
     } else {
-      out->Key(field_desc.name());
+      out->serializer().Key(field_desc.name());
     }
-    out->OpenObject();
+    out->serializer().OpenObject();
     if (HasFieldOptions(field_desc)) {
-      out->Key("__field_options");
+      out->serializer().Key("__field_options");
       MessageField(pool, ".google.protobuf.FieldOptions",
                    protozero::ConstBytes{field_desc.options().data(),
                                          field_desc.options().size()},
@@ -824,10 +619,10 @@ void MessageFieldOptionsToJson(
                                 full_field_name + ".", allowed_fields, out);
     }
     if (field_desc.is_repeated()) {
-      out->Key("__repeated");
-      out->BoolValue(true);
+      out->serializer().Key("__repeated");
+      out->serializer().BoolValue(true);
     }
-    out->CloseObject();
+    out->serializer().CloseObject();
   }
 }
 
@@ -846,7 +641,7 @@ bool PopulateAllowedFieldOptionsSet(
   bool allowed = false;
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    auto* opt_field_descriptor = desc.FindFieldByTag(field.id());
+    const auto* opt_field_descriptor = desc.FindFieldByTag(field.id());
     if (!opt_field_descriptor) {
       continue;
     }
@@ -873,23 +668,23 @@ std::string ProtozeroToJson(const DescriptorPool& pool,
                             protozero::ConstBytes protobytes,
                             int flags) {
   JsonBuilder builder(flags);
-  builder.OpenObject();
+  builder.serializer().OpenObject();
   InnerMessageField(pool, type, protobytes, true, &builder);
   if (builder.is_inline_errors() && !builder.errors().empty()) {
-    builder.Key("__error");
-    builder.StringValue(base::StringView(base::Join(builder.errors(), "\n")));
+    builder.serializer().Key("__error");
+    builder.serializer().StringValue(base::Join(builder.errors(), "\n"));
   }
   if (flags & kInlineAnnotations) {
     std::unordered_set<std::string> allowed_fields;
     PopulateAllowedFieldOptionsSet(pool, type, "", protobytes, allowed_fields);
     if (!allowed_fields.empty()) {
-      builder.Key("__annotations");
-      builder.OpenObject();
+      builder.serializer().Key("__annotations");
+      builder.serializer().OpenObject();
       MessageFieldOptionsToJson(pool, type, "", allowed_fields, &builder);
-      builder.CloseObject();
+      builder.serializer().CloseObject();
     }
   }
-  builder.CloseObject();
+  builder.serializer().CloseObject();
   return builder.ToString();
 }
 

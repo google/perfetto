@@ -249,6 +249,11 @@ message QueryResult {
 
   // The last statement in the provided SQL.
   optional string last_statement_sql = 6;
+
+  // Time taken so far to execute the query and iterate the results in
+  // milliseconds. If this query is comprised of multiple messages, this field
+  // will contain the cumulative time taken so far.
+  optional double elapsed_time_ms = 7;
 }
 
 // Input for the /status endpoint.

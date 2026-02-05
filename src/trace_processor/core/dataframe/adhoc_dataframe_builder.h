@@ -17,13 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_ADHOC_DATAFRAME_BUILDER_H_
 #define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_ADHOC_DATAFRAME_BUILDER_H_
 
-#include <algorithm>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -33,20 +30,17 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/common/bit_vector.h"
-#include "src/trace_processor/core/common/flex_vector.h"
-#include "src/trace_processor/core/common/slab.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
 
 // Builds a `Dataframe` on an adhoc basis by allowing users to append
 // values column by column.
@@ -93,13 +87,36 @@ namespace perfetto::trace_processor::dataframe {
 //   status can be retrieved using the `status()` method. The `Build()`
 //   method will also propagate this error.
 // - The builder is movable but not copyable.
+
+// Indicates the nullability type for nullable columns in the dataframe.
+enum class NullabilityType : uint8_t {
+  kSparseNull,
+  kSparseNullWithPopcount,
+  kDenseNull,
+};
+
+// Column types for AdhocDataframeBuilder.
+enum class AdhocColumnType : uint8_t {
+  kInt64,
+  kDouble,
+  kString,
+};
+
+// Options to be provided to the AdhocDataframeBuilder.
+struct AdhocDataframeBuilderOptions {
+  // An optional vector of `AdhocColumnType` specifying the types of the
+  // columns. If empty, types are inferred from the first non-null value added
+  // to each column. If provided, must match the size of `names`.
+  std::vector<AdhocColumnType> types;
+
+  // Indicates the default option for nullable columns to be converted to.
+  NullabilityType nullability_type = NullabilityType::kSparseNull;
+};
+
 class AdhocDataframeBuilder {
  public:
-  enum class ColumnType : uint8_t {
-    kInt64,
-    kDouble,
-    kString,
-  };
+  using ColumnType = AdhocColumnType;
+  using Options = AdhocDataframeBuilderOptions;
 
   // Constructs a AdhocDataframeBuilder.
   //
@@ -110,39 +127,11 @@ class AdhocDataframeBuilder {
   //         string values encountered during row addition. Must remain
   //         valid for the lifetime of the builder and the resulting
   //         Dataframe.
-  //  types: An optional vector of `ColumnType` specifying the types
-  //         of the columns. If empty, types are inferred from the first
-  //         non-null value added to each column. If provided, must match
-  //         the size of `names`.
+  //  options: Options to configure the builder. See `Options` struct for
+  //           details.
   AdhocDataframeBuilder(std::vector<std::string> names,
                         StringPool* pool,
-                        const std::vector<ColumnType>& types = {})
-      : string_pool_(pool), did_declare_types_(!types.empty()) {
-    PERFETTO_DCHECK(types.empty() || types.size() == names.size());
-    for (uint32_t i = 0; i < names.size(); ++i) {
-      if (types.empty()) {
-        column_states_.emplace_back();
-      } else {
-        switch (types[i]) {
-          case ColumnType::kInt64:
-            column_states_.emplace_back(
-                ColumnState{core::FlexVector<int64_t>(), {}});
-            break;
-          case ColumnType::kDouble:
-            column_states_.emplace_back(
-                ColumnState{core::FlexVector<double>(), {}});
-            break;
-          case ColumnType::kString:
-            column_states_.emplace_back(
-                ColumnState{core::FlexVector<StringPool::Id>(), {}});
-            break;
-        }
-      }
-    }
-    for (auto& name : names) {
-      column_names_.emplace_back(std::move(name));
-    }
-  }
+                        const Options& options = Options{});
   ~AdhocDataframeBuilder() = default;
 
   // Movable but not copyable
@@ -171,9 +160,14 @@ class AdhocDataframeBuilder {
                                           uint32_t count = 1) {
     return PushNonNullInternal(col, value, count);
   }
+  // See kStringNullLegacy in dataframe.h.
   PERFETTO_ALWAYS_INLINE bool PushNonNull(uint32_t col,
                                           StringPool::Id value,
                                           uint32_t count = 1) {
+    if (PERFETTO_UNLIKELY(value.is_null())) {
+      PushNull(col, count);
+      return true;
+    }
     return PushNonNullInternal(col, value, count);
   }
 
@@ -196,9 +190,11 @@ class AdhocDataframeBuilder {
                                                    uint32_t count = 1) {
     PushNonNullUncheckedInternal(col, value, count);
   }
+  // See kStringNullLegacy in dataframe.h.
   PERFETTO_ALWAYS_INLINE void PushNonNullUnchecked(uint32_t col,
                                                    StringPool::Id value,
                                                    uint32_t count = 1) {
+    PERFETTO_DCHECK(!value.is_null());
     PushNonNullUncheckedInternal(col, value, count);
   }
 
@@ -209,7 +205,17 @@ class AdhocDataframeBuilder {
       EnsureNullOverlayExists(state);
     }
     state.null_overlay->push_back_multiple(false, count);
+    if (state.nullability_type == NullabilityType::kDenseNull) {
+      // For dense null, we need to push placeholder values to the data storage
+      // since DenseNull stores all values (with nulls marked by the bitvector).
+      AddPlaceholderValue(col, count);
+    }
   }
+
+  // Appends `count` placeholder values to the specified column `col`.
+  // This is useful for DenseNull columns where placeholder values need to be
+  // pushed even for null entries.
+  void AddPlaceholderValue(uint32_t col, uint32_t count = 1);
 
   // Finalizes the builder and attempts to construct the Dataframe.
   // This method consumes the builder (note the && qualifier).
@@ -226,132 +232,7 @@ class AdhocDataframeBuilder {
   // - Determine the final sort state (IdSorted, SetIdSorted, Sorted, Unsorted)
   //   by analyzing the collected non-null values.
   // - Construct and return the final `Dataframe` instance.
-  base::StatusOr<Dataframe> Build() && {
-    uint64_t row_count = std::numeric_limits<uint64_t>::max();
-    RETURN_IF_ERROR(current_status_);
-    std::vector<std::shared_ptr<impl::Column>> columns;
-    for (uint32_t i = 0; i < column_names_.size(); ++i) {
-      auto& state = column_states_[i];
-      size_t non_null_row_count;
-      switch (state.data.index()) {
-        case base::variant_index<DataVariant, std::nullopt_t>():
-          non_null_row_count = 0;
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              impl::Storage{core::FlexVector<uint32_t>()},
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              Unsorted{},
-              HasDuplicates{},
-          }));
-          break;
-        case base::variant_index<DataVariant, core::FlexVector<int64_t>>(): {
-          auto& data =
-              base::unchecked_get<core::FlexVector<int64_t>>(state.data);
-          non_null_row_count = data.size();
-          duplicate_bit_vector_.clear();
-
-          IntegerColumnSummary summary;
-          summary.is_id_sorted = data.empty() || data[0] == 0;
-          summary.is_setid_sorted = data.empty() || data[0] == 0;
-          summary.is_sorted = true;
-          summary.min = data.empty() ? 0 : data[0];
-          summary.max = data.empty() ? 0 : data[0];
-          summary.has_duplicates =
-              data.empty() ? false : CheckDuplicate(data[0], data.size());
-          summary.is_nullable = state.null_overlay.has_value();
-          for (uint32_t j = 1; j < data.size(); ++j) {
-            summary.is_id_sorted = summary.is_id_sorted && (data[j] == j);
-            summary.is_setid_sorted = summary.is_setid_sorted &&
-                                      (data[j] == data[j - 1] || data[j] == j);
-            summary.is_sorted = summary.is_sorted && data[j - 1] <= data[j];
-            summary.min = std::min(summary.min, data[j]);
-            summary.max = std::max(summary.max, data[j]);
-            summary.has_duplicates =
-                summary.has_duplicates || CheckDuplicate(data[j], data.size());
-          }
-          auto integer = CreateIntegerStorage(std::move(data), summary);
-          impl::SpecializedStorage specialized_storage =
-              GetSpecializedStorage(integer, summary);
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              std::move(integer),
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              GetIntegerSortStateFromProperties(summary),
-              summary.is_nullable || summary.has_duplicates
-                  ? DuplicateState{HasDuplicates{}}
-                  : DuplicateState{NoDuplicates{}},
-              std::move(specialized_storage),
-          }));
-          break;
-        }
-        case base::variant_index<DataVariant, core::FlexVector<double>>(): {
-          auto& data =
-              base::unchecked_get<core::FlexVector<double>>(state.data);
-          non_null_row_count = data.size();
-
-          bool is_nullable = state.null_overlay.has_value();
-          bool is_sorted = true;
-          for (uint32_t j = 1; j < data.size(); ++j) {
-            is_sorted = is_sorted && data[j - 1] <= data[j];
-          }
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              impl::Storage{std::move(data)},
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              is_sorted && !is_nullable ? SortState{Sorted{}}
-                                        : SortState{Unsorted{}},
-              HasDuplicates{},
-          }));
-          break;
-        }
-        case base::variant_index<DataVariant,
-                                 core::FlexVector<StringPool::Id>>(): {
-          auto& data =
-              base::unchecked_get<core::FlexVector<StringPool::Id>>(state.data);
-          non_null_row_count = data.size();
-
-          bool is_nullable = state.null_overlay.has_value();
-          bool is_sorted = true;
-          if (!data.empty()) {
-            NullTermStringView prev = string_pool_->Get(data[0]);
-            for (uint32_t j = 1; j < data.size(); ++j) {
-              NullTermStringView curr = string_pool_->Get(data[j]);
-              is_sorted = is_sorted && prev <= curr;
-              prev = curr;
-            }
-          }
-          columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              impl::Storage{std::move(data)},
-              CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              is_sorted && !is_nullable ? SortState{Sorted{}}
-                                        : SortState{Unsorted{}},
-              HasDuplicates{},
-          }));
-          break;
-        }
-        default:
-          PERFETTO_FATAL("Unexpected data variant in column %u", i);
-      }
-      uint64_t current_row_count =
-          state.null_overlay ? state.null_overlay->size() : non_null_row_count;
-      if (row_count != std::numeric_limits<uint64_t>::max() &&
-          current_row_count != row_count) {
-        return base::ErrStatus(
-            "Row count mismatch in column '%s'. Expected %" PRIu64
-            ", got %" PRIu64 ".",
-            column_names_[i].c_str(), row_count, current_row_count);
-      }
-      row_count = current_row_count;
-    }
-    if (row_count == std::numeric_limits<uint64_t>::max()) {
-      row_count = 0;
-    }
-    // Create an implicit id column for acting as a primary key even if there
-    // are no other id columns.
-    column_names_.emplace_back("_auto_id");
-    columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-        impl::Storage{impl::Storage::Id{static_cast<uint32_t>(row_count)}},
-        impl::NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
-    return Dataframe(true, std::move(column_names_), std::move(columns),
-                     static_cast<uint32_t>(row_count), string_pool_);
-  }
+  base::StatusOr<Dataframe> Build() &&;
 
   // Returns the current status of the builder.
   //
@@ -364,14 +245,10 @@ class AdhocDataframeBuilder {
   const base::Status& status() const { return current_status_; }
 
  private:
-  struct Null {};
-  using DataVariant = std::variant<std::nullopt_t,
-                                   core::FlexVector<int64_t>,
-                                   core::FlexVector<double>,
-                                   core::FlexVector<StringPool::Id>>;
   struct ColumnState {
-    DataVariant data = std::nullopt;
+    std::optional<Storage> storage;
     std::optional<core::BitVector> null_overlay;
+    NullabilityType nullability_type = NullabilityType::kSparseNull;
   };
   struct IntegerColumnSummary {
     bool is_id_sorted = true;
@@ -397,66 +274,62 @@ class AdhocDataframeBuilder {
   PERFETTO_ALWAYS_INLINE bool PushNonNullInternal(uint32_t col,
                                                   T value,
                                                   uint32_t count = 1) {
+    using FlexVec = core::FlexVector<T>;
+    using TypeTag = typename core::TypeTagFor<T>::type;
     auto& state = column_states_[col];
-    auto& data = state.data;
-    switch (data.index()) {
-      case base::variant_index<DataVariant, std::nullopt_t>(): {
-        data = core::FlexVector<T>();
-        auto& vec = base::unchecked_get<core::FlexVector<T>>(data);
-        vec.push_back_multiple(value, count);
-        break;
+    if (!state.storage) {
+      // No storage yet - create appropriate storage for this type.
+      state.storage = Storage{FlexVec{}};
+      // For DenseNull, if there were prior nulls pushed before we knew the
+      // type, we need to add placeholder values for them now.
+      if (state.null_overlay &&
+          state.nullability_type == NullabilityType::kDenseNull) {
+        state.storage->unchecked_get<TypeTag>().push_back_multiple(
+            T{}, static_cast<uint32_t>(state.null_overlay->size()));
       }
-      case base::variant_index<DataVariant, core::FlexVector<T>>(): {
-        auto& vec = base::unchecked_get<core::FlexVector<T>>(data);
-        vec.push_back_multiple(value, count);
-        break;
-      }
-      default: {
-        if constexpr (std::is_same_v<T, double>) {
-          if (std::holds_alternative<core::FlexVector<int64_t>>(data)) {
-            auto& vec = base::unchecked_get<core::FlexVector<int64_t>>(data);
-            auto res = core::FlexVector<double>::CreateWithSize(vec.size());
-            for (uint32_t i = 0; i < vec.size(); ++i) {
-              int64_t v = vec[i];
-              if (!IsPerfectlyRepresentableAsDouble(v)) {
-                current_status_ =
-                    base::ErrStatus("Unable to represent %" PRId64
-                                    " in column '%s' at row %u as a double.",
-                                    v, column_names_[col].c_str(), i);
-                return false;
-              }
-              res[i] = static_cast<double>(v);
-            }
-            res.push_back_multiple(value, count);
-            data = std::move(res);
-            break;
-          }
-        } else if constexpr (std::is_same_v<T, int64_t>) {
-          if (std::holds_alternative<core::FlexVector<double>>(data)) {
-            auto& vec = base::unchecked_get<core::FlexVector<double>>(data);
-            if (!IsPerfectlyRepresentableAsDouble(value)) {
-              current_status_ = base::ErrStatus(
-                  "Inserting a too-large integer (%" PRId64
-                  ") in column '%s' at row %" PRIu64
-                  ". Column currently holds doubles.",
-                  value, column_names_[col].c_str(), vec.size());
+      state.storage->unchecked_get<TypeTag>().push_back_multiple(value, count);
+    } else if (state.storage->type().Is<TypeTag>()) {
+      // Same type - push directly.
+      state.storage->unchecked_get<TypeTag>().push_back_multiple(value, count);
+    } else {
+      // Type mismatch - try conversions or report error.
+      if constexpr (std::is_same_v<T, double>) {
+        if (state.storage->type().Is<Int64>()) {
+          auto& vec = state.storage->unchecked_get<Int64>();
+          auto res = Storage::Double::CreateWithSize(vec.size());
+          for (uint32_t i = 0; i < vec.size(); ++i) {
+            int64_t v = vec[i];
+            if (!IsPerfectlyRepresentableAsDouble(v)) {
+              current_status_ =
+                  base::ErrStatus("Unable to represent %" PRId64
+                                  " in column '%s' at row %u as a double.",
+                                  v, column_names_[col].c_str(), i);
               return false;
             }
-            vec.push_back_multiple(static_cast<double>(value), count);
-            break;
+            res[i] = static_cast<double>(v);
           }
-        }
-        if (did_declare_types_) {
-          current_status_ = base::ErrStatus(
-              "column '%s' declared as %s in the schema, but %s found",
-              column_names_[col].c_str(), ToString(data), ToString<T>());
+          res.push_back_multiple(value, count);
+          state.storage = Storage{std::move(res)};
         } else {
-          current_status_ = base::ErrStatus(
-              "column '%s' was inferred to be %s, but later received a value "
-              "of type %s",
-              column_names_[col].c_str(), ToString(data), ToString<T>());
+          return ReportTypeMismatch<T>(col);
         }
-        return false;
+      } else if constexpr (std::is_same_v<T, int64_t>) {
+        if (state.storage->type().Is<Double>()) {
+          auto& vec = state.storage->unchecked_get<Double>();
+          if (!IsPerfectlyRepresentableAsDouble(value)) {
+            current_status_ =
+                base::ErrStatus("Inserting a too-large integer (%" PRId64
+                                ") in column '%s' at row %" PRIu64
+                                ". Column currently holds doubles.",
+                                value, column_names_[col].c_str(), vec.size());
+            return false;
+          }
+          vec.push_back_multiple(static_cast<double>(value), count);
+        } else {
+          return ReportTypeMismatch<T>(col);
+        }
+      } else {
+        return ReportTypeMismatch<T>(col);
       }
     }
     if (PERFETTO_UNLIKELY(state.null_overlay)) {
@@ -469,44 +342,38 @@ class AdhocDataframeBuilder {
   PERFETTO_ALWAYS_INLINE void PushNonNullUncheckedInternal(uint32_t col,
                                                            T value,
                                                            uint32_t count) {
+    using TypeTag = typename core::TypeTagFor<T>::type;
     auto& state = column_states_[col];
-    PERFETTO_DCHECK(std::holds_alternative<core::FlexVector<T>>(state.data));
-    auto& data = base::unchecked_get<core::FlexVector<T>>(state.data);
-    data.push_back_multiple(value, count);
+    PERFETTO_DCHECK(state.storage && state.storage->type().Is<TypeTag>());
+    state.storage->unchecked_get<TypeTag>().push_back_multiple(value, count);
     if (PERFETTO_UNLIKELY(state.null_overlay)) {
       state.null_overlay->push_back_multiple(true, count);
     }
   }
 
-  static impl::Storage CreateIntegerStorage(
-      core::FlexVector<int64_t> data,
-      const IntegerColumnSummary& summary) {
-    // TODO(lalitm): `!summary.is_nullable` is an unnecesarily strong condition
-    // but we impose it as query planning assumes that id columns never have an
-    // index added to them.
-    if (summary.is_id_sorted && !summary.is_nullable) {
-      return impl::Storage{
-          impl::Storage::Id{static_cast<uint32_t>(data.size())}};
+  template <typename T>
+  bool ReportTypeMismatch(uint32_t col) {
+    if (did_declare_types_) {
+      current_status_ = base::ErrStatus(
+          "column '%s' declared as %s in the schema, but %s found",
+          column_names_[col].c_str(), ToString(column_states_[col].storage),
+          ToString<T>());
+    } else {
+      current_status_ = base::ErrStatus(
+          "column '%s' was inferred to be %s, but later received a value "
+          "of type %s",
+          column_names_[col].c_str(), ToString(column_states_[col].storage),
+          ToString<T>());
     }
-    if (IsRangeFullyRepresentableByType<uint32_t>(summary.min, summary.max)) {
-      return impl::Storage{
-          impl::Storage::Uint32{DowncastFromInt64<uint32_t>(data)}};
-    }
-    if (IsRangeFullyRepresentableByType<int32_t>(summary.min, summary.max)) {
-      return impl::Storage{
-          impl::Storage::Int32{DowncastFromInt64<int32_t>(data)}};
-    }
-    return impl::Storage{impl::Storage::Int64{std::move(data)}};
+    return false;
   }
 
-  static impl::NullStorage CreateNullStorageFromBitvector(
-      std::optional<core::BitVector> bit_vector) {
-    if (bit_vector) {
-      return impl::NullStorage{
-          impl::NullStorage::SparseNull{*std::move(bit_vector), {}}};
-    }
-    return impl::NullStorage{impl::NullStorage::NonNull{}};
-  }
+  static Storage CreateIntegerStorage(core::FlexVector<int64_t> data,
+                                      const IntegerColumnSummary& summary);
+
+  static NullStorage CreateNullStorageFromBitvector(
+      std::optional<core::BitVector> bit_vector,
+      NullabilityType nullability_type);
 
   template <typename T>
   static bool IsRangeFullyRepresentableByType(int64_t min, int64_t max) {
@@ -529,88 +396,16 @@ class AdhocDataframeBuilder {
   }
 
   static SortState GetIntegerSortStateFromProperties(
-      const IntegerColumnSummary& summary) {
-    if (summary.is_nullable) {
-      return SortState{Unsorted{}};
-    }
-    if (summary.is_id_sorted) {
-      PERFETTO_DCHECK(summary.is_setid_sorted);
-      PERFETTO_DCHECK(summary.is_sorted);
-      return SortState{IdSorted{}};
-    }
-    if (summary.is_setid_sorted) {
-      PERFETTO_DCHECK(summary.is_sorted);
-      return SortState{SetIdSorted{}};
-    }
-    if (summary.is_sorted) {
-      return SortState{Sorted{}};
-    }
-    return SortState{Unsorted{}};
-  }
+      const IntegerColumnSummary& summary);
 
-  static impl::SpecializedStorage GetSpecializedStorage(
-      const impl::Storage& storage,
-      const IntegerColumnSummary& summary) {
-    // If we're already sorted or setid_sorted, we don't need specialized
-    // storage.
-    if (summary.is_id_sorted || summary.is_setid_sorted) {
-      return impl::SpecializedStorage{};
-    }
+  static SpecializedStorage GetSpecializedStorage(
+      const Storage& storage,
+      const IntegerColumnSummary& summary);
 
-    // Check if we meet the hard conditions for small value eq.
-    if (storage.type().Is<Uint32>() && summary.is_sorted &&
-        !summary.is_nullable && !summary.has_duplicates) {
-      const auto& vec = storage.unchecked_get<Uint32>();
+  static SpecializedStorage::SmallValueEq BuildSmallValueEq(
+      const core::FlexVector<uint32_t>& data);
 
-      // For memory reasons, we only use small value eq if the ratio between
-      // the maximum value and the number of values is "small enough".
-      if (static_cast<uint32_t>(summary.max) < 16 * vec.size()) {
-        return BuildSmallValueEq(vec);
-      }
-    }
-    // Otherwise, we cannot use specialized storage.
-    return impl::SpecializedStorage{};
-  }
-
-  PERFETTO_NO_INLINE static impl::SpecializedStorage::SmallValueEq
-  BuildSmallValueEq(const core::FlexVector<uint32_t>& data) {
-    impl::SpecializedStorage::SmallValueEq offset_bv{
-        core::BitVector::CreateWithSize(data.empty() ? 0 : data.back() + 1,
-                                        false),
-        {},
-    };
-    for (uint32_t i : data) {
-      offset_bv.bit_vector.set(i);
-    }
-    offset_bv.prefix_popcount = offset_bv.bit_vector.PrefixPopcount();
-    return offset_bv;
-  }
-
-  PERFETTO_NO_INLINE static void EnsureNullOverlayExists(ColumnState& state) {
-    uint64_t row_count;
-    switch (state.data.index()) {
-      case base::variant_index<DataVariant, std::nullopt_t>():
-        row_count = 0;
-        break;
-      case base::variant_index<DataVariant, core::FlexVector<int64_t>>():
-        row_count =
-            base::unchecked_get<core::FlexVector<int64_t>>(state.data).size();
-        break;
-      case base::variant_index<DataVariant, core::FlexVector<double>>():
-        row_count =
-            base::unchecked_get<core::FlexVector<double>>(state.data).size();
-        break;
-      case base::variant_index<DataVariant, core::FlexVector<StringPool::Id>>():
-        row_count =
-            base::unchecked_get<core::FlexVector<StringPool::Id>>(state.data)
-                .size();
-        break;
-      default:
-        PERFETTO_FATAL("Unexpected data type in column state.");
-    }
-    state.null_overlay =
-        core::BitVector::CreateWithSize(static_cast<uint32_t>(row_count), true);
-  }
+  static void EnsureNullOverlayExists(ColumnState& state);
 
   // Returns true if the value is a definite duplicate.
   PERFETTO_ALWAYS_INLINE bool CheckDuplicate(int64_t value, size_t size) {
@@ -633,10 +428,10 @@ class AdhocDataframeBuilder {
     return false;
   }
 
-  PERFETTO_NO_INLINE static const char* ToString(const DataVariant&);
+  static const char* ToString(const std::optional<Storage>&);
 
   template <typename T>
-  PERFETTO_NO_INLINE static const char* ToString() {
+  static const char* ToString() {
     if constexpr (std::is_same_v<T, int64_t>) {
       return "LONG";
     } else if constexpr (std::is_same_v<T, double>) {
@@ -656,6 +451,6 @@ class AdhocDataframeBuilder {
   core::BitVector duplicate_bit_vector_;
 };
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_ADHOC_DATAFRAME_BUILDER_H_

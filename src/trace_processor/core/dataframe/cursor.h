@@ -27,14 +27,16 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/impl/query_plan.h"
+#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/core/dataframe/value_fetcher.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/util/span.h"
 
-namespace perfetto::trace_processor::dataframe {
+namespace perfetto::trace_processor::core::dataframe {
+
+// Namespace alias for the interpreter types.
 
 // Callback for receiving cell values
 struct CellCallback {
@@ -57,13 +59,12 @@ class Cursor {
   Cursor() = default;
 
   // Initializes the cursor from a query plan and dataframe columns.
-  void Initialize(const impl::QueryPlan& plan,
+  void Initialize(const QueryPlanImpl& plan,
                   uint32_t column_count,
-                  const impl::Column* const* column_ptrs,
+                  const Column* const* column_ptrs,
                   const Index* indexes,
                   const StringPool* pool) {
-    interpreter_.Initialize(plan.bytecode, plan.params.register_count,
-                            column_count, column_ptrs, indexes, pool);
+    interpreter_.Initialize(plan.bytecode, plan.params.register_count, pool);
     params_ = plan.params;
     col_to_output_offset_ = plan.col_to_output_offset;
     pool_ = pool;
@@ -72,6 +73,14 @@ class Cursor {
     column_storage_data_ptrs_.reserve(column_count);
     for (uint32_t i = 0; i < column_count; ++i) {
       column_storage_data_ptrs_.push_back(column_ptrs[i]->storage.data());
+    }
+
+    // Process register initialization specs from the plan.
+    // This sets up registers with pointers extracted from columns/indexes.
+    for (const auto& init : plan.register_inits) {
+      auto val = GetRegisterInitValue(init, column_ptrs, indexes);
+      interpreter_.SetRegisterValue(interpreter::HandleBase{init.dest_register},
+                                    std::move(val));
     }
   }
 
@@ -109,7 +118,7 @@ class Cursor {
     static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
                   "CellCallbackImpl must be a subclass of CellCallback");
     PERFETTO_DCHECK(col < col_to_output_offset_.size());
-    const impl::Storage::DataPointer& p = column_storage_data_ptrs_[col];
+    const Storage::DataPointer& p = column_storage_data_ptrs_[col];
     uint32_t idx = pos_[col_to_output_offset_[col]];
     if (idx == std::numeric_limits<uint32_t>::max()) {
       cell_callback_impl.OnCell(nullptr);
@@ -120,20 +129,20 @@ class Cursor {
         cell_callback_impl.OnCell(idx);
         break;
       case StorageType::GetTypeIndex<Uint32>():
-        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Uint32>(p)[idx]);
+        cell_callback_impl.OnCell(Storage::CastDataPtr<Uint32>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<Int32>():
-        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Int32>(p)[idx]);
+        cell_callback_impl.OnCell(Storage::CastDataPtr<Int32>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<Int64>():
-        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Int64>(p)[idx]);
+        cell_callback_impl.OnCell(Storage::CastDataPtr<Int64>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<Double>():
-        cell_callback_impl.OnCell(impl::Storage::CastDataPtr<Double>(p)[idx]);
+        cell_callback_impl.OnCell(Storage::CastDataPtr<Double>(p)[idx]);
         break;
       case StorageType::GetTypeIndex<String>():
         cell_callback_impl.OnCell(
-            pool_->Get(impl::Storage::CastDataPtr<String>(p)[idx]));
+            pool_->Get(Storage::CastDataPtr<String>(p)[idx]));
         break;
       default:
         PERFETTO_FATAL("Invalid storage spec");
@@ -141,14 +150,79 @@ class Cursor {
   }
 
  private:
+  interpreter::RegValue GetRegisterInitValue(const RegisterInit& init,
+                                             const Column* const* column_ptrs,
+                                             const Index* indexes) {
+    switch (init.kind.index()) {
+      case RegisterInit::Type::GetTypeIndex<Id>():
+        // Id columns don't have actual storage - the row index IS the value.
+        // Return a nullptr StoragePtr which the interpreter knows to handle.
+        return interpreter::StoragePtr{nullptr, Id{}};
+      case RegisterInit::Type::GetTypeIndex<Uint32>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<Uint32>(),
+            Uint32{},
+        };
+      case RegisterInit::Type::GetTypeIndex<Int32>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<Int32>(),
+            Int32{},
+        };
+      case RegisterInit::Type::GetTypeIndex<Int64>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<Int64>(),
+            Int64{},
+        };
+      case RegisterInit::Type::GetTypeIndex<Double>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<Double>(),
+            Double{},
+        };
+      case RegisterInit::Type::GetTypeIndex<String>():
+        return interpreter::StoragePtr{
+            column_ptrs[init.source_index]->storage.unchecked_data<String>(),
+            String{},
+        };
+      case RegisterInit::Type::GetTypeIndex<RegisterInit::NullBitvector>():
+        return column_ptrs[init.source_index]
+            ->null_storage.MaybeGetNullBitVector();
+      case RegisterInit::Type::GetTypeIndex<RegisterInit::IndexVector>():
+        return Span<uint32_t>(
+            indexes[init.source_index].permutation_vector()->data(),
+            indexes[init.source_index].permutation_vector()->data() +
+                indexes[init.source_index].permutation_vector()->size());
+      case RegisterInit::Type::GetTypeIndex<
+          RegisterInit::SmallValueEqBitvector>(): {
+        const auto& sve =
+            column_ptrs[init.source_index]
+                ->specialized_storage
+                .unchecked_get<SpecializedStorage::SmallValueEq>();
+        return &sve.bit_vector;
+      }
+      case RegisterInit::Type::GetTypeIndex<
+          RegisterInit::SmallValueEqPopcount>(): {
+        const auto& sve =
+            column_ptrs[init.source_index]
+                ->specialized_storage
+                .unchecked_get<SpecializedStorage::SmallValueEq>();
+        return Span<const uint32_t>(
+            sve.prefix_popcount.data(),
+            sve.prefix_popcount.data() + sve.prefix_popcount.size());
+      }
+      default:
+        PERFETTO_FATAL("Unhandled RegisterInit kind: %u",
+                       static_cast<uint32_t>(init.kind.index()));
+    }
+  }
+
   // Bytecode interpreter that executes the query.
-  impl::bytecode::Interpreter<FilterValueFetcherImpl> interpreter_;
+  interpreter::Interpreter<FilterValueFetcherImpl> interpreter_;
   // Parameters for query execution.
-  impl::QueryPlan::ExecutionParams params_;
+  QueryPlanImpl::ExecutionParams params_;
   // Maps column indices to their output offsets in the result set.
   base::SmallVector<uint32_t, 24> col_to_output_offset_;
   // Variant of pointers to the storage data.
-  std::vector<impl::Storage::DataPointer> column_storage_data_ptrs_;
+  std::vector<Storage::DataPointer> column_storage_data_ptrs_;
   // String pool for string values.
   const StringPool* pool_;
 
@@ -158,6 +232,6 @@ class Cursor {
   const uint32_t* end_;
 };
 
-}  // namespace perfetto::trace_processor::dataframe
+}  // namespace perfetto::trace_processor::core::dataframe
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_CURSOR_H_

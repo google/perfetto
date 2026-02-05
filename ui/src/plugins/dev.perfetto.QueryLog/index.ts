@@ -69,9 +69,9 @@ export default class QueryLogPlugin implements PerfettoPlugin {
                 m('td', formatMillis(ql.startTime)),
                 m(
                   'td',
-                  ql.endTime === undefined
+                  ql.elapsedTimeMs === undefined
                     ? '...'
-                    : formatMillis(ql.endTime - ql.startTime),
+                    : formatMillis(ql.elapsedTimeMs),
                 ),
               ),
             ),

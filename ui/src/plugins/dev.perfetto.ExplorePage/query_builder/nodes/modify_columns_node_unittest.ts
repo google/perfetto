@@ -314,4 +314,98 @@ describe('ModifyColumnsNode', () => {
       expect(modifyNode.state.selectedColumns[1].alias).toBe('full_name');
     });
   });
+
+  describe('clone', () => {
+    it('should preserve aliases when cloning', () => {
+      const col1 = createColumnInfo('id', 'int');
+      const col2 = createColumnInfo('name', 'string', {alias: 'full_name'});
+      const col3 = createColumnInfo('value', 'int', {alias: 'amount'});
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col1, col2, col3],
+        },
+        createMockPrevNode(),
+      );
+
+      const clonedNode = node.clone() as ModifyColumnsNode;
+
+      // Aliases should be preserved in the cloned node
+      expect(clonedNode.state.selectedColumns[0].alias).toBeUndefined();
+      expect(clonedNode.state.selectedColumns[1].alias).toBe('full_name');
+      expect(clonedNode.state.selectedColumns[2].alias).toBe('amount');
+    });
+
+    it('should preserve checked status when cloning', () => {
+      const col1 = createColumnInfo('id', 'int');
+      const col2 = createColumnInfo('name', 'string', {checked: false});
+      const col3 = createColumnInfo('value', 'int');
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col1, col2, col3],
+        },
+        createMockPrevNode(),
+      );
+
+      const clonedNode = node.clone() as ModifyColumnsNode;
+
+      expect(clonedNode.state.selectedColumns[0].checked).toBe(true);
+      expect(clonedNode.state.selectedColumns[1].checked).toBe(false);
+      expect(clonedNode.state.selectedColumns[2].checked).toBe(true);
+    });
+
+    it('should preserve original column names when cloning with aliases', () => {
+      // This is a regression test: cloning should NOT apply aliases as new
+      // column names. The clone should preserve the exact internal state.
+      const col = createColumnInfo('id', 'int', {alias: 'identifier'});
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col],
+        },
+        createMockPrevNode(),
+      );
+
+      const clonedNode = node.clone() as ModifyColumnsNode;
+
+      // The original column name should be preserved, NOT the alias
+      expect(clonedNode.state.selectedColumns[0].column.name).toBe('id');
+      expect(clonedNode.state.selectedColumns[0].alias).toBe('identifier');
+    });
+
+    it('should preserve typeUserModified flag when cloning', () => {
+      const col = createColumnInfo('value', 'int');
+      col.type = 'DURATION';
+      col.typeUserModified = true;
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col],
+        },
+        createMockPrevNode(),
+      );
+
+      const clonedNode = node.clone() as ModifyColumnsNode;
+
+      expect(clonedNode.state.selectedColumns[0].type).toBe('DURATION');
+      expect(clonedNode.state.selectedColumns[0].typeUserModified).toBe(true);
+    });
+
+    it('should create independent copies (mutations do not affect original)', () => {
+      const col = createColumnInfo('id', 'int', {alias: 'original_alias'});
+      const node = createModifyColumnsNodeWithInput(
+        {
+          selectedColumns: [col],
+        },
+        createMockPrevNode(),
+      );
+
+      const clonedNode = node.clone() as ModifyColumnsNode;
+
+      // Modify the cloned node
+      clonedNode.state.selectedColumns[0].alias = 'modified_alias';
+      clonedNode.state.selectedColumns[0].checked = false;
+
+      // Original should be unchanged
+      expect(node.state.selectedColumns[0].alias).toBe('original_alias');
+      expect(node.state.selectedColumns[0].checked).toBe(true);
+    });
+  });
 });

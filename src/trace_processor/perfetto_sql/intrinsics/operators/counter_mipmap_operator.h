@@ -82,6 +82,8 @@ struct CounterMipmapOperator : sqlite::Module<CounterMipmapOperator> {
       int64_t last_ts;
     };
     std::vector<Result> counters;
+    std::vector<int64_t> queries;
+    std::vector<uint32_t> positions;
     uint32_t index;
   };
 

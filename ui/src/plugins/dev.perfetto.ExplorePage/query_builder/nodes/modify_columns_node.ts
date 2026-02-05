@@ -416,8 +416,18 @@ export class ModifyColumnsNode implements QueryNode {
   }
 
   clone(): QueryNode {
+    // Deep copy selectedColumns preserving exact state (including aliases)
+    // Do NOT use newColumnInfoList here - that transforms columns for downstream
+    // propagation (applying aliases as new names), but cloning needs exact copy.
+    const clonedColumns: ColumnInfo[] = this.state.selectedColumns.map(
+      (col) => ({
+        ...col,
+        column: {...col.column},
+      }),
+    );
+
     const stateCopy: ModifyColumnsState = {
-      selectedColumns: newColumnInfoList(this.state.selectedColumns),
+      selectedColumns: clonedColumns,
       filters: this.state.filters?.map((f) => ({...f})),
       filterOperator: this.state.filterOperator,
       onchange: this.state.onchange,

@@ -16,10 +16,7 @@ import("../../../../gn/perfetto.gni")
 
 # Exposed for Chromium only. May be removed in the future.
 source_set("export_json") {
-  sources = []
-  if (enable_perfetto_trace_processor_json) {
-    sources += [ "export_json.h" ]
-  }
+  sources = [ "export_json.h" ]
 }
 
 source_set("demangle") {

@@ -547,7 +547,6 @@ export class CreateSlicesNode implements QueryNode {
       endsTsColumn: this.state.endsTsColumn,
       startsDurColumn: this.state.startsDurColumn,
       endsDurColumn: this.state.endsDurColumn,
-      sqlModules: this.state.sqlModules,
     };
     return new CreateSlicesNode(stateCopy);
   }

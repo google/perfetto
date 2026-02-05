@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -42,9 +43,16 @@ class ClockTrackerTest : public ::testing::Test {
     context_.storage.reset(new TraceStorage());
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
-    context_.metadata_tracker.reset(
-        new MetadataTracker(context_.storage.get()));
-    context_.import_logs_tracker.reset(new ImportLogsTracker(&context_, 1));
+    context_.global_metadata_tracker.reset(
+        new GlobalMetadataTracker(context_.storage.get()));
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
+    context_.metadata_tracker.reset(new MetadataTracker(&context_));
+    context_.import_logs_tracker.reset(
+        new ImportLogsTracker(&context_, TraceId(1)));
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     ct_ = std::make_unique<ClockTracker>(
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
   }

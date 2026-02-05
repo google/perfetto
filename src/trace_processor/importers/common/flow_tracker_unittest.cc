@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -32,6 +33,8 @@ class FlowTrackerTest : public ::testing::Test {
  public:
   FlowTrackerTest() {
     context_.storage = std::make_unique<TraceStorage>();
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(context_.storage.get());
     context_.slice_translation_table =

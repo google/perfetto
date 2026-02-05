@@ -20,17 +20,16 @@
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <utility>
 
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_state.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
-#include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/core/dataframe/value_fetcher.h"
 
-namespace perfetto::trace_processor::interpreter {
+namespace perfetto::trace_processor::core::interpreter {
 
 // The Interpreter class implements a virtual machine that executes bytecode
 // instructions for dataframe query operations. It maintains an internal
@@ -51,12 +50,8 @@ class Interpreter {
 
   void Initialize(const BytecodeVector& bytecode,
                   uint32_t num_registers,
-                  uint32_t column_count,
-                  const Column* const* columns,
-                  const dataframe::Index* indexes,
                   const StringPool* string_pool) {
-    state_.Initialize(bytecode, num_registers, column_count, columns, indexes,
-                      string_pool);
+    state_.Initialize(bytecode, num_registers, string_pool);
   }
 
   // Not movable because it's a very large object and the move cost would be
@@ -72,23 +67,25 @@ class Interpreter {
   // Returns the value of the specified register if it contains the expected
   // type. Returns nullptr if the register holds a different type or is empty.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE const T* GetRegisterValue(reg::ReadHandle<T> reg) {
+  PERFETTO_ALWAYS_INLINE const T* GetRegisterValue(ReadHandle<T> reg) {
     return state_.MaybeReadFromRegister(reg);
   }
 
-  // Sets the value of the specified register for testing purposes.
+  // Sets the value of the specified register.
   //
-  // Makes it easier to test certain bytecode instructions which depend on
-  // the preexisting value of a register.
+  // For setting input values before execution or for testing purposes.
   template <typename T>
-  void SetRegisterValueForTesting(reg::WriteHandle<T> reg, T value) {
+  void SetRegisterValue(WriteHandle<T> reg, T value) {
     state_.WriteToRegister(reg, std::move(value));
+  }
+  PERFETTO_ALWAYS_INLINE void SetRegisterValue(HandleBase r, RegValue value) {
+    state_.WriteToRegister(r, std::move(value));
   }
 
  private:
   InterpreterState state_;
 };
 
-}  // namespace perfetto::trace_processor::interpreter
+}  // namespace perfetto::trace_processor::core::interpreter
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_H_
