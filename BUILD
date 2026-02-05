@@ -1942,6 +1942,7 @@ perfetto_filegroup(
 perfetto_cc_library(
     name = "src_trace_processor_containers_containers",
     srcs = [
+        "src/trace_processor/containers/rollup_tree.cc",
         "src/trace_processor/containers/string_pool.cc",
     ],
     hdrs = [
@@ -1954,6 +1955,7 @@ perfetto_cc_library(
         "src/trace_processor/containers/interval_intersector.h",
         "src/trace_processor/containers/interval_tree.h",
         "src/trace_processor/containers/null_term_string_view.h",
+        "src/trace_processor/containers/rollup_tree.h",
         "src/trace_processor/containers/string_pool.h",
     ],
     deps = [
@@ -3226,8 +3228,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.h",
-        "src/trace_processor/perfetto_sql/intrinsics/operators/pivot_operator.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/operators/pivot_operator.h",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/rollup_tree_operator.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/rollup_tree_operator.h",
         "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h",
         "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.cc",
