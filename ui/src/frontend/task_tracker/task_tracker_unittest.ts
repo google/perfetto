@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer} from './deferred';
-import {TaskTracker} from './task_tracker';
+import {defer} from '../../base/deferred';
+import {TaskTrackerImpl} from './task_tracker';
 
 describe('TaskTracker', () => {
-  let tracker: TaskTracker;
+  let tracker: TaskTrackerImpl;
 
   beforeEach(() => {
-    tracker = new TaskTracker();
+    tracker = new TaskTrackerImpl();
   });
 
   test('starts idle with no tasks', () => {

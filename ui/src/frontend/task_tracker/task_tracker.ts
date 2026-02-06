@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  TaskTracker as TaskTrackerInterface,
+  TaskInfo,
+} from '../../public/task_tracker';
+
 interface TaskEntry {
   readonly label: string;
   readonly startTime: number;
-}
-
-export interface TaskInfo {
-  readonly label: string;
-  readonly elapsed: number;
 }
 
 /**
@@ -29,7 +29,7 @@ export interface TaskInfo {
  * it simply watches promises. Any async work (scheduled tasks, fetches,
  * arbitrary promises) can opt in by calling track().
  */
-export class TaskTracker {
+export class TaskTrackerImpl implements TaskTrackerInterface {
   private readonly pending = new Set<TaskEntry>();
 
   /**
@@ -90,18 +90,4 @@ export class TaskTracker {
       elapsed: now - entry.startTime,
     }));
   }
-}
-
-// Singleton instance
-export const taskTracker = new TaskTracker();
-
-// Expose on globalThis for Playwright testing
-declare global {
-  interface Window {
-    __taskTracker: TaskTracker;
-  }
-}
-
-if (typeof window !== 'undefined') {
-  window.__taskTracker = taskTracker;
 }

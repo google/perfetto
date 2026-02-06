@@ -415,13 +415,16 @@ export class CpuFreqTrack implements TrackRenderer {
         resolution: bounds.resolution,
       },
       queryFn: async (signal) => {
-        const result = await this.fetchData(
-          tableResult.data!.freqTableName,
-          tableResult.data!.idleTableName,
-          bounds.start,
-          bounds.end,
-          bounds.resolution,
-          signal,
+        const result = await this.trace.taskTracker.track(
+          this.fetchData(
+            tableResult.data!.freqTableName,
+            tableResult.data!.idleTableName,
+            bounds.start,
+            bounds.end,
+            bounds.resolution,
+            signal,
+          ),
+          'Loading CPU freq',
         );
         this.trace.raf.scheduleCanvasRedraw();
         return result;

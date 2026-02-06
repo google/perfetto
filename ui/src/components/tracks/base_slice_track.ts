@@ -45,7 +45,6 @@ import {
 } from '../../base/query_slot';
 import {createVirtualTable} from '../../trace_processor/sql_utils';
 import {BufferedBounds} from './buffered_bounds';
-import {taskTracker} from '../../base/task_tracker';
 
 const BUCKETS_PER_PIXEL = 2;
 
@@ -480,7 +479,7 @@ export abstract class BaseSliceTrack<
         resolution: bounds.resolution,
       },
       queryFn: async (signal) => {
-        const result = await taskTracker.track(
+        const result = await this.trace.taskTracker.track(
           this.fetchSlices(
             table.tableName,
             queryStart,
@@ -488,7 +487,7 @@ export abstract class BaseSliceTrack<
             bounds.resolution,
             signal,
           ),
-          'loading slices',
+          'Loading slices',
         );
         this.trace.raf.scheduleFullRedraw();
         return {slices: result, refStart: queryStart};

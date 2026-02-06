@@ -15,7 +15,6 @@
 import {defer} from '../base/deferred';
 import {raf} from '../core/raf_scheduler';
 import {AppImpl} from '../core/app_impl';
-import {taskTracker as baseTaskTracker} from '../base/task_tracker';
 import {taskTracker as frontendTaskTracker} from './task_tracker';
 
 /**
@@ -75,7 +74,7 @@ export class IdleDetector {
       !AppImpl.instance.isLoadingTrace,
       reqsPending === 0,
       !raf.hasPendingRedraws,
-      !baseTaskTracker.hasPendingTasks(),
+      !AppImpl.instance.taskTracker.hasPendingTasks(),
       !frontendTaskTracker.hasPendingTasks(),
       !document.getAnimations().some((a) => {
         if (a.playState !== 'running') return false;

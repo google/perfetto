@@ -536,13 +536,16 @@ export class GroupSummaryTrack implements TrackRenderer {
         resolution: bounds.resolution,
       },
       queryFn: async (signal) => {
-        const result = await this.fetchData(
-          tableResult.data!.tableName,
-          tableResult.data!.maxLanes,
-          bounds.start,
-          bounds.end,
-          bounds.resolution,
-          signal,
+        const result = await this.trace.taskTracker.track(
+          this.fetchData(
+            tableResult.data!.tableName,
+            tableResult.data!.maxLanes,
+            bounds.start,
+            bounds.end,
+            bounds.resolution,
+            signal,
+          ),
+          'Loading group summary',
         );
         this.trace.raf.scheduleCanvasRedraw();
         return result;

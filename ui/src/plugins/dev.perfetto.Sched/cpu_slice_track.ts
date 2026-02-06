@@ -350,13 +350,16 @@ export class CpuSliceTrack implements TrackRenderer {
         resolution: bounds.resolution,
       },
       queryFn: async (signal) => {
-        const result = await this.fetchData(
-          table.tableName,
-          table.lastRowId,
-          bounds.start,
-          bounds.end,
-          bounds.resolution,
-          signal,
+        const result = await this.trace.taskTracker.track(
+          this.fetchData(
+            table.tableName,
+            table.lastRowId,
+            bounds.start,
+            bounds.end,
+            bounds.resolution,
+            signal,
+          ),
+          'Loading CPU slices',
         );
         this.trace.raf.scheduleCanvasRedraw();
         return result;

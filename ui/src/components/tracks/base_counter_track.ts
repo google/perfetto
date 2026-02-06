@@ -44,7 +44,6 @@ import {
 } from '../../base/query_slot';
 import {BufferedBounds} from './buffered_bounds';
 import {createVirtualTable} from '../../trace_processor/sql_utils';
-import {taskTracker} from '../../base/task_tracker';
 
 const BUCKETS_PER_PIXEL = 2;
 
@@ -830,7 +829,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         resolution: bounds.resolution,
       },
       queryFn: async (signal) => {
-        const result = await taskTracker.track(
+        const result = await this.trace.taskTracker.track(
           this.fetchCounterData(
             table.tableName,
             queryStart,
@@ -838,7 +837,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
             bounds.resolution,
             signal,
           ),
-          'loading counters',
+          'Loading counters',
         );
         this.trace.raf.scheduleFullRedraw();
         return {data: result, refStart: queryStart};

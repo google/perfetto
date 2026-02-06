@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {taskTracker, TaskInfo} from '../base/task_tracker';
-import {Tooltip} from './tooltip';
-import {Icon} from './icon';
+import {TaskInfo} from '../public/task_tracker';
+import {Tooltip} from '../widgets/tooltip';
+import {Icon} from '../widgets/icon';
+import {PopupPosition} from '../widgets/popup';
+import {App} from '../public/app';
 
 function formatElapsed(ms: number): string {
   if (ms < 1000) {
@@ -24,14 +26,19 @@ function formatElapsed(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+export interface TaskStatusAttrs {
+  readonly app: App;
+}
+
 /**
  * A small status indicator component that shows current task activity.
  *
  * - Shows task count with an icon.
  * - When tasks are in flight, shows a tooltip with task labels and elapsed times.
  */
-export class TaskStatus implements m.ClassComponent {
-  view(): m.Children {
+export class TaskStatus implements m.ClassComponent<TaskStatusAttrs> {
+  view({attrs}: m.Vnode<TaskStatusAttrs>): m.Children {
+    const taskTracker = attrs.app.taskTracker;
     const count = taskTracker.size;
     const tasks = taskTracker.tasks;
 
@@ -45,7 +52,11 @@ export class TaskStatus implements m.ClassComponent {
       return content;
     }
 
-    return m(Tooltip, {trigger: content}, this.renderTaskList(tasks));
+    return m(
+      Tooltip,
+      {trigger: content, position: PopupPosition.Top},
+      this.renderTaskList(tasks),
+    );
   }
 
   private renderTaskList(tasks: TaskInfo[]): m.Children {
