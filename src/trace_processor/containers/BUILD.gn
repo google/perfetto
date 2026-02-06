@@ -25,13 +25,9 @@ perfetto_component("containers") {
     "interval_intersector.h",
     "interval_tree.h",
     "null_term_string_view.h",
-    "rollup_tree.h",
     "string_pool.h",
   ]
-  sources = [
-    "rollup_tree.cc",
-    "string_pool.cc",
-  ]
+  sources = [ "string_pool.cc" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/protozero",
@@ -47,7 +43,6 @@ perfetto_unittest_source_set("unittests") {
     "interval_intersector_unittest.cc",
     "interval_tree_unittest.cc",
     "null_term_string_view_unittest.cc",
-    "rollup_tree_unittest.cc",
     "string_pool_unittest.cc",
   ]
   deps = [

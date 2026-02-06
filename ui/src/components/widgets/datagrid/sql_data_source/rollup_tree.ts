@@ -19,26 +19,25 @@ import {
 } from '../../../../base/query_slot';
 import {Engine} from '../../../../trace_processor/engine';
 import {NUM, Row} from '../../../../trace_processor/query_result';
-import {DisposableSqlEntity} from '../../../../trace_processor/sql_utils';
+import {
+  createPerfettoTable,
+  DisposableSqlEntity,
+} from '../../../../trace_processor/sql_utils';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../data_source';
-import {
-  buildAggregateExpr,
-  buildPivotQuery,
-  createPivotTable,
-} from '../rollup_tree_operator';
+import {AggregateFunction} from '../model';
 import {serializeFilters} from './group_by';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
 
-// Rollup tree datasource - uses __intrinsic_rollup_tree virtual table.
+// Rollup tree datasource - uses pure SQL with UNION ALL and window functions.
 export class SQLDataSourceRollupTree {
   private readonly rowCountSlot: QuerySlot<number>;
   private readonly rowsSlot: QuerySlot<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
   }>;
-  private readonly pivotTableSlot: QuerySlot<DisposableSqlEntity>;
+  private readonly rollupTableSlot: QuerySlot<DisposableSqlEntity>;
   private readonly summariesSlot: QuerySlot<Row>;
 
   constructor(
@@ -53,7 +52,7 @@ export class SQLDataSourceRollupTree {
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
-    this.pivotTableSlot = new QuerySlot<DisposableSqlEntity>(queue);
+    this.rollupTableSlot = new QuerySlot<DisposableSqlEntity>(queue);
     this.summariesSlot = new QuerySlot<Row>(queue);
   }
 
@@ -68,15 +67,14 @@ export class SQLDataSourceRollupTree {
       sort,
     } = model;
 
-    const pivotTableResult = this.usePivotTable(model);
-    if (pivotTableResult.isPending || !pivotTableResult.data) {
+    const rollupTableResult = this.useRollupTable(model);
+    if (rollupTableResult.isPending || !rollupTableResult.data) {
       return {isPending: true};
     }
 
-    const pivotTableName = pivotTableResult.data.name;
+    const rollupTableName = rollupTableResult.data.name;
 
     // Build column alias mappings
-    // Operator outputs __group_N and __agg_N, we map to user-facing aliases
     const columnAliases: Record<string, string> = {};
     const aliasToColumn: Record<string, string> = {};
     for (let i = 0; i < groupBy.length; i++) {
@@ -88,27 +86,16 @@ export class SQLDataSourceRollupTree {
       aliasToColumn[aggregates[i].alias] = `__agg_${i}`;
     }
 
-    // Build sort string for the rollup tree operator.
-    // Aggregate columns use __agg_N format, groupBy columns use __group_N
-    // to sort that level by hierarchy value (other levels sort by __agg_0).
-    const sortStr = sort
-      ? (() => {
-          const column = aliasToColumn[sort.alias];
-          if (column?.startsWith('__agg_')) {
-            return `${column} ${sort.direction}`;
-          } else {
-            // GroupBy column - find its index and use __group_N format
-            const groupIndex = groupBy.findIndex(
-              (col) => col.alias === sort.alias,
-            );
-            if (groupIndex >= 0) {
-              return `__group_${groupIndex} ${sort.direction}`;
-            }
-            // Fallback to first aggregate
-            return `__agg_0 ${sort.direction}`;
-          }
-        })()
-      : undefined;
+    // Determine sort column and direction
+    let sortColumn = '__agg_0';
+    let sortDirection: 'ASC' | 'DESC' = 'DESC';
+    if (sort) {
+      const column = aliasToColumn[sort.alias];
+      if (column) {
+        sortColumn = column;
+      }
+      sortDirection = sort.direction;
+    }
 
     const pivotKey = {
       groupBy,
@@ -121,12 +108,17 @@ export class SQLDataSourceRollupTree {
         ...pivotKey,
         expandedIds: expandedIds ? Array.from(expandedIds) : undefined,
         collapsedIds: collapsedIds ? Array.from(collapsedIds) : undefined,
+        sortColumn,
+        sortDirection,
       },
       retainOn: ['expandedIds', 'collapsedIds'],
       queryFn: async () => {
-        const query = buildPivotQuery(pivotTableName, {
+        const query = buildTreeQuery(rollupTableName, {
           expandedIds,
           collapsedIds,
+          sortColumn,
+          sortDirection,
+          numGroupColumns: groupBy.length,
           minDepth: 1,
           countOnly: true,
         });
@@ -141,14 +133,17 @@ export class SQLDataSourceRollupTree {
         expandedIds: expandedIds ? Array.from(expandedIds) : undefined,
         collapsedIds: collapsedIds ? Array.from(collapsedIds) : undefined,
         pagination,
-        sortStr,
+        sortColumn,
+        sortDirection,
       },
       retainOn: ['pagination', 'expandedIds', 'collapsedIds'],
       queryFn: async () => {
-        const query = buildPivotQuery(pivotTableName, {
+        const query = buildTreeQuery(rollupTableName, {
           expandedIds,
           collapsedIds,
-          sort: sortStr,
+          sortColumn,
+          sortDirection,
+          numGroupColumns: groupBy.length,
           offset: pagination?.offset,
           limit: pagination?.limit,
           minDepth: 1,
@@ -173,12 +168,12 @@ export class SQLDataSourceRollupTree {
   getSummaries(model: PivotModel): QueryResult<Row> {
     const {groupBy, aggregates, filters = []} = model;
 
-    const pivotTableResult = this.usePivotTable(model);
-    if (pivotTableResult.isPending || !pivotTableResult.data) {
+    const rollupTableResult = this.useRollupTable(model);
+    if (rollupTableResult.isPending || !rollupTableResult.data) {
       return {isPending: true, data: undefined, isFresh: false};
     }
 
-    const pivotTableName = pivotTableResult.data.name;
+    const rollupTableName = rollupTableResult.data.name;
 
     const columnAliases: Record<string, string> = {};
     for (let i = 0; i < groupBy.length; i++) {
@@ -195,8 +190,9 @@ export class SQLDataSourceRollupTree {
         filters: serializeFilters(filters),
       },
       queryFn: async () => {
-        const query = buildPivotQuery(pivotTableName, {
+        const query = buildTreeQuery(rollupTableName, {
           maxDepth: 0,
+          numGroupColumns: groupBy.length,
           columnAliases,
         });
         const result = await runQueryForQueryTable(query, this.engine);
@@ -205,7 +201,7 @@ export class SQLDataSourceRollupTree {
     });
   }
 
-  private usePivotTable(model: PivotModel): QueryResult<DisposableSqlEntity> {
+  private useRollupTable(model: PivotModel): QueryResult<DisposableSqlEntity> {
     const {groupBy, aggregates, filters = []} = model;
 
     const sourceQuery = this.buildSourceQuery(filters);
@@ -218,18 +214,18 @@ export class SQLDataSourceRollupTree {
       }
     });
 
-    return this.pivotTableSlot.use({
+    return this.rollupTableSlot.use({
       key: {
         sourceQuery,
         groupByColumns,
         aggregateExprs,
       },
       queryFn: async () => {
-        return await createPivotTable(this.engine, {
+        return await createRollupTable(this.engine, {
           sourceTable: sourceQuery,
           groupByColumns,
           aggregateExprs,
-          tableName: `pivot_${this.uuid}`,
+          tableName: `rollup_${this.uuid}`,
         });
       },
     });
@@ -265,7 +261,367 @@ export class SQLDataSourceRollupTree {
   dispose(): void {
     this.rowCountSlot.dispose();
     this.rowsSlot.dispose();
-    this.pivotTableSlot.dispose();
+    this.rollupTableSlot.dispose();
     this.summariesSlot.dispose();
   }
+}
+
+/**
+ * Builds an aggregate expression string from function and field.
+ */
+function buildAggregateExpr(func: AggregateFunction, field: string): string {
+  if (func === 'ANY') {
+    return `MIN(${field})`;
+  }
+  return `${func}(${field})`;
+}
+
+/**
+ * Configuration for creating a rollup table.
+ */
+interface RollupTableConfig {
+  sourceTable: string;
+  groupByColumns: readonly string[];
+  aggregateExprs: readonly string[];
+  tableName?: string;
+}
+
+/**
+ * Creates a rollup table using UNION ALL queries.
+ *
+ * The table contains all rollup levels with:
+ * - __id: unique row identifier
+ * - __parent_id: parent row id (NULL for root)
+ * - __depth: hierarchy depth (0 for root, 1+ for groups)
+ * - __child_count: number of direct children
+ * - __group_0, __group_1, ...: hierarchy column values
+ * - __agg_0, __agg_1, ...: aggregate values
+ */
+async function createRollupTable(
+  engine: Engine,
+  config: RollupTableConfig,
+): Promise<DisposableSqlEntity> {
+  const {
+    sourceTable,
+    groupByColumns,
+    aggregateExprs,
+    tableName = '__rollup_tree_default__',
+  } = config;
+
+  const numHier = groupByColumns.length;
+  const numAggs = aggregateExprs.length;
+
+  // Helper to build path key expression from group columns
+  const buildPathKey = (upToLevel: number): string => {
+    if (upToLevel < 0) return "''";
+    const parts: string[] = [];
+    for (let i = 0; i <= upToLevel; i++) {
+      parts.push(`COALESCE(CAST(${groupByColumns[i]} AS TEXT), '__NULL__')`);
+    }
+    return parts.join(` || '|' || `);
+  };
+
+  // Build UNION ALL query for all rollup levels
+  // Each level includes both __path_key and __parent_path_key
+  let unionQuery = '';
+
+  // Grand total query (depth 0): all group columns are NULL
+  unionQuery += `SELECT 0 AS __depth`;
+  unionQuery += `, '' AS __path_key`;
+  unionQuery += `, NULL AS __parent_path_key`; // Root has no parent
+  for (let i = 0; i < numHier; i++) {
+    unionQuery += `, NULL AS __group_${i}`;
+  }
+  for (let i = 0; i < numAggs; i++) {
+    unionQuery += `, ${aggregateExprs[i]} AS __agg_${i}`;
+  }
+  unionQuery += ` FROM ${sourceTable}`;
+
+  // One query per hierarchy level
+  for (let level = 0; level < numHier; level++) {
+    unionQuery += ` UNION ALL SELECT ${level + 1} AS __depth`;
+
+    // Path key: concatenation of group values up to this level
+    unionQuery += `, ${buildPathKey(level)} AS __path_key`;
+
+    // Parent path key: concatenation of group values up to level-1
+    // For level 0 (depth 1), parent is root with empty path
+    unionQuery += `, ${level === 0 ? "''" : buildPathKey(level - 1)} AS __parent_path_key`;
+
+    // Group columns: real values up to this level, NULL for rest
+    for (let i = 0; i < numHier; i++) {
+      if (i <= level) {
+        unionQuery += `, ${groupByColumns[i]} AS __group_${i}`;
+      } else {
+        unionQuery += `, NULL AS __group_${i}`;
+      }
+    }
+
+    // Aggregates
+    for (let i = 0; i < numAggs; i++) {
+      unionQuery += `, ${aggregateExprs[i]} AS __agg_${i}`;
+    }
+
+    unionQuery += ` FROM ${sourceTable} GROUP BY `;
+    for (let i = 0; i <= level; i++) {
+      if (i > 0) {
+        unionQuery += ', ';
+      }
+      unionQuery += groupByColumns[i];
+    }
+  }
+
+  // Build the complete table creation query with IDs and parent relationships
+  const groupCols = Array.from({length: numHier}, (_, i) => `__group_${i}`);
+  const aggCols = Array.from({length: numAggs}, (_, i) => `__agg_${i}`);
+
+  // Helper to prefix columns with table alias
+  const prefixCols = (cols: string[], prefix: string) =>
+    cols.map((col) => `${prefix}.${col}`).join(', ');
+
+  // Build column selections - need at least one column
+  const groupColsSelect =
+    groupCols.length > 0 ? prefixCols(groupCols, 'c') + ',' : '';
+  const aggColsSelect = prefixCols(aggCols, 'c'); // Always have at least one agg
+
+  const groupColsSelectW =
+    groupCols.length > 0 ? prefixCols(groupCols, 'w') + ',' : '';
+  const aggColsSelectW = prefixCols(aggCols, 'w');
+
+  // Drop existing table if it exists (in case of stale data)
+  await engine.query(`DROP TABLE IF EXISTS ${tableName}`);
+
+  const createQuery = `
+    WITH rollup_raw AS (
+      ${unionQuery}
+    ),
+    -- Assign unique IDs
+    with_ids AS (
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY __depth, __path_key) AS __id,
+        *
+      FROM rollup_raw
+    ),
+    -- Join to find parent IDs
+    with_parent_id AS (
+      SELECT
+        c.__id,
+        CASE
+          WHEN c.__depth = 0 THEN NULL
+          ELSE p.__id
+        END AS __parent_id,
+        c.__depth,
+        c.__path_key,
+        ${groupColsSelect}
+        ${aggColsSelect}
+      FROM with_ids c
+      LEFT JOIN with_ids p ON c.__parent_path_key = p.__path_key AND p.__depth = c.__depth - 1
+    ),
+    -- Compute child count
+    with_child_count AS (
+      SELECT
+        w.__id,
+        w.__parent_id,
+        w.__depth,
+        w.__path_key,
+        ${groupColsSelectW}
+        ${aggColsSelectW},
+        COALESCE(cc.cnt, 0) AS __child_count
+      FROM with_parent_id w
+      LEFT JOIN (
+        SELECT __parent_id, COUNT(*) as cnt
+        FROM with_parent_id
+        WHERE __parent_id IS NOT NULL
+        GROUP BY __parent_id
+      ) cc ON w.__id = cc.__parent_id
+    )
+    SELECT * FROM with_child_count
+  `;
+
+  await engine.query(createQuery);
+
+  return await createPerfettoTable({
+    engine,
+    name: tableName,
+    as: createQuery,
+  });
+}
+
+/**
+ * Options for querying the rollup tree.
+ */
+interface TreeQueryOptions {
+  expandedIds?: ReadonlySet<bigint>;
+  collapsedIds?: ReadonlySet<bigint>;
+  sortColumn?: string;
+  sortDirection?: 'ASC' | 'DESC';
+  numGroupColumns: number;
+  offset?: number;
+  limit?: number;
+  minDepth?: number;
+  maxDepth?: number;
+  columnAliases?: Record<string, string>;
+  countOnly?: boolean;
+}
+
+// Metadata columns always included in output
+const METADATA_COLUMNS = ['__id', '__parent_id', '__depth', '__child_count'];
+
+/**
+ * Builds a query to traverse the rollup tree in sorted hierarchical order.
+ *
+ * Uses a recursive CTE to:
+ * 1. Start from visible root nodes
+ * 2. Recursively traverse to children of expanded nodes
+ * 3. Build a sort path that maintains hierarchical ordering
+ */
+function buildTreeQuery(
+  tableName: string,
+  options: TreeQueryOptions = {numGroupColumns: 0},
+): string {
+  const {
+    expandedIds,
+    collapsedIds,
+    sortColumn = '__agg_0',
+    sortDirection = 'DESC',
+    offset,
+    limit,
+    minDepth = 0,
+    maxDepth,
+    columnAliases,
+    countOnly,
+  } = options;
+
+  // Determine expansion mode
+  const useDenylist = collapsedIds !== undefined;
+  const expansionIds = useDenylist
+    ? collapsedIds
+    : expandedIds ?? new Set<bigint>();
+
+  // Build the expansion check expression
+  let isExpandedExpr: string;
+  if (useDenylist) {
+    // Denylist: expanded if NOT in the collapsed set
+    if (expansionIds.size === 0) {
+      isExpandedExpr = '1'; // All expanded
+    } else {
+      const ids = Array.from(expansionIds).join(',');
+      isExpandedExpr = `(__id NOT IN (${ids}))`;
+    }
+  } else {
+    // Allowlist: expanded only if in the expanded set
+    if (expansionIds.size === 0) {
+      isExpandedExpr = '0'; // None expanded
+    } else {
+      const ids = Array.from(expansionIds).join(',');
+      isExpandedExpr = `(__id IN (${ids}))`;
+    }
+  }
+
+  // The recursive CTE for hierarchical traversal with sorting
+  const query = `
+    WITH RECURSIVE
+    -- First, compute local sort ranks within siblings
+    ranked AS (
+      SELECT
+        *,
+        ROW_NUMBER() OVER (
+          PARTITION BY __parent_id
+          ORDER BY ${sortColumn} ${sortDirection}
+        ) AS __local_rank
+      FROM ${tableName}
+    ),
+    -- Recursive traversal building sort path
+    tree_traversal AS (
+      -- Base case: start from root (depth 0) or its children (depth 1)
+      SELECT
+        r.*,
+        PRINTF('%010d', r.__local_rank) AS __sort_path,
+        ${isExpandedExpr} AS __is_expanded
+      FROM ranked r
+      WHERE r.__depth = ${minDepth}
+      ${maxDepth !== undefined ? `AND r.__depth <= ${maxDepth}` : ''}
+
+      UNION ALL
+
+      -- Recursive case: children of expanded nodes
+      SELECT
+        c.*,
+        t.__sort_path || '/' || PRINTF('%010d', c.__local_rank) AS __sort_path,
+        ${isExpandedExpr.replace(/__id/g, 'c.__id')} AS __is_expanded
+      FROM ranked c
+      JOIN tree_traversal t ON c.__parent_id = t.__id
+      WHERE t.__is_expanded = 1
+        AND c.__depth >= ${minDepth}
+        ${maxDepth !== undefined ? `AND c.__depth <= ${maxDepth}` : ''}
+    )
+    SELECT ${buildSelectClause(columnAliases)}
+    FROM tree_traversal
+    ORDER BY __sort_path
+    ${limit !== undefined ? `LIMIT ${limit}` : ''}
+    ${offset !== undefined ? `OFFSET ${offset}` : ''}
+  `;
+
+  if (countOnly) {
+    // Wrap to get count
+    return `
+      WITH RECURSIVE
+      ranked AS (
+        SELECT
+          *,
+          ROW_NUMBER() OVER (
+            PARTITION BY __parent_id
+            ORDER BY ${sortColumn} ${sortDirection}
+          ) AS __local_rank
+        FROM ${tableName}
+      ),
+      tree_traversal AS (
+        SELECT
+          r.*,
+          PRINTF('%010d', r.__local_rank) AS __sort_path,
+          ${isExpandedExpr} AS __is_expanded
+        FROM ranked r
+        WHERE r.__depth = ${minDepth}
+        ${maxDepth !== undefined ? `AND r.__depth <= ${maxDepth}` : ''}
+
+        UNION ALL
+
+        SELECT
+          c.*,
+          t.__sort_path || '/' || PRINTF('%010d', c.__local_rank) AS __sort_path,
+          ${isExpandedExpr.replace(/__id/g, 'c.__id')} AS __is_expanded
+        FROM ranked c
+        JOIN tree_traversal t ON c.__parent_id = t.__id
+        WHERE t.__is_expanded = 1
+          AND c.__depth >= ${minDepth}
+          ${maxDepth !== undefined ? `AND c.__depth <= ${maxDepth}` : ''}
+      )
+      SELECT COUNT(*) as count FROM tree_traversal
+    `;
+  }
+
+  return query;
+}
+
+/**
+ * Builds the SELECT clause with optional column aliasing.
+ */
+function buildSelectClause(aliases?: Record<string, string>): string {
+  if (!aliases) {
+    return '*';
+  }
+
+  const clauses: string[] = [];
+
+  // Add aliased columns
+  for (const [original, alias] of Object.entries(aliases)) {
+    clauses.push(`${original} AS ${alias}`);
+  }
+
+  // Always include metadata columns
+  for (const col of METADATA_COLUMNS) {
+    clauses.push(col);
+  }
+
+  return clauses.join(', ');
 }
