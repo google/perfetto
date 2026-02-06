@@ -6031,4 +6031,148 @@ TEST(StructuredQueryGeneratorTest, InnerQueryIdWithTableSource) {
   EXPECT_THAT(refs[0].sql, testing::HasSubstr("slice"));
 }
 
+// Test that inline_shared_queries option inlines shared queries as CTEs.
+// When inline_shared_queries=true, the shared query should be included
+// directly in the generated SQL as a CTE, not tracked in referenced_queries().
+TEST(StructuredQueryGeneratorTest, InlineSharedQueriesOption) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 42 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  // Generate with inline_shared_queries=true
+  auto ret = gen.Generate(main_proto.data(), main_proto.size(),
+                          /*inline_shared_queries=*/true);
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // The shared query should be inlined as a CTE in the SQL
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_shared_query AS ("));
+  EXPECT_THAT(res, testing::HasSubstr("SELECT 42 as value"));
+
+  // With inline_shared_queries=true, referenced_queries should be empty
+  // because the shared queries are inlined directly into the SQL.
+  auto refs = gen.referenced_queries();
+  EXPECT_EQ(refs.size(), 0u);
+}
+
+// Test that inline_shared_queries=false (default) keeps the old behavior.
+TEST(StructuredQueryGeneratorTest, InlineSharedQueriesDefaultBehavior) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 42 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  // Generate with default options (inline_shared_queries=false)
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // The shared query should be referenced but NOT inlined as a CTE
+  EXPECT_THAT(res, testing::HasSubstr("FROM shared_sq_shared_query"));
+
+  // The shared query should be tracked in referenced_queries
+  auto refs = gen.referenced_queries();
+  ASSERT_EQ(refs.size(), 1u);
+  EXPECT_EQ(refs[0].id, "shared_query");
+}
+
+// Test that when the same shared query is referenced multiple times with
+// inline_shared_queries=true, only one CTE is created (no duplicates with
+// collision suffixes like "shared_sq_X_1").
+TEST(StructuredQueryGeneratorTest, InlineSharedQueriesNoDuplicateCTEs) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query "base_data"
+  auto base_proto = ToProto(R"(
+    id: "base_data"
+    sql {
+      sql: "SELECT 1 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(base_proto.data(), base_proto.size()));
+
+  // Create a union query where BOTH branches reference the same shared query.
+  // This creates a scenario where base_data is encountered twice during
+  // generation - once for each branch of the union.
+  auto main_proto = ToProto(R"(
+    experimental_union {
+      queries {
+        inner_query_id: "base_data"
+        filters {
+          column_name: "value"
+          op: GREATER_THAN
+          int64_rhs: 0
+        }
+      }
+      queries {
+        inner_query_id: "base_data"
+        filters {
+          column_name: "value"
+          op: LESS_THAN
+          int64_rhs: 100
+        }
+      }
+      use_union_all: true
+    }
+  )");
+
+  // Generate with inline_shared_queries=true
+  auto ret = gen.Generate(main_proto.data(), main_proto.size(),
+                          /*inline_shared_queries=*/true);
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Count occurrences of "shared_sq_base_data" in CTE definitions.
+  // There should be exactly 1 CTE for the shared query, not duplicates.
+  size_t count = 0;
+  size_t pos = 0;
+  // Match "shared_sq_base_data AS" or "shared_sq_base_data_N AS" patterns
+  while ((pos = res.find("shared_sq_base_data", pos)) != std::string::npos) {
+    // Check if this is a CTE definition (followed by " AS" or "_N AS")
+    size_t end_pos = pos + strlen("shared_sq_base_data");
+    // Skip any suffix like "_0", "_1", etc.
+    while (end_pos < res.size() &&
+           (res[end_pos] == '_' || std::isdigit(res[end_pos]))) {
+      end_pos++;
+    }
+    // Check if followed by " AS"
+    if (res.substr(end_pos, 4) == " AS ") {
+      count++;
+    }
+    pos = end_pos;
+  }
+  EXPECT_EQ(count, 1u) << "Expected exactly one CTE for base_data, but found "
+                       << count << ". Generated SQL:\n"
+                       << res;
+
+  // Verify there's no collision suffix version like "shared_sq_base_data_0"
+  // or "shared_sq_base_data_1" - these indicate duplicates were created.
+  EXPECT_THAT(res, testing::Not(testing::HasSubstr("shared_sq_base_data_0")))
+      << "Found collision suffix '_0', indicating duplicate CTE. SQL:\n"
+      << res;
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

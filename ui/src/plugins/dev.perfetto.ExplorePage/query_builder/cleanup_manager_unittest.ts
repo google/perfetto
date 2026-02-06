@@ -42,234 +42,72 @@ describe('CleanupManager', () => {
 
     // Create a mock QueryExecutionService
     mockQueryExecutionService = {
-      dropMaterialization: jest.fn().mockResolvedValue(undefined),
       getEngine: jest.fn(),
       materializeNode: jest.fn(),
-      isMaterialized: jest.fn(),
-      getMaterializedTableName: jest.fn(),
-      deleteNodeHash: jest.fn(),
+      dropAllMaterializations: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<QueryExecutionService>;
 
     cleanupManager = new CleanupManager(mockQueryExecutionService);
   });
 
-  function createTestNode(
-    id: string,
-    materialized: boolean = false,
-  ): QueryNode {
+  function createTestNode(id: string): QueryNode {
     const node = new TableSourceNode({
       trace: mockTrace,
       sqlModules: mockSqlModules,
     }) as QueryNode;
-    node.state.materialized = materialized;
-    if (materialized) {
-      node.state.materializationTableName = `_exp_materialized_${id}`;
-    }
+    // Use Object.defineProperty to set nodeId since it's readonly
+    Object.defineProperty(node, 'nodeId', {value: id, writable: false});
     return node;
   }
 
   describe('cleanupNode', () => {
-    it('should call dropMaterialization for materialized node', async () => {
-      const node = createTestNode('1', true);
-
-      await cleanupManager.cleanupNode(node);
-
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledWith(node);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledTimes(1);
-      expect(mockQueryExecutionService.deleteNodeHash).toHaveBeenCalledWith(
-        node,
-      );
-    });
-
-    it('should not call dropMaterialization for non-materialized node', async () => {
-      const node = createTestNode('1', false);
-
-      await cleanupManager.cleanupNode(node);
-
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).not.toHaveBeenCalled();
-      expect(mockQueryExecutionService.deleteNodeHash).toHaveBeenCalledWith(
-        node,
-      );
-    });
-
-    it('should handle errors gracefully', async () => {
-      const node = createTestNode('1', true);
-      const error = new Error('Drop failed');
-      mockQueryExecutionService.dropMaterialization.mockRejectedValueOnce(
-        error,
-      );
+    it('should handle errors gracefully in dispose', () => {
+      const node = createTestNode('1') as QueryNode & {dispose: () => void};
+      node.dispose = jest.fn().mockImplementation(() => {
+        throw new Error('Dispose failed');
+      });
 
       // Should not throw
-      await expect(cleanupManager.cleanupNode(node)).resolves.not.toThrow();
-
-      expect(mockQueryExecutionService.dropMaterialization).toHaveBeenCalled();
-    });
-
-    it('should not call dropMaterialization when materialized is undefined', async () => {
-      const node = createTestNode('1', false);
-      node.state.materialized = undefined;
-
-      await cleanupManager.cleanupNode(node);
-
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).not.toHaveBeenCalled();
+      expect(() => cleanupManager.cleanupNode(node)).not.toThrow();
     });
   });
 
   describe('cleanupNodes', () => {
-    it('should cleanup multiple materialized nodes in parallel', async () => {
-      const node1 = createTestNode('1', true);
-      const node2 = createTestNode('2', true);
-      const node3 = createTestNode('3', true);
-
-      await cleanupManager.cleanupNodes([node1, node2, node3]);
-
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledTimes(3);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledWith(node1);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledWith(node2);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledWith(node3);
-      expect(mockQueryExecutionService.deleteNodeHash).toHaveBeenCalledTimes(3);
-    });
-
-    it('should only cleanup materialized nodes', async () => {
-      const node1 = createTestNode('1', true);
-      const node2 = createTestNode('2', false);
-      const node3 = createTestNode('3', true);
-
-      await cleanupManager.cleanupNodes([node1, node2, node3]);
-
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledTimes(2);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledWith(node1);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).not.toHaveBeenCalledWith(node2);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledWith(node3);
-    });
-
-    it('should handle empty array', async () => {
-      await cleanupManager.cleanupNodes([]);
-
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).not.toHaveBeenCalled();
-    });
-
-    it('should handle all non-materialized nodes', async () => {
-      const node1 = createTestNode('1', false);
-      const node2 = createTestNode('2', false);
-
-      await cleanupManager.cleanupNodes([node1, node2]);
-
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).not.toHaveBeenCalled();
-    });
-
-    it('should continue cleanup even if some fail', async () => {
-      const node1 = createTestNode('1', true);
-      const node2 = createTestNode('2', true);
-      const node3 = createTestNode('3', true);
-
-      // Make node2 cleanup fail
-      mockQueryExecutionService.dropMaterialization.mockImplementation(
-        (node) => {
-          if (node === node2) {
-            return Promise.reject(new Error('Drop failed'));
-          }
-          return Promise.resolve();
-        },
-      );
+    it('should cleanup multiple nodes', () => {
+      const node1 = createTestNode('1');
+      const node2 = createTestNode('2');
+      const node3 = createTestNode('3');
 
       // Should not throw
-      await expect(
+      expect(() =>
         cleanupManager.cleanupNodes([node1, node2, node3]),
-      ).resolves.not.toThrow();
-
-      // All three should have been attempted
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledTimes(3);
+      ).not.toThrow();
     });
 
-    it('should handle all cleanups failing', async () => {
-      const node1 = createTestNode('1', true);
-      const node2 = createTestNode('2', true);
-
-      mockQueryExecutionService.dropMaterialization.mockRejectedValue(
-        new Error('Drop failed'),
-      );
-
-      // Should not throw
-      await expect(
-        cleanupManager.cleanupNodes([node1, node2]),
-      ).resolves.not.toThrow();
-
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledTimes(2);
+    it('should handle empty array', () => {
+      expect(() => cleanupManager.cleanupNodes([])).not.toThrow();
     });
   });
 
   describe('cleanupAll', () => {
-    it('should cleanup all nodes', async () => {
-      const node1 = createTestNode('1', true);
-      const node2 = createTestNode('2', false);
-      const node3 = createTestNode('3', true);
+    it('should cleanup all nodes and drop all materializations', async () => {
+      const node1 = createTestNode('1');
+      const node2 = createTestNode('2');
+      const node3 = createTestNode('3');
 
       await cleanupManager.cleanupAll([node1, node2, node3]);
 
       expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledTimes(2);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledWith(node1);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledWith(node3);
+        mockQueryExecutionService.dropAllMaterializations,
+      ).toHaveBeenCalledTimes(1);
     });
 
     it('should handle empty array', async () => {
       await cleanupManager.cleanupAll([]);
 
       expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).not.toHaveBeenCalled();
-    });
-
-    it('should be equivalent to cleanupNodes', async () => {
-      const nodes = [
-        createTestNode('1', true),
-        createTestNode('2', false),
-        createTestNode('3', true),
-      ];
-
-      const cleanupNodesSpy = jest.spyOn(cleanupManager, 'cleanupNodes');
-
-      await cleanupManager.cleanupAll(nodes);
-
-      expect(cleanupNodesSpy).toHaveBeenCalledWith(nodes);
+        mockQueryExecutionService.dropAllMaterializations,
+      ).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -277,85 +115,46 @@ describe('CleanupManager', () => {
     function createDisposableNode(
       id: string,
     ): QueryNode & {dispose: () => void} {
-      const baseNode = createTestNode(id, false);
+      const baseNode = createTestNode(id);
       const disposable = baseNode as QueryNode & {dispose: () => void};
       disposable.dispose = jest.fn();
       return disposable;
     }
 
-    it('should call dispose on disposable nodes', async () => {
+    it('should call dispose on disposable nodes', () => {
       const disposableNode = createDisposableNode('1');
 
-      await cleanupManager.cleanupNode(disposableNode);
+      cleanupManager.cleanupNode(disposableNode);
 
       expect(disposableNode.dispose).toHaveBeenCalledTimes(1);
     });
 
-    it('should not throw if node is not disposable', async () => {
-      const normalNode = createTestNode('1', false);
+    it('should not throw if node is not disposable', () => {
+      const normalNode = createTestNode('1');
 
-      await expect(
-        cleanupManager.cleanupNode(normalNode),
-      ).resolves.not.toThrow();
+      expect(() => cleanupManager.cleanupNode(normalNode)).not.toThrow();
     });
 
-    it('should call dispose before SQL cleanup', async () => {
+    it('should continue cleanup even if dispose throws', () => {
       const disposableNode = createDisposableNode('1');
-      disposableNode.state.materialized = true;
-      disposableNode.state.materializationTableName = '_exp_materialized_1';
-
-      const callOrder: string[] = [];
-      (disposableNode.dispose as jest.Mock).mockImplementation(() => {
-        callOrder.push('dispose');
-      });
-      mockQueryExecutionService.dropMaterialization.mockImplementation(() => {
-        callOrder.push('dropMaterialization');
-        return Promise.resolve();
-      });
-
-      await cleanupManager.cleanupNode(disposableNode);
-
-      expect(callOrder).toEqual(['dispose', 'dropMaterialization']);
-    });
-
-    it('should continue cleanup even if dispose throws', async () => {
-      const disposableNode = createDisposableNode('1');
-      disposableNode.state.materialized = true;
       (disposableNode.dispose as jest.Mock).mockImplementation(() => {
         throw new Error('Dispose failed');
       });
 
-      await expect(
-        cleanupManager.cleanupNode(disposableNode),
-      ).resolves.not.toThrow();
+      expect(() => cleanupManager.cleanupNode(disposableNode)).not.toThrow();
 
       expect(disposableNode.dispose).toHaveBeenCalled();
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).toHaveBeenCalledWith(disposableNode);
     });
 
-    it('should handle multiple disposable nodes', async () => {
+    it('should handle multiple disposable nodes', () => {
       const node1 = createDisposableNode('1');
       const node2 = createDisposableNode('2');
-      const node3 = createTestNode('3', false); // Not disposable
+      const node3 = createTestNode('3'); // Not disposable
 
-      await cleanupManager.cleanupNodes([node1, node2, node3]);
+      cleanupManager.cleanupNodes([node1, node2, node3]);
 
       expect(node1.dispose).toHaveBeenCalledTimes(1);
       expect(node2.dispose).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle dispose on node without materialization', async () => {
-      const disposableNode = createDisposableNode('1');
-      disposableNode.state.materialized = false;
-
-      await cleanupManager.cleanupNode(disposableNode);
-
-      expect(disposableNode.dispose).toHaveBeenCalledTimes(1);
-      expect(
-        mockQueryExecutionService.dropMaterialization,
-      ).not.toHaveBeenCalled();
     });
   });
 });
