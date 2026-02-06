@@ -69,9 +69,8 @@ import {SliceTrackDetailsPanel} from './slice_track_details_panel';
 export const SLICE_FLAGS_INCOMPLETE = 1;
 export const SLICE_FLAGS_INSTANT = 2;
 
-const BUCKETS_PER_PIXEL = 2;
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
-const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
+const SLICE_MIN_WIDTH_PX = 1;
 const SLICE_MIN_WIDTH_FADED_PX = 0.1;
 const CHEVRON_WIDTH_PX = 10;
 const INCOMPLETE_SLICE_WIDTH_PX = 20;
@@ -103,16 +102,11 @@ export interface IncompleteSlice extends SliceBase {
 
 // SliceWithRow includes the raw row data for callbacks and tooltips
 export type SliceWithRow<T> = Slice & {readonly row: T};
-export type IncompleteSliceWithRow<T> = IncompleteSlice & {readonly row: T};
-
-// Union type for any slice (complete or incomplete)
-export type AnySliceWithRow<T> = SliceWithRow<T> | IncompleteSliceWithRow<T>;
-
 interface DataFrame<T> {
   readonly start: time;
   readonly end: time;
   readonly slices: readonly SliceWithRow<T>[];
-  readonly incompleteSlices: readonly IncompleteSliceWithRow<T>[];
+  readonly maxDataDepth: number;
 }
 
 export interface SliceLayout {
@@ -255,7 +249,7 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   /**
    * Override the tooltip content for each event.
    */
-  tooltip?(slice: AnySliceWithRow<T>): m.Children;
+  tooltip?(slice: SliceWithRow<T>): m.Children;
 
   /**
    * Customize the details panel for events on this track.
@@ -281,22 +275,22 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
    * Called once per render cycle before drawing. Use this to batch-update
    * slice properties (colorVariant, pattern, etc.) based on global state.
    */
-  onUpdatedSlices?(slices: readonly AnySliceWithRow<T>[]): void;
+  onUpdatedSlices?(slices: readonly SliceWithRow<T>[]): void;
 
   /**
    * Called when a slice is hovered.
    */
-  onSliceOver?(args: OnSliceOverArgs<AnySliceWithRow<T>>): void;
+  onSliceOver?(args: OnSliceOverArgs<SliceWithRow<T>>): void;
 
   /**
    * Called when hover leaves a slice.
    */
-  onSliceOut?(args: OnSliceOutArgs<AnySliceWithRow<T>>): void;
+  onSliceOut?(args: OnSliceOutArgs<SliceWithRow<T>>): void;
 
   /**
    * Called when a slice is clicked. Return false to prevent default selection.
    */
-  onSliceClick?(args: OnSliceClickArgs<AnySliceWithRow<T>>): void;
+  onSliceClick?(args: OnSliceClickArgs<SliceWithRow<T>>): void;
 }
 
 export type RowSchema = {
@@ -319,7 +313,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   protected readonly trace: Trace;
   protected readonly uri: string;
   protected readonly sliceLayout: SliceLayout;
-  protected hoveredSlice?: AnySliceWithRow<T & Required<RowSchema>>;
+  protected hoveredSlice?: SliceWithRow<T & Required<RowSchema>>;
 
   private readonly attrs: SliceTrackAttrs<T>;
   private readonly depthGuess: number;
@@ -327,19 +321,17 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private readonly forceTimestampRenderOrder: boolean;
 
   private readonly queue = new SerialTaskQueue();
-  private readonly mipmapTableSlot = new QuerySlot<{
-    table: DisposableSqlEntity;
-    incompleteSlices: IncompleteSliceWithRow<T & Required<RowSchema>>[];
-  }>(this.queue);
+  private readonly mipmapTableSlot = new QuerySlot<DisposableSqlEntity>(
+    this.queue,
+  );
   private readonly dataFrameSlot = new QuerySlot<
     DataFrame<T & Required<RowSchema>>
   >(this.queue);
   private readonly bufferedBounds = new BufferedBounds();
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
-  private selectedSlice?: AnySliceWithRow<T & Required<RowSchema>>;
+  private selectedSlice?: SliceWithRow<T & Required<RowSchema>>;
   private charWidth = -1;
-  private maxDataDepth = 0;
   private computedTrackHeight = 0;
   private currentDataFrame?: DataFrame<T & Required<RowSchema>>;
 
@@ -409,7 +401,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     // Allow callbacks to update slice state before rendering
     this.onUpdatedSlices(dataFrame.slices);
-    this.onUpdatedSlices(dataFrame.incompleteSlices);
     if (this.selectedSlice !== undefined) {
       this.onUpdatedSlices([this.selectedSlice]);
     }
@@ -425,7 +416,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     if (selectedId === undefined) {
       this.selectedSlice = undefined;
     }
-    let discoveredSelection: AnySliceWithRow<T & Required<RowSchema>> | undefined;
+    let discoveredSelection: SliceWithRow<T & Required<RowSchema>> | undefined;
 
     const sliceHeight = this.sliceLayout.sliceHeight;
     const padding = this.sliceLayout.padding;
@@ -437,14 +428,19 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     // Helper to compute slice geometry
     const computeSliceGeom = (slice: Slice) => {
       let x = slice.start * pxPerNs + baseOffsetPx;
-      let w = slice.dur * pxPerNs;
+      let w: number;
 
-      // Instant slice
-      if (slice.dur === 0) {
+      if (slice.dur === -1) {
+        // Incomplete slice - extend to end of visible window
+        x = Math.max(x, -1);
+        w = pxEnd - x;
+      } else if (slice.dur === 0) {
+        // Instant slice
         x -= this.instantWidthPx / 2;
         w = this.instantWidthPx;
       } else {
         // Normal slice - clamp to visible area
+        w = slice.dur * pxPerNs;
         const sliceVizLimit = Math.min(x + w, pxEnd);
         x = Math.max(x, -1);
         w = sliceVizLimit - x;
@@ -458,7 +454,18 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const color = slice.colorScheme[slice.colorVariant];
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
 
-      if (slice.dur === 0) {
+      if (slice.dur === -1) {
+        // Incomlete slice - draw with special style
+        drawIncompleteSlice(
+          ctx,
+          x,
+          y,
+          w,
+          sliceHeight,
+          color,
+          !CROP_INCOMPLETE_SLICE_FLAG.get(),
+        );
+      } else if (slice.dur === 0) {
         // Instant slice - draw chevron
         renderer.drawMarker(x, y, w, sliceHeight, color, () =>
           this.drawChevron(ctx, x, y, sliceHeight),
@@ -480,41 +487,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
           slice.pattern,
         );
       }
-
-      if (selectedId === slice.id) {
-        discoveredSelection = slice;
-      }
-    }
-
-    // Draw incomplete slices
-    for (const slice of dataFrame.incompleteSlices) {
-      // Incomplete slices have absolute timestamp with full precision
-      const startPx = timescale.timeToPx(slice.ts);
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      const color = slice.colorScheme[slice.colorVariant];
-
-      let w: number;
-      let x = startPx;
-      if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
-        w =
-          x > 0
-            ? Math.min(pxEnd, INCOMPLETE_SLICE_WIDTH_PX)
-            : Math.max(0, INCOMPLETE_SLICE_WIDTH_PX + x);
-        x = Math.max(x, 0);
-      } else {
-        x = Math.max(x, 0);
-        w = Math.max(pxEnd - x - 2, 2);
-      }
-
-      drawIncompleteSlice(
-        ctx,
-        x,
-        y,
-        w,
-        sliceHeight,
-        color,
-        !CROP_INCOMPLETE_SLICE_FLAG.get(),
-      );
 
       if (selectedId === slice.id) {
         discoveredSelection = slice;
@@ -644,68 +616,13 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return `${this.sliceLayout.subtitleSizePx}px Roboto Condensed`;
   }
 
-  private async getIncompleteSlices(
-    sqlSource: string,
-    dataset: Dataset<T>,
-  ): Promise<IncompleteSliceWithRow<T & Required<RowSchema>>[]> {
-    const extraCols = Object.keys(dataset.schema).join(',');
-    let queryRes;
-    if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
-      queryRes = await this.engine.query(`
-        select
-          id as __id,
-          ts as __ts,
-          dur as __dur,
-          depth as __depth,
-          1 as __count
-          ${extraCols ? ',' + extraCols : ''}
-        from (${sqlSource})
-        where dur = -1;
-      `);
-    } else {
-      queryRes = await this.engine.query(`
-        select
-          id as __id,
-          max(ts) as __ts,
-          dur as __dur,
-          depth as __depth,
-          1 as __count
-          ${extraCols ? ',' + extraCols : ''}
-        from (${sqlSource})
-        group by dur
-        having dur = -1
-      `);
-    }
-
-    const incompleteSlices = new Array<IncompleteSliceWithRow<T & Required<RowSchema>>>(
-      queryRes.numRows(),
-    );
-    const it = queryRes.iter({
-      __id: NUM,
-      __ts: LONG, // Use LONG for full bigint precision
-      __dur: NUM,
-      __count: NUM,
-      __depth: NUM,
-      ...dataset.schema,
-    });
-    for (let i = 0; it.valid(); it.next(), ++i) {
-      // For incomplete slices, store absolute timestamp with full precision
-      incompleteSlices[i] = this.rowToIncompleteSlice(it);
-    }
-    return incompleteSlices;
-  }
-
-  // Creates the mipmap table and fetches incomplete slices (both depend only on sqlSource)
+  // Creates the mipmap table for efficient slice queries
   private async createMipmapTable(
     sqlSource: string,
-    dataset: Dataset<T>,
-  ): Promise<{
-    table: DisposableSqlEntity;
-    incompleteSlices: IncompleteSliceWithRow<T & Required<RowSchema>>[];
-  }> {
+  ): Promise<DisposableSqlEntity> {
     const rowCount = await this.getRowCount(sqlSource);
 
-    const table = await createVirtualTable({
+    return await createVirtualTable({
       engine: this.engine,
       using: `__intrinsic_slice_mipmap((
         select id, ts, dur, ((layer * ${rowCount ?? 1}) + depth) as depth
@@ -713,11 +630,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         where dur != -1
       ))`,
     });
-
-    // Load incomplete slices once - they don't change with bounds/resolution
-    const incompleteSlices = await this.getIncompleteSlices(sqlSource, dataset);
-
-    return {table, incompleteSlices};
   }
 
   private async getRowCount(sqlSource: string): Promise<number | undefined> {
@@ -742,10 +654,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     // 1. Create the mipmap table, which only depends on the SQL source.
     const {data: mipmapTable} = this.mipmapTableSlot.use({
       key: {sqlSource},
-      queryFn: () => this.createMipmapTable(sqlSource, dataset),
+      queryFn: () => this.createMipmapTable(sqlSource),
     });
 
-    // Can't do anything until we get have a mipmamp talbe.
+    // Can't do anything until we have a mipmap table.
     if (!mipmapTable) return undefined;
 
     // 2. Load the slices into a dataframe based on the visible window and
@@ -761,8 +673,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       },
       queryFn: async (signal) => {
         const promise = (async () => {
-          const slices = await this.getSlices(
-            mipmapTable.table.name,
+          // Load complete and incomplete slices in a single query
+          const {slices, maxDataDepth} = await this.getSlices(
+            mipmapTable.name,
             bounds.start,
             bounds.end,
             bounds.resolution,
@@ -770,18 +683,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             sqlSource,
             dataset,
           );
-          // Sort slices by color for batch rendering (unless forced ts order)
-          if (!this.forceTimestampRenderOrder) {
-            slices.sort((a, b) =>
-              colorCompare(a.colorScheme.base, b.colorScheme.base),
-            );
-          }
-          // Use cached incomplete slices from mipmap table creation
+
           return {
             start: bounds.start,
             end: bounds.end,
             slices,
-            incompleteSlices: mipmapTable.incompleteSlices,
+            maxDataDepth,
           };
         })();
         const result = await this.trace.taskTracker.track(
@@ -805,25 +712,42 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     signal: CancellationSignal,
     sqlSource: string,
     dataset: Dataset<T>,
-  ): Promise<SliceWithRow<T & Required<RowSchema>>[]> {
+  ): Promise<{
+    slices: SliceWithRow<T & Required<RowSchema>>[];
+    maxDataDepth: number;
+  }> {
     const slices: SliceWithRow<T & Required<RowSchema>>[] = [];
     const extraCols = Object.keys(dataset.schema)
       .map((c) => `s.${c} as ${c}`)
       .join(',');
+
+    // Query complete slices from mipmap + incomplete slices in one query
     const queryRes = await this.engine.query(`
+      -- Complete slices from mipmap
       SELECT
-      ((z.ts / ${resolution}) * ${resolution}) - ${start} as __ts,
-      ((z.dur + ${resolution - 1n}) / ${resolution}) * ${resolution} as __dur,
+        ((z.ts / ${resolution}) * ${resolution}) - ${start} as __ts,
+        ((z.dur + ${resolution - 1n}) / ${resolution}) * ${resolution} as __dur,
         s.id as __id,
         z.count as __count,
-        s.depth as __depth
-        ${extraCols ? ',' + extraCols : ''}
+        s.depth as __depth,
+        ${extraCols}
       FROM ${mipmapTableName}(
         ${start},
         ${end},
         ${resolution}
       ) z
       CROSS JOIN (${sqlSource}) s using (id)
+      UNION ALL
+      -- Incomplete slices (dur = -1)
+      SELECT
+        MAX(ts, ${start}) - ${start} as __ts,
+        -1 as __dur,
+        id as __id,
+        1 as __count,
+        depth as __depth,
+        ${Object.keys(dataset.schema).join()}
+      FROM (${sqlSource})
+      WHERE dur = -1 AND ts < ${end}
     `);
 
     if (signal.isCancelled) throw QUERY_CANCELLED;
@@ -842,23 +766,24 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       ...dataset.schema,
     });
 
-    let maxDataDepth = this.maxDataDepth;
+    let maxDataDepth = 0;
     for (let i = 0; it.valid(); it.next(), ++i) {
       if (i % 256 === 0) {
         if (signal.isCancelled) throw QUERY_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
-
-      if (it.dur === -1n) {
-        continue;
-      }
-
-      maxDataDepth = Math.max(maxDataDepth, it.__depth);
       slices.push(this.rowToSlice(it));
+      maxDataDepth = Math.max(maxDataDepth, it.__depth);
     }
-    this.maxDataDepth = maxDataDepth;
 
-    return slices;
+    // Sort slices by color for batch rendering (unless forced ts order)
+    if (!this.forceTimestampRenderOrder) {
+      slices.sort((a, b) =>
+        colorCompare(a.colorScheme.base, b.colorScheme.base),
+      );
+    }
+
+    return {maxDataDepth, slices};
   }
 
   // Create a slice from a query result row
@@ -905,49 +830,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     };
   }
 
-  // Create a slice for incomplete events (dur === -1)
-  // Incomplete slices store absolute bigint timestamp for precision
-  private rowToIncompleteSlice(
-    queryRow: {
-      __id: number;
-      __ts: bigint; // Full precision bigint timestamp
-      __dur: number;
-      __count: number;
-      __depth: number;
-    } & T,
-  ): IncompleteSliceWithRow<T & Required<RowSchema>> {
-    const dataset = getDataset(this.attrs);
-
-    // Clone the raw row with only schema keys from the dataset
-    const row: Record<string, SqlValue> = {};
-    // eslint-disable-next-line guard-for-in
-    for (const k in dataset.schema) {
-      row[k] = queryRow[k];
-    }
-
-    // Get properties from callbacks
-    const title = this.getTitle(queryRow);
-    const subTitle = this.getSubtitle(queryRow);
-    const colorScheme = this.getColor(queryRow, title);
-    const pattern = this.attrs.slicePattern?.(queryRow) ?? 0;
-    const fillRatio = this.attrs.fillRatio?.(queryRow) ?? 1;
-
-    return {
-      id: queryRow.__id,
-      ts: Time.fromRaw(queryRow.__ts), // Absolute timestamp with full precision
-      count: queryRow.__count,
-      depth: queryRow.__depth,
-      title,
-      subTitle,
-      colorScheme,
-      pattern,
-      fillRatio,
-      isHighlighted: false,
-      colorVariant: 'base',
-      row: row as T & Required<RowSchema>,
-    };
-  }
-
   private getTitle(row: T): string {
     if (this.attrs.sliceName) return this.attrs.sliceName(row);
     if ('name' in row && typeof row.name === 'string') return row.name;
@@ -965,7 +847,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return getColorForSlice(`${row.id}`);
   }
 
-  private onUpdatedSlices(slices: readonly AnySliceWithRow<T>[]): void {
+  private onUpdatedSlices(slices: readonly SliceWithRow<T>[]): void {
     if (this.attrs.onUpdatedSlices) {
       this.attrs.onUpdatedSlices(slices);
     } else {
@@ -973,9 +855,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     }
   }
 
-  protected highlightHoveredAndSameTitle(
-    slices: readonly AnySliceWithRow<T>[],
-  ) {
+  protected highlightHoveredAndSameTitle(slices: readonly SliceWithRow<T>[]) {
     const highlightedSliceId = this.trace.timeline.highlightedSliceId;
     const hoveredTitle = this.hoveredSlice?.title;
     for (const slice of slices) {
@@ -1024,9 +904,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   private updateSliceAndTrackHeight() {
-    const rows = Math.max(this.maxDataDepth, this.depthGuess) + 1;
+    const numRows = this.currentDataFrame?.maxDataDepth ?? this.depthGuess + 1;
     const {padding = 2, sliceHeight = 12, rowGap = 0} = this.sliceLayout;
-    this.computedTrackHeight = 2 * padding + rows * (sliceHeight + rowGap);
+    this.computedTrackHeight = 2 * padding + numRows * (sliceHeight + rowGap);
   }
 
   getHeight(): number {
@@ -1049,7 +929,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     x,
     y,
     timescale,
-  }: TrackMouseEvent): undefined | AnySliceWithRow<T & Required<RowSchema>> {
+  }: TrackMouseEvent): undefined | SliceWithRow<T & Required<RowSchema>> {
     if (!this.currentDataFrame) return undefined;
 
     const trackHeight = this.computedTrackHeight;
@@ -1067,27 +947,21 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     if (y >= padding && y <= trackHeight - padding) {
       for (const slice of this.currentDataFrame.slices) {
+        if (slice.depth !== depth) continue;
+
         const sliceX = slice.start * pxPerNs + baseOffsetPx;
-        const sliceW = slice.dur * pxPerNs;
-        if (slice.depth === depth && sliceX <= x && x <= sliceX + sliceW) {
-          return slice;
+
+        if (slice.dur === -1) {
+          // Incomplete slice extends to the end of the window
+          if (sliceX <= x) {
+            return slice;
+          }
+        } else {
+          const sliceW = slice.dur * pxPerNs;
+          if (sliceX <= x && x <= sliceX + sliceW) {
+            return slice;
+          }
         }
-      }
-    }
-
-    for (const slice of this.currentDataFrame.incompleteSlices) {
-      // Incomplete slices have absolute timestamp with full precision
-      const startPx = timescale.timeToPx(slice.ts);
-      const cropUnfinishedSlicesCondition = CROP_INCOMPLETE_SLICE_FLAG.get()
-        ? startPx + INCOMPLETE_SLICE_WIDTH_PX >= x
-        : true;
-
-      if (
-        slice.depth === depth &&
-        startPx <= x &&
-        cropUnfinishedSlicesCondition
-      ) {
-        return slice;
       }
     }
 
@@ -1171,15 +1045,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       // Convert relative start to absolute time
       const sliceStart = Time.add(frameStart, BigInt(slice.start));
       checkBoundary(sliceStart);
+      // Incomplete slices (dur = -1) have no end to snap to
       if (slice.dur > 0) {
         const sliceEnd = Time.add(frameStart, BigInt(slice.start + slice.dur));
         checkBoundary(sliceEnd);
       }
-    }
-
-    for (const slice of this.currentDataFrame.incompleteSlices) {
-      // Incomplete slices have absolute timestamp with full precision
-      checkBoundary(slice.ts);
     }
 
     return closestSnap;
@@ -1245,7 +1115,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
 export function renderTooltip(
   trace: Trace,
-  slice: AnySliceWithRow<{dur: bigint | null}>,
+  slice: SliceWithRow<{dur: bigint | null}>,
   opts: {readonly title?: string; readonly extras?: m.Children} = {},
 ): m.Children {
   const durationFormatted = formatDurationForTooltip(trace, slice.row.dur);
