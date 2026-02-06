@@ -33,7 +33,7 @@ import {AppImpl} from '../../core/app_impl';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
-import {TrackWithFSM} from '../../core/track_manager';
+import {TrackWrapper} from '../../core/track_manager';
 import {TrackRenderer, Track} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
@@ -101,7 +101,7 @@ export interface TrackViewAttrs {
  */
 export class TrackView {
   readonly node: TrackNode;
-  readonly renderer?: TrackWithFSM;
+  readonly renderer?: TrackWrapper;
   readonly height: number;
   readonly verticalBounds: VerticalBounds;
 
@@ -114,7 +114,7 @@ export class TrackView {
 
     if (node.uri) {
       this.descriptor = trace.tracks.getTrack(node.uri);
-      this.renderer = this.trace.tracks.getTrackFSM(node.uri);
+      this.renderer = this.trace.tracks.getWrappedTrack(node.uri);
     }
 
     const heightPx = getTrackHeight(node, this.renderer?.track);

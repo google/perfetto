@@ -90,9 +90,10 @@ message TraceProcessorRpc {
   optional string fatal_error = 5;
 
   enum TraceProcessorMethod {
-    reserved 4, 12;
+    reserved 4, 12, 14;
     reserved "TPM_QUERY_RAW_DEPRECATED";
     reserved "TPM_REGISTER_SQL_MODULE";
+    reserved "TPM_ANALYZE_STRUCTURED_QUERY";
 
     TPM_UNSPECIFIED = 0;
     TPM_APPEND_TRACE_DATA = 1;
@@ -107,8 +108,12 @@ message TraceProcessorRpc {
     TPM_GET_STATUS = 10;
     TPM_RESET_TRACE_PROCESSOR = 11;
     TPM_REGISTER_SQL_PACKAGE = 13;
-    TPM_ANALYZE_STRUCTURED_QUERY = 14;
+    // Previously: TPM_ANALYZE_STRUCTURED_QUERY
     TPM_SUMMARIZE_TRACE = 15;
+    TPM_CREATE_SUMMARIZER = 16;
+    TPM_UPDATE_SUMMARIZER_SPEC = 17;
+    TPM_QUERY_SUMMARIZER = 18;
+    TPM_DESTROY_SUMMARIZER = 19;
   }
 
   oneof type {
@@ -142,10 +147,16 @@ message TraceProcessorRpc {
     ResetTraceProcessorArgs reset_trace_processor_args = 107;
     // For TPM_REGISTER_SQL_PACKAGE.
     RegisterSqlPackageArgs register_sql_package_args = 108;
-    // For TPM_ANALYZE_STRUCTURED_QUERY.
-    AnalyzeStructuredQueryArgs analyze_structured_query_args = 109;
     // For TPM_SUMMARIZE_TRACE.
     TraceSummaryArgs trace_summary_args = 110;
+    // For TPM_CREATE_SUMMARIZER.
+    CreateSummarizerArgs create_summarizer_args = 111;
+    // For TPM_UPDATE_SUMMARIZER_SPEC.
+    UpdateSummarizerSpecArgs update_summarizer_spec_args = 112;
+    // For TPM_QUERY_SUMMARIZER.
+    QuerySummarizerArgs query_summarizer_args = 113;
+    // For TPM_DESTROY_SUMMARIZER.
+    DestroySummarizerArgs destroy_summarizer_args = 114;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -164,16 +175,26 @@ message TraceProcessorRpc {
     RegisterSqlPackageResult register_sql_package_result = 211;
     // For TPM_FINALIZE_TRACE_DATA.
     FinalizeDataResult finalize_data_result = 212;
-    // For TPM_ANALYZE_STRUCTURED_QUERY.
-    AnalyzeStructuredQueryResult analyze_structured_query_result = 213;
     // For TPM_SUMMARIZE_TRACE.
     TraceSummaryResult trace_summary_result = 214;
+    // For TPM_CREATE_SUMMARIZER.
+    CreateSummarizerResult create_summarizer_result = 215;
+    // For TPM_UPDATE_SUMMARIZER_SPEC.
+    UpdateSummarizerSpecResult update_summarizer_spec_result = 216;
+    // For TPM_QUERY_SUMMARIZER.
+    QuerySummarizerResult query_summarizer_result = 217;
+    // For TPM_DESTROY_SUMMARIZER.
+    DestroySummarizerResult destroy_summarizer_result = 218;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
   reserved 104;
   // Previously: RawQueryResult for TPM_QUERY_RAW_DEPRECATED
   reserved 204;
+  // Previously: AnalyzeStructuredQueryArgs for TPM_ANALYZE_STRUCTURED_QUERY
+  reserved 109;
+  // Previously: AnalyzeStructuredQueryResult for TPM_ANALYZE_STRUCTURED_QUERY
+  reserved 213;
 }
 
 message AppendTraceDataResult {
@@ -249,6 +270,11 @@ message QueryResult {
 
   // The last statement in the provided SQL.
   optional string last_statement_sql = 6;
+
+  // Time taken so far to execute the query and iterate the results in
+  // milliseconds. If this query is comprised of multiple messages, this field
+  // will contain the cumulative time taken so far.
+  optional double elapsed_time_ms = 7;
 }
 
 // Input for the /status endpoint.
@@ -381,26 +407,6 @@ message FinalizeDataResult {
   optional string error = 1;
 }
 
-message AnalyzeStructuredQueryArgs {
-  // The spec containing queries to analyze. Queries are taken from the `query`
-  // field of the spec. Each query must have an id field set and can reference
-  // other queries via inner_query_id fields.
-  optional TraceSummarySpec spec = 1;
-  // The ID of the query to analyze. Must match the id field of exactly one
-  // query in the spec's query list. The analysis will generate SQL for this
-  // query, resolving any dependencies via inner_query_id references.
-  optional string query_id = 2;
-}
-
-message AnalyzeStructuredQueryResult {
-  optional string error = 1;
-  optional string sql = 2;
-  optional string textproto = 3;
-  repeated string modules = 4;
-  repeated string preambles = 5;
-  repeated string columns = 6;
-}
-
 message TraceSummaryArgs {
   message ComputationSpec {
     repeated string metric_ids = 1;
@@ -423,4 +429,69 @@ message TraceSummaryResult {
     string textproto_summary = 2;
   }
   optional string error = 3;
+}
+
+// Input for TPM_CREATE_SUMMARIZER.
+message CreateSummarizerArgs {
+  // Client-specified summarizer ID. Must be unique per TraceProcessor instance.
+  optional string summarizer_id = 1;
+}
+
+// Output for TPM_CREATE_SUMMARIZER.
+message CreateSummarizerResult {
+  // The generated summarizer ID. Use this ID in subsequent calls.
+  optional string summarizer_id = 1;
+  optional string error = 2;
+}
+
+// Input for TPM_UPDATE_SUMMARIZER_SPEC.
+message UpdateSummarizerSpecArgs {
+  optional string summarizer_id = 1;
+  optional TraceSummarySpec spec = 2;
+}
+
+// Per-query sync info for Summarizer.
+message SummarizerQuerySyncInfo {
+  optional string query_id = 1;
+  optional string error = 2;
+  optional bool was_updated = 3;
+  optional bool was_dropped = 4;
+}
+
+// Output for TPM_UPDATE_SUMMARIZER_SPEC.
+message UpdateSummarizerSpecResult {
+  repeated SummarizerQuerySyncInfo queries = 1;
+  optional string error = 2;
+}
+
+// Input for TPM_QUERY_SUMMARIZER.
+message QuerySummarizerArgs {
+  optional string summarizer_id = 1;
+  optional string query_id = 2;
+}
+
+// Output for TPM_QUERY_SUMMARIZER.
+message QuerySummarizerResult {
+  optional bool exists = 1;
+  optional string table_name = 2;
+  optional int64 row_count = 3;
+  repeated string columns = 4;
+  optional double duration_ms = 5;
+  optional string error = 6;
+  // SQL used for execution (may reference materialized tables like _exp_mat_X).
+  optional string sql = 7;
+  optional string textproto = 8;
+  // Fully standalone SQL that can be copied and run anywhere.
+  // Does not reference any internal materialized tables.
+  optional string standalone_sql = 9;
+}
+
+// Input for TPM_DESTROY_SUMMARIZER.
+message DestroySummarizerArgs {
+  optional string summarizer_id = 1;
+}
+
+// Output for TPM_DESTROY_SUMMARIZER.
+message DestroySummarizerResult {
+  optional string error = 1;
 }
