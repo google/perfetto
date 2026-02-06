@@ -108,8 +108,12 @@ int SliceMipmapOperator::Create(sqlite3* db,
     }
     int64_t ts = sqlite3_column_int64(res->stmt.sqlite_stmt(), 1);
     int64_t dur = sqlite3_column_int64(res->stmt.sqlite_stmt(), 2);
-    auto depth =
-        static_cast<uint32_t>(sqlite3_column_int64(res->stmt.sqlite_stmt(), 3));
+    int64_t column = sqlite3_column_int64(res->stmt.sqlite_stmt(), 3);
+    if (column < 0) {
+      continue;
+    }
+    auto depth = static_cast<uint32_t>(column);
+
     if (PERFETTO_UNLIKELY(depth >= state->by_depth.size())) {
       state->by_depth.resize(depth + 1);
     }
