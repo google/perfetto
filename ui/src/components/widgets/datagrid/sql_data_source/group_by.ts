@@ -21,9 +21,20 @@ import {Engine} from '../../../../trace_processor/engine';
 import {NUM, Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../data_source';
-import {buildAggregateExpr} from '../rollup_tree_operator';
+import {AggregateFunction} from '../model';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
+
+/**
+ * Builds an aggregate expression string from function and field.
+ * Note: COUNT is not part of AggregateFunction - use 'COUNT(*)' directly.
+ */
+function buildAggregateExpr(func: AggregateFunction, field: string): string {
+  if (func === 'ANY') {
+    return `MIN(${field})`; // ANY maps to MIN
+  }
+  return `${func}(${field})`;
+}
 
 // Flat GROUP BY datasource - uses simple GROUP BY queries without hierarchy.
 export class SQLDataSourceGroupBy {
