@@ -29,13 +29,14 @@ import {AggregateFunction, GroupPath} from '../model';
 import {serializeFilters} from './group_by';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
+import {stringifyJsonWithBigints} from '../../../../base/json_utils';
 
 /**
  * Serializes a GroupPath to a string for cache key comparison.
  * Uses JSON for proper handling of nulls, strings, numbers, etc.
  */
 function serializePathForKey(path: GroupPath): string {
-  return JSON.stringify(path);
+  return stringifyJsonWithBigints(path);
 }
 
 /**
@@ -147,8 +148,9 @@ export class SQLDataSourceRollupTree {
     }
 
     // Determine sort column and direction
-    let sortColumn = '__agg_0';
-    let sortDirection: 'ASC' | 'DESC' = 'DESC';
+    // Default to __id ASC to preserve natural order when no sort is specified
+    let sortColumn = '__id';
+    let sortDirection: 'ASC' | 'DESC' = 'ASC';
     if (sort) {
       const column = aliasToColumn[sort.alias];
       if (column) {
@@ -176,7 +178,6 @@ export class SQLDataSourceRollupTree {
         ...pivotKey,
         expandedGroups: serializedExpanded,
         collapsedGroups: serializedCollapsed,
-        sortColumn,
         sortDirection,
       },
       retainOn: ['expandedGroups', 'collapsedGroups'],
@@ -203,7 +204,13 @@ export class SQLDataSourceRollupTree {
         sortColumn,
         sortDirection,
       },
-      retainOn: ['pagination', 'expandedGroups', 'collapsedGroups'],
+      retainOn: [
+        'expandedGroups',
+        'collapsedGroups',
+        'pagination',
+        'sortColumn',
+        'sortDirection',
+      ],
       queryFn: async () => {
         const query = buildTreeQuery(rollupTableName, {
           expandedGroups,
@@ -217,7 +224,7 @@ export class SQLDataSourceRollupTree {
         });
         const result = await runQueryForQueryTable(query, this.engine);
         return {
-          rows: result.rows as Row[],
+          rows: result.rows,
           rowOffset: pagination?.offset ?? 0,
         };
       },
@@ -683,6 +690,7 @@ function buildTreeQuery(
 
 /**
  * Builds the SELECT clause with optional column aliasing.
+ * @param aliases Map of internal column names to display aliases
  */
 function buildSelectClause(aliases?: Record<string, string>): string {
   if (!aliases) {
@@ -699,6 +707,21 @@ function buildSelectClause(aliases?: Record<string, string>): string {
   // Always include metadata columns
   for (const col of METADATA_COLUMNS) {
     clauses.push(col);
+  }
+
+  // Also include raw group columns for expansion tracking
+  // These are needed in addition to aliases so datagrid can read __group_N directly
+  // Count how many __group_N columns are in the aliases
+  const groupColPattern = /^__group_(\d+)$/;
+  const groupColIndices = Object.keys(aliases)
+    .map((key) => {
+      const match = key.match(groupColPattern);
+      return match ? parseInt(match[1], 10) : -1;
+    })
+    .filter((idx) => idx >= 0);
+
+  for (const idx of groupColIndices) {
+    clauses.push(`__group_${idx}`);
   }
 
   return clauses.join(', ');

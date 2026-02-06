@@ -77,19 +77,23 @@ import {
   SortDirection,
 } from './model';
 
-// Compare two SqlValues for equality, handling nulls and different types.
+// Compare two SqlValues for equality, handling nulls, undefined, and different types.
 function sqlValuesEqual(a: SqlValue, b: SqlValue): boolean {
-  if (a === null && b === null) return true;
-  if (a === null || b === null) return false;
-  if (typeof a !== typeof b) return false;
-  if (a instanceof Uint8Array && b instanceof Uint8Array) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) return false;
+  // Normalize undefined to null (SQL has no concept of undefined)
+  const normA = a === undefined ? null : a;
+  const normB = b === undefined ? null : b;
+
+  if (normA === null && normB === null) return true;
+  if (normA === null || normB === null) return false;
+  if (normA instanceof Uint8Array && normB instanceof Uint8Array) {
+    if (normA.length !== normB.length) return false;
+    for (let i = 0; i < normA.length; i++) {
+      if (normA[i] !== normB[i]) return false;
     }
     return true;
   }
-  return a === b;
+  if (typeof normA !== typeof normB) return false;
+  return normA === normB;
 }
 
 // Compare two GroupPaths for equality.
