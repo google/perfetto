@@ -12,180 +12,204 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {QueryResult} from '../../../base/query_slot';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
-import {assertTrue, assertUnreachable} from '../../../base/logging';
+import {assertUnreachable} from '../../../base/logging';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {DataSource, DataSourceModel, DataSourceRows} from './data_source';
-import {Column, Filter} from './model';
+import {
+  DataSource,
+  DataSourceModel,
+  DataSourceRows,
+  FlatModel,
+} from './data_source';
+import {Filter} from './model';
+
+// Column shape from FlatModel
+type FlatColumn = FlatModel['columns'][number];
 
 export class InMemoryDataSource implements DataSource {
   private data: ReadonlyArray<Row> = [];
   private filteredSortedData: ReadonlyArray<Row> = [];
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
-  private aggregateTotalsCache = new Map<string, SqlValue>();
+  private aggregateSummariesCache: Row = {};
 
   // Cached state for diffing
-  private oldColumns?: readonly Column[];
+  private oldColumns?: readonly FlatColumn[];
   private oldFilters: ReadonlyArray<Filter> = [];
+  private oldSort?: FlatModel['sort'];
 
   constructor(data: ReadonlyArray<Row>) {
     this.data = data;
     this.filteredSortedData = data;
   }
 
-  get rows(): DataSourceRows {
-    return {
-      rowOffset: 0,
-      rows: this.filteredSortedData,
-      totalRows: this.filteredSortedData.length,
-    };
-  }
+  /**
+   * Fetch rows for the current model state.
+   */
+  useRows(model: DataSourceModel): DataSourceRows {
+    // Only support flat mode
+    if (model.mode !== 'flat') {
+      return {isPending: false};
+    }
 
-  get distinctValues(): ReadonlyMap<string, readonly SqlValue[]> | undefined {
-    return this.distinctValuesCache.size > 0
-      ? this.distinctValuesCache
-      : undefined;
-  }
-
-  get parameterKeys(): ReadonlyMap<string, readonly string[]> | undefined {
-    return this.parameterKeysCache.size > 0
-      ? this.parameterKeysCache
-      : undefined;
-  }
-
-  get aggregateTotals(): ReadonlyMap<string, SqlValue> | undefined {
-    return this.aggregateTotalsCache.size > 0
-      ? this.aggregateTotalsCache
-      : undefined;
-  }
-
-  notify({
-    columns,
-    filters = [],
-    pivot,
-    distinctValuesColumns,
-    parameterKeyColumns,
-  }: DataSourceModel): void {
-    // Assert that pivot is not defined - we don't support pivoting, yet!
-    assertTrue(!pivot);
+    const columns = model.columns;
+    const filters = model.filters ?? [];
+    const sort = model.sort;
 
     if (
       !this.areColumnsEqual(columns, this.oldColumns) ||
-      !this.areFiltersEqual(filters, this.oldFilters)
+      !this.areFiltersEqual(filters, this.oldFilters) ||
+      !this.isSortEqual(sort, this.oldSort)
     ) {
       this.oldColumns = columns;
       this.oldFilters = filters;
+      this.oldSort = sort;
 
-      // Clear aggregate totals cache
-      this.aggregateTotalsCache.clear();
+      // Clear aggregate summaries cache
+      this.aggregateSummariesCache = {};
 
       let result = this.applyFilters(this.data, filters);
 
-      if (columns) {
-        // Non-pivot mode: compute column-level aggregations
-        this.computeColumnAggregates(result, columns);
-        // Project columns to use IDs as keys (for consistency with SQL data source)
-        result = this.projectColumns(result, columns);
-      }
+      // Project columns to use aliases as keys (for consistency with SQL data source)
+      result = this.projectColumns(result, columns);
 
-      // Apply sorting - find sorted column from columns or pivot
-      const sortedColumn = this.findSortedColumn(columns);
-      if (sortedColumn) {
-        result = this.applySorting(
-          result,
-          sortedColumn.key,
-          sortedColumn.direction,
-        );
+      // Apply sorting from model
+      if (sort) {
+        result = this.applySorting(result, sort.alias, sort.direction);
       }
 
       // Store the filtered and sorted data
       this.filteredSortedData = result;
     }
 
-    // Handle distinct values requests
-    if (distinctValuesColumns) {
-      for (const column of distinctValuesColumns) {
-        if (!this.distinctValuesCache.has(column)) {
-          // Compute distinct values from base data (not filtered)
-          const uniqueValues = new Set<SqlValue>();
-          for (const row of this.data) {
-            uniqueValues.add(row[column]);
-          }
-
-          // Sort with null-aware comparison
-          const sorted = Array.from(uniqueValues).sort((a, b) => {
-            // Nulls come first
-            if (a === null && b === null) return 0;
-            if (a === null) return -1;
-            if (b === null) return 1;
-
-            // Type-specific sorting
-            if (typeof a === 'number' && typeof b === 'number') {
-              return a - b;
-            }
-            if (typeof a === 'bigint' && typeof b === 'bigint') {
-              return Number(a - b);
-            }
-            if (typeof a === 'string' && typeof b === 'string') {
-              return a.localeCompare(b);
-            }
-
-            // Default: convert to string and compare
-            return String(a).localeCompare(String(b));
-          });
-
-          this.distinctValuesCache.set(column, sorted);
-        }
-      }
-    }
-
-    // Handle parameter keys requests
-    if (parameterKeyColumns) {
-      for (const prefix of parameterKeyColumns) {
-        if (!this.parameterKeysCache.has(prefix)) {
-          // Find all keys that match the prefix pattern (e.g., "skills.typescript" for prefix "skills")
-          const uniqueKeys = new Set<string>();
-          const prefixWithDot = prefix + '.';
-
-          for (const row of this.data) {
-            for (const key of Object.keys(row)) {
-              if (key.startsWith(prefixWithDot)) {
-                // Extract the parameter key (everything after the prefix)
-                const paramKey = key.slice(prefixWithDot.length);
-                // Only add top-level keys (no further dots)
-                if (!paramKey.includes('.')) {
-                  uniqueKeys.add(paramKey);
-                }
-              }
-            }
-          }
-
-          // Sort alphabetically
-          const sorted = Array.from(uniqueKeys).sort((a, b) =>
-            a.localeCompare(b),
-          );
-
-          this.parameterKeysCache.set(prefix, sorted);
-        }
-      }
-    }
+    return {
+      rowOffset: 0,
+      rows: this.filteredSortedData,
+      totalRows: this.filteredSortedData.length,
+      isPending: false,
+    };
   }
 
   /**
-   * Export all data with current filters/sorting applied.
+   * Fetch distinct values for a column.
    */
-  async exportData(): Promise<readonly Row[]> {
+  useDistinctValues(
+    column: string | undefined,
+  ): QueryResult<readonly SqlValue[]> {
+    if (column === undefined) {
+      return {data: undefined, isPending: false, isFresh: true};
+    }
+
+    if (!this.distinctValuesCache.has(column)) {
+      // Compute distinct values from base data (not filtered)
+      const uniqueValues = new Set<SqlValue>();
+      for (const row of this.data) {
+        uniqueValues.add(row[column]);
+      }
+
+      // Sort with null-aware comparison
+      const sorted = Array.from(uniqueValues).sort((a, b) => {
+        // Nulls come first
+        if (a === null && b === null) return 0;
+        if (a === null) return -1;
+        if (b === null) return 1;
+
+        // Type-specific sorting
+        if (typeof a === 'number' && typeof b === 'number') {
+          return a - b;
+        }
+        if (typeof a === 'bigint' && typeof b === 'bigint') {
+          return Number(a - b);
+        }
+        if (typeof a === 'string' && typeof b === 'string') {
+          return a.localeCompare(b);
+        }
+
+        // Default: convert to string and compare
+        return String(a).localeCompare(String(b));
+      });
+
+      this.distinctValuesCache.set(column, sorted);
+    }
+
+    return {
+      data: this.distinctValuesCache.get(column),
+      isPending: false,
+      isFresh: true,
+    };
+  }
+
+  /**
+   * Fetch parameter keys for a parameterized column prefix.
+   */
+  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]> {
+    if (prefix === undefined) {
+      return {data: undefined, isPending: false, isFresh: true};
+    }
+
+    if (!this.parameterKeysCache.has(prefix)) {
+      // Find all keys that match the prefix pattern (e.g., "skills.typescript" for prefix "skills")
+      const uniqueKeys = new Set<string>();
+      const prefixWithDot = prefix + '.';
+
+      for (const row of this.data) {
+        for (const key of Object.keys(row)) {
+          if (key.startsWith(prefixWithDot)) {
+            // Extract the parameter key (everything after the prefix)
+            const paramKey = key.slice(prefixWithDot.length);
+            // Only add top-level keys (no further dots)
+            if (!paramKey.includes('.')) {
+              uniqueKeys.add(paramKey);
+            }
+          }
+        }
+      }
+
+      // Sort alphabetically
+      const sorted = Array.from(uniqueKeys).sort((a, b) => a.localeCompare(b));
+
+      this.parameterKeysCache.set(prefix, sorted);
+    }
+
+    return {
+      data: this.parameterKeysCache.get(prefix),
+      isPending: false,
+      isFresh: true,
+    };
+  }
+
+  /**
+   * Fetch aggregate summaries (aggregates across all filtered rows).
+   */
+  useAggregateSummaries(_model: DataSourceModel): QueryResult<Row> {
+    // Aggregates are computed in useRows, just return the cache
+    const data =
+      Object.keys(this.aggregateSummariesCache).length > 0
+        ? this.aggregateSummariesCache
+        : undefined;
+
+    return {
+      data,
+      isPending: false,
+      isFresh: true,
+    };
+  }
+
+  /**
+   * Export all data with current filters/sorting applied (no pagination).
+   */
+  async exportData(_model: DataSourceModel): Promise<readonly Row[]> {
     // Return all the filtered and sorted data
     return this.filteredSortedData;
   }
 
   /**
-   * Compare columns for equality (including id, sort state, and aggregate).
+   * Compare columns for equality.
    */
   private areColumnsEqual(
-    a: readonly Column[] | undefined,
-    b: readonly Column[] | undefined,
+    a: readonly FlatColumn[] | undefined,
+    b: readonly FlatColumn[] | undefined,
   ): boolean {
     if (a === b) return true;
     if (!a || !b) return false;
@@ -193,48 +217,32 @@ export class InMemoryDataSource implements DataSource {
 
     return a.every((colA, i) => {
       const colB = b[i];
-      return (
-        colA.id === colB.id &&
-        colA.field === colB.field &&
-        colA.sort === colB.sort &&
-        colA.aggregate === colB.aggregate
-      );
+      return colA.alias === colB.alias && colA.field === colB.field;
     });
   }
 
   /**
-   * Find the column that has sorting applied.
-   * Returns the key to use for sorting (column ID) and the direction.
+   * Compare sort configurations for equality.
    */
-  private findSortedColumn(
-    columns: readonly Column[] | undefined,
-  ): {key: string; direction: 'ASC' | 'DESC'} | undefined {
-    // Check regular columns for sort
-    if (columns) {
-      for (const col of columns) {
-        if (col.sort) {
-          // In non-pivot mode after projection, rows are keyed by column ID
-          return {key: col.id, direction: col.sort};
-        }
-      }
-    }
-
-    return undefined;
+  private isSortEqual(a: FlatModel['sort'], b: FlatModel['sort']): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return a.alias === b.alias && a.direction === b.direction;
   }
 
   /**
-   * Project rows to use column IDs as keys instead of field names.
+   * Project rows to use column aliases as keys instead of field names.
    * This ensures consistency with SQLDataSource which uses column IDs as SQL aliases.
    */
   private projectColumns(
     data: ReadonlyArray<Row>,
-    columns: ReadonlyArray<Column>,
+    columns: ReadonlyArray<FlatColumn>,
   ): ReadonlyArray<Row> {
     return data.map((row) => {
       const projectedRow: Row = {};
       for (const col of columns) {
-        // Map field value to column ID key
-        projectedRow[col.id] = row[col.field];
+        // Map field value to alias key
+        projectedRow[col.alias] = row[col.field];
       }
       return projectedRow;
     });
@@ -363,62 +371,6 @@ export class InMemoryDataSource implements DataSource {
         ? strA.localeCompare(strB)
         : strB.localeCompare(strA);
     });
-  }
-
-  /**
-   * Compute aggregates for columns with aggregation functions defined.
-   * This is used in non-pivot mode when columns have individual aggregations.
-   */
-  private computeColumnAggregates(
-    data: ReadonlyArray<Row>,
-    columns: ReadonlyArray<Column>,
-  ): void {
-    for (const col of columns) {
-      if (!col.aggregate) continue;
-
-      // Read values using field (source data key), store using ID (result key)
-      const values = data
-        .map((row) => row[col.field])
-        .filter((v) => v !== null);
-
-      if (values.length === 0) {
-        this.aggregateTotalsCache.set(col.id, null);
-        continue;
-      }
-
-      switch (col.aggregate) {
-        case 'SUM':
-          this.aggregateTotalsCache.set(
-            col.id,
-            values.reduce((acc: number, val) => acc + (Number(val) || 0), 0),
-          );
-          break;
-        case 'AVG':
-          this.aggregateTotalsCache.set(
-            col.id,
-            (values.reduce(
-              (acc: number, val) => acc + (Number(val) || 0),
-              0,
-            ) as number) / values.length,
-          );
-          break;
-        case 'MIN':
-          this.aggregateTotalsCache.set(
-            col.id,
-            values.reduce((acc, val) => (val < acc ? val : acc), values[0]),
-          );
-          break;
-        case 'MAX':
-          this.aggregateTotalsCache.set(
-            col.id,
-            values.reduce((acc, val) => (val > acc ? val : acc), values[0]),
-          );
-          break;
-        case 'ANY':
-          this.aggregateTotalsCache.set(col.id, values[0]);
-          break;
-      }
-    }
   }
 }
 
