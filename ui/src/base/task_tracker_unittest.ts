@@ -1,0 +1,190 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import {defer} from './deferred';
+import {TaskTracker} from './task_tracker';
+
+describe('TaskTracker', () => {
+  let tracker: TaskTracker;
+
+  beforeEach(() => {
+    tracker = new TaskTracker();
+  });
+
+  test('starts idle with no tasks', () => {
+    expect(tracker.idle).toBe(true);
+    expect(tracker.size).toBe(0);
+    expect(tracker.tasks).toEqual([]);
+  });
+
+  test('track() returns the same promise', async () => {
+    const original = Promise.resolve(42);
+    const tracked = tracker.track(original, 'test');
+    expect(await tracked).toBe(42);
+  });
+
+  test('tracking a promise marks tracker as not idle', () => {
+    const deferred = defer<void>();
+    tracker.track(deferred, 'test');
+    expect(tracker.idle).toBe(false);
+    expect(tracker.size).toBe(1);
+  });
+
+  test('resolving a tracked promise removes it', async () => {
+    const deferred = defer<void>();
+    tracker.track(deferred, 'test');
+    expect(tracker.size).toBe(1);
+
+    deferred.resolve();
+    await deferred;
+    // Wait for the .finally() microtask
+    await Promise.resolve();
+
+    expect(tracker.size).toBe(0);
+    expect(tracker.idle).toBe(true);
+  });
+
+  test('rejecting a tracked promise removes it', async () => {
+    const deferred = defer<void>();
+    const tracked = tracker.track(deferred, 'test');
+    expect(tracker.size).toBe(1);
+
+    deferred.reject(new Error('test error'));
+    await expect(tracked).rejects.toThrow('test error');
+    // Wait for the .finally() microtask
+    await Promise.resolve();
+
+    expect(tracker.size).toBe(0);
+    expect(tracker.idle).toBe(true);
+  });
+
+  test('tasks snapshot includes label and elapsed time', () => {
+    const deferred = defer<void>();
+    tracker.track(deferred, 'my task');
+
+    const tasks = tracker.tasks;
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].label).toBe('my task');
+    expect(tasks[0].elapsed).toBeGreaterThanOrEqual(0);
+  });
+
+  test('uses anonymous label by default', () => {
+    const deferred = defer<void>();
+    tracker.track(deferred);
+
+    expect(tracker.tasks[0].label).toBe('anonymous');
+  });
+
+  test('can track multiple promises', () => {
+    const d1 = defer<void>();
+    const d2 = defer<void>();
+    const d3 = defer<void>();
+
+    tracker.track(d1, 'task1');
+    tracker.track(d2, 'task2');
+    tracker.track(d3, 'task3');
+
+    expect(tracker.size).toBe(3);
+    expect(tracker.tasks.map((t) => t.label)).toEqual([
+      'task1',
+      'task2',
+      'task3',
+    ]);
+  });
+
+  test('subscribe notifies on add and remove', async () => {
+    const notifications: number[] = [];
+    tracker.subscribe(() => notifications.push(tracker.size));
+
+    const deferred = defer<void>();
+    tracker.track(deferred, 'test');
+    expect(notifications).toEqual([1]);
+
+    deferred.resolve();
+    await deferred;
+    await Promise.resolve();
+
+    expect(notifications).toEqual([1, 0]);
+  });
+
+  test('unsubscribe stops notifications', () => {
+    const notifications: number[] = [];
+    const unsubscribe = tracker.subscribe(() =>
+      notifications.push(tracker.size),
+    );
+
+    tracker.track(defer<void>(), 'test1');
+    expect(notifications).toEqual([1]);
+
+    unsubscribe();
+    tracker.track(defer<void>(), 'test2');
+    expect(notifications).toEqual([1]); // No new notification
+  });
+
+  test('whenIdle resolves immediately when already idle', async () => {
+    expect(tracker.idle).toBe(true);
+    await tracker.whenIdle();
+  });
+
+  test('whenIdle resolves when all tasks complete', async () => {
+    const d1 = defer<void>();
+    const d2 = defer<void>();
+
+    tracker.track(d1, 'task1');
+    tracker.track(d2, 'task2');
+
+    let resolved = false;
+    const idlePromise = tracker.whenIdle().then(() => {
+      resolved = true;
+    });
+
+    d1.resolve();
+    await d1;
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    d2.resolve();
+    await d2;
+    await idlePromise;
+    expect(resolved).toBe(true);
+  });
+
+  test('whenIdle waits for cascading tasks', async () => {
+    const d1 = defer<void>();
+    const d2 = defer<void>();
+
+    tracker.track(d1, 'task1');
+
+    let resolved = false;
+    const idlePromise = tracker.whenIdle().then(() => {
+      resolved = true;
+    });
+
+    // Resolve d1 but spawn d2 before the idle check
+    d1.resolve();
+    await d1;
+
+    // Spawn a new task before the idle listener fires
+    tracker.track(d2, 'task2');
+    await Promise.resolve();
+
+    expect(resolved).toBe(false);
+    expect(tracker.size).toBe(1);
+
+    d2.resolve();
+    await d2;
+    await idlePromise;
+    expect(resolved).toBe(true);
+  });
+});

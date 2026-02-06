@@ -16,6 +16,7 @@ import m from 'mithril';
 import {Trace} from '../public/trace';
 import {Button, ButtonVariant} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
+// import {TaskStatus} from '../widgets/task_status';
 
 /**
  * A persistent status bar component typically rendered at the bottom of the UI.
@@ -23,6 +24,7 @@ import {Popup, PopupPosition} from '../widgets/popup';
 export function renderStatusBar(trace: Trace | undefined): m.Children {
   return m(
     '.pf-statusbar',
+    // m(TaskStatus),
     trace?.statusbar.statusBarItems.map((item) => {
       const {icon, label, intent, onclick} = item.renderItem();
       const popupContent = item.popupContent?.();
