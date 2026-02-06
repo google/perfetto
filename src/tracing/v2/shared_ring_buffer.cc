@@ -25,30 +25,6 @@
 namespace perfetto {
 using ChunkHeader = SharedRingBuffer::ChunkHeader;
 
-// TODO this mostly works %:
-// - data loss auditing that needs to be improved (that's easy)
-// - there is one logical bug in the protocol: the writer does this:
-//   1. increment the wr_offset
-//   2. try to acquire the chunk at that offset (there are 99.99% chances it
-//      will get it, it's rare it won't, ignore this case)
-//  When a writer acquires a chunk it does a CAS 0 -> (header with its writerId)
-// Now the problem is in the reader: up until which point should it read?
-// when does it stop? initially i thought naively "well you read up until the
-// wr_off". But that open an interesting case, if a thread is stuck in between
-// 1 and 2, the reader sees a "0" header at that offset so what does the reader
-// do? if it stops conservatively, well now we are "stalling the reader", which
-// means if one of the many writers is descheduled, the reader does read the
-// chunks from other threads, and that is bad.
-// if it just skips it, now it moves past ignoring that chunk. which is going to
-// be filled up only later on. and it will go out of order for that thread.
-
-// TODO changes for tomorrow:
-// - When the reader goes past a 0 (idle) chunk it must invalidate it, in a
-//   similar way as if the chunk was kAcquiredForWriting.
-// - The writer has the resposnibility to set that chunk back to 0 when it
-//   sees the flag.
-// - sort out data losses
-
 // --- SharedRingBuffer ---
 
 SharedRingBuffer::SharedRingBuffer(void* start, size_t size)
@@ -56,8 +32,8 @@ SharedRingBuffer::SharedRingBuffer(void* start, size_t size)
   PERFETTO_CHECK(start != nullptr);
   PERFETTO_CHECK(size >= kRingBufferHeaderSize + kChunkSize);
   PERFETTO_CHECK(reinterpret_cast<uintptr_t>(start) % 8 == 0);
-
-  num_chunks_ = (size - kRingBufferHeaderSize) / kChunkSize;
+  num_chunks_ =
+      static_cast<uint32_t>((size - kRingBufferHeaderSize) / kChunkSize);
   PERFETTO_CHECK(num_chunks_ > 0);
 }
 
@@ -73,6 +49,7 @@ SharedRingBuffer_Writer::SharedRingBuffer_Writer(SharedRingBuffer* rb,
                                                  WriterID writer_id)
 
     : rb_(rb),
+      num_chunks_(rb->num_chunks()),
       writer_id_(writer_id),
       cached_header_(SharedRingBuffer::ChunkHeader::Pack(writer_id, 0, 0)) {
   // Generally speaking a 0 WriterID is not valid (As per IdAllocator semantic).
@@ -253,9 +230,9 @@ void SharedRingBuffer_Writer::EndWriteInternal(uint8_t extra_flags) {
 // it falls back on the local bankruptcy chunk and marks a data loss.
 bool SharedRingBuffer_Writer::AcquireNewChunk(uint8_t extra_flags) {
   SharedRingBuffer::RingBufferHeader* rb_hdr = rb_->header();
-  // TODO cache locally num_chunks to remove one pointer chasing.
-  const size_t num_chunks = rb_->num_chunks();
-  const uint8_t flags = SharedRingBuffer::kFlagAcquiredForWriting | extra_flags;
+
+  const uint8_t flags =
+      SharedRingBuffer::kFlagAcquiredForWriting | extra_flags | data_loss_;
   const uint32_t new_hdr = ChunkHeader::Pack(writer_id_, 0, flags);
 
   // This can be m-o-relaxed as the CAS below will be the authoritative check.
@@ -264,7 +241,7 @@ bool SharedRingBuffer_Writer::AcquireNewChunk(uint8_t extra_flags) {
 
   for (;;) {
     rd_off = rb_hdr->rd_off.load(std::memory_order_acquire);
-    uint32_t next_wr_off = static_cast<uint32_t>((wr_off + 1) % num_chunks);
+    uint32_t next_wr_off = static_cast<uint32_t>((wr_off + 1) % num_chunks_);
 
     if (next_wr_off == rd_off) {
       // The buffer is full. Go to the epilogue and return the bankruptcy chunk.
@@ -318,6 +295,7 @@ bool SharedRingBuffer_Writer::AcquireNewChunk(uint8_t extra_flags) {
     last_chunk_ = chunk;
     cached_header_ = new_hdr;
     write_off_ = 0;
+    data_loss_ = 0;
     return true;
   }  // for(;;)
 
@@ -329,6 +307,15 @@ bool SharedRingBuffer_Writer::AcquireNewChunk(uint8_t extra_flags) {
   // TODO mark data loss somewhere in local state. if we switch back to a normal
   // chunk we should invalidate somehow the first fragment.
 
+  // This will cause the next chunk to be marked with kFlagDataLoss to signal
+  // that we lost the data before it.
+  data_loss_ = SharedRingBuffer::kFlagDataLoss;
+
+  // However we might not be able to acquire a next chunk if the system is
+  // catastrophically overloaded. For this reason we also increment a global
+  // counter of data losses.
+  // TODO(primiano): maybe use a bitmap instead? think about how we are going
+  // to make any use of this.
   rb_->IncrementDataLosses();
 
   // Initialize bankruptcy_chunk_ with a proper header.
@@ -523,24 +510,24 @@ void SharedRingBuffer_Reader::ProcessChunkPayload(const uint8_t* payload,
       (flags & SharedRingBuffer::kFlagContinuesFromPrevChunk) != 0;
   const bool continues_on_next =
       (flags & SharedRingBuffer::kFlagContinuesOnNextChunk) != 0;
-  const bool data_loss = (flags & SharedRingBuffer::kFlagDataLoss) != 0;
 
   // Get or create writer state.
   WriterState& ws = writer_states_[writer_id];
 
-  // If there was data loss and this chunk continues from a previous one,
-  // the pending data is corrupted - discard it.
-  if (data_loss && continues_from_prev) {
+  // There are 3 cases of data loss:
+  // 1. The writer failed to acquire some chunk in the past, and on the next
+  //    chunk it managed to obtain it marked the kFlagDataLoss flag.
+  // 2. The chunk is marked as a continuation but we have not seen any prior
+  //    fragment in previous chunks.
+  // 3. The chunk is NOT marked as a continuation, but we have accumulated
+  //    fragments (We missed the ending fragment)
+  bool data_loss = false;
+  if ((flags & SharedRingBuffer::kFlagDataLoss) != 0 ||
+      (continues_from_prev && ws.pending_data.empty()) ||
+      (!continues_from_prev && !ws.pending_data.empty())) {
+    data_loss = true;
     ws.pending_data.clear();
-  }
-
-  // If this chunk does NOT continue from prev, but we have pending data,
-  // the previous message's continuation chain was broken (e.g., a chunk was
-  // skipped due to NeedsRewrite and later rewritten elsewhere). Discard the
-  // incomplete message as data loss.
-  if (!continues_from_prev && !ws.pending_data.empty()) {
-    // TODO mark data loss.
-    ws.pending_data.clear();
+    ++ws.data_losses;
   }
 
   for (size_t off = 0; off < payload_size;) {
@@ -562,17 +549,12 @@ void SharedRingBuffer_Reader::ProcessChunkPayload(const uint8_t* payload,
 
     // Case 1: First fragment and continues_from_prev - append to pending data.
     if (is_first_frag && continues_from_prev) {
-      // If pending_data is empty, we missed the start of this message
-      // (e.g., the starting chunk was skipped). This is data loss - skip
-      // this continuation fragment entirely.
-      if (ws.pending_data.empty()) {
-        // TODO mark data loss.
+      if (data_loss) {
         continue;
       }
-      if (!data_loss) {
-        ws.pending_data.append(reinterpret_cast<const char*>(frag_data),
-                               frag_size);
-      }
+      PERFETTO_DCHECK(!ws.pending_data.empty());
+      ws.pending_data.append(reinterpret_cast<const char*>(frag_data),
+                             frag_size);
       // If this is not the last fragment, or if there's no continuation,
       // the message is complete.
       if (!is_last_frag || !continues_on_next) {
@@ -597,6 +579,11 @@ void SharedRingBuffer_Reader::ProcessChunkPayload(const uint8_t* payload,
         writer_id,
         std::string(reinterpret_cast<const char*>(frag_data), frag_size)});
   }
+}
+
+uint32_t SharedRingBuffer_Reader::GetDataLossesForWriter(WriterID writer_id) {
+  WriterState* ws = writer_states_.Find(writer_id);
+  return ws ? ws->data_losses : 0;
 }
 
 }  // namespace perfetto

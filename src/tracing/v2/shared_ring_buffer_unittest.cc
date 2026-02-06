@@ -137,15 +137,14 @@ TEST(SharedRingBufferTest, ReaderEmptyBuffer) {
 // Multiple writers write variable-length messages with sequence numbers.
 // A reader on the main thread verifies monotonicity and payload integrity.
 TEST(SharedRingBufferTest, MultiThreadedStressTest) {
-  constexpr size_t kNumWriters = 1;  // Single writer to isolate the issue.
+  constexpr size_t kNumWriters = 128;
   constexpr size_t kIterationsPerWriter = 100000;
   constexpr size_t kMinMsgSize = 4;  // Minimum: just the sequence number.
   // Use small messages (< chunk payload 252) to avoid fragmentation for now.
-  constexpr size_t kMaxMsgSize = 200;
+  constexpr size_t kMaxMsgSize = 8192;
   constexpr uint32_t kMaxSleepUs = 100;
 
-  // Allocate a large ring buffer (1MB).
-  constexpr size_t kNumChunks = 4096;
+  constexpr size_t kNumChunks = 512;
   constexpr size_t kBufSize =
       SharedRingBuffer::kRingBufferHeaderSize + kNumChunks * kChunkSize;
   std::unique_ptr<uint8_t[]> buf(new uint8_t[kBufSize]());
@@ -213,7 +212,7 @@ TEST(SharedRingBufferTest, MultiThreadedStressTest) {
   std::vector<int64_t> last_seq(kNumWriters, -1);
   // Track message counts and data losses per writer.
   std::vector<uint64_t> msg_counts(kNumWriters, 0);
-  std::vector<uint64_t> data_losses(kNumWriters, 0);
+  std::vector<uint64_t> gaps_detected(kNumWriters, 0);
   std::vector<uint64_t> payload_errors(kNumWriters, 0);
   std::vector<uint64_t> reorderings(kNumWriters, 0);
   std::vector<uint64_t> bad_writer_ids(1, 0);
@@ -262,7 +261,7 @@ TEST(SharedRingBufferTest, MultiThreadedStressTest) {
         // Check for gaps (data loss).
         if (last >= 0 && static_cast<int64_t>(seq) != last + 1) {
           uint64_t lost = seq - static_cast<uint32_t>(last) - 1;
-          data_losses[writer_idx] += lost;
+          gaps_detected[writer_idx] += lost;
         }
 
         last_seq[writer_idx] = static_cast<int64_t>(seq);
@@ -322,14 +321,15 @@ TEST(SharedRingBufferTest, MultiThreadedStressTest) {
   for (size_t i = 0; i < kNumWriters; ++i) {
     WriterID wid = static_cast<WriterID>(i + 1);
     printf(
-        "Writer %u: received=%lu, lost=%lu, reorderings=%lu, "
+        "Writer %u: received=%lu, gaps=%lu, data_losses=%u, reorderings=%lu, "
         "payload_errors=%lu\n",
         wid, static_cast<unsigned long>(msg_counts[i]),
-        static_cast<unsigned long>(data_losses[i]),
+        static_cast<unsigned long>(gaps_detected[i]),
+        reader.GetDataLossesForWriter(wid),
         static_cast<unsigned long>(reorderings[i]),
         static_cast<unsigned long>(payload_errors[i]));
     total_received += msg_counts[i];
-    total_lost += data_losses[i];
+    total_lost += gaps_detected[i];
     total_reorderings += reorderings[i];
     total_payload_errors += payload_errors[i];
   }

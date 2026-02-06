@@ -108,7 +108,7 @@ class SharedRingBuffer {
 
   uint8_t* start() const { return start_; }
   size_t size() const { return size_; }
-  size_t num_chunks() const { return num_chunks_; }
+  uint32_t num_chunks() const { return num_chunks_; }
   bool is_valid() const { return start_ != nullptr && num_chunks_ > 0; }
 
   RingBufferHeader* header() {
@@ -141,7 +141,7 @@ class SharedRingBuffer {
 
   uint8_t* start_ = nullptr;
   size_t size_ = 0;
-  size_t num_chunks_ = 0;
+  uint32_t num_chunks_ = 0;
 };
 
 // Writer for the SharedRingBuffer. Move-only.
@@ -285,7 +285,12 @@ class SharedRingBuffer_Writer {
   bool AcquireNewChunk(uint8_t extra_flags);
 
   SharedRingBuffer* rb_ = nullptr;
+  uint32_t num_chunks_ = 0;  // == rb_->num_chunk(), cached for performance.
   WriterID writer_id_ = 0;
+
+  // This is effectively a boolean that is either 0 or kFlagDataLoss.
+  uint8_t data_loss_ = 0;
+
   uint8_t* last_chunk_ = reinterpret_cast<uint8_t*>(&invalid_chunk_header_);
   uint32_t cached_header_ = 0;
 
@@ -348,9 +353,12 @@ class SharedRingBuffer_Reader {
 
   void ClearCompletedMessages() { completed_messages_.clear(); }
 
+  uint32_t GetDataLossesForWriter(WriterID);
+
  private:
   struct WriterState {
     std::string pending_data;
+    uint32_t data_losses = 0;
   };
 
   void ProcessChunkPayload(const uint8_t* payload,
