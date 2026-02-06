@@ -43,7 +43,7 @@ import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
 import {uriForSchedTrack} from './common';
 import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
 import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
-import {CpuSliceTrack} from './cpu_slice_track';
+import {createCpuSliceTrack} from './cpu_slice_track';
 import {
   RunnableThreadCountTrack,
   UninterruptibleSleepThreadCountTrack,
@@ -196,7 +196,7 @@ export default class SchedPlugin implements PerfettoPlugin {
           kinds: [CPU_SLICE_TRACK_KIND],
           cpu: cpu.ucpu,
         },
-        renderer: new CpuSliceTrack(ctx, uri, cpu.ucpu, threads),
+        renderer: createCpuSliceTrack(ctx, uri, cpu.ucpu, threads),
       });
       group.addChildInOrder(new TrackNode({name, uri}));
     }

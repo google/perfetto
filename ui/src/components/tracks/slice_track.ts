@@ -722,6 +722,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     // Clone the row with only schema keys
     const clonedRow: Record<string, SqlValue> = {};
+    // eslint-disable-next-line guard-for-in
     for (const k in dataset.schema) {
       clonedRow[k] = row[k];
     }
