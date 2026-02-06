@@ -64,16 +64,23 @@ export interface GroupByColumn extends ColumnBase {
   readonly field: string;
 }
 
-// ID-based expansion mode: Uses numeric node IDs from __intrinsic_rollup_tree virtual table.
-// The virtual table maintains the tree structure and handles ROLLUP-style aggregation.
+// A path in the pivot tree, represented as an array of group column values.
+// For a tree with groupBy [category, name]:
+// - Root path: []
+// - Category "Foo": ["Foo"]
+// - Category "Foo", Name "Bar": ["Foo", "Bar"]
+// Paths are stable across configuration changes (unlike internal IDs).
+export type GroupPath = readonly SqlValue[];
+
+// Value-based expansion mode: Uses group column values as stable identifiers.
 //
 // Two mutually exclusive modes:
-// 1. Allowlist (expandedIds): Only specified nodes are expanded.
-//    Empty Set = only root children visible (all collapsed).
-// 2. Denylist (collapsedIds): All nodes expanded EXCEPT those specified.
-//    Empty Set = all nodes expanded.
+// 1. Allowlist (expandedGroups): Only specified paths are expanded.
+//    Empty array = only root children visible (all collapsed).
+// 2. Denylist (collapsedGroups): All nodes expanded EXCEPT those specified.
+//    Empty array = all nodes expanded.
 //
-// If both are set, collapsedIds takes precedence.
+// If both are set, collapsedGroups takes precedence.
 export interface Pivot {
   // List of fields to group by
   readonly groupBy: readonly GroupByColumn[];
@@ -90,10 +97,10 @@ export interface Pivot {
   // hierarchical structure with expand/collapse.
   readonly groupDisplay?: GroupDisplay;
 
-  // Allowlist mode: only these node IDs are expanded
-  readonly expandedIds?: ReadonlySet<bigint>;
-  // Denylist mode: all nodes expanded except these IDs
-  readonly collapsedIds?: ReadonlySet<bigint>;
+  // Allowlist mode: only these group paths are expanded
+  readonly expandedGroups?: readonly GroupPath[];
+  // Denylist mode: all nodes expanded except these group paths
+  readonly collapsedGroups?: readonly GroupPath[];
 }
 
 // ID-based tree configuration for displaying hierarchical data using id/parent_id columns.

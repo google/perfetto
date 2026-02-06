@@ -18,17 +18,77 @@ import {
   SerialTaskQueue,
 } from '../../../../base/query_slot';
 import {Engine} from '../../../../trace_processor/engine';
-import {NUM, Row} from '../../../../trace_processor/query_result';
+import {NUM, Row, SqlValue} from '../../../../trace_processor/query_result';
 import {
   createPerfettoTable,
   DisposableSqlEntity,
 } from '../../../../trace_processor/sql_utils';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../data_source';
-import {AggregateFunction} from '../model';
+import {AggregateFunction, GroupPath} from '../model';
 import {serializeFilters} from './group_by';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, toAlias} from '../sql_utils';
+
+/**
+ * Serializes a GroupPath to a string for cache key comparison.
+ * Uses JSON for proper handling of nulls, strings, numbers, etc.
+ */
+function serializePathForKey(path: GroupPath): string {
+  return JSON.stringify(path);
+}
+
+/**
+ * Converts a SqlValue to a SQL literal for use in WHERE clauses.
+ */
+function sqlLiteral(value: SqlValue): string {
+  if (value === null || value === undefined) {
+    return 'NULL';
+  }
+  if (typeof value === 'string') {
+    // Escape single quotes by doubling them
+    return `'${value.replace(/'/g, "''")}'`;
+  }
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return String(value);
+  }
+  if (value instanceof Uint8Array) {
+    // Convert blob to hex literal
+    const hex = Array.from(value)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `X'${hex}'`;
+  }
+  return String(value);
+}
+
+/**
+ * Builds a SQL condition that matches a specific GroupPath.
+ * Uses proper column comparisons instead of string concatenation.
+ */
+function buildPathCondition(
+  path: GroupPath,
+  columnPrefix: string = '',
+): string {
+  if (path.length === 0) {
+    // Empty path matches root (depth 0)
+    return `${columnPrefix}__depth = 0`;
+  }
+
+  const conditions: string[] = [];
+  for (let i = 0; i < path.length; i++) {
+    const col = `${columnPrefix}__group_${i}`;
+    const value = path[i];
+    if (value === null || value === undefined) {
+      conditions.push(`${col} IS NULL`);
+    } else {
+      conditions.push(`${col} = ${sqlLiteral(value)}`);
+    }
+  }
+  // Also match the depth to ensure we're at the right level
+  conditions.push(`${columnPrefix}__depth = ${path.length}`);
+  return `(${conditions.join(' AND ')})`;
+}
 
 // Rollup tree datasource - uses pure SQL with UNION ALL and window functions.
 export class SQLDataSourceRollupTree {
@@ -62,8 +122,8 @@ export class SQLDataSourceRollupTree {
       aggregates,
       filters = [],
       pagination,
-      expandedIds,
-      collapsedIds,
+      expandedGroups,
+      collapsedGroups,
       sort,
     } = model;
 
@@ -103,22 +163,29 @@ export class SQLDataSourceRollupTree {
       filters: serializeFilters(filters),
     };
 
+    // Serialize expansion state for key comparison (arrays don't compare by value)
+    const serializedExpanded = expandedGroups?.map((p) =>
+      serializePathForKey(p),
+    );
+    const serializedCollapsed = collapsedGroups?.map((p) =>
+      serializePathForKey(p),
+    );
+
     const rowCountResult = this.rowCountSlot.use({
       key: {
         ...pivotKey,
-        expandedIds: expandedIds ? Array.from(expandedIds) : undefined,
-        collapsedIds: collapsedIds ? Array.from(collapsedIds) : undefined,
+        expandedGroups: serializedExpanded,
+        collapsedGroups: serializedCollapsed,
         sortColumn,
         sortDirection,
       },
-      retainOn: ['expandedIds', 'collapsedIds'],
+      retainOn: ['expandedGroups', 'collapsedGroups'],
       queryFn: async () => {
         const query = buildTreeQuery(rollupTableName, {
-          expandedIds,
-          collapsedIds,
+          expandedGroups,
+          collapsedGroups,
           sortColumn,
           sortDirection,
-          numGroupColumns: groupBy.length,
           minDepth: 1,
           countOnly: true,
         });
@@ -130,20 +197,19 @@ export class SQLDataSourceRollupTree {
     const rowsResult = this.rowsSlot.use({
       key: {
         ...pivotKey,
-        expandedIds: expandedIds ? Array.from(expandedIds) : undefined,
-        collapsedIds: collapsedIds ? Array.from(collapsedIds) : undefined,
+        expandedGroups: serializedExpanded,
+        collapsedGroups: serializedCollapsed,
         pagination,
         sortColumn,
         sortDirection,
       },
-      retainOn: ['pagination', 'expandedIds', 'collapsedIds'],
+      retainOn: ['pagination', 'expandedGroups', 'collapsedGroups'],
       queryFn: async () => {
         const query = buildTreeQuery(rollupTableName, {
-          expandedIds,
-          collapsedIds,
+          expandedGroups,
+          collapsedGroups,
           sortColumn,
           sortDirection,
-          numGroupColumns: groupBy.length,
           offset: pagination?.offset,
           limit: pagination?.limit,
           minDepth: 1,
@@ -192,7 +258,6 @@ export class SQLDataSourceRollupTree {
       queryFn: async () => {
         const query = buildTreeQuery(rollupTableName, {
           maxDepth: 0,
-          numGroupColumns: groupBy.length,
           columnAliases,
         });
         const result = await runQueryForQueryTable(query, this.engine);
@@ -451,11 +516,10 @@ async function createRollupTable(
  * Options for querying the rollup tree.
  */
 interface TreeQueryOptions {
-  expandedIds?: ReadonlySet<bigint>;
-  collapsedIds?: ReadonlySet<bigint>;
+  expandedGroups?: readonly GroupPath[];
+  collapsedGroups?: readonly GroupPath[];
   sortColumn?: string;
   sortDirection?: 'ASC' | 'DESC';
-  numGroupColumns: number;
   offset?: number;
   limit?: number;
   minDepth?: number;
@@ -465,7 +529,13 @@ interface TreeQueryOptions {
 }
 
 // Metadata columns always included in output
-const METADATA_COLUMNS = ['__id', '__parent_id', '__depth', '__child_count'];
+const METADATA_COLUMNS = [
+  '__id',
+  '__parent_id',
+  '__depth',
+  '__child_count',
+  '__path_key',
+];
 
 /**
  * Builds a query to traverse the rollup tree in sorted hierarchical order.
@@ -477,11 +547,11 @@ const METADATA_COLUMNS = ['__id', '__parent_id', '__depth', '__child_count'];
  */
 function buildTreeQuery(
   tableName: string,
-  options: TreeQueryOptions = {numGroupColumns: 0},
+  options: TreeQueryOptions = {},
 ): string {
   const {
-    expandedIds,
-    collapsedIds,
+    expandedGroups,
+    collapsedGroups,
     sortColumn = '__agg_0',
     sortDirection = 'DESC',
     offset,
@@ -493,30 +563,38 @@ function buildTreeQuery(
   } = options;
 
   // Determine expansion mode
-  const useDenylist = collapsedIds !== undefined;
-  const expansionIds = useDenylist
-    ? collapsedIds
-    : expandedIds ?? new Set<bigint>();
+  const useDenylist = collapsedGroups !== undefined;
+  const expansionPaths = useDenylist ? collapsedGroups : expandedGroups ?? [];
 
-  // Build the expansion check expression
-  let isExpandedExpr: string;
-  if (useDenylist) {
-    // Denylist: expanded if NOT in the collapsed set
-    if (expansionIds.size === 0) {
-      isExpandedExpr = '1'; // All expanded
+  // Build expansion check expressions using actual column comparisons
+  // This properly handles nulls, empty strings, and blobs
+  // We need two versions: one for base case (no prefix) and one for recursive (c. prefix)
+  const buildExpansionExpr = (prefix: string): string => {
+    if (useDenylist) {
+      // Denylist: expanded if NOT in the collapsed set
+      if (expansionPaths.length === 0) {
+        return '1'; // All expanded
+      } else {
+        const conditions = expansionPaths
+          .map((p) => buildPathCondition(p, prefix))
+          .join(' OR ');
+        return `NOT (${conditions})`;
+      }
     } else {
-      const ids = Array.from(expansionIds).join(',');
-      isExpandedExpr = `(__id NOT IN (${ids}))`;
+      // Allowlist: expanded only if in the expanded set
+      if (expansionPaths.length === 0) {
+        return '0'; // None expanded
+      } else {
+        const conditions = expansionPaths
+          .map((p) => buildPathCondition(p, prefix))
+          .join(' OR ');
+        return `(${conditions})`;
+      }
     }
-  } else {
-    // Allowlist: expanded only if in the expanded set
-    if (expansionIds.size === 0) {
-      isExpandedExpr = '0'; // None expanded
-    } else {
-      const ids = Array.from(expansionIds).join(',');
-      isExpandedExpr = `(__id IN (${ids}))`;
-    }
-  }
+  };
+
+  const isExpandedExpr = buildExpansionExpr('');
+  const isExpandedExprChild = buildExpansionExpr('c.');
 
   // The recursive CTE for hierarchical traversal with sorting
   const query = `
@@ -548,7 +626,7 @@ function buildTreeQuery(
       SELECT
         c.*,
         t.__sort_path || '/' || PRINTF('%010d', c.__local_rank) AS __sort_path,
-        ${isExpandedExpr.replace(/__id/g, 'c.__id')} AS __is_expanded
+        ${isExpandedExprChild} AS __is_expanded
       FROM ranked c
       JOIN tree_traversal t ON c.__parent_id = t.__id
       WHERE t.__is_expanded = 1
@@ -589,7 +667,7 @@ function buildTreeQuery(
         SELECT
           c.*,
           t.__sort_path || '/' || PRINTF('%010d', c.__local_rank) AS __sort_path,
-          ${isExpandedExpr.replace(/__id/g, 'c.__id')} AS __is_expanded
+          ${isExpandedExprChild} AS __is_expanded
         FROM ranked c
         JOIN tree_traversal t ON c.__parent_id = t.__id
         WHERE t.__is_expanded = 1

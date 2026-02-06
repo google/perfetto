@@ -14,7 +14,7 @@
 
 import {QueryResult} from '../../../base/query_slot';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Filter} from './model';
+import {Filter, GroupPath} from './model';
 
 /**
  * Data source interface for DataGrid.
@@ -110,10 +110,10 @@ export interface PivotModel extends DataSourceModelBase {
   // How to display grouped data: 'flat' shows leaf rows only, 'tree' shows
   // hierarchical structure with expand/collapse
   readonly groupDisplay?: 'flat' | 'tree';
-  // Allowlist mode: only these node IDs are expanded
-  readonly expandedIds?: ReadonlySet<bigint>;
-  // Denylist mode: all nodes expanded except these IDs
-  readonly collapsedIds?: ReadonlySet<bigint>;
+  // Allowlist mode: only these group paths are expanded
+  readonly expandedGroups?: readonly GroupPath[];
+  // Denylist mode: all nodes expanded except these group paths
+  readonly collapsedGroups?: readonly GroupPath[];
 }
 
 export type DataSourceModel = FlatModel | PivotModel;
