@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {Query, QueryNode} from '../query_node';
-import {isAQuery, queryToRun} from './query_builder_utils';
+import {isAQuery} from './query_builder_utils';
 import {Trace} from '../../../public/trace';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
@@ -32,6 +32,8 @@ export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
   readonly queryExecutionService: QueryExecutionService;
+  /** All nodes in the graph (needed to prevent auto-drop of disconnected graphs) */
+  readonly allNodes: QueryNode[];
   /** Called when analysis completes (with query, error, or undefined if skipped) */
   readonly onQueryAnalyzed: (query: Query | Error | undefined) => void;
   readonly onAnalysisStateChange?: (isAnalyzing: boolean) => void;
@@ -126,6 +128,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           const result = await attrs.queryExecutionService.processNode(
             node,
             attrs.trace.engine,
+            attrs.allNodes,
             {
               manual: false, // This is automatic processing, not manual "Run Query"
               hasExistingResult: attrs.hasExistingResult,
@@ -277,7 +280,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     const query = attrs.query ?? this.currentQuery;
     const sql: string =
       this.sqlForDisplay ??
-      (isAQuery(query) ? queryToRun(query) : 'SQL not available.');
+      (isAQuery(query) ? query.standaloneSql : 'SQL not available.');
     const textproto: string = isAQuery(query)
       ? query.textproto
       : query instanceof Error
