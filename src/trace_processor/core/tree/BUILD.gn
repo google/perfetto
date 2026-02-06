@@ -21,8 +21,12 @@ source_set("tree") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:basic_types",
     "../../../base",
     "../../containers",
+    "../common",
     "../dataframe",
+    "../interpreter",
+    "../util",
   ]
 }
