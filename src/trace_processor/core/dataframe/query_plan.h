@@ -49,6 +49,8 @@
 
 namespace perfetto::trace_processor::core::dataframe {
 
+class Dataframe;
+
 // Specification for initializing a register before bytecode execution.
 // The plan contains abstract references (column indices, index IDs), and
 // the cursor converts these to concrete pointers based on the kind.
@@ -74,6 +76,16 @@ struct RegisterInit {
   uint16_t pad_ = 0;          // Explicit trailing padding
 };
 static_assert(std::is_trivially_copyable_v<RegisterInit>);
+
+// Result of applying filters via the static Filter() method.
+// Contains both the filtered indices register and the RegisterInit specs
+// needed to initialize storage registers before bytecode execution.
+struct FilterResult {
+  std::variant<interpreter::RwHandle<Range>,
+               interpreter::RwHandle<Span<uint32_t>>>
+      indices;
+  base::SmallVector<RegisterInit, 16> register_inits;
+};
 
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
@@ -208,6 +220,18 @@ struct QueryPlanImpl {
     return res;
   }
 
+  // Converts a RegisterInit spec to the actual register value for execution.
+  // Used by Cursor and TreeTransformer to initialize registers before
+  // bytecode execution.
+  static interpreter::RegValue GetRegisterInitValue(
+      const RegisterInit& init,
+      const Column* const* columns,
+      const Index* indexes);
+
+  // Convenience overload that extracts pointers from a Dataframe.
+  static interpreter::RegValue GetRegisterInitValue(const RegisterInit& init,
+                                                    const Dataframe& df);
+
   ExecutionParams params;
   interpreter::BytecodeVector bytecode;
   base::SmallVector<uint32_t, 24> col_to_output_offset;
@@ -245,20 +269,18 @@ class QueryPlanBuilder {
   //   builder: The BytecodeBuilder to emit bytecode into
   //   scope_id: Caller-managed cache scope for column register caching
   //   input_indices: Input indices to filter
-  //   row_count: Total number of rows in the dataframe
-  //   columns: Column definitions
-  //   indexes: Index definitions
+  //   df: The dataframe to filter
   //   specs: Filter specifications (may be reordered)
   //
-  // Returns the filtered indices register.
+  // Returns a FilterResult containing:
+  //   - The filtered indices register
+  //   - RegisterInit specs needed to initialize storage registers
   // Cost tracking is done internally and discarded at end of call.
-  static base::StatusOr<IndicesReg> Filter(
+  static base::StatusOr<FilterResult> Filter(
       interpreter::BytecodeBuilder& builder,
       uint32_t scope_id,
       IndicesReg input_indices,
-      uint32_t row_count,
-      const std::vector<std::shared_ptr<Column>>& columns,
-      const std::vector<Index>& indexes,
+      const Dataframe& df,
       std::vector<FilterSpec>& specs);
 
  private:
