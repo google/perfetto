@@ -1796,3 +1796,76 @@ class JsonParser(TestSuite):
         1000000,5000000,0,101,100
         26000000,4000000,1,101,100
         """))
+
+  def test_json_metadata_missing_or_invalid_ts(self):
+    # Regression test for fix: metadata events (phase='M') should be accepted
+    # even when ts is missing or invalid. Non-metadata events should be rejected.
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "M",
+              "pid": 100,
+              "tid": 0,
+              "name": "process_name",
+              "cat": "__metadata",
+              "args": { "name": "ProcessWithoutTs" }
+            },
+            {
+              "ph": "M",
+              "pid": 100,
+              "tid": 101,
+              "ts": "not_a_number",
+              "name": "thread_name",
+              "cat": "__metadata",
+              "args": { "name": "ThreadWithInvalidTs" }
+            },
+            {
+              "ph": "M",
+              "pid": 100,
+              "tid": 102,
+              "ts": "100abc",
+              "name": "thread_sort_index",
+              "cat": "__metadata",
+              "args": { "sort_index": 5 }
+            },
+            {
+              "ph": "X",
+              "pid": 100,
+              "tid": 101,
+              "name": "InvalidEventMissingTs",
+              "cat": "test",
+              "dur": 100
+            },
+            {
+              "ph": "X",
+              "pid": 100,
+              "tid": 101,
+              "ts": "invalid",
+              "name": "InvalidEventInvalidTs",
+              "cat": "test",
+              "dur": 100
+            },
+            {
+              "ph": "X",
+              "pid": 100,
+              "tid": 101,
+              "ts": 1000,
+              "name": "ValidEvent",
+              "cat": "test",
+              "dur": 100
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.ts,
+            slice.dur,
+            slice.name
+          FROM slice
+          ORDER BY slice.ts
+        ''',
+        out=Csv("""
+          "ts","dur","name"
+          0,0,"ValidEvent"
+        """))
