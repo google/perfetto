@@ -64,6 +64,7 @@ import {formatDuration} from '../time_utils';
 import {BufferedBounds} from './buffered_bounds';
 import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 import {SliceTrackDetailsPanel} from './slice_track_details_panel';
+import {RECT_PATTERN_FADE_RIGHT} from '../../base/renderer';
 
 // Slice flags
 export const SLICE_FLAGS_INCOMPLETE = 1;
@@ -453,18 +454,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const color = slice.colorScheme[slice.colorVariant];
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
 
-      if (slice.dur === -1) {
-        // Incomlete slice - draw with special style
-        drawIncompleteSlice(
-          ctx,
-          x,
-          y,
-          w,
-          sliceHeight,
-          color,
-          !CROP_INCOMPLETE_SLICE_FLAG.get(),
-        );
-      } else if (slice.dur === 0) {
+      if (slice.dur === 0) {
         // Instant slice - draw chevron
         renderer.drawMarker(x, y, w, sliceHeight, color, () =>
           this.drawChevron(ctx, x, y, sliceHeight),
@@ -719,6 +709,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         s.id as __id,
         z.count as __count,
         s.depth as __depth,
+        0 as __incomplete,
         ${extraCols}
       FROM ${mipmapTableName}(
         ${start},
@@ -738,6 +729,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         i.id as __id,
         1 as __count,
         i.depth as __depth,
+        1 as __incomplete,
         ${Object.keys(dataset.schema)
           .map((c) => `i.${c}`)
           .join()}
@@ -761,6 +753,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       __dur: NUM,
       __count: NUM,
       __depth: NUM,
+      __incomplete: NUM,
       ...dataset.schema,
     });
 
@@ -783,7 +776,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   // Create a slice from a query result row
-  // queryRow contains: id, ts, dur, tsQ, durQ, count, depth + extra columns from T
+  // queryRow contains: id, ts, dur, count, depth, incomplete + extra columns from T
   private rowToSlice(
     queryRow: {
       __id: number;
@@ -791,6 +784,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       __dur: number;
       __count: number;
       __depth: number;
+      __incomplete: number;
     } & T,
   ): SliceWithRow<T & Required<RowSchema>> {
     const dataset = getDataset(this.attrs);
@@ -806,7 +800,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const title = this.getTitle(queryRow);
     const subTitle = this.getSubtitle(queryRow);
     const colorScheme = this.getColor(queryRow, title);
-    const pattern = this.attrs.slicePattern?.(queryRow) ?? 0;
+    const isIncomplete = queryRow.__incomplete === 1;
+    const pattern = isIncomplete
+      ? RECT_PATTERN_FADE_RIGHT
+      : (this.attrs.slicePattern?.(queryRow) ?? 0);
     const fillRatio = this.attrs.fillRatio?.(queryRow) ?? 1;
 
     return {
@@ -1128,11 +1125,13 @@ function formatDurationForTooltip(
   trace: Trace,
   dur: bigint | null,
 ): string | undefined {
+  if (dur === -1n) {
+    return '[Incomplete]';
+  }
   if (dur === null || dur === 0n) {
     return undefined; // Instant event
-  } else {
-    return formatDuration(trace, BigInt(dur));
   }
+  return formatDuration(trace, BigInt(dur));
 }
 
 export function generateRenderQuery<T extends DatasetSchema>(
