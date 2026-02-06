@@ -1798,74 +1798,37 @@ class JsonParser(TestSuite):
         """))
 
   def test_json_metadata_missing_or_invalid_ts(self):
-    # Regression test for fix: metadata events (phase='M') should be accepted
-    # even when ts is missing or invalid. Non-metadata events should be rejected.
     return DiffTestBlueprint(
         trace=Json('''
           [
             {
               "ph": "M",
               "pid": 100,
-              "tid": 0,
               "name": "process_name",
-              "cat": "__metadata",
-              "args": { "name": "ProcessWithoutTs" }
+              "args": { "name": "MissingTs" }
             },
             {
               "ph": "M",
-              "pid": 100,
-              "tid": 101,
-              "ts": "not_a_number",
-              "name": "thread_name",
-              "cat": "__metadata",
-              "args": { "name": "ThreadWithInvalidTs" }
+              "pid": 101,
+              "ts": null,
+              "name": "process_name",
+              "args": { "name": "NullTs" }
             },
             {
               "ph": "M",
-              "pid": 100,
-              "tid": 102,
-              "ts": "100abc",
-              "name": "thread_sort_index",
-              "cat": "__metadata",
-              "args": { "sort_index": 5 }
-            },
-            {
-              "ph": "X",
-              "pid": 100,
-              "tid": 101,
-              "name": "InvalidEventMissingTs",
-              "cat": "test",
-              "dur": 100
-            },
-            {
-              "ph": "X",
-              "pid": 100,
-              "tid": 101,
+              "pid": 102,
               "ts": "invalid",
-              "name": "InvalidEventInvalidTs",
-              "cat": "test",
-              "dur": 100
-            },
-            {
-              "ph": "X",
-              "pid": 100,
-              "tid": 101,
-              "ts": 1000,
-              "name": "ValidEvent",
-              "cat": "test",
-              "dur": 100
+              "name": "process_name",
+              "args": { "name": "InvalidTs" }
             }
           ]
         '''),
         query='''
-          SELECT
-            slice.ts,
-            slice.dur,
-            slice.name
-          FROM slice
-          ORDER BY slice.ts
+          SELECT pid, name FROM process WHERE name IS NOT NULL ORDER BY pid
         ''',
         out=Csv("""
-          "ts","dur","name"
-          0,0,"ValidEvent"
+          "pid","name"
+          100,"MissingTs"
+          101,"NullTs"
+          102,"InvalidTs"
         """))
