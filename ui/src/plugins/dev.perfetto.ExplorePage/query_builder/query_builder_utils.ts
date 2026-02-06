@@ -16,6 +16,7 @@ import protos from '../../../protos';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {Engine} from '../../../trace_processor/engine';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
+import {uuidv4Sql} from '../../../base/uuid';
 import {Query, QueryNode} from '../query_node';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 
@@ -72,12 +73,8 @@ export function findWarnings(
 // Query Analysis Utilities
 // ============================================================================
 
-/**
- * Builds an array of structured queries by walking the entire graph from the final node.
- * Uses DFS post-order traversal to visit ALL input nodes (primary and secondary).
- * Returns queries in dependency order (roots first, final node last).
- */
-function getStructuredQueries(
+// Builds structured queries via DFS post-order traversal (dependency order).
+export function getStructuredQueries(
   finalNode: QueryNode,
 ): protos.PerfettoSqlStructuredQuery[] | Error {
   if (finalNode.finalCols === undefined) {
@@ -143,45 +140,12 @@ function getStructuredQueries(
   return structuredQueries;
 }
 
-/**
- * Converts a Query object to a runnable SQL string with includes and preambles.
- */
+// Returns the SQL string from a Query (modules/preambles are baked in by TP).
 export function queryToRun(query?: Query): string {
-  if (query === undefined) return 'N/A';
-  const includes = query.modules.map((c) => `INCLUDE PERFETTO MODULE ${c};`);
-  const parts: string[] = [];
-
-  // Add INCLUDE statements with newlines after each
-  if (includes.length > 0) {
-    parts.push(includes.join('\n'));
-  }
-
-  // Add preambles with newlines after each
-  if (query.preambles.length > 0) {
-    parts.push(query.preambles.join('\n'));
-  }
-
-  // Add an extra empty line before the SQL if there are any includes or preambles
-  if (parts.length > 0) {
-    parts.push(''); // This creates the empty line
-  }
-
-  // Add the SQL
-  parts.push(query.sql);
-
-  return parts.join('\n');
+  return query?.sql ?? 'N/A';
 }
 
-/**
- * Computes a hash of a node's structured query for comparison.
- * Used to detect if a query has changed and materialization needs to be redone.
- *
- * Uses the structured query protobuf directly - no engine analysis needed.
- * This allows detecting query changes before any SQL execution.
- *
- * This function is relatively expensive (stringifyJsonWithBigints on entire query tree).
- * QueryExecutionService caches results to avoid recomputation.
- */
+// Computes a hash of a node's structured query for change detection.
 export function hashNodeQuery(node: QueryNode): string | Error {
   const sq = node.getStructuredQuery();
   if (sq === undefined) {
@@ -197,10 +161,20 @@ export function hashNodeQuery(node: QueryNode): string | Error {
   return stringifyJsonWithBigints(sq);
 }
 
+// Server-generated summarizer ID for analyzeNode operations.
+// This is module-level state that persists across the session.
+// Call resetAnalyzeNodeSummarizer() when loading a new trace to clear stale state.
+let analyzeNodeSummarizerId: string | undefined = undefined;
+
 /**
- * Analyzes a node's query by walking up the graph and sending structured queries
- * to the engine for validation and SQL generation.
+ * Resets the analyzeNode summarizer ID. Must be called when loading a new trace
+ * to ensure stale summarizer IDs from previous traces are not reused.
  */
+export function resetAnalyzeNodeSummarizer(): void {
+  analyzeNodeSummarizerId = undefined;
+}
+
+// Analyzes a node's query via sync + fetch, returns generated SQL.
 export async function analyzeNode(
   node: QueryNode,
   engine: Engine,
@@ -218,41 +192,61 @@ export async function analyzeNode(
   const spec = new protos.TraceSummarySpec();
   spec.query = structuredQueries;
 
-  // Use the node's ID as the query ID to analyze. The node's ID is set as the
-  // query's id field when the node builds its structured query, and it's
-  // guaranteed to be the last query in the array (due to DFS post-order).
+  // Use the node's ID as the query ID. The node's ID is set as the query's id
+  // field when the node builds its structured query.
   const queryId = node.nodeId;
 
-  const res = await engine.analyzeStructuredQuery(spec, queryId);
+  // Create the summarizer if it doesn't exist yet
+  if (analyzeNodeSummarizerId === undefined) {
+    const newId = `analyze_summarizer_${uuidv4Sql()}`;
+    const createRes = await engine.createSummarizer(newId);
+    if (
+      createRes.error !== undefined &&
+      createRes.error !== null &&
+      createRes.error !== ''
+    ) {
+      return new Error(createRes.error);
+    }
+    analyzeNodeSummarizerId = newId;
+  }
+
+  // Update the spec with our queries
+  const updateRes = await engine.updateSummarizerSpec(
+    analyzeNodeSummarizerId,
+    spec,
+  );
+  if (
+    updateRes.error !== undefined &&
+    updateRes.error !== null &&
+    updateRes.error !== ''
+  ) {
+    return new Error(updateRes.error);
+  }
+
+  // Query the summarizer for this node (materializes on demand)
+  const res = await engine.querySummarizer(analyzeNodeSummarizerId, queryId);
+  if (!res.exists) {
+    return new Error(
+      `Query '${queryId}' does not exist after updateSummarizerSpec`,
+    );
+  }
   if (res.error !== undefined && res.error !== null && res.error !== '') {
     return new Error(res.error);
   }
-  if (res.sql === null || res.sql === undefined) {
+  if (res.sql === null || res.sql === undefined || res.sql === '') {
     return new Error(
       `analyzeNode: engine returned no SQL for node ${node.nodeId}`,
     );
   }
-  if (
-    res.textproto === undefined ||
-    res.textproto === null ||
-    res.textproto === ''
-  ) {
-    return new Error('No textproto in structured query results');
-  }
 
-  const sql: Query = {
+  return {
     sql: res.sql,
     textproto: res.textproto ?? '',
-    modules: res.modules ?? [],
-    preambles: res.preambles ?? [],
-    columns: res.columns ?? [],
+    standaloneSql: res.standaloneSql ?? '',
   };
-  return sql;
 }
 
-/**
- * Type guard to check if a value is a valid Query object.
- */
+// Type guard for valid Query object.
 export function isAQuery(
   maybeQuery: Query | undefined | Error,
 ): maybeQuery is Query {
