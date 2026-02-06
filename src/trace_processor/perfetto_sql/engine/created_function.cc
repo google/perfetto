@@ -661,6 +661,10 @@ void CreatedFunction::Step(sqlite3_context* ctx,
   for (size_t i = 0; i < expected_argc; ++i) {
     sqlite3_value* arg = argv[i];
     sql_argument::Type type = state->prototype().arguments[i].type();
+    // Skip type checking for ANY type - it accepts all types.
+    if (type == sql_argument::Type::kAny) {
+      continue;
+    }
     base::Status status = sqlite::utils::TypeCheckSqliteValue(
         arg, sql_argument::TypeToSqlValueType(type),
         sql_argument::TypeToHumanFriendlyString(type));

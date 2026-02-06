@@ -294,3 +294,20 @@ class PerfettoFunction(TestSuite):
         14,1
         15,1
       """))
+
+  def test_create_function_variadic_delegate(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        CREATE PERFETTO FUNCTION my_hash(args ANY...) RETURNS INT
+        DELEGATES TO hash;
+
+        SELECT
+          my_hash(1, 'hello', 42) as h1,
+          my_hash('single_arg') as h2,
+          my_hash(1, 2, 3, 4, 5) as h3;
+      """,
+        out=Csv("""
+        "h1","h2","h3"
+        4730678220997103486,1309196097616646754,-6396149620914793052
+      """))
