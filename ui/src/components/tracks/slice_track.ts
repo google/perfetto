@@ -73,7 +73,21 @@ const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
 const SLICE_MIN_WIDTH_PX = 1;
 const SLICE_MIN_WIDTH_FADED_PX = 0.1;
 const CHEVRON_WIDTH_PX = 10;
-const INCOMPLETE_SLICE_WIDTH_PX = 20;
+// const INCOMPLETE_SLICE_WIDTH_PX = 20;
+
+const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
+  id: 'cropIncompleteSlice',
+  name: 'Crop incomplete slices',
+  description: 'Display incomplete slices in short form',
+  defaultValue: false,
+});
+
+const FADE_THIN_SLICES_FLAG = featureFlags.register({
+  id: 'fadeThinSlices',
+  name: 'Fade thin slices',
+  description: 'Display sub-pixel slices in a faded way',
+  defaultValue: false,
+});
 
 // Base slice properties shared by both complete and incomplete slices
 interface SliceBase {
@@ -106,7 +120,6 @@ interface DataFrame<T> {
   readonly start: time;
   readonly end: time;
   readonly slices: readonly SliceWithRow<T>[];
-  readonly maxDataDepth: number;
 }
 
 export interface SliceLayout {
@@ -139,20 +152,6 @@ export interface OnSliceOutArgs<S extends SliceBase> {
 export interface OnSliceClickArgs<S extends SliceBase> {
   slice: S;
 }
-
-export const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
-  id: 'cropIncompleteSlice',
-  name: 'Crop incomplete slices',
-  description: 'Display incomplete slices in short form',
-  defaultValue: false,
-});
-
-export const FADE_THIN_SLICES_FLAG = featureFlags.register({
-  id: 'fadeThinSlices',
-  name: 'Fade thin slices',
-  description: 'Display sub-pixel slices in a faded way',
-  defaultValue: false,
-});
 
 export interface InstantStyle {
   /**
@@ -316,7 +315,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   protected hoveredSlice?: SliceWithRow<T & Required<RowSchema>>;
 
   private readonly attrs: SliceTrackAttrs<T>;
-  private readonly depthGuess: number;
   private readonly instantWidthPx: number;
   private readonly forceTimestampRenderOrder: boolean;
 
@@ -334,6 +332,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private charWidth = -1;
   private computedTrackHeight = 0;
   private currentDataFrame?: DataFrame<T & Required<RowSchema>>;
+  private rowCount: number;
 
   /**
    * Factory function to create a SliceTrack.
@@ -376,7 +375,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.trace = attrs.trace;
     this.uri = attrs.uri;
     this.rootTableName = attrs.rootTableName;
-    this.depthGuess = attrs.initialMaxDepth ?? 0;
+    this.rowCount = attrs.initialMaxDepth ?? 1;
     this.instantWidthPx = attrs.instantStyle?.width ?? CHEVRON_WIDTH_PX;
     this.forceTimestampRenderOrder = attrs.forceTsRenderOrder ?? false;
 
@@ -559,16 +558,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       this.selectedSlice = discoveredSelection;
       const slice = discoveredSelection;
       // Handle both complete slices (with start/dur) and incomplete slices (with ts)
-      let x: number, w: number;
-      if ('start' in slice) {
-        ({x, w} = computeSliceGeom(slice));
-      } else {
-        // Incomplete slice
-        x = timescale.timeToPx(slice.ts);
-        w = CROP_INCOMPLETE_SLICE_FLAG.get()
-          ? INCOMPLETE_SLICE_WIDTH_PX
-          : pxEnd - x;
-      }
+      const {x, w} = computeSliceGeom(slice);
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       ctx.strokeStyle = colors.COLOR_TIMELINE_OVERLAY;
       ctx.beginPath();
@@ -617,12 +607,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   // Creates the mipmap table for efficient slice queries
-  private async createMipmapTable(
-    sqlSource: string,
-  ): Promise<DisposableSqlEntity> {
+  private async createMipmapTable(sqlSource: string) {
     const rowCount = await this.getRowCount(sqlSource);
+    this.rowCount = rowCount;
 
-    return await createVirtualTable({
+    const table = await createVirtualTable({
       engine: this.engine,
       using: `__intrinsic_slice_mipmap((
         select id, ts, dur, ((layer * ${rowCount ?? 1}) + depth) as depth
@@ -630,9 +619,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         where dur != -1
       ))`,
     });
+
+    return table;
   }
 
-  private async getRowCount(sqlSource: string): Promise<number | undefined> {
+  private async getRowCount(sqlSource: string): Promise<number> {
     const result = await this.engine.query(`
       SELECT
         IFNULL(depth, 0) + 1 AS rowCount
@@ -640,7 +631,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       ORDER BY depth DESC
       LIMIT 1
     `);
-    return result.maybeFirstRow({rowCount: NUM})?.rowCount;
+    return result.maybeFirstRow({rowCount: NUM})?.rowCount ?? 0;
   }
 
   private useData(
@@ -674,7 +665,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       queryFn: async (signal) => {
         const promise = (async () => {
           // Load complete and incomplete slices in a single query
-          const {slices, maxDataDepth} = await this.getSlices(
+          const {slices} = await this.getSlices(
             mipmapTable.name,
             bounds.start,
             bounds.end,
@@ -688,7 +679,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             start: bounds.start,
             end: bounds.end,
             slices,
-            maxDataDepth,
           };
         })();
         const result = await this.trace.taskTracker.track(
@@ -714,7 +704,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     dataset: Dataset<T>,
   ): Promise<{
     slices: SliceWithRow<T & Required<RowSchema>>[];
-    maxDataDepth: number;
   }> {
     const slices: SliceWithRow<T & Required<RowSchema>>[] = [];
     const extraCols = Object.keys(dataset.schema)
@@ -738,16 +727,25 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       ) z
       CROSS JOIN (${sqlSource}) s using (id)
       UNION ALL
-      -- Incomplete slices (dur = -1)
+      -- Incomplete slices (dur = -1) with duration calculated to next slice
       SELECT
-        MAX(ts, ${start}) - ${start} as __ts,
-        -1 as __dur,
-        id as __id,
+        MAX(i.ts, ${start}) - ${start} as __ts,
+        CASE
+          WHEN i.next_ts IS NOT NULL AND i.next_ts <= ${end}
+          THEN i.next_ts - MAX(i.ts, ${start})
+          ELSE -1
+        END as __dur,
+        i.id as __id,
         1 as __count,
-        depth as __depth,
-        ${Object.keys(dataset.schema).join()}
-      FROM (${sqlSource})
-      WHERE dur = -1 AND ts < ${end}
+        i.depth as __depth,
+        ${Object.keys(dataset.schema)
+          .map((c) => `i.${c}`)
+          .join()}
+      FROM (
+        SELECT *, LEAD(ts) OVER (PARTITION BY depth ORDER BY ts) as next_ts
+        FROM (${sqlSource})
+      ) i
+      WHERE i.dur = -1 AND i.ts < ${end}
     `);
 
     if (signal.isCancelled) throw QUERY_CANCELLED;
@@ -766,14 +764,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       ...dataset.schema,
     });
 
-    let maxDataDepth = 0;
     for (let i = 0; it.valid(); it.next(), ++i) {
       if (i % 256 === 0) {
         if (signal.isCancelled) throw QUERY_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
       slices.push(this.rowToSlice(it));
-      maxDataDepth = Math.max(maxDataDepth, it.__depth);
     }
 
     // Sort slices by color for batch rendering (unless forced ts order)
@@ -783,7 +779,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       );
     }
 
-    return {maxDataDepth, slices};
+    return {slices};
   }
 
   // Create a slice from a query result row
@@ -904,9 +900,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   private updateSliceAndTrackHeight() {
-    const numRows = this.currentDataFrame?.maxDataDepth ?? this.depthGuess + 1;
+    // maxDataDepth is 0-indexed, so add 1 to get the number of rows
     const {padding = 2, sliceHeight = 12, rowGap = 0} = this.sliceLayout;
-    this.computedTrackHeight = 2 * padding + numRows * (sliceHeight + rowGap);
+    this.computedTrackHeight =
+      2 * padding + this.rowCount * (sliceHeight + rowGap);
   }
 
   getHeight(): number {
