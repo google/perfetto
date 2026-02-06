@@ -214,9 +214,6 @@ export class TrackView {
             }) ?? false
           );
         },
-        onupdate: () => {
-          renderer?.track.onFullRedraw?.();
-        },
         onMoveBefore: (nodeId: string) => {
           // We are the reference node (the one to be moved relative to), nodeId
           // references the target node (the one to be moved)

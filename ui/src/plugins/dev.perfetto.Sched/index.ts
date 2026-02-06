@@ -162,6 +162,25 @@ export default class SchedPlugin implements PerfettoPlugin {
 
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
 
+    const table = await createPerfettoTable({
+      engine: ctx.engine,
+      name: 'non_idle_sched_slices',
+      as: `
+        SELECT
+          s.id,
+          s.ts,
+          s.dur,
+          s.utid,
+          IFNULL(t.upid, 0) AS pid,
+          IFNULL(s.priority, 120) AS priority,
+          ucpu,
+          0 as depth
+        FROM sched s
+        LEFT JOIN thread t USING (utid)
+        WHERE NOT s.utid IN (SELECT utid FROM thread WHERE is_idle)
+      `,
+    });
+
     const group = new TrackNode({
       name: 'CPU Scheduling',
       sortOrder: -50,
@@ -196,7 +215,7 @@ export default class SchedPlugin implements PerfettoPlugin {
           kinds: [CPU_SLICE_TRACK_KIND],
           cpu: cpu.ucpu,
         },
-        renderer: createCpuSliceTrack(ctx, uri, cpu.ucpu, threads),
+        renderer: createCpuSliceTrack(ctx, uri, table.name, cpu.ucpu, threads),
       });
       group.addChildInOrder(new TrackNode({name, uri}));
     }

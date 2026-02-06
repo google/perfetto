@@ -267,7 +267,6 @@ export interface TrackRenderer {
    * Canvas 2D content.
    */
   render(ctx: TrackRenderContext): void;
-  onFullRedraw?(): void;
 
   /**
    * Return the vertical bounds (top & bottom) of a slice were it to be rendered

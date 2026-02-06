@@ -401,11 +401,7 @@ export class CpuFreqTrack implements TrackRenderer {
 
     // Step 2: Declaratively fetch data from the tables with buffered bounds
     const visibleSpan = visibleWindow.toTimeSpan();
-    const bounds = this.bufferedBounds.update(
-      visibleSpan,
-      resolution,
-      this.data !== undefined,
-    );
+    const bounds = this.bufferedBounds.update(visibleSpan, resolution);
 
     // Use the stable loaded bounds as the key - only changes when we decide to refetch
     const dataResult = this.dataSlot.use({

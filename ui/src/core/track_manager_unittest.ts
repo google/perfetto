@@ -24,7 +24,6 @@ import {Renderer} from '../base/renderer';
 
 interface MockTrack {
   render: jest.Mock;
-  onFullRedraw: jest.Mock;
   getSliceVerticalBounds: jest.Mock;
   getHeight: jest.Mock;
   getTrackShellButtons: jest.Mock;
@@ -36,7 +35,6 @@ interface MockTrack {
 function makeMockTrack(): MockTrack {
   return {
     render: jest.fn(),
-    onFullRedraw: jest.fn(),
     getSliceVerticalBounds: jest.fn(),
     getHeight: jest.fn(),
     getTrackShellButtons: jest.fn(),

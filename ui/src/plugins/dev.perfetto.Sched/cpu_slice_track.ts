@@ -32,6 +32,7 @@ const CPU_SLICE_SCHEMA = {
   utid: NUM,
   pid: LONG,
   priority: NUM,
+  depth: 0,
 } as const;
 
 type CpuSliceRow = typeof CPU_SLICE_SCHEMA;
@@ -39,6 +40,7 @@ type CpuSliceRow = typeof CPU_SLICE_SCHEMA;
 export function createCpuSliceTrack(
   trace: Trace,
   uri: string,
+  tableName: string,
   ucpu: number,
   threads: ThreadMap,
 ): SliceTrack<CpuSliceRow> {
@@ -49,19 +51,7 @@ export function createCpuSliceTrack(
 
     dataset: () =>
       new SourceDataset({
-        src: `
-          SELECT
-            s.id,
-            s.ts,
-            s.dur,
-            s.utid,
-            IFNULL(t.upid, 0) AS pid,
-            IFNULL(s.priority, 120) AS priority,
-            ucpu
-          FROM sched s
-          LEFT JOIN thread t USING (utid)
-          WHERE NOT s.utid IN (SELECT utid FROM thread WHERE is_idle)
-        `,
+        src: tableName,
         schema: CPU_SLICE_SCHEMA,
         filter: {
           col: 'ucpu',
