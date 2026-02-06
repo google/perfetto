@@ -67,6 +67,7 @@
  *   the queue to stay synchronized with in-flight queries.
  */
 
+import m from 'mithril';
 import {stringifyJsonWithBigints} from './json_utils';
 
 /**
@@ -263,6 +264,8 @@ export class QuerySlot<T> {
           } else {
             this.finaliseError(key, e);
           }
+        } finally {
+          m.redraw();
         }
       });
     }
