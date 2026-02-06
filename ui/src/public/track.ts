@@ -259,38 +259,6 @@ export interface TrackRenderer {
   readonly settings?: ReadonlyArray<TrackSetting<unknown>>;
 
   /**
-   * Optional lifecycle hook called on the first render cycle. Should be used to
-   * create any required resources.
-   *
-   * These lifecycle hooks are asynchronous, but they are run synchronously,
-   * meaning that perfetto will wait for each one to complete before calling the
-   * next one, so the user doesn't have to serialize these calls manually.
-   *
-   * Exactly when this hook is called is left purposely undefined. The only
-   * guarantee is that it will be called exactly once before the first call to
-   * onUpdate().
-   *
-   * Note: On the first render cycle, both onCreate and onUpdate are called one
-   * after another.
-   */
-  onCreate?(ctx: TrackContext): Promise<void>;
-
-  /**
-   * Optional lifecycle hook called on every render cycle.
-   *
-   * The track should inspect things like the visible window, track size, and
-   * resolution to work out whether any data needs to be reloaded based on these
-   * properties and perform a reload.
-   */
-  onUpdate?(ctx: TrackRenderContext): Promise<void>;
-
-  /**
-   * Optional lifecycle hook called when the track is no longer visible. Should
-   * be used to clear up any resources.
-   */
-  onDestroy?(): Promise<void>;
-
-  /**
    * Required method used to render the track's content to the canvas, called
    * synchronously on every render cycle.
    *

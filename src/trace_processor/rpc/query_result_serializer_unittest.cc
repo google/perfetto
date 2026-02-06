@@ -93,6 +93,7 @@ class TestDeserializer {
   std::vector<SqlValue> cells;
   std::string error;
   bool eof_reached = false;
+  std::optional<double> elapsed_time_ms;
 
  private:
   std::vector<std::unique_ptr<char[]>> copied_buf_;
@@ -114,6 +115,10 @@ void TestDeserializer::DeserializeBuffer(const uint8_t* start, size_t size) {
   error += result.error().ToStdString();
   for (auto it = result.column_names(); it; ++it)
     columns.push_back(it->as_std_string());
+
+  if (result.has_elapsed_time_ms()) {
+    elapsed_time_ms = result.elapsed_time_ms();
+  }
 
   for (auto batch_it = result.batch(); batch_it; ++batch_it) {
     ASSERT_FALSE(eof_reached);
@@ -450,6 +455,26 @@ TEST(QueryResultSerializerTest, NoResultQuery) {
     EXPECT_EQ(deser.error, "");
     EXPECT_EQ(deser.cells.size(), 1u);
     EXPECT_TRUE(deser.eof_reached);
+  }
+}
+
+TEST(QueryResultSerializerTest, ElapsedTime) {
+  auto tp = TraceProcessor::CreateInstance(trace_processor::Config());
+  {
+    auto iter = tp->ExecuteQuery("select 1");
+    QueryResultSerializer ser(std::move(iter));
+    TestDeserializer deser;
+    deser.SerializeAndDeserialize(&ser);
+    EXPECT_FALSE(deser.elapsed_time_ms.has_value());
+  }
+
+  {
+    // TODO test that if elapsed time is passed to serialize then
+    auto iter = tp->ExecuteQuery("select 1");
+    QueryResultSerializer ser(std::move(iter), base::GetWallTimeNs());
+    TestDeserializer deser;
+    deser.SerializeAndDeserialize(&ser);
+    EXPECT_GT(deser.elapsed_time_ms, 0.0);
   }
 }
 

@@ -18,7 +18,12 @@
 
 import {Color} from './color';
 import {Transform2D} from './geom';
-import {Renderer, RECT_PATTERN_HATCHED, MarkerRenderFunc} from './renderer';
+import {
+  Renderer,
+  RECT_PATTERN_HATCHED,
+  MarkerRenderFunc,
+  StepAreaBuffers,
+} from './renderer';
 
 // Clip bounds stored in physical screen coordinates (post-transform).
 // This allows correct culling regardless of what transforms are active.
@@ -134,6 +139,73 @@ export class Canvas2DRenderer implements Renderer {
       ctx.fillRect(left, top, w, h);
       this.previousFillStyle = undefined;
     }
+  }
+
+  drawStepArea(
+    buffers: StepAreaBuffers,
+    transform: Transform2D,
+    color: Color,
+  ): void {
+    const {xs, ys, minYs, maxYs, fillAlpha, xnext, count} = buffers;
+    if (count < 1) return;
+
+    const ctx = this.ctx;
+    const clip = this.physicalClipBounds;
+    const baselineY = transform.offsetY;
+    const strokeColor = color.setAlpha(1.0);
+
+    // Transform functions: screenCoord = raw * scale + offset
+    const tx = (x: number) => x * transform.scaleX + transform.offsetX;
+    const ty = (y: number) => y * transform.scaleY + transform.offsetY;
+
+    ctx.fillStyle = color.cssString;
+    ctx.strokeStyle = strokeColor.cssString;
+    ctx.beginPath();
+
+    for (let i = 0; i < count; i++) {
+      // Compute segment bounds
+      const x = Math.round(tx(xs[i]));
+      const nextX = Math.round(tx(xnext[i]));
+
+      // Don't render segments that are fully outside the clip region
+      if (clip) {
+        const physX = this.transform.offsetX + x * this.transform.scaleX;
+        const physNextX =
+          this.transform.offsetX + nextX * this.transform.scaleX;
+        // Skip segments entirely off the left edge
+        if (physNextX < clip.left) continue;
+        // Stop once we're past the right edge
+        if (physX >= clip.right) break;
+      }
+
+      const y = ty(ys[i]);
+      const minY = ty(minYs[i]);
+      const maxY = ty(maxYs[i]);
+      const fill = fillAlpha[i];
+
+      // If fillAlpha is close to zero, don't draw anything at all
+      if (fill >= 0.01) {
+        const width = nextX - x;
+        const height = baselineY - y;
+        ctx.globalAlpha = fill;
+        ctx.fillRect(x, y, width, height);
+      }
+
+      // Draws a sideways T (range indicator) at the transition x:
+      //
+      //  maxY +  (Top of range)
+      //       |
+      //     y +-------+ (nextX, y)
+      //       |
+      //  minY +  (Bottom of range)
+      ctx.moveTo(x, maxY);
+      ctx.lineTo(x, minY);
+      ctx.moveTo(x, y);
+      ctx.lineTo(nextX, y);
+    }
+
+    ctx.globalAlpha = 1.0;
+    ctx.stroke();
   }
 
   flush(): void {

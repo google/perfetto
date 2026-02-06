@@ -53,6 +53,7 @@ COLUMN_TYPES = [
     'STRING',
     'BOOL',
     'BYTES',
+    'ANY',
 
     # Special types
     'TIMESTAMP',
@@ -75,7 +76,7 @@ MACRO_ARG_TYPES = [
 NAME = r'[a-zA-Z_\d\{\}]+'
 ANY_WORDS = r'[^\s].*'
 ANY_NON_QUOTE = r'[^\']*.*'
-TYPE = r'[_a-zA-Z\(\)\.]+'
+TYPE = r'[_a-zA-Z\(\)\.]+(?:\.\.\.)?'
 SQL = r'[\s\S]*?'
 WS = r'\s*'
 
