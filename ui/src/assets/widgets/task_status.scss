@@ -16,10 +16,10 @@
 
 .pf-task-status {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
   gap: 4px;
-  width: 48px;
+  width: 30px;
   padding: 4px 0;
   font-family: var(--pf-font-compact);
   font-size: var(--pf-font-size-s);
@@ -28,7 +28,7 @@
   user-select: none;
 
   .pf-icon {
-    font-size: 16px;
+    align-self: center;
   }
 
   &__count {
