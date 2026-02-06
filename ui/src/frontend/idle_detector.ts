@@ -15,7 +15,7 @@
 import {defer} from '../base/deferred';
 import {raf} from '../core/raf_scheduler';
 import {AppImpl} from '../core/app_impl';
-import {taskTracker} from './task_tracker';
+import {taskTracker as frontendTaskTracker} from './task_tracker';
 
 /**
  * This class is exposed by index.ts as window.waitForPerfettoIdle() and is used
@@ -74,7 +74,8 @@ export class IdleDetector {
       !AppImpl.instance.isLoadingTrace,
       reqsPending === 0,
       !raf.hasPendingRedraws,
-      !taskTracker.hasPendingTasks(),
+      !AppImpl.instance.taskTracker.hasPendingTasks(),
+      !frontendTaskTracker.hasPendingTasks(),
       !document.getAnimations().some((a) => {
         if (a.playState !== 'running') return false;
         // Ignore infinite animations (e.g., cursor blinks) - they're decorative
