@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,19 +31,6 @@ function formatElapsed(ms: number): string {
  * - When tasks are in flight, shows a tooltip with task labels and elapsed times.
  */
 export class TaskStatus implements m.ClassComponent {
-  private unsubscribe?: () => void;
-
-  oninit() {
-    this.unsubscribe = taskTracker.subscribe(() => {
-      m.redraw();
-    });
-  }
-
-  onremove() {
-    this.unsubscribe?.();
-    this.unsubscribe = undefined;
-  }
-
   view(): m.Children {
     const count = taskTracker.size;
     const tasks = taskTracker.tasks;
@@ -51,7 +38,7 @@ export class TaskStatus implements m.ClassComponent {
     const content = m(
       '.pf-task-status',
       m(Icon, {icon: 'pending_actions'}),
-      m('span.pf-task-status__count', String(count)),
+      m('span.pf-task-status__count', count),
     );
 
     if (count === 0) {

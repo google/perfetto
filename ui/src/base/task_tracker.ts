@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import {defer} from './deferred';
 
 interface TaskEntry {
   readonly label: string;
@@ -32,9 +30,7 @@ export interface TaskInfo {
  * arbitrary promises) can opt in by calling track().
  */
 export class TaskTracker {
-  private readonly pending = new Map<number, TaskEntry>();
-  private readonly listeners = new Set<() => void>();
-  private nextId = 0;
+  private readonly pending = new Set<TaskEntry>();
 
   /**
    * Register a promise to be tracked.
@@ -44,21 +40,18 @@ export class TaskTracker {
    * @returns The same promise (pass-through) so callers can still await it
    */
   track<T>(promise: Promise<T>, label = 'anonymous'): Promise<T> {
-    const id = this.nextId++;
     const entry: TaskEntry = {
       label,
       startTime: performance.now(),
     };
-    this.pending.set(id, entry);
-    this.notify();
+    this.pending.add(entry);
 
     // Attach cleanup via .finally(), but suppress the unhandled rejection
     // on this side chain. The original promise is returned so rejections
     // propagate correctly to the caller.
     promise
       .finally(() => {
-        this.pending.delete(id);
-        this.notify();
+        this.pending.delete(entry);
       })
       .catch(() => {});
 
@@ -96,46 +89,6 @@ export class TaskTracker {
       label: entry.label,
       elapsed: now - entry.startTime,
     }));
-  }
-
-  /**
-   * Returns a promise that resolves when all currently tracked work
-   * (including work added while waiting) has completed.
-   * Resolves immediately if already idle.
-   */
-  whenIdle(): Promise<void> {
-    if (this.idle) {
-      return Promise.resolve();
-    }
-
-    const deferred = defer<void>();
-    const unsubscribe = this.subscribe(() => {
-      if (this.idle) {
-        unsubscribe();
-        deferred.resolve();
-      }
-    });
-
-    return deferred;
-  }
-
-  /**
-   * Register a listener that fires whenever a task is added or completes.
-   *
-   * @param fn The listener function
-   * @returns An unsubscribe function
-   */
-  subscribe(fn: () => void): () => void {
-    this.listeners.add(fn);
-    return () => {
-      this.listeners.delete(fn);
-    };
-  }
-
-  private notify(): void {
-    for (const listener of this.listeners) {
-      listener();
-    }
   }
 }
 

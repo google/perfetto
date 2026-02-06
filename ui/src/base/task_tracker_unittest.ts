@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -101,90 +101,5 @@ describe('TaskTracker', () => {
       'task2',
       'task3',
     ]);
-  });
-
-  test('subscribe notifies on add and remove', async () => {
-    const notifications: number[] = [];
-    tracker.subscribe(() => notifications.push(tracker.size));
-
-    const deferred = defer<void>();
-    tracker.track(deferred, 'test');
-    expect(notifications).toEqual([1]);
-
-    deferred.resolve();
-    await deferred;
-    await Promise.resolve();
-
-    expect(notifications).toEqual([1, 0]);
-  });
-
-  test('unsubscribe stops notifications', () => {
-    const notifications: number[] = [];
-    const unsubscribe = tracker.subscribe(() =>
-      notifications.push(tracker.size),
-    );
-
-    tracker.track(defer<void>(), 'test1');
-    expect(notifications).toEqual([1]);
-
-    unsubscribe();
-    tracker.track(defer<void>(), 'test2');
-    expect(notifications).toEqual([1]); // No new notification
-  });
-
-  test('whenIdle resolves immediately when already idle', async () => {
-    expect(tracker.idle).toBe(true);
-    await tracker.whenIdle();
-  });
-
-  test('whenIdle resolves when all tasks complete', async () => {
-    const d1 = defer<void>();
-    const d2 = defer<void>();
-
-    tracker.track(d1, 'task1');
-    tracker.track(d2, 'task2');
-
-    let resolved = false;
-    const idlePromise = tracker.whenIdle().then(() => {
-      resolved = true;
-    });
-
-    d1.resolve();
-    await d1;
-    await Promise.resolve();
-    expect(resolved).toBe(false);
-
-    d2.resolve();
-    await d2;
-    await idlePromise;
-    expect(resolved).toBe(true);
-  });
-
-  test('whenIdle waits for cascading tasks', async () => {
-    const d1 = defer<void>();
-    const d2 = defer<void>();
-
-    tracker.track(d1, 'task1');
-
-    let resolved = false;
-    const idlePromise = tracker.whenIdle().then(() => {
-      resolved = true;
-    });
-
-    // Resolve d1 but spawn d2 before the idle check
-    d1.resolve();
-    await d1;
-
-    // Spawn a new task before the idle listener fires
-    tracker.track(d2, 'task2');
-    await Promise.resolve();
-
-    expect(resolved).toBe(false);
-    expect(tracker.size).toBe(1);
-
-    d2.resolve();
-    await d2;
-    await idlePromise;
-    expect(resolved).toBe(true);
   });
 });
