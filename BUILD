@@ -3850,6 +3850,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_wattson_wattson",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/wattson/aggregation.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/arm_dsu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/freq.sql",
@@ -3871,15 +3872,12 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/freq_idle.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/metrics/aggregation.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/metrics/rails_metrics.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/metrics/threads_metrics.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/metrics/windows.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/idle_transitions_attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/task_slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/ui/continuous_estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/windows.sql",
     ],
 )
 

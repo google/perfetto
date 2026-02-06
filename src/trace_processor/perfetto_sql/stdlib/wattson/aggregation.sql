@@ -28,7 +28,7 @@ INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
 INCLUDE PERFETTO MODULE wattson.utils;
 
 -- ========================================================
--- MACRO: _wattson_threads_build_flat_view
+-- MACRO: wattson_threads_aggregation
 --
 -- Calculates energy and power attribution per thread/process for the
 -- given time windows.
@@ -42,7 +42,9 @@ INCLUDE PERFETTO MODULE wattson.utils;
 --     thread_name, process_name,
 --     estimated_mws, estimated_mw, idle_transitions_mws, total_mws
 -- ========================================================
-CREATE PERFETTO MACRO _wattson_threads_build_flat_view(
+CREATE PERFETTO MACRO wattson_threads_aggregation(
+    -- Intereseted window table with columns:
+    -- (ts, dur, period_id).
     window_table TableOrSubquery
 )
 RETURNS TableOrSubquery AS
@@ -224,7 +226,7 @@ RETURNS TableOrSubquery AS
 );
 
 -- ========================================================
--- MACRO: _wattson_rail_build_flat_view
+-- MACRO: wattson_rails_aggregation
 --
 -- Flattening and unpivoting of rail data into a standard breakdown.
 --
@@ -234,7 +236,9 @@ RETURNS TableOrSubquery AS
 -- Output:
 --   Flat breakdown including CORE, POLICY, DSU and SUBSYSTEM TOTAL.
 -- ========================================================
-CREATE PERFETTO MACRO _wattson_rail_build_flat_view(
+CREATE PERFETTO MACRO wattson_rails_aggregation(
+    -- Intereseted window table with columns:
+    -- (ts, dur, period_id).
     window_table TableOrSubquery
 )
 RETURNS TableOrSubquery AS
@@ -422,7 +426,15 @@ RETURNS TableOrSubquery AS
 --
 -- Shared metadata for all Wattson metrics.
 -- ========================================================
-CREATE PERFETTO VIEW _wattson_metric_metadata AS
+CREATE PERFETTO VIEW wattson_metric_metadata (
+  -- Wattson metric version
+  metric_version LONG,
+  -- Wattson power curve version
+  power_model_version LONG,
+  -- Wattson estimation will be crude
+  -- if missing cpu/idle counter
+  is_crude_estimate BOOL
+) AS
 SELECT
   4 AS metric_version,
   1 AS power_model_version,

@@ -20,11 +20,22 @@ INCLUDE PERFETTO MODULE android.startup.startups;
 INCLUDE PERFETTO MODULE wattson.utils;
 
 -- ========================================================
--- Window definitions for Wattson metric analysis.
+-- Interested window definitions for Wattson metric analysis.
+-- 1. Marker Window
+-- 2. Entire Trace
+-- 3. App Startup Window
+-- 4. CUJ Window
 -- ========================================================
 
 -- Standardized window for Wattson markers
-CREATE PERFETTO VIEW _wattson_window_markers AS
+CREATE PERFETTO VIEW wattson_window_markers (
+  -- Start timestamp of the window
+  ts TIMESTAMP,
+  -- Duration of the window
+  dur DURATION,
+  -- ID of each period
+  period_id LONG
+) AS
 SELECT
   ts,
   dur,
@@ -32,14 +43,28 @@ SELECT
 FROM _wattson_markers_window;
 
 -- Standardized window for the full trace duration
-CREATE PERFETTO VIEW _wattson_window_trace AS
+CREATE PERFETTO VIEW wattson_window_trace (
+  -- Start timestamp of the window
+  ts TIMESTAMP,
+  -- Duration of the window
+  dur DURATION,
+  -- ID of each period
+  period_id LONG
+) AS
 SELECT
   trace_start() AS ts,
   trace_dur() AS dur,
   1 AS period_id;
 
 -- Standardized window for Android app startups
-CREATE PERFETTO VIEW _wattson_window_app_startup AS
+CREATE PERFETTO VIEW wattson_window_app_startup (
+  -- Start timestamp of the window
+  ts TIMESTAMP,
+  -- Duration of the window
+  dur DURATION,
+  -- ID of each period
+  period_id LONG
+) AS
 SELECT
   ts,
   dur,
@@ -47,7 +72,14 @@ SELECT
 FROM android_startups;
 
 -- Standardized window for Android CUJs
-CREATE PERFETTO VIEW _wattson_window_atrace_apps AS
+CREATE PERFETTO VIEW wattson_window_atrace_apps (
+  -- Start timestamp of the window
+  ts TIMESTAMP,
+  -- Duration of the window
+  dur DURATION,
+  -- ID of each period
+  period_id LONG
+) AS
 SELECT
   ts,
   dur,
