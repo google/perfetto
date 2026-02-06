@@ -59,6 +59,8 @@ class SharedRingBuffer {
   static constexpr size_t kChunkHeaderSize = 4;
   static constexpr size_t kChunkPayloadSize = kChunkSize - kChunkHeaderSize;
   static constexpr size_t kRingBufferHeaderSize = 16;
+  static constexpr size_t kPayloadShift = 16;
+  static constexpr size_t kFlagsShift = 24;
 
   enum ChunkFlags : uint8_t {
     kFlagAcquiredForWriting = 1 << 0,
@@ -69,7 +71,8 @@ class SharedRingBuffer {
   };
 
   struct alignas(8) RingBufferHeader {
-    // TODO spread apart / alignas to avoid cache bouncing?
+    // TODO spread apart / alignas to avoid cache bouncing? But reason on the
+    // code maybe they are frequently accessed together and it's worse.
     std::atomic<uint32_t> wr_off;
     std::atomic<uint32_t> rd_off;
     std::atomic<uint32_t> data_losses;
@@ -80,17 +83,18 @@ class SharedRingBuffer {
   struct ChunkHeader {
     // Layout: [flags:8][payload_size:8][writer_id:16]
     static constexpr uint32_t Pack(WriterID id, uint8_t size, uint8_t flags) {
-      return static_cast<uint32_t>(id) | (static_cast<uint32_t>(size) << 16) |
-             (static_cast<uint32_t>(flags) << 24);
+      return static_cast<uint32_t>(id) |
+             (static_cast<uint32_t>(size) << kPayloadShift) |
+             (static_cast<uint32_t>(flags) << kFlagsShift);
     }
     static constexpr WriterID GetWriterID(uint32_t p) {
       return static_cast<WriterID>(p & 0xFFFF);
     }
     static constexpr uint8_t GetPayloadSize(uint32_t p) {
-      return static_cast<uint8_t>((p >> 16) & 0xFF);
+      return static_cast<uint8_t>((p >> kPayloadShift) & 0xFF);
     }
     static constexpr uint8_t GetFlags(uint32_t p) {
-      return static_cast<uint8_t>((p >> 24) & 0xFF);
+      return static_cast<uint8_t>((p >> kFlagsShift) & 0xFF);
     }
   };
 
@@ -298,10 +302,10 @@ class SharedRingBuffer_Writer {
   uint32_t invalid_chunk_header_ =
       SharedRingBuffer::ChunkHeader::Pack(0, 0xFF, 0xFF);
 
-  // Garbage chunk for writes when acquire fails. Treated like a real chunk
+  // Bankruptcy chunk for writes when acquire fails. Treated like a real chunk
   // with a proper header we maintain. We continue writing to it across
   // BeginWrite/EndWrite cycles until it overflows, then retry real acquire.
-  alignas(4) uint8_t garbage_chunk_[SharedRingBuffer::kChunkSize] = {};
+  alignas(4) uint8_t bankruptcy_chunk_[SharedRingBuffer::kChunkSize] = {};
 };
 
 // Single-consumer reader for the SharedRingBuffer.

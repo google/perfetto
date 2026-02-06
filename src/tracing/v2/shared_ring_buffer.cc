@@ -42,6 +42,13 @@ using ChunkHeader = SharedRingBuffer::ChunkHeader;
 // if it just skips it, now it moves past ignoring that chunk. which is going to
 // be filled up only later on. and it will go out of order for that thread.
 
+// TODO changes for tomorrow:
+// - When the reader goes past a 0 (idle) chunk it must invalidate it, in a
+//   similar way as if the chunk was kAcquiredForWriting.
+// - The writer has the resposnibility to set that chunk back to 0 when it
+//   sees the flag.
+// - sort out data losses
+
 // --- SharedRingBuffer ---
 
 SharedRingBuffer::SharedRingBuffer(void* start, size_t size)
@@ -68,6 +75,9 @@ SharedRingBuffer_Writer::SharedRingBuffer_Writer(SharedRingBuffer* rb,
     : rb_(rb),
       writer_id_(writer_id),
       cached_header_(SharedRingBuffer::ChunkHeader::Pack(writer_id, 0, 0)) {
+  // Generally speaking a 0 WriterID is not valid (As per IdAllocator semantic).
+  // Here we depend on the 0 WirterID to mark invdalited chunks.
+  PERFETTO_CHECK(writer_id > 0);
   PERFETTO_DCHECK(rb);
 }
 
@@ -78,8 +88,8 @@ SharedRingBuffer_Writer::SharedRingBuffer_Writer(
   this->writer_id_ = other.writer_id_;
   if (other.last_chunk_ == other.invalid_chunk()) {
     last_chunk_ = invalid_chunk();
-  } else if (other.last_chunk_ == other.garbage_chunk_) {
-    last_chunk_ = garbage_chunk_;
+  } else if (other.last_chunk_ == other.bankruptcy_chunk_) {
+    last_chunk_ = bankruptcy_chunk_;
   } else {
     last_chunk_ = other.last_chunk_;
   }
@@ -104,18 +114,21 @@ SharedRingBuffer_Writer& SharedRingBuffer_Writer::operator=(
 void SharedRingBuffer_Writer::BeginWriteInternal(uint8_t extra_flags) {
   PERFETTO_DCHECK(!is_writing());
 
-  // Try to acquire (or re-acquire) a chunk.
-  // - If last_chunk == invalid_chunk_: CAS fails (header is 0), get new chunk.
-  // - If last_chunk == garbage_chunk_: CAS succeeds (we maintain its header).
+  // First try to re-acquire the last chunk we used. If it fails try acquiring
+  // a new chunk. If there are no chunks available, fall back on the bankruptcy
+  // chunk. Upon initialization last_chunk_ points to invalid_chunk_.
+  // - If last_chunk == invalid_chunk_: CAS fails, get new chunk.
+  // - If last_chunk == bankruptcy_chunk_: CAS succeeds (we are the sole owner).
   // - If last_chunk == real chunk: CAS succeeds if not reclaimed.
 
   PERFETTO_DCHECK(last_chunk_);
   auto* chunk_hdr = reinterpret_cast<std::atomic<uint32_t>*>(last_chunk_);
-  const uint32_t kBitAcquiredForWriting =
-      static_cast<uint32_t>(SharedRingBuffer::kFlagAcquiredForWriting) << 24;
 
   uint32_t expected = cached_header_;
-  uint32_t desired = expected | kBitAcquiredForWriting | extra_flags;
+  uint32_t desired =
+      expected | (static_cast<uint32_t>(
+                      SharedRingBuffer::kFlagAcquiredForWriting | extra_flags)
+                  << SharedRingBuffer::kFlagsShift);
 
   // TODO reason on memory order here.
 
@@ -128,18 +141,22 @@ void SharedRingBuffer_Writer::BeginWriteInternal(uint8_t extra_flags) {
     PERFETTO_DCHECK(write_off_ > 0);
     cached_header_ = desired;
   } else {
+    // The only case when we expect this CAS to fail is if either somebody else
+    // took the chunk (can happen if a writer wraps around so fastly) OR if the
+    // chunk has been invalidated (in which case its writer id is 0). We should
+    // never end up in a state where we are still owning the chunk but its flags
+    // changed under our feet (that can happen only if the chunk is acquired,
+    // but it can't be acquired if we are starting BeginWrite).
+    PERFETTO_DCHECK(ChunkHeader::GetWriterID(expected) != writer_id_);
     AcquireNewChunk(extra_flags);
   }
 
   // At this point either we (re-)acquired a valid chunk or we got redirected to
-  // the garbage chunk.
-
+  // the bankruptcy chunk.
   PERFETTO_DCHECK(last_chunk_ != invalid_chunk());
 
-  // TODO check if we have any space left in write_ptr (or DCHECK and do that
-  // in EndWrite).
-
-  // Reserve 1 byte for the fragment size (patched in EndWrite).
+  // Reserve 1 byte for the fragment size, patched in EndWriteInternal().
+  PERFETTO_DCHECK(write_off_ < SharedRingBuffer::kChunkPayloadSize);
   fragment_size_off_ = write_off_;
   *(payload_start() + write_off_) = 0;
   ++write_off_;
@@ -155,8 +172,8 @@ void SharedRingBuffer_Writer::EndWriteInternal(uint8_t extra_flags) {
   *(payload_start() + fragment_size_off_) = frag_size;
 
   for (;;) {
-    // Release the chunk - update header to clear acquired_for_writing.
-    // For garbage_chunk_, this just updates our local header (no contention).
+    // Release the chunk - update header to clear acquired_for_writing. For
+    // bankruptcy_chunk_, this just updates our local header (no contention).
     // For real chunks, this does a CAS to release.
     auto* chunk_hdr = reinterpret_cast<std::atomic<uint32_t>*>(last_chunk_);
 
@@ -175,8 +192,8 @@ void SharedRingBuffer_Writer::EndWriteInternal(uint8_t extra_flags) {
     flags |= extra_flags;
     uint32_t new_hdr = ChunkHeader::Pack(writer_id_, payload_size, flags);
 
-    // For garbage_chunk_, this CAS always succeeds (no contention) as each
-    // writer has its own private garbage chunk as member field.
+    // For bankruptcy_chunk_, this CAS always succeeds (no contention) as each
+    // writer has its own private bankruptcy chunk as member field.
     // For real chunks, it may fail if reader set kFlagNeedsRewrite (below).
     uint32_t expected = cached_header_;
     if (PERFETTO_LIKELY(chunk_hdr->compare_exchange_strong(
@@ -233,27 +250,28 @@ void SharedRingBuffer_Writer::EndWriteInternal(uint8_t extra_flags) {
 }
 
 // Acquires the next free chunk in the ring buffer. If there is no free chunk
-// it falls back on the local garbage chunk and marks a data loss.
+// it falls back on the local bankruptcy chunk and marks a data loss.
 bool SharedRingBuffer_Writer::AcquireNewChunk(uint8_t extra_flags) {
   SharedRingBuffer::RingBufferHeader* rb_hdr = rb_->header();
   // TODO cache locally num_chunks to remove one pointer chasing.
   const size_t num_chunks = rb_->num_chunks();
   const uint8_t flags = SharedRingBuffer::kFlagAcquiredForWriting | extra_flags;
   const uint32_t new_hdr = ChunkHeader::Pack(writer_id_, 0, flags);
+
+  // This can be m-o-relaxed as the CAS below will be the authoritative check.
   uint32_t wr_off = rb_hdr->wr_off.load(std::memory_order_relaxed);
   uint32_t rd_off;
 
   for (;;) {
-    // TODO think about mem ordering
-    rd_off = rb_hdr->rd_off.load(std::memory_order_relaxed);
+    rd_off = rb_hdr->rd_off.load(std::memory_order_acquire);
     uint32_t next_wr_off = static_cast<uint32_t>((wr_off + 1) % num_chunks);
 
     if (next_wr_off == rd_off) {
-      // The buffer is full. Go to the epilogue and return the garbage chunk.
+      // The buffer is full. Go to the epilogue and return the bankruptcy chunk.
       break;
     }
 
-    // TODO I think this can be mem_order_relaxed because the next one below is
+    // TODO I think this can be m.o-relaxed because the next one below is
     // strong.
     if (!rb_hdr->wr_off.compare_exchange_weak(wr_off, next_wr_off,
                                               std::memory_order_relaxed)) {
@@ -271,8 +289,30 @@ bool SharedRingBuffer_Writer::AcquireNewChunk(uint8_t extra_flags) {
     std::atomic<uint32_t>* c_hdr = rb_->chunk_header_atomic(chunk);
     uint32_t expected_free_hdr = 0;
 
-    if (!c_hdr->compare_exchange_strong(expected_free_hdr, new_hdr))
+    if (!c_hdr->compare_exchange_strong(expected_free_hdr, new_hdr)) {
+      // If we fail to acquire the chunk, there are two cases:
+      // 1. We have been descheduled and we have been so slow that meanwhile
+      //    another writer wrapped around, re-incremented wr_off past our point
+      //    and took the chunk. This is okay, there is nothing to do here other
+      //    than trying again.
+      // 2. We have been slow and the reader went past our wr_off flagging the
+      //    chunk as "you arrived too late, you need to abandon this chunk and
+      //    pick a fresher one, because meanwhile this chunk has been considered
+      //    read. The reader flags this with writer_id=0+kNeedsRewrite. In this
+      //    case we have the responsibility of freeingup the chunk.
+      if (ChunkHeader::GetWriterID(expected_free_hdr) == 0) {
+        PERFETTO_DCHECK(ChunkHeader::GetFlags(expected_free_hdr) &
+                        SharedRingBuffer::kFlagNeedsRewrite);
+        uint32_t free_hdr = 0;
+        // At this point if we fail the CAS another thread must have succeeded
+        // there is no other possible transition. We can't DCHECK it because
+        // we can get descheduled and a thread could free it and after another
+        // one might take it.
+        // Note: the failure of the previous CAS updates `expected_free_hdr`.
+        c_hdr->compare_exchange_strong(expected_free_hdr, free_hdr);
+      }
       continue;
+    }
 
     // Success.
     last_chunk_ = chunk;
@@ -282,20 +322,20 @@ bool SharedRingBuffer_Writer::AcquireNewChunk(uint8_t extra_flags) {
   }  // for(;;)
 
   // ---
-  // If we get here there are no chunks in the buffer. Redirect to the garbage
-  // chunk. The data written here will be discarded, but avoids adding extra
-  // branches in the code to deal with this edge case.
+  // If we get here there are no chunks in the buffer. Redirect to the
+  // bankruptcy chunk. The data written here will be discarded, but avoids
+  // adding extra branches in the code to deal with this edge case.
 
   // TODO mark data loss somewhere in local state. if we switch back to a normal
   // chunk we should invalidate somehow the first fragment.
 
   rb_->IncrementDataLosses();
 
-  // Initialize garbage_chunk_ with a proper header.
-  reinterpret_cast<std::atomic<uint32_t>*>(garbage_chunk_)
+  // Initialize bankruptcy_chunk_ with a proper header.
+  reinterpret_cast<std::atomic<uint32_t>*>(bankruptcy_chunk_)
       ->store(new_hdr, std::memory_order_relaxed);
 
-  last_chunk_ = garbage_chunk_;
+  last_chunk_ = bankruptcy_chunk_;
   cached_header_ = new_hdr;
   write_off_ = 0;
   return false;
@@ -391,9 +431,25 @@ bool SharedRingBuffer_Reader::ReadOneChunk() {
   for (;;) {
     // If chunk header is 0, it was freed (e.g., by writer after needs_rewrite).
     // We are done here, move on to the next one.
-    if (PERFETTO_UNLIKELY(hdr == 0))
-      // TODO this needs to invalidate the writer otherwise it breaks ordering.
+    if (PERFETTO_UNLIKELY(hdr == 0)) {
+      // If the chunk is free, realistically this happened: a thread incremented
+      // the wr_off_ and was descheduled before it managed to claim ownership of
+      // the chunk. If this happens, we need to invalidate the chunk (the writer
+      // will then have the responsibility of freeing it). This is because once
+      // the reader gets past a chunk, that chunk can no longer be used or it
+      // will break FIFO-ness.
+      // We invalidate it by marking the chunk owned by WriterID 0 (which is
+      // invalid, no writer can have that ID) + kFlagNeedsRewrite. We can't
+      // possibly know which writer is the one that is about to claim it.
+      uint32_t invalidate =
+          ChunkHeader::Pack(0, 0, SharedRingBuffer::kFlagNeedsRewrite);
+      if (!hdr_atomic->compare_exchange_strong(hdr, invalidate)) {
+        // There is a chance the writer might wake up just when we do the CAS.
+        // If that happens we need to retransact.
+        continue;
+      }
       break;  // Break the loop, increment rd_off and return true.
+    }
 
     const uint8_t payload_size = ChunkHeader::GetPayloadSize(hdr);
     uint8_t flags = ChunkHeader::GetFlags(hdr);
@@ -434,8 +490,8 @@ bool SharedRingBuffer_Reader::ReadOneChunk() {
       // just "invalidate" it by setting kFlagNeedsRewrite, and instructing the
       // writer to just re-iterate once it has reached its end.
       uint32_t new_hdr =
-          hdr |
-          (static_cast<uint32_t>(SharedRingBuffer::kFlagNeedsRewrite) << 24);
+          hdr | (static_cast<uint32_t>(SharedRingBuffer::kFlagNeedsRewrite)
+                 << SharedRingBuffer::kFlagsShift);
       if (PERFETTO_LIKELY(hdr_atomic->compare_exchange_strong(hdr, new_hdr))) {
         break;
       }
