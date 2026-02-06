@@ -759,13 +759,13 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
   if (ts == std::numeric_limits<int64_t>::max() || ts_parse_failed) {
     if (event.phase != 'M') {
       if (ts_parse_failed) {
-          PERFETTO_DLOG("%s", status.c_message());
+        PERFETTO_DLOG("%s", status.c_message());
       }
       context_->storage->IncrementStats(stats::json_tokenizer_failure);
       return true;
     }
     // If the event is a metadata event, we can set ts to 0.
-    ts = 0;   
+    ts = 0;
   }
 
   // Make the tid equal to the pid if tid is not set.
