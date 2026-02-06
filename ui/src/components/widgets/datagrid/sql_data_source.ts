@@ -235,7 +235,7 @@ export class SQLDataSource implements DataSource {
    */
   private usePreamble(): QueryResult<void> {
     return this.preambleSlot.use({
-      key: this.preamble,
+      key: {preamble: this.preamble ?? ''},
       queryFn: async () => {
         if (this.preamble) {
           await this.engine.query(this.preamble);

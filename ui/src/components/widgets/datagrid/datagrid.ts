@@ -647,6 +647,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           .map((col) => ({
             field: col.field,
             alias: col.id,
+            aggregate: col.aggregate,
           }))
           .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
       };
@@ -693,6 +694,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           .map((col) => ({
             field: col.field,
             alias: col.id,
+            aggregate: col.aggregate,
           }))
           .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
       };

@@ -14,7 +14,7 @@
 
 import {QueryResult} from '../../../base/query_slot';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Filter, GroupPath} from './model';
+import {AggregateFunction, Filter, GroupPath} from './model';
 
 /**
  * Data source interface for DataGrid.
@@ -84,6 +84,7 @@ export interface FlatModel extends DataSourceModelBase {
   readonly columns: readonly {
     readonly field: string;
     readonly alias: string;
+    readonly aggregate?: AggregateFunction;
   }[];
 }
 

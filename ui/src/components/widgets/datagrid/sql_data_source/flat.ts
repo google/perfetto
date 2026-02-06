@@ -30,6 +30,7 @@ export class SQLDataSourceFlat {
     readonly rows: readonly Row[];
     readonly rowOffset: number;
   }>;
+  private readonly summariesSlot: QuerySlot<Row>;
 
   constructor(
     queue: SerialTaskQueue,
@@ -42,14 +43,51 @@ export class SQLDataSourceFlat {
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
+    this.summariesSlot = new QuerySlot<Row>(queue);
   }
 
   /**
-   * Flat mode doesn't have aggregates defined in the model.
-   * Returns undefined - summary functions would need to be passed separately.
+   * Returns aggregate summaries for columns that have an aggregate function defined.
    */
-  getSummaries(_model: FlatModel): QueryResult<Row> {
-    return {data: undefined, isPending: false, isFresh: true};
+  getSummaries(model: FlatModel): QueryResult<Row> {
+    const {columns, filters = []} = model;
+
+    // Find columns with aggregate functions
+    const aggColumns = columns.filter((col) => col.aggregate !== undefined);
+
+    // If no aggregate columns, return empty result
+    if (aggColumns.length === 0) {
+      return {data: undefined, isPending: false, isFresh: true};
+    }
+
+    return this.summariesSlot.use({
+      key: {
+        columns: aggColumns,
+        filters: serializeFilters(filters),
+      },
+      queryFn: async () => {
+        const resolver = new SQLSchemaResolver(
+          this.sqlSchema,
+          this.rootSchemaName,
+        );
+
+        // Build aggregate expressions
+        const selectExprs: string[] = [];
+        for (const col of aggColumns) {
+          const sqlExpr = resolver.resolveColumnPath(col.field);
+          const field = sqlExpr ?? col.field;
+          const aggFunc = col.aggregate!;
+          selectExprs.push(`${aggFunc}(${field}) AS ${toAlias(col.alias)}`);
+        }
+
+        let sql = `SELECT ${selectExprs.join(', ')}`;
+        sql = addFromClause(sql, resolver);
+        sql = addFilterClause(sql, resolver, filters);
+
+        const result = await this.engine.query(sql);
+        return result.firstRow({}) as Row;
+      },
+    });
   }
 
   getRows(model: FlatModel): DataSourceRows {
@@ -116,6 +154,7 @@ export class SQLDataSourceFlat {
   dispose(): void {
     this.rowCountSlot.dispose();
     this.rowsSlot.dispose();
+    this.summariesSlot.dispose();
   }
 }
 
