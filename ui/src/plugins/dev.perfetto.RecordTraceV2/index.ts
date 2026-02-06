@@ -35,11 +35,15 @@ import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
 import m from 'mithril';
+import pluginSettings from './settings';
+
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
   private static recordingMgr?: RecordingManager;
 
   static onActivate(app: App) {
+    pluginSettings.registerSettings(app.settings);
+
     app.sidebar.addMenuItem({
       section: 'trace_files',
       text: 'Record new trace',
