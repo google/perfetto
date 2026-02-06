@@ -24,8 +24,6 @@
 
 namespace perfetto::trace_processor::perf_importer {
 
-using CounterId = tables::CounterTable::Id;
-
 // Helper class to keep track of perf counters and convert delta values found in
 // perf files to absolute values needed for the perfetto counter table.
 class PerfCounter {
@@ -39,8 +37,8 @@ class PerfCounter {
 
   bool is_timebase() const { return is_timebase_; }
 
-  CounterId AddDelta(int64_t ts, double delta);
-  CounterId AddCount(int64_t ts, double count);
+  tables::CounterTable::Id AddDelta(int64_t ts, double delta);
+  tables::CounterTable::Id AddCount(int64_t ts, double count);
 
  private:
   tables::CounterTable& counter_table_;
