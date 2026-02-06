@@ -17,6 +17,7 @@ import("../../../../gn/proto_library.gni")
 perfetto_proto_library("@TYPE@") {
   sources = [
     "perfetto_metatrace.proto",
+    "trace_provenance.proto",
     "tracing_service_event.proto",
   ]
 }
