@@ -16,11 +16,18 @@ import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 import {Spinner} from '../../../widgets/spinner';
 import {
+  estimateTickCount,
+  formatNumber,
+  generateLogTicks,
+  generateTicks,
+} from './chart_utils';
+import {
   HistogramBucket,
   HistogramData,
   HistogramConfig,
   computeHistogram,
 } from './histogram_loader';
+import {SvgBrush} from './svg_brush';
 
 // Re-export data types for convenience
 export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
@@ -89,16 +96,22 @@ export interface HistogramAttrs {
    * span multiple orders of magnitude. Defaults to false.
    */
   readonly logScale?: boolean;
+
+  /**
+   * When true, X axis (dimension) ticks will be snapped to integer values.
+   * Use when the histogram data represents integer-valued quantities.
+   * The Y axis (measure) always uses integer ticks since it shows counts.
+   */
+  readonly integerDimension?: boolean;
 }
 
 const DEFAULT_HEIGHT = 200;
 const VIEWBOX_WIDTH = 400;
-const MARGIN = {top: 10, right: 10, bottom: 40, left: 50};
+const MARGIN = {top: 10, right: 10, bottom: 40, left: 65};
 
 export class Histogram implements m.ClassComponent<HistogramAttrs> {
   private hoveredBucket?: HistogramBucket;
-  private brushStart?: number;
-  private brushEnd?: number;
+  private readonly brush = new SvgBrush();
 
   view({attrs}: m.Vnode<HistogramAttrs>) {
     const {
@@ -114,6 +127,7 @@ export class Histogram implements m.ClassComponent<HistogramAttrs> {
       barColor,
       barHoverColor,
       logScale = false,
+      integerDimension = false,
     } = attrs;
 
     if (data === undefined) {
@@ -152,10 +166,10 @@ export class Histogram implements m.ClassComponent<HistogramAttrs> {
     );
     const bucketWidth = chartWidth / data.buckets.length;
 
-    // Generate Y axis ticks
+    // Generate Y axis ticks (counts are always integers)
     const yTicks = logScale
       ? generateLogTicks(maxCount)
-      : generateTicks(0, maxCount, 5);
+      : generateTicks(0, maxCount, 5, true);
 
     // Helper to convert count value to Y position
     const countToY = (count: number): number => {
@@ -168,29 +182,26 @@ export class Histogram implements m.ClassComponent<HistogramAttrs> {
       return chartHeight - (count / maxCount) * chartHeight;
     };
 
-    // Generate X axis ticks (show min, max, and a few intermediate values)
-    const xTicks = generateTicks(data.min, data.max, 5);
+    // Generate X axis ticks
+    const xTickCount = estimateTickCount(
+      chartWidth,
+      data.min,
+      data.max,
+      formatXValue,
+    );
+    const xTicks = generateTicks(
+      data.min,
+      data.max,
+      xTickCount,
+      integerDimension,
+    );
 
     const style: Record<string, string> = {height: `${height}px`};
     if (barColor) style['--pf-histogram-bar-color'] = barColor;
     if (barHoverColor) style['--pf-histogram-bar-hover-color'] = barHoverColor;
 
-    // Helper to convert client X coordinate to data value
-    // Uses SVG's coordinate transformation to handle viewBox and preserveAspectRatio
-    const clientXToValue = (e: PointerEvent): number => {
-      const group = e.currentTarget as SVGGElement;
-      const svg = group.ownerSVGElement!;
-      // Create a point in screen coordinates
-      const point = svg.createSVGPoint();
-      point.x = e.clientX;
-      point.y = e.clientY;
-      // Transform to SVG viewBox coordinates
-      const ctm = svg.getScreenCTM();
-      if (!ctm) return data.min;
-      const svgPoint = point.matrixTransform(ctm.inverse());
-      // Subtract margin to get chart-relative X
-      const chartX = svgPoint.x - MARGIN.left;
-      // Clamp to chart bounds and convert to data value
+    // Convert chart-pixel X to data value
+    const chartXToValue = (chartX: number): number => {
       const ratio = Math.max(0, Math.min(1, chartX / chartWidth));
       return data.min + ratio * (data.max - data.min);
     };
@@ -216,37 +227,18 @@ export class Histogram implements m.ClassComponent<HistogramAttrs> {
             'g.pf-histogram__chart-area',
             {
               transform: `translate(${MARGIN.left}, ${MARGIN.top})`,
-              style: onBrush ? {cursor: 'col-resize'} : undefined,
-              onpointerdown: onBrush
-                ? (e: PointerEvent) => {
-                    (e.currentTarget as Element).setPointerCapture(e.pointerId);
-                    this.brushStart = clientXToValue(e);
-                    this.brushEnd = this.brushStart;
-                  }
-                : undefined,
-              onpointermove: onBrush
-                ? (e: PointerEvent) => {
-                    if (this.brushStart === undefined) return;
-                    this.brushEnd = clientXToValue(e);
-                  }
-                : undefined,
-              onpointerup: onBrush
-                ? (e: PointerEvent) => {
-                    (e.currentTarget as Element).releasePointerCapture(
-                      e.pointerId,
-                    );
-                    if (
-                      this.brushStart !== undefined &&
-                      this.brushEnd !== undefined
-                    ) {
-                      const start = Math.min(this.brushStart, this.brushEnd);
-                      const end = Math.max(this.brushStart, this.brushEnd);
-                      onBrush({start, end});
-                    }
-                    this.brushStart = undefined;
-                    this.brushEnd = undefined;
-                  }
-                : undefined,
+              ...(onBrush
+                ? this.brush.chartAreaAttrs(
+                    {left: MARGIN.left, top: MARGIN.top},
+                    'horizontal',
+                    (startX, endX) => {
+                      onBrush({
+                        start: chartXToValue(startX),
+                        end: chartXToValue(endX),
+                      });
+                    },
+                  )
+                : {}),
             },
             [
               // Background rect to catch clicks in gaps between bars
@@ -286,24 +278,12 @@ export class Histogram implements m.ClassComponent<HistogramAttrs> {
               }),
 
               // Brush selection rectangle (visual only, no pointer events)
-              this.brushStart !== undefined &&
-                this.brushEnd !== undefined &&
-                (() => {
-                  const startX =
-                    ((Math.min(this.brushStart, this.brushEnd) - data.min) /
-                      (data.max - data.min)) *
-                    chartWidth;
-                  const endX =
-                    ((Math.max(this.brushStart, this.brushEnd) - data.min) /
-                      (data.max - data.min)) *
-                    chartWidth;
-                  return m('rect.pf-histogram__brush-selection', {
-                    x: startX,
-                    y: 0,
-                    width: Math.max(0, endX - startX),
-                    height: chartHeight,
-                  });
-                })(),
+              this.brush.renderSelection(
+                chartWidth,
+                chartHeight,
+                'horizontal',
+                'pf-histogram__brush-selection',
+              ),
 
               // X Axis
               m(
@@ -378,7 +358,7 @@ export class Histogram implements m.ClassComponent<HistogramAttrs> {
                   m(
                     'text.pf-histogram__axis-label',
                     {
-                      'transform': `translate(-35, ${chartHeight / 2}) rotate(-90)`,
+                      'transform': `translate(-50, ${chartHeight / 2}) rotate(-90)`,
                       'text-anchor': 'middle',
                     },
                     yAxisLabel,
@@ -410,53 +390,4 @@ export class Histogram implements m.ClassComponent<HistogramAttrs> {
         ),
     );
   }
-}
-
-/**
- * Generate nice tick values for an axis.
- */
-function generateTicks(min: number, max: number, count: number): number[] {
-  if (min === max) return [min];
-
-  const range = max - min;
-  const step = range / (count - 1);
-  const ticks: number[] = [];
-
-  for (let i = 0; i < count; i++) {
-    ticks.push(min + i * step);
-  }
-
-  return ticks;
-}
-
-/**
- * Format a number for display.
- */
-function formatNumber(value: number): string {
-  if (Number.isInteger(value)) {
-    return value.toLocaleString();
-  }
-  // For decimals, show up to 2 decimal places
-  if (Math.abs(value) >= 1000) {
-    return value.toLocaleString(undefined, {maximumFractionDigits: 0});
-  }
-  if (Math.abs(value) >= 1) {
-    return value.toLocaleString(undefined, {maximumFractionDigits: 2});
-  }
-  // For very small numbers, use more precision
-  return value.toPrecision(3);
-}
-
-/**
- * Generate tick values for a logarithmic scale (powers of 10).
- */
-function generateLogTicks(max: number): number[] {
-  if (max <= 1) return [1];
-  const ticks: number[] = [1];
-  let power = 1;
-  while (Math.pow(10, power) <= max) {
-    ticks.push(Math.pow(10, power));
-    power++;
-  }
-  return ticks;
 }

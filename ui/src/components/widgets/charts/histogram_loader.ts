@@ -73,6 +73,13 @@ export interface HistogramConfig {
    * If not provided, will be computed from the data.
    */
   readonly maxValue?: number;
+
+  /**
+   * When true, indicates that the data contains only integer values.
+   * Bucket boundaries will be snapped to integer values (bucket size
+   * is ceiled to the nearest integer).
+   */
+  readonly integer?: boolean;
 }
 
 /**
@@ -126,10 +133,17 @@ export function computeHistogram(
 
   if (config.bucketSize !== undefined) {
     bucketSize = config.bucketSize;
+    if (config.integer) {
+      bucketSize = Math.max(1, Math.ceil(bucketSize));
+    }
     bucketCount = Math.ceil((max - min) / bucketSize);
   } else if (config.bucketCount !== undefined) {
     bucketCount = config.bucketCount;
     bucketSize = (max - min) / bucketCount;
+    if (config.integer) {
+      bucketSize = Math.max(1, Math.ceil(bucketSize));
+      bucketCount = Math.ceil((max - min) / bucketSize);
+    }
   } else {
     // Terrell-Scott rule: k = (2 * n)^(1/3)
     bucketCount = Math.max(
@@ -137,6 +151,10 @@ export function computeHistogram(
       Math.min(100, Math.ceil(Math.pow(2 * validValues.length, 1 / 3))),
     );
     bucketSize = (max - min) / bucketCount;
+    if (config.integer) {
+      bucketSize = Math.max(1, Math.ceil(bucketSize));
+      bucketCount = Math.ceil((max - min) / bucketSize);
+    }
   }
 
   // Initialize buckets
@@ -196,6 +214,13 @@ export interface HistogramLoaderConfig {
    * Maximum value for the histogram range.
    */
   readonly maxValue?: number;
+
+  /**
+   * When true, indicates that the data contains only integer values.
+   * Filter bounds will be snapped: min is floored, max is ceiled.
+   * Bucket boundaries will also snap to integers.
+   */
+  readonly integer?: boolean;
 
   /**
    * Range filter to apply to the data (e.g., from brush selection).
@@ -268,11 +293,17 @@ export class InMemoryHistogramLoader implements HistogramLoader {
       return {data: this.cachedData, isPending: false};
     }
 
-    // Apply filter if provided
+    // Apply filter if provided, snapping bounds for integer data
     let filteredValues = this.values;
     if (config.filter) {
+      const filterMin = config.integer
+        ? Math.floor(config.filter.min)
+        : config.filter.min;
+      const filterMax = config.integer
+        ? Math.ceil(config.filter.max)
+        : config.filter.max;
       filteredValues = this.values.filter(
-        (v) => v >= config.filter!.min && v <= config.filter!.max,
+        (v) => v >= filterMin && v <= filterMax,
       );
     }
 
@@ -282,6 +313,7 @@ export class InMemoryHistogramLoader implements HistogramLoader {
       bucketCount: config.bucketCount,
       minValue: config.minValue,
       maxValue: config.maxValue,
+      integer: config.integer,
     });
 
     // Cache result
@@ -381,17 +413,28 @@ export class SQLHistogramLoader implements HistogramLoader {
   use(config: HistogramLoaderConfig): HistogramLoaderResult {
     const bucketCount = config.bucketCount ?? DEFAULT_BUCKET_COUNT;
 
+    // Snap filter bounds for integer data
+    const filter = config.filter
+      ? config.integer
+        ? {
+            min: Math.floor(config.filter.min),
+            max: Math.ceil(config.filter.max),
+          }
+        : config.filter
+      : undefined;
+
     const result = this.querySlot.use({
       key: {
         baseQuery: this.baseQuery,
         valueColumn: this.valueColumn,
-        filter: config.filter,
+        filter,
         bucketCount,
+        integer: config.integer,
       },
       queryFn: async () => {
         const col = this.valueColumn;
-        const filterClause = config.filter
-          ? `WHERE ${col} >= ${config.filter.min} AND ${col} <= ${config.filter.max}`
+        const filterClause = filter
+          ? `WHERE ${col} >= ${filter.min} AND ${col} <= ${filter.max}`
           : '';
 
         // SQL query that computes histogram buckets in the database
@@ -456,7 +499,10 @@ export class SQLHistogramLoader implements HistogramLoader {
         }
 
         // Build bucket array (including empty buckets)
-        const bucketSize = (max - min) / bucketCount;
+        let bucketSize = (max - min) / bucketCount;
+        if (config.integer) {
+          bucketSize = Math.max(1, Math.ceil(bucketSize));
+        }
         const buckets: HistogramBucket[] = [];
         for (let i = 0; i < bucketCount; i++) {
           buckets.push({
