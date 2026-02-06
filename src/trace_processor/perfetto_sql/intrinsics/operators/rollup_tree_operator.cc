@@ -653,13 +653,23 @@ int RollupTreeOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
 
   // Process __offset (flag position 4)
   if (sqlite3_value* val = get_argv(4)) {
-    options.offset = sqlite3_value_int(val);
+    int offset_val = sqlite3_value_int(val);
+    if (offset_val < 0) {
+      return sqlite::utils::SetError(
+          cursor->pVtab, "__intrinsic_rollup_tree: offset must be non-negative");
+    }
+    options.offset = offset_val;
     c->offset = options.offset;
   }
 
   // Process __limit (flag position 5)
   if (sqlite3_value* val = get_argv(5)) {
-    options.limit = sqlite3_value_int(val);
+    int limit_val = sqlite3_value_int(val);
+    if (limit_val < 0) {
+      return sqlite::utils::SetError(
+          cursor->pVtab, "__intrinsic_rollup_tree: limit must be non-negative");
+    }
+    options.limit = limit_val;
     c->limit = options.limit;
   }
 
