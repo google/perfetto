@@ -129,6 +129,7 @@ export class V8RuntimeCallStatsTab implements Tab {
       toolbarItemsLeft: this.renderGroupFilter(),
       toolbarItemsRight: this.renderExportButton(),
       data: this.dataSource,
+      fillHeight: true,
       initialPivot: {
         groupBy: [{field: 'v8_rcs_group', id: 'v8_rcs_group'}],
         aggregates: [
