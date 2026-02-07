@@ -104,16 +104,16 @@
     }
 
     .pf-visible-on-hover {
-      visibility: hidden;
+      display: none;
 
       &.pf-active {
-        visibility: unset;
+        display: unset;
       }
     }
 
     &:hover {
       .pf-visible-on-hover {
-        visibility: unset;
+        display: unset;
       }
     }
   }
@@ -122,6 +122,13 @@
     // Make the track buttons a little larger so they're easier to see & click
     font-size: var(--pf-font-size-l);
     margin-left: 2px;
+
+    // If any buttons are active, show all the visible-on-hover buttons
+    &:has(.pf-active) {
+      .pf-visible-on-hover {
+        display: unset;
+      }
+    }
   }
 
   &__canvas {
@@ -147,7 +154,7 @@
 
   &__menubar {
     display: grid;
-    grid-template-columns: auto 1fr auto auto;
+    grid-template-columns: auto 1fr auto;
     grid-template-rows: auto auto;
     grid-template-areas:
       "icon title chips buttons"
@@ -167,9 +174,16 @@
     grid-area: icon;
   }
 
-  &__title {
+  &__title-container {
     grid-area: title;
 
+    display: flex;
+    flex-direction: row;
+
+    min-width: 0;
+  }
+
+  &__title {
     &-popup {
       position: absolute;
       border-radius: 2px;
@@ -198,10 +212,6 @@
   &__subtitle {
     grid-area: subtitle;
     font-size: 11px;
-  }
-
-  &__buttons {
-    grid-area: buttons;
   }
 
   &__crash-popup {
