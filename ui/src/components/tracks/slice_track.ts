@@ -441,7 +441,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     };
 
     // First pass: draw slice fills
-    for (const slice of dataFrame.slices) {
+    const slices = dataFrame.slices;
+    for (let i = 0; i < slices.length; i++) {
+      const slice = slices[i];
       const {x, w} = computeSliceGeom(slice);
       const color = slice.colorScheme[slice.colorVariant];
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
@@ -478,7 +480,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     // Draw fillRatio light sections
     ctx.fillStyle = `#FFFFFF50`;
-    for (const slice of dataFrame.slices) {
+    for (let i = 0; i < slices.length; i++) {
+      const slice = slices[i];
       if (slice.dur === 0) continue; // Skip instants
 
       const fillRatio = clamp(slice.fillRatio, 0, 1);
@@ -498,7 +501,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     ctx.textAlign = 'center';
     ctx.font = this.getTitleFont();
     ctx.textBaseline = 'middle';
-    for (const slice of dataFrame.slices) {
+    for (let i = 0; i < slices.length; i++) {
+      const slice = slices[i];
       if (slice.dur === 0 || !slice.title) continue;
 
       const {x, w} = computeSliceGeom(slice);
@@ -522,7 +526,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     // Draw subtitles
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.font = this.getSubtitleFont();
-    for (const slice of dataFrame.slices) {
+    for (let i = 0; i < slices.length; i++) {
+      const slice = slices[i];
       if (slice.dur === 0 || !slice.subTitle) continue;
 
       const {x, w} = computeSliceGeom(slice);
