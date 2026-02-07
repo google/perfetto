@@ -114,7 +114,8 @@ using RegValue = std::variant<Empty,
                               StringIdToRankMap,
                               StoragePtr,
                               const BitVector*,
-                              Span<const uint32_t>>;
+                              Span<const uint32_t>,
+                              BitVector>;
 
 }  // namespace perfetto::trace_processor::core::interpreter
 
