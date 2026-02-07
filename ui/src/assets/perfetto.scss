@@ -40,6 +40,8 @@
 @import "widgets/callout";
 @import "widgets/card";
 @import "widgets/charts";
+@import "../widgets/d3_chart_widget";
+@import "../plugins/dev.perfetto.D3ChartsPage/d3_charts_page";
 @import "widgets/checkbox";
 @import "widgets/chip";
 @import "widgets/code_snippet";
