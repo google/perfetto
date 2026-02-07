@@ -1571,6 +1571,7 @@ perfetto_cc_library(
         "src/base/ctrl_c_handler.cc",
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
+        "src/base/fixed_string_writer.cc",
         "src/base/getopt_compat.cc",
         "src/base/intrusive_list.cc",
         "src/base/intrusive_list.h",
