@@ -65,6 +65,7 @@ c_sdk_header_filter = r'^include/perfetto/public/'
 gn_args = ' '.join([
     'enable_perfetto_ipc=true',
     'enable_perfetto_zlib=false',
+    'enable_perfetto_re2=false',
     'is_debug=false',
     'is_perfetto_build_generator=true',
     'is_perfetto_embedder=true',

@@ -345,13 +345,9 @@ config("default") {
     # - https://webassembly.org/roadmap/
     # - https://emscripten.org/docs/porting/simd.html
     #
-    # We pass -mavx2 also to make x86_64 hand-rolled SIMD code work when
-    # using WASM: see
-    # https://emscripten.org/docs/porting/simd.html#compiling-simd-code-targeting-x86-sse-instruction-sets.
-    cflags += [
-      "-msimd128",
-      "-mavx2",
-    ]
+    # TODO(sashwinbalaji): Add back mavx2 to make x86_64 hand-rolled SIMD code work when
+    # using WASM. Currently blocked by https://github.com/emscripten-core/emscripten/issues/24076.
+    cflags += [ "-msimd128" ]
   }
 
   if (is_wasm_memory64) {

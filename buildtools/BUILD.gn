@@ -1688,6 +1688,9 @@ source_set("sqlite") {
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":sqlite_config" ]
   deps = [ "//gn:default_deps" ]
+  if (is_gcc) {
+    cflags = [ "-Wno-stringop-overread" ]
+  }
 }
 
 source_set("lzma") {
@@ -2157,20 +2160,6 @@ if (enable_perfetto_grpc) {
     }
   }
 
-  config("grpc_upb_config") {
-    visibility = _buildtools_visibility
-    include_dirs = [
-      "grpc/src/third_party/upb",
-      "grpc/src/src/core/ext/upb-generated",
-      "grpc/src/src/core/ext/upbdefs-generated",
-    ]
-  }
-
-  config("grpc_re2_config") {
-    visibility = _buildtools_visibility
-    include_dirs = [ "grpc/src/third_party/re2" ]
-  }
-
   config("grpc_internal_config") {
     visibility = _buildtools_visibility
     include_dirs = [
@@ -2179,12 +2168,14 @@ if (enable_perfetto_grpc) {
       "grpc/src/src/core/ext/upb-gen",
       "grpc/src/src/core/ext/upbdefs-gen",
       "grpc/src/third_party/address_sorting/include",
-      "grpc/src/third_party/re2",
       "grpc/src/third_party/upb",
       "grpc/src/third_party/utf8_range",
       "grpc/src/third_party/xxhash",
     ]
-    cflags = [ "-DGRPC_ARES=0" ]
+    cflags = [
+      "-DGRPC_ARES=0",
+      "-DRE2_USE_ABSL",
+    ]
     if (is_gcc) {
       cflags += [
         "-Wno-attributes",
@@ -2202,7 +2193,7 @@ if (enable_perfetto_grpc) {
       perfetto_isystem_cflag,
       rebase_path("grpc/src/include", root_build_dir),
       perfetto_isystem_cflag,
-      rebase_path("grpc/src/third_party/abseil-cpp", root_build_dir),
+      rebase_path("abseil-cpp", root_build_dir),
     ]
 
     # This issues appear in .grpc.pb.h files so we unfortunately need to leak
@@ -2236,6 +2227,60 @@ if (enable_perfetto_grpc) {
     public_configs = [ ":cpp_httplib_config" ]
     deps = [ "//gn:default_deps" ]
   }
+}
+
+config("re2_config") {
+  visibility = _buildtools_visibility
+  include_dirs = [ "re2" ]
+  defines = [ "RE2_USE_ABSL" ]
+}
+
+static_library("re2") {
+  visibility = _buildtools_visibility
+  sources = [
+    "re2/re2/bitmap256.cc",
+    "re2/re2/bitmap256.h",
+    "re2/re2/bitstate.cc",
+    "re2/re2/compile.cc",
+    "re2/re2/dfa.cc",
+    "re2/re2/filtered_re2.cc",
+    "re2/re2/filtered_re2.h",
+    "re2/re2/mimics_pcre.cc",
+    "re2/re2/nfa.cc",
+    "re2/re2/onepass.cc",
+    "re2/re2/parse.cc",
+    "re2/re2/perl_groups.cc",
+    "re2/re2/pod_array.h",
+    "re2/re2/prefilter.cc",
+    "re2/re2/prefilter.h",
+    "re2/re2/prefilter_tree.cc",
+    "re2/re2/prefilter_tree.h",
+    "re2/re2/prog.cc",
+    "re2/re2/prog.h",
+    "re2/re2/re2.cc",
+    "re2/re2/re2.h",
+    "re2/re2/regexp.cc",
+    "re2/re2/regexp.h",
+    "re2/re2/set.cc",
+    "re2/re2/set.h",
+    "re2/re2/simplify.cc",
+    "re2/re2/sparse_array.h",
+    "re2/re2/sparse_set.h",
+    "re2/re2/stringpiece.h",
+    "re2/re2/tostring.cc",
+    "re2/re2/unicode_casefold.cc",
+    "re2/re2/unicode_casefold.h",
+    "re2/re2/unicode_groups.cc",
+    "re2/re2/unicode_groups.h",
+    "re2/re2/walker-inl.h",
+    "re2/util/rune.cc",
+    "re2/util/strutil.cc",
+    "re2/util/strutil.h",
+    "re2/util/utf.h",
+  ]
+  public_deps = [ ":abseil_cpp" ]
+  public_configs = [ ":re2_config" ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
 }
 
 if (enable_perfetto_etm_importer) {
