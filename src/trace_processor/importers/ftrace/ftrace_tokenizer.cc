@@ -462,7 +462,8 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
       // cpu0 as recorded in the bundle. Note: the timestamps will be in the
       // future relative to the data covered by the bundle, as the timestamping
       // is done at ftrace read time.
-      clock_id = ClockTracker::SequenceToGlobalClock(packet_sequence_id,
+      clock_id = ClockTracker::SequenceToGlobalClock(context_->trace_id().value,
+                                                     packet_sequence_id,
                                                      kSequenceScopedClockId);
       break;
     default:
