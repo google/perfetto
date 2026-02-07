@@ -754,5 +754,7 @@ message FtraceEvent {
     FwtpPerfettoSliceFtraceEvent fwtp_perfetto_slice = 600;
     GpuPowerStateFtraceEvent gpu_power_state = 601;
     GramCollisionFtraceEvent gram_collision = 602;
+    DpuDispFrameDoneTimeoutFtraceEvent dpu_disp_frame_done_timeout = 603;
+    DpuDispFrameStartTimeoutFtraceEvent dpu_disp_frame_start_timeout = 604;
   }
 }
