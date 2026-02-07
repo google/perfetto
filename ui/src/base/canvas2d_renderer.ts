@@ -21,6 +21,7 @@ import {Transform2D} from './geom';
 import {
   Renderer,
   RECT_PATTERN_HATCHED,
+  RECT_PATTERN_FADE_RIGHT,
   MarkerRenderFunc,
   StepAreaBuffers,
 } from './renderer';
@@ -137,6 +138,20 @@ export class Canvas2DRenderer implements Renderer {
     if (flags & RECT_PATTERN_HATCHED && w >= 5) {
       ctx.fillStyle = getHatchedPattern(ctx);
       ctx.fillRect(left, top, w, h);
+      this.previousFillStyle = undefined;
+    }
+
+    if (flags & RECT_PATTERN_FADE_RIGHT && w >= 5) {
+      // Fade to transparent by drawing a gradient that reveals the background
+      // We use destination-out to cut through the slice starting at 66%
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      const gradient = ctx.createLinearGradient(left, top, right, top);
+      gradient.addColorStop(0.66, 'rgba(0, 0, 0, 0)');
+      gradient.addColorStop(1.0, 'rgba(0, 0, 0, 1)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(left, top, w, h);
+      ctx.restore();
       this.previousFillStyle = undefined;
     }
   }

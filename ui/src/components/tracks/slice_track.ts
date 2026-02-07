@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {drawIncompleteSlice} from '../../base/canvas_utils';
 import {colorCompare} from '../../base/color';
 import {ColorScheme} from '../../base/color_scheme';
 import {Point2D, Size2D, VerticalBounds} from '../../base/geom';
@@ -74,14 +73,6 @@ const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
 const SLICE_MIN_WIDTH_PX = 1;
 const SLICE_MIN_WIDTH_FADED_PX = 0.1;
 const CHEVRON_WIDTH_PX = 10;
-// const INCOMPLETE_SLICE_WIDTH_PX = 20;
-
-const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
-  id: 'cropIncompleteSlice',
-  name: 'Crop incomplete slices',
-  description: 'Display incomplete slices in short form',
-  defaultValue: false,
-});
 
 const FADE_THIN_SLICES_FLAG = featureFlags.register({
   id: 'fadeThinSlices',
@@ -320,9 +311,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private readonly forceTimestampRenderOrder: boolean;
 
   private readonly queue = new SerialTaskQueue();
-  private readonly mipmapTableSlot = new QuerySlot<DisposableSqlEntity>(
-    this.queue,
-  );
+  private readonly mipmapTableSlot = new QuerySlot<{
+    mipmapTable: DisposableSqlEntity;
+    incompleteTable: DisposableSqlEntity;
+  }>(this.queue);
   private readonly dataFrameSlot = new QuerySlot<
     DataFrame<T & Required<RowSchema>>
   >(this.queue);
@@ -597,11 +589,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   // Creates the mipmap table for efficient slice queries
+  // Also pre-computes incomplete slices with their next_ts
   private async createMipmapTable(sqlSource: string) {
     const rowCount = await this.getRowCount(sqlSource);
     this.rowCount = rowCount;
 
-    const table = await createVirtualTable({
+    const mipmapTable = await createVirtualTable({
       engine: this.engine,
       using: `__intrinsic_slice_mipmap((
         select id, ts, dur, ((layer * ${rowCount ?? 1}) + depth) as depth
@@ -610,7 +603,22 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       ))`,
     });
 
-    return table;
+    // Pre-compute incomplete slices with LEAD() to find next_ts
+    // We compute LEAD over ALL slices first, then filter to incomplete ones
+    // This ensures next_ts is the next slice at the same depth (complete or incomplete)
+    const incompleteTable = await createPerfettoTable({
+      engine: this.engine,
+      as: `
+        SELECT id, ts, depth, next_ts
+        FROM (
+          SELECT id, ts, dur, depth, LEAD(ts) OVER (PARTITION BY depth ORDER BY ts) as next_ts
+          FROM (${sqlSource})
+        )
+        WHERE dur = -1
+      `,
+    });
+
+    return {mipmapTable, incompleteTable};
   }
 
   private async getRowCount(sqlSource: string): Promise<number> {
@@ -632,14 +640,14 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const dataset = this.getDataset();
     const sqlSource = generateRenderQuery(dataset);
 
-    // 1. Create the mipmap table, which only depends on the SQL source.
-    const {data: mipmapTable} = this.mipmapTableSlot.use({
+    // 1. Create the mipmap and incomplete tables, which only depend on the SQL source.
+    const {data: tables} = this.mipmapTableSlot.use({
       key: {sqlSource},
       queryFn: () => this.createMipmapTable(sqlSource),
     });
 
-    // Can't do anything until we have a mipmap table.
-    if (!mipmapTable) return undefined;
+    // Can't do anything until we have the tables.
+    if (!tables) return undefined;
 
     // 2. Load the slices into a dataframe based on the visible window and
     // resolution, which can change every frame.
@@ -656,12 +664,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         const promise = (async () => {
           // Load complete and incomplete slices in a single query
           const {slices} = await this.getSlices(
-            mipmapTable.name,
+            tables.mipmapTable.name,
+            tables.incompleteTable.name,
             bounds.start,
             bounds.end,
             bounds.resolution,
             signal,
-            sqlSource,
             dataset,
           );
 
@@ -686,21 +694,23 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private async getSlices(
     mipmapTableName: string,
+    incompleteTableName: string,
     start: time,
     end: time,
     resolution: duration,
     signal: CancellationSignal,
-    sqlSource: string,
     dataset: Dataset<T>,
   ): Promise<{
     slices: SliceWithRow<T & Required<RowSchema>>[];
   }> {
     const slices: SliceWithRow<T & Required<RowSchema>>[] = [];
+    const sqlSource = generateRenderQuery(dataset as SourceDataset<T>);
     const extraCols = Object.keys(dataset.schema)
       .map((c) => `s.${c} as ${c}`)
       .join(',');
 
     // Query complete slices from mipmap + incomplete slices in one query
+    // Incomplete slices use pre-computed next_ts from incompleteTableName
     const queryRes = await this.engine.query(`
       -- Complete slices from mipmap
       SELECT
@@ -718,7 +728,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       ) z
       CROSS JOIN (${sqlSource}) s using (id)
       UNION ALL
-      -- Incomplete slices (dur = -1) with duration calculated to next slice
+      -- Incomplete slices with pre-computed next_ts
       SELECT
         MAX(i.ts, ${start}) - ${start} as __ts,
         CASE
@@ -726,21 +736,20 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
           THEN i.next_ts - MAX(i.ts, ${start})
           ELSE -1
         END as __dur,
-        i.id as __id,
+        s.id as __id,
         1 as __count,
         i.depth as __depth,
         1 as __incomplete,
-        ${Object.keys(dataset.schema)
-          .map((c) => `i.${c}`)
-          .join()}
-      FROM (
-        SELECT *, LEAD(ts) OVER (PARTITION BY depth ORDER BY ts) as next_ts
-        FROM (${sqlSource})
-      ) i
-      WHERE i.dur = -1 AND i.ts < ${end}
+        ${extraCols}
+      FROM ${incompleteTableName} i
+      JOIN (${sqlSource}) s ON i.id = s.id
+      WHERE i.ts < ${end}
     `);
 
-    if (signal.isCancelled) throw QUERY_CANCELLED;
+    if (signal.isCancelled) {
+      console.log('Cancelled');
+      throw QUERY_CANCELLED;
+    }
 
     const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
       ? 'background'
@@ -758,8 +767,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     });
 
     for (let i = 0; it.valid(); it.next(), ++i) {
-      if (i % 256 === 0) {
-        if (signal.isCancelled) throw QUERY_CANCELLED;
+      if (i % 32 === 0) {
+        if (signal.isCancelled) {
+          console.log('Cancelled');
+          throw QUERY_CANCELLED;
+        }
         if (task.shouldYield()) await task.yield();
       }
       slices.push(this.rowToSlice(it));
@@ -803,7 +815,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const isIncomplete = queryRow.__incomplete === 1;
     const pattern = isIncomplete
       ? RECT_PATTERN_FADE_RIGHT
-      : (this.attrs.slicePattern?.(queryRow) ?? 0);
+      : this.attrs.slicePattern?.(queryRow) ?? 0;
     const fillRatio = this.attrs.fillRatio?.(queryRow) ?? 1;
 
     return {

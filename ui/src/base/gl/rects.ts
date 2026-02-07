@@ -96,7 +96,9 @@ function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
 
       if ((v_flags & FLAG_FADEOUT) != 0u) {
         float fadeProgress = v_localPos.x / v_rectWidth;
-        fragColor.a *= 1.0 - fadeProgress;
+        // Start fading at 66% of the width
+        float fadeAmount = clamp((fadeProgress - 0.66) / 0.34, 0.0, 1.0);
+        fragColor.a *= 1.0 - fadeAmount;
       }
 
       if ((v_flags & FLAG_HATCHED) != 0u && v_rectWidth >= HATCH_MIN_WIDTH) {
