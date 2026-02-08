@@ -93,6 +93,8 @@ interface SliceBase {
   readonly fillRatio: number;
   isHighlighted: boolean;
   colorVariant: 'base' | 'variant' | 'disabled';
+  x: number;
+  w: number;
 }
 
 // Complete slice with relative timestamps (number, relative to dataframe start)
@@ -440,13 +442,22 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       return {x, w};
     };
 
-    // First pass: draw slice fills
+    // Calculate and cache each slice's geometry
     const slices = dataFrame.slices;
-    for (let i = 0; i < slices.length; i++) {
+    for (let i = 0; i < slices.length; ++i) {
       const slice = slices[i];
       const {x, w} = computeSliceGeom(slice);
+      slice.x = x;
+      slice.w = w;
+    }
+
+    // First pass: draw slice fills
+    for (let i = 0; i < slices.length; i++) {
+      const slice = slices[i];
       const color = slice.colorScheme[slice.colorVariant];
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const w = slice.w;
+      const x = slice.x;
 
       if (slice.dur === 0) {
         // Instant slice - draw chevron
@@ -487,7 +498,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const fillRatio = clamp(slice.fillRatio, 0, 1);
       if (floatEqual(fillRatio, 1)) continue;
 
-      const {x, w} = computeSliceGeom(slice);
+      const w = slice.w;
+      const x = slice.x;
+
       const sliceDrawWidth = Math.max(w, SLICE_MIN_WIDTH_PX);
       const lightSectionDrawWidth = sliceDrawWidth * (1 - fillRatio);
       if (lightSectionDrawWidth < 1) continue;
@@ -505,7 +518,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const slice = slices[i];
       if (slice.dur === 0 || !slice.title) continue;
 
-      const {x, w} = computeSliceGeom(slice);
+      const w = slice.w;
+      const x = slice.x;
       if (w < SLICE_MIN_WIDTH_FOR_TEXT_PX) continue;
 
       const textColor =
@@ -530,7 +544,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const slice = slices[i];
       if (slice.dur === 0 || !slice.subTitle) continue;
 
-      const {x, w} = computeSliceGeom(slice);
+      const w = slice.w;
+      const x = slice.x;
       if (w < SLICE_MIN_WIDTH_FOR_TEXT_PX) continue;
 
       const rectXCenter = x + w / 2;
@@ -545,7 +560,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       this.selectedSlice = discoveredSelection;
       const slice = discoveredSelection;
       // Handle both complete slices (with start/dur) and incomplete slices (with ts)
-      const {x, w} = computeSliceGeom(slice);
+      const w = slice.w;
+      const x = slice.x;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       ctx.strokeStyle = colors.COLOR_TIMELINE_OVERLAY;
       ctx.beginPath();
@@ -837,6 +853,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       isHighlighted: false,
       colorVariant: 'base',
       row: row as T & Required<RowSchema>,
+      x: 0,
+      w: 0,
     };
   }
 

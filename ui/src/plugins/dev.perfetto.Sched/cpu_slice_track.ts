@@ -102,11 +102,13 @@ export function createCpuSliceTrack(
     },
 
     onUpdatedSlices(slices) {
-      const hoveredUtid = trace.timeline.hoveredUtid;
-      const hoveredPid = trace.timeline.hoveredPid;
+      const timeline = trace.timeline;
+      const hoveredUtid = timeline.hoveredUtid;
+      const hoveredPid = timeline.hoveredPid;
       const isHovering = hoveredUtid !== undefined;
 
-      for (const slice of slices) {
+      for (let i = 0; i < slices.length; ++i) {
+        const slice = slices[i];
         const utid = slice.row.utid;
         const pid = slice.row.pid;
         const isThreadHovered = hoveredUtid === utid;
