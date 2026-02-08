@@ -461,7 +461,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       fillRatios,
     } = cols;
 
-    // Calculate each slice's pixel geometry
+    // Calculate each slice's pixel geometry and collect visible indices
     const xs = new Float32Array(n);
     const ws = new Float32Array(n);
     for (let i = 0; i < n; ++i) {
@@ -486,11 +486,20 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     }
 
     // First pass: draw slice fills
+    const minSliceWidthPx = FADE_THIN_SLICES_FLAG.get()
+      ? SLICE_MIN_WIDTH_FADED_PX
+      : SLICE_MIN_WIDTH_PX;
+    const indiciesWithText: number[] = [];
     for (let i = 0; i < n; i++) {
       const color = colorSchemes[i][VARIANT_FILL[colorVariants[i]]];
       const y = padding + depths[i] * (sliceHeight + rowSpacing);
       const w = ws[i];
       const x = xs[i];
+
+      // Skip any slices that are completely offscreen
+      if (x + w <= 0 || x >= pxEnd) {
+        continue;
+      }
 
       if (durs[i] === 0) {
         // Instant slice - draw chevron
@@ -499,13 +508,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         );
       } else {
         // Normal slice
-        const drawW = Math.max(
-          w,
-          FADE_THIN_SLICES_FLAG.get()
-            ? SLICE_MIN_WIDTH_FADED_PX
-            : SLICE_MIN_WIDTH_PX,
-        );
+        const drawW = Math.max(w, minSliceWidthPx);
         renderer.drawRect(x, y, x + drawW, y + sliceHeight, color, patterns[i]);
+
+        if (w >= SLICE_MIN_WIDTH_FOR_TEXT_PX) {
+          indiciesWithText.push(i);
+        }
       }
 
       if (selectedId === ids[i]) {
@@ -518,13 +526,19 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     // Draw fillRatio light sections
     ctx.fillStyle = `#FFFFFF50`;
     for (let i = 0; i < n; i++) {
+      const w = ws[i];
+      if (w < 2) continue;
+      const x = xs[i];
+
+      // Skip any slices that are completely offscreen
+      if (x + w <= 0 || x >= pxEnd) {
+        continue;
+      }
+
       if (durs[i] === 0) continue; // Skip instants
 
       const fillRatio = clamp(fillRatios[i], 0, 1);
       if (floatEqual(fillRatio, 1)) continue;
-
-      const w = ws[i];
-      const x = xs[i];
 
       const sliceDrawWidth = Math.max(w, SLICE_MIN_WIDTH_PX);
       const lightSectionDrawWidth = sliceDrawWidth * (1 - fillRatio);
@@ -539,13 +553,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = this.getTitleFont();
-    for (let i = 0; i < n; i++) {
-      const w = ws[i];
-      if (w < SLICE_MIN_WIDTH_FOR_TEXT_PX) continue;
-
+    for (const i of indiciesWithText) {
       const title = titles[i];
       if (!title) continue;
 
+      const w = ws[i];
       const x = xs[i];
       const cv = colorVariants[i];
       const cs = colorSchemes[i];
@@ -557,8 +569,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             ? cs.textVariant
             : cs.textDisabled;
       ctx.fillStyle = textColor.cssString;
-      const titleCropped = cropText(title, charWidth.title, w);
+
       const rectXCenter = x + w / 2;
+      const titleCropped = cropText(title, charWidth.title, w);
       const y = padding + depths[i] * (sliceHeight + rowSpacing);
       const yDiv = subTitles[i] ? 3 : 2;
       const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
@@ -567,13 +580,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     // Draw subtitles
     ctx.font = this.getSubtitleFont();
-    for (let i = 0; i < n; i++) {
-      const w = ws[i];
-      if (w < SLICE_MIN_WIDTH_FOR_TEXT_PX) continue;
-
+    for (const i of indiciesWithText) {
       const subTitle = subTitles[i];
       if (!subTitle) continue;
 
+      const w = ws[i];
       const x = xs[i];
       const cv = colorVariants[i];
       const cs = colorSchemes[i];
@@ -585,6 +596,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             ? cs.textVariant
             : cs.textDisabled;
       ctx.fillStyle = textColor.cssString;
+
       const rectXCenter = x + w / 2;
       const subTitleCropped = cropText(subTitle, charWidth.subtitle, w);
       const y = padding + depths[i] * (sliceHeight + rowSpacing);
