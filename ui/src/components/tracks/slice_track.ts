@@ -357,7 +357,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private readonly bufferedBounds = new BufferedBounds();
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
-  private charWidth = -1;
+  private charWidth = {title: -1, subtitle: -1};
   private computedTrackHeight = 0;
   private currentDataFrame?: DataFrame<T & Required<RowSchema>>;
   private rowCount: number;
@@ -413,7 +413,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       rowGap: sliceLayout.rowGap ?? 0,
       sliceHeight: sliceLayout.sliceHeight ?? 18,
       titleSizePx: sliceLayout.titleSizePx ?? 12,
-      subtitleSizePx: sliceLayout.subtitleSizePx ?? 8,
+      subtitleSizePx: sliceLayout.subtitleSizePx ?? 10,
     };
   }
 
@@ -557,7 +557,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             ? cs.textVariant
             : cs.textDisabled;
       ctx.fillStyle = textColor.cssString;
-      const titleCropped = cropText(title, charWidth, w);
+      const titleCropped = cropText(title, charWidth.title, w);
       const rectXCenter = x + w / 2;
       const y = padding + depths[i] * (sliceHeight + rowSpacing);
       const yDiv = subTitles[i] ? 3 : 2;
@@ -586,7 +586,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             : cs.textDisabled;
       ctx.fillStyle = textColor.cssString;
       const rectXCenter = x + w / 2;
-      const subTitleCropped = cropText(subTitle, charWidth, w);
+      const subTitleCropped = cropText(subTitle, charWidth.subtitle, w);
       const y = padding + depths[i] * (sliceHeight + rowSpacing);
       const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
       ctx.fillText(subTitleCropped, rectXCenter, yMidPoint);
@@ -620,10 +620,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   private measureCharWidth(ctx: CanvasRenderingContext2D) {
-    let charWidth = this.charWidth;
-    if (charWidth < 0) {
+    const charWidth = this.charWidth;
+    if (charWidth.title < 0) {
       ctx.font = this.getTitleFont();
-      charWidth = this.charWidth = ctx.measureText('dbpqaouk').width / 8;
+      charWidth.title = ctx.measureText('dbpqaouk').width / 8;
+      ctx.font = this.getSubtitleFont();
+      charWidth.subtitle = ctx.measureText('dbpqaouk').width / 8;
     }
     return charWidth;
   }
@@ -799,10 +801,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       WHERE i.ts < ${end}
     `);
 
-    if (signal.isCancelled) {
-      console.log('Cancelled');
-      throw QUERY_CANCELLED;
-    }
+    if (signal.isCancelled) throw QUERY_CANCELLED;
 
     const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
       ? 'background'
@@ -834,10 +833,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     for (let i = 0; it.valid(); it.next(), ++i) {
       if (i % 32 === 0) {
-        if (signal.isCancelled) {
-          console.log('Cancelled');
-          throw QUERY_CANCELLED;
-        }
+        if (signal.isCancelled) throw QUERY_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
 
