@@ -213,6 +213,8 @@ class TrackEventEventImporter {
         return ParseThreadEndEvent();
       case 'X':  // TRACE_EVENT_PHASE_COMPLETE.
         return ParseThreadCompleteEvent();
+      case 'U':
+        return ParseUpdateEvent();
       case 's':  // TRACE_EVENT_PHASE_FLOW_BEGIN.
       case 't':  // TRACE_EVENT_PHASE_FLOW_STEP.
       case 'f':  // TRACE_EVENT_PHASE_FLOW_END.
@@ -632,6 +634,8 @@ class TrackEventEventImporter {
         return utid_ ? 'E' : 'e';
       case TrackEvent::TYPE_INSTANT:
         return utid_ ? 'i' : 'n';
+      case TrackEvent::TYPE_SLICE_UPDATE:
+        return 'U';
       default:
         PERFETTO_ELOG("unexpected event type %d", event_.type());
         return 0;
@@ -1021,6 +1025,21 @@ class TrackEventEventImporter {
                                           kPendingThreadDuration, tic,
                                           kPendingThreadInstructionDelta);
     }
+    return base::OkStatus();
+  }
+
+  base::Status ParseUpdateEvent() {
+    auto args_inserter = [this](BoundInserter* inserter) {
+      ParseTrackEventArgs(inserter);
+    };
+    ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationBegin());
+    auto opt_slice_id = context_->slice_tracker->Update(
+        ts_, track_id, category_id_, name_id_, args_inserter);
+    if (!opt_slice_id.has_value()) {
+      return base::OkStatus();
+    }
+    MaybeParseFlowEvents(opt_slice_id.value());
+    MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
     return base::OkStatus();
   }
 

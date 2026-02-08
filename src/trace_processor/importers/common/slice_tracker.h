@@ -96,6 +96,13 @@ class SliceTracker {
                       [table, &row]() { return table->Insert(row).id; });
   }
 
+  virtual std::optional<SliceId> Update(
+      int64_t timestamp,
+      TrackId track_id,
+      StringId opt_category = {},
+      StringId opt_raw_name = {},
+      SetArgsCallback args_callback = SetArgsCallback());
+
   // virtual for testing
   virtual std::optional<SliceId> End(
       int64_t timestamp,
@@ -151,6 +158,13 @@ class SliceTracker {
                                             TrackId track_id,
                                             SetArgsCallback args_callback,
                                             std::function<SliceId()> inserter);
+
+  std::optional<SliceId> UpdateSlice(
+      int64_t timestamp,
+      TrackId track_id,
+      SetArgsCallback args_callback,
+      std::function<std::optional<uint32_t>(const SlicesStack&)> finder,
+      std::function<SliceId()> inserter);
 
   std::optional<SliceId> CompleteSlice(
       int64_t timestamp,
