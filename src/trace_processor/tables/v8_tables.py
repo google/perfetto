@@ -26,6 +26,7 @@ from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
+from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppUint32 as CppBool
 from python.generators.trace_processor_table.public import Table
@@ -347,14 +348,90 @@ V8_REGEXP_CODE = Table(
     ),
 )
 
+V8_IC_EVENT = Table(
+    python_module=__file__,
+    class_name='V8IcEventTable',
+    sql_name='__intrinsic_v8_ic_event',
+    columns=[
+        C('v8_isolate_id', CppTableId(V8_ISOLATE), cpp_access=CppAccess.READ),
+        C(
+            'utid',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            'ts',
+            CppInt64(),
+            flags=ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ,
+        ),
+        C('type', CppString(), cpp_access=CppAccess.READ),
+        C('keyed', CppBool(), cpp_access=CppAccess.READ),
+        C('map', CppInt64(), cpp_access=CppAccess.READ),
+        C('key', CppString(), cpp_access=CppAccess.READ),
+        C('old_state', CppString(), cpp_access=CppAccess.READ),
+        C('new_state', CppString(), cpp_access=CppAccess.READ),
+        C('modifier', CppString(), cpp_access=CppAccess.READ),
+        C('slow_stub_reason', CppString(), cpp_access=CppAccess.READ),
+        C('v8_js_code_id', CppTableId(V8_JS_CODE), cpp_access=CppAccess.READ),
+        C('pc', CppInt64(), cpp_access=CppAccess.READ),
+        C('line', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
+        C('col', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
+        C('byte_offset', CppUint32(), cpp_access=CppAccess.READ),
+    ],
+    tabledoc=TableDoc(
+        doc='Represents a V8 IC (Inline Cache) event',
+        group='v8',
+        columns={
+            'v8_isolate_id':
+                ColumnDoc(
+                    doc='V8 Isolate this code was created in.',
+                    joinable='__intrinsic_v8_isolate.id'),
+            'utid':
+                'Thread ID',
+            'ts':
+                'Timestamp of the event',
+            'type':
+                'IC type (e.g. LoadIC, StoreIC)',
+            'keyed':
+                'Whether it is a keyed IC',
+            'map':
+                'Map address',
+            'key':
+                'Property key',
+            'old_state':
+                """Previous state.
+                - `X`: NO_FEEDBACK,
+                - `0`: UNINITIALIZED,
+                - `1`: MONOMORPHIC,
+                - `^`: RECOMPUTE_HANDLER,
+                - `P`: POLYMORPHIC,
+                - `N`: MEGAMORPHIC,
+                - `D`: MEGADOM,
+                - `G`: GENERIC,
+                """,
+            'new_state':
+                'New state, see old_state for details',
+            'modifier':
+                'Modifier',
+            'slow_stub_reason':
+                'Reason for slow stub',
+            'v8_js_code_id':
+                'V8 JS code corresponding to the event pc.',
+            'pc':
+                'Program Counter where the event was triggered.',
+            'line':
+                'Line in script where the event was triggered. Starts at 1',
+            'col':
+                'Column in script where the event was triggered. Starts at 1',
+            'byte_offset':
+                'Byte offset in the code',
+        },
+    ),
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
-    V8_ISOLATE,
-    V8_JS_SCRIPT,
-    V8_WASM_SCRIPT,
-    V8_JS_FUNCTION,
-    V8_JS_CODE,
-    V8_INTERNAL_CODE,
-    V8_WASM_CODE,
-    V8_REGEXP_CODE,
+    V8_ISOLATE, V8_JS_SCRIPT, V8_WASM_SCRIPT, V8_JS_FUNCTION, V8_JS_CODE,
+    V8_INTERNAL_CODE, V8_WASM_CODE, V8_REGEXP_CODE, V8_IC_EVENT
 ]

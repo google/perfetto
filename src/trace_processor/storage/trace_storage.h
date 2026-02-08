@@ -782,6 +782,12 @@ class TraceStorage {
   tables::V8RegexpCodeTable* mutable_v8_regexp_code_table() {
     return mutable_table<tables::V8RegexpCodeTable>();
   }
+  const tables::V8IcEventTable& v8_ic_event_table() const {
+    return table<tables::V8IcEventTable>();
+  }
+  tables::V8IcEventTable* mutable_v8_ic_event_table() {
+    return mutable_table<tables::V8IcEventTable>();
+  }
 
   const tables::EtmV4ConfigurationTable& etm_v4_configuration_table() const {
     return table<tables::EtmV4ConfigurationTable>();

@@ -247,6 +247,7 @@ message TracePacket {
     V8WasmCode v8_wasm_code = 101;
     V8RegExpCode v8_reg_exp_code = 102;
     V8CodeMove v8_code_move = 103;
+    V8ICEvent v8_ic_event = 124;
     // Clock synchronization with remote machines.
     RemoteClockSync remote_clock_sync = 107;
 

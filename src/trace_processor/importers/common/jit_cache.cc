@@ -160,6 +160,14 @@ std::pair<FrameId, bool> JitCache::InternFrame(VirtualMemoryMapping* mapping,
   return {id, true};
 }
 
+std::optional<tables::JitCodeTable::Id> JitCache::FindCode(
+    uint64_t addr) const {
+  if (auto it = functions_.Find(addr); it != functions_.end()) {
+    return it->second.jit_code_id();
+  }
+  return std::nullopt;
+}
+
 UserMemoryMapping& JitCache::CreateMapping() {
   CreateMappingParams params;
   params.memory_range = range_;

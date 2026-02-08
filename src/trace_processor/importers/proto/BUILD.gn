@@ -308,6 +308,7 @@ source_set("unittests") {
     "proto_trace_reader_unittest.cc",
     "proto_trace_tokenizer_unittest.cc",
     "string_encoding_utils_unittests.cc",
+    "v8_tracker_unittest.cc",
   ]
   deps = [
     ":full",
