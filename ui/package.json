@@ -53,9 +53,11 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.6",
     "@eslint/eslintrc": "^3.1.0",
     "@eslint/js": "^9.6.0",
     "@playwright/test": "^1.47.0",
+    "@rollup/plugin-babel": "^6.1.0",
     "@rollup/plugin-commonjs": "^26.0.1",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@types/jest": "^29.5.12",

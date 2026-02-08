@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {assertFalse} from '../../base/logging';
+import {fail} from '../../base/logging';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {extensions} from '../../components/extensions';
 import {time} from '../../base/time';
@@ -508,11 +508,9 @@ function getFlamegraphTitle(type: ProfileType) {
     case ProfileType.NATIVE_HEAP_PROFILE:
       return 'Native heap profile';
     case ProfileType.PERF_SAMPLE:
-      assertFalse(false, 'Perf sample not supported');
-      return 'Impossible';
+      fail('Perf sample not supported');
     case ProfileType.INSTRUMENTS_SAMPLE:
-      assertFalse(false, 'Instruments sample not supported');
-      return 'Impossible';
+      fail('Instruments sample not supported');
   }
 }
 
