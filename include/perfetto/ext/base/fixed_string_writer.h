@@ -19,6 +19,7 @@
 
 #include <string.h>
 
+#include <algorithm>
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
@@ -93,15 +94,66 @@ class FixedStringWriter {
     AppendPaddedInt<padchar, padding>(value, false);
   }
 
+  template <char padchar, uint64_t padding, typename IntType>
+  void AppendPaddedHexInt(IntType value) {
+    using UnsignedType = typename std::make_unsigned<IntType>::type;
+    constexpr auto kMaxHexDigits = sizeof(IntType) * 2;
+    constexpr auto kSizeNeeded =
+        kMaxHexDigits > padding ? kMaxHexDigits : static_cast<size_t>(padding);
+    PERFETTO_DCHECK(pos_ + kSizeNeeded <= size_);
+
+    char data[kSizeNeeded];
+    constexpr char hex_asc[] = "0123456789abcdef";
+
+    size_t idx = kSizeNeeded - 1;
+    auto uvalue = static_cast<UnsignedType>(value);
+
+    do {
+      data[idx--] = hex_asc[uvalue & 0xF];
+      uvalue >>= 4;
+    } while (uvalue != 0);
+
+    if (padding > 0) {
+      const auto num_digits = static_cast<uint64_t>(kSizeNeeded - 1 - idx);
+      // std::max() needed to work around GCC not being able to tell that
+      // padding > 0.
+      for (auto i = num_digits; i < std::max(uint64_t{1u}, padding); i++) {
+        data[idx--] = padchar;
+      }
+    }
+
+    AppendString(&data[idx + 1], kSizeNeeded - idx - 1);
+  }
+
   // Appends a hex integer to the buffer.
   template <typename IntType>
   void AppendHexInt(IntType value) {
-    // TODO(lalitm): trying to optimize this is premature given we almost never
-    // print hex ints. Reevaluate this in the future if we do print them more.
-    size_t res =
-        base::SprintfTrunc(buffer_ + pos_, size_ - pos_, "%" PRIx64, value);
-    PERFETTO_DCHECK(pos_ + res <= size_);
-    pos_ += res;
+    AppendPaddedHexInt<'0', 0>(value);
+  }
+
+  // Appends a hex string to the buffer.
+  template <char separator>
+  void AppendHexString(const uint8_t* data, size_t size) {
+    // Truncate to 64 bytes, as this is the maximum supported by the Linux
+    // kernel's vsnprintf implementation.
+    size_t printed_size = std::min<size_t>(size, size_t{64});
+    // Remove trailing separator from calculation if printed_size > 0.
+    size_t max_chars = printed_size * 3 - (printed_size > 0 ? 1 : 0);
+    PERFETTO_DCHECK(pos_ + max_chars <= size_);
+
+    if (printed_size) {
+      AppendPaddedHexInt<'0', 2>(data[0]);
+    }
+    for (size_t pos = 1; pos < printed_size; pos++) {
+      AppendChar(separator);
+      AppendPaddedHexInt<'0', 2>(data[pos]);
+    }
+  }
+
+  template <char separator>
+  void AppendHexString(StringView data) {
+    AppendHexString<separator>(reinterpret_cast<const uint8_t*>(data.data()),
+                               data.size());
   }
 
   // Appends a double to the buffer.
