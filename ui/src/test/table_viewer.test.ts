@@ -52,6 +52,18 @@ async function clickCellContextMenu(text?: string) {
   await cell.getByRole('button', {name: 'Cell menu'}).click();
 }
 
+// Click the sort button on a column header to cycle sort state.
+// direction: 'asc' clicks once, 'desc' clicks twice (to go past asc).
+async function clickSortButton(headerName: string, direction: 'asc' | 'desc') {
+  const cell = locateHeaderCells(headerName);
+  await cell.hover(); // Hover to reveal the sort button.
+  const sortButton = cell.getByRole('button', {name: 'Sort column'});
+  await sortButton.click();
+  if (direction === 'desc') {
+    await sortButton.click();
+  }
+}
+
 test.beforeEach(async ({browser}, _testInfo) => {
   page = await browser.newPage();
   pth = new PerfettoTestHelper(page);
@@ -66,8 +78,7 @@ test('slices with same name', async () => {
     .locator('.pf-details-shell a.pf-anchor', {hasText: sliceName})
     .click();
   await pth.clickMenuItem('Slices with the same name');
-  await clickColumnContextMenu('id');
-  await pth.clickMenuItem('Sort: lowest first');
+  await clickSortButton('id', 'asc');
   await pth.waitForIdleAndScreenshot(`slices-with-same-name.png`);
 });
 
@@ -77,8 +88,7 @@ test('Table interactions', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.slice');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu('id');
-  await pth.clickMenuItem('Sort: lowest first');
+  await clickSortButton('id', 'asc');
   await pth.waitForIdleAndScreenshot(`slices-table.png`);
 
   // Hide `category` column.
@@ -88,8 +98,7 @@ test('Table interactions', async () => {
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu('dur');
-  await pth.clickMenuItem('Sort: highest first');
+  await clickSortButton('dur', 'desc');
   await pth.waitForIdleAndScreenshot(`slices-table-sorted.png`);
 
   // Filter out all "EventLatency" slices.
@@ -118,8 +127,7 @@ test('Table interactions', async () => {
   await pth.waitForIdleAndScreenshot(`slices-table-add-argument.png`);
 
   // Sort by argument.
-  await clickColumnContextMenu('arg_set_id[chrome_latency_info.trace_id]');
-  await pth.clickMenuItem('Sort: highest first');
+  await clickSortButton('arg_set_id[chrome_latency_info.trace_id]', 'desc');
   await pth.waitForIdleAndScreenshot(`slices-table-sort-by-argument.png`);
 
   // Sort by argument.
@@ -141,14 +149,12 @@ test('Go to slice', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.slice');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu('id');
-  await pth.clickMenuItem('Sort: lowest first');
+  await clickSortButton('id', 'asc');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu('dur');
-  await pth.clickMenuItem('Sort: highest first');
+  await clickSortButton('dur', 'desc');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
   // Go to the first slice.
@@ -167,14 +173,12 @@ test('Go to thread_state', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.thread_state');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu('id');
-  await pth.clickMenuItem('Sort: lowest first');
+  await clickSortButton('id', 'asc');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu('dur');
-  await pth.clickMenuItem('Sort: highest first');
+  await clickSortButton('dur', 'desc');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
   // Filter out sleeps.
@@ -202,14 +206,12 @@ test('Go to sched', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.sched');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu('id');
-  await pth.clickMenuItem('Sort: lowest first');
+  await clickSortButton('id', 'asc');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu('dur');
-  await pth.clickMenuItem('Sort: highest first');
+  await clickSortButton('dur', 'desc');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
   // Filter out idle.
@@ -237,14 +239,11 @@ test('Go to process', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.process');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu('upid');
-  await pth.clickMenuItem('Sort: lowest first');
+  await clickSortButton('upid', 'asc');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
-  // Sort the table by dur in descending order. Note that we must explicitly exclude
-  // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu('name');
-  await pth.clickMenuItem('Sort: highest first');
+  // Sort the table by name in descending order.
+  await clickSortButton('name', 'desc');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
   // Go to the first process.
@@ -259,14 +258,11 @@ test('Go to thread', async () => {
   // Show the slice table via command.
   await pth.runCommand('org.chromium.ShowTable.thread');
   // Sort the table by id for consistent ordering.
-  await clickColumnContextMenu('utid');
-  await pth.clickMenuItem('Sort: lowest first');
+  await clickSortButton('utid', 'asc');
   await pth.waitForIdleAndScreenshot(`open-table.png`);
 
-  // Sort the table by dur in descending order. Note that we must explicitly exclude
-  // the "thread_dur" column, as it also contains "dur" in its name.
-  await clickColumnContextMenu('name');
-  await pth.clickMenuItem('Sort: highest first');
+  // Sort the table by name in descending order.
+  await clickSortButton('name', 'desc');
   await pth.waitForIdleAndScreenshot(`sorted.png`);
 
   // Go to the first thread.

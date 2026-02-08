@@ -60,7 +60,7 @@ export function renderSortMenuItems(
 
 export interface GridHeaderCellAttrs extends m.Attributes {
   readonly sort?: SortDirection;
-  readonly onSort?: (direction: SortDirection) => void;
+  readonly onSort?: (direction: SortDirection | undefined) => void;
   readonly menuItems?: m.Children;
   readonly subContent?: m.Children;
   readonly hintSortDirection?: SortDirection;
@@ -80,10 +80,11 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
     const renderSortButton = () => {
       if (!onSort) return undefined;
 
-      const nextDirection: SortDirection = (() => {
-        if (!sort) return hintSortDirection || 'ASC';
+      // Cycle through 3 states: no sort → ASC (or hint) → DESC → no sort
+      const nextDirection: SortDirection | undefined = (() => {
+        if (!sort) return hintSortDirection ?? 'ASC';
         if (sort === 'ASC') return 'DESC';
-        if (sort === 'DESC') return 'ASC';
+        if (sort === 'DESC') return undefined;
         return 'ASC';
       })();
 
