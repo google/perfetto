@@ -68,7 +68,7 @@ export function renderHistogram(app: App): m.Children {
       },
       initialOpts: {
         bucketCount: 20,
-        height: 250,
+        height: 300,
         enableBrush: true,
         logScale: false,
       },
@@ -89,7 +89,7 @@ export function renderHistogram(app: App): m.Children {
         },
         initialOpts: {
           bucketCount: 20,
-          height: 250,
+          height: 300,
           enableBrush: true,
           logScale: false,
         },

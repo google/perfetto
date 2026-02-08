@@ -130,3 +130,15 @@
     padding-bottom: 32px;
   }
 }
+
+.pf-d3-chart-demo {
+  max-width: 600px;
+  margin-bottom: 16px;
+}
+
+// Import d3-decl chart styles
+@import "../../components/charts/d3-decl/renderers/axis.scss";
+@import "../../components/charts/d3-decl/histogram.scss";
+@import "../../components/charts/d3-decl/bar.scss";
+@import "../../components/charts/d3-decl/cdf.scss";
+@import "../../components/charts/d3-decl/scatter.scss";

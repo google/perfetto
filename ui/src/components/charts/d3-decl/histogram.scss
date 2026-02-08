@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,34 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-chart {
-  // Position-relative creates an anchor point for the popups,
-  // so relative offsets can be provided when creating a popup.
-  position: relative;
-}
-
-.pf-chart-popup {
-  width: max-content;
-  font-size: 15px;
-  display: flex;
-  flex-direction: column;
-  padding: 4px;
-  row-gap: 4px;
-
-  &__tooltip-text-line {
-    cursor: text;
-  }
-
-  &__tooltip-bold-text {
-    font-weight: 600;
-    cursor: text;
-  }
-}
-
 // Histogram component styles
+
 .pf-histogram {
-  --pf-histogram-bar-color: var(--pf-color-primary);
-  --pf-histogram-bar-hover-color: var(--pf-color-accent);
+  --pf-histogram-bar-color: steelblue;
+  --pf-histogram-bar-hover-color: steelblue;
   --pf-histogram-axis-color: var(--pf-color-border);
   --pf-histogram-text-color: var(--pf-color-text);
   --pf-histogram-tooltip-bg: var(--pf-color-background-secondary);
@@ -72,10 +49,11 @@
 
   &__bar {
     fill: var(--pf-histogram-bar-color);
+    cursor: crosshair;
 
     &--hover,
     &:hover {
-      fill: var(--pf-histogram-bar-hover-color);
+      opacity: 0.8;
     }
   }
 
@@ -117,7 +95,7 @@
     top: 10px;
     right: 10px;
     pointer-events: none;
-    z-index: 1000;
+    z-index: 10;
   }
 
   &__tooltip-content {
@@ -136,53 +114,5 @@
     &:not(:last-child) {
       margin-bottom: 4px;
     }
-  }
-}
-
-// Bar chart styles
-.pf-bar-chart {
-  --pf-histogram-tooltip-bg: var(--pf-color-background-secondary);
-  --pf-histogram-tooltip-border: var(--pf-color-border);
-  --pf-histogram-text-color: var(--pf-color-text);
-
-  position: relative;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-
-  &--fill-parent {
-    height: 100%;
-  }
-}
-
-// CDF chart styles
-.pf-cdf-chart {
-  --pf-histogram-tooltip-bg: var(--pf-color-background-secondary);
-  --pf-histogram-tooltip-border: var(--pf-color-border);
-  --pf-histogram-text-color: var(--pf-color-text);
-
-  position: relative;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-
-  &--fill-parent {
-    height: 100%;
-  }
-}
-
-// Scatter plot styles
-.pf-scatter-plot {
-  --pf-histogram-tooltip-bg: var(--pf-color-background-secondary);
-  --pf-histogram-tooltip-border: var(--pf-color-border);
-  --pf-histogram-text-color: var(--pf-color-text);
-
-  position: relative;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-
-  &--fill-parent {
-    height: 100%;
   }
 }
