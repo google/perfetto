@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {colorForThread} from '../../components/colorizer';
-import {SliceTrack} from '../../components/tracks/slice_track';
+import {SliceTrack, ColorVariant} from '../../components/tracks/slice_track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
@@ -106,20 +106,24 @@ export function createCpuSliceTrack(
       const hoveredUtid = timeline.hoveredUtid;
       const hoveredPid = timeline.hoveredPid;
       const isHovering = hoveredUtid !== undefined;
+      const n = slices.length;
+      const {rows} = slices;
+      const variants = new Array<ColorVariant>(n);
 
-      for (let i = 0; i < slices.length; ++i) {
-        const slice = slices[i];
-        const utid = slice.row.utid;
-        const pid = slice.row.pid;
-        const isThreadHovered = hoveredUtid === utid;
-        const isProcessHovered = hoveredPid === pid;
+      for (let i = 0; i < n; ++i) {
+        const row = rows[i];
+        const isThreadHovered = hoveredUtid === row.utid;
+        const isProcessHovered = hoveredPid === row.pid;
 
         if (isHovering && !isThreadHovered) {
-          slice.colorVariant = isProcessHovered ? 'variant' : 'disabled';
+          variants[i] = isProcessHovered
+            ? ColorVariant.VARIANT
+            : ColorVariant.DISABLED;
         } else {
-          slice.colorVariant = 'base';
+          variants[i] = ColorVariant.BASE;
         }
       }
+      return variants;
     },
 
     onSliceOver({slice}) {
