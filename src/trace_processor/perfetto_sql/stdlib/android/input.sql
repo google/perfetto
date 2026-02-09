@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 CREATE PERFETTO TABLE _input_message_sent AS
@@ -77,66 +79,87 @@ WHERE
   name GLOB 'UnwantedInteractionBlocker::notifyMotion*';
 
 CREATE PERFETTO TABLE _event_seq_to_input_event_id AS
+WITH
+  raw_channel_data AS (
+    SELECT
+      send_message_slice.name,
+      enqeue_slice.name AS enqueue_name,
+      thread_slice.utid,
+      thread_slice.thread_name,
+      str_split(str_split(send_message_slice.name, '=', 1), ',', 0) AS event_channel
+    FROM slice AS send_message_slice
+    JOIN slice AS publish_slice
+      ON send_message_slice.parent_id = publish_slice.id
+    JOIN slice AS start_dispatch_slice
+      ON publish_slice.parent_id = start_dispatch_slice.id
+    JOIN slice AS enqeue_slice
+      ON start_dispatch_slice.parent_id = enqeue_slice.id
+    JOIN thread_slice
+      ON send_message_slice.id = thread_slice.id
+    WHERE
+      send_message_slice.name GLOB 'sendMessage(*'
+      AND thread_slice.thread_name = 'InputDispatcher'
+  )
 SELECT
-  str_split(str_split(send_message_slice.name, '=', 2), ',', 0) AS event_seq,
-  str_split(str_split(send_message_slice.name, '=', 1), ',', 0) AS event_channel,
-  str_split(str_split(enqeue_slice.name, '=', 2), ')', 0) AS input_event_id,
-  thread_slice.thread_name
-FROM slice AS send_message_slice
-JOIN slice AS publish_slice
-  ON send_message_slice.parent_id = publish_slice.id
-JOIN slice AS start_dispatch_slice
-  ON publish_slice.parent_id = start_dispatch_slice.id
-JOIN slice AS enqeue_slice
-  ON start_dispatch_slice.parent_id = enqeue_slice.id
-JOIN thread_slice
-  ON send_message_slice.id = thread_slice.id
+  str_split(str_split(name, '=', 2), ',', 0) AS event_seq,
+  event_channel,
+  str_split(str_split(event_channel, ' ', 1), '/', 0) AS process_name,
+  str_split(str_split(enqueue_name, '=', 2), ')', 0) AS input_event_id,
+  utid,
+  thread_name
+FROM raw_channel_data;
+
+CREATE PERFETTO TABLE _clean_android_frames AS
+SELECT
+  do_frame_id AS id,
+  ts,
+  dur,
+  CAST(ui_thread_utid AS INTEGER) AS utid,
+  frame_id
+FROM android_frames;
+
+CREATE PERFETTO TABLE _clean_deliver_events AS
+SELECT
+  s.id,
+  s.ts,
+  s.dur,
+  CAST(t.utid AS INTEGER) AS utid,
+  t.process_name,
+  str_split(s.name, '=', 3) AS extracted_input_event_id,
+  str_split(str_split(parent.name, '_', 1), ' ', 0) AS event_action,
+  parent.ts AS consume_time,
+  parent.ts + parent.dur AS finish_time
+FROM slice AS s
+JOIN thread_slice AS t
+  USING (id)
+JOIN slice AS parent
+  ON s.parent_id = parent.id
 WHERE
-  send_message_slice.name GLOB 'sendMessage(*'
-  AND thread_slice.thread_name = 'InputDispatcher';
+  s.name GLOB 'deliverInputEvent src=*';
 
 CREATE PERFETTO TABLE _input_event_id_to_android_frame AS
 SELECT
-  str_split(deliver_input_slice.name, '=', 3) AS input_event_id,
-  str_split(str_split(dispatch_input_slice.name, '_', 1), ' ', 0) AS event_action,
-  dispatch_input_slice.ts AS consume_time,
-  dispatch_input_slice.ts + dispatch_input_slice.dur AS finish_time,
-  thread_slice.utid,
-  thread_slice.process_name AS process_name,
-  (
-    SELECT
-      android_frames.frame_id
-    FROM android_frames
-    WHERE
-      android_frames.ts > dispatch_input_slice.ts
-    LIMIT 1
-  ) AS frame_id,
-  (
-    SELECT
-      android_frames.ts
-    FROM android_frames
-    WHERE
-      android_frames.ts > dispatch_input_slice.ts
-    LIMIT 1
-  ) AS ts,
-  (
-    SELECT
-      _input_message_received.event_channel
-    FROM _input_message_received
-    WHERE
-      _input_message_received.ts < deliver_input_slice.ts
-      AND _input_message_received.track_id = deliver_input_slice.track_id
-    ORDER BY
-      _input_message_received.ts DESC
-    LIMIT 1
-  ) AS event_channel
-FROM slice AS deliver_input_slice
-JOIN slice AS dispatch_input_slice
-  ON deliver_input_slice.parent_id = dispatch_input_slice.id
-JOIN thread_slice
-  ON deliver_input_slice.id = thread_slice.id
-WHERE
-  deliver_input_slice.name GLOB 'deliverInputEvent src=*';
+  dev.extracted_input_event_id AS input_event_id,
+  dev.event_action,
+  dev.consume_time,
+  dev.finish_time,
+  dev.utid,
+  dev.process_name,
+  af.frame_id,
+  af.ts AS frame_ts,
+  map.event_channel
+FROM _interval_intersect!(
+  (_clean_android_frames,
+   _clean_deliver_events),
+  (utid)
+) AS ii
+JOIN _clean_android_frames AS af
+  ON ii.id_0 = af.id
+JOIN _clean_deliver_events AS dev
+  ON ii.id_1 = dev.id
+JOIN _event_seq_to_input_event_id AS map
+  ON dev.extracted_input_event_id = map.input_event_id
+  AND map.process_name = dev.process_name;
 
 CREATE PERFETTO TABLE _app_frame_to_surface_flinger_frame AS
 SELECT
@@ -162,7 +185,7 @@ SELECT
       surface_flinger_ts + surface_flinger_dur
     FROM _app_frame_to_surface_flinger_frame AS sf_frames
     WHERE
-      sf_frames.app_ts >= _input_event_id_to_android_frame.ts
+      sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
     LIMIT 1
   ) AS present_time,
   (
@@ -170,7 +193,7 @@ SELECT
       app_surface_frame_token
     FROM _app_frame_to_surface_flinger_frame AS sf_frames
     WHERE
-      sf_frames.app_ts >= _input_event_id_to_android_frame.ts
+      sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
     LIMIT 1
   ) AS frame_id,
   event_seq,
