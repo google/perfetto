@@ -65,9 +65,7 @@ describe('query_builder_utils', () => {
       const query: Query = {
         sql: 'SELECT * FROM table',
         textproto: '',
-        modules: [],
-        preambles: [],
-        columns: [],
+        standaloneSql: '',
       };
       const response = createMockQueryResponse();
 
@@ -90,9 +88,7 @@ describe('query_builder_utils', () => {
       const query: Query = {
         sql: 'SELECT * FROM table',
         textproto: '',
-        modules: [],
-        preambles: [],
-        columns: [],
+        standaloneSql: '',
       };
       const response = createMockQueryResponse({
         error: 'SQL syntax error',
@@ -120,9 +116,7 @@ describe('query_builder_utils', () => {
       const query: Query = {
         sql: 'SELECT * FROM table',
         textproto: '',
-        modules: [],
-        preambles: [],
-        columns: [],
+        standaloneSql: '',
       };
 
       const result = findErrors(query, undefined);
@@ -375,9 +369,7 @@ describe('query_builder_utils', () => {
       const query1: Query = {
         sql: 'SELECT * FROM table',
         textproto: '',
-        modules: [],
-        preambles: [],
-        columns: [],
+        standaloneSql: '',
       };
       expect(findErrors(query1, response1)).toBeUndefined();
       expect(findWarnings(response1, createMockNode('test'))).toBeUndefined();
@@ -405,79 +397,13 @@ describe('query_builder_utils', () => {
       expect(queryToRun(undefined)).toBe('N/A');
     });
 
-    it('should return SQL only when no includes or preambles', () => {
+    it('should return the SQL string', () => {
       const query: Query = {
         sql: 'SELECT * FROM slice',
         textproto: '',
-        modules: [],
-        preambles: [],
-        columns: [],
+        standaloneSql: '',
       };
       expect(queryToRun(query)).toBe('SELECT * FROM slice');
-    });
-
-    it('should include INCLUDE statements with newlines', () => {
-      const query: Query = {
-        sql: 'SELECT * FROM slice',
-        textproto: '',
-        modules: ['android.slices', 'linux.cpu'],
-        preambles: [],
-        columns: [],
-      };
-      const result = queryToRun(query);
-      expect(result).toContain('INCLUDE PERFETTO MODULE android.slices;');
-      expect(result).toContain('INCLUDE PERFETTO MODULE linux.cpu;');
-      expect(result).toContain('SELECT * FROM slice');
-      // Should have blank line between includes and SQL
-      expect(result).toMatch(/linux\.cpu;\n\nSELECT/);
-    });
-
-    it('should include preambles with newlines', () => {
-      const query: Query = {
-        sql: 'SELECT * FROM my_table',
-        textproto: '',
-        modules: [],
-        preambles: [
-          'CREATE PERFETTO TABLE my_table AS SELECT * FROM slice;',
-          'CREATE PERFETTO VIEW my_view AS SELECT * FROM my_table;',
-        ],
-        columns: [],
-      };
-      const result = queryToRun(query);
-      expect(result).toContain(
-        'CREATE PERFETTO TABLE my_table AS SELECT * FROM slice;',
-      );
-      expect(result).toContain(
-        'CREATE PERFETTO VIEW my_view AS SELECT * FROM my_table;',
-      );
-      expect(result).toContain('SELECT * FROM my_table');
-      // Should have blank line between preambles and SQL
-      expect(result).toMatch(/my_table;\n\nSELECT/);
-    });
-
-    it('should include both modules and preambles in correct order', () => {
-      const query: Query = {
-        sql: 'SELECT * FROM my_table',
-        textproto: '',
-        modules: ['android.slices'],
-        preambles: ['CREATE PERFETTO TABLE my_table AS SELECT * FROM slice;'],
-        columns: [],
-      };
-      const result = queryToRun(query);
-
-      // Verify order by checking string indices
-      const includePos = result.indexOf('INCLUDE PERFETTO MODULE');
-      const preamblePos = result.indexOf('CREATE PERFETTO TABLE');
-      const sqlPos = result.indexOf('SELECT * FROM my_table');
-
-      // All should be found
-      expect(includePos).toBeGreaterThanOrEqual(0);
-      expect(preamblePos).toBeGreaterThan(0);
-      expect(sqlPos).toBeGreaterThan(0);
-
-      // Verify order: includes before preambles before SQL
-      expect(includePos).toBeLessThan(preamblePos);
-      expect(preamblePos).toBeLessThan(sqlPos);
     });
   });
 
@@ -486,9 +412,7 @@ describe('query_builder_utils', () => {
       const query: Query = {
         sql: 'SELECT * FROM slice',
         textproto: '',
-        modules: [],
-        preambles: [],
-        columns: [],
+        standaloneSql: '',
       };
       expect(isAQuery(query)).toBe(true);
     });
@@ -503,10 +427,7 @@ describe('query_builder_utils', () => {
     });
 
     it('should return false for object without sql property', () => {
-      const notAQuery = {
-        textproto: '',
-        modules: [],
-      };
+      const notAQuery = {textproto: ''};
       expect(isAQuery(notAQuery as unknown as Query)).toBe(false);
     });
 

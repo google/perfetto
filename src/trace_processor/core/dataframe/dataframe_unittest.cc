@@ -32,13 +32,13 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe_test_utils.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_to_string.h"
-#include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
@@ -1657,6 +1657,89 @@ TEST(DataframeTest, SortedFilterWithDuplicatesAndRowCountOfZero) {
   ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
                        df.PlanQuery(filters, {}, {}, {}, 1u));
   EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 0u);
+}
+
+TEST(DataframeTest, HorizontalConcat) {
+  StringPool pool;
+
+  AdhocDataframeBuilder left_builder({"col_a"}, &pool);
+  left_builder.PushNonNull(0, int64_t{1});
+  left_builder.PushNonNull(0, int64_t{2});
+  auto left_or = std::move(left_builder).Build();
+  ASSERT_OK(left_or.status());
+  Dataframe left = std::move(left_or.value());
+
+  AdhocDataframeBuilder right_builder({"col_b"}, &pool);
+  right_builder.PushNonNull(0, int64_t{10});
+  right_builder.PushNonNull(0, int64_t{20});
+  auto right_or = std::move(right_builder).Build();
+  ASSERT_OK(right_or.status());
+  Dataframe right = std::move(right_or.value());
+
+  auto result_or =
+      Dataframe::HorizontalConcat(std::move(left), std::move(right));
+  ASSERT_OK(result_or.status());
+  Dataframe result = std::move(result_or.value());
+
+  EXPECT_EQ(result.row_count(), 2u);
+  EXPECT_THAT(result.column_names(),
+              testing::ElementsAre("col_a", "col_b", "_auto_id"));
+}
+
+TEST(DataframeTest, HorizontalConcat_RowCountMismatch) {
+  StringPool pool;
+
+  AdhocDataframeBuilder left_builder({"col_a"}, &pool);
+  left_builder.PushNonNull(0, int64_t{1});
+  left_builder.PushNonNull(0, int64_t{2});
+  auto left_or = std::move(left_builder).Build();
+  ASSERT_OK(left_or.status());
+
+  AdhocDataframeBuilder right_builder({"col_b"}, &pool);
+  right_builder.PushNonNull(0, int64_t{10});
+  auto right_or = std::move(right_builder).Build();
+  ASSERT_OK(right_or.status());
+
+  auto result = Dataframe::HorizontalConcat(std::move(left_or.value()),
+                                            std::move(right_or.value()));
+  EXPECT_FALSE(result.ok());
+}
+
+TEST(DataframeTest, HorizontalConcat_DuplicateColumnName) {
+  StringPool pool;
+
+  AdhocDataframeBuilder left_builder({"col_a"}, &pool);
+  left_builder.PushNonNull(0, int64_t{1});
+  auto left_or = std::move(left_builder).Build();
+  ASSERT_OK(left_or.status());
+
+  AdhocDataframeBuilder right_builder({"col_a"}, &pool);
+  right_builder.PushNonNull(0, int64_t{10});
+  auto right_or = std::move(right_builder).Build();
+  ASSERT_OK(right_or.status());
+
+  auto result = Dataframe::HorizontalConcat(std::move(left_or.value()),
+                                            std::move(right_or.value()));
+  EXPECT_FALSE(result.ok());
+}
+
+TEST(DataframeTest, SelectRows) {
+  StringPool pool;
+
+  AdhocDataframeBuilder builder({"col_a"}, &pool);
+  builder.PushNonNull(0, int64_t{10});
+  builder.PushNonNull(0, int64_t{20});
+  builder.PushNonNull(0, int64_t{30});
+  builder.PushNonNull(0, int64_t{40});
+  auto df_or = std::move(builder).Build();
+  ASSERT_OK(df_or.status());
+
+  std::vector<uint32_t> indices = {1, 3};
+  Dataframe result =
+      std::move(df_or.value())
+          .SelectRows(indices.data(), static_cast<uint32_t>(indices.size()));
+
+  EXPECT_EQ(result.row_count(), 2u);
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe

@@ -23,7 +23,6 @@
  */
 
 import m from 'mithril';
-import {canvasClip, canvasSave} from '../../base/canvas_utils';
 import {classNames} from '../../base/classnames';
 import {Bounds2D, Rect2D, Size2D, VerticalBounds} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
@@ -34,7 +33,7 @@ import {AppImpl} from '../../core/app_impl';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
-import {TrackWithFSM} from '../../core/track_manager';
+import {TrackWrapper} from '../../core/track_manager';
 import {TrackRenderer, Track} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
@@ -49,6 +48,7 @@ import {showModal} from '../../widgets/modal';
 import {Popup} from '../../widgets/popup';
 import {CanvasColors} from '../../public/canvas_colors';
 import {CodeSnippet} from '../../widgets/code_snippet';
+import {Renderer} from '../../base/renderer';
 
 export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
 export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
@@ -101,7 +101,7 @@ export interface TrackViewAttrs {
  */
 export class TrackView {
   readonly node: TrackNode;
-  readonly renderer?: TrackWithFSM;
+  readonly renderer?: TrackWrapper;
   readonly height: number;
   readonly verticalBounds: VerticalBounds;
 
@@ -114,7 +114,7 @@ export class TrackView {
 
     if (node.uri) {
       this.descriptor = trace.tracks.getTrack(node.uri);
-      this.renderer = this.trace.tracks.getTrackFSM(node.uri);
+      this.renderer = this.trace.tracks.getWrappedTrack(node.uri);
     }
 
     const heightPx = getTrackHeight(node, this.renderer?.track);
@@ -214,9 +214,6 @@ export class TrackView {
             }) ?? false
           );
         },
-        onupdate: () => {
-          renderer?.track.onFullRedraw?.();
-        },
         onMoveBefore: (nodeId: string) => {
           // We are the reference node (the one to be moved relative to), nodeId
           // references the target node (the one to be moved)
@@ -261,6 +258,7 @@ export class TrackView {
     );
   }
 
+  // Render the track - both WebGL rectangles and Canvas 2D content
   drawCanvas(
     ctx: CanvasRenderingContext2D,
     rect: Rect2D,
@@ -268,25 +266,35 @@ export class TrackView {
     perfStatsEnabled: boolean,
     trackPerfStats: WeakMap<TrackNode, PerfStats>,
     colors: CanvasColors,
+    renderer: Renderer,
   ) {
     // For each track we rendered in view(), render it to the canvas. We know the
     // vertical bounds, so we just need to combine it with the horizontal bounds
     // and we're golden.
-    const {node, renderer, verticalBounds} = this;
+    const {node, renderer: trackRenderer, verticalBounds} = this;
 
     if (node.isSummary && node.expanded) return;
-    if (renderer?.getError()) return;
+    if (trackRenderer?.getError()) return;
 
     const trackRect = new Rect2D({
       ...rect,
       ...verticalBounds,
     });
 
+    // Clip to the track area
+    using _clip = renderer.clip(
+      trackRect.left,
+      trackRect.top,
+      trackRect.width,
+      trackRect.height,
+    );
+
     // Track renderers expect to start rendering at (0, 0), so we need to
     // translate the canvas and create a new timescale.
-    using _ = canvasSave(ctx);
-    canvasClip(ctx, trackRect);
-    ctx.translate(trackRect.left, trackRect.top);
+    using _translate = renderer.pushTransform({
+      offsetX: trackRect.left,
+      offsetY: trackRect.top,
+    });
 
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
@@ -303,7 +311,7 @@ export class TrackView {
 
     const start = performance.now();
     node.uri &&
-      renderer?.render({
+      trackRenderer?.render({
         trackUri: node.uri,
         trackNode: node,
         visibleWindow,
@@ -312,6 +320,7 @@ export class TrackView {
         ctx,
         timescale,
         colors,
+        renderer: renderer,
       });
 
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);

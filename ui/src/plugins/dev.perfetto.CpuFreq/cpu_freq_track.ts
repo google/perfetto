@@ -12,36 +12,63 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchSegment} from '../../base/binary_search';
+import {deferChunkedTask} from '../../base/chunked_task';
+import {Color} from '../../base/color';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Point2D} from '../../base/geom';
 import {assertTrue} from '../../base/logging';
 import {Monitor} from '../../base/monitor';
+import {
+  CancellationSignal,
+  QUERY_CANCELLED,
+  QuerySlot,
+  SerialTaskQueue,
+} from '../../base/query_slot';
+import {StepAreaBuffers} from '../../base/renderer';
 import {duration, time, Time} from '../../base/time';
-import {colorForCpu} from '../../components/colorizer';
-import m from 'mithril';
-import {TrackData} from '../../components/tracks/track_data';
-import {TimelineFetcher} from '../../components/tracks/track_helper';
-import {checkerboardExcept} from '../../components/checkerboard';
-import {TrackRenderer} from '../../public/track';
-import {LONG, NUM} from '../../trace_processor/query_result';
-import {uuidv4Sql} from '../../base/uuid';
-import {TrackMouseEvent, TrackRenderContext} from '../../public/track';
 import {TimeScale} from '../../base/time_scale';
+import {checkerboardExcept} from '../../components/checkerboard';
+import {colorForCpu} from '../../components/colorizer';
+import {Trace} from '../../public/trace';
+import {
+  TrackMouseEvent,
+  TrackRenderContext,
+  TrackRenderer,
+} from '../../public/track';
+import {LONG, NUM} from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
   createView,
   createVirtualTable,
 } from '../../trace_processor/sql_utils';
-import {AsyncDisposableStack} from '../../base/disposable_stack';
-import {Trace} from '../../public/trace';
+import {CHUNKED_TASK_BACKGROUND_PRIORITY} from '../../components/tracks/feature_flags';
+import {BufferedBounds} from '../../components/tracks/buffered_bounds';
 
-export interface Data extends TrackData {
+export interface Data {
+  start: time;
+  end: time;
+  resolution: duration;
+  length: number;
   timestamps: BigInt64Array;
   minFreqKHz: Uint32Array;
   maxFreqKHz: Uint32Array;
   lastFreqKHz: Uint32Array;
   lastIdleValues: Int8Array;
+  // Pre-built buffers for step area rendering.
+  // xs: relative timestamps in ns (multiply by pxPerNs and add baseOffsetPx)
+  // ys: frequency values in kHz (apply Y transform)
+  // minYs/maxYs: min/max freq values for wiggle
+  // fills: 1.0 when not idle, 0.0 when idle
+  stepAreaBuffers: StepAreaBuffers;
+}
+
+// Result from table creation - implements AsyncDisposable for auto-cleanup
+interface MipmapTables extends AsyncDisposable {
+  freqTableName: string;
+  idleTableName: string;
 }
 
 interface Config {
@@ -83,11 +110,9 @@ function computeHover(
 
 export class CpuFreqTrack implements TrackRenderer {
   private hover?: CpuFreqHover;
-  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
-  private trackUuid = uuidv4Sql();
-
-  private trash!: AsyncDisposableStack;
+  // Cached color for this CPU (constant for track lifetime).
+  private readonly color: Color;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
   private readonly hoverMonitor = new Monitor([
@@ -96,117 +121,124 @@ export class CpuFreqTrack implements TrackRenderer {
     () => this.hover?.idle,
   ]);
 
+  // QuerySlot infrastructure
+  private readonly queue = new SerialTaskQueue();
+  private readonly tableSlot = new QuerySlot<MipmapTables>(this.queue);
+  private readonly dataSlot = new QuerySlot<Data>(this.queue);
+
+  // Cached data for rendering (populated from dataSlot)
+  private data?: Data;
+
+  // Track the bounds we've requested data for (with padding/skirt)
+  // Only refetch when visible window exceeds these bounds
+  private readonly bufferedBounds = new BufferedBounds();
+
   constructor(
     private readonly config: Config,
     private readonly trace: Trace,
-  ) {}
+  ) {
+    this.color = colorForCpu(this.config.cpu);
+  }
 
-  async onCreate() {
-    this.trash = new AsyncDisposableStack();
+  // Creates the mipmap tables - called declaratively from render via QuerySlot
+  private async createMipmapTables(): Promise<MipmapTables> {
+    const trash = new AsyncDisposableStack();
+
     await this.trace.engine.query(`
       INCLUDE PERFETTO MODULE counters.intervals;
     `);
+
+    let rawFreqIdleTableName: string;
+
     if (this.config.idleTrackId === undefined) {
-      this.trash.use(
-        await createView({
-          engine: this.trace.engine,
-          name: `raw_freq_idle_${this.trackUuid}`,
-          as: `
-            select ts, dur, value as freqValue, -1 as idleValue
-            from counter_leading_intervals!((
-              select id, ts, track_id, value
-              from counter
-              where track_id = ${this.config.freqTrackId}
-            ))
-          `,
-        }),
-      );
+      const rawFreqIdleView = await createView({
+        engine: this.trace.engine,
+        as: `
+          select ts, dur, value as freqValue, -1 as idleValue
+          from counter_leading_intervals!((
+            select id, ts, track_id, value
+            from counter
+            where track_id = ${this.config.freqTrackId}
+          ))
+        `,
+      });
+      trash.use(rawFreqIdleView);
+      rawFreqIdleTableName = rawFreqIdleView.name;
     } else {
-      this.trash.use(
-        await createPerfettoTable({
-          engine: this.trace.engine,
-          name: `raw_freq_${this.trackUuid}`,
-          as: `
-            select ts, dur, value as freqValue
-            from counter_leading_intervals!((
-              select id, ts, track_id, value
-              from counter
-             where track_id = ${this.config.freqTrackId}
-            ))
-          `,
-        }),
-      );
+      const rawFreqTable = await createPerfettoTable({
+        engine: this.trace.engine,
+        as: `
+          select ts, dur, value as freqValue
+          from counter_leading_intervals!((
+            select id, ts, track_id, value
+            from counter
+           where track_id = ${this.config.freqTrackId}
+          ))
+        `,
+      });
+      trash.use(rawFreqTable);
 
-      this.trash.use(
-        await createPerfettoTable({
-          engine: this.trace.engine,
-          name: `raw_idle_${this.trackUuid}`,
-          as: `
-            select
-              ts,
-              dur,
-              iif(value = 4294967295, -1, cast(value as int)) as idleValue
-            from counter_leading_intervals!((
-              select id, ts, track_id, value
-              from counter
-              where track_id = ${this.config.idleTrackId}
-            ))
-          `,
-        }),
-      );
+      const rawIdleTable = await createPerfettoTable({
+        engine: this.trace.engine,
+        as: `
+          select
+            ts,
+            dur,
+            iif(value = 4294967295, -1, cast(value as int)) as idleValue
+          from counter_leading_intervals!((
+            select id, ts, track_id, value
+            from counter
+            where track_id = ${this.config.idleTrackId}
+          ))
+        `,
+      });
+      trash.use(rawIdleTable);
 
-      this.trash.use(
-        await createVirtualTable({
-          engine: this.trace.engine,
-          name: `raw_freq_idle_${this.trackUuid}`,
-          using: `span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid})`,
-        }),
-      );
+      const rawFreqIdleJoin = await createVirtualTable({
+        engine: this.trace.engine,
+        using: `span_join(${rawFreqTable.name}, ${rawIdleTable.name})`,
+      });
+      trash.use(rawFreqIdleJoin);
+      rawFreqIdleTableName = rawFreqIdleJoin.name;
     }
 
-    this.trash.use(
-      await createVirtualTable({
-        engine: this.trace.engine,
-        name: `cpu_freq_${this.trackUuid}`,
-        using: `
+    const freqMipmap = await createVirtualTable({
+      engine: this.trace.engine,
+      using: `
         __intrinsic_counter_mipmap((
           select ts, freqValue as value
-          from raw_freq_idle_${this.trackUuid}
+          from ${rawFreqIdleTableName}
         ))
       `,
-      }),
-    );
+    });
+    trash.use(freqMipmap);
 
-    this.trash.use(
-      await createVirtualTable({
-        engine: this.trace.engine,
-        name: `cpu_idle_${this.trackUuid}`,
-        using: `
+    const idleMipmap = await createVirtualTable({
+      engine: this.trace.engine,
+      using: `
         __intrinsic_counter_mipmap((
           select ts, idleValue as value
-          from raw_freq_idle_${this.trackUuid}
+          from ${rawFreqIdleTableName}
         ))
       `,
-      }),
-    );
+    });
+    trash.use(idleMipmap);
+
+    return {
+      freqTableName: freqMipmap.name,
+      idleTableName: idleMipmap.name,
+      [Symbol.asyncDispose]: () => trash.asyncDispose(),
+    };
   }
 
-  async onUpdate({
-    visibleWindow,
-    resolution,
-  }: TrackRenderContext): Promise<void> {
-    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
-  }
-
-  async onDestroy(): Promise<void> {
-    await this.trash.asyncDispose();
-  }
-
-  async onBoundsChange(
+  private async fetchData(
+    freqTableName: string,
+    idleTableName: string,
     start: time,
     end: time,
     resolution: duration,
-  ): Promise<Data> {
+    signal: CancellationSignal,
+  ): Promise<Data | typeof QUERY_CANCELLED> {
     // The resolution should always be a power of two for the logic of this
     // function to make sense.
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
@@ -217,36 +249,49 @@ export class CpuFreqTrack implements TrackRenderer {
         max_value as maxFreq,
         last_ts as ts,
         last_value as lastFreq
-      FROM cpu_freq_${this.trackUuid}(
+      FROM ${freqTableName}(
         ${start},
         ${end},
         ${resolution}
       );
     `);
+
+    if (signal.isCancelled) return QUERY_CANCELLED;
+
     const idleResult = await this.trace.engine.query(`
       SELECT last_value as lastIdle
-      FROM cpu_idle_${this.trackUuid}(
+      FROM ${idleTableName}(
         ${start},
         ${end},
         ${resolution}
       );
     `);
+
+    if (signal.isCancelled) return QUERY_CANCELLED;
+
+    const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
+      ? 'background'
+      : undefined;
+    const task = await deferChunkedTask({priority});
 
     const freqRows = freqResult.numRows();
     const idleRows = idleResult.numRows();
     assertTrue(freqRows == idleRows);
 
-    const data: Data = {
-      start,
-      end,
-      resolution,
-      length: freqRows,
-      timestamps: new BigInt64Array(freqRows),
-      minFreqKHz: new Uint32Array(freqRows),
-      maxFreqKHz: new Uint32Array(freqRows),
-      lastFreqKHz: new Uint32Array(freqRows),
-      lastIdleValues: new Int8Array(freqRows),
-    };
+    // Allocate arrays for Data and StepAreaBuffers
+    const timestamps = new BigInt64Array(freqRows);
+    const minFreqKHz = new Uint32Array(freqRows);
+    const maxFreqKHz = new Uint32Array(freqRows);
+    const lastFreqKHz = new Uint32Array(freqRows);
+    const lastIdleValues = new Int8Array(freqRows);
+
+    // StepAreaBuffers arrays (raw data values, transform applied at render time)
+    const xs = new Float32Array(freqRows); // Relative timestamps in ns
+    const xnext = new Float32Array(freqRows); // Next relative timestamp in ns
+    const ys = new Float32Array(freqRows); // Frequency values in kHz
+    const minYs = new Float32Array(freqRows); // Max freq (higher value = lower Y after transform)
+    const maxYs = new Float32Array(freqRows); // Min freq (lower value = higher Y after transform)
+    const fills = new Float32Array(freqRows); // 1.0 when not idle, 0.0 when idle
 
     const freqIt = freqResult.iter({
       ts: LONG,
@@ -258,12 +303,60 @@ export class CpuFreqTrack implements TrackRenderer {
       lastIdle: NUM,
     });
     for (let i = 0; freqIt.valid(); ++i, freqIt.next(), idleIt.next()) {
-      data.timestamps[i] = freqIt.ts;
-      data.minFreqKHz[i] = freqIt.minFreq;
-      data.maxFreqKHz[i] = freqIt.maxFreq;
-      data.lastFreqKHz[i] = freqIt.lastFreq;
-      data.lastIdleValues[i] = idleIt.lastIdle;
+      if (i % 50 === 0) {
+        if (signal.isCancelled) return QUERY_CANCELLED;
+        if (task.shouldYield()) {
+          await task.yield();
+        }
+      }
+
+      timestamps[i] = freqIt.ts;
+      minFreqKHz[i] = freqIt.minFreq;
+      maxFreqKHz[i] = freqIt.maxFreq;
+      lastFreqKHz[i] = freqIt.lastFreq;
+      lastIdleValues[i] = idleIt.lastIdle;
+
+      // Populate step area buffers with raw values
+      const x = Number(freqIt.ts - start);
+      xs[i] = Math.max(0, x); // Clamp to the start of the frame
+      ys[i] = freqIt.lastFreq;
+
+      fills[i] = idleIt.lastIdle < 0 ? 1.0 : 0.0;
+      if (i > 0) {
+        xnext[i - 1] = x;
+        const yprev = ys[i - 1];
+        minYs[i] = Math.min(freqIt.minFreq, yprev);
+        maxYs[i] = Math.max(freqIt.maxFreq, yprev);
+      } else {
+        minYs[i] = freqIt.minFreq;
+        maxYs[i] = freqIt.maxFreq;
+      }
     }
+
+    // The final xnext extends to the end of the frame
+    xnext[freqRows - 1] = Number(end - start);
+
+    const data: Data = {
+      start,
+      end,
+      resolution,
+      length: freqRows,
+      timestamps,
+      minFreqKHz,
+      maxFreqKHz,
+      lastFreqKHz,
+      lastIdleValues,
+      stepAreaBuffers: {
+        xs,
+        xnext,
+        ys,
+        minYs,
+        maxYs,
+        fillAlpha: fills,
+        count: freqRows,
+      },
+    };
+
     return data;
   }
 
@@ -291,21 +384,57 @@ export class CpuFreqTrack implements TrackRenderer {
     ctx,
     size,
     timescale,
-    visibleWindow,
     colors,
+    renderer,
+    visibleWindow,
+    resolution,
   }: TrackRenderContext): void {
+    // Step 1: Declaratively ensure mipmap tables exist
+    const tableResult = this.tableSlot.use({
+      // Key is constant - tables only need to be created once
+      key: {
+        freqTrackId: this.config.freqTrackId,
+        idleTrackId: this.config.idleTrackId,
+      },
+      queryFn: () => this.createMipmapTables(),
+    });
+
+    // Step 2: Declaratively fetch data from the tables with buffered bounds
+    const visibleSpan = visibleWindow.toTimeSpan();
+    const bounds = this.bufferedBounds.update(visibleSpan, resolution);
+
+    // Use the stable loaded bounds as the key - only changes when we decide to refetch
+    const dataResult = this.dataSlot.use({
+      key: {
+        start: bounds.start,
+        end: bounds.end,
+        resolution: bounds.resolution,
+      },
+      queryFn: async (signal) => {
+        const result = await this.trace.taskTracker.track(
+          this.fetchData(
+            tableResult.data!.freqTableName,
+            tableResult.data!.idleTableName,
+            bounds.start,
+            bounds.end,
+            bounds.resolution,
+            signal,
+          ),
+          'Loading CPU freq',
+        );
+        this.trace.raf.scheduleCanvasRedraw();
+        return result;
+      },
+      retainOn: ['start', 'end', 'resolution'],
+      enabled: tableResult.data !== undefined,
+    });
+
+    // Cache data for mouse event handlers
+    this.data = dataResult.data;
+
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const data = this.fetcher.data;
-
-    if (data === undefined || data.timestamps.length === 0) {
-      // Can't possibly draw anything.
-      return;
-    }
-
-    assertTrue(data.timestamps.length === data.lastFreqKHz.length);
-    assertTrue(data.timestamps.length === data.minFreqKHz.length);
-    assertTrue(data.timestamps.length === data.maxFreqKHz.length);
-    assertTrue(data.timestamps.length === data.lastIdleValues.length);
+    const data = this.data;
+    if (!data) return;
 
     const endPx = size.width;
     const zeroY = MARGIN_TOP + RECT_HEIGHT;
@@ -321,104 +450,48 @@ export class CpuFreqTrack implements TrackRenderer {
     // The values we have for cpufreq are in kHz so +1 to unitGroup.
     const yLabel = `${num} ${kUnits[unitGroup + 1]}Hz`;
 
-    const color = colorForCpu(this.config.cpu);
     let saturation = 45;
     if (this.trace.timeline.hoveredUtid !== undefined) {
       saturation = 0;
     }
 
-    ctx.fillStyle = color
-      .setHSL({s: saturation, l: 50})
-      .setAlpha(0.6).cssString;
-    ctx.strokeStyle = color.setHSL({s: saturation, l: 50}).cssString;
+    const fillColor = this.color.setHSL({s: saturation, l: 50}).setAlpha(0.6);
 
-    const calculateX = (timestamp: time) => {
-      return Math.floor(timescale.timeToPx(timestamp));
+    // Build transform for converting raw data to screen coordinates.
+    // X: screenX = x * pxPerNs + baseOffsetPx (ns -> pixels)
+    // Y: screenY = y * (-RECT_HEIGHT / yMax) + zeroY (kHz -> pixels, inverted)
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(data.start);
+    const transform = {
+      offsetX: baseOffsetPx,
+      scaleX: pxPerNs,
+      offsetY: zeroY,
+      scaleY: -RECT_HEIGHT / yMax,
     };
-    const calculateY = (value: number) => {
-      return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
-    };
 
-    const timespan = visibleWindow.toTimeSpan();
-    const start = timespan.start;
-    const end = timespan.end;
-
-    const [rawStartIdx] = searchSegment(data.timestamps, start);
-    const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
-
-    const [, rawEndIdx] = searchSegment(data.timestamps, end);
-    const endIdx = rawEndIdx === -1 ? data.timestamps.length : rawEndIdx;
-
-    // Draw the CPU frequency graph.
-    {
-      ctx.beginPath();
-      const timestamp = Time.fromRaw(data.timestamps[startIdx]);
-      ctx.moveTo(Math.max(calculateX(timestamp), 0), zeroY);
-
-      let lastDrawnY = zeroY;
-      for (let i = startIdx; i < endIdx; i++) {
-        const timestamp = Time.fromRaw(data.timestamps[i]);
-        const x = Math.max(0, calculateX(timestamp));
-        const minY = calculateY(data.minFreqKHz[i]);
-        const maxY = calculateY(data.maxFreqKHz[i]);
-        const lastY = calculateY(data.lastFreqKHz[i]);
-
-        ctx.lineTo(x, lastDrawnY);
-        if (minY === maxY) {
-          assertTrue(lastY === minY);
-          ctx.lineTo(x, lastY);
-        } else {
-          ctx.lineTo(x, minY);
-          ctx.lineTo(x, maxY);
-          ctx.lineTo(x, lastY);
-        }
-        lastDrawnY = lastY;
-      }
-      ctx.lineTo(endPx, lastDrawnY);
-      ctx.lineTo(endPx, zeroY);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    // Draw CPU idle rectangles that overlay the CPU freq graph.
-    ctx.fillStyle = `rgba(128,128,128, 0.2)`;
-    {
-      for (let i = startIdx; i < endIdx; i++) {
-        if (data.lastIdleValues[i] < 0) {
-          continue;
-        }
-
-        // We intentionally don't use the floor function here when computing x
-        // coordinates. Instead we use floating point which prevents flickering as
-        // we pan and zoom; this relies on the browser anti-aliasing pixels
-        // correctly.
-        const timestamp = Time.fromRaw(data.timestamps[i]);
-        const x = timescale.timeToPx(timestamp);
-        const xEnd =
-          i === data.lastIdleValues.length - 1
-            ? endPx
-            : timescale.timeToPx(Time.fromRaw(data.timestamps[i + 1]));
-
-        const width = xEnd - x;
-        const height = calculateY(data.lastFreqKHz[i]) - zeroY;
-
-        ctx.clearRect(x, zeroY, width, height);
-        ctx.fillRect(x, zeroY, width, height);
-      }
-    }
+    renderer.drawStepArea(
+      data.stepAreaBuffers,
+      transform,
+      fillColor,
+      MARGIN_TOP,
+      MARGIN_TOP + RECT_HEIGHT,
+    );
 
     ctx.font = '10px Roboto Condensed';
 
     if (this.hover !== undefined) {
-      ctx.fillStyle = color.setHSL({s: 45, l: 75}).cssString;
-      ctx.strokeStyle = color.setHSL({s: 45, l: 45}).cssString;
+      ctx.fillStyle = this.color.setHSL({s: 45, l: 75}).cssString;
+      ctx.strokeStyle = this.color.setHSL({s: 45, l: 45}).cssString;
 
-      const xStart = Math.floor(timescale.timeToPx(this.hover.ts));
+      const hoverRelNs = Number(this.hover.ts) - Number(data.start);
+      const xStart = Math.floor(hoverRelNs * pxPerNs + baseOffsetPx);
       const xEnd =
         this.hover.tsEnd === undefined
           ? endPx
-          : Math.floor(timescale.timeToPx(this.hover.tsEnd));
+          : Math.floor(
+              (Number(this.hover.tsEnd) - Number(data.start)) * pxPerNs +
+                baseOffsetPx,
+            );
       const y = zeroY - Math.round((this.hover.value / yMax) * RECT_HEIGHT);
 
       // Highlight line.
@@ -465,7 +538,7 @@ export class CpuFreqTrack implements TrackRenderer {
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
+    const data = this.data;
     if (data === undefined) return;
     this.hover = computeHover({x, y}, timescale, data);
     if (this.hoverMonitor.ifStateChanged()) {

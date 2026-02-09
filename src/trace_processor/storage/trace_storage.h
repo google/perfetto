@@ -97,6 +97,8 @@ using TrackEventCallstacksId = tables::TrackEventCallstacksTable_Id;
 static const TrackId kInvalidTrackId =
     TrackId(std::numeric_limits<uint32_t>::max());
 
+static constexpr uint32_t kDefaultMachineId = 0;
+
 // Stores a data inside a trace file in a columnar form. This makes it efficient
 // to read or search across a single field of the trace (e.g. all the thread
 // names for a given CPU).
@@ -316,12 +318,6 @@ class TraceStorage {
   // Virtual for testing.
   virtual NullTermStringView GetString(std::optional<StringId> id) const {
     return id ? string_pool_.Get(*id) : NullTermStringView();
-  }
-
-  // Requests the removal of unused capacity.
-  // Matches the semantics of std::vector::shrink_to_fit.
-  void ShrinkToFitTables() {
-    // TODO(lalitm): remove.
   }
 
   const tables::ThreadTable& thread_table() const {

@@ -217,6 +217,39 @@ struct BitVector {
     size_ = 0;
   }
 
+  // Sets all bits to zero without changing the size.
+  void ClearAllBits() {
+    memset(words_.data(), 0, words_.size() * sizeof(uint64_t));
+  }
+
+  // Resizes the vector to the specified size. If shrinking, bits past the new
+  // size are cleared. If growing, new bits are set to the given value.
+  void resize(uint64_t new_size, bool value = false) {
+    uint64_t new_words = (new_size + 63) / 64;
+    words_.resize(new_words);
+    if (new_size > size_) {
+      // Set new bits to value.
+      uint64_t fill = value ? ~0ull : 0ull;
+      for (uint64_t i = (size_ + 63) / 64; i < new_words; ++i) {
+        words_[i] = fill;
+      }
+      // Handle partial word at old size boundary.
+      if (size_ % 64 != 0) {
+        uint64_t mask = ~((1ull << (size_ % 64)) - 1);
+        if (value) {
+          words_[size_ / 64] |= mask;
+        } else {
+          words_[size_ / 64] &= ~mask;
+        }
+      }
+    }
+    // Clear bits past new_size in the last word.
+    if (new_size % 64 != 0 && new_words > 0) {
+      words_[new_words - 1] &= (1ull << (new_size % 64)) - 1;
+    }
+    size_ = new_size;
+  }
+
   // Shrinks the memory allocated by the vector to be as small as possible while
   // still maintaining the invariants of the class.
   void shrink_to_fit() { words_.shrink_to_fit(); }

@@ -27,7 +27,6 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/paged_memory.h"
-#include "src/profiling/deobfuscator.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include <zlib.h>

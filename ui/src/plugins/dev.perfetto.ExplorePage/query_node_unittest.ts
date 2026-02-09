@@ -114,71 +114,13 @@ describe('query_node utilities', () => {
       expect(result).toBe('N/A');
     });
 
-    it('should format query with modules', () => {
+    it('should return the SQL string', () => {
       const query: Query = {
         sql: 'SELECT * FROM table',
         textproto: '',
-        modules: ['android.slices', 'experimental.frames'],
-        preambles: [],
-        columns: [],
+        standaloneSql: '',
       };
-
-      const result = queryToRun(query);
-
-      expect(result).toContain('INCLUDE PERFETTO MODULE android.slices;');
-      expect(result).toContain('INCLUDE PERFETTO MODULE experimental.frames;');
-      expect(result).toContain('SELECT * FROM table');
-      // Should have an empty line between includes and SQL
-      expect(result).toMatch(/INCLUDE PERFETTO MODULE.*\n\nSELECT/s);
-    });
-
-    it('should format query with preambles', () => {
-      const query: Query = {
-        sql: 'SELECT * FROM table',
-        textproto: '',
-        modules: [],
-        preambles: ['CREATE VIEW test AS SELECT 1;'],
-        columns: [],
-      };
-
-      const result = queryToRun(query);
-
-      expect(result).toContain('CREATE VIEW test AS SELECT 1;');
-      expect(result).toContain('SELECT * FROM table');
-      // Should have an empty line between preambles and SQL
-      expect(result).toMatch(/CREATE VIEW.*\n\nSELECT/s);
-    });
-
-    it('should format query with both modules and preambles', () => {
-      const query: Query = {
-        sql: 'SELECT * FROM table',
-        textproto: '',
-        modules: ['android.slices'],
-        preambles: ['-- This is a comment'],
-        columns: [],
-      };
-
-      const result = queryToRun(query);
-
-      expect(result).toContain('INCLUDE PERFETTO MODULE android.slices;');
-      expect(result).toContain('-- This is a comment');
-      expect(result).toContain('SELECT * FROM table');
-      // Should have an empty line before SQL
-      expect(result).toMatch(/-- This is a comment\n\nSELECT/s);
-    });
-
-    it('should handle empty modules and preambles', () => {
-      const query: Query = {
-        sql: 'SELECT * FROM table',
-        textproto: '',
-        modules: [],
-        preambles: [],
-        columns: [],
-      };
-
-      const result = queryToRun(query);
-
-      expect(result).toBe('SELECT * FROM table');
+      expect(queryToRun(query)).toBe('SELECT * FROM table');
     });
   });
 
@@ -250,9 +192,7 @@ describe('query_node utilities', () => {
       const query: Query = {
         sql: 'SELECT * FROM table',
         textproto: '',
-        modules: [],
-        preambles: [],
-        columns: [],
+        standaloneSql: '',
       };
 
       expect(isAQuery(query)).toBe(true);
@@ -268,7 +208,7 @@ describe('query_node utilities', () => {
     });
 
     it('should return false for object without sql', () => {
-      const notAQuery = {textproto: '', modules: [], preambles: []};
+      const notAQuery = {textproto: ''};
       expect(isAQuery(notAQuery as unknown as Query | undefined | Error)).toBe(
         false,
       );

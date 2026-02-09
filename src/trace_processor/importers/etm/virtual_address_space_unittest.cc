@@ -21,6 +21,7 @@
 #include <optional>
 #include <utility>
 
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
@@ -57,6 +58,8 @@ tables::MmapRecordTable::ConstRowReference AddMapping(
 TEST(VirtualAddressSpaceTest, Empty) {
   TraceProcessorContext context;
   context.storage = std::make_unique<TraceStorage>();
+  context.machine_tracker =
+      std::make_unique<MachineTracker>(&context, kDefaultMachineId);
   VirtualAddressSpace vs = VirtualAddressSpace::Builder(&context).Build();
 
   EXPECT_THAT(vs.FindMapping(0, 5), IsNull());
@@ -65,6 +68,8 @@ TEST(VirtualAddressSpaceTest, Empty) {
 TEST(VirtualAddressSpaceTest, DisjointRanges) {
   TraceProcessorContext context;
   context.storage = std::make_unique<TraceStorage>();
+  context.machine_tracker =
+      std::make_unique<MachineTracker>(&context, kDefaultMachineId);
   auto builder = VirtualAddressSpace::Builder(&context);
   const UniquePid upid = 123;
 
@@ -88,6 +93,8 @@ TEST(VirtualAddressSpaceTest, DisjointRanges) {
 TEST(VirtualAddressSpaceTest, ComplexLayout) {
   TraceProcessorContext context;
   context.storage = std::make_unique<TraceStorage>();
+  context.machine_tracker =
+      std::make_unique<MachineTracker>(&context, kDefaultMachineId);
   auto builder = VirtualAddressSpace::Builder(&context);
   const UniquePid upid = 123;
 

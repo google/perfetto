@@ -33,6 +33,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/cursor.h"
+#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -107,6 +108,28 @@ class Dataframe {
                      spec.column_specs.data());
   }
 
+  // Concatenates two dataframes horizontally by combining their columns.
+  //
+  // Both dataframes must have the same row count. The resulting dataframe
+  // contains all columns from `left` followed by all columns from `right`,
+  // excluding the `_auto_id` column from both (a new `_auto_id` is created).
+  //
+  // Args:
+  //   left: The first dataframe. Ownership is taken via move.
+  //   right: The second dataframe. Ownership is taken via move.
+  //
+  // Returns:
+  //   A new dataframe containing columns from both inputs, or an error if
+  //   row counts don't match.
+  static base::StatusOr<Dataframe> HorizontalConcat(Dataframe&& left,
+                                                    Dataframe&& right);
+
+  // Selects rows at the given indices from this dataframe.
+  //
+  // Returns a new dataframe containing only the rows at the specified indices.
+  // The indices must be valid (less than row_count()).
+  Dataframe SelectRows(const uint32_t* indices, uint32_t count) &&;
+
   // Movable
   Dataframe(Dataframe&&) = default;
   Dataframe& operator=(Dataframe&&) = default;
@@ -164,8 +187,8 @@ class Dataframe {
   template <typename FilterValueFetcherImpl>
   void PrepareCursor(const QueryPlan& plan,
                      Cursor<FilterValueFetcherImpl>& c) const {
-    c.Initialize(plan.plan_, uint32_t(column_ptrs_.size()), column_ptrs_.data(),
-                 indexes_.data(), string_pool_);
+    c.Initialize(plan.plan_, static_cast<uint32_t>(column_ptrs_.size()),
+                 column_ptrs_.data(), indexes_.data(), string_pool_);
   }
 
   // Given a typed spec, a column index and a row index, returns the value
@@ -258,6 +281,17 @@ class Dataframe {
     return static_cast<uint32_t>(column_ptrs_.size());
   }
 
+  // Returns the total number of mutations to the dataframe. This includes
+  // both non-column mutations (e.g. adding rows, adding indexes) and
+  // column mutations (e.g. setting cell values).
+  uint64_t mutations() const {
+    uint64_t total = non_column_mutations_;
+    for (const auto& col : columns_) {
+      total += col->mutations;
+    }
+    return total;
+  }
+
   // Gets the value of a cell at the specified row and column, calling the
   // appropriate callback method with the value.
   //
@@ -329,10 +363,13 @@ class Dataframe {
       case StorageType::GetTypeIndex<Double>():
         callback.OnCell(Storage::CastDataPtr<Double>(data_ptr)[storage_idx]);
         break;
-      case StorageType::GetTypeIndex<String>():
-        callback.OnCell(string_pool_->Get(
-            Storage::CastDataPtr<String>(data_ptr)[storage_idx]));
+      case StorageType::GetTypeIndex<String>(): {
+        // See kStringNullLegacy in InsertUncheckedColumn.
+        auto id = Storage::CastDataPtr<String>(data_ptr)[storage_idx];
+        PERFETTO_DCHECK(!id.is_null());
+        callback.OnCell(string_pool_->Get(id));
         break;
+      }
       default:
         PERFETTO_FATAL("Invalid storage type");
     }
@@ -372,6 +409,8 @@ class Dataframe {
  private:
   friend class AdhocDataframeBuilder;
   friend class TypedCursor;
+  friend class QueryPlanBuilder;
+  friend struct QueryPlanImpl;
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.
@@ -400,6 +439,9 @@ class Dataframe {
       typename D::non_null_mutate_type t) {
     static_assert(std::is_same_v<typename D::null_storage_type, NonNull>);
     using type = typename D::type;
+    if constexpr (std::is_same_v<type, String>) {
+      PERFETTO_DCHECK(!t.is_null());
+    }
     auto& storage = columns_[I]->storage;
     if constexpr (std::is_same_v<type, Id>) {
       base::ignore_result(t);
@@ -409,6 +451,24 @@ class Dataframe {
     }
   }
 
+  // String Null Handling (kStringNullLegacy)
+  // =========================================
+  // For legacy reasons, trace processor has two ways to represent null strings:
+  // 1. std::nullopt (the standard way for nullable columns)
+  // 2. StringPool::Id::Null() (a special sentinel value)
+  //
+  // Ideally, we would totally remove 2) but too much of trace processor now
+  // depends on having access to it, so we must handle both representations.
+  //
+  // The dataframe normalizes these on write and validates on read:
+  // - Insert/Set: StringPool::Id::Null() is silently converted to a true null
+  //   for nullable columns. For NonNull columns, passing StringPool::Id::Null()
+  //   triggers a DCHECK.
+  // - Get: DCHECKs that values read from storage are never
+  //   StringPool::Id::Null() (since we should have converted them on write).
+  //
+  // This ensures internal consistency while maintaining compatibility with code
+  // that uses StringPool::Id::Null() to represent nulls.
   template <typename D, size_t I>
   PERFETTO_ALWAYS_INLINE void InsertUncheckedColumn(
       std::optional<typename D::non_null_mutate_type> t) {
@@ -419,7 +479,13 @@ class Dataframe {
     auto& nulls = columns_[I]->null_storage.unchecked_get<null_storage_type>();
     auto& storage = columns_[I]->storage;
 
-    if (t.has_value()) {
+    // See kStringNullLegacy above.
+    bool has_value = t.has_value();
+    if constexpr (std::is_same_v<type, String>) {
+      has_value = has_value && !t->is_null();
+    }
+
+    if (has_value) {
       if constexpr (std::is_same_v<type, Id>) {
         storage.unchecked_get<type>().size++;
       } else {
@@ -453,7 +519,7 @@ class Dataframe {
         nulls.prefix_popcount_for_cell_get.push_back(prefix_popcount);
       }
     }
-    nulls.bit_vector.push_back(t.has_value());
+    nulls.bit_vector.push_back(has_value);
   }
 
   template <size_t column, typename D>
@@ -490,12 +556,23 @@ class Dataframe {
         std::is_same_v<N, SparseNullWithPopcountUntilFinalization>;
     const auto& storage = col.storage.unchecked_get<T>();
     const auto& nulls = col.null_storage.unchecked_get<N>();
+    // See kStringNullLegacy above.
     if constexpr (std::is_same_v<N, NonNull>) {
-      return GetCellUncheckedFromStorage(storage, row);
+      auto result = GetCellUncheckedFromStorage(storage, row);
+      if constexpr (std::is_same_v<T, String>) {
+        PERFETTO_DCHECK(!result.is_null());
+      }
+      return result;
     } else if constexpr (std::is_same_v<N, DenseNull>) {
-      return nulls.bit_vector.is_set(row)
-                 ? std::make_optional(GetCellUncheckedFromStorage(storage, row))
-                 : std::nullopt;
+      using Ret = decltype(GetCellUncheckedFromStorage(storage, {}));
+      if (nulls.bit_vector.is_set(row)) {
+        auto result = GetCellUncheckedFromStorage(storage, row);
+        if constexpr (std::is_same_v<T, String>) {
+          PERFETTO_DCHECK(!result.is_null());
+        }
+        return std::make_optional(result);
+      }
+      return static_cast<std::optional<Ret>>(std::nullopt);
     } else if constexpr (is_sparse_null_supporting_get_always ||
                          is_sparse_null_supporting_get_until_finalization) {
       PERFETTO_DCHECK(is_sparse_null_supporting_get_always || !finalized_);
@@ -504,7 +581,11 @@ class Dataframe {
         auto index = static_cast<uint32_t>(
             nulls.prefix_popcount_for_cell_get[row / 64] +
             nulls.bit_vector.count_set_bits_until_in_word(row));
-        return std::make_optional(GetCellUncheckedFromStorage(storage, index));
+        auto result = GetCellUncheckedFromStorage(storage, index);
+        if constexpr (std::is_same_v<T, String>) {
+          PERFETTO_DCHECK(!result.is_null());
+        }
+        return std::make_optional(result);
       }
       return static_cast<std::optional<Ret>>(std::nullopt);
     } else if constexpr (std::is_same_v<N, SparseNull>) {
@@ -531,10 +612,18 @@ class Dataframe {
 
     auto& storage = col.storage.unchecked_get<T>();
     auto& nulls = col.null_storage.unchecked_get<N>();
+    // See kStringNullLegacy above.
     if constexpr (std::is_same_v<N, NonNull>) {
+      if constexpr (std::is_same_v<T, String>) {
+        PERFETTO_DCHECK(!value.is_null());
+      }
       storage[row] = value;
     } else if constexpr (std::is_same_v<N, DenseNull>) {
-      if (value.has_value()) {
+      bool has_value = value.has_value();
+      if constexpr (std::is_same_v<T, String>) {
+        has_value = has_value && !value->is_null();
+      }
+      if (has_value) {
         nulls.bit_vector.set(row);
         storage[row] = *value;
       } else {
@@ -548,7 +637,11 @@ class Dataframe {
       auto storage_idx = static_cast<uint32_t>(
           popcount[word] + nulls.bit_vector.count_set_bits_until_in_word(row));
       const core::BitVector& bit_vector = nulls.bit_vector;
-      if (value.has_value()) {
+      bool has_value = value.has_value();
+      if constexpr (std::is_same_v<T, String>) {
+        has_value = has_value && !value->is_null();
+      }
+      if (has_value) {
         if (!bit_vector.is_set(row)) {
           storage.push_back({});
           memmove(storage.data() + storage_idx + 1,

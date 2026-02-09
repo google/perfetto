@@ -382,7 +382,7 @@ base::Status ArtMethodTokenizer::Streaming::ParseSummary(
   }
 }
 
-base::Status ArtMethodTokenizer::Streaming::NotifyEndOfFile() const {
+base::Status ArtMethodTokenizer::Streaming::OnPushDataToSorter() const {
   if (mode_ != kDone) {
     return base::ErrStatus("ART Method trace: trace is incomplete");
   }
@@ -469,7 +469,7 @@ base::Status ArtMethodTokenizer::NonStreaming::Parse() {
   return base::OkStatus();
 }
 
-base::Status ArtMethodTokenizer::NonStreaming::NotifyEndOfFile() const {
+base::Status ArtMethodTokenizer::NonStreaming::OnPushDataToSorter() const {
   if (mode_ == NonStreaming::kData && tokenizer_->reader_.empty()) {
     return base::OkStatus();
   }
@@ -613,14 +613,14 @@ base::Status ArtMethodTokenizer::NonStreaming::ParseHeaderSectionLine(
       std::string(line).c_str());
 }
 
-base::Status ArtMethodTokenizer::NotifyEndOfFile() {
+base::Status ArtMethodTokenizer::OnPushDataToSorter() {
   switch (sub_parser_.index()) {
     case base::variant_index<SubParser, Detect>():
       return base::ErrStatus("ART Method trace: trace is incomplete");
     case base::variant_index<SubParser, Streaming>():
-      return std::get<Streaming>(sub_parser_).NotifyEndOfFile();
+      return std::get<Streaming>(sub_parser_).OnPushDataToSorter();
     case base::variant_index<SubParser, NonStreaming>():
-      return std::get<NonStreaming>(sub_parser_).NotifyEndOfFile();
+      return std::get<NonStreaming>(sub_parser_).OnPushDataToSorter();
   }
   PERFETTO_FATAL("For GCC");
 }

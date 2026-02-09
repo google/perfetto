@@ -23,6 +23,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 #include "src/trace_processor/importers/perf/auxtrace_record.h"
@@ -38,6 +39,8 @@ namespace {
 std::unique_ptr<TraceProcessorContext> CreateTraceProcessorContext() {
   auto ctx = std::make_unique<TraceProcessorContext>();
   ctx->storage = std::make_unique<TraceStorage>();
+  ctx->machine_tracker =
+      std::make_unique<MachineTracker>(ctx.get(), kDefaultMachineId);
   return ctx;
 }
 

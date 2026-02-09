@@ -49,7 +49,7 @@ class ProfileModule : public ProtoImporterModule {
                             const TracePacketData& data,
                             uint32_t field_id) override;
 
-  void NotifyEndOfFile() override;
+  void OnEventsFullyExtracted() override;
 
  private:
   // chrome stack sampling:

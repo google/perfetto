@@ -130,7 +130,7 @@ import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
 import {Column} from '../../../components/widgets/datagrid/model';
 import {ResizeHandle} from '../../../widgets/resize_handle';
-import {getAllDownstreamNodes} from './graph_utils';
+import {getAllDownstreamNodes, getAllNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
 import {DataSource} from '../../../components/widgets/datagrid/data_source';
 import {NavigationSidePanel} from './navigation_sidepanel';
@@ -205,6 +205,7 @@ export interface BuilderAttrs {
   readonly onLoadEmptyTemplate?: () => void;
   readonly onLoadExampleByPath?: (jsonPath: string) => void;
   readonly onLoadExploreTemplate?: () => void;
+  readonly onLoadRecentGraph?: (json: string) => void;
 
   // Node state change callback
   readonly onNodeStateChange?: () => void;
@@ -241,6 +242,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   // because we need access outside of view() for executeSelectedNode() public method.
   // Updated in view() to stay synchronized with attrs.
   private selectedNode?: QueryNode;
+  // Stores all nodes for use in executeSelectedNode() which needs to pass
+  // allNodes to prevent auto-drop of disconnected graphs.
+  private rootNodes: QueryNode[] = [];
   private response?: QueryResponse;
   private dataSource?: DataSource;
   private drawerVisibility = DrawerPanelVisibility.COLLAPSED;
@@ -273,8 +277,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const {trace, rootNodes, onNodeSelected, onClearAllNodes} = attrs;
     const selectedNode = getPrimarySelectedNode(attrs.selectedNodes, rootNodes);
 
-    // Store selectedNode for keyboard shortcuts
+    // Store selectedNode and rootNodes for keyboard shortcuts (executeSelectedNode)
     this.selectedNode = selectedNode;
+    this.rootNodes = rootNodes;
 
     // Notify parent when execute function changes (when selectedNode changes)
     if (selectedNode !== this.previousSelectedNode) {
@@ -363,6 +368,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             trace,
             node: selectedNode,
             queryExecutionService: this.queryExecutionService,
+            allNodes: getAllNodes(rootNodes),
             resolveNode: (nodeId: string) =>
               this.resolveNode(nodeId, rootNodes),
             hasExistingResult: this.queryExecuted,
@@ -370,6 +376,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             onQueryAnalyzed: this.onNodeQueryAnalyzed,
             onAnalysisStateChange: (isAnalyzing: boolean) => {
               this.isAnalyzing = isAnalyzing;
+              if (isAnalyzing) {
+                // Clear dataSource at the START of analysis to prevent stale
+                // queries with old columns while the table is being re-materialized.
+                this.dataSource = undefined;
+              }
             },
             onExecutionStart: () => {
               this.isQueryRunning = true;
@@ -410,6 +421,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               onLoadExampleByPath: attrs.onLoadExampleByPath,
               onLoadExploreTemplate: attrs.onLoadExploreTemplate,
               onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
+              onLoadRecentGraph: attrs.onLoadRecentGraph,
             }),
           );
 
@@ -433,8 +445,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               response: this.response,
               dataSource: this.dataSource,
               sqlModules: attrs.sqlModules,
+              queryExecutionService: this.queryExecutionService,
               isQueryRunning: this.isQueryRunning,
               isAnalyzing: this.isAnalyzing,
+              isStale: this.queryExecutionService.isNodeStale(
+                selectedNode.nodeId,
+              ),
               onchange: () => {
                 attrs.onNodeStateChange?.();
               },
@@ -458,8 +474,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               onExecute: async () => {
                 await this.executeSelectedNode();
               },
-              onExportToTimeline: () => {
-                this.exportToTimeline(selectedNode);
+              onExportToTimeline: async () => {
+                await this.exportToTimeline(selectedNode);
               },
             })
           : m(DataExplorerEmptyState, {
@@ -694,6 +710,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     return {
       onAnalysisStart: () => {
         this.isAnalyzing = true;
+        // Clear dataSource at the START of analysis to prevent stale
+        // queries with old columns while the table is being re-materialized.
+        this.dataSource = undefined;
         m.redraw();
       },
       onAnalysisComplete: (query: Query | Error | undefined) => {
@@ -746,6 +765,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     await this.queryExecutionService.processNode(
       selectedNode,
       this.trace.engine,
+      getAllNodes(this.rootNodes),
       {
         manual: true, // User explicitly requested execution
         hasExistingResult: this.queryExecuted,
@@ -754,9 +774,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     );
   }
 
-  private exportToTimeline(node: QueryNode) {
-    // Only export if we have a materialized table
-    const tableName = node.state.materializationTableName;
+  private async exportToTimeline(node: QueryNode) {
+    // Fetch table name from TP
+    const tableName = await this.queryExecutionService.getTableName(
+      node.nodeId,
+    );
     if (!tableName) {
       console.warn('Cannot export to timeline: no materialized table');
       return;

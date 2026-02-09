@@ -12,42 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
 import("../../../../gn/test.gni")
 
-if (enable_perfetto_trace_processor_json) {
-  source_set("json") {
-    sources = [
-      "json_trace_parser.cc",
-      "json_trace_parser.h",
-      "json_trace_tokenizer.cc",
-      "json_trace_tokenizer.h",
-    ]
-    deps = [
-      "../../../../gn:default_deps",
-      "../../containers",
-      "../../sorter",
-      "../../storage",
-      "../../tables",
-      "../../types",
-      "../../util:json_parser",
-      "../common",
-      "../common:parser_types",
-      "../systrace:full",
-      "../systrace:systrace_line",
-    ]
-    if (enable_perfetto_trace_processor_json) {
-      public_deps = [ "../../../../gn:jsoncpp" ]
-    }
-  }
+source_set("json") {
+  sources = [
+    "json_trace_parser.cc",
+    "json_trace_parser.h",
+    "json_trace_tokenizer.cc",
+    "json_trace_tokenizer.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../containers",
+    "../../sorter",
+    "../../storage",
+    "../../tables",
+    "../../types",
+    "../../util:json_args",
+    "../../util:json_parser",
+    "../../util:simple_json_parser",
+    "../common",
+    "../common:parser_types",
+    "../common:v8_profile_parser",
+    "../systrace:full",
+    "../systrace:systrace_line",
+  ]
+}
 
-  perfetto_unittest_source_set("unittests") {
-    testonly = true
-    sources = [ "json_trace_tokenizer_unittest.cc" ]
-    deps = [
-      ":json",
-      "../../../../gn:default_deps",
-      "../../../../gn:gtest_and_gmock",
-    ]
-  }
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "json_trace_tokenizer_unittest.cc" ]
+  deps = [
+    ":json",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+  ]
 }

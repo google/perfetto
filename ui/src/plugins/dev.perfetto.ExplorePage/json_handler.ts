@@ -13,7 +13,12 @@
 // limitations under the License.
 
 import {ExplorePageState} from './explore_page';
-import {QueryNode, NodeType, singleNodeOperation} from './query_node';
+import {
+  QueryNode,
+  NodeType,
+  singleNodeOperation,
+  ensureCounterAbove,
+} from './query_node';
 import {getAllNodes as getAllNodesUtil} from './query_builder/graph_utils';
 import {
   TableSourceNode,
@@ -72,6 +77,10 @@ import {
   CounterToIntervalsNode,
   CounterToIntervalsNodeState,
 } from './query_builder/nodes/counter_to_intervals_node';
+import {
+  FilterInNode,
+  FilterInNodeState,
+} from './query_builder/nodes/filter_in_node';
 
 type SerializedNodeState =
   | TableSourceSerializedState
@@ -89,7 +98,8 @@ type SerializedNodeState =
   | CreateSlicesSerializedState
   | UnionSerializedState
   | FilterDuringNodeState
-  | CounterToIntervalsNodeState;
+  | CounterToIntervalsNodeState
+  | FilterInNodeState;
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {
@@ -368,6 +378,10 @@ function createNodeInstance(
         ),
         sqlModules,
       });
+    case NodeType.kFilterIn:
+      return new FilterInNode(
+        FilterInNode.deserializeState(state as FilterInNodeState),
+      );
     default:
       throw new Error(`Unknown node type: ${serializedNode.type}`);
   }
@@ -411,6 +425,9 @@ export function deserializeState(
     (node as {nodeId: string}).nodeId = serializedNode.nodeId;
     nodes.set(serializedNode.nodeId, node);
   }
+
+  // Ensure the global node counter is above all loaded IDs to prevent collisions
+  ensureCounterAbove(serializedGraph.nodes.map((n) => n.nodeId));
 
   // Second pass: set forward links (nextNodes)
   for (const serializedNode of serializedGraph.nodes) {
@@ -547,6 +564,27 @@ export function deserializeState(
         i++
       ) {
         filterDuringNode.secondaryInputs.connections.set(
+          i,
+          deserializedConnections.secondaryInputNodes[i],
+        );
+      }
+    }
+    if (serializedNode.type === NodeType.kFilterIn) {
+      const filterInNode = node as FilterInNode;
+      const serializedState = serializedNode.state as {
+        secondaryInputNodeIds?: string[];
+      };
+      const deserializedConnections = FilterInNode.deserializeConnections(
+        nodes,
+        serializedState,
+      );
+      filterInNode.secondaryInputs.connections.clear();
+      for (
+        let i = 0;
+        i < deserializedConnections.secondaryInputNodes.length;
+        i++
+      ) {
+        filterInNode.secondaryInputs.connections.set(
           i,
           deserializedConnections.secondaryInputNodes[i],
         );

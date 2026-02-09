@@ -119,6 +119,7 @@ source_set("protozero_to_json") {
   ]
   deps = [
     ":descriptors",
+    ":json_serializer",
     "../../../gn:default_deps",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace/track_event:zero",
@@ -196,6 +197,11 @@ source_set("zip_reader") {
   }
 }
 
+source_set("galloping_search") {
+  sources = [ "galloping_search.h" ]
+  deps = [ "../../../gn:default_deps" ]
+}
+
 source_set("glob") {
   sources = [
     "glob.cc",
@@ -246,31 +252,79 @@ source_set("args_utils") {
   ]
 }
 
+# Header only part of the json_parser (just json_parser.h).
+# The old json_utils.cc/h files have been removed and replaced by json_args.cc/h.
 source_set("json_parser") {
-  sources = [
-    "json_parser.h",
-    "json_utils.cc",
-    "json_utils.h",
-  ]
+  sources = [ "json_parser.h" ]
   deps = [
     "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
+# Header-only JSON streaming parser. No external dependencies.
+source_set("simple_json_parser") {
+  sources = [
+    "simple_json_parser.cc",
+    "simple_json_parser.h",
+  ]
+  public_deps = [ ":json_parser" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
+# JSON args flattening using the streaming parser. No jsoncpp dependency.
+source_set("json_args") {
+  sources = [
+    "json_args.cc",
+    "json_args.h",
+  ]
+  deps = [
+    ":json_parser",
+    ":simple_json_parser",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
     "../containers",
     "../importers/common",
     "../storage",
     "../types",
   ]
-  if (enable_perfetto_trace_processor_json) {
-    public_deps = [ "../../../gn:jsoncpp" ]
-  }
 }
 
-source_set("json_writer") {
-  sources = [
-    "json_writer.cc",
-    "json_writer.h",
-  ]
+source_set("json_serializer") {
+  sources = [ "json_serializer.h" ]
   deps = [
     "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
+source_set("simple_json_serializer") {
+  sources = [
+    "simple_json_serializer.cc",
+    "simple_json_serializer.h",
+  ]
+  deps = [
+    ":json_serializer",
+    "../../../gn:default_deps",
+  ]
+}
+
+source_set("json_value") {
+  sources = [
+    "json_value.cc",
+    "json_value.h",
+  ]
+  deps = [
+    ":json_parser",
+    ":json_serializer",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
   ]
 }
@@ -370,13 +424,17 @@ source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
     "debug_annotation_parser_unittest.cc",
+    "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
-    "json_writer_unittest.cc",
+    "json_serializer_unittest.cc",
+    "json_value_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
     "protozero_to_text_unittests.cc",
+    "simple_json_parser_unittest.cc",
+    "simple_json_serializer_unittest.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
     "tar_writer_unittest.cc",
@@ -392,15 +450,19 @@ source_set("unittests") {
   deps = [
     ":bump_allocator",
     ":descriptors",
+    ":galloping_search",
     ":glob",
     ":gzip",
     ":json_parser",
-    ":json_writer",
+    ":json_serializer",
+    ":json_value",
     ":proto_profiler",
     ":proto_to_args_parser",
     ":protozero_to_json",
     ":protozero_to_text",
     ":regex",
+    ":simple_json_parser",
+    ":simple_json_serializer",
     ":sql_argument",
     ":tar_writer",
     ":trace_blob_view_reader",
@@ -416,6 +478,7 @@ source_set("unittests") {
     "../../base:test_support",
     "../../protozero",
     "../../protozero:testing_messages_zero",
+    "../importers/common",
     "../importers/proto:gen_cc_track_event_descriptor",
     "../importers/proto:minimal",
     "../importers/proto:packet_sequence_state_generation_hdr",

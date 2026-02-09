@@ -189,7 +189,8 @@ class GeneratorImpl {
         referenced_modules_(modules),
         preambles_(preambles) {}
 
-  base::StatusOr<std::string> Generate(protozero::ConstBytes);
+  base::StatusOr<std::string> Generate(protozero::ConstBytes,
+                                       bool inline_shared_queries);
 
  private:
   using RepeatedString =
@@ -232,6 +233,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> CounterIntervals(
       const StructuredQuery::ExperimentalCounterIntervals::Decoder&);
 
+  base::StatusOr<std::string> FilterIn(
+      const StructuredQuery::ExperimentalFilterIn::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
   static base::StatusOr<std::string> ExperimentalFilterGroup(
@@ -269,7 +273,8 @@ class GeneratorImpl {
 };
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
-    protozero::ConstBytes bytes) {
+    protozero::ConstBytes bytes,
+    bool inline_shared_queries) {
   state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt,
                       used_table_names_);
   for (; state_index_ < state_.size(); ++state_index_) {
@@ -299,16 +304,22 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
       !root_query.has_group_by() && !root_query.select_columns() &&
       !root_query.has_experimental_add_columns() &&
       !root_query.has_experimental_create_slices() &&
-      !root_query.has_experimental_counter_intervals();
+      !root_query.has_experimental_counter_intervals() &&
+      !root_query.has_experimental_filter_in();
 
   std::string sql = "WITH ";
   size_t cte_count = 0;
   for (size_t i = 0; i < state_.size(); ++i) {
     QueryState& state = state_[state_.size() - i - 1];
     if (state.type == QueryType::kShared) {
-      queries_.emplace_back(
-          Query{state.id_from_proto.value(), state.table_name, state.sql});
-      continue;
+      // When not inlining shared queries, add them to referenced_queries
+      // so callers can create tables for them separately.
+      if (!inline_shared_queries) {
+        queries_.emplace_back(
+            Query{state.id_from_proto.value(), state.table_name, state.sql});
+        continue;
+      }
+      // When inlining, fall through to add as CTE below.
     }
     // Skip the root query if it's just a wrapper for inner_query + operations
     if (&state == &state_[0] && root_only_has_inner_query_and_operations) {
@@ -380,6 +391,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
       StructuredQuery::ExperimentalCounterIntervals::Decoder
           counter_intervals_decoder(q.experimental_counter_intervals());
       ASSIGN_OR_RETURN(source, CounterIntervals(counter_intervals_decoder));
+    } else if (q.has_experimental_filter_in()) {
+      StructuredQuery::ExperimentalFilterIn::Decoder filter_in_decoder(
+          q.experimental_filter_in());
+      ASSIGN_OR_RETURN(source, FilterIn(filter_in_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -1228,6 +1243,37 @@ base::StatusOr<std::string> GeneratorImpl::CounterIntervals(
   return sql;
 }
 
+base::StatusOr<std::string> GeneratorImpl::FilterIn(
+    const StructuredQuery::ExperimentalFilterIn::Decoder& filter_in) {
+  // Validate required fields
+  if (filter_in.base().size == 0) {
+    return base::ErrStatus("FilterIn must specify a base query");
+  }
+  if (filter_in.match_values().size == 0) {
+    return base::ErrStatus("FilterIn must specify a match_values query");
+  }
+  if (filter_in.base_column().size == 0) {
+    return base::ErrStatus("FilterIn must specify a base_column");
+  }
+  if (filter_in.match_column().size == 0) {
+    return base::ErrStatus("FilterIn must specify a match_column");
+  }
+
+  std::string base_col = filter_in.base_column().ToStdString();
+  std::string match_col = filter_in.match_column().ToStdString();
+
+  // Generate nested sources
+  std::string base_source = NestedSource(filter_in.base());
+  std::string match_source = NestedSource(filter_in.match_values());
+
+  // Build the SQL for the filter-in operation (semi-join)
+  std::string sql = "(SELECT base.* FROM " + base_source + " AS base WHERE " +
+                    "base." + base_col + " IN (SELECT " + match_col + " FROM " +
+                    match_source + "))";
+
+  return sql;
+}
+
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
     protozero::ConstChars raw_id) {
   std::string id = raw_id.ToStdString();
@@ -1246,10 +1292,20 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   if (!it) {
     return base::ErrStatus("Shared query with id '%s' not found", id.c_str());
   }
+  // Check if this query is already in queries_ (non-inlined case).
   auto sq = std::find_if(queries_.begin(), queries_.end(),
                          [&](const Query& sq) { return id == sq.id; });
   if (sq != queries_.end()) {
     return sq->table_name;
+  }
+  // Check if we've already created a state entry for this ID (inlined case).
+  // This prevents creating duplicate CTEs with collision suffixes when the
+  // same shared query is referenced multiple times.
+  for (const auto& s : state_) {
+    if (s.type == QueryType::kShared && s.id_from_proto &&
+        *s.id_from_proto == id) {
+      return s.table_name;
+    }
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},
@@ -1612,25 +1668,29 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
 
 base::StatusOr<std::string> StructuredQueryGenerator::Generate(
     const uint8_t* data,
-    size_t size) {
+    size_t size,
+    bool inline_shared_queries) {
   GeneratorImpl impl(query_protos_, referenced_queries_, referenced_modules_,
                      preambles_);
-  ASSIGN_OR_RETURN(std::string sql,
-                   impl.Generate(protozero::ConstBytes{data, size}));
+  ASSIGN_OR_RETURN(
+      std::string sql,
+      impl.Generate(protozero::ConstBytes{data, size}, inline_shared_queries));
   return sql;
 }
 
 base::StatusOr<std::string> StructuredQueryGenerator::GenerateById(
-    const std::string& id) {
+    const std::string& id,
+    bool inline_shared_queries) {
   auto* ptr = query_protos_.Find(id);
   if (!ptr) {
     return base::ErrStatus("Query with id %s not found", id.c_str());
   }
-  return Generate(ptr->data.get(), ptr->size);
+  return Generate(ptr->data.get(), ptr->size, inline_shared_queries);
 }
 
-base::Status StructuredQueryGenerator::AddQuery(const uint8_t* data,
-                                                size_t size) {
+base::StatusOr<std::string> StructuredQueryGenerator::AddQuery(
+    const uint8_t* data,
+    size_t size) {
   protozero::ProtoDecoder decoder(data, size);
   auto field = decoder.FindField(
       protos::pbzero::PerfettoSqlStructuredQuery::kIdFieldNumber);
@@ -1648,7 +1708,7 @@ base::Status StructuredQueryGenerator::AddQuery(const uint8_t* data,
     return base::ErrStatus("Multiple shared queries specified with the ids %s",
                            id.c_str());
   }
-  return base::OkStatus();
+  return id;
 }
 
 std::vector<std::string> StructuredQueryGenerator::ComputeReferencedModules()

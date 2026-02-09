@@ -20,15 +20,21 @@ import {HighPrecisionTime} from '../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {TrackManagerImpl} from '../core/track_manager';
 import {TrackNode} from '../public/workspace';
+import {Renderer} from '../base/renderer';
 
-function makeMockTrack() {
+interface MockTrack {
+  render: jest.Mock;
+  getSliceVerticalBounds: jest.Mock;
+  getHeight: jest.Mock;
+  getTrackShellButtons: jest.Mock;
+  onMouseMove: jest.Mock;
+  onMouseClick: jest.Mock;
+  onMouseOut: jest.Mock;
+}
+
+function makeMockTrack(): MockTrack {
   return {
-    onCreate: jest.fn(),
-    onUpdate: jest.fn(),
-    onDestroy: jest.fn(),
-
     render: jest.fn(),
-    onFullRedraw: jest.fn(),
     getSliceVerticalBounds: jest.fn(),
     getHeight: jest.fn(),
     getTrackShellButtons: jest.fn(),
@@ -38,8 +44,20 @@ function makeMockTrack() {
   };
 }
 
-async function settle() {
-  await new Promise((r) => setTimeout(r, 0));
+function makeMockRenderer(): Renderer {
+  return {
+    pushTransform: jest.fn().mockReturnValue({
+      dispose: jest.fn(),
+    }),
+    clip: jest.fn().mockReturnValue({
+      dispose: jest.fn(),
+    }),
+    drawMarkers: jest.fn(),
+    drawRects: jest.fn(),
+    drawStepArea: jest.fn(),
+    resetTransform: jest.fn(),
+    clear: jest.fn(),
+  };
 }
 
 let mockTrack: ReturnType<typeof makeMockTrack>;
@@ -66,6 +84,7 @@ const dummyCtx: TrackRenderContext = {
     COLOR_NEUTRAL: 'hotpink',
     COLOR_TIMELINE_OVERLAY: 'hotpink',
   },
+  renderer: makeMockRenderer(),
 };
 
 beforeEach(() => {
@@ -79,109 +98,64 @@ beforeEach(() => {
 });
 
 describe('TrackManager', () => {
-  it('calls track lifecycle hooks', async () => {
-    const entry = assertExists(trackManager.getTrackFSM(td.uri));
+  it('calls render on the track', () => {
+    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
 
     entry.render(dummyCtx);
-    await settle();
-    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
-    expect(mockTrack.onUpdate).toHaveBeenCalledTimes(1);
-
-    // Double flush should destroy all tracks
-    trackManager.flushOldTracks();
-    trackManager.flushOldTracks();
-    await settle();
-    expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
+    expect(mockTrack.render).toHaveBeenCalledTimes(1);
+    expect(mockTrack.render).toHaveBeenCalledWith(dummyCtx);
   });
 
-  it('calls onCrate lazily', async () => {
-    // Check we wait until the first call to render before calling onCreate
-    const entry = assertExists(trackManager.getTrackFSM(td.uri));
-    await settle();
-    expect(mockTrack.onCreate).not.toHaveBeenCalled();
-
-    entry.render(dummyCtx);
-    await settle();
-    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
-  });
-
-  it('reuses tracks', async () => {
-    const first = assertExists(trackManager.getTrackFSM(td.uri));
-    trackManager.flushOldTracks();
+  it('reuses tracks across render cycles', () => {
+    const first = assertExists(trackManager.getWrappedTrack(td.uri));
     first.render(dummyCtx);
-    await settle();
 
-    const second = assertExists(trackManager.getTrackFSM(td.uri));
-    trackManager.flushOldTracks();
+    const second = assertExists(trackManager.getWrappedTrack(td.uri));
     second.render(dummyCtx);
-    await settle();
 
     expect(first).toBe(second);
-    // Ensure onCreate called only once
-    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
+    expect(mockTrack.render).toHaveBeenCalledTimes(2);
   });
 
-  it('destroys tracks when they are not resolved for one cycle', async () => {
-    const entry = assertExists(trackManager.getTrackFSM(td.uri));
-    entry.render(dummyCtx);
+  it('contains crash inside render()', () => {
+    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const e = new Error('test error');
 
-    // Double flush should destroy all tracks
-    trackManager.flushOldTracks();
-    trackManager.flushOldTracks();
-
-    await settle();
-
-    expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
-  });
-
-  it('contains crash inside onCreate()', async () => {
-    const entry = assertExists(trackManager.getTrackFSM(td.uri));
-    const e = new Error();
-
-    // Mock crash inside onCreate
-    mockTrack.onCreate.mockImplementationOnce(() => {
+    // Mock crash inside render
+    mockTrack.render.mockImplementationOnce(() => {
       throw e;
     });
 
     entry.render(dummyCtx);
-    await settle();
 
-    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
-    expect(mockTrack.onUpdate).not.toHaveBeenCalled();
+    expect(mockTrack.render).toHaveBeenCalledTimes(1);
     expect(entry.getError()).toBe(e);
   });
 
-  it('contains crash inside onUpdate()', async () => {
-    const entry = assertExists(trackManager.getTrackFSM(td.uri));
-    const e = new Error();
+  it('does not call render after crash', () => {
+    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const e = new Error('test error');
 
-    // Mock crash inside onUpdate
-    mockTrack.onUpdate.mockImplementationOnce(() => {
+    // Mock crash inside render
+    mockTrack.render.mockImplementationOnce(() => {
       throw e;
     });
 
     entry.render(dummyCtx);
-    await settle();
-
-    expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
-    expect(mockTrack.onUpdate).toHaveBeenCalledTimes(1);
     expect(entry.getError()).toBe(e);
+
+    // Subsequent renders should be no-ops
+    entry.render(dummyCtx);
+    expect(mockTrack.render).toHaveBeenCalledTimes(1);
   });
 
-  it('handles dispose after crash', async () => {
-    const entry = assertExists(trackManager.getTrackFSM(td.uri));
-    const e = new Error();
+  it('exposes the track renderer', () => {
+    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    expect(entry.track).toBe(mockTrack);
+  });
 
-    // Mock crash inside onUpdate
-    mockTrack.onUpdate.mockImplementationOnce(() => {
-      throw e;
-    });
-
-    entry.render(dummyCtx);
-    await settle();
-
-    // Ensure we don't crash during the next render cycle
-    entry.render(dummyCtx);
-    await settle();
+  it('exposes the track descriptor', () => {
+    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    expect(entry.desc).toBe(td);
   });
 });

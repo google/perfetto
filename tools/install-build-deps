@@ -682,6 +682,45 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
   return True
 
 
+def ApplyProtobufPatches(protobuf_path):
+  """Apply patches to protobuf for Windows clang-cl compatibility.
+
+  Windows clang-cl builds fail because MSVC's STL std::atomic doesn't support
+  constexpr construction, but protobuf uses [[clang::require_constant_initialization]].
+  See https://github.com/protocolbuffers/protobuf/issues/10159
+
+  TODO(lalitm): Remove this patch when protobuf is upgraded to a version that
+  fixes the upstream issue.
+  """
+  port_def_path = os.path.join(protobuf_path,
+                               'src/google/protobuf/port_def.inc')
+  if not os.path.exists(port_def_path):
+    return
+
+  with open(port_def_path, 'r') as f:
+    content = f.read()
+
+  # Check if already patched
+  if 'defined(_MSC_VER) && defined(__clang__)' in content:
+    return
+
+  # Find the line to patch: "#if defined(_MSC_VER) && !defined(__clang__)"
+  old_line = '#if defined(_MSC_VER) && !defined(__clang__)'
+  new_block = '''// Windows clang-cl: MSVC STL's std::atomic doesn't support constexpr
+// construction, which breaks [[clang::require_constant_initialization]].
+// See https://github.com/protocolbuffers/protobuf/issues/10159
+#if defined(_MSC_VER) && defined(__clang__)
+#  define PROTOBUF_CONSTINIT
+#  define PROTOBUF_CONSTEXPR constexpr
+#elif defined(_MSC_VER) && !defined(__clang__)'''
+
+  if old_line in content:
+    content = content.replace(old_line, new_block, 1)
+    with open(port_def_path, 'w') as f:
+      f.write(content)
+    logging.info('Applied Windows clang-cl patch to protobuf port_def.inc')
+
+
 def InstallNodeModules(force_clean=False):
   if force_clean:
     node_modules = os.path.join(UI_DIR, 'node_modules')
@@ -950,6 +989,9 @@ def Main():
     if dep.source_url.endswith('.git'):
       deps_updated |= CheckoutGitRepo(local_path, dep.source_url, dep.checksum,
                                       args.check_only)
+      # Apply patches for specific dependencies
+      if 'protobuf' in dep.target_folder and not args.check_only:
+        ApplyProtobufPatches(local_path)
       continue
     is_compressed = any(
         [local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])

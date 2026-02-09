@@ -160,9 +160,14 @@ class AdhocDataframeBuilder {
                                           uint32_t count = 1) {
     return PushNonNullInternal(col, value, count);
   }
+  // See kStringNullLegacy in dataframe.h.
   PERFETTO_ALWAYS_INLINE bool PushNonNull(uint32_t col,
                                           StringPool::Id value,
                                           uint32_t count = 1) {
+    if (PERFETTO_UNLIKELY(value.is_null())) {
+      PushNull(col, count);
+      return true;
+    }
     return PushNonNullInternal(col, value, count);
   }
 
@@ -185,9 +190,11 @@ class AdhocDataframeBuilder {
                                                    uint32_t count = 1) {
     PushNonNullUncheckedInternal(col, value, count);
   }
+  // See kStringNullLegacy in dataframe.h.
   PERFETTO_ALWAYS_INLINE void PushNonNullUnchecked(uint32_t col,
                                                    StringPool::Id value,
                                                    uint32_t count = 1) {
+    PERFETTO_DCHECK(!value.is_null());
     PushNonNullUncheckedInternal(col, value, count);
   }
 
@@ -198,7 +205,7 @@ class AdhocDataframeBuilder {
       EnsureNullOverlayExists(state);
     }
     state.null_overlay->push_back_multiple(false, count);
-    if (nullability_type_ == NullabilityType::kDenseNull) {
+    if (state.nullability_type == NullabilityType::kDenseNull) {
       // For dense null, we need to push placeholder values to the data storage
       // since DenseNull stores all values (with nulls marked by the bitvector).
       AddPlaceholderValue(col, count);
@@ -238,14 +245,10 @@ class AdhocDataframeBuilder {
   const base::Status& status() const { return current_status_; }
 
  private:
-  struct Null {};
-  using DataVariant = std::variant<std::nullopt_t,
-                                   core::FlexVector<int64_t>,
-                                   core::FlexVector<double>,
-                                   core::FlexVector<StringPool::Id>>;
   struct ColumnState {
-    DataVariant data = std::nullopt;
+    std::optional<Storage> storage;
     std::optional<core::BitVector> null_overlay;
+    NullabilityType nullability_type = NullabilityType::kSparseNull;
   };
   struct IntegerColumnSummary {
     bool is_id_sorted = true;
@@ -271,66 +274,62 @@ class AdhocDataframeBuilder {
   PERFETTO_ALWAYS_INLINE bool PushNonNullInternal(uint32_t col,
                                                   T value,
                                                   uint32_t count = 1) {
+    using FlexVec = core::FlexVector<T>;
+    using TypeTag = typename core::TypeTagFor<T>::type;
     auto& state = column_states_[col];
-    auto& data = state.data;
-    switch (data.index()) {
-      case base::variant_index<DataVariant, std::nullopt_t>(): {
-        data = core::FlexVector<T>();
-        auto& vec = base::unchecked_get<core::FlexVector<T>>(data);
-        vec.push_back_multiple(value, count);
-        break;
+    if (!state.storage) {
+      // No storage yet - create appropriate storage for this type.
+      state.storage = Storage{FlexVec{}};
+      // For DenseNull, if there were prior nulls pushed before we knew the
+      // type, we need to add placeholder values for them now.
+      if (state.null_overlay &&
+          state.nullability_type == NullabilityType::kDenseNull) {
+        state.storage->unchecked_get<TypeTag>().push_back_multiple(
+            T{}, static_cast<uint32_t>(state.null_overlay->size()));
       }
-      case base::variant_index<DataVariant, core::FlexVector<T>>(): {
-        auto& vec = base::unchecked_get<core::FlexVector<T>>(data);
-        vec.push_back_multiple(value, count);
-        break;
-      }
-      default: {
-        if constexpr (std::is_same_v<T, double>) {
-          if (std::holds_alternative<core::FlexVector<int64_t>>(data)) {
-            auto& vec = base::unchecked_get<core::FlexVector<int64_t>>(data);
-            auto res = core::FlexVector<double>::CreateWithSize(vec.size());
-            for (uint32_t i = 0; i < vec.size(); ++i) {
-              int64_t v = vec[i];
-              if (!IsPerfectlyRepresentableAsDouble(v)) {
-                current_status_ =
-                    base::ErrStatus("Unable to represent %" PRId64
-                                    " in column '%s' at row %u as a double.",
-                                    v, column_names_[col].c_str(), i);
-                return false;
-              }
-              res[i] = static_cast<double>(v);
-            }
-            res.push_back_multiple(value, count);
-            data = std::move(res);
-            break;
-          }
-        } else if constexpr (std::is_same_v<T, int64_t>) {
-          if (std::holds_alternative<core::FlexVector<double>>(data)) {
-            auto& vec = base::unchecked_get<core::FlexVector<double>>(data);
-            if (!IsPerfectlyRepresentableAsDouble(value)) {
-              current_status_ = base::ErrStatus(
-                  "Inserting a too-large integer (%" PRId64
-                  ") in column '%s' at row %" PRIu64
-                  ". Column currently holds doubles.",
-                  value, column_names_[col].c_str(), vec.size());
+      state.storage->unchecked_get<TypeTag>().push_back_multiple(value, count);
+    } else if (state.storage->type().Is<TypeTag>()) {
+      // Same type - push directly.
+      state.storage->unchecked_get<TypeTag>().push_back_multiple(value, count);
+    } else {
+      // Type mismatch - try conversions or report error.
+      if constexpr (std::is_same_v<T, double>) {
+        if (state.storage->type().Is<Int64>()) {
+          auto& vec = state.storage->unchecked_get<Int64>();
+          auto res = Storage::Double::CreateWithSize(vec.size());
+          for (uint32_t i = 0; i < vec.size(); ++i) {
+            int64_t v = vec[i];
+            if (!IsPerfectlyRepresentableAsDouble(v)) {
+              current_status_ =
+                  base::ErrStatus("Unable to represent %" PRId64
+                                  " in column '%s' at row %u as a double.",
+                                  v, column_names_[col].c_str(), i);
               return false;
             }
-            vec.push_back_multiple(static_cast<double>(value), count);
-            break;
+            res[i] = static_cast<double>(v);
           }
-        }
-        if (did_declare_types_) {
-          current_status_ = base::ErrStatus(
-              "column '%s' declared as %s in the schema, but %s found",
-              column_names_[col].c_str(), ToString(data), ToString<T>());
+          res.push_back_multiple(value, count);
+          state.storage = Storage{std::move(res)};
         } else {
-          current_status_ = base::ErrStatus(
-              "column '%s' was inferred to be %s, but later received a value "
-              "of type %s",
-              column_names_[col].c_str(), ToString(data), ToString<T>());
+          return ReportTypeMismatch<T>(col);
         }
-        return false;
+      } else if constexpr (std::is_same_v<T, int64_t>) {
+        if (state.storage->type().Is<Double>()) {
+          auto& vec = state.storage->unchecked_get<Double>();
+          if (!IsPerfectlyRepresentableAsDouble(value)) {
+            current_status_ =
+                base::ErrStatus("Inserting a too-large integer (%" PRId64
+                                ") in column '%s' at row %" PRIu64
+                                ". Column currently holds doubles.",
+                                value, column_names_[col].c_str(), vec.size());
+            return false;
+          }
+          vec.push_back_multiple(static_cast<double>(value), count);
+        } else {
+          return ReportTypeMismatch<T>(col);
+        }
+      } else {
+        return ReportTypeMismatch<T>(col);
       }
     }
     if (PERFETTO_UNLIKELY(state.null_overlay)) {
@@ -343,13 +342,30 @@ class AdhocDataframeBuilder {
   PERFETTO_ALWAYS_INLINE void PushNonNullUncheckedInternal(uint32_t col,
                                                            T value,
                                                            uint32_t count) {
+    using TypeTag = typename core::TypeTagFor<T>::type;
     auto& state = column_states_[col];
-    PERFETTO_DCHECK(std::holds_alternative<core::FlexVector<T>>(state.data));
-    auto& data = base::unchecked_get<core::FlexVector<T>>(state.data);
-    data.push_back_multiple(value, count);
+    PERFETTO_DCHECK(state.storage && state.storage->type().Is<TypeTag>());
+    state.storage->unchecked_get<TypeTag>().push_back_multiple(value, count);
     if (PERFETTO_UNLIKELY(state.null_overlay)) {
       state.null_overlay->push_back_multiple(true, count);
     }
+  }
+
+  template <typename T>
+  bool ReportTypeMismatch(uint32_t col) {
+    if (did_declare_types_) {
+      current_status_ = base::ErrStatus(
+          "column '%s' declared as %s in the schema, but %s found",
+          column_names_[col].c_str(), ToString(column_states_[col].storage),
+          ToString<T>());
+    } else {
+      current_status_ = base::ErrStatus(
+          "column '%s' was inferred to be %s, but later received a value "
+          "of type %s",
+          column_names_[col].c_str(), ToString(column_states_[col].storage),
+          ToString<T>());
+    }
+    return false;
   }
 
   static Storage CreateIntegerStorage(core::FlexVector<int64_t> data,
@@ -412,7 +428,7 @@ class AdhocDataframeBuilder {
     return false;
   }
 
-  static const char* ToString(const DataVariant&);
+  static const char* ToString(const std::optional<Storage>&);
 
   template <typename T>
   static const char* ToString() {
@@ -431,7 +447,6 @@ class AdhocDataframeBuilder {
   std::vector<std::string> column_names_;
   std::vector<ColumnState> column_states_;
   bool did_declare_types_ = false;
-  NullabilityType nullability_type_ = NullabilityType::kSparseNull;
   base::Status current_status_ = base::OkStatus();
   core::BitVector duplicate_bit_vector_;
 };

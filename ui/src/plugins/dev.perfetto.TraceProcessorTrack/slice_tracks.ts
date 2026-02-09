@@ -129,6 +129,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Display',
   },
   {
+    type: 'ddic_underrun',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
     type: 'disp_vblank_irq_enable',
     topLevelGroup: 'HARDWARE',
     group: 'Display',
@@ -349,7 +354,7 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
   {
     type: 'etw_fileio',
     topLevelGroup: 'IO',
-    group: undefined,
+    group: 'ETW File I/O',
   },
   {
     type: 'f2fs_write_checkpoint',

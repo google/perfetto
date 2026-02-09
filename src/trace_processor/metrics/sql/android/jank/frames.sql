@@ -32,6 +32,7 @@ SELECT
   MAX(android_is_app_jank_type(jank_type)) AS app_missed,
   -- We use MAX to check if at least one of the layers jank_type matches the pattern
   MAX(android_is_sf_jank_type(jank_type)) AS sf_missed,
+  IFNULL(MAX(ABS(jank_score)), 0) AS jank_score,
   IFNULL(MAX(sf_callback_missed), 0) AS sf_callback_missed,
   IFNULL(MAX(hwui_callback_missed), 0) AS hwui_callback_missed,
   -- We use MIN to check if ALL layers finished on time
@@ -98,6 +99,7 @@ SELECT
   frame_base.*,
   app_missed,
   sf_missed,
+  jank_score,
   sf_callback_missed,
   hwui_callback_missed,
   on_time_finish,
@@ -140,6 +142,7 @@ android_jank_cuj_sf_frame_base AS (
       boundary.dur,
       actual_timeline.jank_tag = 'Self Jank' AS sf_missed,
       NULL AS app_missed, -- for simplicity align schema with android_jank_cuj_frame
+      jank_score,
       jank_tag,
       jank_type,
       prediction_type,
