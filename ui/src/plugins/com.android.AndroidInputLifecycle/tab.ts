@@ -35,9 +35,9 @@ import {LifecycleOverlay} from './overlay';
 import {ArrowConnection} from './arrow_visualiser';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Tab} from '../../public/tab';
+import {TrackNode} from '../../public/workspace';
 
 // --- Interfaces ---
-
 interface NavTarget {
   id: number;
   trackId: number;
@@ -88,7 +88,6 @@ const RELATION_SCHEMA = {
 export class AndroidInputTab implements Tab {
   private rows: InputChainRow[] = [];
   private visibleRowIds = new Set<string>();
-  private pinnedRowIds = new Set<string>();
   private currentSelectionId?: number;
   private isLoading = false;
 
@@ -101,7 +100,6 @@ export class AndroidInputTab implements Tab {
     this.overlay.update([]);
     this.rows = [];
     this.visibleRowIds.clear();
-    this.pinnedRowIds.clear();
     this.currentSelectionId = undefined;
     this.isLoading = false;
   }
@@ -159,7 +157,6 @@ export class AndroidInputTab implements Tab {
 
       this.rows = [];
       this.visibleRowIds.clear();
-      this.pinnedRowIds.clear();
 
       let index = 0;
       let rowToHighlight: string | undefined;
@@ -167,7 +164,7 @@ export class AndroidInputTab implements Tab {
       while (it.valid()) {
         const uniqueId = `row-${index++}`;
 
-        // 1. Create Nav Targets
+        // Create Nav Targets
         const navReader = this.makeNav(
           it.id_reader,
           it.track_reader,
@@ -199,7 +196,7 @@ export class AndroidInputTab implements Tab {
           it.dur_frame,
         );
 
-        // 2. Calculate Deltas
+        // Calculate Deltas
         const durReader =
           it.dur_reader !== null ? Duration.fromRaw(it.dur_reader) : null;
         const deltaDispatch =
@@ -226,7 +223,7 @@ export class AndroidInputTab implements Tab {
           },
         );
 
-        // 3. Check if this row matches the clicked event
+        // Check if this row matches the clicked vent
         const matchesClickedEvent = [
           it.id_reader,
           it.id_dispatch,
@@ -266,8 +263,6 @@ export class AndroidInputTab implements Tab {
       if (rowToHighlight) {
         this.visibleRowIds.add(rowToHighlight);
       }
-
-      this.updateWorkspacePinning();
 
       if (this.rows.length > 0) {
         await this.enrichDepths();
@@ -368,39 +363,26 @@ export class AndroidInputTab implements Tab {
     this.updateOverlay();
   }
 
-  private togglePinning(row: InputChainRow) {
-    if (this.pinnedRowIds.has(row.uiRowId)) {
-      this.pinnedRowIds.delete(row.uiRowId);
-    } else this.pinnedRowIds.add(row.uiRowId);
-    this.updateWorkspacePinning();
+  private getTrackNodes(trackIds: number[]): TrackNode[] {
+    const trackIdSet = new Set(trackIds);
+    return this.trace.currentWorkspace.flatTracks.filter((node) => {
+      if (!node.uri) return false;
+      const descriptor = this.trace.tracks.getTrack(node.uri);
+      return descriptor?.tags?.trackIds?.some((id) => trackIdSet.has(id));
+    });
   }
 
-  private updateWorkspacePinning() {
-    const tracksToPin = new Set<number>();
-    this.rows.forEach((row) => {
-      if (this.pinnedRowIds.has(row.uiRowId)) {
-        row.allTrackIds.forEach((tid) => tracksToPin.add(tid));
-      }
-    });
+  private togglePinning(row: InputChainRow) {
+    const nodes = this.getTrackNodes(row.allTrackIds);
+    if (nodes.length === 0) return;
 
-    const allManagedTracks = new Set<number>();
-    this.rows.forEach((row) =>
-      row.allTrackIds.forEach((tid) => allManagedTracks.add(tid)),
-    );
+    const allPinned = nodes.every((node) => node.isPinned);
 
-    this.trace.currentWorkspace.flatTracks.forEach((trackNode) => {
-      if (!trackNode.uri) return;
-      const descriptor = this.trace.tracks.getTrack(trackNode.uri);
-      const trackSqlIds = descriptor?.tags?.trackIds;
-      if (!trackSqlIds || trackSqlIds.length === 0) return;
-
-      const isManaged = trackSqlIds.some((id) => allManagedTracks.has(id));
-      if (!isManaged) return;
-
-      const shouldBePinned = trackSqlIds.some((id) => tracksToPin.has(id));
-      if (shouldBePinned && !trackNode.isPinned) trackNode.pin();
-      else if (!shouldBePinned && trackNode.isPinned) trackNode.unpin();
-    });
+    if (allPinned) {
+      nodes.forEach((node) => node.unpin());
+    } else {
+      nodes.forEach((node) => node.pin());
+    }
   }
 
   private updateOverlay() {
@@ -521,40 +503,47 @@ export class AndroidInputTab implements Tab {
       {title: this.getTitle()},
       m(Grid, {
         columns,
-        rowData: this.rows.map((row) => [
-          m(
-            GridCell,
-            {},
-            m(Checkbox, {
-              checked: this.visibleRowIds.has(row.uiRowId),
-              onchange: () => this.toggleVisibility(row.uiRowId),
-            }),
-          ),
-          m(
-            GridCell,
-            {},
-            m(Checkbox, {
-              checked: this.pinnedRowIds.has(row.uiRowId),
-              onchange: () => this.togglePinning(row),
-            }),
-          ),
-          m(GridCell, {}, row.channel),
-          m(
-            GridCell,
-            {},
-            row.totalLatency !== null
-              ? m(DurationWidget, {
-                  dur: row.totalLatency,
-                  trace: this.trace,
-                })
-              : '-',
-          ),
-          this.renderCell(row.durReader, row.navReader),
-          this.renderCell(row.deltaDispatch, row.navDispatch),
-          this.renderCell(row.deltaReceive, row.navReceive),
-          this.renderCell(row.deltaConsume, row.navConsume),
-          this.renderCell(row.deltaFrame, row.navFrame),
-        ]),
+        rowData: this.rows.map((row) => {
+          const nodes = this.getTrackNodes(row.allTrackIds);
+          const hasTracks = nodes.length > 0;
+          const isPinned = hasTracks && nodes.every((n) => n.isPinned);
+
+          return [
+            m(
+              GridCell,
+              {},
+              m(Checkbox, {
+                checked: this.visibleRowIds.has(row.uiRowId),
+                onchange: () => this.toggleVisibility(row.uiRowId),
+              }),
+            ),
+            m(
+              GridCell,
+              {},
+              m(Checkbox, {
+                disabled: !hasTracks,
+                checked: isPinned,
+                onchange: () => this.togglePinning(row),
+              }),
+            ),
+            m(GridCell, {}, row.channel),
+            m(
+              GridCell,
+              {},
+              row.totalLatency !== null
+                ? m(DurationWidget, {
+                    dur: row.totalLatency,
+                    trace: this.trace,
+                  })
+                : '-',
+            ),
+            this.renderCell(row.durReader, row.navReader),
+            this.renderCell(row.deltaDispatch, row.navDispatch),
+            this.renderCell(row.deltaReceive, row.navReceive),
+            this.renderCell(row.deltaConsume, row.navConsume),
+            this.renderCell(row.deltaFrame, row.navFrame),
+          ];
+        }),
         emptyState: m(EmptyState, {
           title: 'No input event selected',
           description: 'Select an input event to see latency breakdown.',
