@@ -38,6 +38,7 @@ import {Tab} from '../../public/tab';
 import {TrackNode} from '../../public/workspace';
 
 // --- Interfaces ---
+
 interface NavTarget {
   id: number;
   trackId: number;
