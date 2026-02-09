@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {colorCompare} from '../../base/color';
 import {ColorScheme} from '../../base/color_scheme';
-import {Point2D, Size2D, VerticalBounds} from '../../base/geom';
+import {Point2D, Size2D, Transform2D, VerticalBounds} from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {assertExists} from '../../base/logging';
 import {clamp, floatEqual} from '../../base/math_utils';
@@ -87,12 +87,6 @@ export const enum ColorVariant {
   DISABLED = 2,
 }
 
-const VARIANT_FILL: readonly ('base' | 'variant' | 'disabled')[] = [
-  'base',
-  'variant',
-  'disabled',
-];
-
 // Columnar storage for slice data. Numeric fields use Float32Array for
 // cache-friendly, monomorphic access in the render hot path.
 // `ids` uses number[] to preserve full float64 precision for large row IDs.
@@ -105,10 +99,23 @@ export interface SliceColumns<T> {
   readonly titles: readonly string[];
   readonly subTitles: readonly string[];
   readonly colorSchemes: readonly ColorScheme[];
-  readonly patterns: Float32Array;
+  readonly patterns: Uint8Array;
   readonly fillRatios: Float32Array;
   readonly rows: readonly T[];
   readonly length: number;
+  // Pre-packed RGBA colors (0xRRGGBBAA) for each color variant
+  // Index: [BASE=0, VARIANT=1, DISABLED=2]
+  readonly packedColors: readonly [Uint32Array, Uint32Array, Uint32Array];
+  // Pre-computed Y positions (screen pixels) based on depth and layout
+  readonly ys: Float32Array;
+  // Pre-allocated color buffer (filled at render time based on colorVariants)
+  readonly renderColors: Uint32Array;
+  // Pre-computed instant slice data (dur === 0)
+  readonly instantXs: Float32Array; // X positions (data space)
+  readonly instantYs: Float32Array; // Y positions (screen pixels)
+  readonly instantIndices: Uint32Array; // Indices into main arrays for color lookup
+  readonly instantColors: Uint32Array; // Pre-allocated buffer for render-time colors
+  readonly instantCount: number;
 }
 
 // Reconstruct a single slice object at index i (for callbacks/tooltips).
@@ -459,6 +466,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       colorSchemes,
       patterns,
       fillRatios,
+      packedColors,
     } = cols;
 
     // Collect text labels to render in a second pass
@@ -476,85 +484,116 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     let selectedW = 0;
     let selectedY = 0;
 
-    // Single pass: calculate geometry, draw rects, collect text labels
+    // Pre-computed ys from data load, renderColors filled per-frame
+    const {ys: precomputedYs, renderColors} = cols;
+
+    // Fill colors for all slices based on current colorVariants
+    // (renderer will cull offscreen slices)
+    for (let i = 0; i < n; i++) {
+      renderColors[i] = packedColors[colorVariants[i]][i];
+    }
+
+    // Single pass: collect text labels, track selection
     const minSliceWidthPx = FADE_THIN_SLICES_FLAG.get()
       ? SLICE_MIN_WIDTH_FADED_PX
       : SLICE_MIN_WIDTH_PX;
     for (let i = 0; i < n; i++) {
+      // Early out of slice is not wide enough to contain text
       const dur = durs[i];
-      let x = starts[i] * pxPerNs + baseOffsetPx;
-      let w: number;
+      if (dur * pxPerNs < SLICE_MIN_WIDTH_FOR_TEXT_PX) continue;
 
-      if (dur === -1) {
-        x = Math.max(x, -1);
-        w = pxEnd - x;
-      } else if (dur === 0) {
-        x -= this.instantWidthPx / 2;
-        w = this.instantWidthPx;
-      } else {
-        w = dur * pxPerNs;
-        const sliceVizLimit = Math.min(x + w, pxEnd);
-        x = Math.max(x, -1);
-        w = sliceVizLimit - x;
-      }
+      const xPx = starts[i] * pxPerNs + baseOffsetPx;
+      const wPx = Math.min(xPx + dur * pxPerNs, pxEnd) - Math.max(xPx, -1);
 
       // Skip slices that are completely offscreen
-      if (x + w <= 0 || x >= pxEnd) {
+      if (xPx + wPx <= 0 || xPx >= pxEnd) {
         continue;
       }
 
-      const color = colorSchemes[i][VARIANT_FILL[colorVariants[i]]];
-      const y = padding + depths[i] * (sliceHeight + rowSpacing);
+      // Collect text label if wide enough (using screen-space width)
+      const y = precomputedYs[i];
+      const title = titles[i];
+      const subTitle = subTitles[i];
+      if (title || subTitle) {
+        const cv = colorVariants[i];
+        const cs = colorSchemes[i];
+        const textColor =
+          cv === ColorVariant.BASE
+            ? cs.textBase
+            : cv === ColorVariant.VARIANT
+              ? cs.textVariant
+              : cs.textDisabled;
 
-      if (dur === 0) {
-        // Instant slice - draw chevron
-        renderer.drawMarker(x, y, w, sliceHeight, color, () =>
-          this.drawChevron(ctx, x, y, sliceHeight),
-        );
-      } else {
-        // Normal slice
-        const drawW = Math.max(w, minSliceWidthPx);
-        renderer.drawRect(x, y, x + drawW, y + sliceHeight, color, patterns[i]);
+        // Use clamped screen coords for text positioning
+        const clampedX = Math.max(xPx, -1);
+        const clampedW = Math.max(wPx, minSliceWidthPx);
+        const rectXCenter = clampedX + clampedW / 2;
+        const yDiv = subTitle ? 3 : 2;
+        const titleY = Math.floor(y + sliceHeight / yDiv) + 0.5;
+        const subTitleY = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
 
-        // Collect text label if wide enough
-        if (w >= SLICE_MIN_WIDTH_FOR_TEXT_PX) {
-          const title = titles[i];
-          const subTitle = subTitles[i];
-          if (title || subTitle) {
-            const cv = colorVariants[i];
-            const cs = colorSchemes[i];
-            const textColor =
-              cv === ColorVariant.BASE
-                ? cs.textBase
-                : cv === ColorVariant.VARIANT
-                  ? cs.textVariant
-                  : cs.textDisabled;
-
-            const rectXCenter = x + w / 2;
-            const yDiv = subTitle ? 3 : 2;
-            const titleY = Math.floor(y + sliceHeight / yDiv) + 0.5;
-            const subTitleY = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
-
-            textLabels.push({
-              title: title ? cropText(title, charWidth.title, w) : '',
-              subTitle: subTitle
-                ? cropText(subTitle, charWidth.subtitle, w)
-                : '',
-              textColor: textColor.cssString,
-              rectXCenter,
-              titleY,
-              subTitleY,
-            });
-          }
-        }
+        textLabels.push({
+          title: title ? cropText(title, charWidth.title, clampedW) : '',
+          subTitle: subTitle
+            ? cropText(subTitle, charWidth.subtitle, clampedW)
+            : '',
+          textColor: textColor.cssString,
+          rectXCenter,
+          titleY,
+          subTitleY,
+        });
       }
 
       if (selectedId === ids[i]) {
         discoveredSelectionIdx = i;
-        selectedX = x;
-        selectedW = w;
+        selectedX = Math.max(xPx, -1);
+        selectedW = Math.max(wPx, minSliceWidthPx);
         selectedY = y;
       }
+    }
+
+    // Batch draw all rectangles - uses pre-filled starts/durs/ys/patterns + renderColors
+    const dataTransform: Transform2D = {
+      scaleX: pxPerNs,
+      offsetX: baseOffsetPx,
+      scaleY: 1,
+      offsetY: 0,
+    };
+    renderer.drawRects(
+      {
+        xs: starts,
+        ys: precomputedYs,
+        ws: durs,
+        h: sliceHeight,
+        colors: renderColors,
+        patterns,
+        count: n,
+        minWidth: minSliceWidthPx,
+        screenEnd: pxEnd,
+      },
+      dataTransform,
+    );
+
+    // Batch draw all instant slices (chevrons)
+    const {instantXs, instantYs, instantIndices, instantColors, instantCount} =
+      cols;
+    if (instantCount > 0) {
+      for (let j = 0; j < instantCount; j++) {
+        const i = instantIndices[j];
+        instantColors[j] = packedColors[colorVariants[i]][i];
+      }
+      renderer.drawMarkers(
+        {
+          xs: instantXs,
+          ys: instantYs,
+          w: this.instantWidthPx,
+          h: sliceHeight,
+          colors: instantColors,
+          count: instantCount,
+        },
+        dataTransform,
+        (ctx2d, x, y, _w, h) => this.drawChevron(ctx2d, x, y, h),
+      );
     }
 
     renderer.flush();
@@ -563,7 +602,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     ctx.fillStyle = `#FFFFFF50`;
     for (let i = 0; i < n; i++) {
       const dur = durs[i];
-      if (dur === 0) continue; // Skip instants
+      if (dur < 2) continue; // Skip instants or slices too narrow for fillRatio to matter
+
+      // Skip if fillratio is 1
+      const fillRatio = clamp(fillRatios[i], 0, 1);
+      if (floatEqual(fillRatio, 1)) continue;
 
       let x = starts[i] * pxPerNs + baseOffsetPx;
       let w = dur === -1 ? pxEnd - Math.max(x, -1) : dur * pxPerNs;
@@ -576,9 +619,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       }
 
       if (w < 2 || x + w <= 0 || x >= pxEnd) continue;
-
-      const fillRatio = clamp(fillRatios[i], 0, 1);
-      if (floatEqual(fillRatio, 1)) continue;
 
       const sliceDrawWidth = Math.max(w, SLICE_MIN_WIDTH_PX);
       const lightSectionDrawWidth = sliceDrawWidth * (1 - fillRatio);
@@ -599,8 +639,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         ctx.fillText(label.title, label.rectXCenter, label.titleY);
       }
       if (label.subTitle) {
+        ctx.globalAlpha = 0.8; // Slightly fade subtitles for visual hierarchy
         ctx.font = this.getSubtitleFont();
         ctx.fillText(label.subTitle, label.rectXCenter, label.subTitleY);
+        ctx.globalAlpha = 1;
       }
     }
 
@@ -780,7 +822,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     // Query complete slices from mipmap + incomplete slices in one query
     // Incomplete slices use pre-computed next_ts from incompleteTableName
     const queryRes = await this.engine.query(`
-      -- Complete slices from mipmap
       SELECT
         ((z.ts / ${resolution}) * ${resolution}) - ${start} as __ts,
         ((z.dur + ${resolution - 1n}) / ${resolution}) * ${resolution} as __dur,
@@ -857,9 +898,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         row[k] = it[k];
       }
 
-      const title = this.getTitle(it as unknown as T);
-      const subTitle = this.getSubtitle(it as unknown as T);
-      const colorScheme = this.getColor(it as unknown as T, title);
+      const title = this.getTitle(it);
+      const subTitle = this.getSubtitle(it);
+      const colorScheme = this.getColor(it, title);
       const isIncomplete = it.__incomplete === 1;
 
       tmpStarts.push(it.__ts);
@@ -873,9 +914,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       tmpPatterns.push(
         isIncomplete
           ? RECT_PATTERN_FADE_RIGHT
-          : this.attrs.slicePattern?.(it as unknown as T) ?? 0,
+          : this.attrs.slicePattern?.(it) ?? 0,
       );
-      tmpFillRatios.push(this.attrs.fillRatio?.(it as unknown as T) ?? 1);
+      tmpFillRatios.push(this.attrs.fillRatio?.(it) ?? 1);
       tmpRows.push(row as T & Required<RowSchema>);
     }
 
@@ -898,9 +939,14 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const titles: string[] = new Array(n);
     const subTitles: string[] = new Array(n);
     const colorSchemes: ColorScheme[] = new Array(n);
-    const patterns = new Float32Array(n);
+    const patterns = new Uint8Array(n);
     const fillRatios = new Float32Array(n);
     const rows: (T & Required<RowSchema>)[] = new Array(n);
+    // Pre-pack colors for all 3 variants: [BASE, VARIANT, DISABLED]
+    const packedBase = new Uint32Array(n);
+    const packedVariant = new Uint32Array(n);
+    const packedDisabled = new Uint32Array(n);
+
     for (let i = 0; i < n; i++) {
       const j = idx[i];
       starts[i] = tmpStarts[j];
@@ -910,10 +956,41 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       depths[i] = tmpDepths[j];
       titles[i] = tmpTitles[j];
       subTitles[i] = tmpSubTitles[j];
-      colorSchemes[i] = tmpColorSchemes[j];
+      const cs = tmpColorSchemes[j];
+      colorSchemes[i] = cs;
       patterns[i] = tmpPatterns[j];
       fillRatios[i] = tmpFillRatios[j];
       rows[i] = tmpRows[j];
+
+      // Pack colors directly - renderers expect 0xRRGGBBAA format
+      packedBase[i] = cs.base.rgba;
+      packedVariant[i] = cs.variant.rgba;
+      packedDisabled[i] = cs.disabled.rgba;
+    }
+
+    // Pre-compute Y positions based on depth and layout
+    const {padding, sliceHeight, rowGap} = this.sliceLayout;
+    const ys = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      ys[i] = padding + depths[i] * (sliceHeight + rowGap);
+    }
+
+    // Pre-compute instant slice data (dur === 0)
+    let instantCount = 0;
+    for (let i = 0; i < n; i++) {
+      if (durs[i] === 0) instantCount++;
+    }
+    const instantXs = new Float32Array(instantCount);
+    const instantYs = new Float32Array(instantCount);
+    const instantIndices = new Uint32Array(instantCount);
+    let instantIdx = 0;
+    for (let i = 0; i < n; i++) {
+      if (durs[i] === 0) {
+        instantXs[instantIdx] = starts[i];
+        instantYs[instantIdx] = ys[i];
+        instantIndices[instantIdx] = i;
+        instantIdx++;
+      }
     }
 
     return {
@@ -929,6 +1006,14 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       fillRatios,
       rows,
       length: n,
+      packedColors: [packedBase, packedVariant, packedDisabled] as const,
+      ys,
+      renderColors: new Uint32Array(n),
+      instantXs,
+      instantYs,
+      instantIndices,
+      instantColors: new Uint32Array(instantCount),
+      instantCount,
     };
   }
 

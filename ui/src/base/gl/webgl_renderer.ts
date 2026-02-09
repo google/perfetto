@@ -17,7 +17,13 @@
 // 1. Rects pipeline - plain/hatched rectangles
 // 2. Markers pipeline - SDF-based shapes like chevrons
 
-import {Renderer, MarkerRenderFunc, StepAreaBuffers} from './../renderer';
+import {
+  Renderer,
+  MarkerRenderFunc,
+  MarkerBuffers,
+  StepAreaBuffers,
+  RectBuffers,
+} from './../renderer';
 import {DisposableStack} from './../disposable_stack';
 import {RectBatch} from './rects';
 import {ChevronBatch} from './chevrons';
@@ -75,32 +81,17 @@ export class WebGLRenderer implements Renderer {
     };
   }
 
-  drawMarker(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    color: Color,
+  drawMarkers(
+    buffers: MarkerBuffers,
+    dataTransform: Transform2D,
     _render: MarkerRenderFunc,
   ): void {
-    if (this.markers.isFull) {
-      this.markers.flush(this.transform);
-    }
-    this.markers.add(x, y, w, h, color.rgba);
+    this.markers.draw(buffers, dataTransform, this.transform);
   }
 
-  drawRect(
-    left: number,
-    top: number,
-    right: number,
-    bottom: number,
-    color: Color,
-    flags = 0,
-  ): void {
-    if (this.rects.isFull) {
-      this.rects.flush(this.transform);
-    }
-    this.rects.add(left, top, right, bottom, color.rgba, flags);
+  drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
+    // Pass buffers directly to the rect batch for efficient GPU upload
+    this.rects.draw(buffers, dataTransform, this.transform);
   }
 
   drawStepArea(
@@ -122,8 +113,7 @@ export class WebGLRenderer implements Renderer {
 
   flush(): void {
     this.rects.flush(this.transform);
-    this.markers.flush(this.transform);
-    // StepAreaBatch.draw() is immediate, no flush needed
+    // ChevronBatch.draw() and StepAreaBatch.draw() are immediate, no flush needed
   }
 
   resetTransform(): void {
