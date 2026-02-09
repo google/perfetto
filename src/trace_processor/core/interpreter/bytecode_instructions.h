@@ -635,7 +635,7 @@ struct MakeChildToParentTreeStructure : Bytecode {
 //
 // Example: For a tree with parent array [NULL, 0, 0, 1] representing:
 //     0 (root)
-//    / \
+//    / |
 //   1   2
 //   |
 //   3

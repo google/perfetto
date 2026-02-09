@@ -91,7 +91,7 @@ base::StatusOr<base::FlatHashMap<int64_t, uint32_t>> BuildIdToRowMap(
     }
     id_to_row[*id_cb.id_value] = row;
   }
-  return id_to_row;
+  return std::move(id_to_row);
 }
 
 // Builds normalized parent storage where parent IDs are converted to row
@@ -117,7 +117,7 @@ base::StatusOr<Slab<uint32_t>> BuildNormalizedParentStorage(
       normalized_parent[row] = kNullParent;
     }
   }
-  return normalized_parent;
+  return std::move(normalized_parent);
 }
 
 // Creates an AdhocDataframeBuilder configured for tree columns.
