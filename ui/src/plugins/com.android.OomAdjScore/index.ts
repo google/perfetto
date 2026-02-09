@@ -35,7 +35,20 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
       INCLUDE PERFETTO MODULE intervals.overlap;
 
       CREATE OR REPLACE PERFETTO TABLE ${OomAdjScoreViz.TBL_INTERVALS} AS
-      SELECT row_number() OVER () AS id, * FROM android_oom_adj_intervals
+      SELECT
+        row_number() OVER () AS id,
+        *
+      FROM (
+        SELECT
+          max(oom.ts, ifnull(p.start_ts, 0)) as ts,
+          min(oom.ts + oom.dur, ifnull(p.end_ts, oom.ts + oom.dur)) - max(oom.ts, ifnull(p.start_ts, 0)) AS dur,
+          oom.upid,
+          oom.score,
+          oom.bucket
+        FROM android_oom_adj_intervals oom
+        JOIN process p ON oom.upid = p.upid
+        WHERE oom.dur > 0
+      )
       WHERE dur > 0;
 
       CREATE OR REPLACE PERFETTO TABLE ${OomAdjScoreViz.TBL_COUNT} AS
@@ -168,7 +181,8 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
       SELECT
         coalesce(process.name, 'Unknown process') as process_name,
         upid
-      FROM ${this.TBL_INTERVALS}
+      FROM 
+        ${OomAdjScoreViz.TBL_INTERVALS}
       JOIN process USING(upid)
       WHERE
         bucket = '${bucket}' AND
@@ -189,7 +203,7 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
         iif(ts < ${window.start}, ${window.start}, ts) AS ts,
         score AS value
       FROM
-        android_oom_adj_intervals
+        ${OomAdjScoreViz.TBL_INTERVALS}
       WHERE
         upid = ${upid} AND
         ts < ${window.end} AND
