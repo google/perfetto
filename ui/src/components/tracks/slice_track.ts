@@ -372,7 +372,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   render(trackCtx: TrackRenderContext): void {
-    const {ctx, size, timescale, renderer} = trackCtx;
+    const {ctx, size, timescale} = trackCtx;
 
     // Query for new data given the current state or reuse cache
     const dataFrame = this.useData(trackCtx);
@@ -401,189 +401,28 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       offsetY: this.sliceLayout.padding,
     };
 
-    // Render slices as rects
-    {
-      // Collect text labels to render in a second pass
-      const textLabels: Array<{
-        title: string;
-        subTitle: string;
-        textColor: string;
-        rectXCenter: number;
-        titleY: number;
-        subTitleY: number;
-      }> = [];
+    this.renderSlices(
+      trackCtx,
+      dataFrame.slices,
+      dataTransform,
+      sliceHeight,
+      pxEnd,
+      pxPerNs,
+      baseOffsetPx,
+      charWidth,
+      selectedId,
+    );
 
-      const {xs, ys, ws, patterns, slices, count} = dataFrame.slices;
-
-      // Recreate the colors array every time as this could have changed
-      // TODO(stevegolton): Find a way to avoid having to do this every frame!
-      const colorVariants = this.onUpdatedSlices(slices);
-      const colors = new Uint32Array(count);
-      for (let j = 0; j < count; j++) {
-        const colorVariant = colorVariants[j];
-        const cs = slices[j].colorScheme;
-        const color =
-          colorVariant === ColorVariant.BASE
-            ? cs.base
-            : colorVariant === ColorVariant.VARIANT
-              ? cs.variant
-              : cs.disabled;
-        colors[j] = color.rgba;
-
-        // Collect text labels
-        const w = ws[j];
-        const wPx = w * pxPerNs;
-
-        // Skip slices that are too narrow to show text
-        if (wPx < SLICE_MIN_WIDTH_FOR_TEXT_PX) continue;
-
-        const x = xs[j];
-        const xPx = x * pxPerNs + baseOffsetPx;
-
-        // Skip slices that are completely offscreen
-        if (xPx + wPx <= 0 || xPx >= pxEnd) continue;
-
-        const slice = slices[j];
-
-        // Collect text label if wide enough (using screen-space width)
-        const y = ys[j] * dataTransform.scaleY + dataTransform.offsetY;
-        const title = slice.title;
-        const subTitle = slice.subtitle;
-        if (title || subTitle) {
-          const textColor =
-            colorVariant === ColorVariant.BASE
-              ? cs.textBase
-              : colorVariant === ColorVariant.VARIANT
-                ? cs.textVariant
-                : cs.textDisabled;
-
-          // Clamp slice bounds to visible window for text positioning
-          const clampedLeft = Math.max(xPx, 0);
-          const clampedRight = Math.min(xPx + wPx, pxEnd);
-          const clampedW = clampedRight - clampedLeft;
-          const rectXCenter = clampedLeft + clampedW / 2;
-          const yDiv = subTitle ? 3 : 2;
-          const titleY = Math.floor(y + sliceHeight / yDiv) + 0.5;
-          const subTitleY = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
-
-          textLabels.push({
-            title: cropText(title, charWidth.title, clampedW),
-            subTitle: cropText(subTitle, charWidth.subtitle, clampedW),
-            textColor: textColor.cssString,
-            rectXCenter,
-            titleY,
-            subTitleY,
-          });
-        }
-      }
-
-      renderer.drawRects(
-        {
-          xs,
-          ys,
-          ws,
-          h: sliceHeight,
-          colors,
-          count,
-          patterns,
-          minWidth: 1,
-          screenEnd: pxEnd,
-        },
-        dataTransform,
-      );
-
-      // Draw text labels
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      for (const label of textLabels) {
-        ctx.fillStyle = label.textColor;
-        if (label.title) {
-          ctx.font = this.getTitleFont();
-          ctx.fillText(label.title, label.rectXCenter, label.titleY);
-        }
-        if (label.subTitle) {
-          ctx.globalAlpha = 0.8; // Slightly fade subtitles for visual hierarchy
-          ctx.font = this.getSubtitleFont();
-          ctx.fillText(label.subTitle, label.rectXCenter, label.subTitleY);
-          ctx.globalAlpha = 1;
-        }
-      }
-
-      // Draw selection highlight
-      if (selectedId !== undefined) {
-        for (let j = 0; j < count; j++) {
-          if (slices[j].id === selectedId) {
-            const selX = xs[j] * pxPerNs + baseOffsetPx;
-            const selW = ws[j] * pxPerNs;
-            const selY = ys[j] * dataTransform.scaleY + dataTransform.offsetY;
-            const THICKNESS = 3;
-            ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
-            ctx.lineWidth = THICKNESS;
-            ctx.strokeRect(
-              selX,
-              selY - THICKNESS / 2,
-              selW,
-              sliceHeight + THICKNESS,
-            );
-            break;
-          }
-        }
-      }
-    }
-
-    // Render instants as markers (after slices so they appear on top)
-    {
-      const {xs, ys, instants, count} = dataFrame.instants;
-
-      // Recreate the colors array every time as this could have changed
-      const colorVariants = this.onUpdatedSlices(instants);
-      const colors = new Uint32Array(count);
-      for (let j = 0; j < count; j++) {
-        const colorVariant = colorVariants[j];
-        const cs = instants[j].colorScheme;
-        const color =
-          colorVariant === ColorVariant.BASE
-            ? cs.base
-            : colorVariant === ColorVariant.VARIANT
-              ? cs.variant
-              : cs.disabled;
-        colors[j] = color.rgba;
-      }
-
-      renderer.drawMarkers(
-        {
-          xs,
-          ys,
-          w: this.instantWidthPx,
-          h: sliceHeight,
-          colors,
-          count,
-        },
-        dataTransform,
-        (ctx, x, y, _w, h) => this.drawChevron(ctx, x, y, h),
-      );
-
-      // Draw selection highlight for instants
-      if (selectedId !== undefined) {
-        for (let j = 0; j < count; j++) {
-          if (instants[j].id === selectedId) {
-            const selX =
-              xs[j] * pxPerNs + baseOffsetPx - this.instantWidthPx / 2;
-            const selY = ys[j] * dataTransform.scaleY + dataTransform.offsetY;
-            const THICKNESS = 3;
-            ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
-            ctx.lineWidth = THICKNESS;
-            ctx.strokeRect(
-              selX,
-              selY - THICKNESS / 2,
-              this.instantWidthPx,
-              sliceHeight + THICKNESS,
-            );
-            break;
-          }
-        }
-      }
-    }
+    // Render instants after slices so they appear on top
+    this.renderInstants(
+      trackCtx,
+      dataFrame.instants,
+      dataTransform,
+      sliceHeight,
+      pxPerNs,
+      baseOffsetPx,
+      selectedId,
+    );
 
     // Checkerboard for loading areas
     const frameStartPx = timescale.timeToPx(dataFrame.start);
@@ -596,6 +435,210 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       frameStartPx,
       frameEndPx,
     );
+  }
+
+  private renderSlices(
+    trackCtx: TrackRenderContext,
+    sliceBuffers: SliceBuffers<T & Required<RowSchema>>,
+    dataTransform: Transform2D,
+    sliceHeight: number,
+    pxEnd: number,
+    pxPerNs: number,
+    baseOffsetPx: number,
+    charWidth: {title: number; subtitle: number},
+    selectedId: number | undefined,
+  ): void {
+    const {ctx, renderer} = trackCtx;
+    const {xs, ys, ws, patterns, slices, count} = sliceBuffers;
+
+    // Collect text labels to render in a second pass
+    const textLabels: Array<{
+      title: string;
+      subTitle: string;
+      textColor: string;
+      rectXCenter: number;
+      titleY: number;
+      subTitleY: number;
+    }> = [];
+
+    // Recreate the colors array every time as this could have changed
+    // TODO(stevegolton): Find a way to avoid having to do this every frame.
+    const colorVariants = this.onUpdatedSlices(slices);
+    const colors = new Uint32Array(count);
+    let selectedIdx = -1;
+
+    for (let j = 0; j < count; j++) {
+      const slice = slices[j];
+      const colorVariant = colorVariants[j];
+      const cs = slice.colorScheme;
+      const color =
+        colorVariant === ColorVariant.BASE
+          ? cs.base
+          : colorVariant === ColorVariant.VARIANT
+            ? cs.variant
+            : cs.disabled;
+      colors[j] = color.rgba;
+
+      // Track selected slice index
+      if (selectedId !== undefined && slice.id === selectedId) {
+        selectedIdx = j;
+      }
+
+      // Collect text labels
+      const w = ws[j];
+      const wPx = w * pxPerNs;
+
+      // Skip slices that are too narrow to show text
+      if (wPx < SLICE_MIN_WIDTH_FOR_TEXT_PX) continue;
+
+      const x = xs[j];
+      const xPx = x * pxPerNs + baseOffsetPx;
+
+      // Skip slices that are completely offscreen
+      if (xPx + wPx <= 0 || xPx >= pxEnd) continue;
+
+      // Collect text label if wide enough (using screen-space width)
+      const y = ys[j] * dataTransform.scaleY + dataTransform.offsetY;
+      const title = slice.title;
+      const subTitle = slice.subtitle;
+      if (title || subTitle) {
+        const textColor =
+          colorVariant === ColorVariant.BASE
+            ? cs.textBase
+            : colorVariant === ColorVariant.VARIANT
+              ? cs.textVariant
+              : cs.textDisabled;
+
+        // Clamp slice bounds to visible window for text positioning
+        const clampedLeft = Math.max(xPx, 0);
+        const clampedRight = Math.min(xPx + wPx, pxEnd);
+        const clampedW = clampedRight - clampedLeft;
+        const rectXCenter = clampedLeft + clampedW / 2;
+        const yDiv = subTitle ? 3 : 2;
+        const titleY = Math.floor(y + sliceHeight / yDiv) + 0.5;
+        const subTitleY = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
+
+        textLabels.push({
+          title: cropText(title, charWidth.title, clampedW),
+          subTitle: cropText(subTitle, charWidth.subtitle, clampedW),
+          textColor: textColor.cssString,
+          rectXCenter,
+          titleY,
+          subTitleY,
+        });
+      }
+    }
+
+    renderer.drawRects(
+      {
+        xs,
+        ys,
+        ws,
+        h: sliceHeight,
+        colors,
+        count,
+        patterns,
+        minWidth: 1,
+        screenEnd: pxEnd,
+      },
+      dataTransform,
+    );
+
+    // Draw text labels
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const label of textLabels) {
+      ctx.fillStyle = label.textColor;
+      if (label.title) {
+        ctx.font = this.getTitleFont();
+        ctx.fillText(label.title, label.rectXCenter, label.titleY);
+      }
+      if (label.subTitle) {
+        ctx.globalAlpha = 0.8; // Slightly fade subtitles for visual hierarchy
+        ctx.font = this.getSubtitleFont();
+        ctx.fillText(label.subTitle, label.rectXCenter, label.subTitleY);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Draw selection highlight
+    if (selectedIdx !== -1) {
+      const selX = xs[selectedIdx] * pxPerNs + baseOffsetPx;
+      const selW = ws[selectedIdx] * pxPerNs;
+      const selY =
+        ys[selectedIdx] * dataTransform.scaleY + dataTransform.offsetY;
+      const THICKNESS = 3;
+      ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
+      ctx.lineWidth = THICKNESS;
+      ctx.strokeRect(selX, selY - THICKNESS / 2, selW, sliceHeight + THICKNESS);
+    }
+  }
+
+  private renderInstants(
+    trackCtx: TrackRenderContext,
+    instantBuffers: InstantBuffers<T & Required<RowSchema>>,
+    dataTransform: Transform2D,
+    sliceHeight: number,
+    pxPerNs: number,
+    baseOffsetPx: number,
+    selectedId: number | undefined,
+  ): void {
+    const {ctx, renderer} = trackCtx;
+    const {xs, ys, instants, count} = instantBuffers;
+
+    // Recreate the colors array every time as this could have changed
+    // TODO(stevegolton): Find a way to avoid having to do this every frame.
+    const colorVariants = this.onUpdatedSlices(instants);
+    const colors = new Uint32Array(count);
+    let selectedIdx = -1;
+
+    for (let j = 0; j < count; j++) {
+      const instant = instants[j];
+      const colorVariant = colorVariants[j];
+      const cs = instant.colorScheme;
+      const color =
+        colorVariant === ColorVariant.BASE
+          ? cs.base
+          : colorVariant === ColorVariant.VARIANT
+            ? cs.variant
+            : cs.disabled;
+      colors[j] = color.rgba;
+
+      // Track selected instant index
+      if (selectedId !== undefined && instant.id === selectedId) {
+        selectedIdx = j;
+      }
+    }
+
+    renderer.drawMarkers(
+      {
+        xs,
+        ys,
+        w: this.instantWidthPx,
+        h: sliceHeight,
+        colors,
+        count,
+      },
+      dataTransform,
+      (ctx, x, y, _w, h) => this.drawChevron(ctx, x, y, h),
+    );
+
+    // Draw selection highlight for instants
+    if (selectedIdx !== -1) {
+      const selX =
+        xs[selectedIdx] * pxPerNs + baseOffsetPx - this.instantWidthPx / 2;
+      const selY =
+        ys[selectedIdx] * dataTransform.scaleY + dataTransform.offsetY;
+      const THICKNESS = 3;
+      ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
+      ctx.lineWidth = THICKNESS;
+      ctx.strokeRect(
+        selX,
+        selY - THICKNESS / 2,
+        this.instantWidthPx,
+        sliceHeight + THICKNESS,
+      );
+    }
   }
 
   getDataset() {
