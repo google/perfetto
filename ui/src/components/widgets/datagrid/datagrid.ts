@@ -48,6 +48,7 @@ import {
   DataSourceRows,
   FlatModel,
   PivotModel,
+  TreeModel,
 } from './data_source';
 import {
   SchemaRegistry,
@@ -73,6 +74,7 @@ import {
   DEFAULT_GROUP_DISPLAY,
   Filter,
   GroupPath,
+  IdBasedTree,
   Pivot,
   SortDirection,
 } from './model';
@@ -277,6 +279,26 @@ export interface DataGridAttrs {
   readonly onPivotChanged?: (pivot: Pivot | undefined) => void;
 
   /**
+   * ID-based tree configuration for displaying hierarchical data.
+   * Uses id/parent_id columns for tree structure.
+   * Mutually exclusive with pivot mode.
+   */
+  readonly tree?: IdBasedTree;
+
+  /**
+   * Initial ID-based tree configuration to apply on first load.
+   * This is ignored in controlled mode (i.e. when `tree` is provided).
+   */
+  readonly initialTree?: IdBasedTree;
+
+  /**
+   * Callback triggered when the ID-based tree configuration changes.
+   * Required for controlled mode - when provided with tree,
+   * the parent component becomes responsible for updating the tree prop.
+   */
+  readonly onTreeChanged?: (tree: IdBasedTree | undefined) => void;
+
+  /**
    * Extra items to place on the toolbar.
    */
   readonly toolbarItemsLeft?: m.Children;
@@ -362,6 +384,8 @@ interface FlatGridBuildContext {
   readonly columnInfoCache: Map<string, ReturnType<typeof getColumnInfo>>;
   readonly structuredQueryCompatMode: boolean;
   readonly enablePivotControls: boolean;
+  // ID-based tree mode - if set, one column displays as a tree with chevrons
+  readonly tree?: IdBasedTree;
 }
 
 /**
@@ -384,6 +408,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private columns: readonly Column[] = [];
   private filters: readonly Filter[] = [];
   private pivot?: Pivot;
+  private tree?: IdBasedTree;
 
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
@@ -409,6 +434,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialPivot) {
       this.pivot = attrs.initialPivot;
     }
+
+    if (attrs.initialTree) {
+      this.tree = attrs.initialTree;
+    }
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -419,6 +448,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       columns,
       filters,
       pivot,
+      tree,
       schema,
       rootSchema,
       structuredQueryCompatMode = false,
@@ -433,9 +463,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (columns) this.columns = columns;
     if (filters) this.filters = filters;
     if (pivot) this.pivot = pivot;
+    if (tree) this.tree = tree;
+
+    // Determine if we're in tree mode (has id-based tree config)
+    const isTreeMode = this.tree !== undefined;
 
     // Determine if we're in pivot mode (has groupBy columns and not drilling down)
     const isPivotMode =
+      !isTreeMode &&
       this.pivot !== undefined &&
       this.pivot.groupBy.length > 0 &&
       this.pivot.drillDown === undefined;
@@ -505,6 +540,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         columnInfoCache,
         structuredQueryCompatMode,
         enablePivotControls,
+        tree: this.tree,
       };
 
       gridColumns = this.buildFlatColumns(flatContext);
@@ -520,7 +556,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ),
       },
       m(DataGridToolbar, {
-        leftItems: [toolbarItemsLeft, this.renderPivotToolbarItems(attrs)],
+        leftItems: [
+          toolbarItemsLeft,
+          this.renderPivotToolbarItems(attrs),
+          this.renderTreeToolbarItems(attrs),
+        ],
         rightItems: [
           toolbarItemsRight,
           showExportButton &&
@@ -611,7 +651,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   /**
    * Builds a DataSourceModel from the current state.
-   * The model shape depends on whether we're in pivot mode or flat mode.
+   * The model shape depends on whether we're in pivot, tree, or flat mode.
    */
   private buildDataSourceModel(): DataSourceModel {
     // Extract sort from columns (flat mode only)
@@ -684,6 +724,21 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         collapsedGroups: this.pivot.collapsedGroups,
       };
       return pivotModel;
+    } else if (this.tree) {
+      // Build TreeModel
+      const treeModel: TreeModel = {
+        ...baseModel,
+        mode: 'tree',
+        sort,
+        columns: this.columns
+          .map((col) => ({
+            field: col.field,
+            alias: col.id,
+          }))
+          .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
+        tree: this.tree,
+      };
+      return treeModel;
     } else {
       // Build FlatModel
       const flatModel: FlatModel = {
@@ -1242,6 +1297,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     ];
   }
 
+  private renderTreeToolbarItems(attrs: DataGridAttrs): m.Children {
+    if (!this.tree) return null;
+
+    return [
+      m(Button, {
+        icon: 'unfold_more',
+        tooltip: 'Expand all nodes',
+        onclick: () => this.expandAll(attrs),
+      }),
+      m(Button, {
+        icon: 'unfold_less',
+        tooltip: 'Collapse all nodes',
+        onclick: () => this.collapseAll(attrs),
+      }),
+    ];
+  }
+
   /**
    * Expands all groups by switching to denylist mode with empty collapsedGroups.
    * Empty collapsedGroups = all nodes expanded (nothing is collapsed).
@@ -1256,6 +1328,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       };
       this.pivot = newPivot;
       attrs.onPivotChanged?.(newPivot);
+    }
+
+    if (this.tree) {
+      // Switch to denylist mode with empty set - all nodes expanded
+      const newTree: IdBasedTree = {
+        ...this.tree,
+        expandedIds: undefined,
+        collapsedIds: new Set<bigint>(),
+      };
+      this.tree = newTree;
+      attrs.onTreeChanged?.(newTree);
     }
   }
 
@@ -1273,6 +1356,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       };
       this.pivot = newPivot;
       attrs.onPivotChanged?.(newPivot);
+    }
+
+    if (this.tree) {
+      // Switch to allowlist mode with empty set - all nodes collapsed
+      const newTree: IdBasedTree = {
+        ...this.tree,
+        expandedIds: new Set<bigint>(),
+        collapsedIds: undefined,
+      };
+      this.tree = newTree;
+      attrs.onTreeChanged?.(newTree);
     }
   }
 
@@ -1452,7 +1546,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds grid rows for flat (non-pivot) mode.
    */
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
-    const {attrs, rowsResult, columnInfoCache} = ctx;
+    const {attrs, rowsResult, columnInfoCache, tree} = ctx;
 
     if (rowsResult.rows === undefined) return [];
 
@@ -1464,6 +1558,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       {length: this.paginationLimit},
       (_, i) => i + start,
     );
+
+    // ID-based tree mode config
+    // Use specified treeColumn, or first visible column if not specified
+    const treeColumn =
+      tree?.treeColumn ?? (this.columns[0]?.field || undefined);
 
     return rowIndices
       .map((index) => {
@@ -1480,6 +1579,31 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           const rendered = cellRenderer(value, row);
           const isRich = isCellRenderResult(rendered);
 
+          // Check if this is the tree column (id-based)
+          const isTreeColumn = tree !== undefined && field === treeColumn;
+
+          // Tree column specific rendering
+          let chevron: 'expanded' | 'collapsed' | 'leaf' | undefined;
+          let onChevronClick: (() => void) | undefined;
+          let indent: number | undefined;
+
+          if (isTreeColumn) {
+            // ID-based tree mode
+            const treeDepth = Number(row['__depth'] ?? 0);
+            const hasChildren = Number(row['__has_children'] ?? 0) > 0;
+
+            indent = treeDepth;
+
+            if (hasChildren) {
+              const nodeId = BigInt(row['__id'] as number | bigint);
+              const isExpanded = this.isTreeNodeExpanded(nodeId);
+              chevron = isExpanded ? 'expanded' : 'collapsed';
+              onChevronClick = () => this.toggleTreeExpansion(nodeId, attrs);
+            } else {
+              chevron = 'leaf';
+            }
+          }
+
           return m(
             GridCell,
             {
@@ -1487,6 +1611,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               nullish: isRich
                 ? rendered.nullish ?? value === null
                 : value === null,
+              chevron,
+              onChevronClick,
+              indent,
               menuItems: [
                 m(CellFilterMenu, {
                   value,
@@ -1500,6 +1627,71 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         });
       })
       .filter(exists);
+  }
+
+  /**
+   * Checks if an id-based tree node is expanded.
+   */
+  private isTreeNodeExpanded(nodeId: bigint): boolean {
+    if (!this.tree) return false;
+
+    if (this.tree.collapsedIds) {
+      // Denylist mode: expanded if NOT in collapsedIds
+      return !this.tree.collapsedIds.has(nodeId);
+    }
+
+    if (this.tree.expandedIds) {
+      // Allowlist mode: expanded only if in expandedIds
+      return this.tree.expandedIds.has(nodeId);
+    }
+
+    // Default: collapsed
+    return false;
+  }
+
+  /**
+   * Toggles expansion of an id-based tree node.
+   */
+  private toggleTreeExpansion(nodeId: bigint, attrs: DataGridAttrs): void {
+    if (!this.tree) return;
+
+    const {idField, parentIdField, treeColumn} = this.tree;
+
+    let newTree: IdBasedTree;
+
+    if (this.tree.collapsedIds) {
+      // Denylist mode: toggle in collapsedIds
+      const newCollapsed = new Set<bigint>(this.tree.collapsedIds);
+      if (newCollapsed.has(nodeId)) {
+        newCollapsed.delete(nodeId);
+      } else {
+        newCollapsed.add(nodeId);
+      }
+      newTree = {
+        idField,
+        parentIdField,
+        treeColumn,
+        collapsedIds: newCollapsed,
+      };
+    } else {
+      // Allowlist mode: toggle in expandedIds
+      const currentExpanded = this.tree.expandedIds ?? new Set<bigint>();
+      const newExpanded = new Set<bigint>(currentExpanded);
+      if (newExpanded.has(nodeId)) {
+        newExpanded.delete(nodeId);
+      } else {
+        newExpanded.add(nodeId);
+      }
+      newTree = {
+        idField,
+        parentIdField,
+        treeColumn,
+        expandedIds: newExpanded,
+      };
+    }
+
+    this.tree = newTree;
+    attrs.onTreeChanged?.(newTree);
   }
 
   /**
