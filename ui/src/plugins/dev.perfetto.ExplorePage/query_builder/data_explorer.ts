@@ -44,6 +44,7 @@ import {
   isIdType,
 } from '../../../trace_processor/perfetto_sql_type';
 import {ColumnType} from '../../../components/widgets/datagrid/datagrid_schema';
+import {QueryExecutionService} from './query_execution_service';
 
 // Map PerfettoSqlType to DataGrid ColumnType
 function getColumnType(type: PerfettoSqlType): ColumnType {
@@ -69,9 +70,12 @@ export interface DataExplorerAttrs {
   readonly response?: QueryResponse;
   readonly dataSource?: DataSource;
   readonly sqlModules: SqlModules;
+  readonly queryExecutionService: QueryExecutionService;
   readonly isQueryRunning: boolean;
   readonly isAnalyzing: boolean;
   readonly isFullScreen: boolean;
+  /** Whether the node's data is stale (needs re-materialization) */
+  readonly isStale: boolean;
   readonly onFullScreenToggle: () => void;
   readonly onExecute: () => void;
   readonly onExportToTimeline?: () => void;
@@ -139,8 +143,10 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   private renderMenu(attrs: DataExplorerAttrs): m.Children {
     const autoExecute = attrs.node.state.autoExecute ?? true;
 
+    // Only show "Run Query" button when autoExecute is off AND node is stale
     const runButton =
       !autoExecute &&
+      attrs.isStale &&
       m(Button, {
         label: 'Run Query',
         icon: 'play_arrow',
@@ -194,6 +200,16 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           ])
         : null;
 
+    // Menu items need to fetch table name asynchronously from TP.
+    // Check if we have a response ready (not running, not analyzing, not stale).
+    // The isStale check prevents exporting outdated data when the node's query
+    // has changed but not yet been re-executed.
+    const hasResponseReady =
+      attrs.response &&
+      !attrs.isQueryRunning &&
+      !attrs.isAnalyzing &&
+      !attrs.isStale;
+
     const positionMenu = m(
       PopupMenu,
       {
@@ -207,27 +223,21 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           icon: 'open_in_new',
           onclick: () => attrs.onExportToTimeline?.(),
           title: 'Export query results to timeline tab',
-          disabled: !(
-            attrs.onExportToTimeline &&
-            attrs.response &&
-            !attrs.isQueryRunning &&
-            attrs.node.state.materialized
-          ),
+          disabled: !(attrs.onExportToTimeline && hasResponseReady),
         }),
         m(MenuItem, {
           label: 'Copy Materialized Table Name',
           icon: 'content_copy',
-          onclick: () => {
-            const tableName = attrs.node.state.materializationTableName;
+          onclick: async () => {
+            const tableName = await attrs.queryExecutionService.getTableName(
+              attrs.node.nodeId,
+            );
             if (tableName) {
               navigator.clipboard.writeText(tableName);
             }
           },
           title: 'Copy the materialized table name to clipboard',
-          disabled: !(
-            attrs.node.state.materialized &&
-            attrs.node.state.materializationTableName
-          ),
+          disabled: !hasResponseReady,
         }),
       ],
     );
@@ -496,7 +506,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         m(DataGrid, {
           schema,
           rootSchema: 'data',
-          initialColumns: attrs.response.columns.map((col) => ({
+          columns: attrs.response.columns.map((col) => ({
             id: col,
             field: col,
           })),
@@ -548,11 +558,21 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       ];
     }
 
-    // Show a prominent execute button when autoExecute is false and not yet executed
+    // Show spinner when the service is busy executing another node's query
+    // and this node doesn't have a response yet (queued state).
+    const isServiceBusy = attrs.queryExecutionService.isQueryExecuting();
+    if (isServiceBusy && !attrs.response && !attrs.isQueryRunning) {
+      return m(DataExplorerEmptyState, {}, [
+        m('span.status-indicator', 'Queued...'),
+        m(Spinner, {easing: true}),
+      ]);
+    }
+
+    // Show a prominent execute button when autoExecute is false and node is stale
     const autoExecute = attrs.node.state.autoExecute ?? true;
     if (
       !autoExecute &&
-      !attrs.response &&
+      attrs.isStale &&
       !attrs.isQueryRunning &&
       !attrs.isAnalyzing
     ) {
@@ -570,12 +590,10 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       );
     }
 
-    // Show "No data to display" when no response is available
+    // Show spinner when analyzing or when no response is available yet
     // (for autoExecute=true nodes that haven't run yet)
-    if (!attrs.response) {
-      return m(DataExplorerEmptyState, {
-        title: 'No data to display',
-      });
+    if (!attrs.response || attrs.isAnalyzing) {
+      return m(DataExplorerEmptyState, {}, m(Spinner, {easing: true}));
     }
 
     return null;

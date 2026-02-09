@@ -41,7 +41,8 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
   ~GeckoTraceTokenizer() override;
 
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
+  void OnEventsFullyExtracted() override {}
 
  private:
   // Processes a parsed thread in legacy format.

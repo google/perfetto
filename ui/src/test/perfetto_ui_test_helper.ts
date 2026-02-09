@@ -69,7 +69,7 @@ export class PerfettoTestHelper {
       localStorage.setItem('dismissedPanningHint', 'true'),
     );
     const tracePath = this.getTestTracePath(traceName);
-    assertExists(file).setInputFiles(tracePath);
+    await assertExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
     await this.applyTestingStyles();
     await this.page.mouse.move(0, 0);

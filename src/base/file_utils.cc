@@ -421,6 +421,59 @@ base::Status ListFilesRecursive(const std::string& dir_path,
   return base::OkStatus();
 }
 
+base::Status ListDirectories(const std::string& dir_path,
+                             std::vector<std::string>& output) {
+  std::string normalized_path = dir_path;
+  if (!normalized_path.empty() && normalized_path.back() != '/' &&
+      normalized_path.back() != '\\') {
+    normalized_path.push_back('/');
+  }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+  return base::ErrStatus("ListDirectories not supported yet");
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  std::string glob_path = normalized_path + "*";
+  if (glob_path.length() + 1 > MAX_PATH) {
+    return base::ErrStatus("Directory path %s is too long", dir_path.c_str());
+  }
+  WIN32_FIND_DATAA ffd;
+
+  base::ScopedResource<HANDLE, CloseFindHandle, nullptr, false,
+                       base::PlatformHandleChecker>
+      hFind(FindFirstFileA(glob_path.c_str(), &ffd));
+  if (!hFind) {
+    return base::ErrStatus("Failed to open directory %s",
+                           normalized_path.c_str());
+  }
+  do {
+    if (strcmp(ffd.cFileName, ".") == 0 || strcmp(ffd.cFileName, "..") == 0) {
+      continue;
+    }
+    if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+      output.push_back(ffd.cFileName);
+    }
+  } while (FindNextFileA(*hFind, &ffd));
+#else
+  ScopedDir dir = ScopedDir(opendir(normalized_path.c_str()));
+  if (!dir) {
+    return base::ErrStatus("Failed to open directory %s",
+                           normalized_path.c_str());
+  }
+  for (auto* dirent = readdir(dir.get()); dirent != nullptr;
+       dirent = readdir(dir.get())) {
+    if (strcmp(dirent->d_name, ".") == 0 || strcmp(dirent->d_name, "..") == 0) {
+      continue;
+    }
+    std::string full_path = normalized_path + dirent->d_name;
+    struct stat dirstat;
+    if (stat(full_path.c_str(), &dirstat) == 0 && S_ISDIR(dirstat.st_mode)) {
+      output.push_back(dirent->d_name);
+    }
+  }
+#endif
+  return base::OkStatus();
+}
+
 std::string GetFileExtension(const std::string& filename) {
   auto ext_idx = filename.rfind('.');
   if (ext_idx == std::string::npos)

@@ -845,8 +845,23 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             return;
           }
 
-          // WASD keyboard panning
+          // Shift+W/S for zoom in/out (matches Timeline behavior)
           // Use KeyboardEvent.code for physical key position (layout-independent)
+          const ZOOM_STEP = 0.1;
+          if (e.shiftKey && this.nodeGraphApi !== null) {
+            if (e.code === 'KeyW') {
+              this.nodeGraphApi.zoomBy(ZOOM_STEP);
+              e.preventDefault();
+              return;
+            }
+            if (e.code === 'KeyS') {
+              this.nodeGraphApi.zoomBy(-ZOOM_STEP);
+              e.preventDefault();
+              return;
+            }
+          }
+
+          // WASD keyboard panning (only without Shift modifier)
           const PAN_STEP = 50;
           const panMap: Record<string, [number, number]> = {
             KeyW: [0, PAN_STEP],

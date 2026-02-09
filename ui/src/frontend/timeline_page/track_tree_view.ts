@@ -75,6 +75,7 @@ import {Intent} from '../../widgets/common';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {CanvasColors} from '../../public/canvas_colors';
 import {Icons} from '../../base/semantic_icons';
+import {Renderer} from '../../base/renderer';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -82,6 +83,14 @@ const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   description: `[Experimental] Use virtual scrolling in the timeline view to
     improve performance on large traces.`,
   defaultValue: true,
+});
+
+const WEBGL_RENDERING = featureFlags.register({
+  id: 'webglRendering',
+  name: 'WebGL rendering',
+  description: `Use WebGL for rendering track rectangles. Falls back to
+    Canvas 2D when disabled or unavailable.`,
+  defaultValue: false,
 });
 
 // Snap-to-boundaries feature constants
@@ -293,13 +302,15 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         className: classNames(className, 'pf-track-tree'),
         overflowY: 'auto',
         overflowX: 'hidden',
-        onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
+        enableWebGL: WEBGL_RENDERING.get(),
+        onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect, renderer}) => {
           this.drawCanvas(
             ctx,
             virtualCanvasSize,
             renderedTracks,
             canvasRect,
             rootNode,
+            renderer,
           );
 
           if (VIRTUAL_TRACK_SCROLLING.get()) {
@@ -387,6 +398,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     renderedTracks: ReadonlyArray<TrackView>,
     floatingCanvasRect: Rect2D,
     rootNode: TrackNode,
+    renderer: Renderer,
   ) {
     const timelineRect = new Rect2D({
       left: TRACK_SHELL_WIDTH,
@@ -420,6 +432,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       COLOR_TIMELINE_OVERLAY,
     };
 
+    // Render all track content (WebGL rectangles + Canvas 2D text)
     const tracksOnCanvas = this.drawTracks(
       renderedTracks,
       floatingCanvasRect,
@@ -428,6 +441,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       timelineRect,
       visibleWindow,
       colors,
+      renderer,
     );
 
     renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
@@ -472,6 +486,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     }
   }
 
+  // Render all tracks - WebGL rectangles and Canvas 2D content in one pass
   private drawTracks(
     renderedTracks: ReadonlyArray<TrackView>,
     floatingCanvasRect: Rect2D,
@@ -480,6 +495,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     timelineRect: Rect2D,
     visibleWindow: HighPrecisionTimeSpan,
     colors: CanvasColors,
+    renderer: Renderer,
   ) {
     let tracksOnCanvas = 0;
     for (const trackView of renderedTracks) {
@@ -498,6 +514,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           this.perfStatsEnabled,
           this.trackPerfStats,
           colors,
+          renderer,
         );
         ++tracksOnCanvas;
       }

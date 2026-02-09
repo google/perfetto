@@ -320,12 +320,6 @@ class TraceStorage {
     return id ? string_pool_.Get(*id) : NullTermStringView();
   }
 
-  // Requests the removal of unused capacity.
-  // Matches the semantics of std::vector::shrink_to_fit.
-  void ShrinkToFitTables() {
-    // TODO(lalitm): remove.
-  }
-
   const tables::ThreadTable& thread_table() const {
     return table<tables::ThreadTable>();
   }

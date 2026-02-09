@@ -947,15 +947,18 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
   }
 }
 
-base::Status ProtoTraceReader::NotifyEndOfFile() {
+base::Status ProtoTraceReader::OnPushDataToSorter() {
   received_eof_ = true;
   for (auto& packet : eof_deferred_packets_) {
     RETURN_IF_ERROR(TimestampTokenizeAndPushToSorter(std::move(packet)));
   }
-  for (auto& module : module_context_.modules) {
-    module->NotifyEndOfFile();
-  }
   return base::OkStatus();
+}
+
+void ProtoTraceReader::OnEventsFullyExtracted() {
+  for (auto& module : module_context_.modules) {
+    module->OnEventsFullyExtracted();
+  }
 }
 
 }  // namespace perfetto::trace_processor

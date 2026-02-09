@@ -24,6 +24,7 @@ import {SourceDataset} from '../trace_processor/dataset';
 import {TrackNode} from './workspace';
 import {CanvasColors} from './canvas_colors';
 import {z} from 'zod';
+import {Renderer} from '../base/renderer';
 
 /**
  * Represents a snap point for the snap-to-boundaries feature.
@@ -128,6 +129,12 @@ export interface TrackRenderContext extends TrackContext {
    * Semantic colors which can vary depending on the current theme.
    */
   readonly colors: CanvasColors;
+
+  /**
+   * A high-performance renderer for drawing rectangles and billboards.
+   * Uses WebGL when available, with Canvas 2D fallback.
+   */
+  readonly renderer: Renderer;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -252,40 +259,13 @@ export interface TrackRenderer {
   readonly settings?: ReadonlyArray<TrackSetting<unknown>>;
 
   /**
-   * Optional lifecycle hook called on the first render cycle. Should be used to
-   * create any required resources.
-   *
-   * These lifecycle hooks are asynchronous, but they are run synchronously,
-   * meaning that perfetto will wait for each one to complete before calling the
-   * next one, so the user doesn't have to serialize these calls manually.
-   *
-   * Exactly when this hook is called is left purposely undefined. The only
-   * guarantee is that it will be called exactly once before the first call to
-   * onUpdate().
-   *
-   * Note: On the first render cycle, both onCreate and onUpdate are called one
-   * after another.
-   */
-  onCreate?(ctx: TrackContext): Promise<void>;
-
-  /**
-   * Optional lifecycle hook called on every render cycle.
-   *
-   * The track should inspect things like the visible window, track size, and
-   * resolution to work out whether any data needs to be reloaded based on these
-   * properties and perform a reload.
-   */
-  onUpdate?(ctx: TrackRenderContext): Promise<void>;
-
-  /**
-   * Optional lifecycle hook called when the track is no longer visible. Should
-   * be used to clear up any resources.
-   */
-  onDestroy?(): Promise<void>;
-
-  /**
    * Required method used to render the track's content to the canvas, called
    * synchronously on every render cycle.
+   *
+   * Tracks can use ctx (Canvas 2D) for text and shapes, and canvasRenderer
+   * (WebGL) for high-performance rectangle rendering. Both are available
+   * in the same render call, and the WebGL content will appear behind
+   * Canvas 2D content.
    */
   render(ctx: TrackRenderContext): void;
   onFullRedraw?(): void;

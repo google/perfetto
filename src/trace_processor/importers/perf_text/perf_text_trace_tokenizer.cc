@@ -181,8 +181,4 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
   }
 }
 
-base::Status PerfTextTraceTokenizer::NotifyEndOfFile() {
-  return base::OkStatus();
-}
-
 }  // namespace perfetto::trace_processor::perf_text_importer

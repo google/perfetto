@@ -15,33 +15,40 @@
 import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import {Store} from '../../base/store';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExplorePageState} from './explore_page';
 import {nodeRegistry} from './query_builder/node_registry';
 import {QueryNodeState} from './query_node';
-import {serializeState, deserializeState} from './json_handler';
+import {deserializeState, serializeState} from './json_handler';
+import {recentGraphsStorage} from './recent_graphs';
+import {resetAnalyzeNodeSummarizer} from './query_builder/query_builder_utils';
 
-const LOCAL_STORAGE_KEY = 'perfetto.explorePage.lastState';
+const STORE_VERSION = 1;
 
-/**
- * Saves the Explore Page state to local storage.
- */
-function saveStateToLocalStorage(state: ExplorePageState): void {
-  try {
-    const json = serializeState(state);
-    localStorage.setItem(LOCAL_STORAGE_KEY, json);
-  } catch (error) {
-    console.warn('Failed to save Explore Page state to local storage:', error);
-  }
+interface ExplorePagePersistedState {
+  version: number;
+  graphJson?: string;
+}
+
+function isValidPersistedState(
+  init: unknown,
+): init is ExplorePagePersistedState {
+  return (
+    typeof init === 'object' &&
+    init !== null &&
+    'version' in init &&
+    (init as {version: unknown}).version === STORE_VERSION
+  );
 }
 
 /**
- * Loads the Explore Page state from local storage.
+ * Loads the Explore Page state from recent graphs storage.
  * Returns undefined if no state is found or if deserialization fails.
  */
-function loadStateFromLocalStorage(trace: Trace): ExplorePageState | undefined {
+function loadStateFromRecentGraphs(trace: Trace): ExplorePageState | undefined {
   try {
-    const json = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const json = recentGraphsStorage.getCurrentJson();
     if (!json) {
       return undefined;
     }
@@ -56,11 +63,11 @@ function loadStateFromLocalStorage(trace: Trace): ExplorePageState | undefined {
     return deserializeState(json, trace, sqlModules);
   } catch (error) {
     console.debug(
-      'Failed to load Explore Page state from local storage:',
+      'Failed to load Explore Page state from recent graphs:',
       error,
     );
-    // Clear invalid state
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    // Clear corrupted data to prevent repeated failures
+    recentGraphsStorage.clear();
     return undefined;
   }
 }
@@ -86,6 +93,9 @@ export default class implements PerfettoPlugin {
   // This prevents reloading base JSON when clearing all nodes
   private hasAutoInitialized = false;
 
+  // Store for persisting state in permalinks
+  private permalinkStore?: Store<ExplorePagePersistedState>;
+
   onStateUpdate = (
     update:
       | ExplorePageState
@@ -97,37 +107,93 @@ export default class implements PerfettoPlugin {
       this.state = update;
     }
 
-    saveStateToLocalStorage(this.state);
+    // Save current state to recent graphs (updates the first entry)
+    recentGraphsStorage.saveCurrentState(this.state);
+
+    // Save to permalink store for sharing (clear if graph is empty)
+    if (this.permalinkStore) {
+      const graphJson =
+        this.state.rootNodes.length > 0
+          ? serializeState(this.state)
+          : undefined;
+      this.permalinkStore.edit((draft) => {
+        draft.graphJson = graphJson;
+      });
+    }
 
     m.redraw();
   };
 
-  // Try to load state from local storage. Called lazily when the page renders.
+  // Mount the permalink store lazily on first page access.
+  private mountPermalinkStore(trace: Trace): void {
+    if (this.permalinkStore) return;
+
+    this.permalinkStore = trace.mountStore<ExplorePagePersistedState>(
+      'dev.perfetto.ExplorePage',
+      (init: unknown) => {
+        if (isValidPersistedState(init)) {
+          return init;
+        }
+        return {version: STORE_VERSION};
+      },
+    );
+  }
+
+  // Try to load state from permalink store or recent graphs.
+  // Called lazily when the page renders.
   private tryLoadState(trace: Trace): void {
     if (this.hasAttemptedStateLoad) return;
 
-    const savedState = loadStateFromLocalStorage(trace);
+    // Mount permalink store on first access
+    this.mountPermalinkStore(trace);
+
+    const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      // SQL modules not ready yet, we'll retry on next render
+      return;
+    }
+
+    // SQL modules are ready, mark load as attempted regardless of outcome
+    this.hasAttemptedStateLoad = true;
+
+    // First, check permalink store (for graphs restored from permalinks)
+    const permalinkJson = this.permalinkStore?.state.graphJson;
+    if (permalinkJson) {
+      try {
+        const permalinkState = deserializeState(
+          permalinkJson,
+          trace,
+          sqlModules,
+        );
+        this.state = permalinkState;
+        this.hasAutoInitialized = true;
+        return;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn('Failed to load Explore Page state from permalink:', msg);
+        // Fall through to try recent graphs
+      }
+    }
+
+    // Fall back to recent graphs (local storage)
+    const savedState = loadStateFromRecentGraphs(trace);
     if (savedState !== undefined) {
-      // Load saved state from localStorage (preserves work across page refreshes)
+      // Load saved state from recent graphs (preserves work across page refreshes)
       this.state = savedState;
-      this.hasAttemptedStateLoad = true;
       // Only mark as auto-initialized if the saved state has nodes
       // This allows base JSON to load after a reload when state is empty,
       // but prevents it from loading after manual "Clear all nodes" in the same session
       if (savedState.rootNodes.length > 0) {
         this.hasAutoInitialized = true;
       }
-    } else if (
-      trace.plugins.getPlugin(SqlModulesPlugin).getSqlModules() !== undefined
-    ) {
-      // SQL modules are available but no state was loaded - mark as attempted
-      // to avoid retrying on every render
-      this.hasAttemptedStateLoad = true;
     }
-    // If SQL modules aren't ready yet, we'll retry on next render
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
+    // Reset module-level state from previous traces to prevent stale IDs.
+    resetAnalyzeNodeSummarizer();
+
     trace.pages.registerPage({
       route: '/explore',
       render: () => {

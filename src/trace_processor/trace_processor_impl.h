@@ -25,10 +25,13 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/iterator_impl.h"
@@ -129,20 +132,18 @@ class TraceProcessorImpl : public TraceProcessor,
   std::vector<uint8_t> GetMetricDescriptors() override;
 
   // ===================
-  // |  Experimental   |
+  // |   Summarizer    |
   // ===================
 
-  base::Status AnalyzeStructuredQuery(const TraceSummarySpecBytes& spec,
-                                      const std::string& query_id,
-                                      AnalyzedStructuredQuery* output) override;
+  base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
  private:
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
-  void FlushInternal(bool should_build_bounds_table);
-
   bool IsRootMetricField(const std::string& metric_name);
+
+  void CacheBoundsAndBuildTable();
 
   static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
       TraceProcessorContext* context,
@@ -197,6 +198,10 @@ class TraceProcessorImpl : public TraceProcessor,
   // tables are finalized and reused in RestoreInitialTables to avoid
   // iterating over finalized dataframes.
   std::pair<int64_t, int64_t> cached_trace_bounds_ = {0, 0};
+
+  // Tracks the sum of mutations across all tables used by
+  // CacheBoundsAndBuildTable to avoid recomputing bounds when unchanged.
+  uint64_t bounds_tables_mutations_ = 0;
 };
 
 }  // namespace perfetto::trace_processor
