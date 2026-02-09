@@ -1,0 +1,53 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Shared axis styling for all declarative charts
+
+.pf-axis {
+  &__line {
+    stroke: var(--pf-color-border, #d0d0d0);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+
+  &__tick {
+    stroke: var(--pf-color-border, #d0d0d0);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+
+  &__tick-label {
+    fill: var(--pf-color-text, #333);
+    font-size: 10px;
+    font-family: inherit;
+  }
+
+  &__label {
+    fill: var(--pf-color-text, #333);
+    font-size: 11px;
+    font-weight: 500;
+    font-family: inherit;
+  }
+}
+
+// Grid lines - shared across all charts
+.pf-grid {
+  &-line {
+    stroke: var(--pf-color-border, #e0e0e0);
+    stroke-width: 1;
+    stroke-dasharray: 2, 2;
+    shape-rendering: crispEdges;
+    opacity: 0.3;
+  }
+}

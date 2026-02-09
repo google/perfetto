@@ -1,0 +1,68 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Import d3-decl chart styles
+@import "../../components/charts/d3-decl/histogram.scss";
+@import "../../components/charts/d3-decl/bar.scss";
+@import "../../components/charts/d3-decl/cdf.scss";
+@import "../../components/charts/d3-decl/scatter.scss";
+
+.declarative-charts-page {
+  padding: 24px;
+  max-width: 1200px;
+
+  h1 {
+    font-size: 32px;
+    margin-bottom: 12px;
+  }
+
+  h2 {
+    font-size: 24px;
+    margin-top: 32px;
+    margin-bottom: 16px;
+  }
+
+  p {
+    line-height: 1.5;
+    margin-bottom: 16px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.settings-panel {
+  background: var(--pf-color-background-secondary);
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 24px;
+
+  h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 8px;
+    cursor: pointer;
+
+    input[type="checkbox"] {
+      margin-right: 8px;
+    }
+  }
+}
+
+.chart-demo-container {
+  max-width: 600px;
+  margin-bottom: 32px;
+}

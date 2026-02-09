@@ -147,6 +147,9 @@
   --pf-bar-chart-text-color: var(--pf-color-text);
   --pf-bar-chart-tooltip-bg: var(--pf-color-background-secondary);
   --pf-bar-chart-tooltip-border: var(--pf-color-border);
+  --pf-histogram-tooltip-bg: var(--pf-color-background-secondary);
+  --pf-histogram-tooltip-border: var(--pf-color-border);
+  --pf-histogram-text-color: var(--pf-color-text);
 
   position: relative;
   width: 100%;
@@ -339,6 +342,23 @@
     &:not(:last-child) {
       margin-bottom: 4px;
     }
+  }
+}
+
+// CDF and scatter charts share base styles
+.pf-cdf-chart,
+.pf-scatter-plot {
+  --pf-histogram-tooltip-bg: var(--pf-color-background-secondary);
+  --pf-histogram-tooltip-border: var(--pf-color-border);
+  --pf-histogram-text-color: var(--pf-color-text);
+
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+
+  &--fill-parent {
+    height: 100%;
   }
 }
 

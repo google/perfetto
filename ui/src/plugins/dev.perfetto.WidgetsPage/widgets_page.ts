@@ -27,6 +27,7 @@ import {renderChip} from './demos/chip_demo';
 import {renderCodeSnippet} from './demos/code_snippet_demo';
 import {renderCopyableLink} from './demos/copyable_link_demo';
 import {cursorTooltip} from './demos/cursor_tooltip_demo';
+import {renderD3DeclCharts} from './demos/d3_decl_charts_demo';
 import {renderDataGrid} from './demos/datagrid_demo';
 import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderEditor} from './demos/editor_demo';
@@ -82,6 +83,11 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'codesnippet', label: 'CodeSnippet', view: renderCodeSnippet},
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
+  {
+    id: 'd3-decl-charts',
+    label: 'D3 Declarative Charts',
+    view: renderD3DeclCharts,
+  },
   {id: 'datagrid', label: 'DataGrid', view: renderDataGrid},
   {id: 'drawer-panel', label: 'DrawerPanel', view: renderDrawerPanel},
   {id: 'editor', label: 'Editor', view: renderEditor},

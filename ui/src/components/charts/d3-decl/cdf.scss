@@ -1,0 +1,206 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// CDF chart component styles
+
+.pf-d3-cdf {
+  --pf-d3-cdf-line-color: steelblue;
+  --pf-d3-cdf-line-hover-color: #4682b4;
+  --pf-d3-cdf-axis-color: var(--pf-color-border);
+  --pf-d3-cdf-text-color: var(--pf-color-text);
+  --pf-d3-cdf-crosshair-color: var(--pf-color-text);
+  --pf-d3-cdf-tooltip-bg: var(--pf-color-background-secondary);
+  --pf-d3-cdf-tooltip-border: var(--pf-color-border);
+  --pf-d3-cdf-percentile-color: var(--pf-color-accent);
+
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  background: var(--pf-color-background);
+
+  &--fill-parent {
+    height: 100%;
+  }
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+  }
+
+  &__title {
+    font-weight: bold;
+    font-size: 12px;
+  }
+
+  &__svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  &__loading,
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--pf-color-text-muted);
+    font-size: 14px;
+  }
+
+  &__background {
+    cursor: crosshair;
+  }
+
+  &__line {
+    stroke-width: 2;
+    fill: none;
+    pointer-events: stroke;
+    cursor: pointer;
+    transition:
+      stroke-width 0.2s ease,
+      stroke 0.2s ease;
+
+    &:hover {
+      stroke-width: 3;
+      filter: brightness(1.1);
+    }
+  }
+
+  &__brush-selection {
+    fill: var(--pf-color-text);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  &__crosshair {
+    pointer-events: none;
+  }
+
+  &__crosshair-line {
+    stroke: var(--pf-d3-cdf-crosshair-color);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+    opacity: 0.5;
+  }
+
+  &__crosshair-dot {
+    stroke: white;
+    stroke-width: 2;
+  }
+
+  &__crosshair-tooltip-bg {
+    fill: var(--pf-d3-cdf-tooltip-bg);
+    stroke: var(--pf-d3-cdf-tooltip-border);
+    stroke-width: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  }
+
+  &__crosshair-tooltip-text {
+    fill: var(--pf-d3-cdf-text-color);
+    font-size: 11px;
+    font-family: inherit;
+  }
+
+  &__percentile-line {
+    stroke: var(--pf-d3-cdf-percentile-color);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+    opacity: 0.6;
+  }
+
+  &__percentile-label {
+    fill: var(--pf-d3-cdf-percentile-color);
+    font-size: 10px;
+    font-family: inherit;
+    font-weight: 500;
+  }
+
+  &__percentile-value {
+    fill: var(--pf-d3-cdf-text-color);
+    font-size: 9px;
+    font-family: inherit;
+  }
+
+  &__axis-line {
+    stroke: var(--pf-d3-cdf-axis-color);
+    stroke-width: 1;
+  }
+
+  &__tick {
+    stroke: var(--pf-d3-cdf-axis-color);
+    stroke-width: 1;
+  }
+
+  &__tick-label {
+    fill: var(--pf-d3-cdf-text-color);
+    font-size: 10px;
+    font-family: inherit;
+  }
+
+  &__axis-label {
+    fill: var(--pf-d3-cdf-text-color);
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 500;
+  }
+
+  &__tooltip {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  &__tooltip-content {
+    background: var(--pf-d3-cdf-tooltip-bg);
+    border: 1px solid var(--pf-d3-cdf-tooltip-border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-size: 12px;
+    color: var(--pf-d3-cdf-text-color);
+  }
+
+  &__tooltip-row {
+    white-space: nowrap;
+
+    &:not(:last-child) {
+      margin-bottom: 4px;
+    }
+  }
+}
+
+// SVG-based legend (used by renderLegend())
+.pf-legend {
+  &__item {
+    // SVG groups don't need explicit styling
+  }
+
+  &__swatch {
+    // Color rect - fill set inline by renderLegend()
+  }
+
+  &__label {
+    fill: var(--pf-color-text);
+    font-size: 11px;
+    font-family: inherit;
+  }
+}
