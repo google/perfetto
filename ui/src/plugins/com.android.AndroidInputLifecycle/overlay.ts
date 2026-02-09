@@ -19,7 +19,7 @@ import {Overlay, TrackBounds} from '../../public/track';
 import {ArrowConnection, ArrowVisualiser} from './arrow_visualiser';
 
 export class LifecycleOverlay implements Overlay {
-  private arrowVisualiser: ArrowVisualiser;
+  private readonly arrowVisualiser: ArrowVisualiser;
   private connections: ArrowConnection[] = [];
 
   constructor(trace: Trace) {
