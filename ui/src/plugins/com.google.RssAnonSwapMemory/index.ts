@@ -69,27 +69,43 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
       -- Prepare Left Side: Memory Intervals (Dropping first AND last samples per track)
       CREATE OR REPLACE PERFETTO TABLE mem_intervals_raw AS
       WITH marked_intervals AS (
-      SELECT
-        c.ts,
-        -- Calculate duration based on the next sample
-        IFNULL(LEAD(c.ts) OVER (PARTITION BY track_id ORDER BY c.ts), (SELECT end_ts FROM trace_bounds)) - c.ts AS dur,
-        p.upid,
-        t.name AS track_name,
-        c.value,
-        -- Rank from start to find the first
-        ROW_NUMBER() OVER (PARTITION BY track_id ORDER BY c.ts ASC) as row_asc,
-        -- Rank from end to find the last
-        ROW_NUMBER() OVER (PARTITION BY track_id ORDER BY c.ts DESC) as row_desc
-      FROM counter c
-      JOIN process_counter_track t ON c.track_id = t.id
-      JOIN process p USING (upid)
-      WHERE (t.name = 'mem.rss.anon' OR t.name = 'mem.swap')
-        AND t.id NOT IN (SELECT track_id FROM blacklisted_tracks)
+        SELECT
+          c.ts,
+          -- Calculate the "natural" end of this counter sample (next sample or trace end)
+          IFNULL(
+            LEAD(c.ts) OVER (PARTITION BY track_id ORDER BY c.ts), 
+            (SELECT end_ts FROM trace_bounds)
+          ) AS raw_end_ts,
+          p.upid,
+          p.start_ts, -- Can be NULL
+          p.end_ts,   -- Can be NULL
+          t.name AS track_name,
+          c.value
+        FROM counter c
+        JOIN process_counter_track t ON c.track_id = t.id
+        JOIN process p USING (upid)
+        WHERE (t.name = 'mem.rss.anon' OR t.name = 'mem.swap')
+          AND t.id NOT IN (SELECT track_id FROM blacklisted_tracks)
       )
-      SELECT ts, dur, upid, track_name, value
+      SELECT
+        -- 1. CLIP START:
+        -- If the counter sample is recorded before the process start, shift it to start_ts.
+        -- IFNULL handles cases where process.start_ts is missing.
+        MAX(ts, IFNULL(start_ts, ts)) as ts,
+
+        -- 2. CLIP DURATION:
+        -- Duration = (The Earliest End Time) - (The Latest Start Time)
+        -- End Time is min(natural_end, process_end)
+        MIN(raw_end_ts, IFNULL(end_ts, raw_end_ts)) - MAX(ts, IFNULL(start_ts, ts)) as dur,
+
+        upid,
+        track_name,
+        value
       FROM marked_intervals
-      WHERE row_asc > 1 -- Drops the first sample
-      AND row_desc > 1; -- Drops the last sample
+      WHERE 
+        -- 3. VALIDITY CHECK:
+        -- Only keep rows where the clipping resulted in a positive duration.
+        (MIN(raw_end_ts, IFNULL(end_ts, raw_end_ts)) - MAX(ts, IFNULL(start_ts, ts))) > 0;
 
       -- Prepare Right Side: OOM Intervals (Must be a table for virtual table usage)
       CREATE OR REPLACE PERFETTO TABLE oom_intervals_prepared AS
