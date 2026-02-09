@@ -97,6 +97,10 @@ function formatUrlValue(value: SqlValue): string | m.Children {
   }
   return m(CopyableLink, {
     url: String(value),
+    ondblclick(e: Event) {
+      e.preventDefault();
+      window.open(String(value));
+    },
   });
 }
 
@@ -289,16 +293,21 @@ export class V8SourcesTab implements Tab {
         v8_js_script_id: {
           title: 'ID',
           cellRenderer: (value: unknown, row: Row) => {
-            return m(
-              Anchor,
-              {
-                onclick: (e: Event) => {
-                  e.preventDefault();
-                  this.selectedScriptId = row.v8_js_script_id as number;
-                },
-              },
-              String(value),
-            );
+            const isSelectedScript =
+              row.v8_js_script_id === this.selectedScriptId;
+            return row.v8_js_script_id === undefined
+              ? String(value)
+              : m(
+                  Anchor,
+                  {
+                    onclick: (e: Event) => {
+                      e.preventDefault();
+                      this.selectedScriptId = row.v8_js_script_id as number;
+                    },
+                    icon: isSelectedScript ? 'target' : 'code',
+                  },
+                  String(value),
+                );
           },
         },
         name: {

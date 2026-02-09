@@ -20,6 +20,7 @@ interface CopyableLinkAttrs {
   url: string;
   text?: string; // Will use url if omitted.
   noicon?: boolean;
+  readonly ondblclick?: (e: PointerEvent) => void;
 }
 
 export class CopyableLink implements m.ClassComponent<CopyableLinkAttrs> {
@@ -38,6 +39,7 @@ export class CopyableLink implements m.ClassComponent<CopyableLinkAttrs> {
             e.preventDefault();
             copyToClipboard(url);
           },
+          ondblclick: attrs.ondblclick,
         },
         attrs.text ?? url,
       ),
