@@ -616,11 +616,8 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
       std::string_view ph = GetStringValue(it_.value());
       event.phase = ph.size() >= 1 ? ph[0] : '\0';
     } else if (it_.key() == "ts") {
-      if (!CoerceToTs(it_.value(), ts, status)) {
-        PERFETTO_DLOG("%s", status.c_message());
-        context_->storage->IncrementStats(stats::json_tokenizer_failure);
-        return false;
-      }
+      // On failure, ts remains at max() which will be handled below.
+      CoerceToTs(it_.value(), ts, status);
     } else if (it_.key() == "dur") {
       if (!CoerceToTs(it_.value(), event.dur, status)) {
         PERFETTO_DLOG("%s", status.c_message());
@@ -754,9 +751,10 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     context_->storage->IncrementStats(stats::json_tokenizer_failure);
     return true;
   }
-  // Metadata events may omit ts. In all other cases error.
+  // Don't check ts for metadata events. In all other cases error.
   if (ts == std::numeric_limits<int64_t>::max()) {
     if (event.phase != 'M') {
+      PERFETTO_DLOG("%s", status.c_message());
       context_->storage->IncrementStats(stats::json_tokenizer_failure);
       return true;
     }

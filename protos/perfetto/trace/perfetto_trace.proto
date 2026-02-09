@@ -15790,6 +15790,27 @@ message PerfettoMetatrace {
 
 // End of protos/perfetto/trace/perfetto/perfetto_metatrace.proto
 
+// Begin of protos/perfetto/trace/perfetto/trace_provenance.proto
+
+message TraceProvenance {
+  message Sequence {
+    // The trusted_packet_sequence_id reported in each TracePacket.
+    optional uint32 id = 1;
+
+    // ID of the producer, as per Producer.id.
+    optional int32 producer_id = 2;
+  }
+
+  // Describes a trace buffer and all the sequences writing to it.
+  message Buffer {
+    repeated Sequence sequences = 1;
+  }
+
+  repeated Buffer buffers = 2;
+}
+
+// End of protos/perfetto/trace/perfetto/trace_provenance.proto
+
 // Begin of protos/perfetto/trace/perfetto/tracing_service_event.proto
 
 // Events emitted by the tracing service.
@@ -17854,7 +17875,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 124.
+// Next id: 125.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -17925,6 +17946,7 @@ message TracePacket {
     StatsdAtom statsd_atom = 84;
     AndroidSystemProperty android_system_property = 86;
     EntityStateResidency entity_state_residency = 91;
+    TraceProvenance trace_provenance = 124;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

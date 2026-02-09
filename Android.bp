@@ -3376,6 +3376,7 @@ filegroup {
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+        "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
@@ -8216,6 +8217,7 @@ genrule {
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+        "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
@@ -10598,6 +10600,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_perfetto_cpp",
     srcs: [
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+        "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
     ],
 }
@@ -10615,6 +10618,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_perfetto_cpp)",
     out: [
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.gen.cc",
+        "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.gen.cc",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.gen.cc",
     ],
 }
@@ -10632,6 +10636,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_perfetto_cpp)",
     out: [
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.gen.h",
+        "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.gen.h",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.gen.h",
     ],
     export_include_dirs: [
@@ -10645,6 +10650,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_perfetto_lite",
     srcs: [
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+        "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
     ],
 }
@@ -10661,6 +10667,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_perfetto_lite)",
     out: [
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pb.cc",
+        "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.pb.cc",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pb.cc",
     ],
 }
@@ -10677,6 +10684,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_perfetto_lite)",
     out: [
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pb.h",
+        "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.pb.h",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pb.h",
     ],
     export_include_dirs: [
@@ -10690,6 +10698,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_perfetto_zero",
     srcs: [
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+        "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
     ],
 }
@@ -10707,6 +10716,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_perfetto_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pbzero.cc",
     ],
 }
@@ -10724,6 +10734,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_perfetto_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.pbzero.h",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h",
     ],
     export_include_dirs: [
@@ -18017,6 +18028,7 @@ java_library {
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+        "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
