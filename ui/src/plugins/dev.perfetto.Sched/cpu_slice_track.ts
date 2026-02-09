@@ -107,11 +107,10 @@ export function createCpuSliceTrack(
       const hoveredPid = timeline.hoveredPid;
       const isHovering = hoveredUtid !== undefined;
       const n = slices.length;
-      const {rows} = slices;
       const variants = new Array<ColorVariant>(n);
 
       for (let i = 0; i < n; ++i) {
-        const row = rows[i];
+        const row = slices[i].row;
         const isThreadHovered = hoveredUtid === row.utid;
         const isProcessHovered = hoveredPid === row.pid;
 
