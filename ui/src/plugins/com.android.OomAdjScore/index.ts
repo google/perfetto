@@ -65,14 +65,14 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
       name: 'OOM Adjuster Score: Visualize (over selection)',
       callback: async (...args: unknown[]) => {
         const params = args[0] as {[key: string]: unknown} | undefined;
-        const window = await (async (): Promise<TimeSpan> => {
-          if (params?.ts_start !== undefined && params?.ts_end !== undefined) {
-            const start = BigInt(params.ts_start as number) as time;
-            const end = BigInt(params.ts_end as number) as time;
-            return new TimeSpan(start, end);
-          }
-          return getTimeSpanOfSelectionOrVisibleWindow(ctx);
-        })();
+        let window: TimeSpan;
+        if (params?.ts_start !== undefined && params?.ts_end !== undefined) {
+          const start = BigInt(params.ts_start as number) as time;
+          const end = BigInt(params.ts_end as number) as time;
+          window = new TimeSpan(start, end);
+        } else {
+          window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
+        }
 
         const buckets = await ctx.engine.query(
           `SELECT DISTINCT bucket FROM android_oom_adj_intervals WHERE ts < ${window.end} AND ts + dur > ${window.start}`,
