@@ -50,6 +50,16 @@
     --pf-color-warning: rgb(232, 158, 0);
     --pf-color-text-on-warning: var(--pf-color-text);
 
+    // Chart color palette for data visualization
+    --pf-chart-color-1: #4285f4; // Google Blue
+    --pf-chart-color-2: #ea4335; // Google Red
+    --pf-chart-color-3: #fbbc04; // Google Yellow
+    --pf-chart-color-4: #34a853; // Google Green
+    --pf-chart-color-5: #ff6d01; // Orange
+    --pf-chart-color-6: #46bdc6; // Cyan
+    --pf-chart-color-7: #9334e6; // Purple
+    --pf-chart-color-8: #185abc; // Dark Blue
+
     --pf-color-track-summary-collapsed: #f4fafb;
     --pf-color-track-summary-expanded: #262f3b;
     --pf-color-track-summary-expanded-text: #e8eaed;
@@ -89,6 +99,16 @@
     --pf-color-text-on-success: #333;
     --pf-color-warning: rgb(244, 188, 67);
     --pf-color-text-on-warning: #333;
+
+    // Chart color palette for data visualization (brighter for dark mode)
+    --pf-chart-color-1: #5e97f6; // Lighter Blue
+    --pf-chart-color-2: #f28b82; // Lighter Red
+    --pf-chart-color-3: #fdd663; // Lighter Yellow
+    --pf-chart-color-4: #81c995; // Lighter Green
+    --pf-chart-color-5: #ff8866; // Lighter Orange
+    --pf-chart-color-6: #78d9e4; // Lighter Cyan
+    --pf-chart-color-7: #c58af9; // Lighter Purple
+    --pf-chart-color-8: #669df6; // Lighter Dark Blue
 
     --pf-color-track-summary-collapsed: #2f3437;
     --pf-color-track-summary-expanded: #454d55;
