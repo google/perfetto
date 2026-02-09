@@ -20,12 +20,11 @@ import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {TimeSpan} from '../../base/time';
 
-export default class RssAnonSwapMemory implements PerfettoPlugin {
-  static readonly id = 'com.google.RssAnonSwapMemory';
+export default class RssAnonSwapMemoryViz implements PerfettoPlugin {
+  static readonly id = 'com.android.RssAnonSwapMemoryViz';
   static readonly table_prefix = '_rss_anon_swap_memory_';
 
-  // TODO: Make this dynamic
-  static readonly RSS_ANON_SWAP_TABLE = '_rss_anon_swap_memory';
+  static readonly BLACKLIST_THRESHOLD_BYTES = 100 * 1024 * 1024; // 100 MiB
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await ctx.engine.query(`
@@ -40,7 +39,7 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
       SELECT track_id, value - LAG(value) OVER (PARTITION BY track_id ORDER BY ts) AS d
       FROM counter
       )
-      SELECT DISTINCT track_id FROM diffs WHERE ABS(d) > 104857600;
+      SELECT DISTINCT track_id FROM diffs WHERE ABS(d) > ${RssAnonSwapMemoryViz.BLACKLIST_THRESHOLD_BYTES};
 
       CREATE OR REPLACE PERFETTO TABLE android_app_processes AS
       SELECT upid FROM process
@@ -130,6 +129,7 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
       track_name,
       app.name as process_name,
       upid,
+      pid,
       IFNULL(bucket, 'unknown') AS bucket,
       CASE
         WHEN app.upid IS NOT NULL AND track_name = 'mem.rss.anon'
@@ -144,8 +144,8 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
 `);
 
     ctx.commands.registerCommand({
-      id: `${RssAnonSwapMemory.id}.visualize`,
-      name: 'RSS Anon/Swap: Visualize',
+      id: `com.android.visualizeRssAnonSwapMemory`,
+      name: 'RSS Anon/Swap: Visualize (over selection)',
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         const rootTrack = await this.createRootTrack(ctx, window);
@@ -158,16 +158,22 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
     ctx: Trace,
     window: TimeSpan,
   ): Promise<TrackNode> {
-    const uri = `${RssAnonSwapMemory.id}.rss_anon_swap.${uuidv4()}`;
+    const uri = `${RssAnonSwapMemoryViz.id}.rss_anon_swap.${uuidv4()}`;
     const track = await createQueryCounterTrack({
       trace: ctx,
       uri,
       materialize: false,
       data: {
         sqlSource: `
-          SELECT ts, dur, SUM(v) as value FROM (
-            SELECT iss.ts, iss.dur, upid, m.adjusted_value as v, iss.group_id FROM interval_self_intersect!((SELECT id, ts, dur FROM mem_with_buckets_indexed)) iss JOIN mem_with_buckets_indexed m USING(id) where iss.interval_ends_at_ts = FALSE
-          ) GROUP BY group_id
+          SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
+            SELECT
+              id,
+              MAX(ts, ${window.start}) as ts,
+              MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
+            FROM mem_with_buckets_indexed
+            WHERE ts < ${window.end} and ts + dur > ${window.start}
+          )) iss JOIN mem_with_buckets_indexed m USING(id)
+          GROUP BY group_id
         `,
       },
       columns: {
@@ -211,16 +217,22 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
     trackName: string,
     name: string,
   ): Promise<TrackNode> {
-    const uri = `${RssAnonSwapMemory.id}.${trackName}.${uuidv4()}`;
+    const uri = `${RssAnonSwapMemoryViz.id}.${trackName}.${uuidv4()}`;
     const track = await createQueryCounterTrack({
       trace: ctx,
       uri,
       materialize: false,
       data: {
         sqlSource: `
-          SELECT ts, dur, SUM(v) as value FROM (
-            SELECT iss.ts, iss.dur, upid, m.adjusted_value as v, iss.group_id FROM interval_self_intersect!((SELECT id, ts, dur FROM mem_with_buckets_indexed WHERE track_name = '${trackName}')) iss JOIN mem_with_buckets_indexed m USING(id) where iss.interval_ends_at_ts = FALSE
-          ) GROUP BY group_id
+          SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
+            SELECT
+              id,
+              MAX(ts, ${window.start}) as ts,
+              MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
+            FROM mem_with_buckets_indexed
+            WHERE track_name = '${trackName}' AND ts < ${window.end} AND ts + dur > ${window.start}
+          )) iss JOIN mem_with_buckets_indexed m USING(id)
+          GROUP BY group_id
         `,
       },
       columns: {
@@ -266,16 +278,22 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
     trackName: string,
     bucket: string,
   ): Promise<TrackNode> {
-    const uri = `${RssAnonSwapMemory.id}.${trackName}.${bucket}.${uuidv4()}`;
+    const uri = `${RssAnonSwapMemoryViz.id}.${trackName}.${bucket}.${uuidv4()}`;
     const track = await createQueryCounterTrack({
       trace: ctx,
       uri,
       materialize: false,
       data: {
         sqlSource: `
-          SELECT ts, dur, '${bucket}' as bucket,SUM(v) as value FROM (
-            SELECT iss.ts, iss.dur, IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0) as v, iss.group_id FROM interval_self_intersect!((SELECT id, ts, dur FROM mem_with_buckets_indexed WHERE bucket = '${bucket}' AND track_name = '${trackName}')) iss JOIN mem_with_buckets_indexed m USING(id) 
-          ) GROUP BY group_id
+          SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
+            SELECT
+              id,
+              MAX(ts, ${window.start}) as ts,
+              MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
+            FROM mem_with_buckets_indexed
+            WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND ts < ${window.end} AND ts + dur > ${window.start}
+          )) iss JOIN mem_with_buckets_indexed m USING(id)
+          GROUP BY group_id
         `,
       },
       columns: {
@@ -295,9 +313,16 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
     });
 
     const processes = await ctx.engine.query(`
-      SELECT upid, process_name, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as max_value FROM interval_self_intersect!((SELECT id, ts, dur FROM mem_with_buckets_indexed WHERE bucket = '${bucket}' AND track_name = '${trackName}')) iss 
+      SELECT upid, pid, process_name, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as max_value FROM interval_self_intersect!((
+        SELECT
+          id,
+          MAX(ts, ${window.start}) as ts,
+          MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
+        FROM mem_with_buckets_indexed
+        WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND ts < ${window.end} AND ts + dur > ${window.start}
+      )) iss
       JOIN mem_with_buckets_indexed m USING(id) 
-      GROUP BY upid, process_name
+      GROUP BY upid, pid, process_name
       ORDER BY max_value DESC
       `);
     for (
@@ -306,11 +331,13 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
       procIter.next()
     ) {
       const upid = procIter.get('upid') as number;
+      const pid = procIter.get('pid') as number;
       const processName = procIter.get('process_name') as string;
       const processNode = await this.createSingleProcessTrack(
         ctx,
         window,
         upid,
+        pid,
         processName,
         trackName,
         bucket,
@@ -322,21 +349,30 @@ export default class RssAnonSwapMemory implements PerfettoPlugin {
 
   private async createSingleProcessTrack(
     ctx: Trace,
-    _window: TimeSpan,
+    window: TimeSpan,
     upid: number,
+    pid: number,
     processName: string,
     trackName: string,
     bucket: string,
   ): Promise<TrackNode> {
-    const name = `${processName} : ${upid}`;
-    const uri = `${RssAnonSwapMemory.id}.process.${upid}.${trackName}.${uuidv4()}`;
+    const name = `${processName} ${pid}`;
+    const uri = `${RssAnonSwapMemoryViz.id}.process.${upid}.${trackName}.${uuidv4()}`;
     const renderer = await createQueryCounterTrack({
       trace: ctx,
       uri,
       materialize: false,
       data: {
         sqlSource: `
-          SELECT iss.ts as ts, iss.dur, IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0) as value FROM interval_self_intersect!((SELECT id, ts, dur FROM mem_with_buckets_indexed WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND upid = ${upid} AND process_name = '${processName}')) iss JOIN mem_with_buckets_indexed m USING(id)
+          SELECT iss.ts as ts, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
+            SELECT
+              id,
+              MAX(ts, ${window.start}) as ts,
+              MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
+            FROM mem_with_buckets_indexed
+            WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND upid = ${upid} AND ts < ${window.end} AND ts + dur > ${window.start}
+          )) iss JOIN mem_with_buckets_indexed m USING(id)
+          GROUP BY group_id
         `,
       },
       columns: {
