@@ -37,18 +37,15 @@ export class BufferedBounds {
    *
    * @param visibleSpan The currently visible time span
    * @param resolution The current resolution (must be a power of 2)
-   * @param hasData Whether data has been loaded for the current bounds
    * @returns The buffered bounds to use for data fetching
    */
   update(
     visibleSpan: TimeSpan,
     resolution: duration,
-    hasData: boolean,
-  ): {start: time; end: time; resolution: duration; needsUpdate: boolean} {
+  ): {start: time; end: time; resolution: duration} {
     const {start: visStart, end: visEnd} = visibleSpan;
 
     const needsUpdate =
-      !hasData ||
       visStart < this.loadedStart ||
       visEnd > this.loadedEnd ||
       resolution !== this.loadedResolution;
@@ -67,7 +64,6 @@ export class BufferedBounds {
       start: this.loadedStart,
       end: this.loadedEnd,
       resolution: this.loadedResolution,
-      needsUpdate,
     };
   }
 

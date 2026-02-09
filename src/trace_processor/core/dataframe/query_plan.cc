@@ -35,6 +35,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
@@ -272,18 +273,84 @@ base::StatusOr<QueryPlanImpl> QueryPlanBuilder::Build(
   return std::move(builder).Build();
 }
 
-base::StatusOr<QueryPlanBuilder::IndicesReg> QueryPlanBuilder::Filter(
+i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
+                                                const Column* const* columns,
+                                                const Index* indexes) {
+  switch (init.kind.index()) {
+    case RegisterInit::Type::GetTypeIndex<Id>():
+      // Id columns don't have actual storage - the row index IS the value.
+      // Return a nullptr StoragePtr which the interpreter knows to handle.
+      return i::StoragePtr{nullptr, Id{}};
+    case RegisterInit::Type::GetTypeIndex<Uint32>():
+      return i::StoragePtr{
+          columns[init.source_index]->storage.unchecked_data<Uint32>(),
+          Uint32{},
+      };
+    case RegisterInit::Type::GetTypeIndex<Int32>():
+      return i::StoragePtr{
+          columns[init.source_index]->storage.unchecked_data<Int32>(),
+          Int32{},
+      };
+    case RegisterInit::Type::GetTypeIndex<Int64>():
+      return i::StoragePtr{
+          columns[init.source_index]->storage.unchecked_data<Int64>(),
+          Int64{},
+      };
+    case RegisterInit::Type::GetTypeIndex<Double>():
+      return i::StoragePtr{
+          columns[init.source_index]->storage.unchecked_data<Double>(),
+          Double{},
+      };
+    case RegisterInit::Type::GetTypeIndex<String>():
+      return i::StoragePtr{
+          columns[init.source_index]->storage.unchecked_data<String>(),
+          String{},
+      };
+    case RegisterInit::Type::GetTypeIndex<RegisterInit::NullBitvector>():
+      return columns[init.source_index]->null_storage.MaybeGetNullBitVector();
+    case RegisterInit::Type::GetTypeIndex<RegisterInit::IndexVector>():
+      return Span<uint32_t>(
+          indexes[init.source_index].permutation_vector()->data(),
+          indexes[init.source_index].permutation_vector()->data() +
+              indexes[init.source_index].permutation_vector()->size());
+    case RegisterInit::Type::GetTypeIndex<
+        RegisterInit::SmallValueEqBitvector>(): {
+      const auto& sve = columns[init.source_index]
+                            ->specialized_storage
+                            .unchecked_get<SpecializedStorage::SmallValueEq>();
+      return &sve.bit_vector;
+    }
+    case RegisterInit::Type::GetTypeIndex<
+        RegisterInit::SmallValueEqPopcount>(): {
+      const auto& sve = columns[init.source_index]
+                            ->specialized_storage
+                            .unchecked_get<SpecializedStorage::SmallValueEq>();
+      return Span<const uint32_t>(
+          sve.prefix_popcount.data(),
+          sve.prefix_popcount.data() + sve.prefix_popcount.size());
+    }
+    default:
+      PERFETTO_FATAL("Unhandled RegisterInit kind: %u",
+                     static_cast<uint32_t>(init.kind.index()));
+  }
+}
+
+i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
+                                                const Dataframe& df) {
+  return GetRegisterInitValue(init, df.column_ptrs_.data(), df.indexes_.data());
+}
+
+base::StatusOr<FilterResult> QueryPlanBuilder::Filter(
     i::BytecodeBuilder& builder,
     uint32_t scope_id,
     IndicesReg input_indices,
-    uint32_t row_count,
-    const std::vector<std::shared_ptr<Column>>& columns,
-    const std::vector<Index>& indexes,
+    const Dataframe& df,
     std::vector<FilterSpec>& specs) {
-  QueryPlanBuilder plan_builder(builder, scope_id, input_indices, row_count,
-                                columns, indexes);
+  QueryPlanBuilder plan_builder(builder, scope_id, input_indices, df.row_count_,
+                                df.columns_, df.indexes_);
   RETURN_IF_ERROR(plan_builder.Filter(specs));
-  return plan_builder.indices_reg_;
+  return FilterResult{plan_builder.indices_reg_,
+                      std::move(plan_builder.plan_.register_inits)};
 }
 
 base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {

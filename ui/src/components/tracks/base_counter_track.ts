@@ -813,11 +813,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       visibleSpan.duration,
       windowSizePx,
     );
-    const bounds = this.bufferedBounds.update(
-      visibleSpan,
-      bucketSize,
-      this.counters !== undefined,
-    );
+    const bounds = this.bufferedBounds.update(visibleSpan, bucketSize);
 
     // Step 3: Fetch counter data using QuerySlot
     const queryStart = bounds.start;
@@ -951,7 +947,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         MARGIN_TOP,
         this.getHeight(),
       );
-      renderer.flush();
     }
 
     if (yMin < 0 && yMax > 0) {
