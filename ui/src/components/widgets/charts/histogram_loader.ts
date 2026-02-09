@@ -15,6 +15,7 @@
 import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM} from '../../../trace_processor/query_result';
+import {validateColumnName} from './chart_utils';
 
 /**
  * A single bucket in the histogram.
@@ -405,6 +406,7 @@ export class SQLHistogramLoader implements HistogramLoader {
    * Creates a new SQL histogram loader.
    */
   constructor(opts: SQLHistogramLoaderOpts) {
+    validateColumnName(opts.valueColumn);
     this.engine = opts.engine;
     this.baseQuery = opts.query;
     this.valueColumn = opts.valueColumn;
