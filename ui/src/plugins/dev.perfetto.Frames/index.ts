@@ -16,7 +16,7 @@ import {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SLICE_TABLE_TRACK, SLICE_TRACK} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -95,7 +95,7 @@ export default class FramesPlugin implements PerfettoPlugin {
         uri,
         renderer: createExpectedFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
-          kinds: [SLICE_TRACK_KIND],
+          kinds: [SLICE_TRACK, SLICE_TABLE_TRACK],
           trackIds,
           upid,
         },
@@ -161,7 +161,11 @@ export default class FramesPlugin implements PerfettoPlugin {
         tags: {
           upid,
           trackIds,
-          kinds: [SLICE_TRACK_KIND, ACTUAL_FRAMES_SLICE_TRACK_KIND],
+          kinds: [
+            SLICE_TRACK,
+            SLICE_TABLE_TRACK,
+            ACTUAL_FRAMES_SLICE_TRACK_KIND,
+          ],
         },
       });
       group?.addChildInOrder(
@@ -187,7 +191,7 @@ export default class FramesPlugin implements PerfettoPlugin {
           tags: {
             upid,
             trackIds,
-            kinds: [SLICE_TRACK_KIND],
+            kinds: [SLICE_TRACK, SLICE_TABLE_TRACK],
           },
         });
         group?.addChildInOrder(

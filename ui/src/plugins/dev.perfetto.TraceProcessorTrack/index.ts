@@ -29,7 +29,11 @@ import {MinimapRow} from '../../public/minimap';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
-import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  COUNTER_TRACK_KIND,
+  SLICE_TABLE_TRACK,
+  SLICE_TRACK,
+} from '../../public/track_kinds';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -374,7 +378,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         processName,
         upid,
         utid,
-        kind: SLICE_TRACK_KIND,
+        kind: SLICE_TABLE_TRACK,
         threadTrack: utid !== undefined,
       });
       const uri = `/slice_${trackIds[0]}`;
@@ -393,7 +397,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         uri,
         description: maybeDescriptionRenderer ?? description ?? undefined,
         tags: {
-          kinds: [SLICE_TRACK_KIND],
+          kinds: [SLICE_TRACK, SLICE_TABLE_TRACK],
           trackIds: trackIds,
           type: type,
           upid: upid ?? undefined,
@@ -578,7 +582,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   ): Promise<QueryFlamegraphWithMetrics | undefined> {
     const trackIds = [];
     for (const trackInfo of currentSelection.tracks) {
-      if (!trackInfo?.tags?.kinds?.includes(SLICE_TRACK_KIND)) {
+      if (!trackInfo?.tags?.kinds?.includes(SLICE_TABLE_TRACK)) {
         continue;
       }
       if (trackInfo.tags?.trackIds === undefined) {
@@ -757,11 +761,15 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     ctx.search.registerSearchProvider({
       name: 'Slices by name',
       selectTracks(tracks) {
-        return tracks
-          .filter((t) => t.tags?.kinds?.includes(SLICE_TRACK_KIND))
-          .filter((t) =>
-            t.renderer.getDataset?.()?.implements({name: STR_NULL}),
-          );
+        return (
+          tracks
+            // Works on any slice-like track with a name field, doesn't need to
+            // be in the slice table
+            .filter((t) => t.tags?.kinds?.includes(SLICE_TRACK))
+            .filter((t) =>
+              t.renderer.getDataset?.()?.implements({name: STR_NULL}),
+            )
+        );
       },
       async getSearchFilter(searchTerm) {
         return {
@@ -774,9 +782,16 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     ctx.search.registerSearchProvider({
       name: 'Slices by id',
       selectTracks(tracks) {
-        return tracks
-          .filter((t) => t.tags?.kinds?.includes(SLICE_TRACK_KIND))
-          .filter((t) => t.renderer.getDataset?.()?.implements({id: NUM_NULL}));
+        return (
+          tracks
+            // Searching by ID is usually used to search for an ID from the
+            // slice table, so we only operate on slice tracks from the slice
+            // table.
+            .filter((t) => t.tags?.kinds?.includes(SLICE_TABLE_TRACK))
+            .filter((t) =>
+              t.renderer.getDataset?.()?.implements({id: NUM_NULL}),
+            )
+        );
       },
       async getSearchFilter(searchTerm) {
         // Attempt to parse the search term as an integer.
@@ -796,11 +811,15 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     ctx.search.registerSearchProvider({
       name: 'Slice arguments',
       selectTracks(tracks) {
-        return tracks
-          .filter((t) => t.tags?.kinds?.includes(SLICE_TRACK_KIND))
-          .filter((t) =>
-            t.renderer.getDataset?.()?.implements({arg_set_id: NUM_NULL}),
-          );
+        return (
+          tracks
+            // Again, works on any slice-like track with args, doesn't need to
+            // be in the slice table
+            .filter((t) => t.tags?.kinds?.includes(SLICE_TRACK))
+            .filter((t) =>
+              t.renderer.getDataset?.()?.implements({arg_set_id: NUM_NULL}),
+            )
+        );
       },
       async getSearchFilter(searchTerm) {
         const searchLiteral = escapeSearchQuery(searchTerm);
