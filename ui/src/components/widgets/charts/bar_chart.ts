@@ -590,9 +590,9 @@ function aggregate(values: number[], agg: AggregationType): number {
     case 'AVG':
       return values.reduce((a, b) => a + b, 0) / values.length;
     case 'MIN':
-      return Math.min(...values);
+      return values.reduce((a, b) => Math.min(a, b), Infinity);
     case 'MAX':
-      return Math.max(...values);
+      return values.reduce((a, b) => Math.max(a, b), -Infinity);
     case 'COUNT':
       return values.length;
     case 'COUNT_DISTINCT':

@@ -21,6 +21,7 @@ import {
   formatNumber,
   generateLogTicks,
   generateTicks,
+  truncateLabel,
 } from './chart_utils';
 import {SvgBrush} from './svg_brush';
 
@@ -280,7 +281,6 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
         // Line
         m('path.pf-line-chart__line', {
           'd': pathParts.join(' '),
-          'fill': 'none',
           'stroke': color,
           'stroke-width': lineWidth,
         }),
@@ -450,30 +450,40 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
                 {
                   transform: `translate(${MARGIN.left}, ${height - LEGEND_HEIGHT + 5})`,
                 },
-                data.series.map((series, idx) => {
-                  const color =
-                    series.color ?? CHART_COLORS[idx % CHART_COLORS.length];
-                  const xOffset = idx * 80;
-                  return m('g', {transform: `translate(${xOffset}, 0)`}, [
-                    m('line', {
-                      'x1': 0,
-                      'y1': 5,
-                      'x2': 15,
-                      'y2': 5,
-                      'stroke': color,
-                      'stroke-width': 2,
-                    }),
-                    m(
-                      'text.pf-line-chart__legend-label',
-                      {
-                        'x': 20,
-                        'y': 5,
-                        'dominant-baseline': 'middle',
-                      },
-                      series.name,
-                    ),
-                  ]);
-                }),
+                (() => {
+                  const SWATCH_WIDTH = 15;
+                  const GAP = 8;
+                  const TEXT_OFFSET = SWATCH_WIDTH + 5;
+                  const CHAR_WIDTH = 6;
+                  const MAX_LABEL_CHARS = 10;
+                  let xOffset = 0;
+                  return data.series.map((series, idx) => {
+                    const color =
+                      series.color ?? CHART_COLORS[idx % CHART_COLORS.length];
+                    const label = truncateLabel(series.name, MAX_LABEL_CHARS);
+                    const itemX = xOffset;
+                    xOffset += TEXT_OFFSET + label.length * CHAR_WIDTH + GAP;
+                    return m('g', {transform: `translate(${itemX}, 0)`}, [
+                      m('line', {
+                        'x1': 0,
+                        'y1': 5,
+                        'x2': SWATCH_WIDTH,
+                        'y2': 5,
+                        'stroke': color,
+                        'stroke-width': 2,
+                      }),
+                      m(
+                        'text.pf-line-chart__legend-label',
+                        {
+                          'x': TEXT_OFFSET,
+                          'y': 5,
+                          'dominant-baseline': 'middle',
+                        },
+                        label,
+                      ),
+                    ]);
+                  });
+                })(),
               ),
           ],
         ),
