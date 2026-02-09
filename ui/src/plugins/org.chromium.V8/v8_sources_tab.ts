@@ -34,7 +34,7 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {PrettyPrinter, PrettyPrintedSource} from './pretty_print_utils';
+import {PrettyPrintedSource, PrettyPrinter} from './pretty_print_utils';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -186,6 +186,8 @@ export class V8SourcesTab implements Tab {
     ];
     this.selectedScriptSource = it.source;
     this.prettyPrintedSource = undefined;
+    // Redo source formatting in case it was enabled before.
+    this._maybeFormatSources();
     return {
       source: it.source as string,
       details: {
@@ -216,40 +218,37 @@ export class V8SourcesTab implements Tab {
 
   private async togglePrettyPrint() {
     this.showPrettyPrinted = !this.showPrettyPrinted;
-    if (this.showPrettyPrinted && this.prettyPrintedSource == undefined) {
-      const promise = new Promise<void>((resolve) => {
-        window.requestAnimationFrame(async () => {
-          await this._formatSources();
-          resolve();
-        });
-      });
-      m.redraw();
-      await promise;
-    }
-    m.redraw();
+    this._maybeFormatSources();
   }
 
-  async _formatSources() {
+  async _maybeFormatSources() {
+    if (!this.showPrettyPrinted) return;
+    if (this.prettyPrintedSource) return;
+
     this.isPrettyPrinting = true;
-    console.log('PRETTY PRINT: Start');
     this.prettyPrintedSource = undefined;
-    try {
-      // await two rafs
-      await new Promise<void>((resolve) => {
+
+    if (!this.prettyPrinter.has(this.selectedScriptSource)) {
+      // HACK: wait two rAFs to make sure the UI was updated in the meantime
+      // and we get a working loading animation.
+      const updateDelay = new Promise<void>((resolve) => {
         window.requestAnimationFrame(async () => {
           window.requestAnimationFrame(async () => {
             resolve();
           });
         });
       });
+      m.redraw();
+      await updateDelay;
+    }
+
+    try {
       this.prettyPrintedSource = await this.prettyPrinter.format(
         this.selectedScriptSource,
       );
-    } catch (e) {
-      console.error('Pretty print failed', e);
     } finally {
       this.isPrettyPrinting = false;
-      console.log('PRETTY PRINT: End');
+      m.redraw();
     }
   }
 
@@ -263,12 +262,12 @@ export class V8SourcesTab implements Tab {
       }
     }
     // If not found (e.g. trailing whitespace), return the end of formatted string or last mapped.
-    return this.prettyPrintedSource.source.length ?? 0;
+    return this.prettyPrintedSource.formatted.length ?? 0;
   }
 
   private renderSourceTab(source: string) {
     if (this.showPrettyPrinted && this.prettyPrintedSource !== undefined) {
-      source = this.prettyPrintedSource.source;
+      source = this.prettyPrintedSource.formatted;
     }
     return m(
       '.pf-v8-source-container',

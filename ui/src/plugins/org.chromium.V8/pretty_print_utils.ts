@@ -48,10 +48,26 @@ function charsMatch(c1: string, c2: string): boolean {
   return false;
 }
 
-type PrettyPrintedSource = {
-  formatted: string;
-  sourceMap: Int32Array;
-};
+export class PrettyPrintedSource {
+  private _sourceMap: Int32Array | undefined = undefined;
+  constructor(
+    public readonly original: string,
+    public readonly formatted: string,
+  ) {}
+
+  get sourceMap(): Int32Array {
+    if (!this._sourceMap) {
+      this._sourceMap = computePositionMapping(this.original, this.formatted);
+    }
+    return this._sourceMap;
+  }
+
+  // Returns a rough estimate of the entry size, might be off for certain
+  // strings by factor 2.
+  get estimatedSize() {
+    return this.formatted.length + (this._sourceMap?.length ?? 0) * 4;
+  }
+}
 
 export async function prettyPrint(
   original: string,
@@ -60,29 +76,62 @@ export async function prettyPrint(
     parser: 'babel',
     plugins: [babelPlugin, estreePlugin],
   });
-  const sourceMap = computePositionMapping(original, formatted);
-  return {formatted, sourceMap};
+  return new PrettyPrintedSource(original, formatted);
 }
 
+// sources can get large, set an upper bound to limit memory consumption.
+const CACHE_SIZE_BYTES = 20 * 1024 * 1024;
+
 export class PrettyPrinter {
-  private rawSource: string = '';
-  private formatResult: PrettyPrintedSource | undefined = undefined;
+  private lruCache: Map<string, PrettyPrintedSource> = new Map();
+  private pendingSource: string = '';
   private pendingFormatting: Promise<PrettyPrintedSource> | undefined =
     undefined;
 
   async format(source: string): Promise<PrettyPrintedSource> {
-    if (this.rawSource === source) {
-      if (this.formatResult) {
-        return this.formatResult;
-      }
-      if (this.pendingFormatting) {
-        return await this.pendingFormatting;
-      }
+    const maybeFormatted = this.lruCache.get(source);
+    if (maybeFormatted) {
+      // Remove and add to keep the LRU cache in order.
+      this.lruCache.delete(source);
+      this.lruCache.set(source, maybeFormatted);
+      return maybeFormatted;
     }
-    this.rawSource = source;
-    this.formatResult = undefined;
+
+    if (this.pendingFormatting && this.pendingSource == source) {
+      return await this.pendingFormatting;
+    }
+    // TODO: ideally this would run in a separate worker in the background.
     this.pendingFormatting = prettyPrint(source);
-    this.formatResult = await this.pendingFormatting;
-    return this.formatResult;
+    let result;
+    try {
+      result = await this.pendingFormatting;
+    } catch (e) {
+      console.error('Pretty print failed', e);
+      // Use dummy non-formatted entry to keep on trucking.
+      result = new PrettyPrintedSource(source, source);
+    }
+
+    this.pruneCache();
+    this.lruCache.set(source, result);
+    this.pendingFormatting = undefined;
+    this.pendingSource = '';
+    return result;
+  }
+
+  public has(source: string) {
+    return this.lruCache.has(source);
+  }
+
+  private pruneCache() {
+    const entries = Array.from(this.lruCache.values());
+    let currentSize = entries.reduce((size, entry) => {
+      return size + entry.estimatedSize;
+    }, 0);
+
+    for (const entry of entries) {
+      if (currentSize <= CACHE_SIZE_BYTES) break;
+      this.lruCache.delete(entry.original);
+      currentSize -= entry.estimatedSize;
+    }
   }
 }
