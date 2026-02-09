@@ -119,6 +119,7 @@ export class V8SourcesTab implements Tab {
   private functionsFilters: readonly Filter[] = [];
   private isReady = false;
   private showPrettyPrinted = false;
+  private isPrettyPrinting = false;
   private selectedScriptId: number | undefined = undefined;
   private selectedScriptSource: string = '';
   private formattedScriptSource: string = '';
@@ -217,18 +218,33 @@ export class V8SourcesTab implements Tab {
   private async togglePrettyPrint() {
     this.showPrettyPrinted = !this.showPrettyPrinted;
     if (this.showPrettyPrinted && !this.formattedScriptSource) {
-      try {
-        const {formatted, sourceMap} = await prettyPrint(
-          this.selectedScriptSource,
-        );
-        this.formattedScriptSource = formatted;
-        this.formattedScriptSourceMap = sourceMap;
-      } catch (e) {
-        console.error('Pretty print failed', e);
-        return;
-      }
+      const promise = new Promise<void>((resolve) => {
+        window.requestAnimationFrame(async () => {
+          await this._formatSources();
+          resolve();
+        });
+      });
+      m.redraw();
+      await promise;
     }
     m.redraw();
+  }
+
+  async _formatSources() {
+    this.isPrettyPrinting = true;
+    console.log("PRETTY PRINT: Start");
+    try {
+      const {formatted, sourceMap} = await prettyPrint(
+        this.selectedScriptSource,
+      );
+      this.formattedScriptSource = formatted;
+      this.formattedScriptSourceMap = sourceMap;
+    } catch (e) {
+      console.error('Pretty print failed', e);
+    } finally {
+      this.isPrettyPrinting = false;
+      console.log("PRETTY PRINT: End");
+    }
   }
 
   mapSourcePosition(originalPos: number): number {
@@ -277,6 +293,7 @@ export class V8SourcesTab implements Tab {
           variant: ButtonVariant.Filled,
           intent: this.showPrettyPrinted ? Intent.Primary : undefined,
           active: this.showPrettyPrinted,
+          loading: this.isPrettyPrinting,
           onclick: () => this.togglePrettyPrint(),
         }),
       ),
