@@ -48,7 +48,14 @@ function charsMatch(c1: string, c2: string): boolean {
   return false;
 }
 
-export async function prettyPrint(original: string) {
+type PrettyPrintedSource = {
+  formatted: string;
+  sourceMap: Int32Array;
+};
+
+export async function prettyPrint(
+  original: string,
+): Promise<PrettyPrintedSource> {
   const formatted = await prettier.format(original, {
     parser: 'babel',
     plugins: [babelPlugin, estreePlugin],
@@ -57,42 +64,25 @@ export async function prettyPrint(original: string) {
   return {formatted, sourceMap};
 }
 
-
 export class PrettyPrinter {
-  private _rawSource : string = ''
-  private _formattedSource : string = '';
-  private _sourceMap : Int32Array | undefined = undefined;
+  private rawSource: string = '';
+  private formatResult: PrettyPrintedSource | undefined = undefined;
+  private pendingFormatting: Promise<PrettyPrintedSource> | undefined =
+    undefined;
 
-  private _pendingFormatting : Promise<string> | undefined = undefined;
-
-
-  constructor() {
-  }
-
-  async format(source:string) : Promise<string> {
-    if (this._rawSource == source) {
-      if (this._formattedSource) {
-        return this._formattedSource;
+  async format(source: string): Promise<PrettyPrintedSource> {
+    if (this.rawSource === source) {
+      if (this.formatResult) {
+        return this.formatResult;
       }
-      if (this._pendingFormatting) {
-        return await this._pendingFormatting;
+      if (this.pendingFormatting) {
+        return await this.pendingFormatting;
       }
     }
-
-    this._rawSource = source;
-    this._formattedSource = '';
-    this._sourceMap = undefined;
-
-    this._pendingFormatting = this._format(source);
-    return await this._pendingFormatting;
-  }
-
-  async _format(source:string) : Promise<string> {
-    const {formatted, sourceMap} = await prettyPrint(source);
-    this._pendingFormatting = undefined;
-
-    this._sourceMap = sourceMap;
-    this._formattedSource = formatted;
-    return this._formattedSource;
+    this.rawSource = source;
+    this.formatResult = undefined;
+    this.pendingFormatting = prettyPrint(source);
+    this.formatResult = await this.pendingFormatting;
+    return this.formatResult;
   }
 }

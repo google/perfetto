@@ -13,28 +13,28 @@
 // limitations under the License.
 
 import m from 'mithril';
-import { formatFileSize } from '../../base/file_utils';
-import { QuerySlot, SerialTaskQueue } from '../../base/query_slot';
-import { DataGrid } from '../../components/widgets/datagrid/datagrid';
-import { SchemaRegistry } from '../../components/widgets/datagrid/datagrid_schema';
-import { Filter } from '../../components/widgets/datagrid/model';
-import { SQLDataSource } from '../../components/widgets/datagrid/sql_data_source';
-import { SQLSchemaRegistry } from '../../components/widgets/datagrid/sql_schema';
-import { Tab } from '../../public/tab';
-import { Trace } from '../../public/trace';
-import { NUM, Row, SqlValue, STR } from '../../trace_processor/query_result';
-import { Anchor } from '../../widgets/anchor';
-import { Button, ButtonVariant } from '../../widgets/button';
-import { Intent } from '../../widgets/common';
-import { CopyableLink } from '../../widgets/copyable_link';
-import { Editor } from '../../widgets/editor';
-import { EmptyState } from '../../widgets/empty_state';
-import { Spinner } from '../../widgets/spinner';
-import { SplitPanel } from '../../widgets/split_panel';
-import { Tabs } from '../../widgets/tabs';
-import { TextInput } from '../../widgets/text_input';
-import { Tree, TreeNode } from '../../widgets/tree';
-import { prettyPrint, PrettyPrinter } from './pretty_print_utils';
+import {formatFileSize} from '../../base/file_utils';
+import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
+import {DataGrid} from '../../components/widgets/datagrid/datagrid';
+import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import {Filter} from '../../components/widgets/datagrid/model';
+import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
+import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
+import {Tab} from '../../public/tab';
+import {Trace} from '../../public/trace';
+import {NUM, Row, SqlValue, STR} from '../../trace_processor/query_result';
+import {Anchor} from '../../widgets/anchor';
+import {Button, ButtonVariant} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
+import {CopyableLink} from '../../widgets/copyable_link';
+import {Editor} from '../../widgets/editor';
+import {EmptyState} from '../../widgets/empty_state';
+import {Spinner} from '../../widgets/spinner';
+import {SplitPanel} from '../../widgets/split_panel';
+import {Tabs} from '../../widgets/tabs';
+import {TextInput} from '../../widgets/text_input';
+import {Tree, TreeNode} from '../../widgets/tree';
+import {PrettyPrinter, PrettyPrintedSource} from './pretty_print_utils';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -121,10 +121,9 @@ export class V8SourcesTab implements Tab {
   private showPrettyPrinted = false;
   private isPrettyPrinting = false;
   private selectedScriptId: number | undefined = undefined;
-  private prettyPrinter : PrettyPrinter = new PrettyPrinter();
+  private prettyPrinter: PrettyPrinter = new PrettyPrinter();
+  private prettyPrintedSource: PrettyPrintedSource | undefined = undefined;
   private selectedScriptSource: string = '';
-  private formattedScriptSource: string = '';
-  private formattedScriptSourceMap: Int32Array | undefined = undefined;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -161,7 +160,7 @@ export class V8SourcesTab implements Tab {
     return 'V8 Script Sources';
   }
 
-  private async selectScript(id?: number ): Promise<ScriptResult | undefined> {
+  private async selectScript(id?: number): Promise<ScriptResult | undefined> {
     if (id === undefined) return undefined;
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
@@ -186,8 +185,7 @@ export class V8SourcesTab implements Tab {
       },
     ];
     this.selectedScriptSource = it.source;
-    this.formattedScriptSource = '';
-    this.formattedScriptSourceMap = undefined;
+    this.prettyPrintedSource = undefined;
     return {
       source: it.source as string,
       details: {
@@ -218,7 +216,7 @@ export class V8SourcesTab implements Tab {
 
   private async togglePrettyPrint() {
     this.showPrettyPrinted = !this.showPrettyPrinted;
-    if (this.showPrettyPrinted && !this.formattedScriptSource) {
+    if (this.showPrettyPrinted && this.prettyPrintedSource == undefined) {
       const promise = new Promise<void>((resolve) => {
         window.requestAnimationFrame(async () => {
           await this._formatSources();
@@ -233,32 +231,44 @@ export class V8SourcesTab implements Tab {
 
   async _formatSources() {
     this.isPrettyPrinting = true;
-    console.log("PRETTY PRINT: Start");
+    console.log('PRETTY PRINT: Start');
+    this.prettyPrintedSource = undefined;
     try {
-      this.formattedScriptSource = await this.prettyPrinter.format(this.selectedScriptSource);
+      // await two rafs
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(async () => {
+          window.requestAnimationFrame(async () => {
+            resolve();
+          });
+        });
+      });
+      this.prettyPrintedSource = await this.prettyPrinter.format(
+        this.selectedScriptSource,
+      );
     } catch (e) {
       console.error('Pretty print failed', e);
     } finally {
       this.isPrettyPrinting = false;
-      console.log("PRETTY PRINT: End");
+      console.log('PRETTY PRINT: End');
     }
   }
 
   mapSourcePosition(originalPos: number): number {
-    if (!this.formattedScriptSourceMap) return originalPos;
+    if (this.prettyPrintedSource == undefined) return originalPos;
+    const sourceMap = this.prettyPrintedSource.sourceMap;
     // If the exact position is not mapped (e.g. whitespace), find the next mapped position.
-    for (let i = originalPos; i < this.formattedScriptSourceMap.length; i++) {
-      if (this.formattedScriptSourceMap[i] !== -1) {
-        return this.formattedScriptSourceMap[i];
+    for (let i = originalPos; i < sourceMap.length; i++) {
+      if (sourceMap[i] !== -1) {
+        return sourceMap[i];
       }
     }
     // If not found (e.g. trailing whitespace), return the end of formatted string or last mapped.
-    return this.formattedScriptSource?.length ?? 0;
+    return this.prettyPrintedSource.source.length ?? 0;
   }
 
   private renderSourceTab(source: string) {
-    if (this.showPrettyPrinted && this.formattedScriptSource) {
-      source = this.formattedScriptSource;
+    if (this.showPrettyPrinted && this.prettyPrintedSource !== undefined) {
+      source = this.prettyPrintedSource.source;
     }
     return m(
       '.pf-v8-source-container',
