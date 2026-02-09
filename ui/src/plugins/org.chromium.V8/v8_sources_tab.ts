@@ -34,7 +34,7 @@ import { SplitPanel } from '../../widgets/split_panel';
 import { Tabs } from '../../widgets/tabs';
 import { TextInput } from '../../widgets/text_input';
 import { Tree, TreeNode } from '../../widgets/tree';
-import { prettyPrint } from './pretty_print_utils';
+import { prettyPrint, PrettyPrinter } from './pretty_print_utils';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -121,6 +121,7 @@ export class V8SourcesTab implements Tab {
   private showPrettyPrinted = false;
   private isPrettyPrinting = false;
   private selectedScriptId: number | undefined = undefined;
+  private prettyPrinter : PrettyPrinter = new PrettyPrinter();
   private selectedScriptSource: string = '';
   private formattedScriptSource: string = '';
   private formattedScriptSourceMap: Int32Array | undefined = undefined;
@@ -234,11 +235,7 @@ export class V8SourcesTab implements Tab {
     this.isPrettyPrinting = true;
     console.log("PRETTY PRINT: Start");
     try {
-      const {formatted, sourceMap} = await prettyPrint(
-        this.selectedScriptSource,
-      );
-      this.formattedScriptSource = formatted;
-      this.formattedScriptSourceMap = sourceMap;
+      this.formattedScriptSource = await this.prettyPrinter.format(this.selectedScriptSource);
     } catch (e) {
       console.error('Pretty print failed', e);
     } finally {

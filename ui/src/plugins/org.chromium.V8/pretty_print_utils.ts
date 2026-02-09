@@ -56,3 +56,43 @@ export async function prettyPrint(original: string) {
   const sourceMap = computePositionMapping(original, formatted);
   return {formatted, sourceMap};
 }
+
+
+export class PrettyPrinter {
+  private _rawSource : string = ''
+  private _formattedSource : string = '';
+  private _sourceMap : Int32Array | undefined = undefined;
+
+  private _pendingFormatting : Promise<string> | undefined = undefined;
+
+
+  constructor() {
+  }
+
+  async format(source:string) : Promise<string> {
+    if (this._rawSource == source) {
+      if (this._formattedSource) {
+        return this._formattedSource;
+      }
+      if (this._pendingFormatting) {
+        return await this._pendingFormatting;
+      }
+    }
+
+    this._rawSource = source;
+    this._formattedSource = '';
+    this._sourceMap = undefined;
+
+    this._pendingFormatting = this._format(source);
+    return await this._pendingFormatting;
+  }
+
+  async _format(source:string) : Promise<string> {
+    const {formatted, sourceMap} = await prettyPrint(source);
+    this._pendingFormatting = undefined;
+
+    this._sourceMap = sourceMap;
+    this._formattedSource = formatted;
+    return this._formattedSource;
+  }
+}
