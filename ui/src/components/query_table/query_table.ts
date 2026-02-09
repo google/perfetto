@@ -296,6 +296,7 @@ export class QueryResultsTable
       initialColumns: resp.columns.map((col) => ({id: col, field: col})),
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
+      enablePivotControls: false, // In-memory datasource does not support pivoting
       fillHeight: true,
       filters: [],
       data: dataSource,

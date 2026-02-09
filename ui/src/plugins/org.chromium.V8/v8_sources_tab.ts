@@ -13,27 +13,28 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
-import {Filter} from '../../components/widgets/datagrid/model';
-import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
-import {Trace} from '../../public/trace';
-import {Editor} from '../../widgets/editor';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
-import {TextInput} from '../../widgets/text_input';
-import {Tree, TreeNode} from '../../widgets/tree';
-import {TabStrip} from '../../widgets/tabs';
-import {Row, SqlValue} from '../../trace_processor/query_result';
-import {NUM, STR} from '../../trace_processor/query_result';
-import {CopyableLink} from '../../widgets/copyable_link';
-import {Tab} from '../../public/tab';
-import {Anchor} from '../../widgets/anchor';
-import {Spinner} from '../../widgets/spinner';
-import {SplitPanel} from '../../widgets/split_panel';
-import {prettyPrint} from './pretty_print_utils';
-import {EmptyState} from '../../widgets/empty_state';
+import { formatFileSize } from '../../base/file_utils';
+import { QuerySlot, SerialTaskQueue } from '../../base/query_slot';
+import { DataGrid } from '../../components/widgets/datagrid/datagrid';
+import { SchemaRegistry } from '../../components/widgets/datagrid/datagrid_schema';
+import { Filter } from '../../components/widgets/datagrid/model';
+import { SQLDataSource } from '../../components/widgets/datagrid/sql_data_source';
+import { SQLSchemaRegistry } from '../../components/widgets/datagrid/sql_schema';
+import { Tab } from '../../public/tab';
+import { Trace } from '../../public/trace';
+import { NUM, Row, SqlValue, STR } from '../../trace_processor/query_result';
+import { Anchor } from '../../widgets/anchor';
+import { Button, ButtonVariant } from '../../widgets/button';
+import { Intent } from '../../widgets/common';
+import { CopyableLink } from '../../widgets/copyable_link';
+import { Editor } from '../../widgets/editor';
+import { EmptyState } from '../../widgets/empty_state';
+import { Spinner } from '../../widgets/spinner';
+import { SplitPanel } from '../../widgets/split_panel';
+import { Tabs } from '../../widgets/tabs';
+import { TextInput } from '../../widgets/text_input';
+import { Tree, TreeNode } from '../../widgets/tree';
+import { prettyPrint } from './pretty_print_utils';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -42,6 +43,11 @@ interface V8JsScript {
   source: string;
   v8_isolate_id: number;
   script_size: number;
+}
+
+interface ScriptResult {
+  source: string;
+  details: V8JsScript;
 }
 
 const V8_JS_SCRIPT_SCHEMA_NAME = 'v8JsScript';
@@ -78,19 +84,23 @@ const V8_JS_FUNCTION_SCHEMA: SQLSchemaRegistry = {
   },
 };
 
-const UNIT_SIZE = 1024;
-const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
 function formatByteValue(value: SqlValue): string {
   if (typeof value !== 'bigint') {
     return String(value);
   }
-  let converted = Number(value);
-  let unitIndex = 0;
-  while (converted >= UNIT_SIZE && unitIndex < UNITS.length - 1) {
-    converted /= UNIT_SIZE;
-    unitIndex++;
+  return formatFileSize(value);
+}
+
+function formatUrlValue(value: SqlValue): string | m.Children {
+  if (typeof value !== 'string') {
+    return undefined;
   }
-  return `${converted.toFixed(2)} ${UNITS[unitIndex]}`;
+  if (!value.startsWith('http')) {
+    return String(value);
+  }
+  return m(CopyableLink, {
+    url: String(value),
+  });
 }
 
 const TAB_SOURCE = 'source';
@@ -99,16 +109,19 @@ const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
-  private selectedScriptSource: string = '';
-  private selectedScriptDetails: V8JsScript | undefined = undefined;
+  private readonly slot = new QuerySlot<ScriptResult | undefined>(
+    new SerialTaskQueue(),
+  );
   private trace: Trace;
   private dataSource: SQLDataSource;
   private filters: readonly Filter[] = [];
   private functionsDataSource: SQLDataSource;
   private functionsFilters: readonly Filter[] = [];
   private isReady = false;
-  private formattedScriptSource: string = '';
   private showPrettyPrinted = false;
+  private selectedScriptId: number | undefined = undefined;
+  private selectedScriptSource: string = '';
+  private formattedScriptSource: string = '';
   private formattedScriptSourceMap: Int32Array | undefined = undefined;
 
   constructor(trace: Trace) {
@@ -140,17 +153,14 @@ export class V8SourcesTab implements Tab {
       FROM v8_js_script;
     `);
     this.isReady = true;
-    m.redraw();
   }
 
   getTitle(): string {
     return 'V8 Script Sources';
   }
 
-  private async showSourceForScript(id: number) {
-    this.showPrettyPrinted = false;
-    this.formattedScriptSource = '';
-    this.formattedScriptSourceMap = undefined;
+  private async selectScript(id?: number ): Promise<ScriptResult | undefined> {
+    if (id === undefined) return undefined;
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
        SELECT *, LENGTH(source) AS script_size
@@ -165,29 +175,34 @@ export class V8SourcesTab implements Tab {
       v8_isolate_id: NUM,
       script_size: NUM,
     });
-    if (it.valid()) {
-      this.selectedScriptSource = it.source as string;
-      this.selectedScriptDetails = {
+    if (!it.valid()) return undefined;
+    this.functionsFilters = [
+      {
+        field: 'v8_js_script_id',
+        op: '=',
+        value: id,
+      },
+    ];
+    this.selectedScriptSource = it.source;
+    this.formattedScriptSource = '';
+    this.formattedScriptSourceMap = undefined;
+    return {
+      source: it.source as string,
+      details: {
         v8_js_script_id: it.v8_js_script_id as number,
         name: it.name as string,
         script_type: it.script_type as string,
         source: it.source as string,
         v8_isolate_id: it.v8_isolate_id as number,
         script_size: it.script_size as number,
-      };
-      this.functionsFilters = [
-        {
-          field: 'v8_js_script_id',
-          op: '=',
-          value: id,
-        },
-      ];
-    }
-    m.redraw();
+      },
+    };
   }
 
-  filterScript(searchTerm: string) {
-    if (searchTerm) {
+  filterScripts(searchTerm: string) {
+    if (!searchTerm) {
+      this.filters = [];
+    } else {
       this.filters = [
         {
           field: 'name',
@@ -195,8 +210,6 @@ export class V8SourcesTab implements Tab {
           value: `*${searchTerm}*`,
         },
       ];
-    } else {
-      this.filters = [];
     }
     m.redraw();
   }
@@ -218,12 +231,6 @@ export class V8SourcesTab implements Tab {
     m.redraw();
   }
 
-  public get scriptSource(): string {
-    return this.showPrettyPrinted
-      ? this.formattedScriptSource
-      : this.selectedScriptSource;
-  }
-
   mapSourcePosition(originalPos: number): number {
     if (!this.formattedScriptSourceMap) return originalPos;
     // If the exact position is not mapped (e.g. whitespace), find the next mapped position.
@@ -236,7 +243,10 @@ export class V8SourcesTab implements Tab {
     return this.formattedScriptSource?.length ?? 0;
   }
 
-  private renderSourceTab() {
+  private renderSourceTab(source: string) {
+    if (this.showPrettyPrinted && this.formattedScriptSource) {
+      source = this.formattedScriptSource;
+    }
     return m(
       '.pf-v8-source-container',
       {
@@ -246,7 +256,7 @@ export class V8SourcesTab implements Tab {
         },
       },
       m(Editor, {
-        text: this.scriptSource,
+        text: source,
         language: 'javascript',
         readonly: true,
         fillHeight: true,
@@ -273,8 +283,8 @@ export class V8SourcesTab implements Tab {
     );
   }
 
-  private renderDetailsTab() {
-    if (!this.selectedScriptDetails) {
+  private renderDetailsTab(scriptDetails?: V8JsScript) {
+    if (!scriptDetails) {
       return undefined;
     }
 
@@ -282,34 +292,31 @@ export class V8SourcesTab implements Tab {
       Tree,
       m(TreeNode, {
         left: 'ID',
-        right: String(this.selectedScriptDetails.v8_js_script_id),
+        right: String(scriptDetails.v8_js_script_id),
       }),
       m(TreeNode, {
         left: 'Name',
-        right: this.selectedScriptDetails.name.startsWith('http')
-          ? m(CopyableLink, {url: this.selectedScriptDetails.name})
-          : this.selectedScriptDetails.name,
+        right: formatUrlValue(scriptDetails.name),
       }),
       m(TreeNode, {
         left: 'Type',
-        right: this.selectedScriptDetails.script_type,
+        right: scriptDetails.script_type,
       }),
       m(TreeNode, {
         left: 'Isolate',
-        right: String(this.selectedScriptDetails.v8_isolate_id),
+        right: String(scriptDetails.v8_isolate_id),
       }),
       m(TreeNode, {
         left: 'Size',
-        right: formatByteValue(BigInt(this.selectedScriptDetails.script_size)),
+        right: formatByteValue(BigInt(scriptDetails.script_size)),
       }),
     );
   }
 
-  private renderFunctionsTab() {
-    if (!this.selectedScriptDetails) {
+  private renderFunctionsTab(scriptDetails?: V8JsScript) {
+    if (!scriptDetails) {
       return undefined;
     }
-
     const v8JsFunctionUiSchema: SchemaRegistry = {
       v8JsFunction: {
         v8_js_function_id: {title: 'ID'},
@@ -320,11 +327,11 @@ export class V8SourcesTab implements Tab {
         col: {title: 'Column'},
       },
     };
-
     return m(DataGrid, {
       data: this.functionsDataSource,
       schema: v8JsFunctionUiSchema,
       rootSchema: V8_JS_FUNCTION_SCHEMA_NAME,
+      fillHeight: true,
       initialFilters: this.functionsFilters,
       onFiltersChanged: (filters: readonly Filter[]) => {
         this.functionsFilters = filters;
@@ -340,20 +347,14 @@ export class V8SourcesTab implements Tab {
     });
   }
 
-  private renderTabContent() {
-    if (!this.selectedScriptDetails) {
-      return undefined;
-    }
-    if (this.currentTab === TAB_SOURCE) {
-      return this.renderSourceTab();
-    }
-    if (this.currentTab === TAB_FUNCTIONS) {
-      return this.renderFunctionsTab();
-    }
-    return this.renderDetailsTab();
-  }
-
   render() {
+    const selectedId = this.selectedScriptId;
+    const {data: scriptResult} = this.slot.use({
+      key: {id: selectedId},
+      retainOn: ['id'],
+      queryFn: () => this.selectScript(selectedId),
+    });
+
     const v8JsScriptUiSchema: SchemaRegistry = {
       v8JsScript: {
         v8_js_script_id: {
@@ -364,7 +365,7 @@ export class V8SourcesTab implements Tab {
               {
                 onclick: (e: Event) => {
                   e.preventDefault();
-                  this.showSourceForScript(row.v8_js_script_id as number);
+                  this.selectedScriptId = row.v8_js_script_id as number;
                 },
               },
               String(value),
@@ -373,17 +374,7 @@ export class V8SourcesTab implements Tab {
         },
         name: {
           title: 'Name',
-          cellRenderer: (value: unknown, row: Row) => {
-            if (typeof value !== 'string') {
-              return undefined;
-            }
-            if (!value.startsWith('http')) {
-              return String(value);
-            }
-            return m(CopyableLink, {
-              url: String(row.name),
-            });
-          },
+          cellRenderer: formatUrlValue,
         },
         domain: {
           title: 'Domain',
@@ -418,7 +409,7 @@ export class V8SourcesTab implements Tab {
         m(TextInput, {
           oninput: (e: Event) => {
             const searchTerm = (e.target as HTMLInputElement).value;
-            this.filterScript(searchTerm);
+            this.filterScripts(searchTerm);
           },
           placeholder: 'Search scripts',
           leftIcon: 'search',
@@ -427,6 +418,7 @@ export class V8SourcesTab implements Tab {
           data: this.dataSource,
           schema: v8JsScriptUiSchema,
           rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
+          fillHeight: true,
           filters: this.filters,
           onFiltersChanged: (filters: readonly Filter[]) => {
             this.filters = filters;
@@ -441,7 +433,7 @@ export class V8SourcesTab implements Tab {
       ),
       secondPanel: m(
         '.pf-v8-source-script-details',
-        !this.selectedScriptSource
+        !scriptResult
           ? m(
               EmptyState,
               {
@@ -451,21 +443,33 @@ export class V8SourcesTab implements Tab {
               },
               'Select a script from the list to view details.',
             )
-          : [
-              m(TabStrip, {
-                tabs: [
-                  {key: TAB_SOURCE, title: 'Source'},
-                  {key: TAB_FUNCTIONS, title: 'Functions'},
-                  {key: TAB_DETAILS, title: 'Details'},
-                ],
-                currentTabKey: this.currentTab,
-                onTabChange: (key) => {
-                  this.currentTab = key;
-                  m.redraw();
+          : m(Tabs, {
+              tabs: [
+                {
+                  key: TAB_SOURCE,
+                  title: 'Source',
+                  leftIcon: 'code',
+                  content: this.renderSourceTab(scriptResult.source),
                 },
-              }),
-              m('.pf-tab-page', this.renderTabContent()),
-            ],
+                {
+                  key: TAB_FUNCTIONS,
+                  title: 'Functions',
+                  leftIcon: 'function',
+                  content: this.renderFunctionsTab(scriptResult.details),
+                },
+                {
+                  key: TAB_DETAILS,
+                  title: 'Details',
+                  leftIcon: 'info',
+                  content: this.renderDetailsTab(scriptResult.details),
+                },
+              ],
+              activeTabKey: this.currentTab,
+              onTabChange: (key) => {
+                this.currentTab = key;
+                m.redraw();
+              },
+            }),
       ),
     });
   }

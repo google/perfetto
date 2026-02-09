@@ -110,6 +110,7 @@
 #include "src/tracing/service/random.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/trace_buffer_v1.h"
+#include "src/tracing/service/trace_buffer_v1_with_v2_shadow.h"
 #include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
@@ -121,6 +122,7 @@
 #include "protos/perfetto/common/trace_stats.pbzero.h"  // IWYU pragma: keep
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -360,9 +362,11 @@ using StringFilterRule =
 
 std::optional<protozero::StringFilter::SemanticTypeMask>
 ConvertSemanticTypeMask(const StringFilterRule& rule) {
-  // If no semantic types are specified, match all semantic types.
+  // UNSPECIFIED (0) is treated as its own category - it only matches rules
+  // that explicitly include bit 0 in their mask. If no semantic types are
+  // specified, default to matching only UNSPECIFIED (bit 0).
   if (rule.semantic_type().empty()) {
-    return protozero::StringFilter::SemanticTypeMask::All();
+    return protozero::StringFilter::SemanticTypeMask::Unspecified();
   }
 
   protozero::StringFilter::SemanticTypeMask mask;
@@ -1137,6 +1141,13 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (priority_boost)
     tracing_session->priority_boost = std::move(priority_boost);
 
+  if (cfg.flush_period_ms() > 0) {
+    tracing_session->flush_strategy = TracingSession::FlushStrategy::kPeriodic;
+    tracing_session->periodic_flush_ms = cfg.flush_period_ms();
+  } else {
+    tracing_session->flush_strategy = TracingSession::FlushStrategy::kDisabled;
+  }
+
   if (cfg.write_into_file()) {
     if (!fd ^ !cfg.output_path().empty()) {
       MaybeLogUploadEvent(
@@ -1164,9 +1175,41 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       write_period_ms = kDefaultWriteIntoFilePeriodMs;
     if (write_period_ms < kMinWriteIntoFilePeriodMs)
       write_period_ms = kMinWriteIntoFilePeriodMs;
+
+    auto flush_mode = cfg.write_flush_mode();
+    if (flush_mode == TraceConfig::WRITE_FLUSH_AUTO ||
+        flush_mode == TraceConfig::WRITE_FLUSH_UNSPECIFIED) {
+      if (write_period_ms <=
+          static_cast<uint32_t>(kDefaultWriteIntoFilePeriodMs)) {
+        tracing_session->flush_strategy =
+            TracingSession::FlushStrategy::kPeriodic;
+        tracing_session->periodic_flush_ms =
+            static_cast<uint32_t>(kDefaultWriteIntoFilePeriodMs);
+      } else {
+        tracing_session->flush_strategy =
+            TracingSession::FlushStrategy::kOnWrite;
+      }
+
+      if (cfg.flush_period_ms() > 0) {
+        PERFETTO_LOG(
+            "Warning: flush_period_ms is ignored because write_flush_mode is "
+            "in AUTO mode. Set write_flush_mode to WRITE_FLUSH_DISABLED to "
+            "use flush_period_ms.");
+      }
+    } else if (flush_mode == TraceConfig::WRITE_FLUSH_ENABLED) {
+      tracing_session->flush_strategy = TracingSession::FlushStrategy::kOnWrite;
+      if (cfg.flush_period_ms() > 0) {
+        PERFETTO_LOG(
+            "Warning: flush_period_ms is ignored because write_flush_mode is "
+            "in WRITE_FLUSH_ENABLED mode. Set write_flush_mode to "
+            "WRITE_FLUSH_DISABLED to use flush_period_ms.");
+      }
+    }
     tracing_session->write_period_ms = write_period_ms;
     tracing_session->max_file_size_bytes = cfg.max_file_size_bytes();
     tracing_session->bytes_written_into_file = 0;
+    tracing_session->fflush_post_write =
+        cfg.fflush_post_write() == TraceConfig::FFLUSH_ENABLED;
   }
 
   if (cfg.compression_type() == TraceConfig::COMPRESSION_TYPE_DEFLATE) {
@@ -1214,11 +1257,16 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
             ? TraceBuffer::kDiscard
             : TraceBuffer::kOverwrite;
     std::unique_ptr<TraceBuffer> new_buffer;
-    if (buffer_cfg.experimental_mode() ==
-        TraceConfig::BufferConfig::TRACE_BUFFER_V2) {
-      new_buffer = TraceBufferV2::Create(buf_size, policy);
-    } else {
-      new_buffer = TraceBufferV1::Create(buf_size, policy);
+    switch (buffer_cfg.experimental_mode()) {
+      case TraceConfig::BufferConfig::TRACE_BUFFER_V2:
+        new_buffer = TraceBufferV2::Create(buf_size, policy);
+        break;
+      case TraceConfig::BufferConfig::TRACE_BUFFER_V2_SHADOW_MODE:
+        new_buffer = TraceBufferV1WithV2Shadow::Create(buf_size, policy);
+        break;
+      case TraceConfig::BufferConfig::MODE_UNSPECIFIED:
+        new_buffer = TraceBufferV1::Create(buf_size, policy);
+        break;
     }
     auto it_and_inserted = buffers_.emplace(global_id, std::move(new_buffer));
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
@@ -1532,7 +1580,8 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   // Start the periodic drain tasks if we should to save the trace into a file.
   if (tracing_session->config.write_into_file()) {
     bool async_flush_buffers_before_read =
-        !tracing_session->config.no_flush_before_write_into_file();
+        tracing_session->flush_strategy ==
+        TracingSession::FlushStrategy::kOnWrite;
     weak_runner_.PostDelayedTask(
         [this, tsid, async_flush_buffers_before_read] {
           ReadBuffersIntoFile(tsid, async_flush_buffers_before_read);
@@ -1541,8 +1590,10 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   }
 
   // Start the periodic flush tasks if the config specified a flush period.
-  if (tracing_session->config.flush_period_ms())
+  if (tracing_session->flush_strategy ==
+      TracingSession::FlushStrategy::kPeriodic) {
     PeriodicFlushTask(tsid, /*post_next_only=*/true);
+  }
 
   // Start the periodic incremental state clear tasks if the config specified a
   // period.
@@ -2419,7 +2470,9 @@ void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
   if (!tracing_session || tracing_session->state != TracingSession::STARTED)
     return;
 
-  uint32_t flush_period_ms = tracing_session->config.flush_period_ms();
+  PERFETTO_CHECK(tracing_session->flush_strategy ==
+                 TracingSession::FlushStrategy::kPeriodic);
+  uint32_t flush_period_ms = tracing_session->periodic_flush_ms;
   weak_runner_.PostDelayedTask(
       [this, tsid] { PeriodicFlushTask(tsid, /*post_next_only=*/false); },
       flush_period_ms - static_cast<uint32_t>(clock_->GetWallTimeMs().count() %
@@ -2581,15 +2634,19 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
               WriteIntoFile(tracing_session, std::move(packets));
         } while (has_more && !stop_writing_into_file);
 
-        // Ensure all data was written to the file.
-        base::FlushFile(tracing_session->write_into_file.get());
-
         if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
+          // Ensure all data was written to the file before we close it.
+          base::FlushFile(tracing_session->write_into_file.get());
           tracing_session->write_into_file.reset();
           tracing_session->write_period_ms = 0;
           if (tracing_session->state == TracingSession::STARTED)
             DisableTracing(tsid);
           return;
+        }
+
+        if (tracing_session->fflush_post_write) {
+          // Ensure all data was written to the file.
+          base::FlushFile(tracing_session->write_into_file.get());
         }
 
         weak_runner_.PostDelayedTask(
@@ -2687,6 +2744,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
+    EmitTraceProvenance(tracing_session, &packets);
     if (!tracing_session->config.builtin_data_sources().disable_system_info()) {
       EmitSystemInfo(&packets);
       if (!relay_clients_.empty())
@@ -2703,8 +2761,11 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
 
   // In a multi-machine tracing session, emit clock synchronization messages for
   // remote machines.
-  if (!relay_clients_.empty())
+  if (!tracing_session->config.builtin_data_sources()
+           .disable_clock_snapshotting() &&
+      !relay_clients_.empty()) {
     MaybeEmitRemoteClockSync(tracing_session, &packets);
+  }
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
 
@@ -3657,6 +3718,10 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
   // Sum up all the trace buffers.
   for (const auto& id_to_buffer : buffers_) {
     total_buffer_bytes += id_to_buffer.second->size();
+    if (id_to_buffer.second->buf_type() == TraceBuffer::kV1WithV2Shadow) {
+      // kV1WithV2Shadow encapsulates both v1 and v2. Allow 2x budget.
+      total_buffer_bytes += id_to_buffer.second->size();
+    }
   }
 
   // Sum up all the cloned traced buffers.
@@ -4011,6 +4076,8 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
 
   if (sys_info.page_size.has_value())
     info->set_page_size(*sys_info.page_size);
+  if (sys_info.system_ram_bytes.has_value())
+    info->set_system_ram_bytes(*sys_info.system_ram_bytes);
   if (sys_info.num_cpus.has_value())
     info->set_num_cpus(*sys_info.num_cpus);
 
@@ -4033,6 +4100,39 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   if (!sys_info.android_serial_console.empty())
     info->set_android_serial_console(sys_info.android_serial_console);
 
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+}
+
+void TracingServiceImpl::EmitTraceProvenance(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_timestamp(static_cast<uint64_t>(clock_->GetBootTimeNs().count()));
+  auto* provenance = packet->set_trace_provenance();
+  for (const BufferID buf_id : tracing_session->buffers_index) {
+    auto* buffer_proto = provenance->add_buffers();
+    TraceBuffer* buf = GetBufferByID(buf_id);
+    if (!buf)
+      continue;
+    for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
+      ProducerID producer_id;
+      WriterID writer_id;
+      GetProducerAndWriterID(it.key(), &producer_id, &writer_id);
+      ProducerEndpointImpl* producer = GetProducer(producer_id);
+      // TODO(primiano): here we default to kDefaultMachineID for disconnected
+      // producers. Alternatively we can refactor the writer stats key to
+      // include the machine ID (e.g. MachineAndProducerAndWriterID instead of
+      // ProducerAndWriterID)
+      MachineID machine_id = producer ? producer->client_identity().machine_id()
+                                      : kDefaultMachineID;
+      auto* sequence_proto = buffer_proto->add_sequences();
+      sequence_proto->set_id(tracing_session->GetPacketSequenceID(
+          machine_id, producer_id, writer_id));
+      sequence_proto->set_producer_id(static_cast<int32_t>(producer_id));
+    }
+  }
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
@@ -4366,11 +4466,18 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     // Some leftover data was left in the buffer. Recreate it to empty it.
     const auto buf_policy = buf->overwrite_policy();
     const auto buf_size = buf->size();
+    const auto buf_type = buf->buf_type();
     std::unique_ptr<TraceBuffer> old_buf = std::move(buf);
-    if (old_buf->is_trace_buffer_v2()) {
-      buf = TraceBufferV2::Create(buf_size, buf_policy);
-    } else {
-      buf = TraceBufferV1::Create(buf_size, buf_policy);
+    switch (buf_type) {
+      case TraceBuffer::kV1:
+        buf = TraceBufferV1::Create(buf_size, buf_policy);
+        break;
+      case TraceBuffer::kV2:
+        buf = TraceBufferV2::Create(buf_size, buf_policy);
+        break;
+      case TraceBuffer::kV1WithV2Shadow:
+        buf = TraceBufferV1WithV2Shadow::Create(buf_size, buf_policy);
+        break;
     }
     if (!buf) {
       // This is extremely rare but could happen on 32-bit. If the new buffer
@@ -4542,12 +4649,18 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
     if (src.config.buffers()[buf_idx].transfer_on_clone()) {
       const auto buf_policy = src_buf->overwrite_policy();
       const auto buf_size = src_buf->size();
-      const bool is_tbv2 = src_buf->is_trace_buffer_v2();
+      const auto buf_type = src_buf->buf_type();
       new_buf = std::move(src_buf);
-      if (is_tbv2) {
-        src_buf = TraceBufferV2::Create(buf_size, buf_policy);
-      } else {
-        src_buf = TraceBufferV1::Create(buf_size, buf_policy);
+      switch (buf_type) {
+        case TraceBuffer::kV1:
+          src_buf = TraceBufferV1::Create(buf_size, buf_policy);
+          break;
+        case TraceBuffer::kV2:
+          src_buf = TraceBufferV2::Create(buf_size, buf_policy);
+          break;
+        case TraceBuffer::kV1WithV2Shadow:
+          src_buf = TraceBufferV1WithV2Shadow::Create(buf_size, buf_policy);
+          break;
       }
       if (!src_buf) {
         // If the allocation fails put the buffer back and let the code below

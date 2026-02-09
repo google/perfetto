@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -45,6 +46,8 @@ MATCHER_P(IsOkAndHolds, matcher, "") {
 TEST(PerfInvocationTest, NoAttrBuildFails) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   EXPECT_FALSE(builder.Build().ok());
 }
@@ -52,6 +55,8 @@ TEST(PerfInvocationTest, NoAttrBuildFails) {
 TEST(PerfInvocationTest, OneAttrAndNoIdBuildSucceeds) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = false;
@@ -69,6 +74,8 @@ TEST(PerfInvocationTest, OneAttrAndNoIdBuildSucceeds) {
 TEST(PerfInvocationTest, MultipleAttrsAndNoIdBuildFails) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -81,6 +88,8 @@ TEST(PerfInvocationTest, MultipleAttrsAndNoIdBuildFails) {
 TEST(PerfInvocationTest, MultipleIdsSameAttrAndNoIdCanExtractAttrFromRecord) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -107,6 +116,8 @@ TEST(PerfInvocationTest, MultipleIdsSameAttrAndNoIdCanExtractAttrFromRecord) {
 TEST(PerfInvocationTest, NoCommonSampleIdAllBuildFails) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -125,6 +136,8 @@ TEST(PerfInvocationTest, NoCommonSampleIdAllBuildFails) {
 TEST(PerfInvocationTest, NoCommonOffsetForSampleBuildFails) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -138,6 +151,8 @@ TEST(PerfInvocationTest, NoCommonOffsetForSampleBuildFails) {
 TEST(PerfInvocationTest, NoCommonOffsetForNonSampleBuildFails) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -153,9 +168,12 @@ TEST(PerfInvocationTest, NoCommonOffsetForNonSampleBuildFails) {
   EXPECT_FALSE(builder.Build().ok());
 }
 
-TEST(PerfInvocationTest, NoCommonOffsetForNonSampleAndNoSampleIdAllBuildSucceeds) {
+TEST(PerfInvocationTest,
+     NoCommonOffsetForNonSampleAndNoSampleIdAllBuildSucceeds) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = false;
@@ -169,6 +187,8 @@ TEST(PerfInvocationTest, NoCommonOffsetForNonSampleAndNoSampleIdAllBuildSucceeds
 TEST(PerfInvocationTest, MultiplesessionBuildSucceeds) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -181,6 +201,8 @@ TEST(PerfInvocationTest, MultiplesessionBuildSucceeds) {
 TEST(PerfInvocationTest, FindAttrInRecordWithId) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -218,6 +240,8 @@ TEST(PerfInvocationTest, FindAttrInRecordWithId) {
 TEST(PerfInvocationTest, FindAttrInRecordWithIdentifier) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.machine_tracker.reset(
+      new MachineTracker(&context, kDefaultMachineId));
   PerfInvocation::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;

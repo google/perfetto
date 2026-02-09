@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import protos from '../../../protos';
 import {
   RecordSubpage,
   RecordProbe,
@@ -26,12 +27,20 @@ import {
   MultiSelectDiff,
   MultiSelectOption,
 } from '../../../widgets/multiselect';
+import {Chip} from '../../../widgets/chip';
 import {Result} from '../../../base/result';
+import {Icons} from '../../../base/semantic_icons';
+import {Intent} from '../../../widgets/common';
+import {TargetPlatformId} from '../interfaces/target_platform';
+import {Callout} from '../../../widgets/callout';
+import {Anchor} from '../../../widgets/anchor';
 
-type ChromeCatFunction = () => Promise<Result<string[]>>;
+type ChromeCatFunction = () => Promise<Result<protos.TrackEventDescriptor>>;
+type PlatformGetter = () => TargetPlatformId;
 
 export function chromeRecordSection(
   chromeCategoryGetter: ChromeCatFunction,
+  platformGetter: PlatformGetter,
 ): RecordSubpage {
   return {
     kind: 'PROBES_PAGE',
@@ -39,16 +48,19 @@ export function chromeRecordSection(
     title: 'Chrome browser',
     subtitle: 'Chrome tracing',
     icon: 'laptop_chromebook',
-    probes: [chromeProbe(chromeCategoryGetter)],
+    probes: [chromeProbe(chromeCategoryGetter, platformGetter)],
   };
 }
 
-function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
+function chromeProbe(
+  chromeCategoryGetter: ChromeCatFunction,
+  platformGetter: PlatformGetter,
+): RecordProbe {
   const groupToggles = Object.fromEntries(
-    Object.keys(GROUPS).map((groupName) => [
+    Object.entries(GROUPS).map(([groupName, categories]) => [
       groupName,
       new Toggle({
-        title: groupName,
+        title: `${groupName} (${categories.length} categories)`,
       }),
     ]),
   );
@@ -60,20 +72,18 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         'Not recommended unless you intend to share the trace' +
         ' with third-parties.',
     }),
-    categories: new ChromeCategoriesWidget(chromeCategoryGetter),
+    categories: new ChromeCategoriesWidget(
+      chromeCategoryGetter,
+      platformGetter,
+      groupToggles,
+    ),
   };
   return {
     id: 'chrome_tracing',
     title: 'Chrome browser tracing',
     settings,
     genConfig: function (tc: TraceConfigBuilder) {
-      const cats = new Set<string>();
-      settings.categories.getEnabledCategories().forEach((c) => cats.add(c));
-      for (const [group, groupCats] of Object.entries(GROUPS)) {
-        if ((groupToggles[group] as Toggle).enabled) {
-          groupCats.forEach((c) => cats.add(c));
-        }
-      }
+      const cats = settings.categories.getIncludedCategories();
       const memoryInfra = cats.has('disabled-by-default-memory-infra');
       const jsonStruct = {
         record_mode:
@@ -145,34 +155,61 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
   };
 }
 
-const DISAB_PREFIX = 'disabled-by-default-';
+const DISABLED_PREFIX = 'disabled-by-default-';
 
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
   private fetchedRuntimeCategories = false;
+  private hasActiveExtension = false;
 
-  constructor(private chromeCategoryGetter: ChromeCatFunction) {
+  constructor(
+    private chromeCategoryGetter: ChromeCatFunction,
+    private platformGetter: PlatformGetter,
+    private groupToggles: Record<string, Toggle>,
+  ) {
     // Initialize first with the static list of builtin categories (in case
     // something goes wrong with the extension).
-    this.initializeCategories(BUILTIN_CATEGORIES);
+    this.initializeCategories(
+      protos.TrackEventDescriptor.create({
+        availableCategories: BUILTIN_CATEGORIES.map((cat) => ({name: cat})),
+      }),
+    );
+  }
+
+  public getIncludedCategories(): Set<string> {
+    const cats = new Set<string>();
+    this.getEnabledCategories().forEach((c) => cats.add(c));
+    for (const [group, groupCats] of Object.entries(GROUPS)) {
+      if ((this.groupToggles[group] as Toggle).enabled) {
+        groupCats.forEach((c) => cats.add(c));
+      }
+    }
+    return cats;
   }
 
   private async fetchRuntimeCategoriesIfNeeded() {
     if (this.fetchedRuntimeCategories) return;
     const runtimeCategories = await this.chromeCategoryGetter();
-    if (runtimeCategories.ok) {
+    this.hasActiveExtension = runtimeCategories.ok;
+    if (this.hasActiveExtension && runtimeCategories.value) {
       this.initializeCategories(runtimeCategories.value);
-      m.redraw();
     }
     this.fetchedRuntimeCategories = true;
   }
 
-  private initializeCategories(cats: string[]) {
-    this.options = cats
+  private initializeCategories(descriptor: protos.TrackEventDescriptor) {
+    this.options = descriptor.availableCategories
+      .filter(
+        (
+          cat,
+        ): cat is protos.ITrackEventCategory & {
+          name: string;
+        } => cat.name != null,
+      )
       .map((cat) => ({
-        id: cat,
-        name: cat.replace(DISAB_PREFIX, ''),
-        checked: this.options.find((o) => o.id === cat)?.checked ?? false,
+        id: cat.name,
+        name: cat.name.replace(DISABLED_PREFIX, ''),
+        checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
       }))
       .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
   }
@@ -203,38 +240,89 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   render() {
+    const categoriesOptions: MultiSelectOption[] = [];
+    const slowCategoriesOptions: MultiSelectOption[] = [];
+    let includedCategoriesCount = 0;
+    let includedSlowCategoriesCount = 0;
+    for (const option of this.options) {
+      if (option.id.startsWith(DISABLED_PREFIX)) {
+        slowCategoriesOptions.push(option);
+        if (option.checked) includedSlowCategoriesCount++;
+      } else {
+        categoriesOptions.push(option);
+        if (option.checked) includedCategoriesCount++;
+      }
+    }
+
+    const activeCategories = Array.from(this.getIncludedCategories()).sort();
+    const warnMissingTracingExtension =
+      !this.hasActiveExtension && this.platformGetter() === 'CHROME';
+    const TRACING_EXTENSION_URL = 'https://g.co/chrome/tracing-extension';
     return m(
-      'div.chrome-categories',
+      'div.chrome-probe',
       {
         // This shouldn't be necessary in most cases. It's only needed:
         // 1. The first time the user installs the extension.
-        // 2. In rare cases if the extension fails to respond to the call in the
+        // 2. In rare cases if the extension fails to extensionMissing to the call in the
         //    constructor, to deal with its flakiness.
         oninit: () => this.fetchRuntimeCategoriesIfNeeded(),
       },
-      m(
-        Section,
-        {title: 'Additional Categories'},
-        m(MultiSelect, {
-          options: this.options.filter((o) => !o.id.startsWith(DISAB_PREFIX)),
-          repeatCheckedItemsAtTop: false,
-          fixedSize: false,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
+      warnMissingTracingExtension &&
+        m(
+          Callout,
+          {
+            intent: Intent.Warning,
+            icon: Icons.Warning,
           },
-        }),
+          'The Perfetto Tracing extension is not installed or disabled. ',
+          'Please install it to display the complete settings: ',
+          m(
+            Anchor,
+            {
+              href: TRACING_EXTENSION_URL,
+              target: '_blank',
+            },
+            TRACING_EXTENSION_URL,
+          ),
+        ),
+      m(
+        'div.chrome-categories',
+        m(
+          Section,
+          {title: `Additional Categories (${includedCategoriesCount})`},
+          m(MultiSelect, {
+            options: categoriesOptions,
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
+            },
+          }),
+        ),
+        m(
+          Section,
+          {title: `High Overhead Categories (${includedSlowCategoriesCount})`},
+          m(MultiSelect, {
+            options: slowCategoriesOptions,
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
+            },
+          }),
+        ),
       ),
       m(
         Section,
-        {title: 'High Overhead Categories'},
-        m(MultiSelect, {
-          options: this.options.filter((o) => o.id.startsWith(DISAB_PREFIX)),
-          repeatCheckedItemsAtTop: false,
-          fixedSize: false,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
-          },
-        }),
+        {title: `All Active Categories (${activeCategories.length})`},
+        m(
+          'details',
+          m('summary', 'Show all included categories'),
+          m(
+            'div',
+            activeCategories.map((cat) => m(Chip, {label: cat})),
+          ),
+        ),
       ),
     );
   }

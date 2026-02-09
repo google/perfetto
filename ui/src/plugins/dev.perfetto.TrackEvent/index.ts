@@ -162,7 +162,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
     // Get CPU count and threads for summary tracks
     const cpuCountResult = await ctx.engine.query(`
-      SELECT COUNT(*) as cpu_count FROM cpu WHERE IFNULL(machine_id, 0) = 0
+      SELECT COUNT(*) as cpu_count FROM cpu WHERE machine_id = 0
     `);
     const cpuCount = cpuCountResult.firstRow({cpu_count: NUM}).cpu_count;
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
@@ -370,8 +370,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     if (trackIds.length === 0) {
       return undefined;
     }
-    const metrics = metricsFromTableOrSubquery(
-      `
+    const metrics = metricsFromTableOrSubquery({
+      tableOrSubquery: `
       (
         with relevant_slices as (
           select id
@@ -415,26 +415,29 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         ))
       )
     `,
-      [
+      tableMetrics: [
         {
           name: 'Samples',
           unit: '',
           columnName: 'self_count',
         },
       ],
-      `
+      dependencySql: `
      include perfetto module callstacks.stack_profile;
      include perfetto module intervals.intersect;
     `,
-      [{name: 'mapping_name', displayName: 'Mapping'}],
-      [
+      unaggregatableProperties: [
+        {name: 'mapping_name', displayName: 'Mapping'},
+      ],
+      aggregatableProperties: [
         {
           name: 'source_location',
           displayName: 'Source Location',
           mergeAggregation: 'ONE_OR_SUMMARY',
         },
       ],
-    );
+      nameColumnLabel: 'Symbol',
+    });
     const store = assertExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(

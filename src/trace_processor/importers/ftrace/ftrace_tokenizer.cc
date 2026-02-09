@@ -292,6 +292,12 @@ void FtraceTokenizer::TokenizeFtraceEvent(
     TokenizeFtraceFwtpPerfettoCounter(cpu, std::move(event), std::move(state));
     return;
   }
+  if (PERFETTO_UNLIKELY(
+          event_id ==
+          protos::pbzero::FtraceEvent::kFwtpPerfettoSliceFieldNumber)) {
+    TokenizeFtraceFwtpPerfettoSlice(cpu, std::move(event), std::move(state));
+    return;
+  }
 
   std::optional<int64_t> timestamp = context_->clock_tracker->ToTraceTime(
       clock_id, static_cast<int64_t>(raw_timestamp));
@@ -580,6 +586,30 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoCounter(
   }
   int64_t timestamp =
       static_cast<int64_t>(fwtp_perfetto_counter_event.timestamp());
+  module_context_->PushFtraceEvent(
+      cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
+}
+
+void FtraceTokenizer::TokenizeFtraceFwtpPerfettoSlice(
+    uint32_t cpu,
+    TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
+  // Special handling of valid fwtp_perfetto_slice tracepoint events which
+  // contains the right timestamp value nested inside the event data.
+  auto ts_field = GetFtraceEventField(
+      protos::pbzero::FtraceEvent::kFwtpPerfettoSliceFieldNumber, event);
+  if (!ts_field.has_value())
+    return;
+
+  protos::pbzero::FwtpPerfettoSliceFtraceEvent::Decoder
+      fwtp_perfetto_slice_event(ts_field.value().data(),
+                                ts_field.value().size());
+  if (!fwtp_perfetto_slice_event.has_timestamp()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+  int64_t timestamp =
+      static_cast<int64_t>(fwtp_perfetto_slice_event.timestamp());
   module_context_->PushFtraceEvent(
       cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
 }

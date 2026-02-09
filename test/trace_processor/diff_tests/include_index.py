@@ -96,6 +96,7 @@ from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.perf_text.tests import PerfTextParser
 from diff_tests.parser.pprof.tests_pprof import PprofParser
+from diff_tests.parser.collapsed_stack.tests_collapsed_stack import CollapsedStackParser
 from diff_tests.parser.power.tests_battery_stats import BatteryStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
@@ -169,12 +170,14 @@ from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
+from diff_tests.stdlib.trees.table_conversion_tests import TreeRoundtrip
 from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
 from diff_tests.syntax.function_tests import PerfettoFunction
 from diff_tests.syntax.include_tests import PerfettoInclude
 from diff_tests.syntax.macro_tests import PerfettoMacro
+from diff_tests.syntax.structured_query_tests import StructuredQueryTests
 from diff_tests.syntax.table_function_tests import PerfettoTableFunction
 from diff_tests.syntax.table_tests import PerfettoTable
 from diff_tests.syntax.view_tests import PerfettoView
@@ -266,6 +269,7 @@ def fetch_all_diff_tests(
       ArtMethodParser,
       PerfTextParser,
       PprofParser,
+      CollapsedStackParser,
   ]
 
   metrics_tests = [
@@ -306,6 +310,7 @@ def fetch_all_diff_tests(
       DominatorTree,
       CriticalPathTests,
       GraphScanTests,
+      TreeRoundtrip,
       ExportTests,
       Frames,
       GraphSearchTests,
@@ -350,6 +355,7 @@ def fetch_all_diff_tests(
       PerfettoTable,
       PerfettoTableFunction,
       PerfettoView,
+      StructuredQueryTests,
   ]
 
   tables_tests = [

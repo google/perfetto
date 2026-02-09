@@ -16,8 +16,8 @@ import {Setting} from '../../public/settings';
 import {SettingImpl, SettingsManagerImpl} from '../../core/settings_manager';
 import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
-import {z} from 'zod';
 import {Button, ButtonVariant} from '../../widgets/button';
+import {getZodSchemaInfo} from '../../base/zod_utils';
 import {CardStack} from '../../widgets/card';
 import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
@@ -31,6 +31,10 @@ import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
 import {Icons} from '../../base/semantic_icons';
+import {GateDetector} from '../../base/mithril_utils';
+import {findRef} from '../../base/dom_utils';
+
+const SEARCH_BOX_REF = 'settings-search-box';
 
 export interface SettingsPageAttrs {
   readonly subpage?: string;
@@ -59,7 +63,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       return a.localeCompare(b);
     });
 
-    return m(
+    const page = m(
       SettingsShell,
       {
         title: 'Settings',
@@ -111,6 +115,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
           m(StackAuto),
           m(TextInput, {
             placeholder: 'Search...',
+            ref: SEARCH_BOX_REF,
             value: this.filterText,
             leftIcon: 'search',
             oninput: (e: Event) => {
@@ -129,6 +134,25 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
               return this.renderPluginSection(pluginId, settings, subpage);
             }),
       ),
+    );
+
+    return m(
+      GateDetector,
+      {
+        onVisibilityChanged: (visible: boolean, dom: Element) => {
+          if (visible) {
+            const input = findRef(
+              dom,
+              SEARCH_BOX_REF,
+            ) as HTMLInputElement | null;
+            if (input) {
+              input.focus();
+              input.select();
+            }
+          }
+        },
+      },
+      page,
     );
   }
 
@@ -244,117 +268,67 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       return setting.render(setting);
     }
 
-    // Boolean settings get a switch
-    if (setting.schema instanceof z.ZodBoolean) {
-      return m(Switch, {
-        checked: currentValue as boolean,
-        onchange: () => {
-          setting.set(!(currentValue as boolean));
-        },
-      });
-    }
+    const schemaInfo = getZodSchemaInfo(setting.schema);
 
-    // Enum settings get a select dropdown
-    else if (setting.schema instanceof z.ZodEnum) {
-      const options = setting.schema.options;
-      return m(
-        Select,
-        {
-          value: String(currentValue), // Ensure value is a string
-          onchange: (e: Event) => {
-            const target = e.target as HTMLSelectElement;
-            setting.set(target.value);
+    switch (schemaInfo.kind) {
+      case 'boolean':
+        return m(Switch, {
+          checked: currentValue as boolean,
+          onchange: () => {
+            setting.set(!(currentValue as boolean));
           },
-        },
-        options.map((option: string) => {
-          return m(
-            'option',
-            {
-              value: option,
-              selected: currentValue === option,
+        });
+
+      case 'enum':
+        return m(
+          Select,
+          {
+            value: String(currentValue),
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              setting.set(target.value);
             },
-            option,
-          );
-        }),
-      );
-    }
-
-    // Native enum settings also get a select dropdown
-    else if (setting.schema instanceof z.ZodNativeEnum) {
-      // Extract the enum values - for native enums we need to get both keys and values
-      const enumValues = Object.entries(setting.schema._def.values);
-
-      return m(
-        Select,
-        {
-          value: String(currentValue), // Ensure value is a string
-          onchange: (e: Event) => {
-            const target = e.target as HTMLSelectElement;
-            // Convert to number if the original enum value was numeric
-            const value = isNaN(Number(target.value))
-              ? target.value
-              : Number(target.value);
-            setting.set(value);
           },
-        },
-        enumValues.map(([key, value]) => {
-          // Only include the string keys (not the reverse mapping that TypeScript adds)
-          if (typeof key === 'string' && isNaN(Number(key))) {
+          schemaInfo.options.map((option) => {
             return m(
               'option',
               {
-                value: value,
-                selected: currentValue === value,
+                value: option,
+                selected: currentValue === option,
               },
-              key, // Display the enum key (name) to the user
+              option,
             );
-          }
-          return null;
-        }),
-      );
-    }
+          }),
+        );
 
-    // Number settings get a number input
-    else if (setting.schema instanceof z.ZodNumber) {
-      const minCheck = setting.schema._def.checks.find(
-        (check) => check.kind === 'min',
-      );
-      const maxCheck = setting.schema._def.checks.find(
-        (check) => check.kind === 'max',
-      );
-      const min = minCheck ? minCheck.value : undefined;
-      const max = maxCheck ? maxCheck.value : undefined;
+      case 'number':
+        return m(TextInput, {
+          type: 'number',
+          value: currentValue as number,
+          min: schemaInfo.min,
+          max: schemaInfo.max,
+          onchange: (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            const value = target.valueAsNumber;
+            setting.set(value);
+          },
+        });
 
-      return m(TextInput, {
-        type: 'number',
-        value: currentValue as number,
-        min: min, // Add min attribute
-        max: max, // Add max attribute
-        onchange: (e: Event) => {
-          const target = e.target as HTMLInputElement;
-          const value = target.valueAsNumber;
-          setting.set(value);
-        },
-      });
-    }
+      case 'string':
+        return m(TextInput, {
+          value: currentValue as string,
+          onchange: (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            setting.set(target.value);
+          },
+        });
 
-    // String settings get a text input
-    else if (setting.schema instanceof z.ZodString) {
-      return m(TextInput, {
-        value: currentValue as string,
-        onchange: (e: Event) => {
-          const target = e.target as HTMLInputElement;
-          setting.set(target.value);
-        },
-      });
-    }
-
-    // For complex types or unsupported schemas, just show an error message
-    else {
-      return m('.pf-settings-page__complex-error', [
-        m(Icon, {icon: 'error_outline'}),
-        m('span', 'Cannot edit this setting directly'),
-      ]);
+      case 'unknown':
+      default:
+        return m('.pf-settings-page__complex-error', [
+          m(Icon, {icon: 'error_outline'}),
+          m('span', 'Cannot edit this setting directly'),
+        ]);
     }
   }
 }

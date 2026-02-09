@@ -34,6 +34,7 @@ import {
   FilterDuringNode,
   FilterDuringNodeState,
 } from './nodes/filter_during_node';
+import {FilterInNode, FilterInNodeState} from './nodes/filter_in_node';
 import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
@@ -50,6 +51,10 @@ import {
   LimitAndOffsetNode,
   LimitAndOffsetNodeState,
 } from './nodes/limit_and_offset_node';
+import {
+  CounterToIntervalsNode,
+  CounterToIntervalsNodeState,
+} from './nodes/counter_to_intervals_node';
 import {Icons} from '../../../base/semantic_icons';
 
 export function registerCoreNodes() {
@@ -57,7 +62,7 @@ export function registerCoreNodes() {
     name: 'Slices',
     description: 'Explore all the slices from your trace.',
     icon: 'bar_chart',
-    hotkey: 's',
+    hotkey: 'l',
     type: 'source',
     showOnLandingPage: true,
     factory: (state) => new SlicesSourceNode(state),
@@ -76,7 +81,6 @@ export function registerCoreNodes() {
         // Return an array of states, one for each selected table
         return selections.map((selection) => ({
           sqlTable: selection.sqlTable,
-          sqlModules,
         }));
       }
       return null;
@@ -192,15 +196,30 @@ export function registerCoreNodes() {
     type: 'multisource',
     category: 'Time',
     factory: (state) => {
-      const fullState: FilterDuringNodeState = {
-        ...state,
-        filterNegativeDurPrimary:
-          (state as FilterDuringNodeState).filterNegativeDurPrimary ?? true,
-        filterNegativeDurSecondary:
-          (state as FilterDuringNodeState).filterNegativeDurSecondary ?? true,
-      };
-      return new FilterDuringNode(fullState);
+      return new FilterDuringNode(state as FilterDuringNodeState);
     },
+  });
+
+  nodeRegistry.register('filter_in', {
+    name: 'Filter In',
+    description:
+      'Filter rows to only those where a column value exists in another query result.',
+    icon: Icons.Filter,
+    type: 'multisource',
+    category: 'Filtering',
+    factory: (state) => {
+      return new FilterInNode(state as FilterInNodeState);
+    },
+  });
+
+  nodeRegistry.register('counter_to_intervals', {
+    name: 'Counter to Intervals',
+    description:
+      'Convert counter data (with ts but no dur) to interval data (with ts and dur).',
+    icon: 'show_chart',
+    type: 'modification',
+    factory: (state) =>
+      new CounterToIntervalsNode(state as CounterToIntervalsNodeState),
   });
 
   nodeRegistry.register('interval_intersect', {

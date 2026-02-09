@@ -153,8 +153,8 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
     SELECT COUNT(*) as numRows FROM android_gpu_frequency
     `,
     `
-    INCLUDE PERFETTO MODULE android.gpu.mali_power_state;
-    SELECT COUNT(*) as numRows FROM android_mali_gpu_power_state
+    INCLUDE PERFETTO MODULE wattson.gpu.freq_idle;
+    SELECT COUNT(*) as numRows FROM _gpu_power_state
     `,
   ];
   for (const queryCheck of queryChecks) {

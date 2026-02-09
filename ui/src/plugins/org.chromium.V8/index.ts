@@ -18,7 +18,7 @@ import {V8RuntimeCallStatsTab} from './v8_runtime_call_stats_tab';
 import {V8SourcesTab} from './v8_sources_tab';
 
 const RCS_TAB_URI = 'org.chromium.V8#V8RuntimeCallStatsTab';
-const SOURCES_TAB_URI = 'org.chromium.V8#V8SourceView';
+const SOURCES_TAB_URI = 'org.chromium.V8#V8SourcesTab';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.V8';
@@ -26,10 +26,10 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace) {
     if (await this.hasAnyRCSData(trace)) {
-      this.enableRCS(trace);
+      this.enableRCSTab(trace);
     }
     if (await this.hasAnyV8SourceData(trace)) {
-      this.enableV8SourceView(trace);
+      this.enableV8SourcesTab(trace);
     }
   }
 
@@ -40,7 +40,7 @@ export default class implements PerfettoPlugin {
     return hasRCSData.numRows() > 0;
   }
 
-  private enableRCS(trace: Trace) {
+  private enableRCSTab(trace: Trace) {
     trace.tabs.registerTab({
       uri: RCS_TAB_URI,
       content: new V8RuntimeCallStatsTab(trace),
@@ -50,18 +50,14 @@ export default class implements PerfettoPlugin {
   }
 
   private async hasAnyV8SourceData(trace: Trace) {
-    try {
-      const hasV8Data = await trace.engine.query(
-        `INCLUDE PERFETTO MODULE v8.jit;
-           SELECT 1 FROM v8_js_script LIMIT 1`,
-      );
-      return hasV8Data.numRows() > 0;
-    } catch (_) {
-      return false;
-    }
+    const hasV8Data = await trace.engine.query(
+      `INCLUDE PERFETTO MODULE v8.jit;
+        SELECT 1 FROM v8_js_script LIMIT 1`,
+    );
+    return hasV8Data.numRows() > 0;
   }
 
-  private enableV8SourceView(trace: Trace) {
+  private enableV8SourcesTab(trace: Trace) {
     trace.tabs.registerTab({
       uri: SOURCES_TAB_URI,
       content: new V8SourcesTab(trace),

@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -67,7 +68,9 @@
 #include "src/tracing/test/test_shared_memory.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/semantic_type.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
+#include "protos/perfetto/trace/perfetto/trace_provenance.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -2176,6 +2179,117 @@ TEST_F(TracingServiceImplTest, CompressionWriteIntoFile) {
                   Property(&protos::gen::TestEvent::str, Eq("payload-2")))));
 }
 
+TEST_F(TracingServiceImplTest, FlushStrategies) {
+  constexpr uint32_t kDefaultWriteIntoFilePeriodMs = 5000;
+
+  auto run_strategy_test = [&](const std::string& producer_name,
+                               TraceConfig cfg, auto test_body) {
+    InitializeSvcWithOpts({});
+    ON_CALL(*mock_clock_, GetWallTimeNs).WillByDefault([&] {
+      return mock_clock_displacement_;
+    });
+
+    std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    std::unique_ptr<MockProducer> producer = CreateMockProducer();
+    producer->Connect(svc.get(), producer_name);
+    producer->RegisterDataSource("data_source");
+
+    base::TempFile tmp_file = base::TempFile::Create();
+    consumer->EnableTracing(cfg, base::ScopedFile(dup(tmp_file.fd())));
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("data_source");
+    producer->WaitForDataSourceStart("data_source");
+
+    test_body(producer.get());
+
+    consumer->DisableTracing();
+    producer->WaitForDataSourceStop("data_source");
+    consumer->WaitForTracingDisabled();
+  };
+
+  // 1) Strategy: kOnWrite (via WRITE_FLUSH_ENABLED).
+  // Verify that flush happens on every write period.
+  {
+    constexpr uint32_t kShortWritePeriodMs = 100;
+    TraceConfig cfg;
+    cfg.add_buffers()->set_size_kb(128);
+    cfg.add_data_sources()->mutable_config()->set_name("data_source");
+    cfg.set_write_into_file(true);
+    cfg.set_file_write_period_ms(kShortWritePeriodMs);
+    cfg.set_write_flush_mode(TraceConfig::WRITE_FLUSH_ENABLED);
+
+    run_strategy_test(
+        "mock_producer_on_write", cfg, [&](MockProducer* producer) {
+          int flushes_seen = 0;
+          auto checkpoint = task_runner.CreateCheckpoint("flushes_on_write");
+          EXPECT_CALL(*producer, Flush(_, _, _, _))
+              .WillRepeatedly([&](FlushRequestID flush_req_id,
+                                  const DataSourceInstanceID*, size_t,
+                                  FlushFlags flags) {
+                EXPECT_EQ(flags.reason(), FlushFlags::Reason::kPeriodic);
+                producer->endpoint()->NotifyFlushComplete(flush_req_id);
+                if (++flushes_seen == 3)
+                  checkpoint();
+              });
+
+          AdvanceTimeAndRunUntilIdle(kShortWritePeriodMs);
+          EXPECT_EQ(flushes_seen, 1);
+          AdvanceTimeAndRunUntilIdle(kShortWritePeriodMs);
+          EXPECT_EQ(flushes_seen, 2);
+          AdvanceTimeAndRunUntilIdle(kShortWritePeriodMs);
+          task_runner.RunUntilCheckpoint("flushes_on_write");
+          EXPECT_EQ(flushes_seen, 3);
+        });
+  }
+
+  // 2) Strategy: kPeriodic (via WRITE_FLUSH_AUTO and period <= 5s).
+  // Verify that flushes do NOT happen on write, but only periodically (every
+  // 5s).
+  {
+    constexpr uint32_t kWritePeriodMs = 1000;
+    TraceConfig cfg;
+    cfg.add_buffers()->set_size_kb(128);
+    cfg.add_data_sources()->mutable_config()->set_name("data_source");
+    cfg.set_write_into_file(true);
+    cfg.set_write_flush_mode(TraceConfig::WRITE_FLUSH_AUTO);
+    cfg.set_file_write_period_ms(kWritePeriodMs);
+
+    run_strategy_test(
+        "mock_producer_periodic", cfg, [&](MockProducer* producer) {
+          int flushes_seen = 0;
+          auto checkpoint = task_runner.CreateCheckpoint("flushes_periodic");
+          EXPECT_CALL(*producer, Flush(_, _, _, _))
+              .WillRepeatedly([&](FlushRequestID flush_req_id,
+                                  const DataSourceInstanceID*, size_t,
+                                  FlushFlags flags) {
+                EXPECT_EQ(flags.reason(), FlushFlags::Reason::kPeriodic);
+                producer->endpoint()->NotifyFlushComplete(flush_req_id);
+                if (++flushes_seen == 2)
+                  checkpoint();
+              });
+
+          // Advance by write periods until we are just before the default 5s
+          // threshold.
+          for (uint32_t ms = kWritePeriodMs; ms < kDefaultWriteIntoFilePeriodMs;
+               ms += kWritePeriodMs) {
+            AdvanceTimeAndRunUntilIdle(kWritePeriodMs);
+            EXPECT_EQ(flushes_seen, 0);
+          }
+
+          // Reaching the kDefaultWriteIntoFilePeriodMs threshold should trigger
+          // the periodic flush.
+          AdvanceTimeAndRunUntilIdle(kWritePeriodMs);
+          EXPECT_EQ(flushes_seen, 1);
+
+          // Advance another kDefaultWriteIntoFilePeriodMs
+          AdvanceTimeAndRunUntilIdle(kDefaultWriteIntoFilePeriodMs);
+          task_runner.RunUntilCheckpoint("flushes_periodic");
+          EXPECT_EQ(flushes_seen, 2);
+        });
+  }
+}
+
 TEST_F(TracingServiceImplTest, CloneSessionWithCompression) {
   TracingService::InitOpts init_opts;
   init_opts.compressor_fn = ZlibCompressFn;
@@ -2281,10 +2395,11 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   // TraceUuid
   // Config
   // SystemInfo
+  // TraceProvenance
   // Tracing started (TracingServiceEvent)
   // All data source started (TracingServiceEvent)
   // Tracing disabled (TracingServiceEvent)
-  static const int kNumPreamblePackets = 9;
+  static const int kNumPreamblePackets = 10;
   static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
@@ -2436,7 +2551,7 @@ TEST_F(TracingServiceImplTest, NoFlushBeforeWriteIntoFile) {
   trace_config.add_data_sources()->mutable_config()->set_name("data_source");
   trace_config.set_write_into_file(true);
   trace_config.set_file_write_period_ms(10000);  // 10s
-  trace_config.set_no_flush_before_write_into_file(true);
+  trace_config.set_write_flush_mode(TraceConfig::WRITE_FLUSH_DISABLED);
 
   auto write_into_file_session_file = base::TempFile::Create();
   consumer->EnableTracing(
@@ -3513,6 +3628,7 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("data_source");
   trace_config.set_write_into_file(true);
+  trace_config.set_write_flush_mode(TraceConfig::WRITE_FLUSH_ENABLED);
   trace_config.set_file_write_period_ms(100);
   trace_config.mutable_builtin_data_sources()->set_snapshot_interval_ms(100);
   base::TempFile tmp_file = base::TempFile::Create();
@@ -6569,8 +6685,10 @@ TEST_F(TracingServiceImplTest, StringFiltering) {
   // Message 1: TracePacket proto. Allow only the `for_testing` sub-field.
   filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
   filt.EndMessage();
-  // Message 2: TestEvent proto. Allow only the `str` sub-field as a striong.
-  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber);
+  // Message 2: TestEvent proto. Allow only the `str` sub-field as a string.
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                            /*semantic_type=*/0, /*allow_in_v1=*/false,
+                            /*allow_in_v2=*/false);
   filt.EndMessage();
   trace_config.mutable_trace_filter()->set_bytecode_v2(
       filt.Serialize().bytecode);
@@ -6616,6 +6734,135 @@ TEST_F(TracingServiceImplTest, StringFiltering) {
                                                   Eq("B|1023|payP6ad1P")))));
 }
 
+// Comprehensive test for UNSPECIFIED semantic type handling.
+// UNSPECIFIED (0) is treated as its own distinct category.
+//
+// We use two sessions (one per bytecode semantic type) with multiple rules
+// and packets per session to minimize setup/teardown overhead.
+TEST_F(TracingServiceImplTest, StringFilteringSemanticTypeUnspecified) {
+  // Runs a session with given bytecode semantic type and multiple rules,
+  // returning a map of string prefix -> output string.
+  auto run_session = [this](uint32_t bytecode_semantic_type)
+      -> std::map<std::string, std::string> {
+    std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+
+    std::unique_ptr<MockProducer> producer = CreateMockProducer();
+    std::string producer_name =
+        "mock_producer_" + std::to_string(bytecode_semantic_type);
+    producer->Connect(svc.get(), producer_name);
+    producer->RegisterDataSource("ds_1");
+
+    TraceConfig trace_config;
+    trace_config.add_buffers()->set_size_kb(32);
+    auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+    ds_cfg->set_name("ds_1");
+    ds_cfg->set_target_buffer(0);
+
+    protozero::FilterBytecodeGenerator filt;
+    filt.AddNestedField(1, 1);
+    filt.EndMessage();
+    filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
+    filt.EndMessage();
+    filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                              bytecode_semantic_type, /*allow_in_v1=*/false,
+                              /*allow_in_v2=*/false);
+    filt.EndMessage();
+    trace_config.mutable_trace_filter()->set_bytecode_v2(
+        filt.Serialize().bytecode);
+
+    // Add multiple rules with different semantic type configurations.
+    // Each rule matches a unique prefix so we can identify which rule fired.
+    auto* chain =
+        trace_config.mutable_trace_filter()->mutable_string_filter_chain();
+
+    // Rule 1: empty semantic_type (defaults to UNSPECIFIED only)
+    auto* rule1 = chain->add_rules();
+    rule1->set_policy(
+        protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+    rule1->set_regex_pattern(R"(empty:(.*))");
+
+    // Rule 2: [UNSPECIFIED]
+    auto* rule2 = chain->add_rules();
+    rule2->set_policy(
+        protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+    rule2->set_regex_pattern(R"(unspec:(.*))");
+    rule2->add_semantic_type(protos::gen::SEMANTIC_TYPE_UNSPECIFIED);
+
+    // Rule 3: [ATRACE]
+    auto* rule3 = chain->add_rules();
+    rule3->set_policy(
+        protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+    rule3->set_regex_pattern(R"(atrace:(.*))");
+    rule3->add_semantic_type(protos::gen::SEMANTIC_TYPE_ATRACE);
+
+    // Rule 4: [UNSPECIFIED, ATRACE]
+    auto* rule4 = chain->add_rules();
+    rule4->set_policy(
+        protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+    rule4->set_regex_pattern(R"(both:(.*))");
+    rule4->add_semantic_type(protos::gen::SEMANTIC_TYPE_UNSPECIFIED);
+    rule4->add_semantic_type(protos::gen::SEMANTIC_TYPE_ATRACE);
+
+    consumer->EnableTracing(trace_config);
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("ds_1");
+    producer->WaitForDataSourceStart("ds_1");
+
+    std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+
+    // Write packets with strings matching each rule
+    for (const char* s :
+         {"empty:data", "unspec:data", "atrace:data", "both:data"}) {
+      auto tp = writer->NewTracePacket();
+      tp->set_for_testing()->set_str(s);
+    }
+
+    auto flush_request = consumer->Flush();
+    producer->ExpectFlush(writer.get());
+    EXPECT_TRUE(flush_request.WaitForReply());
+
+    const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
+    EXPECT_CALL(*producer, StopDataSource(id1));
+
+    consumer->DisableTracing();
+    consumer->WaitForTracingDisabled();
+
+    // Collect results keyed by prefix
+    std::map<std::string, std::string> results;
+    for (const auto& packet : consumer->ReadBuffers()) {
+      if (packet.has_for_testing() && !packet.for_testing().str().empty()) {
+        const std::string& s = packet.for_testing().str();
+        auto colon = s.find(':');
+        if (colon != std::string::npos) {
+          results[s.substr(0, colon)] = s;
+        }
+      }
+    }
+    return results;
+  };
+
+  // Session 1: bytecode=UNSPECIFIED(0)
+  // Rules that include bit 0 should match, others should not.
+  {
+    auto r = run_session(0);
+    EXPECT_EQ(r["empty"], "empty:P60R");    // empty -> UNSPECIFIED, MATCH
+    EXPECT_EQ(r["unspec"], "unspec:P60R");  // [UNSPECIFIED], MATCH
+    EXPECT_EQ(r["atrace"], "atrace:data");  // [ATRACE], NO MATCH
+    EXPECT_EQ(r["both"], "both:P60R");      // [UNSPECIFIED,ATRACE], MATCH
+  }
+
+  // Session 2: bytecode=ATRACE(1)
+  // Rules that include bit 1 should match, others should not.
+  {
+    auto r = run_session(1);
+    EXPECT_EQ(r["empty"], "empty:data");    // empty -> UNSPECIFIED, NO MATCH
+    EXPECT_EQ(r["unspec"], "unspec:data");  // [UNSPECIFIED], NO MATCH
+    EXPECT_EQ(r["atrace"], "atrace:P60R");  // [ATRACE], MATCH
+    EXPECT_EQ(r["both"], "both:P60R");      // [UNSPECIFIED,ATRACE], MATCH
+  }
+}
+
 TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -6639,7 +6886,9 @@ TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
   filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
   filt.EndMessage();
   // Message 2: TestEvent proto. Allow only the `str` sub-field as a string.
-  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber);
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                            /*semantic_type=*/0, /*allow_in_v1=*/false,
+                            /*allow_in_v2=*/false);
   filt.EndMessage();
   trace_config.mutable_trace_filter()->set_bytecode_v2(
       filt.Serialize().bytecode);
@@ -7630,6 +7879,67 @@ TEST_F(TracingServiceImplTest, NamedBufferMixedWithUnnamed) {
   producer->WaitForDataSourceStop("ds_1");
   producer->WaitForDataSourceStop("ds_2");
   consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, TraceProvenance) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  // Set up tracing session
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  consumer->EnableTracing(trace_config);
+
+  // Set up producer
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer_1");
+  producer->RegisterDataSource("data_source");
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  // Set up writers
+  std::unique_ptr<TraceWriter> writer_1 =
+      producer->CreateTraceWriter("data_source");
+  std::unique_ptr<TraceWriter> writer_2 =
+      producer->CreateTraceWriter("data_source");
+  task_runner.RunUntilIdle();  // Wait for the writers to be registered.
+
+  // Write some data
+  writer_1->NewTracePacket()->set_for_testing()->set_str("test_string_1");
+  writer_1->Flush();
+  writer_2->NewTracePacket()->set_for_testing()->set_str("test_string_2");
+  writer_2->Flush();
+
+  // Check trace provenance packet
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  auto packet = std::find_if(packets.cbegin(), packets.cend(),
+                             [](const protos::gen::TracePacket& p) {
+                               return p.has_trace_provenance();
+                             });
+  EXPECT_NE(packet, packets.cend());
+  EXPECT_THAT(
+      packet->trace_provenance(),
+      Property(
+          &protos::gen::TraceProvenance::buffers,
+          ElementsAre(Property(
+              &protos::gen::TraceProvenance::Buffer::sequences,
+              ElementsAre(
+                  AllOf(
+                      Property(&protos::gen::TraceProvenance::Sequence::id,
+                               Not(Eq(0u))),
+                      Property(
+                          &protos::gen::TraceProvenance::Sequence::producer_id,
+                          Not(Eq(0)))),
+                  AllOf(
+                      Property(&protos::gen::TraceProvenance::Sequence::id,
+                               Not(Eq(0u))),
+                      Property(
+                          &protos::gen::TraceProvenance::Sequence::producer_id,
+                          Not(Eq(0)))))))));
 }
 
 }  // namespace

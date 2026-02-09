@@ -16,7 +16,7 @@
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.37.1",
     "@google/genai": "^1.12.0",
-    "@modelcontextprotocol/sdk": "^1.17.1",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@popperjs/core": "^2.11.8",
     "@protobufjs/base64": "^1.1.2",
     "@protobufjs/utf8": "^1.1.0",
@@ -34,7 +34,7 @@
     "codemirror": "6.0.1",
     "color-convert": "^2.0.1",
     "d3": "^7.9.0",
-    "devtools-protocol": "0.0.1319565",
+    "devtools-protocol": "0.0.1561482",
     "esbuild": "^0.21.5",
     "events": "^3.3.0",
     "fzf": "^0.5.2",
@@ -48,9 +48,9 @@
     "protobufjs-cli": "^1.1.2",
     "util": "^0.12.5",
     "uuid": "^10.0.0",
-    "vega": "^5.30.0",
+    "vega": "^6.2.0",
     "vega-lite": "^5.19.0",
-    "zod": "^3.23.8"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.1.0",

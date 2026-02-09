@@ -54,7 +54,7 @@ interface QueryLog {
   readonly tag?: string;
   readonly query: string;
   readonly startTime: number;
-  readonly endTime?: number;
+  readonly elapsedTimeMs?: number;
   readonly success?: boolean;
 }
 
@@ -63,8 +63,8 @@ export interface Engine {
   readonly engineId: string;
 
   /**
-   * A list of the most recent queries along with their start times, end times
-   * and success status (if completed).
+   * A list of the most recent queries along with their start times, elapsed
+   * times and success status (if completed).
    */
   readonly queryLog: ReadonlyArray<QueryLog>;
 
@@ -77,7 +77,6 @@ export interface Engine {
    * The promise will be rejected if the query fails.
    *
    * @param sql The query to execute.
-   * @param tag An optional tag used to trace the origin of the query.
    */
   query(sql: string): Promise<QueryResult>;
 
@@ -91,7 +90,6 @@ export interface Engine {
    * received.
    *
    * @param sql The query to execute.
-   * @param tag An optional tag used to trace the origin of the query.
    */
   tryQuery(sql: string): Promise<Result<QueryResult>>;
 
@@ -116,9 +114,25 @@ export interface Engine {
   enableMetatrace(categories?: protos.MetatraceCategories): void;
   stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult>;
 
-  analyzeStructuredQuery(
-    structuredQueries: protos.PerfettoSqlStructuredQuery[],
-  ): Promise<protos.AnalyzeStructuredQueryResult>;
+  // Summarizer API for Data Explorer.
+  // Creates a summarizer with the given ID. Returns error if ID already exists.
+  createSummarizer(
+    summarizerId: string,
+  ): Promise<protos.CreateSummarizerResult>;
+
+  updateSummarizerSpec(
+    summarizerId: string,
+    spec: protos.TraceSummarySpec,
+  ): Promise<protos.UpdateSummarizerSpecResult>;
+
+  querySummarizer(
+    summarizerId: string,
+    queryId: string,
+  ): Promise<protos.QuerySummarizerResult>;
+
+  destroySummarizer(
+    summarizerId: string,
+  ): Promise<protos.DestroySummarizerResult>;
 
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
@@ -150,8 +164,11 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<protos.DisableAndReadMetatraceResult>;
   private pendingRegisterSqlPackage?: Deferred<void>;
-  private pendingAnalyzeStructuredQueries?: Deferred<protos.AnalyzeStructuredQueryResult>;
   private pendingTraceSummary?: Deferred<protos.TraceSummaryResult>;
+  private pendingCreateSummarizer?: Deferred<protos.CreateSummarizerResult>;
+  private pendingUpdateSummarizerSpec?: Deferred<protos.UpdateSummarizerSpecResult>;
+  private pendingQuerySummarizer?: Deferred<protos.QuerySummarizerResult>;
+  private pendingDestroySummarizer?: Deferred<protos.DestroySummarizerResult>;
   private _numRequestsPending = 0;
   private _failed: string | undefined = undefined;
   private _queryLog: Array<QueryLog> = [];
@@ -311,6 +328,7 @@ export abstract class EngineBase implements Engine, Disposable {
         } else {
           res.resolve();
         }
+        this.pendingRegisterSqlPackage = undefined;
         break;
       case TPM.TPM_SUMMARIZE_TRACE:
         const summaryRes = assertExists(
@@ -319,13 +337,37 @@ export abstract class EngineBase implements Engine, Disposable {
         assertExists(this.pendingTraceSummary).resolve(summaryRes);
         this.pendingTraceSummary = undefined;
         break;
-      case TPM.TPM_ANALYZE_STRUCTURED_QUERY:
-        const analyzeRes = assertExists(
-          rpc.analyzeStructuredQueryResult,
-        ) as {} as protos.AnalyzeStructuredQueryResult;
-        const x = assertExists(this.pendingAnalyzeStructuredQueries);
-        x.resolve(analyzeRes);
-        this.pendingAnalyzeStructuredQueries = undefined;
+      case TPM.TPM_CREATE_SUMMARIZER:
+        const createSummarizerRes = assertExists(
+          rpc.createSummarizerResult,
+        ) as protos.CreateSummarizerResult;
+        assertExists(this.pendingCreateSummarizer).resolve(createSummarizerRes);
+        this.pendingCreateSummarizer = undefined;
+        break;
+      case TPM.TPM_UPDATE_SUMMARIZER_SPEC:
+        const updateSummarizerSpecRes = assertExists(
+          rpc.updateSummarizerSpecResult,
+        ) as protos.UpdateSummarizerSpecResult;
+        assertExists(this.pendingUpdateSummarizerSpec).resolve(
+          updateSummarizerSpecRes,
+        );
+        this.pendingUpdateSummarizerSpec = undefined;
+        break;
+      case TPM.TPM_QUERY_SUMMARIZER:
+        const querySummarizerRes = assertExists(
+          rpc.querySummarizerResult,
+        ) as protos.QuerySummarizerResult;
+        assertExists(this.pendingQuerySummarizer).resolve(querySummarizerRes);
+        this.pendingQuerySummarizer = undefined;
+        break;
+      case TPM.TPM_DESTROY_SUMMARIZER:
+        const destroySummarizerRes = assertExists(
+          rpc.destroySummarizerResult,
+        ) as protos.DestroySummarizerResult;
+        assertExists(this.pendingDestroySummarizer).resolve(
+          destroySummarizerRes,
+        );
+        this.pendingDestroySummarizer = undefined;
         break;
       case TPM.TPM_ENABLE_METATRACE:
         // We don't have any pending promises for this request so just
@@ -531,7 +573,7 @@ export abstract class EngineBase implements Engine, Disposable {
     query: string,
     tag?: string,
   ): {
-    endTime?: number;
+    elapsedTimeMs?: number;
     success?: boolean;
   } {
     const startTime = performance.now();
@@ -554,6 +596,7 @@ export abstract class EngineBase implements Engine, Disposable {
       this.streamingQuery(result, sqlQuery, tag);
       const resolvedResult = await result;
       queryLog.success = true;
+      queryLog.elapsedTimeMs = resolvedResult.elapsedTimeMs();
       return resolvedResult;
     } catch (e) {
       // Replace the error's stack trace with the one from here
@@ -564,8 +607,6 @@ export abstract class EngineBase implements Engine, Disposable {
       captureStackTrace(e);
       queryLog.success = false;
       throw e;
-    } finally {
-      queryLog.endTime = performance.now();
     }
   }
 
@@ -609,7 +650,7 @@ export abstract class EngineBase implements Engine, Disposable {
 
   registerSqlPackages(pkg: {
     name: string;
-    modules: {name: string; sql: string}[];
+    modules: ReadonlyArray<{name: string; sql: string}>;
   }): Promise<void> {
     if (this.pendingRegisterSqlPackage) {
       return Promise.reject(new Error('Already registering SQL package'));
@@ -622,26 +663,80 @@ export abstract class EngineBase implements Engine, Disposable {
     const args = (rpc.registerSqlPackageArgs =
       new protos.RegisterSqlPackageArgs());
     args.packageName = pkg.name;
-    args.modules = pkg.modules;
+    args.modules = [...pkg.modules];
     args.allowOverride = true;
     this.pendingRegisterSqlPackage = result;
     this.rpcSendRequest(rpc);
     return result;
   }
 
-  analyzeStructuredQuery(
-    structuredQueries: protos.PerfettoSqlStructuredQuery[],
-  ): Promise<protos.AnalyzeStructuredQueryResult> {
-    if (this.pendingAnalyzeStructuredQueries) {
-      return Promise.reject(new Error('Already analyzing structured queries'));
+  createSummarizer(
+    summarizerId: string,
+  ): Promise<protos.CreateSummarizerResult> {
+    if (this.pendingCreateSummarizer) {
+      return Promise.reject(new Error('Already creating summarizer'));
     }
-    const result = defer<protos.AnalyzeStructuredQueryResult>();
+    const result = defer<protos.CreateSummarizerResult>();
     const rpc = protos.TraceProcessorRpc.create();
-    rpc.request = TPM.TPM_ANALYZE_STRUCTURED_QUERY;
-    const args = (rpc.analyzeStructuredQueryArgs =
-      new protos.AnalyzeStructuredQueryArgs());
-    args.queries = structuredQueries;
-    this.pendingAnalyzeStructuredQueries = result;
+    rpc.request = TPM.TPM_CREATE_SUMMARIZER;
+    rpc.createSummarizerArgs = new protos.CreateSummarizerArgs({
+      summarizerId,
+    });
+    this.pendingCreateSummarizer = result;
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
+  updateSummarizerSpec(
+    summarizerId: string,
+    spec: protos.TraceSummarySpec,
+  ): Promise<protos.UpdateSummarizerSpecResult> {
+    if (this.pendingUpdateSummarizerSpec) {
+      return Promise.reject(new Error('Already updating summarizer spec'));
+    }
+    const result = defer<protos.UpdateSummarizerSpecResult>();
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_UPDATE_SUMMARIZER_SPEC;
+    const args = (rpc.updateSummarizerSpecArgs =
+      new protos.UpdateSummarizerSpecArgs());
+    args.summarizerId = summarizerId;
+    args.spec = spec;
+    this.pendingUpdateSummarizerSpec = result;
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
+  querySummarizer(
+    summarizerId: string,
+    queryId: string,
+  ): Promise<protos.QuerySummarizerResult> {
+    if (this.pendingQuerySummarizer) {
+      return Promise.reject(new Error('Already querying summarizer'));
+    }
+    const result = defer<protos.QuerySummarizerResult>();
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_QUERY_SUMMARIZER;
+    const args = (rpc.querySummarizerArgs = new protos.QuerySummarizerArgs());
+    args.summarizerId = summarizerId;
+    args.queryId = queryId;
+    this.pendingQuerySummarizer = result;
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
+  destroySummarizer(
+    summarizerId: string,
+  ): Promise<protos.DestroySummarizerResult> {
+    if (this.pendingDestroySummarizer) {
+      return Promise.reject(new Error('Already destroying summarizer'));
+    }
+    const result = defer<protos.DestroySummarizerResult>();
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_DESTROY_SUMMARIZER;
+    const args = (rpc.destroySummarizerArgs =
+      new protos.DestroySummarizerArgs());
+    args.summarizerId = summarizerId;
+    this.pendingDestroySummarizer = result;
     this.rpcSendRequest(rpc);
     return result;
   }
@@ -747,10 +842,30 @@ export class EngineProxy implements Engine, Disposable {
     return this.engine.stopAndGetMetatrace();
   }
 
-  analyzeStructuredQuery(
-    structuredQueries: protos.PerfettoSqlStructuredQuery[],
-  ): Promise<protos.AnalyzeStructuredQueryResult> {
-    return this.engine.analyzeStructuredQuery(structuredQueries);
+  createSummarizer(
+    summarizerId: string,
+  ): Promise<protos.CreateSummarizerResult> {
+    return this.engine.createSummarizer(summarizerId);
+  }
+
+  updateSummarizerSpec(
+    summarizerId: string,
+    spec: protos.TraceSummarySpec,
+  ): Promise<protos.UpdateSummarizerSpecResult> {
+    return this.engine.updateSummarizerSpec(summarizerId, spec);
+  }
+
+  querySummarizer(
+    summarizerId: string,
+    queryId: string,
+  ): Promise<protos.QuerySummarizerResult> {
+    return this.engine.querySummarizer(summarizerId, queryId);
+  }
+
+  destroySummarizer(
+    summarizerId: string,
+  ): Promise<protos.DestroySummarizerResult> {
+    return this.engine.destroySummarizer(summarizerId);
   }
 
   get engineId(): string {

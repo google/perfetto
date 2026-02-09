@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {z} from 'zod';
 import {copyToClipboard} from '../../base/clipboard';
 import {formatTimezone, Time, time, timezoneOffsetMap} from '../../base/time';
@@ -19,7 +20,7 @@ import {exists} from '../../base/utils';
 import {JsonSettingsEditor} from '../../components/json_settings_editor';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {AppImpl} from '../../core/app_impl';
-import {commandInvocationSchema} from '../../core/command_manager';
+import {commandInvocationSchema, macroSchema} from '../../core/command_manager';
 import {featureFlags} from '../../core/feature_flags';
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {
@@ -132,13 +133,23 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
   return promptForTimestamp('Enter a timestamp');
 }
 
-const macroSchema = z.record(z.array(commandInvocationSchema).readonly());
-type MacroConfig = z.infer<typeof macroSchema>;
+// Type alias for macro array (inferred from the shared schema)
+const macrosConfigSchema = z.array(macroSchema);
+type MacrosConfig = z.infer<typeof macrosConfigSchema>;
+
+// Legacy macro schema (dictionary format) - deprecated, kept for migration
+export const legacyMacrosConfigSchema = z.record(
+  z.string(), // key: macro name
+  z.array(commandInvocationSchema).readonly(),
+);
+type LegacyMacrosConfig = z.infer<typeof legacyMacrosConfigSchema>;
 
 export default class CoreCommands implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CoreCommands';
 
-  static macrosSetting: Setting<MacroConfig> | undefined = undefined;
+  static macrosSetting: Setting<MacrosConfig> | undefined = undefined;
+  static legacyMacrosSetting: Setting<LegacyMacrosConfig> | undefined =
+    undefined;
 
   static onActivate(ctx: AppImpl) {
     // Register global commands (commands that are required even without a trace
@@ -168,19 +179,59 @@ export default class CoreCommands implements PerfettoPlugin {
       });
     }
 
-    const macroSettingsEditor = new JsonSettingsEditor<MacroConfig>({
-      schema: macroSchema,
+    // Register the new macros setting (array format)
+    const macroSettingsEditor = new JsonSettingsEditor<MacrosConfig>({
+      schema: macrosConfigSchema,
     });
     CoreCommands.macrosSetting = ctx.settings.register({
-      id: 'perfetto.CoreCommands#UserDefinedMacros',
+      id: 'perfetto.CoreCommands#Macros',
       name: 'Macros',
       description:
         'Custom command macros that execute multiple commands in sequence',
-      schema: macroSchema,
-      defaultValue: {},
+      schema: macrosConfigSchema,
+      defaultValue: [],
       requiresReload: true,
       render: (setting) => macroSettingsEditor.render(setting),
     });
+
+    // Register the legacy macros setting (dictionary format) - deprecated
+    CoreCommands.legacyMacrosSetting = ctx.settings.register({
+      id: 'perfetto.CoreCommands#UserDefinedMacros',
+      name: 'Macros (Legacy)',
+      description:
+        'Deprecated: This setting uses the old dictionary format. ' +
+        'Your macros have been automatically migrated to the new format above.',
+      schema: legacyMacrosConfigSchema,
+      defaultValue: {},
+      requiresReload: false,
+      render: () =>
+        m(
+          '.pf-legacy-macros-notice',
+          m(
+            'p',
+            'This setting is deprecated. Your macros have been automatically ' +
+              'migrated to the new "Macros" setting above.',
+          ),
+          m(
+            'p',
+            'Please use the new "Macros" setting to view and edit your macros.',
+          ),
+        ),
+    });
+
+    // Migration: if new setting is empty but legacy has data, migrate
+    const newMacros = CoreCommands.macrosSetting.get();
+    const legacyMacros = CoreCommands.legacyMacrosSetting.get();
+    if (newMacros.length === 0 && Object.keys(legacyMacros).length > 0) {
+      const migratedMacros: MacrosConfig = Object.entries(legacyMacros).map(
+        ([name, run]) => ({
+          id: `dev.perfetto.UserMacro.${name}`,
+          name,
+          run,
+        }),
+      );
+      CoreCommands.macrosSetting.set(migratedMacros);
+    }
 
     const input = document.createElement('input');
     input.classList.add('trace_file');
@@ -237,12 +288,8 @@ export default class CoreCommands implements PerfettoPlugin {
 
     // Rgister macros from settings first.
     const settingMacros = assertExists(CoreCommands.macrosSetting).get();
-    for (const [name, commands] of Object.entries(settingMacros)) {
-      ctx.commands.registerMacro({
-        id: `dev.perfetto.UserMacro.${name}`,
-        name,
-        commands,
-      });
+    for (const macro of settingMacros) {
+      ctx.commands.registerMacro(macro);
     }
 
     // Register the macros from extras at onTraceReady (the latest time
@@ -251,12 +298,8 @@ export default class CoreCommands implements PerfettoPlugin {
       // Await the promises: we've tried to be async as long as possible but
       // now we need the extras to be loaded.
       const macros = await app.macros();
-      for (const [name, commands] of Object.entries(macros)) {
-        ctx.commands.registerMacro({
-          id: `dev.perfetto.UserMacro.${name}`,
-          name,
-          commands,
-        });
+      for (const macro of macros) {
+        ctx.commands.registerMacro(macro);
       }
     });
 
@@ -543,17 +586,20 @@ export default class CoreCommands implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAndShowTab',
       name: 'Runs an SQL query and opens results in a tab',
-      callback: async (rawSql: unknown) => {
+      callback: async (queryArg: unknown, titleArg?: unknown) => {
         const query =
-          typeof rawSql === 'string'
-            ? rawSql
+          typeof queryArg === 'string'
+            ? queryArg
             : await ctx.omnibox.prompt('Enter SQL...');
         if (!query) {
           return;
         }
+
+        const title = typeof titleArg === 'string' ? titleArg : 'Command Query';
+
         addQueryResultsTab(ctx, {
           query,
-          title: 'Command Query',
+          title,
         });
       },
     });
@@ -701,13 +747,6 @@ export default class CoreCommands implements PerfettoPlugin {
         }
       },
       defaultHotkey: 'R',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.ToggleDrawer',
-      name: 'Toggle drawer',
-      defaultHotkey: 'Q',
-      callback: () => ctx.tabs.toggleTabPanelVisibility(),
     });
 
     ctx.commands.registerCommand({

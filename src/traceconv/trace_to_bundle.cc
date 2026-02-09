@@ -16,94 +16,23 @@
 
 #include "src/traceconv/trace_to_bundle.h"
 
-#include <cstdlib>
-#include <cstring>
-#include <memory>
+#include <cstdio>
 #include <string>
-#include <unordered_set>
-#include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
-#include "src/profiling/symbolizer/symbolize_database.h"
-#include "src/profiling/symbolizer/symbolizer.h"
 #include "src/trace_processor/util/tar_writer.h"
-#include "src/traceconv/utils.h"
+#include "src/trace_processor/util/trace_enrichment/trace_enrichment.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+#include <unistd.h>  // For isatty()
+#endif
 
 namespace perfetto::trace_to_text {
-
-namespace {
-
-std::vector<std::string> GetAllMappingNames(
-    trace_processor::TraceProcessor* tp) {
-  std::vector<std::string> mapping_names;
-  auto it = tp->ExecuteQuery(R"(
-    SELECT DISTINCT name
-    FROM stack_profile_mapping
-    WHERE build_id != '' AND name != ''
-  )");
-  while (it.Next()) {
-    mapping_names.push_back(it.Get(0).AsString());
-  }
-  return mapping_names;
-}
-
-std::vector<std::string> GetDefaultSymbolPaths() {
-  std::vector<std::string> paths;
-  paths.emplace_back("/usr/lib/debug");
-  const char* home = getenv("HOME");
-  if (home) {
-    paths.emplace_back(std::string(home) + "/.debug");
-  }
-  return paths;
-}
-
-// Creates a symbolizer based on provided paths, context, and discovered
-// mapping names
-std::unique_ptr<profiling::Symbolizer> CreateSymbolizer(
-    const BundleContext& context,
-    const std::vector<std::string>& mapping_names) {
-  if (mapping_names.empty()) {
-    return nullptr;
-  }
-
-  std::unordered_set<std::string> dirs;
-  std::unordered_set<std::string> files;
-
-  // Always add paths from PERFETTO_BINARY_PATH environment variable
-  std::vector<std::string> env_binary_paths =
-      profiling::GetPerfettoBinaryPath();
-  if (!env_binary_paths.empty()) {
-    dirs.insert(env_binary_paths.begin(), env_binary_paths.end());
-  }
-
-  // Add automatic paths unless disabled
-  if (!context.no_auto_symbol_paths) {
-    std::vector<std::string> auto_paths = GetDefaultSymbolPaths();
-    dirs.insert(auto_paths.begin(), auto_paths.end());
-  }
-
-  // Add user-provided paths
-  if (!context.symbol_paths.empty()) {
-    dirs.insert(context.symbol_paths.begin(), context.symbol_paths.end());
-  }
-
-  // Add binary paths from mappings (they might contain embedded symbols)
-  for (const auto& name : mapping_names) {
-    if (!name.empty() && name[0] == '/') {
-      files.insert(name);
-    }
-  }
-  return profiling::MaybeLocalSymbolizer(
-      std::vector<std::string>(dirs.begin(), dirs.end()),
-      std::vector<std::string>(files.begin(), files.end()), "index");
-}
-
-}  // namespace
 
 int TraceToBundle(const std::string& input_file_path,
                   const std::string& output_file_path,
@@ -115,43 +44,7 @@ int TraceToBundle(const std::string& input_file_path,
     return 1;
   }
 
-  // Check if this is an Android trace - bundle mode doesn't work for Android
-  // yet.
-  bool is_android;
-  {
-    auto android_check = tp->ExecuteQuery(R"(
-      SELECT COUNT(*)
-      FROM metadata
-      WHERE name = 'android_build_fingerprint'
-        OR (
-          name = 'system_release'
-          AND (value GLOB '*android*' OR value GLOB '*Android*')
-        )
-    )");
-    is_android = android_check.Next() && android_check.Get(0).AsLong() > 0;
-  }
-  if (is_android) {
-    PERFETTO_ELOG(R"(
-Bundle mode does not currently support Android traces.
-For Android traces, please use the existing 'symbolize' mode instead:
-
-  # Set up symbol paths (choose one):
-  export PERFETTO_BINARY_PATH="/path/to/android/symbols"
-  export PERFETTO_SYMBOLIZER_MODE=index
-  # OR
-  export BREAKPAD_SYMBOL_DIR="/path/to/breakpad/symbols"
-
-  # Generate symbols and create bundle:
-  traceconv symbolize input.perfetto symbols.pb
-  cat input.perfetto symbols.pb > output.perfetto
-
-For more information on setting up Android symbols, see:
-https://perfetto.dev/docs/data-sources/native-heap-profiler#symbolization
-)");
-    return 1;
-  }
-
-  // Add original trace file directly (memory efficient)
+  // Add original trace file directly (memory efficient).
   trace_processor::util::TarWriter tar(output_file_path);
   auto add_trace_status =
       tar.AddFileFromPath("trace.perfetto", input_file_path);
@@ -161,21 +54,64 @@ https://perfetto.dev/docs/data-sources/native-heap-profiler#symbolization
     return 1;
   }
 
-  // Symbolize the trace if possible.
-  std::vector<std::string> mapping_names = GetAllMappingNames(tp.get());
-  if (auto symbolizer = CreateSymbolizer(context, mapping_names); symbolizer) {
-    std::string symbols_proto;
-    profiling::SymbolizeDatabase(tp.get(), symbolizer.get(),
-                                 [&symbols_proto](const std::string& packet) {
-                                   symbols_proto += packet;
-                                 });
-    auto add_symbols_status = tar.AddFile("symbols.pb", symbols_proto);
-    if (!add_symbols_status.ok()) {
+  // Build enrichment configuration from context.
+  trace_processor::util::EnrichmentConfig enrich_config;
+  enrich_config.symbol_paths = context.symbol_paths;
+  enrich_config.no_auto_symbol_paths = context.no_auto_symbol_paths;
+  enrich_config.verbose = context.verbose;
+  enrich_config.android_product_out = context.android_product_out;
+  enrich_config.home_dir = context.home_dir;
+  enrich_config.working_dir = context.working_dir;
+  enrich_config.root_dir = context.root_dir;
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+  enrich_config.colorize = isatty(STDERR_FILENO);
+#endif
+
+  // Add explicit ProGuard maps from context.
+  for (const auto& map_spec : context.proguard_maps) {
+    enrich_config.proguard_maps.push_back({map_spec.package, map_spec.path});
+  }
+
+  // Perform trace enrichment (symbolization + deobfuscation).
+  auto enrich_result =
+      trace_processor::util::EnrichTrace(tp.get(), enrich_config);
+
+  // Add symbols if available.
+  if (!enrich_result.native_symbols.empty()) {
+    auto add_status = tar.AddFile("symbols.pb", enrich_result.native_symbols);
+    if (!add_status.ok()) {
       PERFETTO_ELOG("Failed to add symbols to TAR archive: %s",
-                    add_symbols_status.c_message());
+                    add_status.c_message());
       return 1;
     }
   }
+
+  // Add deobfuscation data if available.
+  if (!enrich_result.deobfuscation_data.empty()) {
+    auto add_status =
+        tar.AddFile("deobfuscation.pb", enrich_result.deobfuscation_data);
+    if (!add_status.ok()) {
+      PERFETTO_ELOG("Failed to add deobfuscation data to TAR: %s",
+                    add_status.c_message());
+      return 1;
+    }
+  }
+
+  // Log any issues to stderr (without PERFETTO_LOG noise).
+  if (!enrich_result.details.empty()) {
+    fprintf(stderr, "%s", enrich_result.details.c_str());
+  }
+
+  // Explicit user-provided paths must succeed.
+  if (enrich_result.error ==
+          trace_processor::util::EnrichmentError::kExplicitMapsFailed ||
+      enrich_result.error ==
+          trace_processor::util::EnrichmentError::kAllFailed) {
+    return 1;
+  }
+
   return 0;
 }
 

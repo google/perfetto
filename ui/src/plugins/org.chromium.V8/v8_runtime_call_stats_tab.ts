@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
+import {formatDuration} from '../../components/time_utils';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {
   CellRenderResult,
@@ -28,12 +30,20 @@ import {
   TrackEventSelection,
   TrackSelection,
 } from '../../public/selection';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Trace} from '../../public/trace';
-import {Spinner} from '../../widgets/spinner';
 import {Tab} from '../../public/tab';
-import {formatDuration} from '../../components/time_utils';
-import {Row, SqlValue} from '../../trace_processor/query_result';
+import {Trace} from '../../public/trace';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  NUM,
+  Row,
+  SqlValue,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {DownloadToFileButton} from '../../widgets/download_to_file_button';
+import {MultiSelectDiff, PopupMultiSelect} from '../../widgets/multiselect';
+import {PopupPosition} from '../../widgets/popup';
+import {Spinner} from '../../widgets/spinner';
 
 const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
   v8_rcs: {
@@ -50,32 +60,34 @@ const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
 };
 
 const GROUP_COLORS: {[key: string]: string} = {
-  total: '#BBB',
-  ic: '#3366CC',
-  optimize_maglev_bg: '#962c02',
-  optimize_maglev: '#fc4f26',
-  optimize_bg: '#702000',
-  optimize: '#DC3912',
+  api: '#990099',
+  blink: '#006600',
+  callback: '#109618',
   compile_bg: '#b08000',
   compile: '#FFAA00',
+  gc_bg: '#00597c',
+  gc_custom: '#0099C6',
+  gc: '#00799c',
+  ic: '#3366CC',
+  javascript: '#DD4477',
+  network_data: '#103366',
+  optimize_bg: '#702000',
+  optimize_maglev_bg: '#962c02',
+  optimize_maglev: '#fc4f26',
+  optimize: '#DC3912',
   parse_bg: '#c05000',
   parse: '#FF6600',
-  network_data: '#103366',
-  callback: '#109618',
-  api: '#990099',
-  gc_custom: '#0099C6',
-  gc_bg: '#00597c',
-  gc: '#00799c',
-  javascript: '#DD4477',
   runtime: '#88BB00',
-  blink: '#006600',
+  total: '#BBB',
   unclassified: '#000',
 };
+const GROUP_COLORS_LENGTH = Object.keys(GROUP_COLORS).length;
 
 export class V8RuntimeCallStatsTab implements Tab {
   private previousSelection?: Selection;
   private loading = false;
   private dataSource?: SQLDataSource;
+  private selectedGroups = new Set<string>(Object.keys(GROUP_COLORS));
 
   constructor(private readonly trace: Trace) {}
 
@@ -114,7 +126,10 @@ export class V8RuntimeCallStatsTab implements Tab {
     return m(DataGrid, {
       schema: this.getUiSchema(),
       rootSchema: 'v8_rcs',
+      toolbarItemsLeft: this.renderGroupFilter(),
+      toolbarItemsRight: this.renderExportButton(),
       data: this.dataSource,
+      fillHeight: true,
       initialPivot: {
         groupBy: [{field: 'v8_rcs_group', id: 'v8_rcs_group'}],
         aggregates: [
@@ -211,6 +226,54 @@ export class V8RuntimeCallStatsTab implements Tab {
       {style: {padding: '10px'}},
       'Select an area, a slice, or a track to view specific V8 Runtime Call Stats, or clear selection to view all.',
     );
+  }
+
+  private renderGroupFilter() {
+    const groups = Object.keys(GROUP_COLORS);
+    return m(PopupMultiSelect, {
+      icon: Icons.Filter,
+      label: 'Filter Groups',
+      position: PopupPosition.Top,
+      showNumSelected: true,
+      options: groups.map((group) => ({
+        id: group,
+        name: group,
+        checked: this.selectedGroups.has(group),
+      })),
+      onChange: (diffs: MultiSelectDiff[]) => {
+        for (const {id, checked} of diffs) {
+          if (checked) {
+            this.selectedGroups.add(id);
+          } else {
+            this.selectedGroups.delete(id);
+          }
+        }
+        if (diffs.length && this.previousSelection) {
+          this.loadData(this.previousSelection);
+        }
+      },
+    });
+  }
+
+  private renderExportButton() {
+    let selection = 'All';
+    switch (this.previousSelection?.kind) {
+      case 'area':
+        selection = 'Area';
+        break;
+      case 'track_event':
+        selection = 'Slice';
+        break;
+      case 'track':
+        selection = 'Trace';
+        break;
+    }
+
+    return m(DownloadToFileButton, {
+      fileName: 'rcs.json',
+      label: `Export ${selection} RCS`,
+      content: () => new RcsJsonExporter().export(this.trace),
+    });
   }
 
   private hasSelectionChanged(selection: Selection): boolean {
@@ -315,6 +378,14 @@ export class V8RuntimeCallStatsTab implements Tab {
       throw new Error(`Unknown selection kind: ${selection.kind}`);
     }
 
+    let groupWhereClause = '1 = 1';
+    if (this.selectedGroups.size !== GROUP_COLORS_LENGTH) {
+      const selectedGroups = Array.from(this.selectedGroups)
+        .map((name) => `'${name}'`)
+        .join(',');
+      groupWhereClause = `v8_rcs_group IN (${selectedGroups})`;
+    }
+
     await this.trace.engine.query(`
       CREATE OR REPLACE PERFETTO VIEW v8_rcs_view AS
       WITH rcs_entries AS (
@@ -372,6 +443,7 @@ export class V8RuntimeCallStatsTab implements Tab {
             ELSE 'runtime'
           END AS v8_rcs_group,
           name AS v8_rcs_name,
+          track_id,
           SUM(CASE WHEN suffix = '[1]'
             THEN CAST(int_value * 1000 * ratio AS INT)
             ELSE 0
@@ -381,13 +453,126 @@ export class V8RuntimeCallStatsTab implements Tab {
             ELSE 0
             END) AS v8_rcs_count
         FROM rcs_entries
-        GROUP BY name
+        GROUP BY name, track_id
       )
       SELECT
         *,
         v8_rcs_dur * 100.0 / SUM(v8_rcs_dur) OVER () AS v8_rcs_dur_percent,
         v8_rcs_count * 100.0 / SUM(v8_rcs_count) OVER () AS v8_rcs_count_percent
       FROM rcs_aggregated
+      WHERE ${groupWhereClause}
     `);
+  }
+}
+
+const RCS_PROCESS_URL_RE = /https?:\/\/[^\/\s]+/;
+
+class RcsJsonExporter {
+  private pageNames = new Map<number, string>();
+  private tldCounts = new Map<string, number>();
+  private pageStats: {
+    [pageName: string]: {
+      [key: string]: {
+        count: {
+          average: number;
+          stddev: number;
+        };
+        duration: {
+          average: number;
+          stddev: number;
+        };
+      };
+    };
+  } = Object.create(null);
+
+  public async export(trace: Trace): Promise<string> {
+    const result = await trace.engine.query(`
+      SELECT
+        p.upid,
+        args.string_value AS process_label,
+        v.v8_rcs_name,
+        SUM(v.v8_rcs_dur) AS v8_rcs_dur,
+        SUM(v.v8_rcs_count) AS v8_rcs_count
+      FROM v8_rcs_view v
+      JOIN thread_track tt ON v.track_id = tt.id
+      JOIN thread t ON tt.utid = t.utid
+      JOIN process p ON t.upid = p.upid
+      LEFT JOIN args ON p.arg_set_id = args.arg_set_id AND args.key = 'chrome.process_label[0]'
+      GROUP BY p.upid, v.v8_rcs_name
+    `);
+
+    const it = result.iter({
+      upid: NUM,
+      process_label: STR_NULL,
+      v8_rcs_name: STR,
+      v8_rcs_count: NUM,
+      v8_rcs_dur: NUM,
+    });
+
+    for (; it.valid(); it.next()) {
+      const pageName = this.getPageName(it.upid, it.process_label ?? '');
+      const pageStats = this.getPageStats(pageName);
+      pageStats[it.v8_rcs_name] = this.newEntry(
+        it.v8_rcs_count,
+        it.v8_rcs_dur / 1_000_000,
+      );
+    }
+
+    for (const pageStats of Object.values(this.pageStats)) {
+      let totalCount = 0;
+      let totalDurationMs = 0;
+      for (const rcsEntry of Object.values(pageStats)) {
+        totalCount += rcsEntry.count.average;
+        totalDurationMs += rcsEntry.duration.average;
+      }
+      pageStats['Total'] = this.newEntry(totalCount, totalDurationMs);
+    }
+
+    return JSON.stringify(
+      {
+        'default version': this.pageStats,
+      },
+      null,
+      2,
+    );
+  }
+
+  getPageName(upid: number, processLabel: string): string {
+    const cachedPageName = this.pageNames.get(upid);
+    if (cachedPageName) return cachedPageName;
+
+    const match = processLabel.match(RCS_PROCESS_URL_RE);
+    let tld;
+    if (match) {
+      const rawURL = match[0];
+      tld = new URL(rawURL).hostname;
+    } else {
+      tld = `PID=${upid}`;
+    }
+    const tldCount = (this.tldCounts.get(tld) ?? 0) + 1;
+    this.tldCounts.set(tld, tldCount);
+    const pageName = tldCount == 1 ? tld : `${tld}-${tldCount}`;
+    this.pageNames.set(upid, pageName);
+    return pageName;
+  }
+
+  getPageStats(pageName: string) {
+    if (pageName in this.pageStats) return this.pageStats[pageName];
+    const newStats = Object.create(null);
+    this.pageStats[pageName] = newStats;
+    return newStats;
+  }
+
+  newEntry(count: number, duration: number) {
+    return {
+      count: {
+        average: count,
+        stddev: 0,
+      },
+      duration: {
+        average: duration,
+        stddev: 0,
+      },
+    };
   }
 }

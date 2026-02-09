@@ -30,8 +30,7 @@ CpuTracker::CpuTracker(TraceProcessorContext* context) : context_(context) {
   // Preallocate ucpu of this machine for maintaining the relative order between
   // ucpu and cpu.
   auto machine_id = context_->machine_tracker->machine_id();
-  if (machine_id.has_value())
-    ucpu_offset_ = machine_id->value * kMaxCpusPerMachine;
+  ucpu_offset_ = machine_id.value * kMaxCpusPerMachine;
 
   for (auto id = 0u; id < kMaxCpusPerMachine; id++) {
     // Only populate the |machine_id| column. The |cpu| column is update only

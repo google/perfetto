@@ -68,7 +68,7 @@ void MemoryTrackerSnapshotParser::ParseMemoryTrackerSnapshot(int64_t ts,
   last_snapshot_timestamp_ = ts;
 }
 
-void MemoryTrackerSnapshotParser::NotifyEndOfFile() {
+void MemoryTrackerSnapshotParser::OnEventsFullyExtracted() {
   if (!aggregate_raw_nodes_.empty()) {
     GenerateGraphFromRawNodesAndEmitRows();
   }

@@ -112,6 +112,7 @@ const cfg = {
   outExtDir: '',
   outBigtraceDistDir: '',
   outOpenPerfettoTraceDistDir: '',
+  outWatchLockFile: '',
 };
 
 const RULES = [
@@ -181,8 +182,12 @@ async function main() {
   cfg.outDistDir = ensureDir(pjoin(cfg.outDistRootDir, cfg.version));
   cfg.outTscDir = ensureDir(pjoin(cfg.outUiDir, 'tsc'));
   cfg.outGenDir = ensureDir(pjoin(cfg.outUiDir, 'tsc/gen'));
+  cfg.outWatchLockFile = pjoin(cfg.outDir, "watch.lock");
   cfg.testFilter = args.test_filter || '';
   cfg.watch = !!args.watch;
+  if (cfg.watch) {
+    prepareWatchLock();
+  }
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
   cfg.bigtrace = !!args.bigtrace;
@@ -225,6 +230,7 @@ async function main() {
     for (const proc of subprocesses) {
       if (proc) proc.kill('SIGKILL');
     }
+    releaseWatchLock();
     process.kill(0, 'SIGKILL');  // Kill the whole process group.
     process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
   });
@@ -920,6 +926,39 @@ function mklink(src, dst) {
     }
   }
   fs.symlinkSync(src, dst);
+}
+
+function prepareWatchLock() {
+  if (fs.existsSync(cfg.outWatchLockFile)) {
+    const oldPid = fs.readFileSync(cfg.outWatchLockFile, 'utf8').trim();
+    let running = true;
+    try {
+      // Check if oldPid exists.
+      process.kill(parseInt(oldPid), 0);
+    } catch (e) {
+      running = false;
+    }
+    if (running) {
+      console.error(`Error: a build.js with --watch instance is already running (${cfg.outWatchLockFile} PID=${oldPid}).`);
+      process.exit(1);
+    } else {
+      console.log(`Removing stale lock file for PID ${oldPid}`);
+      fs.unlinkSync(cfg.outWatchLockFile);
+    }
+  }
+  fs.writeFileSync(cfg.outWatchLockFile, process.pid.toString());
+  process.on('exit', () => releaseWatchLock());
+}
+
+function releaseWatchLock() {
+  if (fs.existsSync(cfg.outWatchLockFile)) {
+    const pid = fs.readFileSync(cfg.outWatchLockFile, 'utf8').trim();
+    if (pid === process.pid.toString()) {
+      fs.unlinkSync(cfg.outWatchLockFile);
+    } else {
+      console.warn(`Ignoring stale lock file PID ${pid}`)
+    }
+  }
 }
 
 main();

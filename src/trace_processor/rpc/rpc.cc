@@ -120,6 +120,10 @@ void Rpc::ResetTraceProcessorInternal(const Config& config) {
   bytes_parsed_ = bytes_last_progress_ = 0;
   t_parse_started_ = base::GetWallTimeNs().count();
 
+  // Clear all summarizers before destroying the old trace processor, as they
+  // hold pointers to it.
+  summarizers_.Clear();
+
   trace_processor_ = TraceProcessor::CreateInstance(config);
   if (on_trace_processor_created_) {
     on_trace_processor_created_(trace_processor_.get());
@@ -252,8 +256,10 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
                             }
                           });
 
+        const auto t_start = base::GetWallTimeNs();
         auto it = trace_processor_->ExecuteQuery(sql);
-        QueryResultSerializer serializer(std::move(it));
+
+        QueryResultSerializer serializer(std::move(it), t_start);
         for (bool has_more = true; has_more;) {
           const auto seq_id = tx_seq_id_++;
           Response resp(seq_id, req_type);
@@ -363,41 +369,111 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
-    case RpcProto::TPM_ANALYZE_STRUCTURED_QUERY: {
+    case RpcProto::TPM_CREATE_SUMMARIZER: {
       Response resp(tx_seq_id_++, req_type);
-      protozero::ConstBytes args = req.analyze_structured_query_args();
-      protos::pbzero::AnalyzeStructuredQueryArgs::Decoder decoder(args.data,
-                                                                  args.size);
-      std::vector<StructuredQueryBytes> queries;
-      for (auto it = decoder.queries(); it; ++it) {
-        StructuredQueryBytes n;
-        n.format = StructuredQueryBytes::Format::kBinaryProto;
-        n.ptr = it->data();
-        n.size = it->size();
-        queries.push_back(n);
-      }
+      protozero::ConstBytes args = req.create_summarizer_args();
+      protos::pbzero::CreateSummarizerArgs::Decoder decoder(args.data,
+                                                            args.size);
+      std::string summarizer_id = decoder.summarizer_id().ToStdString();
 
-      std::vector<AnalyzedStructuredQuery> analyzed_queries;
-      base::Status status = trace_processor_->AnalyzeStructuredQueries(
-          queries, &analyzed_queries);
-      auto* analyze_result = resp->set_analyze_structured_query_result();
-      if (!status.ok()) {
-        analyze_result->set_error(status.message());
+      auto* result = resp->set_create_summarizer_result();
+      if (summarizers_.Find(summarizer_id)) {
+        result->set_error("Summarizer already exists: " + summarizer_id);
+      } else {
+        std::unique_ptr<Summarizer> summarizer;
+        base::Status status = trace_processor_->CreateSummarizer(&summarizer);
+        if (!status.ok()) {
+          result->set_error(status.message());
+        } else {
+          summarizers_.Insert(summarizer_id, std::move(summarizer));
+          result->set_summarizer_id(summarizer_id);
+        }
       }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_UPDATE_SUMMARIZER_SPEC: {
+      Response resp(tx_seq_id_++, req_type);
+      protozero::ConstBytes args = req.update_summarizer_spec_args();
+      protos::pbzero::UpdateSummarizerSpecArgs::Decoder decoder(args.data,
+                                                                args.size);
+      std::string summarizer_id = decoder.summarizer_id().ToStdString();
 
-      for (const auto& r : analyzed_queries) {
-        auto* query_res = analyze_result->add_results();
-        query_res->set_sql(r.sql);
-        query_res->set_textproto(r.textproto);
-        for (const std::string& m : r.modules) {
-          query_res->add_modules(m);
+      auto* result = resp->set_update_summarizer_spec_result();
+      auto* summarizer_ptr = summarizers_.Find(summarizer_id);
+      if (!summarizer_ptr) {
+        result->set_error("Summarizer not found: " + summarizer_id);
+      } else {
+        Summarizer* summarizer = summarizer_ptr->get();
+        protozero::ConstBytes spec_bytes = decoder.spec();
+        SummarizerUpdateSpecResult update_result;
+        base::Status status = summarizer->UpdateSpec(
+            spec_bytes.data, spec_bytes.size, &update_result);
+        if (!status.ok()) {
+          result->set_error(status.message());
         }
-        for (const std::string& p : r.preambles) {
-          query_res->add_preambles(p);
+        for (const auto& sync_info : update_result.queries) {
+          auto* query = result->add_queries();
+          query->set_query_id(sync_info.query_id);
+          if (sync_info.error) {
+            query->set_error(*sync_info.error);
+          }
+          query->set_was_updated(sync_info.was_updated);
+          query->set_was_dropped(sync_info.was_dropped);
         }
-        for (const std::string& c : r.columns) {
-          query_res->add_columns(c);
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_QUERY_SUMMARIZER: {
+      Response resp(tx_seq_id_++, req_type);
+      protozero::ConstBytes args = req.query_summarizer_args();
+      protos::pbzero::QuerySummarizerArgs::Decoder decoder(args.data,
+                                                           args.size);
+      std::string summarizer_id = decoder.summarizer_id().ToStdString();
+      std::string query_id = decoder.query_id().ToStdString();
+
+      auto* result = resp->set_query_summarizer_result();
+      auto* summarizer_ptr = summarizers_.Find(summarizer_id);
+      if (!summarizer_ptr) {
+        result->set_error("Summarizer not found: " + summarizer_id);
+      } else {
+        Summarizer* summarizer = summarizer_ptr->get();
+        SummarizerQueryResult query_result;
+        base::Status status = summarizer->Query(query_id, &query_result);
+        if (!status.ok()) {
+          result->set_error(status.message());
+        } else {
+          result->set_exists(query_result.exists);
+          if (query_result.exists) {
+            result->set_table_name(query_result.table_name);
+            result->set_row_count(query_result.row_count);
+            for (const auto& col : query_result.columns) {
+              result->add_columns(col);
+            }
+            result->set_duration_ms(query_result.duration_ms);
+            result->set_sql(query_result.sql);
+            result->set_textproto(query_result.textproto);
+            result->set_standalone_sql(query_result.standalone_sql);
+          }
         }
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_DESTROY_SUMMARIZER: {
+      Response resp(tx_seq_id_++, req_type);
+      protozero::ConstBytes args = req.destroy_summarizer_args();
+      protos::pbzero::DestroySummarizerArgs::Decoder decoder(args.data,
+                                                             args.size);
+      std::string summarizer_id = decoder.summarizer_id().ToStdString();
+
+      auto* result = resp->set_destroy_summarizer_result();
+      if (!summarizers_.Find(summarizer_id)) {
+        result->set_error("Summarizer not found: " + summarizer_id);
+      } else {
+        // Erasing will call the Summarizer destructor which drops all tables.
+        summarizers_.Erase(summarizer_id);
       }
       resp.Send(rpc_response_fn_);
       break;
@@ -543,9 +619,10 @@ void Rpc::Query(const uint8_t* args,
                       }
                     });
 
+  const auto t_start = base::GetWallTimeNs();
   auto it = trace_processor_->ExecuteQuery(sql);
 
-  QueryResultSerializer serializer(std::move(it));
+  QueryResultSerializer serializer(std::move(it), t_start);
 
   protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
                                                                 kSliceSize);

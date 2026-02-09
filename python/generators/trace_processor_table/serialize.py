@@ -52,15 +52,15 @@ class ColumnSerializer:
 
   def row_insert_arg_value(self) -> Optional[str]:
     """Generates the C++ code to access this column's value from a Row object,
-    for use in the Dataframe::InsertUnchecked call."""
+    for use in the dataframe::InsertUnchecked call."""
     if self.is_implicit_id:
       return f'std::monostate()'
     if self.is_optional and self.is_id_type and not self.is_no_transform_id:
       return f'row.{self.name} ? std::make_optional(row.{self.name}->value) : std::nullopt'
     if self.is_optional and self.is_string:
-      return f'row.{self.name} && row.{self.name} != StringPool::Id::Null() ? std::make_optional(*row.{self.name}) : std::nullopt'
+      return f'row.{self.name}'
     if self.is_string:
-      return f'row.{self.name} != StringPool::Id::Null() ? std::make_optional(row.{self.name}) : std::nullopt'
+      return f'std::make_optional(row.{self.name})'
     if self.is_id_type and not self.is_no_transform_id:
       return f'row.{self.name}.value'
     return f'row.{self.name}'
@@ -85,15 +85,14 @@ class ColumnSerializer:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
         {dcheck}
-        auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
-        return res && res != StringPool::Id::Null() ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
+        return cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
       }}'''
     if self.is_string:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
         {dcheck}
         auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
-        return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
+        return res ? *res : StringPool::Id::Null();
       }}'''
     if self.is_id_type:
       return f'''
@@ -125,15 +124,13 @@ class ColumnSerializer:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
         {dcheck}
-        auto res_value = res && res != StringPool::Id::Null() ? std::make_optional(*res) : std::nullopt;
-        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res_value);
+        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res);
     }}'''
     if self.is_string:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
         {dcheck}
-        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
-        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res_value);
+        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, std::make_optional(res));
     }}'''
     if self.is_id_type and not self.is_no_transform_id:
       return f'''
@@ -165,15 +162,14 @@ class ColumnSerializer:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
         {dcheck}
-        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_);
-        return res && res != StringPool::Id::Null() ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
+        return table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_);
       }}'''
     if self.is_string:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
         {dcheck}
         auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_);
-        return res && res != StringPool::Id::Null() ? {self.cpp_type_non_optional}{{*res}} : StringPool::Id::Null();
+        return res ? *res : StringPool::Id::Null();
       }}'''
     if self.is_id_type:
       return f'''
@@ -205,15 +201,13 @@ class ColumnSerializer:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
         {dcheck}
-        auto res_value = res && res != StringPool::Id::Null() ? std::make_optional(*res) : std::nullopt;
-        table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res_value);
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res);
     }}'''
     if self.is_string:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
         {dcheck}
-        auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
-        table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res_value);
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, std::make_optional(res));
     }}'''
     if self.is_id_type and not self.is_no_transform_id:
       return f'''
@@ -582,7 +576,8 @@ class {self.table_name} {{
   {self.row_struct()}
 
   explicit {self.table_name}(StringPool* pool)
-      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {{}}
+      : dataframe_(
+        dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {{}}
 
   template <typename = void>
   IdAndRow Insert(const Row& row) {{
@@ -593,6 +588,10 @@ class {self.table_name} {{
 
   uint32_t row_count() const {{
     return dataframe_.row_count();
+  }}
+
+  uint64_t mutations() const {{
+    return dataframe_.mutations();
   }}
 
   std::optional<ConstRowReference> FindById(Id id) const {{
@@ -653,6 +652,7 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
   include_paths_str = '\n'.join([f'#include "{i}"' for i in include_paths
                                 ]).replace("\\", "/")
   tables_str = '\n\n'.join([TableSerializer(t).serialize() for t in tables])
+  fwd_header_str = fwd_header_path.replace("\\", "/")
 
   return f'''\
 #ifndef {ifdef_guard}
@@ -670,10 +670,10 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/tables/macros_internal.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/dataframe/typed_cursor.h"
-#include "{fwd_header_path}"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/typed_cursor.h"
+#include "{fwd_header_str}"
 
 {include_paths_str}
 

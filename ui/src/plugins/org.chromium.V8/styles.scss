@@ -57,7 +57,7 @@
 
     .pf-tab-page {
       flex: 1;
-      overflow: hidden;
+      overflow: scroll;
       display: flex;
       flex-direction: column;
     }

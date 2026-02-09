@@ -143,6 +143,11 @@ export class TraceImpl implements Trace, Disposable {
         this.trash.use(disposable);
         return disposable;
       },
+      registerMacro: (macro) => {
+        const disposable = app.commands.registerMacro(macro);
+        this.trash.use(disposable);
+        return disposable;
+      },
     });
 
     // Likewise, remove all trace-scoped sidebar entries when the trace unloads.
@@ -229,6 +234,10 @@ export class TraceImpl implements Trace, Disposable {
 
   get trace() {
     return this;
+  }
+
+  get taskTracker() {
+    return this.app.taskTracker;
   }
 
   get currentWorkspace() {

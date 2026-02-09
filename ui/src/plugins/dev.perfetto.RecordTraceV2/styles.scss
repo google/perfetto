@@ -13,6 +13,7 @@
 // limitations under the License.
 
 @import "../../assets/theme";
+@import "../../assets/widgets/checkbox";
 
 // The whole record page.
 .pf-record-page {
@@ -52,26 +53,37 @@
   }
 
   .record-ctl {
-    margin: 0.5em;
-    padding: 0.5em;
     display: grid;
-    grid-template-columns: 24px auto 24px;
+    grid-template-columns: 50px auto 50px;
     box-sizing: content-box;
-    height: 24px;
-    line-height: 24px;
+    height: 50px;
+    line-height: 50px;
     .hidden {
       visibility: hidden;
     }
     .record-target {
-      font-size: 13px;
-      color: var(--pf-color-text-muted);
+      font-size: var(--pf-font-size-m);
       overflow: hidden;
       text-overflow: ellipsis;
+      line-height: var(--pf-font-size-m);
+      align-self: center;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
     .pf-button {
       padding: 0;
       margin: 0;
       font-size: var(--pf-font-size-xxl);
+    }
+
+    i {
+      margin: auto;
+      font-size: 32px;
+      width: 38px;
+      height: 38px;
+      padding: 3px;
+      grid-area: icon;
     }
   }
 
@@ -235,10 +247,10 @@
     padding-left: var(--record-section-padding);
     padding-right: var(--record-section-padding);
     &:first-child {
-      padding-top: 20px;
+      padding-top: var(--record-section-padding);
     }
     &:last-child {
-      padding-bottom: 20px;
+      padding-bottom: var(--record-section-padding);
     }
   }
 
@@ -325,7 +337,6 @@
       @include transition(0.3s);
       opacity: 0;
       visibility: hidden;
-      margin: 10px 10px 0 0;
       max-height: 0;
     }
 
@@ -354,7 +365,8 @@
   }
 
   .pf-toggle {
-    padding-top: var(--record-section-padding);
+    --indent: calc(30px + #{$box-label-padding});
+    padding-top: calc(var(--record-section-padding) / 2);
     display: flex;
     flex-direction: column;
 
@@ -372,7 +384,7 @@
 
     &__desc {
       color: var(--pf-color-text-muted);
-      font-size: var(--pf-font-size-s);
+      padding-left: var(--indent);
     }
 
     > label {
@@ -382,8 +394,7 @@
 
     // The content of the toggle section.
     > div.descr {
-      padding-left: 36px;
-      font-size: var(--pf-font-size-s);
+      padding-left: var(--indent);
       color: var(--pf-color-text-muted);
     }
   } // toggle
@@ -595,12 +606,27 @@
     }
   }
 
+  .chrome-probe {
+    .pf-callout {
+      margin-top: calc(var(--record-section-padding) / 2);
+    }
+  }
+
   .chrome-categories {
-    padding-top: 8px;
-    padding-bottom: 8px;
+    padding-top: calc(var(--record-section-padding) / 2);
+    padding-bottom: calc(var(--record-section-padding) / 2);
     display: flex;
     flex-direction: row;
     gap: 8px;
+
+    > section {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .pf-multiselect-panel {
+      max-height: 500px;
+    }
   }
 
   .dropdown {

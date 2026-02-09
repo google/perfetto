@@ -19,6 +19,7 @@ import {Command, CommandManager} from '../public/command';
 import {raf} from './raf_scheduler';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
+import {DisposableStack} from '../base/disposable_stack';
 
 /**
  * Zod schema for a single command invocation.
@@ -53,8 +54,8 @@ export const macroSchema = z.object({
   // Name of the macro.
   name: z.string(),
 
-  // List of command invocations that make up the macro.
-  commands: z.array(commandInvocationSchema).readonly(),
+  // List of command invocations to run when this macro is executed.
+  run: z.array(commandInvocationSchema).readonly(),
 });
 
 /** Type representing a macro configuration. */
@@ -86,7 +87,7 @@ export interface CommandWithMatchInfo extends Command {
 
 export class CommandManagerImpl implements CommandManager {
   private readonly registry = new Registry<Command>((cmd) => cmd.id);
-  private readonly macros = new Set<string>();
+  private readonly macros = new Registry<string>((macroId) => macroId);
   private isExecutingStartupCommands = false;
 
   constructor(private omnibox: OmniboxManagerImpl) {}
@@ -118,21 +119,25 @@ export class CommandManagerImpl implements CommandManager {
     return res;
   }
 
-  registerMacro({id, name, commands}: Macro) {
-    this.macros.add(id);
-    this.registerCommand({
-      id,
-      name,
-      callback: async () => {
-        // Macros could run multiple commands, some of which might prompt the
-        // user in an optional way. But macros should be self-contained
-        // so we disable prompts during their execution.
-        using _ = this.omnibox.disablePrompts();
-        for (const command of commands) {
-          await this.runCommand(command.id, ...command.args);
-        }
-      },
-    });
+  registerMacro({id, name, run}: Macro) {
+    const stack = new DisposableStack();
+    stack.use(this.macros.register(id));
+    stack.use(
+      this.registerCommand({
+        id,
+        name,
+        callback: async () => {
+          // Macros could run multiple commands, some of which might prompt the
+          // user in an optional way. But macros should be self-contained
+          // so we disable prompts during their execution.
+          using _ = this.omnibox.disablePrompts();
+          for (const command of run) {
+            await this.runCommand(command.id, ...command.args);
+          }
+        },
+      }),
+    );
+    return stack;
   }
 
   // Returns a list of commands that match the search term, along with a list

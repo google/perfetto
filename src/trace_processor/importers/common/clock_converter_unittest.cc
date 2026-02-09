@@ -19,6 +19,7 @@
 
 #include <random>
 
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -29,7 +30,11 @@ namespace trace_processor {
 
 class ClockConverterTest : public ::testing::Test {
  public:
-  ClockConverterTest() { context_.storage.reset(new TraceStorage()); }
+  ClockConverterTest() {
+    context_.storage.reset(new TraceStorage());
+    context_.machine_tracker.reset(
+        new MachineTracker(&context_, kDefaultMachineId));
+  }
 
   TraceProcessorContext context_;
   ClockConverter cc_{&context_};

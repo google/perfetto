@@ -85,13 +85,23 @@ sql_argument_list(A) ::= sql_argument_list_nonempty(X). { A = X; }
 sql_argument_type(A) ::= ID(B). { A = B; }
 sql_argument_type(A) ::= ID(B) LP ID DOT ID RP. { A = B; }
 
+// Variadic argument type: TYPE...
+sql_variadic_argument_type(A) ::= ID(B) DOT DOT DOT. { A = B; }
+
 %type sql_argument_list_nonempty { struct PerfettoSqlArgumentList* }
 %destructor sql_argument_list_nonempty { OnPerfettoSqlFreeArgumentList(state, $$); }
 sql_argument_list_nonempty(A) ::= sql_argument_list_nonempty(B) COMMA ID(C) sql_argument_type(D). {
-  A = OnPerfettoSqlCreateOrAppendArgument(state, B, &C, &D);
+  A = OnPerfettoSqlCreateOrAppendArgument(state, B, &C, &D, 0);
 }
 sql_argument_list_nonempty(A) ::= ID(B) sql_argument_type(C). {
-  A = OnPerfettoSqlCreateOrAppendArgument(state, 0, &B, &C);
+  A = OnPerfettoSqlCreateOrAppendArgument(state, 0, &B, &C, 0);
+}
+// Variadic argument (must be last, enforced in parser)
+sql_argument_list_nonempty(A) ::= sql_argument_list_nonempty(B) COMMA ID(C) sql_variadic_argument_type(D). {
+  A = OnPerfettoSqlCreateOrAppendArgument(state, B, &C, &D, 1);
+}
+sql_argument_list_nonempty(A) ::= ID(B) sql_variadic_argument_type(C). {
+  A = OnPerfettoSqlCreateOrAppendArgument(state, 0, &B, &C, 1);
 }
 
 %type table_schema { struct PerfettoSqlArgumentList* }

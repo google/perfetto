@@ -45,7 +45,8 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
   ~ArtMethodTokenizer() override;
 
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
+  void OnEventsFullyExtracted() override {}
 
  private:
   using Iterator = util::TraceBlobViewReader::Iterator;
@@ -61,7 +62,7 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
   struct Detect {};
   struct NonStreaming {
     base::Status Parse();
-    base::Status NotifyEndOfFile() const;
+    base::Status OnPushDataToSorter() const;
 
     base::StatusOr<bool> ParseHeaderStart(Iterator&);
     base::StatusOr<bool> ParseHeaderVersion(Iterator&);
@@ -85,7 +86,7 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
   };
   struct Streaming {
     base::Status Parse();
-    base::Status NotifyEndOfFile() const;
+    base::Status OnPushDataToSorter() const;
 
     base::StatusOr<bool> ParseHeaderStart(Iterator&);
     base::StatusOr<bool> ParseData(Iterator&);

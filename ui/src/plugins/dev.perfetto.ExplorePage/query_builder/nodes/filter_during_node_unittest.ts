@@ -19,7 +19,7 @@ import protos from '../../../../protos';
 
 // Interface for accessing private methods during testing
 interface FilterDuringNodeWithPrivates {
-  getCommonColumns(): string[];
+  getCommonColumnsForPartition(): string[];
   cleanupPartitionColumns(): void;
 }
 
@@ -63,23 +63,6 @@ describe('FilterDuringNode', () => {
   }
 
   describe('constructor', () => {
-    it('should initialize with default filter settings', () => {
-      const node = new FilterDuringNode({});
-
-      expect(node.state.filterNegativeDurPrimary).toBe(true);
-      expect(node.state.filterNegativeDurSecondary).toBe(true);
-    });
-
-    it('should preserve provided filter settings', () => {
-      const node = new FilterDuringNode({
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: false,
-      });
-
-      expect(node.state.filterNegativeDurPrimary).toBe(false);
-      expect(node.state.filterNegativeDurSecondary).toBe(false);
-    });
-
     it('should have correct node type', () => {
       const node = new FilterDuringNode({});
 
@@ -371,7 +354,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      // filterNegativeDurPrimary defaults to true
+      // Dur filter is always applied
       const node = new FilterDuringNode({});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
@@ -398,7 +381,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      // filterNegativeDurSecondary defaults to true
+      // Dur filter is always applied
       const node = new FilterDuringNode({});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
@@ -410,36 +393,6 @@ describe('FilterDuringNode', () => {
       expect(intervalsQuery?.filters).toBeDefined();
       expect(intervalsQuery?.filters?.length).toBe(1);
       expect(intervalsQuery?.filters?.[0]?.columnName).toBe('dur');
-    });
-
-    it('should not apply dur filter when filterNegativeDur is false', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
-
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
-
-      const node = new FilterDuringNode({
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: false,
-      });
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
-
-      const sq = node.getStructuredQuery();
-
-      // Neither query should have filters when filterNegativeDur is false
-      const baseQuery = sq?.experimentalFilterToIntervals?.base;
-      const intervalsQuery = sq?.experimentalFilterToIntervals?.intervals;
-
-      expect(baseQuery?.filters?.length ?? 0).toBe(0);
-      expect(intervalsQuery?.filters?.length ?? 0).toBe(0);
     });
 
     it('should set clipToIntervals to false when configured', () => {
@@ -498,32 +451,6 @@ describe('FilterDuringNode', () => {
       expect(sq?.experimentalFilterToIntervals?.clipToIntervals).toBeFalsy();
     });
 
-    it('should respect filterNegativeDur settings', () => {
-      const primaryNode = createMockNode('primary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
-
-      const secondaryNode = createMockNode('secondary', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'TIMESTAMP'),
-        createColumnInfo('dur', 'DURATION'),
-      ]);
-
-      const node = new FilterDuringNode({
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: true,
-      });
-      node.primaryInput = primaryNode;
-      node.secondaryInputs.connections.set(0, secondaryNode);
-
-      const sq = node.getStructuredQuery();
-
-      // The query should be created successfully
-      expect(sq).toBeDefined();
-    });
-
     it('should generate query when secondary input has no id column', () => {
       const primaryNode = createMockNode('primary', [
         createColumnInfo('id', 'INT'),
@@ -563,8 +490,8 @@ describe('FilterDuringNode', () => {
       ]);
 
       const node = new FilterDuringNode({
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: true,
+        partitionColumns: ['utid'],
+        clipToIntervals: false,
       });
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
@@ -574,10 +501,8 @@ describe('FilterDuringNode', () => {
       expect(serialized).toEqual({
         primaryInputId: primaryNode.nodeId,
         secondaryInputNodeIds: [secondaryNode.nodeId],
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: true,
-        partitionColumns: undefined,
-        clipToIntervals: undefined,
+        partitionColumns: ['utid'],
+        clipToIntervals: false,
       });
     });
 
@@ -589,8 +514,6 @@ describe('FilterDuringNode', () => {
       expect(serialized).toEqual({
         primaryInputId: undefined,
         secondaryInputNodeIds: [],
-        filterNegativeDurPrimary: true,
-        filterNegativeDurSecondary: true,
         partitionColumns: undefined,
         clipToIntervals: undefined,
       });
@@ -600,19 +523,20 @@ describe('FilterDuringNode', () => {
   describe('clone', () => {
     it('should create a new node with same state', () => {
       const node = new FilterDuringNode({
-        filterNegativeDurPrimary: false,
-        filterNegativeDurSecondary: true,
+        partitionColumns: ['utid', 'cpu'],
+        clipToIntervals: false,
       });
 
       const cloned = node.clone() as FilterDuringNode;
 
       expect(cloned).toBeInstanceOf(FilterDuringNode);
-      expect(
-        (cloned.state as FilterDuringNodeState).filterNegativeDurPrimary,
-      ).toBe(false);
-      expect(
-        (cloned.state as FilterDuringNodeState).filterNegativeDurSecondary,
-      ).toBe(true);
+      expect((cloned.state as FilterDuringNodeState).partitionColumns).toEqual([
+        'utid',
+        'cpu',
+      ]);
+      expect((cloned.state as FilterDuringNodeState).clipToIntervals).toBe(
+        false,
+      );
       expect(cloned.nodeId).not.toBe(node.nodeId); // Should have different ID
     });
   });
@@ -682,14 +606,14 @@ describe('FilterDuringNode', () => {
       });
     });
 
-    describe('getCommonColumns', () => {
+    describe('getCommonColumnsForPartition', () => {
       it('should return empty array when no primary input', () => {
         const node = new FilterDuringNode({});
 
         // Access private method for testing
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual([]);
       });
@@ -707,7 +631,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual([]);
       });
@@ -736,7 +660,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual(['cpu', 'utid']);
       });
@@ -760,7 +684,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual([]);
       });
@@ -790,7 +714,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual(['utid']);
       });
@@ -820,7 +744,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual(['aaa', 'mmm', 'zzz']);
       });
@@ -961,8 +885,6 @@ describe('FilterDuringNode', () => {
         expect(serialized).toEqual({
           primaryInputId: primaryNode.nodeId,
           secondaryInputNodeIds: [secondaryNode.nodeId],
-          filterNegativeDurPrimary: true,
-          filterNegativeDurSecondary: true,
           partitionColumns: ['utid'],
           clipToIntervals: undefined,
         });
@@ -981,21 +903,21 @@ describe('FilterDuringNode', () => {
     describe('deserializeState with partition columns', () => {
       it('should restore partition columns from serialized state', () => {
         const state = FilterDuringNode.deserializeState({
-          filterNegativeDurPrimary: false,
-          filterNegativeDurSecondary: true,
           partitionColumns: ['utid', 'cpu'],
+          clipToIntervals: false,
         });
 
         expect(state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect(state.clipToIntervals).toBe(false);
       });
 
       it('should handle missing partition columns in serialized state', () => {
         const state = FilterDuringNode.deserializeState({
-          filterNegativeDurPrimary: false,
-          filterNegativeDurSecondary: true,
+          clipToIntervals: true,
         });
 
         expect(state.partitionColumns).toBeUndefined();
+        expect(state.clipToIntervals).toBe(true);
       });
     });
 

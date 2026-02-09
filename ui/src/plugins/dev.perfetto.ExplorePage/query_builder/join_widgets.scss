@@ -71,6 +71,7 @@
 .pf-join-source-card__columns {
   margin-top: 8px;
   padding-top: 12px;
+  padding-bottom: 8px;
   border-top: 1px solid var(--pf-color-border);
 }
 
@@ -179,6 +180,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+
+  // Add spacing below OutlinedFieldReadOnly when used in single-suggestion mode
+  .pf-outlined-field {
+    margin-bottom: 8px;
+  }
 }
 
 .pf-join-modal-info {
@@ -208,6 +214,13 @@
   background: var(--pf-color-background-secondary);
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
+}
+
+// Filter in column selectors - side by side layout
+.pf-filter-in-column-selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 // Join column selector - for selecting columns with checkboxes and aliasing

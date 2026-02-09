@@ -26,7 +26,7 @@ import {TraceStream} from '../public/stream';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {NewEngineMode} from '../trace_processor/engine';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
-import {CommandInvocation, CommandManagerImpl} from './command_manager';
+import {CommandInvocation, CommandManagerImpl, Macro} from './command_manager';
 import {featureFlags} from './feature_flags';
 import {loadTrace} from './load_trace';
 import {OmniboxManagerImpl} from './omnibox_manager';
@@ -40,6 +40,7 @@ import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
 import {TraceImpl} from './trace_impl';
 import {TraceArrayBufferSource, TraceSource} from './trace_source';
+import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -70,12 +71,13 @@ export interface AppInitArgs {
 export class AppImpl implements App {
   readonly omnibox = new OmniboxManagerImpl();
   readonly commands = new CommandManagerImpl(this.omnibox);
-  readonly pages = new PageManagerImpl();
+  readonly pages: PageManagerImpl;
   readonly sidebar: SidebarManagerImpl;
   readonly plugins = new PluginManagerImpl();
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
+  readonly taskTracker = new TaskTrackerImpl();
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
@@ -91,22 +93,18 @@ export class AppImpl implements App {
   // The current active trace (if any).
   private _activeTrace: TraceImpl | undefined;
 
-  // Extra SQL packages, injected via is_internal_user.js.
+  // Extra SQL packages injected from extensions.
   private _sqlPackagesPromises = new Array<
     Promise<ReadonlyArray<SqlPackage>>
   >();
 
-  // Protobuf descriptor sets as Base64-encoded strings.
-  // Injected via is_internal_user.js.
+  // Protobuf descriptor sets as Base64-encoded strings injected from extensions.
   private _protoDescriptorsPromises = new Array<
     Promise<ReadonlyArray<string>>
   >();
 
-  // Command macros. The key is the macro name, value is a list of commands to
-  // invoke. Injected via is_internal_user.js.
-  private _macrosPromises = new Array<
-    Promise<Map<string, ReadonlyArray<CommandInvocation>>>
-  >();
+  // Command macros. Injected from extensions.
+  private _macrosPromises = new Array<Promise<ReadonlyArray<Macro>>>();
 
   // Initializes the singleton instance - must be called only once and before
   // AppImpl.instance is used.
@@ -154,6 +152,7 @@ export class AppImpl implements App {
       this.embeddedMode,
       initArgs.analyticsSetting.get(),
     );
+    this.pages = new PageManagerImpl(this.analytics);
   }
 
   setActiveTrace(trace: TraceImpl) {
@@ -313,16 +312,12 @@ export class AppImpl implements App {
     );
   }
 
-  addMacros(
-    args:
-      | Map<string, ReadonlyArray<CommandInvocation>>
-      | Promise<Map<string, ReadonlyArray<CommandInvocation>>>,
-  ) {
+  addMacros(args: ReadonlyArray<Macro> | Promise<ReadonlyArray<Macro>>) {
     this._macrosPromises.push(Promise.resolve(args));
   }
 
-  async macros(): Promise<Map<string, ReadonlyArray<CommandInvocation>>> {
+  async macros(): Promise<ReadonlyArray<Macro>> {
     const macrosArray = await Promise.all(this._macrosPromises);
-    return new Map(macrosArray.flatMap((m) => [...m]));
+    return macrosArray.flat();
   }
 }

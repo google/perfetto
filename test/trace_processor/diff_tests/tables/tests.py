@@ -280,6 +280,7 @@ class Tables(TestSuite):
               machine: "x86_64"
               release: "22.6.0"
             }
+            system_ram_bytes: 126598774784
           }
           trusted_uid: 158158
           trusted_packet_sequence_id: 1
@@ -289,17 +290,167 @@ class Tables(TestSuite):
               FROM metadata
               WHERE name IN (
                   "system_name", "system_version", "system_machine",
-                  "system_release", "timezone_off_mins")
+                  "system_release", "timezone_off_mins", "system_ram_bytes",
+                  "system_ram_gb")
               ORDER BY name
         """,
         out=Csv(r"""
                 "name","val"
                 "system_machine","x86_64"
                 "system_name","Darwin"
+                "system_ram_bytes",126598774784
+                "system_ram_gb",127
                 "system_release","22.6.0"
                 "system_version","Foobar"
                 "timezone_off_mins",60
                 """))
+
+  def test_metadata_schema(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Darwin"
+            }
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 100
+              print { buf: "host" }
+            }
+            last_read_event_timestamp: 1000
+          }
+          trusted_packet_sequence_id: 3
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 2000
+              pid: 200
+              print { buf: "remote" }
+            }
+            last_read_event_timestamp: 2000
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 4
+        }
+        """),
+        query=r"""
+          SELECT
+            name,
+            key_type,
+            int_value,
+            str_value,
+            machine_id,
+            trace_id
+          FROM metadata
+          WHERE name IN ('system_name', 'trace_type', 'ftrace_latest_data_start_ns')
+          ORDER BY name, machine_id
+        """,
+        out=Csv(r"""
+          "name","key_type","int_value","str_value","machine_id","trace_id"
+          "ftrace_latest_data_start_ns","single",1000,"[NULL]",0,0
+          "ftrace_latest_data_start_ns","single",2000,"[NULL]",1,0
+          "system_name","single","[NULL]","Linux",0,"[NULL]"
+          "system_name","single","[NULL]","Darwin",1,"[NULL]"
+          "trace_type","single","[NULL]","proto","[NULL]",0
+        """))
+
+  def test_metadata_uuid_upgrade(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trace_uuid {
+            msb: 0
+            lsb: 1
+          }
+          trusted_packet_sequence_id: 1
+        }
+        """),
+        query=r"""
+          SELECT name, str_value, machine_id, trace_id FROM metadata
+          WHERE name = 'trace_uuid';
+        """,
+        out=Csv(r"""
+          "name","str_value","machine_id","trace_id"
+          "trace_uuid","00000000-0000-0000-0000-000000000001","[NULL]",0
+        """))
+
+  def test_metadata_helpers(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Darwin"
+            }
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 100
+              print { buf: "host" }
+            }
+            last_read_event_timestamp: 1000
+          }
+          trusted_packet_sequence_id: 3
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 2000
+              pid: 200
+              print { buf: "remote" }
+            }
+            last_read_event_timestamp: 2000
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 4
+        }
+        """),
+        query=r"""
+          SELECT
+            extract_metadata('system_name') as primary_system,
+            extract_metadata_for_machine(0, 'system_name') as machine_0_system,
+            extract_metadata_for_machine(1, 'system_name') as machine_1_system,
+            extract_metadata('ftrace_latest_data_start_ns') as primary_ftrace_start,
+            extract_metadata_for_machine(0, 'ftrace_latest_data_start_ns') as machine_0_ftrace_start,
+            extract_metadata_for_machine(1, 'ftrace_latest_data_start_ns') as machine_1_ftrace_start;
+        """,
+        out=Csv(r"""
+          "primary_system","machine_0_system","machine_1_system","primary_ftrace_start","machine_0_ftrace_start","machine_1_ftrace_start"
+          "Linux","Linux","Darwin",1000,1000,2000
+        """))
 
   def test_flow_table_trace_id(self):
     return DiffTestBlueprint(
@@ -507,6 +658,7 @@ class Tables(TestSuite):
               release: "22.6.0"
             }
             num_cpus: 4
+            system_ram_bytes: 126598774784
           }
           trusted_uid: 158158
           trusted_packet_sequence_id: 1
@@ -527,6 +679,7 @@ class Tables(TestSuite):
             page_size: 4096
             num_cpus: 8
             timezone_off_mins: 0
+            system_ram_bytes: 12008292352
           }
           machine_id: 2420838448
           trusted_uid: 158158
@@ -537,9 +690,9 @@ class Tables(TestSuite):
         SELECT * FROM machine
         """,
         out=Csv("""
-        "id","raw_id","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version"
-        0,0,"Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]"
-        1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33
+        "id","raw_id","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version","system_ram_bytes","system_ram_gb"
+        0,0,"Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]",126598774784,127
+        1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33,12008292352,12
         """))
 
   # user list table

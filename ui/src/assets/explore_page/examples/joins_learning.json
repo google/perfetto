@@ -1,156 +1,46 @@
 {
   "nodes": [
     {
-      "nodeId": "30",
-      "type": 1,
+      "nodeId": "1",
+      "type": "simple_slices",
       "state": {},
       "nextNodes": [
-        "31"
+        "3"
       ]
     },
     {
-      "nodeId": "32",
-      "type": 0,
+      "nodeId": "2",
+      "type": "table",
       "state": {
-        "sqlTable": "track"
+        "sqlTable": "thread"
       },
       "nextNodes": [
-        "31"
+        "3"
       ]
     },
     {
-      "nodeId": "33",
-      "type": 1,
-      "state": {},
-      "nextNodes": [
-        "1331"
-      ]
-    },
-    {
-      "nodeId": "34",
-      "type": 0,
+      "nodeId": "12",
+      "type": "table",
       "state": {
         "sqlTable": "thread_state"
       },
       "nextNodes": [
-        "35"
+        "13"
       ]
     },
     {
-      "nodeId": "1331",
-      "type": 13,
-      "state": {
-        "leftNodeId": "33",
-        "rightNodeId": "3264",
-        "leftQueryAlias": "left",
-        "rightQueryAlias": "right",
-        "conditionType": "equality",
-        "joinType": "INNER",
-        "leftColumn": "utid",
-        "rightColumn": "utid",
-        "sqlExpression": "",
-        "leftColumns": [
-          {
-            "name": "id",
-            "type": "ID(slice.id)",
-            "checked": true
-          },
-          {
-            "name": "ts",
-            "type": "TIMESTAMP",
-            "checked": false
-          },
-          {
-            "name": "dur",
-            "type": "DURATION",
-            "checked": false
-          },
-          {
-            "name": "name",
-            "type": "STRING",
-            "checked": true
-          },
-          {
-            "name": "track_id",
-            "type": "JOINID(track.id)",
-            "checked": true
-          },
-          {
-            "name": "track_name",
-            "type": "STRING",
-            "checked": false
-          },
-          {
-            "name": "process_name",
-            "type": "STRING",
-            "checked": false
-          },
-          {
-            "name": "upid",
-            "type": "JOINID(process.id)",
-            "checked": false
-          },
-          {
-            "name": "pid",
-            "type": "INT",
-            "checked": false
-          },
-          {
-            "name": "thread_name",
-            "type": "STRING",
-            "checked": false
-          },
-          {
-            "name": "utid",
-            "type": "JOINID(thread.id)",
-            "checked": false
-          },
-          {
-            "name": "tid",
-            "type": "INT",
-            "checked": false
-          },
-          {
-            "name": "depth",
-            "type": "INT",
-            "checked": false
-          },
-          {
-            "name": "parent_id",
-            "type": "JOINID(slice.id)",
-            "checked": false
-          },
-          {
-            "name": "category",
-            "type": "STRING",
-            "checked": false
-          },
-          {
-            "name": "arg_set_id",
-            "type": "ARG_SET_ID",
-            "checked": false
-          }
-        ],
-        "rightColumns": [
-          {
-            "name": "utid",
-            "type": "JOINID(thread.id)",
-            "checked": false
-          },
-          {
-            "name": "sum_dur",
-            "type": "DURATION",
-            "checked": false
-          }
-        ]
-      },
-      "nextNodes": []
+      "nodeId": "35",
+      "type": "simple_slices",
+      "state": {},
+      "nextNodes": [
+        "36"
+      ]
     },
     {
-      "nodeId": "36",
-      "type": 4,
+      "nodeId": "14",
+      "type": "aggregation",
       "state": {
-        "primaryInputId": "35",
+        "primaryInputId": "13",
         "groupByColumns": [
           {
             "name": "id",
@@ -213,7 +103,7 @@
                 },
                 "description": "The duration of the slice."
               },
-              "checked": false
+              "checked": true
             },
             "aggregationOp": "SUM",
             "isValid": true
@@ -221,45 +111,156 @@
         ]
       },
       "nextNodes": [
-        "2798"
+        "196"
       ]
     },
     {
-      "nodeId": "3984",
-      "type": 1,
-      "state": {},
-      "nextNodes": [
-        "3985"
-      ]
-    },
-    {
-      "nodeId": "3989",
-      "type": 0,
+      "nodeId": "36",
+      "type": "join",
       "state": {
-        "sqlTable": "thread"
-      },
-      "nextNodes": [
-        "3985"
-      ]
-    },
-    {
-      "nodeId": "31",
-      "type": 6,
-      "state": {
-        "primaryInputId": "30",
-        "secondaryInputNodeId": "32",
-        "selectedColumns": [
-          "type"
+        "leftNodeId": "35",
+        "rightNodeId": "749",
+        "leftQueryAlias": "left",
+        "rightQueryAlias": "right",
+        "conditionType": "equality",
+        "joinType": "INNER",
+        "leftColumn": "utid",
+        "rightColumn": "utid",
+        "sqlExpression": "",
+        "leftColumns": [
+          {
+            "name": "id",
+            "type": "ID(slice.id)",
+            "checked": true,
+            "columnName": "id"
+          },
+          {
+            "name": "ts",
+            "type": "TIMESTAMP",
+            "checked": false,
+            "columnName": "ts"
+          },
+          {
+            "name": "dur",
+            "type": "DURATION",
+            "checked": false,
+            "columnName": "dur"
+          },
+          {
+            "name": "name",
+            "type": "STRING",
+            "checked": true,
+            "columnName": "name"
+          },
+          {
+            "name": "track_id",
+            "type": "JOINID(track.id)",
+            "checked": false,
+            "columnName": "track_id"
+          },
+          {
+            "name": "track_name",
+            "type": "STRING",
+            "checked": false,
+            "columnName": "track_name"
+          },
+          {
+            "name": "process_name",
+            "type": "STRING",
+            "checked": false,
+            "columnName": "process_name"
+          },
+          {
+            "name": "upid",
+            "type": "JOINID(process.id)",
+            "checked": false,
+            "columnName": "upid"
+          },
+          {
+            "name": "pid",
+            "type": "INT",
+            "checked": false,
+            "columnName": "pid"
+          },
+          {
+            "name": "thread_name",
+            "type": "STRING",
+            "checked": false,
+            "columnName": "thread_name"
+          },
+          {
+            "name": "utid",
+            "type": "JOINID(thread.id)",
+            "checked": false,
+            "columnName": "utid"
+          },
+          {
+            "name": "tid",
+            "type": "INT",
+            "checked": false,
+            "columnName": "tid"
+          },
+          {
+            "name": "depth",
+            "type": "INT",
+            "checked": false,
+            "columnName": "depth"
+          },
+          {
+            "name": "parent_id",
+            "type": "JOINID(slice.id)",
+            "checked": false,
+            "columnName": "parent_id"
+          },
+          {
+            "name": "category",
+            "type": "STRING",
+            "checked": false,
+            "columnName": "category"
+          },
+          {
+            "name": "arg_set_id",
+            "type": "ARG_SET_ID",
+            "checked": false,
+            "columnName": "arg_set_id"
+          }
         ],
-        "leftColumn": "track_id",
+        "rightColumns": [
+          {
+            "name": "utid",
+            "type": "JOINID(thread.id)",
+            "checked": true,
+            "columnName": "utid"
+          },
+          {
+            "name": "sum_dur",
+            "type": "DURATION",
+            "checked": true,
+            "alias": "total_running_time",
+            "columnName": "sum_dur"
+          }
+        ]
+      },
+      "nextNodes": []
+    },
+    {
+      "nodeId": "3",
+      "type": "add_columns",
+      "state": {
+        "primaryInputId": "1",
+        "secondaryInputNodeId": "2",
+        "selectedColumns": [
+          "name"
+        ],
+        "leftColumn": "utid",
         "rightColumn": "id",
         "suggestionSelections": {
-          "track": [
-            "type"
+          "thread": [
+            "name"
           ]
         },
         "expandedSuggestions": [],
-        "selectedSuggestionTable": "track",
+        "selectedSuggestionTable": "thread",
         "columnAliases": {},
         "suggestionAliases": {},
         "columnTypes": {},
@@ -270,10 +271,10 @@
       "nextNodes": []
     },
     {
-      "nodeId": "35",
-      "type": 10,
+      "nodeId": "13",
+      "type": "filter",
       "state": {
-        "primaryInputId": "34",
+        "primaryInputId": "12",
         "filters": [
           {
             "column": "state",
@@ -283,26 +284,14 @@
         ]
       },
       "nextNodes": [
-        "36"
+        "14"
       ]
     },
     {
-      "nodeId": "3264",
-      "type": 8,
+      "nodeId": "196",
+      "type": "sort",
       "state": {
-        "primaryInputId": "2798",
-        "limit": 10,
-        "offset": 0
-      },
-      "nextNodes": [
-        "1331"
-      ]
-    },
-    {
-      "nodeId": "2798",
-      "type": 9,
-      "state": {
-        "primaryInputId": "36",
+        "primaryInputId": "14",
         "sortCriteria": [
           {
             "colName": "sum_dur",
@@ -311,166 +300,67 @@
         ]
       },
       "nextNodes": [
-        "3264"
+        "749"
       ]
     },
     {
-      "nodeId": "3985",
-      "type": 6,
+      "nodeId": "749",
+      "type": "limit_and_offset",
       "state": {
-        "primaryInputId": "3984",
-        "secondaryInputNodeId": "3989",
-        "selectedColumns": [
-          "is_idle"
-        ],
-        "leftColumn": "process_name",
-        "rightColumn": "name",
-        "suggestionSelections": {},
-        "expandedSuggestions": [],
-        "columnAliases": {},
-        "suggestionAliases": {},
-        "columnTypes": {},
-        "isGuidedConnection": false,
-        "autoExecute": true,
-        "computedColumns": []
+        "primaryInputId": "196",
+        "limit": 10,
+        "offset": 0
       },
       "nextNodes": [
-        "3990"
+        "36"
       ]
-    },
-    {
-      "nodeId": "3990",
-      "type": 10,
-      "state": {
-        "primaryInputId": "3985",
-        "filters": [
-          {
-            "column": "is_idle",
-            "op": "is null"
-          }
-        ]
-      },
-      "nextNodes": []
     }
   ],
   "rootNodeIds": [
-    "30",
-    "32",
-    "33",
-    "34",
-    "1331",
-    "36",
-    "3984",
-    "3989"
+    "1",
+    "2",
+    "12",
+    "35",
+    "14",
+    "36"
   ],
+  "selectedNodeId": "36",
   "nodeLayouts": {
-    "30": {
-      "x": 762.2645709996357,
-      "y": -226.8566442576645
+    "1": {
+      "x": 211.84297955742258,
+      "y": 70.50362356426135
     },
-    "32": {
-      "x": 515.124789160644,
-      "y": -236.98257217710955
+    "2": {
+      "x": 0,
+      "y": 73.17788239434803
     },
-    "33": {
-      "x": 919.2391745792376,
-      "y": 129.305496652454
+    "12": {
+      "x": 519.4999688713282,
+      "y": 198.4719244156391
     },
-    "34": {
-      "x": 882.5752084065745,
-      "y": 217.04486066135127
+    "35": {
+      "x": 581.0324780198836,
+      "y": 89.58789232150073
     },
-    "1331": {
-      "x": 1188.9681940297162,
-      "y": 207.68326032687702
-    },
-    "2449": {
-      "x": 893.698940862936,
-      "y": -239.53531570752355
-    },
-    "2450": {
-      "x": 893.698940862936,
-      "y": -239.53531570752355
-    },
-    "3979": {
-      "x": 1285.719743933811,
-      "y": -227.3205953156851
-    },
-    "3980": {
-      "x": 1010,
-      "y": -141
-    },
-    "3982": {
-      "x": 1272.5306228942943,
-      "y": -163.85850298023496
-    },
-    "3983": {
-      "x": 1272.7109285999193,
-      "y": -164.4086853281589
-    },
-    "3984": {
-      "x": 1275.9111824983706,
-      "y": -212.4951698317535
-    },
-    "3986": {
-      "x": 1010,
-      "y": -141
-    },
-    "3987": {
-      "x": 959,
-      "y": -83
-    },
-    "3988": {
-      "x": 1047.2114082460475,
-      "y": -206.8241804711971
-    },
-    "3989": {
-      "x": 1058.5191271593276,
-      "y": -213.6739011446374
+    "36": {
+      "x": 835.217866893278,
+      "y": 213.45853682080508
     }
   },
   "labels": [
     {
-      "id": "f2dd9dd3-b335-4667-93e9-9842cbad555f",
-      "x": 855.4995325613112,
-      "y": -421.88390180571076,
-      "width": 376.85541977046523,
-      "text": "The most common point of joining is adding a column from another source. For this you can just use the \"Add column\" node."
+      "id": "label-1",
+      "x": 23.924863037160456,
+      "y": 0,
+      "width": 400,
+      "text": "Example 1: Simple join using \"Add column\" node. This joins slices with thread info by utid."
     },
     {
-      "id": "8be7ca31-7d3d-47f2-953b-5310a2b1c142",
-      "x": 579.3700838070213,
-      "y": -321.34482774931524,
-      "width": 392.86849704554675,
-      "text": "If the join is on the ID column (like `utid`), just click on the \"Add from another source\" button, and it will suggest you all of the tables you can join with."
-    },
-    {
-      "id": "558c7f23-8ce8-4046-bb61-cf5b47a19bd6",
-      "x": 1156.1670461663994,
-      "y": -320.55700781445785,
-      "width": 339.66645903607605,
-      "text": "If the join is more complicated (string equality) or we want to join with any node, we can just manually connect it to the \"Add columns\" node."
-    },
-    {
-      "id": "96332934-3d2f-4703-bcba-a4276e0b0c63",
-      "x": 894.0452455149734,
-      "y": 26.33659987815365,
-      "width": 355.67157070633243,
-      "text": "There exists a Join node, which you can use if the \"Add columns\" node is not flexible enough. It provides a simple interface for joining on equality."
-    },
-    {
-      "id": "215d2875-84d7-468b-877a-dc1c3183df28",
-      "x": 667.6745304091747,
-      "y": 316.9271900324046,
-      "width": 200,
-      "text": "Get 10 threads that were running for the longest"
-    },
-    {
-      "id": "b280933e-8359-4c51-808a-bbafb1fe57d9",
-      "x": 1345.8017175806704,
-      "y": 362.5901496717054,
-      "width": 200,
-      "text": "Get the slices names for those threads"
+      "id": "label-2",
+      "x": 523.9248630371604,
+      "y": 0,
+      "width": 500,
+      "text": "Example 2: Using the Join node for more complex joins. Get the slices that belong to the threads and join with the longest thread running time."
     }
   ]
 }

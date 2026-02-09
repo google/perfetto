@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {indentWithTab} from '@codemirror/commands';
-import {Transaction} from '@codemirror/state';
+import {EditorState, Transaction} from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {keymap} from '@codemirror/view';
 import {basicSetup, EditorView} from 'codemirror';
@@ -24,6 +24,8 @@ import {assertUnreachable} from '../base/logging';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
 import {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
+
+type EditorLanguage = 'perfetto-sql' | 'javascript';
 
 export interface EditorAttrs extends HTMLAttrs {
   // Content of the editor. If defined, the editor operates in controlled mode,
@@ -36,13 +38,16 @@ export interface EditorAttrs extends HTMLAttrs {
   readonly text?: string;
 
   // Which language use for syntax highlighting et al. Defaults to none.
-  readonly language?: 'perfetto-sql' | 'javascript';
+  readonly language?: EditorLanguage;
 
   // Whether the editor should be focused on creation.
   readonly autofocus?: boolean;
 
   // Whether the editor should fill the height of its container.
   readonly fillHeight?: boolean;
+
+  // Whether the editor content is readonly.
+  readonly readonly?: boolean;
 
   // Callback for the Ctrl/Cmd + Enter key binding.
   onExecute?: (text: string) => void;
@@ -63,6 +68,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
   }
 
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
+    this.latestText = attrs.text;
     const keymaps = [indentWithTab];
     const onExecute = attrs.onExecute;
     const onSave = attrs.onSave;
@@ -103,17 +109,16 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     }
 
     const dispatch = (tr: Transaction, view: EditorView) => {
-      // Maybe don't bother doing this if onUpdate is not defined...?
       view.update([tr]);
       const text = view.state.doc.toString();
-      // Cache the latest text so that we don't immediately have to overwrite
-      // this every time we make an edit to the doc if the caller just passes in
-      // the exact same string again on the next redraw.
-      this.latestText = text;
-
-      if (onUpdate) {
+      // Only fire onUpdate when text actually changes, not for cursor
+      // movements, selection changes, or other non-text transactions.
+      if (onUpdate && text !== this.latestText) {
+        this.latestText = text;
         onUpdate(text);
         m.redraw();
+      } else {
+        this.latestText = text;
       }
     };
 
@@ -130,10 +135,23 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       }
     })();
 
+    const readonly = (() => {
+      if (attrs.readonly) {
+        return [
+          EditorState.readOnly.of(true),
+          EditorView.editable.of(false),
+          // Enable keyboard commands by allowing focus.
+          EditorView.contentAttributes.of({tabindex: '0'}),
+        ];
+      }
+      return [];
+    })();
+
     this.editorView = new EditorView({
       doc: attrs.text,
       extensions: removeFalsyValues([
         keymap.of(keymaps),
+        ...readonly,
         oneDark,
         basicSetup,
         lang,
