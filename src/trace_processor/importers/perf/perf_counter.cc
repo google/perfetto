@@ -23,12 +23,12 @@
 
 namespace perfetto::trace_processor::perf_importer {
 
-CounterId PerfCounter::AddDelta(int64_t ts, double delta) {
+tables::CounterTable::Id PerfCounter::AddDelta(int64_t ts, double delta) {
   last_count_ += delta;
   return counter_table_.Insert({ts, track_id_, last_count_}).id;
 }
 
-CounterId PerfCounter::AddCount(int64_t ts, double count) {
+tables::CounterTable::Id PerfCounter::AddCount(int64_t ts, double count) {
   PERFETTO_CHECK(count >= last_count_);
   last_count_ = count;
   return counter_table_.Insert({ts, track_id_, last_count_}).id;
