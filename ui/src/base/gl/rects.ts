@@ -254,11 +254,7 @@ export class RectBatch {
       viewTransform.offsetY,
     );
     gl.uniform2f(prog.viewScaleLoc, viewTransform.scaleX, viewTransform.scaleY);
-    gl.uniform2f(
-      prog.dataScaleLoc,
-      dataTransform.scaleX,
-      dataTransform.scaleY,
-    );
+    gl.uniform2f(prog.dataScaleLoc, dataTransform.scaleX, dataTransform.scaleY);
     gl.uniform2f(
       prog.dataOffsetLoc,
       dataTransform.offsetX,
@@ -321,5 +317,4 @@ export class RectBatch {
     gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, 0, 0);
     gl.vertexAttribDivisor(loc, 1);
   }
-}
 }

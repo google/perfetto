@@ -111,12 +111,7 @@ export class WebGLRenderer implements Renderer {
     );
   }
 
-  flush(): void {
-    // All draw calls are now immediate, so no flush is needed.
-  }
-
   resetTransform(): void {
-    this.flush();
     this.transform = Transform2D.Identity;
     this.c2d.resetTransform();
   }
@@ -134,8 +129,6 @@ export class WebGLRenderer implements Renderer {
   clip(x: number, y: number, w: number, h: number): Disposable {
     const gl = this.gl;
     const ctx = this.c2d;
-
-    this.flush();
 
     // Apply transform: physPos = offset + pos * scale
     const physX = this.transform.offsetX + x * this.transform.scaleX;
@@ -159,7 +152,6 @@ export class WebGLRenderer implements Renderer {
 
     return {
       [Symbol.dispose]: () => {
-        this.flush();
         ctx.restore();
         gl.disable(gl.SCISSOR_TEST);
       },

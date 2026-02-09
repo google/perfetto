@@ -39,7 +39,6 @@ interface PhysicalClipBounds {
 
 export class Canvas2DRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
-  private previousFillStyle?: string;
   // Track transform ourselves for CPU-side culling calculations.
   private transform = Transform2D.Identity;
   private physicalClipBounds?: PhysicalClipBounds;
@@ -76,12 +75,13 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx;
     const clip = this.physicalClipBounds;
     const t = this.transform;
-    const {offsetX, scaleX} = dataTransform;
+    const {offsetX, scaleX, offsetY, scaleY} = dataTransform;
+    let previousColor: number | undefined = undefined;
 
     for (let i = 0; i < count; i++) {
       // Transform X from data space to screen space (centered)
       const screenX = xs[i] * scaleX + offsetX;
-      const y = ys[i];
+      const y = ys[i] * scaleY + offsetY;
 
       // CPU-side culling
       if (clip !== undefined) {
@@ -101,16 +101,16 @@ export class Canvas2DRenderer implements Renderer {
 
       // Convert packed RGBA (0xRRGGBBAA) to CSS string
       const rgba = colors[i];
-      const r = (rgba >> 24) & 0xff;
-      const g = (rgba >> 16) & 0xff;
-      const b = (rgba >> 8) & 0xff;
-      const a = (rgba & 0xff) / 255;
-      const cssColor = `rgba(${r},${g},${b},${a})`;
-
-      if (this.previousFillStyle !== cssColor) {
+      if (previousColor !== rgba) {
+        const r = (rgba >> 24) & 0xff;
+        const g = (rgba >> 16) & 0xff;
+        const b = (rgba >> 8) & 0xff;
+        const a = (rgba & 0xff) / 255;
+        const cssColor = `rgba(${r},${g},${b},${a})`;
         ctx.fillStyle = cssColor;
-        this.previousFillStyle = cssColor;
+        previousColor = rgba;
       }
+
       render(ctx, screenX - w / 2, y, w, h);
     }
   }
@@ -130,16 +130,16 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx;
     const clip = this.physicalClipBounds;
     const t = this.transform;
-    const {offsetX, scaleX} = dataTransform;
+    const {offsetX, scaleX, offsetY, scaleY} = dataTransform;
+    let previousColor: number | undefined = undefined;
 
     for (let i = 0; i < count; i++) {
       // Skip instant slices (dur === 0) - handled separately with drawMarker
       if (ws[i] === 0) continue;
 
-      // Transform X from data coordinates to screen coordinates
-      // Y is already in screen pixels
+      // Transform X and Y from data coordinates to screen coordinates
       let x = xs[i] * scaleX + offsetX;
-      const y = ys[i];
+      const y = ys[i] * scaleY + offsetY;
       let w: number;
 
       // Handle incomplete rects (w === -1 means extend to screenEnd)
@@ -175,15 +175,14 @@ export class Canvas2DRenderer implements Renderer {
 
       // Convert packed RGBA (0xRRGGBBAA) to CSS string
       const rgba = colors[i];
-      const r = (rgba >> 24) & 0xff;
-      const g = (rgba >> 16) & 0xff;
-      const b = (rgba >> 8) & 0xff;
-      const a = (rgba & 0xff) / 255;
-      const cssColor = `rgba(${r},${g},${b},${a})`;
-
-      if (this.previousFillStyle !== cssColor) {
+      if (previousColor !== rgba) {
+        const r = (rgba >> 24) & 0xff;
+        const g = (rgba >> 16) & 0xff;
+        const b = (rgba >> 8) & 0xff;
+        const a = (rgba & 0xff) / 255;
+        const cssColor = `rgba(${r},${g},${b},${a})`;
         ctx.fillStyle = cssColor;
-        this.previousFillStyle = cssColor;
+        previousColor = rgba;
       }
       ctx.fillRect(x, y, w, h);
 
@@ -191,7 +190,7 @@ export class Canvas2DRenderer implements Renderer {
       if (flags & RECT_PATTERN_HATCHED && w >= 5) {
         ctx.fillStyle = getHatchedPattern(ctx);
         ctx.fillRect(x, y, w, h);
-        this.previousFillStyle = undefined;
+        previousColor = undefined;
       }
 
       if (flags & RECT_PATTERN_FADE_RIGHT && w >= 5) {
@@ -203,7 +202,7 @@ export class Canvas2DRenderer implements Renderer {
         ctx.fillStyle = gradient;
         ctx.fillRect(x, y, w, h);
         ctx.restore();
-        this.previousFillStyle = undefined;
+        previousColor = undefined;
       }
     }
   }
@@ -273,13 +272,6 @@ export class Canvas2DRenderer implements Renderer {
 
     ctx.globalAlpha = 1.0;
     ctx.stroke();
-  }
-
-  flush(): void {
-    // Draw calls are immediate in Canvas2D, so nothing to do here. Reset the
-    // previous color cache as the ctx might be used and the fillStyle changed
-    // externally.
-    this.previousFillStyle = undefined;
   }
 
   clip(x: number, y: number, w: number, h: number): Disposable {

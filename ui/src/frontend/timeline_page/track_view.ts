@@ -323,9 +323,6 @@ export class TrackView {
         renderer: renderer,
       });
 
-    // Flush after each track
-    renderer.flush();
-
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);
 
     const renderTime = performance.now() - start;

@@ -58,7 +58,6 @@ import {RECT_PATTERN_FADE_RIGHT} from '../../base/renderer';
 import {cropText} from '../../base/string_utils';
 
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
-// const SLICE_MIN_WIDTH_PX = 1;
 const CHEVRON_WIDTH_PX = 10;
 
 export const enum ColorVariant {
@@ -394,7 +393,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       selection.kind === 'track_event' && selection.trackUri === this.uri
         ? selection.eventId
         : undefined;
-    // let discoveredSelectionIdx = -1;
 
     const dataTransform: Transform2D = {
       scaleX: pxPerNs,
@@ -402,40 +400,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       scaleY: this.sliceLayout.sliceHeight + this.sliceLayout.rowGap,
       offsetY: this.sliceLayout.padding,
     };
-
-    {
-      // Render instants as markers
-      const {xs, ys, instants, count} = dataFrame.instants;
-
-      // Recreate the colors array every time as this could have changed
-      // TODO(stevegolton): Find a way to avoid having to do this every frame!
-      const colorVariants = this.onUpdatedSlices(instants);
-      const colors = new Uint32Array(count);
-      for (let j = 0; j < count; j++) {
-        const colorVariant = colorVariants[j];
-        const cs = instants[j].colorScheme;
-        const color =
-          colorVariant === ColorVariant.BASE
-            ? cs.base
-            : colorVariant === ColorVariant.VARIANT
-              ? cs.variant
-              : cs.disabled;
-        colors[j] = color.rgba;
-      }
-
-      renderer.drawMarkers(
-        {
-          xs,
-          ys,
-          w: this.instantWidthPx,
-          h: sliceHeight,
-          colors,
-          count,
-        },
-        dataTransform,
-        () => {},
-      );
-    }
 
     // Render slices as rects
     {
@@ -493,15 +457,18 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
                 ? cs.textVariant
                 : cs.textDisabled;
 
-          const clampedX = Math.max(xPx, 0);
-          const rectXCenter = clampedX + wPx / 2;
+          // Clamp slice bounds to visible window for text positioning
+          const clampedLeft = Math.max(xPx, 0);
+          const clampedRight = Math.min(xPx + wPx, pxEnd);
+          const clampedW = clampedRight - clampedLeft;
+          const rectXCenter = clampedLeft + clampedW / 2;
           const yDiv = subTitle ? 3 : 2;
           const titleY = Math.floor(y + sliceHeight / yDiv) + 0.5;
           const subTitleY = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
 
           textLabels.push({
-            title: cropText(title, charWidth.title, wPx),
-            subTitle: cropText(subTitle, charWidth.subtitle, wPx),
+            title: cropText(title, charWidth.title, clampedW),
+            subTitle: cropText(subTitle, charWidth.subtitle, clampedW),
             textColor: textColor.cssString,
             rectXCenter,
             titleY,
@@ -542,174 +509,81 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         }
       }
 
-      // TODO(stevegolton): Handle selection highlight
-      console.log(selectedId);
+      // Draw selection highlight
+      if (selectedId !== undefined) {
+        for (let j = 0; j < count; j++) {
+          if (slices[j].id === selectedId) {
+            const selX = xs[j] * pxPerNs + baseOffsetPx;
+            const selW = ws[j] * pxPerNs;
+            const selY = ys[j] * dataTransform.scaleY + dataTransform.offsetY;
+            const THICKNESS = 3;
+            ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
+            ctx.lineWidth = THICKNESS;
+            ctx.strokeRect(
+              selX,
+              selY - THICKNESS / 2,
+              selW,
+              sliceHeight + THICKNESS,
+            );
+            break;
+          }
+        }
+      }
     }
 
-    // // For selection highlight
-    // let selectedX = 0;
-    // let selectedW = 0;
-    // let selectedY = 0;
+    // Render instants as markers (after slices so they appear on top)
+    {
+      const {xs, ys, instants, count} = dataFrame.instants;
 
-    // // Pre-computed ys from data load, renderColors filled per-frame
-    // const {ys: precomputedYs, renderColors} = cols;
+      // Recreate the colors array every time as this could have changed
+      const colorVariants = this.onUpdatedSlices(instants);
+      const colors = new Uint32Array(count);
+      for (let j = 0; j < count; j++) {
+        const colorVariant = colorVariants[j];
+        const cs = instants[j].colorScheme;
+        const color =
+          colorVariant === ColorVariant.BASE
+            ? cs.base
+            : colorVariant === ColorVariant.VARIANT
+              ? cs.variant
+              : cs.disabled;
+        colors[j] = color.rgba;
+      }
 
-    // // Fill colors for all slices based on current colorVariants
-    // // (renderer will cull offscreen slices)
-    // for (let i = 0; i < n; i++) {
-    //   renderColors[i] = packedColors[colorVariants[i]][i];
-    // }
+      renderer.drawMarkers(
+        {
+          xs,
+          ys,
+          w: this.instantWidthPx,
+          h: sliceHeight,
+          colors,
+          count,
+        },
+        dataTransform,
+        (ctx, x, y, _w, h) => this.drawChevron(ctx, x, y, h),
+      );
 
-    // // Single pass: collect text labels, track selection
-    // const minSliceWidthPx = FADE_THIN_SLICES_FLAG.get()
-    //   ? SLICE_MIN_WIDTH_FADED_PX
-    //   : SLICE_MIN_WIDTH_PX;
-    // for (let i = 0; i < n; i++) {
-    //   // Early out of slice is not wide enough to contain text
-    //   const dur = durs[i];
-    //   if (dur * pxPerNs < SLICE_MIN_WIDTH_FOR_TEXT_PX) continue;
-
-    //   const xPx = starts[i] * pxPerNs + baseOffsetPx;
-    //   const wPx = Math.min(xPx + dur * pxPerNs, pxEnd) - Math.max(xPx, -1);
-
-    //   // Skip slices that are completely offscreen
-    //   if (xPx + wPx <= 0 || xPx >= pxEnd) {
-    //     continue;
-    //   }
-
-    //   // Collect text label if wide enough (using screen-space width)
-    //   const y = precomputedYs[i];
-    //   const title = titles[i];
-    //   const subTitle = subTitles[i];
-    //   if (title || subTitle) {
-    //     const cv = colorVariants[i];
-    //     const cs = colorSchemes[i];
-    //     const textColor =
-    //       cv === ColorVariant.BASE
-    //         ? cs.textBase
-    //         : cv === ColorVariant.VARIANT
-    //           ? cs.textVariant
-    //           : cs.textDisabled;
-
-    //     // Use clamped screen coords for text positioning
-    //     const clampedX = Math.max(xPx, -1);
-    //     const clampedW = Math.max(wPx, minSliceWidthPx);
-    //     const rectXCenter = clampedX + clampedW / 2;
-    //     const yDiv = subTitle ? 3 : 2;
-    //     const titleY = Math.floor(y + sliceHeight / yDiv) + 0.5;
-    //     const subTitleY = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
-
-    //     textLabels.push({
-    //       title: title ? cropText(title, charWidth.title, clampedW) : '',
-    //       subTitle: subTitle
-    //         ? cropText(subTitle, charWidth.subtitle, clampedW)
-    //         : '',
-    //       textColor: textColor.cssString,
-    //       rectXCenter,
-    //       titleY,
-    //       subTitleY,
-    //     });
-    //   }
-
-    //   if (selectedId === ids[i]) {
-    //     discoveredSelectionIdx = i;
-    //     selectedX = Math.max(xPx, -1);
-    //     selectedW = Math.max(wPx, minSliceWidthPx);
-    //     selectedY = y;
-    //   }
-    // }
-
-    // // Batch draw all rectangles - uses pre-filled starts/durs/ys/patterns + renderColors
-    // const dataTransform: Transform2D = {
-    //   scaleX: pxPerNs,
-    //   offsetX: baseOffsetPx,
-    //   scaleY: 1,
-    //   offsetY: 0,
-    // };
-    // renderer.drawRects(
-    //   {
-    //     xs: starts,
-    //     ys: precomputedYs,
-    //     ws: durs,
-    //     h: sliceHeight,
-    //     colors: renderColors,
-    //     patterns,
-    //     count: n,
-    //     minWidth: minSliceWidthPx,
-    //     screenEnd: pxEnd,
-    //   },
-    //   dataTransform,
-    // );
-
-    // // Batch draw all instant slices (chevrons)
-    // const {instantXs, instantYs, instantIndices, instantColors, instantCount} =
-    //   cols;
-    // if (instantCount > 0) {
-    //   for (let j = 0; j < instantCount; j++) {
-    //     const i = instantIndices[j];
-    //     instantColors[j] = packedColors[colorVariants[i]][i];
-    //   }
-    //   renderer.drawMarkers(
-    //     {
-    //       xs: instantXs,
-    //       ys: instantYs,
-    //       w: this.instantWidthPx,
-    //       h: sliceHeight,
-    //       colors: instantColors,
-    //       count: instantCount,
-    //     },
-    //     dataTransform,
-    //     (ctx2d, x, y, _w, h) => this.drawChevron(ctx2d, x, y, h),
-    //   );
-    // }
-
-    // renderer.flush();
-
-    // // Draw fillRatio light sections
-    // ctx.fillStyle = `#FFFFFF50`;
-    // for (let i = 0; i < n; i++) {
-    //   const dur = durs[i];
-    //   if (dur < 2) continue; // Skip instants or slices too narrow for fillRatio to matter
-
-    //   // Skip if fillratio is 1
-    //   const fillRatio = clamp(fillRatios[i], 0, 1);
-    //   if (floatEqual(fillRatio, 1)) continue;
-
-    //   let x = starts[i] * pxPerNs + baseOffsetPx;
-    //   let w = dur === -1 ? pxEnd - Math.max(x, -1) : dur * pxPerNs;
-    //   if (dur !== -1) {
-    //     const sliceVizLimit = Math.min(x + w, pxEnd);
-    //     x = Math.max(x, -1);
-    //     w = sliceVizLimit - x;
-    //   } else {
-    //     x = Math.max(x, -1);
-    //   }
-
-    //   if (w < 2 || x + w <= 0 || x >= pxEnd) continue;
-
-    //   const sliceDrawWidth = Math.max(w, SLICE_MIN_WIDTH_PX);
-    //   const lightSectionDrawWidth = sliceDrawWidth * (1 - fillRatio);
-    //   if (lightSectionDrawWidth < 1) continue;
-
-    //   const y = padding + depths[i] * (sliceHeight + rowSpacing);
-    //   const lightX = x + (sliceDrawWidth - lightSectionDrawWidth);
-    //   ctx.fillRect(lightX, y, lightSectionDrawWidth, sliceHeight);
-    // }
-
-    // // Draw selection highlight
-    // if (discoveredSelectionIdx >= 0) {
-    //   ctx.strokeStyle = colors.COLOR_TIMELINE_OVERLAY;
-    //   ctx.beginPath();
-    //   const THICKNESS = 3;
-    //   ctx.lineWidth = THICKNESS;
-    //   ctx.strokeRect(
-    //     selectedX,
-    //     selectedY - THICKNESS / 2,
-    //     selectedW,
-    //     sliceHeight + THICKNESS,
-    //   );
-    //   ctx.closePath();
-    // }
+      // Draw selection highlight for instants
+      if (selectedId !== undefined) {
+        for (let j = 0; j < count; j++) {
+          if (instants[j].id === selectedId) {
+            const selX =
+              xs[j] * pxPerNs + baseOffsetPx - this.instantWidthPx / 2;
+            const selY = ys[j] * dataTransform.scaleY + dataTransform.offsetY;
+            const THICKNESS = 3;
+            ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
+            ctx.lineWidth = THICKNESS;
+            ctx.strokeRect(
+              selX,
+              selY - THICKNESS / 2,
+              this.instantWidthPx,
+              sliceHeight + THICKNESS,
+            );
+            break;
+          }
+        }
+      }
+    }
 
     // Checkerboard for loading areas
     const frameStartPx = timescale.timeToPx(dataFrame.start);
@@ -1011,11 +885,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       -- Incomplete slices
       SELECT
         MAX(i.ts, ${start}) - ${start} as __ts,
-        CASE
-          WHEN i.next_ts IS NOT NULL AND i.next_ts <= ${end}
-          THEN i.next_ts - MAX(i.ts, ${start})
-          ELSE -1
-        END as __dur,
+        MIN(IFNULL(i.next_ts, ${end}), ${end}) - MAX(i.ts, ${start}) as __dur,
         s.id as __id,
         1 as __count,
         i.depth as __depth,
@@ -1023,7 +893,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         ${extraCols}
       FROM ${incompleteTableName} i
       JOIN (${sqlSource}) s ON i.id = s.id
-      WHERE i.ts < ${end}
+      WHERE i.ts < ${end} AND IFNULL(i.next_ts, ${end}) > ${start}
     `);
 
     if (signal.isCancelled) throw QUERY_CANCELLED;
@@ -1086,15 +956,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       };
     }
 
-    // TODO(stevegolton): Sort these arrays by color to improve batching in the
-    // canvas2d renderer - something like this:
-    //
-    // const n = tmpStarts.length;
-    // const idx = Array.from({length: n}, (_, i) => i);
-    // idx.sort((a, b) =>
-    //   colorCompare(tmpColorSchemes[a].base, tmpColorSchemes[b].base),
-    // );
-
     return {
       xs,
       ys,
@@ -1135,33 +996,32 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     if (this.attrs.onUpdatedSlices) {
       return this.attrs.onUpdatedSlices(slices);
     } else {
-      return new Array<ColorVariant>(slices.length).fill(ColorVariant.BASE);
-      // return this.highlightHoveredAndSameTitle();
+      return this.highlightHoveredAndSameTitle(slices);
     }
   }
 
-  // private highlightHoveredAndSameTitle(
-  //   slices: SliceColumns<T & Required<RowSchema>>,
-  // ): ColorVariant[] {
-  //   const highlightedSliceId = this.trace.timeline.highlightedSliceId;
-  //   const hoveredTitle = this.hoveredSlice?.title;
-  //   const isHovering =
-  //     hoveredTitle !== undefined || highlightedSliceId !== undefined;
-  //   const n = slices.length;
-  //   const variants = new Array<ColorVariant>(n);
-  //   const {ids, titles} = slices;
-  //   for (let i = 0; i < n; i++) {
-  //     if (!isHovering) {
-  //       variants[i] = ColorVariant.BASE;
-  //     } else {
-  //       const isMatch =
-  //         highlightedSliceId === ids[i] ||
-  //         (hoveredTitle !== undefined && hoveredTitle === titles[i]);
-  //       variants[i] = isMatch ? ColorVariant.BASE : ColorVariant.DISABLED;
-  //     }
-  //   }
-  //   return variants;
-  // }
+  private highlightHoveredAndSameTitle(
+    slices: readonly SliceOrInstant<T>[],
+  ): ColorVariant[] {
+    const highlightedSliceId = this.trace.timeline.highlightedSliceId;
+    const hoveredTitle = this.hoveredSlice?.title;
+    const isHovering =
+      hoveredTitle !== undefined || highlightedSliceId !== undefined;
+    const n = slices.length;
+    const variants = new Array<ColorVariant>(n);
+    for (let i = 0; i < n; i++) {
+      if (!isHovering) {
+        variants[i] = ColorVariant.BASE;
+      } else {
+        const slice = slices[i];
+        const isMatch =
+          highlightedSliceId === slice.id ||
+          (hoveredTitle !== undefined && hoveredTitle === slice.title);
+        variants[i] = isMatch ? ColorVariant.VARIANT : ColorVariant.BASE;
+      }
+    }
+    return variants;
+  }
 
   renderTooltip(): m.Children {
     if (!this.hoveredSlice) {
@@ -1229,44 +1089,54 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     timescale,
   }: TrackMouseEvent): undefined | SliceOrInstant<T & Required<RowSchema>> {
     if (!this.currentDataFrame) return undefined;
-    console.log(x, y, timescale);
-    return undefined;
 
-    // const trackHeight = this.computedTrackHeight;
-    // const sliceHeight = this.sliceLayout.sliceHeight;
-    // const padding = this.sliceLayout.padding;
-    // const rowGap = this.sliceLayout.rowGap;
+    const trackHeight = this.computedTrackHeight;
+    const sliceHeight = this.sliceLayout.sliceHeight;
+    const padding = this.sliceLayout.padding;
+    const rowGap = this.sliceLayout.rowGap;
 
-    // if (sliceHeight === 0) {
-    //   return undefined;
-    // }
+    if (sliceHeight === 0) {
+      return undefined;
+    }
 
-    // const depth = Math.floor((y - padding) / (sliceHeight + rowGap));
-    // const pxPerNs = timescale.durationToPx(1n);
-    // const baseOffsetPx = timescale.timeToPx(this.currentDataFrame.start);
+    const depth = Math.floor((y - padding) / (sliceHeight + rowGap));
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(this.currentDataFrame.start);
 
-    // if (y >= padding && y <= trackHeight - padding) {
-    //   const cols = this.currentDataFrame.slices;
-    //   const {starts, durs, depths} = cols;
-    //   const n = cols.length;
-    //   for (let i = 0; i < n; i++) {
-    //     if (depths[i] !== depth) continue;
+    if (y >= padding && y <= trackHeight - padding) {
+      // Check slices
+      const sliceBufs = this.currentDataFrame.slices;
+      for (let i = 0; i < sliceBufs.count; i++) {
+        if (sliceBufs.ys[i] !== depth) continue;
 
-    //     const sliceX = starts[i] * pxPerNs + baseOffsetPx;
+        const sliceX = sliceBufs.xs[i] * pxPerNs + baseOffsetPx;
+        const sliceW = sliceBufs.ws[i];
 
-    //     if (durs[i] === -1) {
-    //       // Incomplete slice extends to the end of the window
-    //       if (sliceX <= x) {
-    //         return sliceAt(cols, i);
-    //       }
-    //     } else {
-    //       const sliceW = durs[i] * pxPerNs;
-    //       if (sliceX <= x && x <= sliceX + sliceW) {
-    //         return sliceAt(cols, i);
-    //       }
-    //     }
-    //   }
-    // }
+        if (sliceW === -1) {
+          // Incomplete slice extends to the end of the window
+          if (sliceX <= x) {
+            return sliceBufs.slices[i];
+          }
+        } else {
+          const sliceWPx = sliceW * pxPerNs;
+          if (sliceX <= x && x <= sliceX + sliceWPx) {
+            return sliceBufs.slices[i];
+          }
+        }
+      }
+
+      // Check instants
+      const instantBufs = this.currentDataFrame.instants;
+      const halfWidth = this.instantWidthPx / 2;
+      for (let i = 0; i < instantBufs.count; i++) {
+        if (instantBufs.ys[i] !== depth) continue;
+
+        const instantX = instantBufs.xs[i] * pxPerNs + baseOffsetPx;
+        if (x >= instantX - halfWidth && x <= instantX + halfWidth) {
+          return instantBufs.instants[i];
+        }
+      }
+    }
 
     return undefined;
   }
@@ -1321,45 +1191,48 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   ): SnapPoint | undefined {
     if (!this.currentDataFrame) return undefined;
 
-    console.log(targetTime, thresholdPx, timescale);
-    return undefined;
+    const thresholdNs = timescale.pxToDuration(thresholdPx);
+    const targetNs = Number(targetTime);
+    const searchStartNs = targetNs - thresholdNs;
+    const searchEndNs = targetNs + thresholdNs;
 
-    // const thresholdNs = timescale.pxToDuration(thresholdPx);
-    // const hpTargetTime = new HighPrecisionTime(targetTime);
-    // const hpSearchStart = hpTargetTime.addNumber(-thresholdNs);
-    // const hpSearchEnd = hpTargetTime.addNumber(thresholdNs);
-    // const searchStart = hpSearchStart.toTime();
-    // const searchEnd = hpSearchEnd.toTime();
+    let closestSnap: SnapPoint | undefined = undefined;
+    let closestDistNs = thresholdNs;
 
-    // let closestSnap: SnapPoint | undefined = undefined;
-    // let closestDistNs = thresholdNs;
+    const checkBoundary = (boundaryNs: number) => {
+      if (boundaryNs < searchStartNs || boundaryNs > searchEndNs) {
+        return;
+      }
+      const distNs = Math.abs(targetNs - boundaryNs);
+      if (distNs < closestDistNs) {
+        closestSnap = {time: Time.fromRaw(BigInt(Math.round(boundaryNs)))};
+        closestDistNs = distNs;
+      }
+    };
 
-    // const checkBoundary = (boundaryTime: time) => {
-    //   if (boundaryTime < searchStart || boundaryTime > searchEnd) {
-    //     return;
-    //   }
-    //   const hpBoundary = new HighPrecisionTime(boundaryTime);
-    //   const distNs = Math.abs(hpTargetTime.sub(hpBoundary).toNumber());
-    //   if (distNs < closestDistNs) {
-    //     closestSnap = {time: boundaryTime};
-    //     closestDistNs = distNs;
-    //   }
-    // };
+    const frameStartNs = Number(this.currentDataFrame.start);
 
-    // const frameStart = this.currentDataFrame.start;
-    // const {starts, durs, length: n} = this.currentDataFrame.slices;
-    // for (let i = 0; i < n; i++) {
-    //   // Convert relative start to absolute time
-    //   const sliceStart = Time.add(frameStart, BigInt(starts[i]));
-    //   checkBoundary(sliceStart);
-    //   // Incomplete slices (dur = -1) have no end to snap to
-    //   if (durs[i] > 0) {
-    //     const sliceEnd = Time.add(frameStart, BigInt(starts[i] + durs[i]));
-    //     checkBoundary(sliceEnd);
-    //   }
-    // }
+    // Check slices
+    const {xs, ws, count} = this.currentDataFrame.slices;
+    for (let i = 0; i < count; i++) {
+      // Convert relative start to absolute time
+      const sliceStartNs = frameStartNs + xs[i];
+      checkBoundary(sliceStartNs);
+      // Incomplete slices (dur <= 0) have no end to snap to
+      if (ws[i] > 0) {
+        const sliceEndNs = sliceStartNs + ws[i];
+        checkBoundary(sliceEndNs);
+      }
+    }
 
-    // return closestSnap;
+    // Check instants
+    const instants = this.currentDataFrame.instants;
+    for (let i = 0; i < instants.count; i++) {
+      const instantNs = frameStartNs + instants.xs[i];
+      checkBoundary(instantNs);
+    }
+
+    return closestSnap;
   }
 
   detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel | undefined {

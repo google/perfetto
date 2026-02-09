@@ -947,7 +947,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         MARGIN_TOP,
         this.getHeight(),
       );
-      renderer.flush();
     }
 
     if (yMin < 0 && yMax > 0) {

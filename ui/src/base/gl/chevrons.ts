@@ -55,8 +55,10 @@ interface ChevronBatchProgram {
   readonly resolutionLoc: WebGLUniformLocation;
   readonly viewOffsetLoc: WebGLUniformLocation;
   readonly viewScaleLoc: WebGLUniformLocation;
-  readonly dataScaleLoc: WebGLUniformLocation;
-  readonly dataOffsetLoc: WebGLUniformLocation;
+  readonly dataScaleXLoc: WebGLUniformLocation;
+  readonly dataOffsetXLoc: WebGLUniformLocation;
+  readonly dataScaleYLoc: WebGLUniformLocation;
+  readonly dataOffsetYLoc: WebGLUniformLocation;
   readonly widthLoc: WebGLUniformLocation;
   readonly heightLoc: WebGLUniformLocation;
   readonly sdfTexLoc: WebGLUniformLocation;
@@ -86,18 +88,22 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
     uniform vec2 u_resolution;
     uniform vec2 u_viewOffset;
     uniform vec2 u_viewScale;
-    uniform float u_dataScale;   // px per data unit
-    uniform float u_dataOffset;  // screen X offset
-    uniform float u_width;       // marker width in screen pixels
-    uniform float u_height;      // marker height in screen pixels
+    uniform float u_dataScaleX;   // px per data unit (X)
+    uniform float u_dataOffsetX;  // screen X offset
+    uniform float u_dataScaleY;   // scale for Y data
+    uniform float u_dataOffsetY;  // Y offset
+    uniform float u_width;        // marker width in screen pixels
+    uniform float u_height;       // marker height in screen pixels
 
     void main() {
       // Transform X from data space to screen space, then offset to left edge
-      float screenX = a_x * u_dataScale + u_dataOffset - u_width * 0.5;
+      float screenX = a_x * u_dataScaleX + u_dataOffsetX - u_width * 0.5;
+      // Transform Y from data space to screen space
+      float screenY = a_y * u_dataScaleY + u_dataOffsetY;
 
       // Apply view transform
       float pixelX = u_viewOffset.x + screenX * u_viewScale.x;
-      float pixelY = u_viewOffset.y + a_y * u_viewScale.y;
+      float pixelY = u_viewOffset.y + screenY * u_viewScale.y;
       float pixelW = u_width * u_viewScale.x;
       float pixelH = u_height * u_viewScale.y;
 
@@ -152,8 +158,10 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
     resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
     viewOffsetLoc: getUniformLocation(gl, program, 'u_viewOffset'),
     viewScaleLoc: getUniformLocation(gl, program, 'u_viewScale'),
-    dataScaleLoc: getUniformLocation(gl, program, 'u_dataScale'),
-    dataOffsetLoc: getUniformLocation(gl, program, 'u_dataOffset'),
+    dataScaleXLoc: getUniformLocation(gl, program, 'u_dataScaleX'),
+    dataOffsetXLoc: getUniformLocation(gl, program, 'u_dataOffsetX'),
+    dataScaleYLoc: getUniformLocation(gl, program, 'u_dataScaleY'),
+    dataOffsetYLoc: getUniformLocation(gl, program, 'u_dataOffsetY'),
     widthLoc: getUniformLocation(gl, program, 'u_width'),
     heightLoc: getUniformLocation(gl, program, 'u_height'),
     sdfTexLoc: getUniformLocation(gl, program, 'u_sdfTex'),
@@ -228,8 +236,10 @@ export class ChevronBatch {
       viewTransform.offsetY,
     );
     gl.uniform2f(prog.viewScaleLoc, viewTransform.scaleX, viewTransform.scaleY);
-    gl.uniform1f(prog.dataScaleLoc, dataTransform.scaleX);
-    gl.uniform1f(prog.dataOffsetLoc, dataTransform.offsetX);
+    gl.uniform1f(prog.dataScaleXLoc, dataTransform.scaleX);
+    gl.uniform1f(prog.dataOffsetXLoc, dataTransform.offsetX);
+    gl.uniform1f(prog.dataScaleYLoc, dataTransform.scaleY);
+    gl.uniform1f(prog.dataOffsetYLoc, dataTransform.offsetY);
     gl.uniform1f(prog.widthLoc, w);
     gl.uniform1f(prog.heightLoc, h);
 

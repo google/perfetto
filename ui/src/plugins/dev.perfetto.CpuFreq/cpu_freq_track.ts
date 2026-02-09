@@ -476,7 +476,6 @@ export class CpuFreqTrack implements TrackRenderer {
       MARGIN_TOP,
       MARGIN_TOP + RECT_HEIGHT,
     );
-    renderer.flush();
 
     ctx.font = '10px Roboto Condensed';
 
