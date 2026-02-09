@@ -19,6 +19,10 @@ import {AndroidInputTab} from './tab';
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
+  static readonly description = `
+    Visualise connected input events in the lifecycle from touch to frame, with latencies for the various input stages. 
+    Activate by running the command 'Android: View Input Flow'
+    `;
 
   async onTraceLoad(trace: Trace): Promise<void> {
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
@@ -32,10 +36,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
     trace.tabs.registerTab({
       uri: tabUri,
       isEphemeral: false,
-      content: {
-        getTitle: () => tab.getTitle(),
-        render: () => tab.render(),
-      },
+      content: tab,
       onHide() {
         tab.onHide();
       },
