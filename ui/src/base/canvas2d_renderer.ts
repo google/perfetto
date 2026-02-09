@@ -116,17 +116,7 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
-    const {
-      xs,
-      ys,
-      ws,
-      h,
-      colors,
-      patterns,
-      count,
-      minWidth = 1,
-      screenEnd,
-    } = buffers;
+    const {xs, ys, ws, h, colors, patterns, count} = buffers;
     const ctx = this.ctx;
     const clip = this.physicalClipBounds;
     const t = this.transform;
@@ -134,28 +124,10 @@ export class Canvas2DRenderer implements Renderer {
     let previousColor: number | undefined = undefined;
 
     for (let i = 0; i < count; i++) {
-      // Skip instant slices (dur === 0) - handled separately with drawMarker
-      if (ws[i] === 0) continue;
-
       // Transform X and Y from data coordinates to screen coordinates
-      let x = xs[i] * scaleX + offsetX;
+      const x = xs[i] * scaleX + offsetX;
       const y = ys[i] * scaleY + offsetY;
-      let w: number;
-
-      // Handle incomplete rects (w === -1 means extend to screenEnd)
-      if (ws[i] < 0) {
-        x = Math.max(x, -1);
-        w = (screenEnd ?? 0) - x;
-      } else {
-        w = ws[i] * scaleX;
-        // Clamp to visible region
-        const xEnd = Math.min(x + w, screenEnd ?? x + w);
-        x = Math.max(x, -1);
-        w = xEnd - x;
-      }
-
-      // Apply minimum width
-      w = Math.max(w, minWidth);
+      const w = Math.max(ws[i] * scaleX, 1);
 
       // CPU-side culling
       if (clip !== undefined) {
