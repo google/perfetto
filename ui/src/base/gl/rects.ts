@@ -24,20 +24,7 @@ import {createBuffer, createProgram, getUniformLocation} from './gl';
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 const QUAD_INDICES = new Uint16Array([0, 1, 2, 3]);
 
-// Program with all attribute/uniform locations resolved
-interface RectProgram {
-  readonly program: WebGLProgram;
-  readonly quadCornerLoc: number;
-  readonly posLoc: number;
-  readonly sizeLoc: number;
-  readonly colorLoc: number;
-  readonly flagsLoc: number;
-  readonly resolutionLoc: WebGLUniformLocation;
-  readonly offsetLoc: WebGLUniformLocation;
-  readonly scaleLoc: WebGLUniformLocation;
-}
-
-// Program for batch rendering with data-space X coordinates
+// Program for batch rendering with data-space coordinates
 interface RectBatchProgram {
   readonly program: WebGLProgram;
   readonly quadCornerLoc: number;
@@ -56,104 +43,9 @@ interface RectBatchProgram {
   readonly minWidthLoc: WebGLUniformLocation;
 }
 
-function createRectProgram(gl: WebGL2RenderingContext): RectProgram {
-  const vsSource = `#version 300 es
-    in vec2 a_quadCorner;
-    in vec2 a_pos;
-    in vec2 a_size;
-    in uint a_color;
-    in uint a_flags;
-
-    out vec4 v_color;
-    out vec2 v_localPos;
-    flat out uint v_flags;
-    flat out float v_rectWidth;
-
-    uniform vec2 u_resolution;
-    uniform vec2 u_offset;
-    uniform vec2 u_scale;
-
-    void main() {
-      // Transform TL position to physical pixels
-      float pixelX = u_offset.x + a_pos.x * u_scale.x;
-      float pixelY = u_offset.y + a_pos.y * u_scale.y;
-
-      // Transform size to physical pixels
-      float pixelW = max(1.0, a_size.x * u_scale.x);
-      float pixelH = a_size.y * u_scale.y;
-
-      vec2 localPos = a_quadCorner * vec2(pixelW, pixelH);
-      vec2 pixelPos = vec2(pixelX, pixelY) + localPos;
-      vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
-      gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-
-      v_color = vec4(
-        float((a_color >> 24) & 0xffu) / 255.0,
-        float((a_color >> 16) & 0xffu) / 255.0,
-        float((a_color >> 8) & 0xffu) / 255.0,
-        float(a_color & 0xffu) / 255.0
-      );
-      v_localPos = localPos;
-      v_rectWidth = pixelW;
-      v_flags = a_flags;
-    }
-  `;
-
-  const fsSource = `#version 300 es
-    precision mediump float;
-    in vec4 v_color;
-    in vec2 v_localPos;
-    flat in uint v_flags;
-    flat in float v_rectWidth;
-    out vec4 fragColor;
-
-    const uint FLAG_HATCHED = ${RECT_PATTERN_HATCHED}u;
-    const uint FLAG_FADEOUT = ${RECT_PATTERN_FADE_RIGHT}u;
-    const float HATCH_SPACING = 8.0;
-    const float HATCH_WIDTH = 1.0;
-    const float HATCH_MIN_WIDTH = 4.0;
-
-    void main() {
-      fragColor = v_color;
-
-      if ((v_flags & FLAG_FADEOUT) != 0u) {
-        float fadeProgress = v_localPos.x / v_rectWidth;
-        // Start fading at 66% of the width
-        float fadeAmount = clamp((fadeProgress - 0.66) / 0.34, 0.0, 1.0);
-        fragColor.a *= 1.0 - fadeAmount;
-      }
-
-      if ((v_flags & FLAG_HATCHED) != 0u && v_rectWidth >= HATCH_MIN_WIDTH) {
-        float diag = v_localPos.x + v_localPos.y;
-        float stripe = mod(diag, HATCH_SPACING);
-        if (stripe < HATCH_WIDTH) {
-          fragColor.rgb = mix(fragColor.rgb, vec3(1.0), 0.3);
-        }
-      }
-
-      // Premultiply alpha for correct compositing over page background
-      fragColor.rgb *= fragColor.a;
-    }
-  `;
-
-  const program = createProgram(gl, vsSource, fsSource);
-
-  return {
-    program,
-    quadCornerLoc: gl.getAttribLocation(program, 'a_quadCorner'),
-    posLoc: gl.getAttribLocation(program, 'a_pos'),
-    sizeLoc: gl.getAttribLocation(program, 'a_size'),
-    colorLoc: gl.getAttribLocation(program, 'a_color'),
-    flagsLoc: gl.getAttribLocation(program, 'a_flags'),
-    resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
-    offsetLoc: getUniformLocation(gl, program, 'u_offset'),
-    scaleLoc: getUniformLocation(gl, program, 'u_scale'),
-  };
-}
-
 function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
-  // Shader that handles data-space X coordinates and all edge cases:
-  // - Transform X from data space to screen space
+  // Shader that handles data-space coordinates and all edge cases:
+  // - Transform X/Y from data space to screen space
   // - Handle incomplete rects (w < 0 means extend to screenEnd)
   // - Clamp to visible region
   // - Apply minimum width
@@ -161,7 +53,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
   const vsSource = `#version 300 es
     in vec2 a_quadCorner;
     in float a_x;      // X position in data space
-    in float a_y;      // Y position in screen pixels
+    in float a_y;      // Y position in data space
     in float a_w;      // Width in data space (-1 = incomplete)
     in uint a_color;
     in uint a_flags;
@@ -174,15 +66,15 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     uniform vec2 u_resolution;
     uniform vec2 u_viewOffset;
     uniform vec2 u_viewScale;
-    uniform float u_dataScale;   // px per data unit
-    uniform float u_dataOffset;  // screen X offset
+    uniform vec2 u_dataScale;   // px per data unit
+    uniform vec2 u_dataOffset;  // screen offset
     uniform float u_height;      // uniform height in screen pixels
     uniform float u_screenEnd;   // right edge of visible area
     uniform float u_minWidth;    // minimum width in screen pixels
 
     void main() {
       // Transform X from data space to screen space
-      float screenX = a_x * u_dataScale + u_dataOffset;
+      float screenX = a_x * u_dataScale.x + u_dataOffset.x;
       float screenW;
 
       if (a_w < 0.0) {
@@ -191,7 +83,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
         screenW = u_screenEnd - screenX;
       } else {
         // Normal rect: transform width and clamp
-        screenW = a_w * u_dataScale;
+        screenW = a_w * u_dataScale.x;
         float screenXEnd = min(screenX + screenW, u_screenEnd);
         screenX = max(screenX, -1.0);
         screenW = screenXEnd - screenX;
@@ -207,7 +99,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
 
       // Apply view transform
       float pixelX = u_viewOffset.x + screenX * u_viewScale.x;
-      float pixelY = u_viewOffset.y + a_y * u_viewScale.y;
+      float pixelY = u_viewOffset.y + (a_y * u_dataScale.y + u_dataOffset.y) * u_viewScale.y;
       float pixelW = screenW * u_viewScale.x;
       float pixelH = u_height * u_viewScale.y;
 
@@ -289,51 +181,24 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
 
 /**
  * A batch of rectangles for efficient instanced rendering.
- * Uses TL,WH format (top-left position + width/height).
- *
- * Usage:
- *   const batch = new RectBatch(gl);
- *   batch.add(0, 0, 100, 20, 0xff0000ff);
- *   batch.add(0, 25, 50, 20, 0x00ff00ff);
- *   batch.flush(transform);
+ * Uses columnar buffers for zero-copy GPU upload.
  */
 export class RectBatch {
   private readonly gl: WebGL2RenderingContext;
-  private readonly capacity: number;
-  private readonly program: RectProgram;
   private readonly batchProgram: RectBatchProgram;
-
-  // CPU-side instance data (TL,WH format)
-  private readonly positions: Float32Array; // [x, y] pairs
-  private readonly sizes: Float32Array; // [w, h] pairs
-  private readonly colors: Uint32Array;
-  private readonly flags: Uint8Array;
-  private count = 0;
 
   // GPU buffers
   private readonly quadCornerBuffer: WebGLBuffer;
   private readonly quadIndexBuffer: WebGLBuffer;
-  private readonly posBuffer: WebGLBuffer;
-  private readonly sizeBuffer: WebGLBuffer;
   private readonly colorBuffer: WebGLBuffer;
   private readonly flagsBuffer: WebGLBuffer;
-
-  // Separate buffers for batch draw (xs, ys, ws as separate arrays)
   private readonly xBuffer: WebGLBuffer;
   private readonly yBuffer: WebGLBuffer;
   private readonly wBuffer: WebGLBuffer;
 
-  constructor(gl: WebGL2RenderingContext, capacity = 10000) {
+  constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
-    this.capacity = capacity;
-    this.program = createRectProgram(gl);
     this.batchProgram = createBatchProgram(gl);
-
-    // Allocate CPU arrays
-    this.positions = new Float32Array(capacity * 2);
-    this.sizes = new Float32Array(capacity * 2);
-    this.colors = new Uint32Array(capacity);
-    this.flags = new Uint8Array(capacity);
 
     // Create static quad buffers
     this.quadCornerBuffer = createBuffer(gl);
@@ -344,157 +209,12 @@ export class RectBatch {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, QUAD_INDICES, gl.STATIC_DRAW);
 
-    // Create dynamic instance buffers for add/flush
-    this.posBuffer = createBuffer(gl);
-    this.sizeBuffer = createBuffer(gl);
+    // Create dynamic instance buffers
     this.colorBuffer = createBuffer(gl);
     this.flagsBuffer = createBuffer(gl);
-
-    // Create buffers for batch draw
     this.xBuffer = createBuffer(gl);
     this.yBuffer = createBuffer(gl);
     this.wBuffer = createBuffer(gl);
-  }
-
-  get isFull(): boolean {
-    return this.count >= this.capacity;
-  }
-
-  get isEmpty(): boolean {
-    return this.count === 0;
-  }
-
-  /**
-   * Add a rectangle to the batch using TL,WH format.
-   * All coordinates are in transform units.
-   */
-  add(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    color: number,
-    rectFlags = 0,
-  ): void {
-    const i = this.count;
-    this.positions[i * 2] = x;
-    this.positions[i * 2 + 1] = y;
-    this.sizes[i * 2] = w;
-    this.sizes[i * 2 + 1] = h;
-    this.colors[i] = color;
-    this.flags[i] = rectFlags;
-    this.count++;
-  }
-
-  /**
-   * Draw all rectangles and clear the batch.
-   */
-  flush(transform: Transform2D): void {
-    if (this.count === 0) return;
-
-    const gl = this.gl;
-    const prog = this.program;
-
-    gl.useProgram(prog.program);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-
-    // Set uniforms
-    gl.uniform2f(prog.resolutionLoc, gl.canvas.width, gl.canvas.height);
-    gl.uniform2f(prog.offsetLoc, transform.offsetX, transform.offsetY);
-    gl.uniform2f(prog.scaleLoc, transform.scaleX, transform.scaleY);
-
-    // Bind static quad
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
-    gl.enableVertexAttribArray(prog.quadCornerLoc);
-    gl.vertexAttribPointer(prog.quadCornerLoc, 2, gl.FLOAT, false, 0, 0);
-    gl.vertexAttribDivisor(prog.quadCornerLoc, 0);
-
-    // Upload and bind instance data
-    this.bindInstanceBuffer(
-      prog.posLoc,
-      this.posBuffer,
-      this.positions,
-      2,
-      gl.FLOAT,
-      false,
-    );
-    this.bindInstanceBuffer(
-      prog.sizeLoc,
-      this.sizeBuffer,
-      this.sizes,
-      2,
-      gl.FLOAT,
-      false,
-    );
-    this.bindInstanceBuffer(
-      prog.colorLoc,
-      this.colorBuffer,
-      this.colors,
-      1,
-      gl.UNSIGNED_INT,
-      true,
-    );
-    this.bindInstanceBuffer(
-      prog.flagsLoc,
-      this.flagsBuffer,
-      this.flags,
-      1,
-      gl.UNSIGNED_BYTE,
-      true,
-    );
-
-    // Draw
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
-    gl.drawElementsInstanced(
-      gl.TRIANGLE_STRIP,
-      4,
-      gl.UNSIGNED_SHORT,
-      0,
-      this.count,
-    );
-
-    // Reset divisors
-    gl.vertexAttribDivisor(prog.posLoc, 0);
-    gl.vertexAttribDivisor(prog.sizeLoc, 0);
-    gl.vertexAttribDivisor(prog.colorLoc, 0);
-    gl.vertexAttribDivisor(prog.flagsLoc, 0);
-
-    this.count = 0;
-  }
-
-  private bindInstanceBuffer(
-    loc: number,
-    buffer: WebGLBuffer,
-    data: Float32Array | Uint32Array | Uint8Array,
-    size: number,
-    type: number,
-    isInteger: boolean,
-  ): void {
-    const gl = this.gl;
-    const elemCount =
-      data instanceof Uint8Array || data instanceof Uint32Array
-        ? this.count
-        : this.count * size;
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      data.subarray(0, elemCount),
-      gl.DYNAMIC_DRAW,
-    );
-    gl.enableVertexAttribArray(loc);
-
-    if (isInteger) {
-      gl.vertexAttribIPointer(loc, size, type, 0, 0);
-    } else {
-      gl.vertexAttribPointer(loc, size, type, false, 0, 0);
-    }
-    gl.vertexAttribDivisor(loc, 1);
-  }
-
-  clear(): void {
-    this.count = 0;
   }
 
   /**
@@ -519,11 +239,6 @@ export class RectBatch {
     } = buffers;
     if (count === 0) return;
 
-    // Flush any pending add() calls first
-    if (this.count > 0) {
-      this.flush(viewTransform);
-    }
-
     const gl = this.gl;
     const prog = this.batchProgram;
 
@@ -539,8 +254,16 @@ export class RectBatch {
       viewTransform.offsetY,
     );
     gl.uniform2f(prog.viewScaleLoc, viewTransform.scaleX, viewTransform.scaleY);
-    gl.uniform1f(prog.dataScaleLoc, dataTransform.scaleX);
-    gl.uniform1f(prog.dataOffsetLoc, dataTransform.offsetX);
+    gl.uniform2f(
+      prog.dataScaleLoc,
+      dataTransform.scaleX,
+      dataTransform.scaleY,
+    );
+    gl.uniform2f(
+      prog.dataOffsetLoc,
+      dataTransform.offsetX,
+      dataTransform.offsetY,
+    );
     gl.uniform1f(prog.heightLoc, h);
     gl.uniform1f(prog.screenEndLoc, screenEnd);
     gl.uniform1f(prog.minWidthLoc, minWidth);
@@ -598,4 +321,5 @@ export class RectBatch {
     gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, 0, 0);
     gl.vertexAttribDivisor(loc, 1);
   }
+}
 }

@@ -112,8 +112,7 @@ export class WebGLRenderer implements Renderer {
   }
 
   flush(): void {
-    this.rects.flush(this.transform);
-    // ChevronBatch.draw() and StepAreaBatch.draw() are immediate, no flush needed
+    // All draw calls are now immediate, so no flush is needed.
   }
 
   resetTransform(): void {
