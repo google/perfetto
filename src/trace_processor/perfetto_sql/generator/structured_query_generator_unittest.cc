@@ -6175,4 +6175,166 @@ TEST(StructuredQueryGeneratorTest, InlineSharedQueriesNoDuplicateCTEs) {
       << res;
 }
 
+TEST(StructuredQueryGeneratorTest, FilterInBasic) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      match_values: {
+        table: {
+          table_name: "important_threads"
+        }
+      }
+      base_column: "utid"
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM important_threads),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT base.* FROM sq_1 AS base
+        WHERE base.utid IN (SELECT id FROM sq_2)
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInWithFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+      }
+      match_values: {
+        table: {
+          table_name: "thread"
+        }
+        filters: {
+          column_name: "name"
+          op: GLOB
+          string_rhs: "*main*"
+        }
+      }
+      base_column: "utid"
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM thread WHERE name GLOB '*main*'),
+    sq_1 AS (SELECT * FROM slice WHERE dur > 1000),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT base.* FROM sq_1 AS base
+        WHERE base.utid IN (SELECT id FROM sq_2)
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInMissingBaseFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      match_values: {
+        table: {
+          table_name: "important_threads"
+        }
+      }
+      base_column: "utid"
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("FilterIn must specify a base query"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInMissingMatchValuesFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      base_column: "utid"
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("FilterIn must specify a match_values query"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInMissingBaseColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      match_values: {
+        table: {
+          table_name: "important_threads"
+        }
+      }
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("FilterIn must specify a base_column"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInMissingMatchColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      match_values: {
+        table: {
+          table_name: "important_threads"
+        }
+      }
+      base_column: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("FilterIn must specify a match_column"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator
