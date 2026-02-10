@@ -223,7 +223,7 @@ export class AndroidInputTab implements Tab {
           },
         );
 
-        // Check if this row matches the clicked vent
+        // Check if this row matches the clicked event
         const matchesClickedEvent = [
           it.id_reader,
           it.id_dispatch,
