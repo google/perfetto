@@ -1729,10 +1729,10 @@ class AndroidStdlib(TestSuite):
         SELECT name, machine_id FROM android_device_name ORDER BY name;
         """,
         out=Csv("""
-          "name","machine_id"
-          "oriole",0
-          "raven",1
-          """))
+        "name","machine_id"
+        "oriole",0
+        "raven",1
+        """))
 
   def test_android_suspend_state_multi_machine(self):
     return DiffTestBlueprint(
