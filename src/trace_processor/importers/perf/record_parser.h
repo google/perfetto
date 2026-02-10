@@ -23,6 +23,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/perf/mmap_record.h"
 #include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/record.h"
@@ -59,8 +60,9 @@ class RecordParser : public TraceSorter::Sink<Record, RecordParser> {
 
   base::Status InternSample(Sample sample);
 
-  base::Status UpdateCounters(const Sample& sample);
-  static base::Status UpdateCountersInReadGroups(const Sample& sample);
+  base::StatusOr<std::vector<CounterId>> UpdateCounters(const Sample& sample);
+  static base::StatusOr<std::vector<CounterId>> UpdateCountersInReadGroups(
+      const Sample& sample);
 
   std::optional<CallsiteId> InternCallchain(
       UniquePid upid,
