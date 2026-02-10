@@ -1729,7 +1729,68 @@ class AndroidStdlib(TestSuite):
         SELECT name, machine_id FROM android_device_name ORDER BY name;
         """,
         out=Csv("""
-        "name","machine_id"
-        "oriole",0
-        "raven",1
+          "name","machine_id"
+          "oriole",0
+          "raven",1
+          """))
+
+  def test_android_suspend_state_multi_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 1
+              }
+            }
+            event {
+              timestamp: 103000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 0
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 106000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 1
+              }
+            }
+            event {
+              timestamp: 109000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 0
+              }
+            }
+          }
+          machine_id: 1001
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.suspend;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","power_state","machine_id"
+        100000000000,0,"awake",0
+        100000000000,6000000000,"awake",1
+        100000000000,3000000000,"suspended",0
+        103000000000,6000000000,"awake",0
+        106000000000,3000000000,"suspended",1
+        109000000000,0,"awake",1
         """))
