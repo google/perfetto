@@ -3818,6 +3818,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_wattson_wattson",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/wattson/aggregation.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/arm_dsu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/freq.sql",
@@ -3844,6 +3845,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/task_slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/ui/continuous_estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/windows.sql",
     ],
 )
 
