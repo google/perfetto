@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uuidv4Sql} from '../../base/uuid';
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
@@ -35,6 +34,11 @@ import {escapeQuery} from '../../trace_processor/query_utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {createScrollTimelineV4Track} from './scroll_timeline_v4_track';
 import {createScrollTimelineV4Model} from './scroll_timeline_v4_model';
+import {
+  EVENT_LATENCY_TRACK,
+  SCROLL_TIMELINE_TRACK,
+  SCROLL_TIMELINE_V4_TRACK,
+} from './tracks';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -96,10 +100,7 @@ export default class implements PerfettoPlugin {
         AND is_presented`,
     });
 
-    // Table name must be unique - it cannot include '-' characters or begin
-    // with a numeric value.
-    const baseTable = `table_${uuidv4Sql()}_janky_event_latencies_v3`;
-    const tableDefSql = `CREATE TABLE ${baseTable} AS
+    const tableDefSql = `CREATE TABLE ${EVENT_LATENCY_TRACK.tableName} AS
         WITH
         event_latencies AS MATERIALIZED (
           ${subTableSql}
@@ -175,15 +176,15 @@ export default class implements PerfettoPlugin {
     );
     await ctx.engine.query(tableDefSql);
 
-    const uri = 'org.chromium.ChromeScrollJank#eventLatency';
-    const title = 'Chrome Scroll Input Latencies';
-
     ctx.tracks.registerTrack({
-      uri,
-      renderer: createEventLatencyTrack(ctx, uri, baseTable),
+      uri: EVENT_LATENCY_TRACK.uri,
+      renderer: createEventLatencyTrack(ctx),
     });
 
-    const track = new TrackNode({uri, name: title});
+    const track = new TrackNode({
+      uri: EVENT_LATENCY_TRACK.uri,
+      name: EVENT_LATENCY_TRACK.name,
+    });
     group.addChildInOrder(track);
   }
 
@@ -211,19 +212,17 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     group: TrackNode,
   ): Promise<void> {
-    const uri = 'org.chromium.ChromeScrollJank#scrollTimeline';
-    const title = 'Chrome Scroll Timeline';
-
-    const tableName =
-      'scrolltimelinetrack_org_chromium_ChromeScrollJank_scrollTimeline';
-    const model = await createScrollTimelineModel(ctx.engine, tableName, uri);
+    await createScrollTimelineModel(ctx.engine);
 
     ctx.tracks.registerTrack({
-      uri,
-      renderer: createScrollTimelineTrack(ctx, model),
+      uri: SCROLL_TIMELINE_TRACK.uri,
+      renderer: createScrollTimelineTrack(ctx),
     });
 
-    const track = new TrackNode({uri, name: title});
+    const track = new TrackNode({
+      uri: SCROLL_TIMELINE_TRACK.uri,
+      name: SCROLL_TIMELINE_TRACK.name,
+    });
     group.addChildInOrder(track);
   }
 
@@ -231,18 +230,17 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     group: TrackNode,
   ): Promise<void> {
-    const uri = 'org.chromium.ChromeScrollJank#scrollTimelineV4';
-    const title = 'Chrome Scroll Timeline v4';
-
-    const tableName = 'org_chromium_ChromeScrollJank_scroll_timeline_v4';
-    const model = await createScrollTimelineV4Model(ctx.engine, tableName, uri);
+    await createScrollTimelineV4Model(ctx.engine);
 
     ctx.tracks.registerTrack({
-      uri,
-      renderer: createScrollTimelineV4Track(ctx, model),
+      uri: SCROLL_TIMELINE_V4_TRACK.uri,
+      renderer: createScrollTimelineV4Track(ctx),
     });
 
-    const track = new TrackNode({uri, name: title});
+    const track = new TrackNode({
+      uri: SCROLL_TIMELINE_V4_TRACK.uri,
+      name: SCROLL_TIMELINE_V4_TRACK.name,
+    });
     group.addChildInOrder(track);
   }
 

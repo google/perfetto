@@ -113,3 +113,51 @@ export function getAggregationTypeRequirements(op: string): string {
       return 'Unknown operation';
   }
 }
+
+export interface GetCommonColumnsOptions {
+  // Column names to exclude from the result
+  excludedColumns?: Set<string>;
+  // Column types to exclude from the result (e.g., 'STRING', 'BYTES')
+  excludedTypes?: Set<string>;
+}
+
+/**
+ * Finds columns that exist in all provided column arrays.
+ * Returns the intersection of column names, optionally filtered by exclusions.
+ *
+ * @param columnArrays Array of ColumnInfo arrays to find common columns across
+ * @param options Optional exclusion filters for column names and types
+ * @returns Sorted array of common column names
+ */
+export function getCommonColumns(
+  columnArrays: ColumnInfo[][],
+  options?: GetCommonColumnsOptions,
+): string[] {
+  if (columnArrays.length === 0) {
+    return [];
+  }
+
+  const excludedColumns = options?.excludedColumns ?? new Set();
+  const excludedTypes = options?.excludedTypes ?? new Set();
+
+  // Start with columns from the first array
+  const firstArray = columnArrays[0];
+  const commonColumns = new Set(
+    firstArray
+      .filter((c) => !excludedColumns.has(c.name) && !excludedTypes.has(c.type))
+      .map((c) => c.name),
+  );
+
+  // Intersect with columns from remaining arrays
+  for (let i = 1; i < columnArrays.length; i++) {
+    const colsMap = new Map(columnArrays[i].map((c) => [c.name, c.type]));
+    for (const col of commonColumns) {
+      const colType = colsMap.get(col);
+      if (colType === undefined || excludedTypes.has(colType)) {
+        commonColumns.delete(col);
+      }
+    }
+  }
+
+  return Array.from(commonColumns).sort();
+}

@@ -51,6 +51,7 @@ export enum NodeType {
   kModifyColumns = 'modify_columns',
   kAddColumns = 'add_columns',
   kFilterDuring = 'filter_during',
+  kFilterIn = 'filter_in',
   kLimitAndOffset = 'limit_and_offset',
   kSort = 'sort',
   kFilter = 'filter',
@@ -72,6 +73,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kModifyColumns:
     case NodeType.kAddColumns:
     case NodeType.kFilterDuring:
+    case NodeType.kFilterIn:
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
     case NodeType.kFilter:

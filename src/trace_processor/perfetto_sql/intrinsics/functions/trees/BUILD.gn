@@ -16,6 +16,8 @@ source_set("trees") {
   sources = [
     "tree_conversion.cc",
     "tree_conversion.h",
+    "tree_filter.cc",
+    "tree_filter.h",
     "tree_functions.cc",
     "tree_functions.h",
   ]

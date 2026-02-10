@@ -346,7 +346,7 @@ UniquePid ProcessTracker::StartNewProcessInternal(
   if (timestamp) {
     prr.set_start_ts(*timestamp);
   }
-  prr.set_name(process_name);
+  UpdateProcessName(upid, process_name, ProcessNamePriority::kSystem);
 
   if (parent_upid) {
     prr.set_parent_upid(*parent_upid);
@@ -415,7 +415,7 @@ void ProcessTracker::SetProcessMetadata(UniquePid upid,
   auto& process_table = *context_->storage->mutable_process_table();
   auto prr = process_table[upid];
   StringId proc_name_id = context_->storage->InternString(name);
-  prr.set_name(proc_name_id);
+  UpdateProcessName(upid, proc_name_id, ProcessNamePriority::kSystem);
   prr.set_cmdline(context_->storage->InternString(cmdline));
 }
 
@@ -430,11 +430,19 @@ void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {
   rr.set_android_user_id(uid / 100000);
 }
 
-void ProcessTracker::SetProcessNameIfUnset(UniquePid upid,
-                                           StringId process_name_id) {
+void ProcessTracker::UpdateProcessName(UniquePid upid,
+                                       StringId process_name_id,
+                                       ProcessNamePriority priority) {
+  if (process_name_id.is_null())
+    return;
+
   auto& pt = *context_->storage->mutable_process_table();
-  if (auto rr = pt[upid]; !rr.name().has_value()) {
-    rr.set_name(process_name_id);
+  if (PERFETTO_UNLIKELY(process_name_priorities_.size() <= upid)) {
+    process_name_priorities_.resize(upid + 1);
+  }
+  if (priority >= process_name_priorities_[upid]) {
+    pt[upid].set_name(process_name_id);
+    process_name_priorities_[upid] = priority;
   }
 }
 
@@ -462,7 +470,7 @@ void ProcessTracker::UpdateThreadNameAndMaybeProcessName(
   auto prr = pt[*opt_upid];
   if (prr.pid() == trr.tid()) {
     PERFETTO_DCHECK(trr.is_main_thread());
-    prr.set_name(thread_name);
+    UpdateProcessName(*opt_upid, thread_name, ProcessNamePriority::kSystem);
   }
 }
 
@@ -672,6 +680,7 @@ void ProcessTracker::OnEventsFullyExtracted() {
   pending_assocs_.clear();
   pending_parent_assocs_.clear();
   thread_name_priorities_.clear();
+  process_name_priorities_.clear();
   trusted_pids_.clear();
   namespaced_threads_.clear();
   namespaced_processes_.clear();

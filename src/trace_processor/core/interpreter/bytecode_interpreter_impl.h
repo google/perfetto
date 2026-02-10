@@ -41,6 +41,7 @@
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_state.h"
@@ -1590,6 +1591,244 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
   }
   *indices.b = best_idx;
   indices.e = indices.b + 1;
+}
+
+// Creates child-to-parent tree structure from parent_id column storage.
+// The _tree_id column is always 0..n-1 (implicit row indices).
+// The _tree_parent_id column contains parent row indices (UINT32_MAX for null).
+// Fills parent_span with parent indices and original_rows_span with identity.
+inline PERFETTO_ALWAYS_INLINE void MakeChildToParentTreeStructure(
+    InterpreterState& state,
+    const struct MakeChildToParentTreeStructure& bc) {
+  using B = struct MakeChildToParentTreeStructure;
+
+  uint32_t row_count = bc.arg<B::row_count>();
+  const StoragePtr& parent_storage =
+      state.ReadFromRegister(bc.arg<B::parent_id_storage_register>());
+  Span<uint32_t>& parent_span =
+      state.ReadFromRegister(bc.arg<B::parent_span_register>());
+  Span<uint32_t>& original_rows_span =
+      state.ReadFromRegister(bc.arg<B::original_rows_span_register>());
+
+  // The parent_id storage is Uint32 type (already normalized by
+  // TreeTransformer) UINT32_MAX represents null (root nodes)
+  const uint32_t* parent_data =
+      static_cast<const uint32_t*>(parent_storage.ptr);
+
+  // Fill the pre-allocated spans
+  memcpy(parent_span.b, parent_data, row_count * sizeof(uint32_t));
+  std::iota(original_rows_span.b, original_rows_span.b + row_count, 0u);
+
+  // Update span.e to reflect the valid element count
+  parent_span.e = parent_span.b + row_count;
+  original_rows_span.e = original_rows_span.b + row_count;
+}
+
+// Builds a CSR (Compressed Sparse Row) representation for parent-to-child
+// traversal from a parent span.
+inline PERFETTO_ALWAYS_INLINE void MakeParentToChildTreeStructure(
+    InterpreterState& state,
+    const struct MakeParentToChildTreeStructure& bc) {
+  using B = struct MakeParentToChildTreeStructure;
+
+  const Span<uint32_t>& parent_span =
+      state.ReadFromRegister(bc.arg<B::parent_span_register>());
+  const Span<uint32_t>& scratch =
+      state.ReadFromRegister(bc.arg<B::scratch_register>());
+  Span<uint32_t>& offsets =
+      state.ReadFromRegister(bc.arg<B::offsets_register>());
+  Span<uint32_t>& children =
+      state.ReadFromRegister(bc.arg<B::children_register>());
+  Span<uint32_t>& roots = state.ReadFromRegister(bc.arg<B::roots_register>());
+
+  // Get count from parent_span.size()
+  uint32_t node_count = static_cast<uint32_t>(parent_span.size());
+
+  // Use scratch for child_counts
+  uint32_t* child_counts = scratch.b;
+  memset(child_counts, 0, node_count * sizeof(uint32_t));
+
+  // First pass: count children per node and count roots
+  uint32_t root_count = 0;
+  for (uint32_t i = 0; i < node_count; ++i) {
+    uint32_t parent = parent_span.b[i];
+    if (parent == kNullParent) {
+      ++root_count;
+    } else {
+      ++child_counts[parent];
+    }
+  }
+
+  // Adjust span sizes based on actual counts
+  offsets.e = offsets.b + node_count + 1;
+  children.e = children.b + (node_count - root_count);
+  roots.e = roots.b + root_count;
+
+  // Compute offsets (prefix sum)
+  offsets.b[0] = 0;
+  for (uint32_t i = 0; i < node_count; ++i) {
+    offsets.b[i + 1] = offsets.b[i] + child_counts[i];
+  }
+
+  // Second pass: fill children array and roots.
+  // Reuse child_counts as write cursors by counting down from offsets[p+1].
+  // This avoids needing to reset child_counts to zero.
+  uint32_t root_idx = 0;
+  for (uint32_t i = 0; i < node_count; ++i) {
+    uint32_t parent = parent_span.b[i];
+    if (parent == kNullParent) {
+      roots.b[root_idx++] = i;
+    } else {
+      // child_counts[parent] starts at the total count and decrements.
+      // offsets[parent+1] - count gives positions: offsets[parent], +1, +2, ...
+      uint32_t pos = offsets.b[parent + 1] - child_counts[parent];
+      children.b[pos] = i;
+      --child_counts[parent];
+    }
+  }
+}
+
+// Converts a span of indices to a BitVector with bits set at those indices.
+inline PERFETTO_ALWAYS_INLINE void IndexSpanToBitvector(
+    InterpreterState& state,
+    const struct IndexSpanToBitvector& bc) {
+  using B = struct IndexSpanToBitvector;
+
+  const Span<uint32_t>& indices =
+      state.ReadFromRegister(bc.arg<B::indices_register>());
+  uint32_t bv_size = bc.arg<B::bitvector_size>();
+
+  BitVector* bv = state.MaybeReadFromRegister(bc.arg<B::dest_register>());
+  if (bv) {
+    // Reuse existing BitVector: resize and clear all bits.
+    bv->resize(bv_size, false);
+    bv->ClearAllBits();
+  } else {
+    state.WriteToRegister(bc.arg<B::dest_register>(),
+                          BitVector::CreateWithSize(bv_size, false));
+    bv = state.MaybeReadFromRegister(bc.arg<B::dest_register>());
+  }
+
+  for (const uint32_t* it = indices.b; it != indices.e; ++it) {
+    bv->set(*it);
+  }
+}
+
+// Filters a tree by keeping only nodes specified in the bitvector.
+// Children of removed nodes are reparented to their closest surviving ancestor.
+inline PERFETTO_ALWAYS_INLINE void FilterTree(InterpreterState& state,
+                                              const struct FilterTree& bc) {
+  using B = struct FilterTree;
+
+  const Span<uint32_t>& offsets =
+      state.ReadFromRegister(bc.arg<B::offsets_register>());
+  const Span<uint32_t>& children =
+      state.ReadFromRegister(bc.arg<B::children_register>());
+  const Span<uint32_t>& roots =
+      state.ReadFromRegister(bc.arg<B::roots_register>());
+  const BitVector& keep_bv =
+      state.ReadFromRegister(bc.arg<B::keep_bitvector_register>());
+  Span<uint32_t>& parent_span =
+      state.ReadFromRegister(bc.arg<B::parent_span_register>());
+  Span<uint32_t>& original_rows_span =
+      state.ReadFromRegister(bc.arg<B::original_rows_span_register>());
+  const Span<uint32_t>& scratch1 =
+      state.ReadFromRegister(bc.arg<B::scratch1_register>());
+  const Span<uint32_t>& scratch2 =
+      state.ReadFromRegister(bc.arg<B::scratch2_register>());
+
+  // Get count from parent_span.size()
+  auto old_count = static_cast<uint32_t>(parent_span.size());
+  if (old_count == 0) {
+    return;
+  }
+
+  // scratch1: first n for surviving_ancestor, remaining n for queue
+  uint32_t* surviving_ancestor = scratch1.b;
+  uint32_t* queue = scratch1.b + old_count;
+
+  // scratch2: old_to_new mapping
+  uint32_t* old_to_new = scratch2.b;
+
+  // Initialize with UINT32_MAX (0xFF bytes)
+  memset(surviving_ancestor, 0xFF, old_count * sizeof(uint32_t));
+  memset(old_to_new, 0xFF, old_count * sizeof(uint32_t));
+
+  // BFS to compute surviving ancestors
+  uint32_t queue_end = 0;
+
+  // Initialize with roots
+  for (uint32_t i = 0; i < roots.size(); ++i) {
+    uint32_t root = roots.b[i];
+    if (keep_bv.is_set(root)) {
+      surviving_ancestor[root] = root;
+    }
+    // else: surviving_ancestor[root] remains UINT32_MAX
+    queue[queue_end++] = root;
+  }
+
+  // BFS traversal
+  for (uint32_t queue_idx = 0; queue_idx < queue_end; ++queue_idx) {
+    uint32_t node = queue[queue_idx];
+    uint32_t node_ancestor = surviving_ancestor[node];
+
+    // Process children
+    uint32_t children_start = offsets.b[node];
+    uint32_t children_end = offsets.b[node + 1];
+    for (uint32_t ci = children_start; ci < children_end; ++ci) {
+      uint32_t child = children.b[ci];
+      if (keep_bv.is_set(child)) {
+        surviving_ancestor[child] = child;
+      } else {
+        surviving_ancestor[child] = node_ancestor;
+      }
+      queue[queue_end++] = child;
+    }
+  }
+
+  // Count surviving nodes and build old_to_new mapping
+  uint32_t new_count = 0;
+  for (uint32_t i = 0; i < old_count; ++i) {
+    if (keep_bv.is_set(i)) {
+      old_to_new[i] = new_count++;
+    }
+  }
+
+  if (new_count == 0) {
+    // All nodes filtered out - update span.e to reflect empty
+    parent_span.e = parent_span.b;
+    original_rows_span.e = original_rows_span.b;
+    return;
+  }
+
+  // In-place compaction: since new_idx <= i always (we skip filtered nodes),
+  // we can safely write to earlier positions without overwriting unread data.
+  for (uint32_t i = 0; i < old_count; ++i) {
+    if (!keep_bv.is_set(i)) {
+      continue;
+    }
+
+    uint32_t new_idx = old_to_new[i];
+
+    // Read FIRST from position i (before we potentially overwrite)
+    uint32_t old_parent = parent_span.b[i];
+    uint32_t old_original = original_rows_span.b[i];
+
+    // Compute new parent by finding surviving ancestor
+    uint32_t ancestor = (old_parent != kNullParent)
+                            ? surviving_ancestor[old_parent]
+                            : kNullParent;
+    uint32_t new_parent_val =
+        (ancestor != kNullParent) ? old_to_new[ancestor] : kNullParent;
+
+    // Write SECOND to position new_idx (which is <= i, so safe)
+    parent_span.b[new_idx] = new_parent_val;
+    original_rows_span.b[new_idx] = old_original;
+  }
+
+  // Update span.e to reflect new_count
+  parent_span.e = parent_span.b + new_count;
+  original_rows_span.e = original_rows_span.b + new_count;
 }
 
 }  // namespace ops

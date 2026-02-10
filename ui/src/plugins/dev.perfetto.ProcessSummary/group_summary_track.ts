@@ -71,8 +71,14 @@ interface Data {
   // Cached color schemes for each slice (only used in 'sched' mode).
   colorSchemes: ColorScheme[];
   // Relative timestamps for fast rendering (relative to data.start)
-  startRelNs: Float64Array;
-  endRelNs: Float64Array;
+  startRelNs: Float32Array;
+  durRelNs: Float32Array;
+  // Pre-computed Y positions in screen pixels
+  ys: Float32Array;
+  // Working buffer for per-frame color computation (reused each frame)
+  renderColors: Uint32Array;
+  // Reusable patterns buffer (all zeros - no patterns)
+  patterns: Uint8Array;
 }
 
 export interface Config {
@@ -360,6 +366,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     const task = await deferChunkedTask({priority});
 
     const numRows = queryRes.numRows();
+    const laneHeight = Math.floor(RECT_HEIGHT / maxLanes);
     const slices: Data = {
       start,
       end,
@@ -373,8 +380,14 @@ export class GroupSummaryTrack implements TrackRenderer {
       utids: new Int32Array(numRows),
       colorSchemes: new Array(numRows),
       // Relative timestamps for fast rendering
-      startRelNs: new Float64Array(numRows),
-      endRelNs: new Float64Array(numRows),
+      startRelNs: new Float32Array(numRows),
+      durRelNs: new Float32Array(numRows),
+      // Pre-computed Y positions in screen pixels
+      ys: new Float32Array(numRows),
+      // Working buffer for per-frame color computation
+      renderColors: new Uint32Array(numRows),
+      // Reusable patterns buffer (all zeros - no patterns)
+      patterns: new Uint8Array(numRows),
     };
 
     const it = queryRes.iter({
@@ -410,7 +423,11 @@ export class GroupSummaryTrack implements TrackRenderer {
 
       // Store relative timestamps as floats for fast rendering
       slices.startRelNs[row] = Number(ts - start);
-      slices.endRelNs[row] = Number(endTs - start);
+      slices.durRelNs[row] = Number(dur);
+
+      // Pre-compute Y position in screen pixels
+      const lane = it.lane;
+      slices.ys[row] = MARGIN_TOP + laneHeight * lane + lane;
 
       // Cache color scheme for 'sched' mode (depends on utid).
       if (this.mode === 'sched') {
@@ -522,11 +539,7 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     // Step 2: Declaratively fetch data from the table with buffered bounds
     const visibleSpan = visibleWindow.toTimeSpan();
-    const bounds = this.bufferedBounds.update(
-      visibleSpan,
-      resolution,
-      this.data !== undefined,
-    );
+    const bounds = this.bufferedBounds.update(visibleSpan, resolution);
 
     // Use the stable loaded bounds as the key - only changes when we decide to refetch
     const dataResult = this.dataSlot.use({
@@ -575,39 +588,24 @@ export class GroupSummaryTrack implements TrackRenderer {
     assertTrue(data.starts.length === data.utids.length);
 
     const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
-
-    // Pre-compute conversion factors for fast timestamp-to-pixel conversion.
-    const pxPerNs = timescale.durationToPx(1n);
-    const baseOffsetPx = timescale.timeToPx(data.start);
-
     const timeline = this.trace.timeline;
+    const count = data.length;
 
-    for (let i = 0; i < data.ends.length; i++) {
-      // Use pre-computed relative timestamps for fast pixel conversion
-      const rectStart = Math.floor(data.startRelNs[i] * pxPerNs + baseOffsetPx);
-      const rectEnd = Math.floor(data.endRelNs[i] * pxPerNs + baseOffsetPx);
-
-      // Cull slices that lie completely outside the visible window
-      if (rectEnd < 0 || rectStart > size.width) continue;
-
-      const utid = data.utids[i];
-      const lane = data.lanes[i];
-
-      const rectWidth = Math.max(1, rectEnd - rectStart);
-
-      let color: Color;
-
-      if (this.mode === 'sched') {
-        // Scheduling mode: color by thread (utid) - use cached color scheme
+    // Compute colors into the working buffer based on hover state
+    const renderColors = data.renderColors;
+    if (this.mode === 'sched') {
+      const isHovering = timeline.hoveredUtid !== undefined;
+      for (let i = 0; i < count; i++) {
         const colorScheme = data.colorSchemes[i];
+        const utid = data.utids[i];
         const threadInfo = this.threads.get(utid);
         // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
         const pid = (threadInfo ? threadInfo.pid : -1) || -1;
 
-        const isHovering = timeline.hoveredUtid !== undefined;
         const isThreadHovered = timeline.hoveredUtid === utid;
         const isProcessHovered = timeline.hoveredPid === pid;
 
+        let color: Color;
         if (isHovering && !isThreadHovered) {
           if (!isProcessHovered) {
             color = colorScheme.disabled;
@@ -617,20 +615,32 @@ export class GroupSummaryTrack implements TrackRenderer {
         } else {
           color = colorScheme.base;
         }
-      } else {
-        // Slice mode: consistent color based on pidForColor - use cached color
-        color = this.slicesModeColor.base;
+        renderColors[i] = color.rgba;
       }
-
-      const y = MARGIN_TOP + laneHeight * lane + lane;
-      renderer.drawRect(
-        rectStart,
-        y,
-        rectStart + rectWidth,
-        y + laneHeight,
-        color,
-      );
+    } else {
+      // Slice mode: all same color
+      const baseRgba = this.slicesModeColor.base.rgba;
+      renderColors.fill(baseRgba);
     }
+
+    // Draw all rects in one batch call
+    // xs and ws are in data space (nanoseconds relative to data.start)
+    // dataTransform converts: screenX = xs * scaleX + offsetX
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(data.start);
+
+    renderer.drawRects(
+      {
+        xs: data.startRelNs,
+        ys: data.ys,
+        ws: data.durRelNs,
+        h: laneHeight,
+        colors: renderColors,
+        patterns: data.patterns,
+        count,
+      },
+      {offsetX: baseOffsetPx, offsetY: 0, scaleX: pxPerNs, scaleY: 1},
+    );
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
