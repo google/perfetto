@@ -20,6 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class PrimesTraceParser(TestSuite):
+
   def test_primes_trace_slice_smoke(self):
     return DiffTestBlueprint(
         trace=DataPath('startup.primestrace'),
@@ -42,17 +43,17 @@ class PrimesTraceParser(TestSuite):
           971,1762575324787560125,18815041,166,"injectGenAIAccountMetadataListener(gaiaAccountID:)",971
           1275,1762575324821346583,17858917,271,"-[CCTLogWriter writeLog:pseudonymousID:logDirectory:clock:logTransformers:logLossMetricsService:completionQueue:completion:]",1275
         '''))
-  
+
   def test_primes_trace_track_smoke(self):
     return DiffTestBlueprint(
-      trace=DataPath('startup.primestrace'),
-      query="""
+        trace=DataPath('startup.primestrace'),
+        query="""
         SELECT id, name, track_group_id
         FROM track
         WHERE name IS NOT null
         LIMIT 10;
       """,
-      out=Csv('''
+        out=Csv('''
         "id","name","track_group_id"
         0,"com.apple.main-thread",0
         12,"com.google.ExperimentStateQueue.clienttracing.ios#com.google.Drive.dev",1
@@ -64,5 +65,4 @@ class PrimesTraceParser(TestSuite):
         53,"com.google.ssoauth.SSOServiceIvarQueue",7
         61,"com.google.ssoauth.deviceupgrade",8
         71,"com.google.ExperimentStateQueue.com.google.ios.apps.drive.device#com.google.Drive.dev",9
-      ''')
-    )
+      '''))
