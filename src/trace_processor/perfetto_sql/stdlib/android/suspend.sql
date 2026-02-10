@@ -27,7 +27,7 @@ CREATE PERFETTO TABLE android_suspend_state (
   -- 'awake' or 'suspended'
   power_state STRING,
   -- Machine identifier for multi-device traces
-  machine_id LONG
+  machine_id JOINID(machine.id)
 ) AS
 WITH
   suspend_slice_from_minimal AS (
