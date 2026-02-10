@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Transform2D} from '../geom';
+import {Rect2D, Transform2D} from '../geom';
 import {
   RECT_PATTERN_FADE_RIGHT,
   RECT_PATTERN_HATCHED,
@@ -24,6 +24,14 @@ import {createBuffer, createProgram, getUniformLocation} from './gl';
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 const QUAD_INDICES = new Uint16Array([0, 1, 2, 3]);
 
+function transformToMat3(t: Transform2D): Float32Array {
+  return new Float32Array([
+    t.scaleX, 0, 0,
+    0, t.scaleY, 0,
+    t.offsetX, t.offsetY, 1,
+  ]);
+}
+
 // Program for batch rendering with data-space coordinates
 interface RectBatchProgram {
   readonly program: WebGLProgram;
@@ -33,11 +41,9 @@ interface RectBatchProgram {
   readonly wLoc: number;
   readonly colorLoc: number;
   readonly flagsLoc: number;
-  readonly resolutionLoc: WebGLUniformLocation;
-  readonly viewOffsetLoc: WebGLUniformLocation;
-  readonly viewScaleLoc: WebGLUniformLocation;
-  readonly dataScaleLoc: WebGLUniformLocation;
-  readonly dataOffsetLoc: WebGLUniformLocation;
+  readonly viewTransformLoc: WebGLUniformLocation;
+  readonly dataTransformLoc: WebGLUniformLocation;
+  readonly clipRectLoc: WebGLUniformLocation;
   readonly heightLoc: WebGLUniformLocation;
 }
 
@@ -45,6 +51,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
   // Shader that handles data-space coordinates and all edge cases:
   // - Transform X/Y from data space to screen space
   // - Apply minimum width
+  // - Clamp to screen-space clip rect
   const vsSource = `#version 300 es
     in vec2 a_quadCorner;     // (0,0), (1,0), (0,1), (1,1) for the corners of the rect (per vertex)
     in float a_x;             // X position in data space (per instance)
@@ -56,15 +63,13 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     uniform float u_height;   // Rect height in CSS pixels
 
     // The transform from data space to screen space (CSS pixels).
-    uniform vec2 u_dataScale;
-    uniform vec2 u_dataOffset;
+    uniform mat3 u_dataTransform;
     
-    // The transform from CSS pixels to real pixels.
-    uniform vec2 u_viewOffset;
-    uniform vec2 u_viewScale;
+    // The transform from CSS pixels to clip space.
+    uniform mat3 u_viewTransform;
 
-    // The resolution of the canvas in real pixels (for clip space conversion).
-    uniform vec2 u_resolution;
+    // The clip rect in screen space (left, top, right, bottom).
+    uniform vec4 u_clipRect;
 
     out vec4 v_color;
     out vec2 v_localPos;
@@ -73,26 +78,36 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
 
     void main() {
       // Transform vertex from data space to screen space (CSS pixels)
-      float screenX = a_x * u_dataScale.x + u_dataOffset.x;
-      float screenW = a_w * u_dataScale.x;
+      vec3 rawScreenPos = u_dataTransform * vec3(a_x, a_y, 1.0);
+      float screenW = a_w * u_dataTransform[0][0];
 
-      // Calculate local position for patterns and fadeout in the fragment shader
-      v_localPos = a_quadCorner * vec2(screenW, u_height);
+      // Original bounds
+      float left = rawScreenPos.x;
+      float top = rawScreenPos.y;
+      float right = left + screenW;
+      float bottom = top + u_height;
 
-      // Limit rects to a minimum of 1px wide in screen space
-      // TODO(stevegolton): This is specific to slice rendering, maybe use a uniform for this threshold?
-      screenW = max(screenW, 1.0);
+      // Clamped bounds
+      float cLeft = max(left, u_clipRect.x);
+      float cTop = max(top, u_clipRect.y);
+      float cRight = min(right, u_clipRect.z);
+      float cBottom = min(bottom, u_clipRect.w);
 
-      // Apply view transform
-      float pixelX = u_viewOffset.x + screenX * u_viewScale.x;
-      float pixelY = u_viewOffset.y + (a_y * u_dataScale.y + u_dataOffset.y) * u_viewScale.y;
-      float pixelW = screenW * u_viewScale.x;
-      float pixelH = u_height * u_viewScale.y;
+      // Ensure valid rect (zero area if outside)
+      cRight = max(cLeft, cRight);
+      cBottom = max(cTop, cBottom);
 
-      vec2 localPos = a_quadCorner * vec2(pixelW, pixelH);
-      vec2 pixelPos = vec2(pixelX, pixelY) + localPos;
-      vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
-      gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+      // Interpolate based on quad corner
+      vec2 screenPos = vec2(
+        mix(cLeft, cRight, a_quadCorner.x),
+        mix(cTop, cBottom, a_quadCorner.y)
+      );
+
+      // Local pos for patterns - relative to ORIGINAL top-left
+      v_localPos = screenPos - vec2(left, top);
+      
+      vec3 clipSpace = u_viewTransform * vec3(screenPos, 1.0);
+      gl_Position = vec4(clipSpace.xy, 0, 1);
 
       v_color = vec4(
         float((a_color >> 24) & 0xffu) / 255.0,
@@ -151,11 +166,9 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     wLoc: gl.getAttribLocation(program, 'a_w'),
     colorLoc: gl.getAttribLocation(program, 'a_color'),
     flagsLoc: gl.getAttribLocation(program, 'a_patterns'),
-    resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
-    viewOffsetLoc: getUniformLocation(gl, program, 'u_viewOffset'),
-    viewScaleLoc: getUniformLocation(gl, program, 'u_viewScale'),
-    dataScaleLoc: getUniformLocation(gl, program, 'u_dataScale'),
-    dataOffsetLoc: getUniformLocation(gl, program, 'u_dataOffset'),
+    viewTransformLoc: getUniformLocation(gl, program, 'u_viewTransform'),
+    dataTransformLoc: getUniformLocation(gl, program, 'u_dataTransform'),
+    clipRectLoc: getUniformLocation(gl, program, 'u_clipRect'),
     heightLoc: getUniformLocation(gl, program, 'u_height'),
   };
 }
@@ -204,6 +217,7 @@ export class RectBatch {
    */
   draw(
     buffers: RectBuffers,
+    clipRect: Rect2D,
     dataTransform: Transform2D,
     viewTransform: Transform2D,
   ): void {
@@ -218,18 +232,35 @@ export class RectBatch {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
     // Set uniforms
-    gl.uniform2f(prog.resolutionLoc, gl.canvas.width, gl.canvas.height);
-    gl.uniform2f(
-      prog.viewOffsetLoc,
-      viewTransform.offsetX,
-      viewTransform.offsetY,
+    const {width, height} = gl.canvas;
+    const clipSpaceTransform: Transform2D = {
+      scaleX: 2.0 / width,
+      scaleY: -2.0 / height,
+      offsetX: -1.0,
+      offsetY: 1.0,
+    };
+    const finalViewTransform = Transform2D.compose(
+      clipSpaceTransform,
+      viewTransform,
     );
-    gl.uniform2f(prog.viewScaleLoc, viewTransform.scaleX, viewTransform.scaleY);
-    gl.uniform2f(prog.dataScaleLoc, dataTransform.scaleX, dataTransform.scaleY);
-    gl.uniform2f(
-      prog.dataOffsetLoc,
-      dataTransform.offsetX,
-      dataTransform.offsetY,
+    gl.uniformMatrix3fv(
+      prog.viewTransformLoc,
+      false,
+      transformToMat3(finalViewTransform),
+    );
+
+    gl.uniformMatrix3fv(
+      prog.dataTransformLoc,
+      false,
+      transformToMat3(dataTransform),
+    );
+
+    gl.uniform4f(
+      prog.clipRectLoc,
+      clipRect.left,
+      clipRect.top,
+      clipRect.right,
+      clipRect.bottom,
     );
     gl.uniform1f(prog.heightLoc, h);
 
