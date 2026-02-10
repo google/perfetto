@@ -539,8 +539,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         colors,
         count,
         patterns,
-        minWidth: 1,
-        screenEnd: pxEnd,
       },
       dataTransform,
     );

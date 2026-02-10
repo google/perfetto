@@ -538,8 +538,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         colors,
         patterns,
         count,
-        minWidth: 1,
-        screenEnd: timelineRect.right,
       },
       Transform2D.Identity,
     );

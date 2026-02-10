@@ -46,20 +46,15 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
   // - Transform X/Y from data space to screen space
   // - Apply minimum width
   const vsSource = `#version 300 es
-    in vec2 a_quadCorner; // (0,0), (1,0), (0,1), (1,1) for the corners of the rect
-    in float a_x;         // X position in data space
-    in float a_y;         // Y position in data space
-    in float a_w;         // Width in data space
-    in uint a_color;
-    in uint a_flags;
-
-    out vec4 v_color;
-    out vec2 v_localPos;
-    flat out uint v_flags;
-    flat out float v_rectWidth;
-
-    uniform float u_height;     // rect height in CSS pixels
+    in vec2 a_quadCorner;     // (0,0), (1,0), (0,1), (1,1) for the corners of the rect (per vertex)
+    in float a_x;             // X position in data space (per instance)
+    in float a_y;             // Y position in data space (per instance)
+    in float a_w;             // Width in data space (per instance)
+    in uint a_color;          // Packed RGBA color (0xRRGGBBAA) (per instance)
+    in uint a_patterns;       // Bitfield for patterns like hatch/fadeout (e.g., RECT_PATTERN_HATCHED) (per instance)
     
+    uniform float u_height;   // Rect height in CSS pixels
+
     // The transform from data space to screen space (CSS pixels).
     uniform vec2 u_dataScale;
     uniform vec2 u_dataOffset;
@@ -71,6 +66,11 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     // The resolution of the canvas in real pixels (for clip space conversion).
     uniform vec2 u_resolution;
 
+    out vec4 v_color;
+    out vec2 v_localPos;
+    flat out uint v_flags;
+    flat out float v_rectWidth;
+
     void main() {
       // Transform vertex from data space to screen space (CSS pixels)
       float screenX = a_x * u_dataScale.x + u_dataOffset.x;
@@ -79,7 +79,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
       // Calculate local position for patterns and fadeout in the fragment shader
       v_localPos = a_quadCorner * vec2(screenW, u_height);
 
-      // Limit rects to a minimum of 1px
+      // Limit rects to a minimum of 1px wide in screen space
       // TODO(stevegolton): This is specific to slice rendering, maybe use a uniform for this threshold?
       screenW = max(screenW, 1.0);
 
@@ -101,7 +101,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
         float(a_color & 0xffu) / 255.0
       );
       v_rectWidth = screenW;
-      v_flags = a_flags;
+      v_flags = a_patterns;
     }
   `;
 
@@ -116,7 +116,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     const uint FLAG_HATCHED = ${RECT_PATTERN_HATCHED}u;
     const uint FLAG_FADEOUT = ${RECT_PATTERN_FADE_RIGHT}u;
     const float HATCH_SPACING = 8.0;
-    const float HATCH_WIDTH = 1.0;
+    const float HATCH_WIDTH = 2.0;
     const float HATCH_MIN_WIDTH = 4.0;
 
     void main() {
@@ -136,6 +136,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
         }
       }
 
+      // Premultiply alpha for correct blending
       fragColor.rgb *= fragColor.a;
     }
   `;
@@ -149,7 +150,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     yLoc: gl.getAttribLocation(program, 'a_y'),
     wLoc: gl.getAttribLocation(program, 'a_w'),
     colorLoc: gl.getAttribLocation(program, 'a_color'),
-    flagsLoc: gl.getAttribLocation(program, 'a_flags'),
+    flagsLoc: gl.getAttribLocation(program, 'a_patterns'),
     resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
     viewOffsetLoc: getUniformLocation(gl, program, 'u_viewOffset'),
     viewScaleLoc: getUniformLocation(gl, program, 'u_viewScale'),
