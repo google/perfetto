@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {TrackNode} from '../public/workspace';
-import {raf} from './raf_scheduler';
 import {TrackManagerImpl} from './track_manager';
 
 export interface TrackSearchMatch {
@@ -91,7 +90,6 @@ export class TrackSearchManager {
       if (this._searchTerm) {
         this.performSearch(true /* preserveCurrentMatch */);
       }
-      raf.scheduleFullRedraw();
     }
   }
 
@@ -125,7 +123,6 @@ export class TrackSearchManager {
    */
   show(): void {
     this._isVisible = true;
-    raf.scheduleFullRedraw();
   }
 
   /**
@@ -136,7 +133,6 @@ export class TrackSearchManager {
     this._searchTerm = '';
     this._matches = [];
     this._currentMatchIndex = -1;
-    raf.scheduleFullRedraw();
   }
 
   /**
@@ -195,7 +191,6 @@ export class TrackSearchManager {
       // Use the existing scroll-to-track mechanism
       this._trackManager.scrollToTrackNodeId = match.node.id;
     }
-    raf.scheduleFullRedraw();
   }
 
   private performSearch(preserveCurrentMatch = false): void {

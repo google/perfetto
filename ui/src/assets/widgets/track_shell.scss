@@ -194,12 +194,24 @@
 
     &--current-match {
       font-weight: 500;
+
+      .pf-track__search-highlight {
+        background-color: color-mix(
+          in srgb,
+          var(--pf-color-accent) 50%,
+          transparent
+        );
+      }
     }
   }
 
   &__search-highlight {
-    background-color: var(--pf-color-highlight);
-    color: var(--pf-color-text);
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-accent) 30%,
+      transparent
+    );
+    color: var(--pf-color-text-on-accent);
     border-radius: 2px;
     padding: 0 2px;
   }

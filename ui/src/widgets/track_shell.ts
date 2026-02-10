@@ -372,7 +372,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         ),
         attrs.subtitle &&
           !showSubtitleInContent(attrs) &&
-          m('.pf-track__subtitle', m(MiddleEllipsis, {text: attrs.subtitle})),
+          m('.pf-track__subtitle', attrs.subtitle),
       ),
     );
   }
