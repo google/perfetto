@@ -16,7 +16,9 @@ import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {TrackSearchManager} from '../../core/track_search_manager';
 import {Button} from '../../widgets/button';
+import {PopupPosition} from '../../widgets/popup';
 import {TextInput} from '../../widgets/text_input';
+import {Tooltip} from '../../widgets/tooltip';
 
 export interface TrackSearchPanelAttrs {
   readonly searchManager: TrackSearchManager;
@@ -34,6 +36,7 @@ export class TrackSearchPanel
 
     return m(
       '.pf-track-search-panel',
+      m('.pf-track-search-panel__count', this.renderMatchCount(searchManager)),
       m(TextInput, {
         autofocus: true,
         placeholder: 'Search tracks...',
@@ -54,34 +57,71 @@ export class TrackSearchPanel
           }
         },
       }),
-      m('.pf-track-search-panel__count', this.renderMatchCount(searchManager)),
       m(
         '.pf-track-search-panel__buttons',
-        m(Button, {
-          icon: 'unfold_more',
-          title: 'Search in collapsed groups',
-          active: searchManager.searchCollapsed,
-          onclick: () => {
-            searchManager.searchCollapsed = !searchManager.searchCollapsed;
+        m(
+          Tooltip,
+          {
+            position: PopupPosition.Top,
+            trigger: m(Button, {
+              icon: 'regular_expression',
+              active: searchManager.useRegex,
+              onclick: () => {
+                searchManager.useRegex = !searchManager.useRegex;
+              },
+            }),
           },
-        }),
-        m(Button, {
-          icon: Icons.Up,
-          title: 'Previous match (Shift+Enter)',
-          disabled: searchManager.matchCount === 0,
-          onclick: () => searchManager.stepBackwards(),
-        }),
-        m(Button, {
-          icon: Icons.Down,
-          title: 'Next match (Enter)',
-          disabled: searchManager.matchCount === 0,
-          onclick: () => searchManager.stepForward(),
-        }),
-        m(Button, {
-          icon: Icons.Close,
-          title: 'Close (Escape)',
-          onclick: () => searchManager.hide(),
-        }),
+          'Use regular expression',
+        ),
+        m(
+          Tooltip,
+          {
+            position: PopupPosition.Top,
+            trigger: m(Button, {
+              icon: 'account_tree',
+              active: searchManager.searchCollapsed,
+              onclick: () => {
+                searchManager.searchCollapsed = !searchManager.searchCollapsed;
+              },
+            }),
+          },
+          'Search in collapsed groups',
+        ),
+        m(
+          Tooltip,
+          {
+            position: PopupPosition.Top,
+            trigger: m(Button, {
+              icon: Icons.Up,
+              disabled: searchManager.matchCount === 0,
+              onclick: () => searchManager.stepBackwards(),
+            }),
+          },
+          'Previous match (Shift+Enter)',
+        ),
+        m(
+          Tooltip,
+          {
+            position: PopupPosition.Top,
+            trigger: m(Button, {
+              icon: Icons.Down,
+              disabled: searchManager.matchCount === 0,
+              onclick: () => searchManager.stepForward(),
+            }),
+          },
+          'Next match (Enter)',
+        ),
+        m(
+          Tooltip,
+          {
+            position: PopupPosition.Top,
+            trigger: m(Button, {
+              icon: Icons.Close,
+              onclick: () => searchManager.hide(),
+            }),
+          },
+          'Close (Escape)',
+        ),
       ),
     );
   }

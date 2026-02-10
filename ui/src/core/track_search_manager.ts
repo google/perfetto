@@ -35,6 +35,7 @@ export class TrackSearchManager {
   private _currentMatchIndex = -1;
   private _isVisible = false;
   private _searchCollapsed = false;
+  private _useRegex = false;
   private _trackManager?: TrackManagerImpl;
 
   // The list of track nodes to search through.
@@ -87,6 +88,20 @@ export class TrackSearchManager {
     if (this._searchCollapsed !== value) {
       this._searchCollapsed = value;
       // Re-run search with the appropriate track list
+      if (this._searchTerm) {
+        this.performSearch(true /* preserveCurrentMatch */);
+      }
+    }
+  }
+
+  get useRegex(): boolean {
+    return this._useRegex;
+  }
+
+  set useRegex(value: boolean) {
+    if (this._useRegex !== value) {
+      this._useRegex = value;
+      // Re-run search with new mode
       if (this._searchTerm) {
         this.performSearch(true /* preserveCurrentMatch */);
       }
@@ -204,21 +219,46 @@ export class TrackSearchManager {
       return;
     }
 
-    const searchTermLower = this._searchTerm.toLowerCase();
     const tracksToSearch = this._searchCollapsed
       ? this._allTracks
       : this._visibleTracks;
 
-    for (const node of tracksToSearch) {
-      const nameLower = node.name.toLowerCase();
-      const matchIndex = nameLower.indexOf(searchTermLower);
+    if (this._useRegex) {
+      // Regex search
+      let regex: RegExp;
+      try {
+        regex = new RegExp(this._searchTerm, 'i');
+      } catch {
+        // Invalid regex, no matches
+        this._currentMatchIndex = -1;
+        return;
+      }
 
-      if (matchIndex !== -1) {
-        this._matches.push({
-          node,
-          matchStart: matchIndex,
-          matchLength: this._searchTerm.length,
-        });
+      for (const node of tracksToSearch) {
+        const match = regex.exec(node.name);
+        if (match) {
+          this._matches.push({
+            node,
+            matchStart: match.index,
+            matchLength: match[0].length,
+          });
+        }
+      }
+    } else {
+      // Plain text search (case-insensitive)
+      const searchTermLower = this._searchTerm.toLowerCase();
+
+      for (const node of tracksToSearch) {
+        const nameLower = node.name.toLowerCase();
+        const matchIndex = nameLower.indexOf(searchTermLower);
+
+        if (matchIndex !== -1) {
+          this._matches.push({
+            node,
+            matchStart: matchIndex,
+            matchLength: this._searchTerm.length,
+          });
+        }
       }
     }
 

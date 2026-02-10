@@ -20,16 +20,22 @@
   padding: 4px 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 4px;
   font-family: var(--pf-font-family);
   font-size: var(--pf-font-size-m);
   flex-shrink: 0;
+
+  .pf-text-input {
+    width: 250px;
+    flex: none;
+  }
 
   &__count {
     color: var(--pf-color-text-muted);
     white-space: nowrap;
     min-width: 80px;
-    text-align: center;
+    text-align: right;
   }
 
   &__buttons {
