@@ -56,9 +56,10 @@ enum class ThreadNamePriority : uint8_t {
 // different sources.
 enum class ProcessNamePriority : uint8_t {
   kOther = 0,
-  kTrackDescriptor = 1,
-  kChromeProcessLabel = 2,
-  kSystem = 3,
+  kChromeProcessLabel = 1,
+  kTrackDescriptor = 2,
+  kChromeProcessLabelRenderer = 3,
+  kSystem = 4,
 };
 
 class ProcessTracker {
