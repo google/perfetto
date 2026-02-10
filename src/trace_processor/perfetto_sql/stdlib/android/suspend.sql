@@ -92,20 +92,24 @@ WITH
       duration_gap >= 0
   ),
   awake_slice AS (
-    -- If we don't have any rows, use the trace bounds if bounds are defined.
+    -- For machines without any suspend slices, use the trace bounds.
     SELECT
       trace_start() AS ts,
       trace_dur() AS dur,
-      NULL AS machine_id
+      m.id AS machine_id
+    FROM machine AS m
     WHERE
-      (
+      trace_dur() > 0
+      AND NOT EXISTS(
         SELECT
-          count(*)
-        FROM suspend_slice
-      ) = 0 AND dur > 0
+          1
+        FROM suspend_slice AS s
+        WHERE
+          s.machine_id = m.id
+      )
     UNION ALL
-    -- If we do have rows, create one slice from the trace start to the first suspend
-    -- for each machine_id.
+    -- For machines with suspend slices, create one slice from the trace start
+    -- to the first suspend.
     SELECT
       trace_start() AS ts,
       (

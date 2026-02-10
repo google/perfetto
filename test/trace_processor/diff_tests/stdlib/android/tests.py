@@ -1787,10 +1787,122 @@ class AndroidStdlib(TestSuite):
         """,
         out=Csv("""
         "ts","dur","power_state","machine_id"
+          100000000000,0,"awake",0
+          100000000000,6000000000,"awake",1
+          100000000000,3000000000,"suspended",0
+          103000000000,6000000000,"awake",0
+          106000000000,3000000000,"suspended",1
+          109000000000,0,"awake",1
+          """))
+
+  def test_android_suspend_state_one_machine_no_events(self):
+    # Machine 0 has suspend events, machine 1 does not
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 1
+              }
+            }
+            event {
+              timestamp: 103000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 0
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "5.10.0-android12"
+              version: "#1 SMP PREEMPT"
+              machine: "aarch64"
+            }
+            android_build_fingerprint: "google/raven/raven:14/AP1A.240405.002/11487190:user/release-keys"
+            num_cpus: 8
+          }
+          machine_id: 1001
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.suspend;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY machine_id, ts;
+        """,
+        out=Csv("""
+        "ts","dur","power_state","machine_id"
         100000000000,0,"awake",0
-        100000000000,6000000000,"awake",1
         100000000000,3000000000,"suspended",0
-        103000000000,6000000000,"awake",0
-        106000000000,3000000000,"suspended",1
-        109000000000,0,"awake",1
+        103000000000,0,"awake",0
+        100000000000,3000000000,"awake",1
+        """))
+
+  def test_android_suspend_state_no_events(self):
+    # Both machines have no suspend events, but have other trace events
+    # to establish a timeline
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100000000000
+              pid: 1
+              print {
+                buf: "some other event\n"
+              }
+            }
+            event {
+              timestamp: 105000000000
+              pid: 1
+              print {
+                buf: "another event\n"
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 102000000000
+              pid: 1
+              print {
+                buf: "event on machine 2\n"
+              }
+            }
+            event {
+              timestamp: 108000000000
+              pid: 1
+              print {
+                buf: "another event on machine 2\n"
+              }
+            }
+          }
+          machine_id: 1001
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.suspend;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY machine_id, ts;
+        """,
+        out=Csv("""
+        "ts","dur","power_state","machine_id"
+        100000000000,8000000000,"awake",0
+        100000000000,8000000000,"awake",1
         """))
