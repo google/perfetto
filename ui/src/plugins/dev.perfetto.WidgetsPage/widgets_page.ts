@@ -33,6 +33,7 @@ import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
 import {renderForm} from './demos/form_demo';
 import {renderGrid} from './demos/grid_demo';
+import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
 import {renderIcon} from './demos/icon_demo';
 import {renderMenu} from './demos/menu_demo';
@@ -75,6 +76,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'callout', label: 'Callout', view: renderCallout},
   {id: 'card-stack', label: 'CardStack', view: cardStack},
   {id: 'card', label: 'Card', view: renderCard},
+  {id: 'charts', label: 'Charts', view: renderCharts},
   {id: 'checkbox', label: 'Checkbox', view: renderCheckbox},
   {id: 'chip', label: 'Chip', view: renderChip},
   {id: 'codesnippet', label: 'CodeSnippet', view: renderCodeSnippet},

@@ -110,6 +110,7 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
    --symbol-paths PATH1,PATH2,...     Additional paths to search for symbols
                                       (beyond automatic discovery)
    --no-auto-symbol-paths             Disable automatic symbol path discovery
+   --verbose                          Print more detailed output
 
  binary                               Converts text proto to binary format
    (no additional options)
@@ -160,6 +161,7 @@ int Main(int argc, char** argv) {
   bool profile_no_annotations = false;
   std::vector<std::string> symbol_paths;
   bool no_auto_symbol_paths = false;
+  bool verbose = false;
   std::string output_dir;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
@@ -202,6 +204,8 @@ int Main(int argc, char** argv) {
       symbol_paths = base::SplitString(argv[i], ",");
     } else if (strcmp(argv[i], "--no-auto-symbol-paths") == 0) {
       no_auto_symbol_paths = true;
+    } else if (strcmp(argv[i], "--verbose") == 0) {
+      verbose = true;
     } else if (i < argc && strcmp(argv[i], "--output-dir") == 0) {
       i++;
       if (i >= argc) {
@@ -316,21 +320,22 @@ int Main(int argc, char** argv) {
       return Usage(argv[0]);
     }
     return TraceToProfile(input_stream, pid, timestamps,
-                          !profile_no_annotations, output_dir, profile_type);
+                          !profile_no_annotations, output_dir, profile_type,
+                          verbose);
   }
 
   if (format == "java_heap_profile") {
     // legacy alias for "profile --java-heap"
     return TraceToProfile(input_stream, pid, timestamps,
                           !profile_no_annotations, output_dir,
-                          ConversionMode::kJavaHeapProfile);
+                          ConversionMode::kJavaHeapProfile, verbose);
   }
 
   if (format == "hprof")
     return TraceToHprof(input_stream, output_stream, pid, timestamps);
 
   if (format == "symbolize")
-    return SymbolizeProfile(input_stream, output_stream);
+    return SymbolizeProfile(input_stream, output_stream, verbose);
 
   if (format == "deobfuscate")
     return DeobfuscateProfile(input_stream, output_stream);
@@ -372,6 +377,14 @@ int Main(int argc, char** argv) {
     BundleContext context;
     context.symbol_paths = symbol_paths;
     context.no_auto_symbol_paths = no_auto_symbol_paths;
+    context.verbose = verbose;
+    if (const char* val = getenv("ANDROID_PRODUCT_OUT")) {
+      context.android_product_out = val;
+    }
+    if (const char* val = getenv("HOME")) {
+      context.home_dir = val;
+    }
+    context.root_dir = "/";
     return TraceToBundle(input_file, output_file, context);
   }
 

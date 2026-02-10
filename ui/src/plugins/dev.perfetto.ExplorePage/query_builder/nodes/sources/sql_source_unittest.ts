@@ -62,7 +62,7 @@ describe('SqlSourceNode', () => {
       expect(node.secondaryInputs.connections.size).toBe(0);
     });
 
-    it('should have port names following input_N pattern', () => {
+    it('should have port names following $input_N pattern', () => {
       const node = new SqlSourceNode({
         sql: '',
         trace: mockTrace,
@@ -71,9 +71,9 @@ describe('SqlSourceNode', () => {
       const portNames = node.secondaryInputs.portNames;
       expect(typeof portNames).toBe('function');
       if (typeof portNames === 'function') {
-        expect(portNames(0)).toBe('input_0');
-        expect(portNames(1)).toBe('input_1');
-        expect(portNames(5)).toBe('input_5');
+        expect(portNames(0)).toBe('$input_0');
+        expect(portNames(1)).toBe('$input_1');
+        expect(portNames(5)).toBe('$input_5');
       }
     });
   });

@@ -17,10 +17,17 @@
 // 1. Rects pipeline - plain/hatched rectangles
 // 2. Markers pipeline - SDF-based shapes like chevrons
 
-import {Renderer, MarkerRenderFunc} from './../renderer';
+import {
+  Renderer,
+  MarkerRenderFunc,
+  MarkerBuffers,
+  StepAreaBuffers,
+  RectBuffers,
+} from './../renderer';
 import {DisposableStack} from './../disposable_stack';
 import {RectBatch} from './rects';
 import {ChevronBatch} from './chevrons';
+import {StepAreaBatch} from './step_area';
 import {Color} from './../color';
 import {Transform2D} from '../geom';
 
@@ -29,6 +36,7 @@ export class WebGLRenderer implements Renderer {
   readonly gl: WebGL2RenderingContext;
   private readonly rects: RectBatch;
   private readonly markers: ChevronBatch;
+  private readonly stepArea: StepAreaBatch;
   private transform = Transform2D.Identity;
 
   constructor(c2d: CanvasRenderingContext2D, gl: WebGL2RenderingContext) {
@@ -36,6 +44,7 @@ export class WebGLRenderer implements Renderer {
     this.gl = gl;
     this.rects = new RectBatch(gl);
     this.markers = new ChevronBatch(gl);
+    this.stepArea = new StepAreaBatch(gl);
   }
 
   pushTransform(transform: Partial<Transform2D>): Disposable {
@@ -72,41 +81,37 @@ export class WebGLRenderer implements Renderer {
     };
   }
 
-  drawMarker(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    color: Color,
+  drawMarkers(
+    buffers: MarkerBuffers,
+    dataTransform: Transform2D,
     _render: MarkerRenderFunc,
   ): void {
-    if (this.markers.isFull) {
-      this.markers.flush(this.transform);
-    }
-    this.markers.add(x, y, w, h, color.rgba);
+    this.markers.draw(buffers, dataTransform, this.transform);
   }
 
-  drawRect(
-    left: number,
-    top: number,
-    right: number,
-    bottom: number,
+  drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
+    // Pass buffers directly to the rect batch for efficient GPU upload
+    this.rects.draw(buffers, dataTransform, this.transform);
+  }
+
+  drawStepArea(
+    buffers: StepAreaBuffers,
+    dataTransform: Transform2D,
     color: Color,
-    flags = 0,
+    top: number,
+    bottom: number,
   ): void {
-    if (this.rects.isFull) {
-      this.rects.flush(this.transform);
-    }
-    this.rects.add(left, top, right, bottom, color.rgba, flags);
-  }
-
-  flush(): void {
-    this.rects.flush(this.transform);
-    this.markers.flush(this.transform);
+    this.stepArea.draw(
+      buffers,
+      dataTransform,
+      this.transform,
+      top,
+      bottom,
+      color.rgba,
+    );
   }
 
   resetTransform(): void {
-    this.flush();
     this.transform = Transform2D.Identity;
     this.c2d.resetTransform();
   }
@@ -124,8 +129,6 @@ export class WebGLRenderer implements Renderer {
   clip(x: number, y: number, w: number, h: number): Disposable {
     const gl = this.gl;
     const ctx = this.c2d;
-
-    this.flush();
 
     // Apply transform: physPos = offset + pos * scale
     const physX = this.transform.offsetX + x * this.transform.scaleX;
@@ -149,7 +152,6 @@ export class WebGLRenderer implements Renderer {
 
     return {
       [Symbol.dispose]: () => {
-        this.flush();
         ctx.restore();
         gl.disable(gl.SCISSOR_TEST);
       },

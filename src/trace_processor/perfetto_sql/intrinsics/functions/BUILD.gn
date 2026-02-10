@@ -48,6 +48,8 @@ source_set("functions") {
     "metadata.h",
     "package_lookup.cc",
     "package_lookup.h",
+    "perf_counter.cc",
+    "perf_counter.h",
     "pprof_functions.cc",
     "pprof_functions.h",
     "replace_numbers_function.cc",
@@ -106,8 +108,8 @@ source_set("functions") {
       "symbolize.h",
     ]
     deps += [
-      "../../../../profiling/symbolizer:llvm_symbolizer",
-      "../../../../profiling/symbolizer:llvm_symbolizer_c_api",
+      "../../../util/symbolizer:llvm_symbolizer",
+      "../../../util/symbolizer:llvm_symbolizer_c_api",
     ]
   }
 }

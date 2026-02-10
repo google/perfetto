@@ -39,6 +39,7 @@ import {
 } from '../trace_processor/sql_utils';
 import {DataGridApi} from './widgets/datagrid/datagrid';
 import {DataGridExportButton} from './widgets/datagrid/export_button';
+import {SerialTaskQueue} from '../base/query_slot';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -208,6 +209,7 @@ export function createAggregationTab(
   priority: number = 0,
 ): AreaSelectionTab {
   const limiter = new AsyncLimiter();
+  const queue = new SerialTaskQueue();
   let currentSelection: AreaSelection | undefined;
   let aggregation: Aggregation | undefined;
   let data: AggregationData | undefined;
@@ -261,11 +263,13 @@ export function createAggregationTab(
         limiter.schedule(async () => {
           // Clear previous data to prevent queries against a stale or partially
           // updated table/view while `prepareData` is running.
+          dataSource?.dispose();
           dataSource = undefined;
           data = undefined;
           if (aggregation) {
             data = await aggregation?.prepareData(trace.engine);
             dataSource = new SQLDataSource({
+              queue,
               engine: trace.engine,
               sqlSchema: createSimpleSchema(data.tableName),
               rootSchemaName: 'query',

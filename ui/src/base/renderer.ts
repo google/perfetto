@@ -19,7 +19,73 @@ import {Transform2D} from './geom';
 export const RECT_PATTERN_HATCHED = 1; // Draw diagonal crosshatch pattern
 export const RECT_PATTERN_FADE_RIGHT = 2; // Fade alpha from full left to 0 right across width
 
-// Describes a marker render function to customize the marker.
+// Buffers for batch rectangle rendering.
+// All arrays must have the same length (count).
+// Colors are packed as 0xRRGGBBAA (big-endian RGBA).
+// X coordinates and widths are in data space (e.g., nanoseconds) and transformed
+// by the dataTransform passed to drawRects. Y coordinates are in screen pixels.
+export interface RectBuffers {
+  // Left edge X coordinates (data space, transformed by dataTransform.scaleX/offsetX)
+  readonly xs: Float32Array;
+  // Top edge Y coordinates (screen pixels)
+  readonly ys: Float32Array;
+  // Widths (data space, transformed by dataTransform.scaleX)
+  // Use -1 for incomplete rects that extend to screenEnd
+  readonly ws: Float32Array;
+  // Height in screen pixels (uniform for all rects)
+  readonly h: number;
+  // Packed RGBA colors (0xRRGGBBAA)
+  readonly colors: Uint32Array;
+  // Pattern flags per rect (0 = none, RECT_PATTERN_HATCHED, etc.)
+  readonly patterns: Uint8Array;
+  // Number of valid rects
+  readonly count: number;
+  // Minimum width in screen pixels (after transform). Default: 1
+  readonly minWidth?: number;
+  // Screen X coordinate where incomplete rects (w === -1) extend to
+  readonly screenEnd?: number;
+}
+
+// Buffers for step-area chart data.
+// Each array contains one element per data point.
+// Values are in data space and transformed to screen coordinates by drawStepArea.
+export interface StepAreaBuffers {
+  // X positions for each data point
+  readonly xs: Float32Array;
+  // X positions for the next data point
+  readonly xnext: Float32Array;
+  // Y positions for fill top and horizontal stroke line
+  readonly ys: Float32Array;
+  // Minimum Y of the range indicator at each transition
+  readonly minYs: Float32Array;
+  // Maximum Y of the range indicator at each transition
+  readonly maxYs: Float32Array;
+  // Fill alpha per segment (0 = transparent, 1 = filled)
+  readonly fillAlpha: Float32Array;
+  // Number of valid data points in the arrays
+  readonly count: number;
+}
+
+// Buffers for batch marker rendering.
+// Markers are sprites/glyphs with fixed size in pixels (e.g., chevrons for instant events).
+// X coordinates are in data space and transformed by dataTransform.
+// Y coordinates, width, and height are in screen pixels.
+export interface MarkerBuffers {
+  // Center X coordinates (data space, transformed by dataTransform.scaleX/offsetX)
+  readonly xs: Float32Array;
+  // Top edge Y coordinates (screen pixels)
+  readonly ys: Float32Array;
+  // Width in screen pixels (uniform for all markers)
+  readonly w: number;
+  // Height in screen pixels (uniform for all markers)
+  readonly h: number;
+  // Packed RGBA colors (0xRRGGBBAA)
+  readonly colors: Uint32Array;
+  // Number of valid markers
+  readonly count: number;
+}
+
+// Describes a marker render function to customize the marker (Canvas2D fallback).
 export type MarkerRenderFunc = (
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -49,34 +115,39 @@ export interface Renderer {
   //   using _ = renderer.clip(x, y, w, h);
   clip(x: number, y: number, w: number, h: number): Disposable;
 
-  // Draw a single marker centered horizontally at the given position. A marker
-  // is a sprite/glyph with fixed size in pixels regardless of the current
-  // transform.
-  drawMarker(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    color: Color,
+  // Draw multiple markers from columnar buffers.
+  // Markers are sprites/glyphs with fixed size in pixels (e.g., chevrons).
+  // X coordinates are centered and in data space, transformed by dataTransform.
+  // render is a Canvas2D fallback function for when WebGL is unavailable.
+  drawMarkers(
+    buffers: MarkerBuffers,
+    dataTransform: Transform2D,
     render: MarkerRenderFunc,
   ): void;
 
-  // Draw a single rectangle.
-  // left/right are in time units, top/bottom are in pixels.
-  drawRect(
-    left: number,
-    top: number,
-    right: number,
-    bottom: number,
-    color: Color,
-    pattern?: number,
-  ): void;
+  // Draw multiple rectangles from columnar buffers.
+  // This is more efficient than calling drawRect() in a loop.
+  // Colors are packed as 0xRRGGBBAA (big-endian RGBA).
+  // dataTransform converts buffer coordinates to screen coordinates.
+  drawRects(buffers: RectBuffers, dataTransform: Transform2D): void;
 
-  // Flush all pending draw/marker calls to the underlying backend and
-  // invalidate caches. Users should ensure that they call flush before
-  // accessing the canvas2d context directly in order to synchronize draws and
-  // avoid visual glitches. However, excessive flushing can degrade performance,
-  // so it should be used judiciously. If possible, try to batch as many draw
-  // calls together as possible inbetween flushes.
-  flush(): void;
+  // Draw a step-area chart (filled area under a step function).
+  //
+  // For each segment i, draws:
+  // - A filled rectangle from ys[i] to baseline (y=0 in data space) with alpha fillAlpha[i]
+  // - A 1px horizontal stroke line at ys[i] extending to xs[i+1]
+  // - A vertical range indicator at xs[i] showing the min/max range at each transition
+  //
+  // buffers: the data arrays (xs, ys, minYs, maxYs, fillAlpha, count)
+  // transform: coordinate transform - baseline is where y=0 maps to (transform.offsetY)
+  // color: fill and stroke color
+  // top: Y coordinate of top of rendering area (for WebGL quad bounds)
+  // bottom: Y coordinate of bottom of rendering area (for WebGL quad bounds)
+  drawStepArea(
+    buffers: StepAreaBuffers,
+    transform: Transform2D,
+    color: Color,
+    top: number,
+    bottom: number,
+  ): void;
 }

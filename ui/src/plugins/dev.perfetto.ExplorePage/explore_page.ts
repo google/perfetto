@@ -57,6 +57,7 @@ import {
   showExportWarning,
 } from './query_builder/widgets';
 import {recentGraphsStorage} from './recent_graphs';
+import {showDataExplorerHelp} from './data_explorer_help_modal';
 
 registerCoreNodes();
 
@@ -1619,6 +1620,13 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLTextAreaElement
     ) {
+      return;
+    }
+
+    // Handle "?" to show help modal
+    if (event.key === '?') {
+      showDataExplorerHelp();
+      event.preventDefault();
       return;
     }
 

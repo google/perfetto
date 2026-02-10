@@ -45,8 +45,12 @@ uint8_t MakeLenDelimTag(uint32_t field_num) {
 
 }  // namespace
 
-QueryResultSerializer::QueryResultSerializer(Iterator iter)
-    : iter_(iter.take_impl()), num_cols_(iter_->ColumnCount()) {}
+QueryResultSerializer::QueryResultSerializer(
+    Iterator iter,
+    std::optional<base::TimeNanos> t_start)
+    : iter_(iter.take_impl()),
+      num_cols_(iter_->ColumnCount()),
+      t_start_(t_start) {}
 
 QueryResultSerializer::~QueryResultSerializer() = default;
 
@@ -73,6 +77,15 @@ bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res) {
 
   SerializeBatch(res);
   MaybeSerializeError(res);
+
+  // After iterating and serializing the batch, work out the elapsed time and
+  // include it in the proto. If t_start_ was not provided then leave it blank.
+  if (t_start_) {
+    const double elapsed_time_ms =
+        static_cast<double>((base::GetWallTimeNs() - *t_start_).count()) / 1e6;
+    res->set_elapsed_time_ms(elapsed_time_ms);
+  }
+
   return !eof_reached_;
 }
 

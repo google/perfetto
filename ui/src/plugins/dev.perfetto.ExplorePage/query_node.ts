@@ -51,6 +51,7 @@ export enum NodeType {
   kModifyColumns = 'modify_columns',
   kAddColumns = 'add_columns',
   kFilterDuring = 'filter_during',
+  kFilterIn = 'filter_in',
   kLimitAndOffset = 'limit_and_offset',
   kSort = 'sort',
   kFilter = 'filter',
@@ -72,6 +73,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kModifyColumns:
     case NodeType.kAddColumns:
     case NodeType.kFilterDuring:
+    case NodeType.kFilterIn:
     case NodeType.kLimitAndOffset:
     case NodeType.kSort:
     case NodeType.kFilter:
@@ -132,12 +134,6 @@ export interface QueryNodeState {
   // If false, the user must manually click "Run" to execute queries.
   // Set by the node registry when the node is created.
   autoExecute?: boolean;
-
-  // Materialization state
-  materialized?: boolean;
-  materializationTableName?: string;
-  // Hash of the query that was materialized (for detecting query changes)
-  materializedQueryHash?: string;
 }
 
 export interface QueryNode {
@@ -178,7 +174,5 @@ export interface QueryNode {
 export interface Query {
   sql: string;
   textproto: string;
-  modules: string[];
-  preambles: string[];
-  columns: string[];
+  standaloneSql: string;
 }
