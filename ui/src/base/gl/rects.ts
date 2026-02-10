@@ -39,6 +39,7 @@ interface RectBatchProgram {
   readonly dataScaleLoc: WebGLUniformLocation;
   readonly dataOffsetLoc: WebGLUniformLocation;
   readonly heightLoc: WebGLUniformLocation;
+  readonly clipRectLoc: WebGLUniformLocation;
 }
 
 function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
@@ -66,6 +67,9 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     // The resolution of the canvas in real pixels (for clip space conversion).
     uniform vec2 u_resolution;
 
+    // Clip rect in screen space (left, top, right, bottom).
+    uniform vec4 u_clipRect;
+
     out vec4 v_color;
     out vec2 v_localPos;
     flat out uint v_flags;
@@ -83,14 +87,33 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
       // TODO(stevegolton): This is specific to slice rendering, maybe use a uniform for this threshold?
       screenW = max(screenW, 1.0);
 
-      // Apply view transform
+      // Apply view transform to get pixel coordinates
       float pixelX = u_viewOffset.x + screenX * u_viewScale.x;
       float pixelY = u_viewOffset.y + (a_y * u_dataScale.y + u_dataOffset.y) * u_viewScale.y;
       float pixelW = screenW * u_viewScale.x;
       float pixelH = u_height * u_viewScale.y;
 
-      vec2 localPos = a_quadCorner * vec2(pixelW, pixelH);
-      vec2 pixelPos = vec2(pixelX, pixelY) + localPos;
+      // Clamp rect bounds to clip rect
+      float left = pixelX;
+      float top = pixelY;
+      float right = pixelX + pixelW;
+      float bottom = pixelY + pixelH;
+
+      float cLeft = max(left, u_clipRect.x);
+      float cTop = max(top, u_clipRect.y);
+      float cRight = min(right, u_clipRect.z);
+      float cBottom = min(bottom, u_clipRect.w);
+
+      // Ensure valid rect (zero area if fully clipped)
+      cRight = max(cLeft, cRight);
+      cBottom = max(cTop, cBottom);
+
+      // Interpolate position based on quad corner
+      vec2 pixelPos = vec2(
+        mix(cLeft, cRight, a_quadCorner.x),
+        mix(cTop, cBottom, a_quadCorner.y)
+      );
+
       vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
 
@@ -157,6 +180,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     dataScaleLoc: getUniformLocation(gl, program, 'u_dataScale'),
     dataOffsetLoc: getUniformLocation(gl, program, 'u_dataOffset'),
     heightLoc: getUniformLocation(gl, program, 'u_height'),
+    clipRectLoc: getUniformLocation(gl, program, 'u_clipRect'),
   };
 }
 
@@ -206,6 +230,7 @@ export class RectBatch {
     buffers: RectBuffers,
     dataTransform: Transform2D,
     viewTransform: Transform2D,
+    clipRect: {left: number; top: number; right: number; bottom: number},
   ): void {
     const {xs, ys, ws, h, colors, patterns, count} = buffers;
     if (count === 0) return;
@@ -232,6 +257,13 @@ export class RectBatch {
       dataTransform.offsetY,
     );
     gl.uniform1f(prog.heightLoc, h);
+    gl.uniform4f(
+      prog.clipRectLoc,
+      clipRect.left,
+      clipRect.top,
+      clipRect.right,
+      clipRect.bottom,
+    );
 
     // Bind static quad
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
