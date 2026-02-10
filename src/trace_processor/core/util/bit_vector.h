@@ -217,6 +217,11 @@ struct BitVector {
     size_ = 0;
   }
 
+  // Sets all bits to zero without changing the size.
+  void ClearAllBits() {
+    memset(words_.data(), 0, words_.size() * sizeof(uint64_t));
+  }
+
   // Resizes the vector to the specified size. If shrinking, bits past the new
   // size are cleared. If growing, new bits are set to the given value.
   void resize(uint64_t new_size, bool value = false) {

@@ -21,8 +21,11 @@ import {Transform2D} from './geom';
 import {
   Renderer,
   RECT_PATTERN_HATCHED,
+  RECT_PATTERN_FADE_RIGHT,
   MarkerRenderFunc,
+  MarkerBuffers,
   StepAreaBuffers,
+  RectBuffers,
 } from './renderer';
 
 // Clip bounds stored in physical screen coordinates (post-transform).
@@ -36,7 +39,6 @@ interface PhysicalClipBounds {
 
 export class Canvas2DRenderer implements Renderer {
   private readonly ctx: CanvasRenderingContext2D;
-  private previousFillStyle?: string;
   // Track transform ourselves for CPU-side culling calculations.
   private transform = Transform2D.Identity;
   private physicalClipBounds?: PhysicalClipBounds;
@@ -64,80 +66,144 @@ export class Canvas2DRenderer implements Renderer {
     };
   }
 
-  drawMarker(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    color: Color,
+  drawMarkers(
+    buffers: MarkerBuffers,
+    dataTransform: Transform2D,
     render: MarkerRenderFunc,
   ): void {
-    // CPU-side culling: transform marker bounds to physical space and compare
-    if (this.physicalClipBounds !== undefined) {
-      const t = this.transform;
-      const physLeft = t.offsetX + (x - w / 2) * t.scaleX;
-      const physRight = t.offsetX + (x + w / 2) * t.scaleX;
-      const physTop = t.offsetY + y * t.scaleY;
-      const physBottom = t.offsetY + (y + h) * t.scaleY;
-      const clip = this.physicalClipBounds;
-      if (
-        physRight < clip.left ||
-        physLeft > clip.right ||
-        physBottom < clip.top ||
-        physTop > clip.bottom
-      ) {
-        return;
-      }
-    }
-
+    const {xs, ys, w, h, colors, count} = buffers;
     const ctx = this.ctx;
-    if (this.previousFillStyle !== color.cssString) {
-      ctx.fillStyle = color.cssString;
-      this.previousFillStyle = color.cssString;
+    const clip = this.physicalClipBounds;
+    const t = this.transform;
+    const {offsetX, scaleX, offsetY, scaleY} = dataTransform;
+    let previousColor: number | undefined = undefined;
+
+    for (let i = 0; i < count; i++) {
+      // Transform X from data space to screen space (centered)
+      const screenX = xs[i] * scaleX + offsetX;
+      const y = ys[i] * scaleY + offsetY;
+
+      // CPU-side culling
+      if (clip !== undefined) {
+        const physLeft = t.offsetX + (screenX - w / 2) * t.scaleX;
+        const physRight = t.offsetX + (screenX + w / 2) * t.scaleX;
+        const physTop = t.offsetY + y * t.scaleY;
+        const physBottom = t.offsetY + (y + h) * t.scaleY;
+        if (
+          physRight < clip.left ||
+          physLeft > clip.right ||
+          physBottom < clip.top ||
+          physTop > clip.bottom
+        ) {
+          continue;
+        }
+      }
+
+      // Convert packed RGBA (0xRRGGBBAA) to CSS string
+      const rgba = colors[i];
+      if (previousColor !== rgba) {
+        const r = (rgba >> 24) & 0xff;
+        const g = (rgba >> 16) & 0xff;
+        const b = (rgba >> 8) & 0xff;
+        const a = (rgba & 0xff) / 255;
+        const cssColor = `rgba(${r},${g},${b},${a})`;
+        ctx.fillStyle = cssColor;
+        previousColor = rgba;
+      }
+
+      render(ctx, screenX - w / 2, y, w, h);
     }
-    render(ctx, x - w / 2, y, w, h);
   }
 
-  drawRect(
-    left: number,
-    top: number,
-    right: number,
-    bottom: number,
-    color: Color,
-    flags = 0,
-  ): void {
-    // CPU-side culling: transform rect bounds to physical space and compare
-    if (this.physicalClipBounds !== undefined) {
-      const t = this.transform;
-      const physLeft = t.offsetX + left * t.scaleX;
-      const physRight = t.offsetX + right * t.scaleX;
-      const physTop = t.offsetY + top * t.scaleY;
-      const physBottom = t.offsetY + bottom * t.scaleY;
-      const clip = this.physicalClipBounds;
-      if (
-        physRight < clip.left ||
-        physLeft > clip.right ||
-        physBottom < clip.top ||
-        physTop > clip.bottom
-      ) {
-        return;
-      }
-    }
-
+  drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
+    const {
+      xs,
+      ys,
+      ws,
+      h,
+      colors,
+      patterns,
+      count,
+      minWidth = 1,
+      screenEnd,
+    } = buffers;
     const ctx = this.ctx;
-    const w = right - left;
-    const h = bottom - top;
+    const clip = this.physicalClipBounds;
+    const t = this.transform;
+    const {offsetX, scaleX, offsetY, scaleY} = dataTransform;
+    let previousColor: number | undefined = undefined;
 
-    if (this.previousFillStyle !== color.cssString) {
-      ctx.fillStyle = color.cssString;
-      this.previousFillStyle = color.cssString;
-    }
-    ctx.fillRect(left, top, w, h);
+    for (let i = 0; i < count; i++) {
+      // Skip instant slices (dur === 0) - handled separately with drawMarker
+      if (ws[i] === 0) continue;
 
-    if (flags & RECT_PATTERN_HATCHED && w >= 5) {
-      ctx.fillStyle = getHatchedPattern(ctx);
-      ctx.fillRect(left, top, w, h);
-      this.previousFillStyle = undefined;
+      // Transform X and Y from data coordinates to screen coordinates
+      let x = xs[i] * scaleX + offsetX;
+      const y = ys[i] * scaleY + offsetY;
+      let w: number;
+
+      // Handle incomplete rects (w === -1 means extend to screenEnd)
+      if (ws[i] < 0) {
+        x = Math.max(x, -1);
+        w = (screenEnd ?? 0) - x;
+      } else {
+        w = ws[i] * scaleX;
+        // Clamp to visible region
+        const xEnd = Math.min(x + w, screenEnd ?? x + w);
+        x = Math.max(x, -1);
+        w = xEnd - x;
+      }
+
+      // Apply minimum width
+      w = Math.max(w, minWidth);
+
+      // CPU-side culling
+      if (clip !== undefined) {
+        const physLeft = t.offsetX + x * t.scaleX;
+        const physRight = t.offsetX + (x + w) * t.scaleX;
+        const physTop = t.offsetY + y * t.scaleY;
+        const physBottom = t.offsetY + (y + h) * t.scaleY;
+        if (
+          physRight < clip.left ||
+          physLeft > clip.right ||
+          physBottom < clip.top ||
+          physTop > clip.bottom
+        ) {
+          continue;
+        }
+      }
+
+      // Convert packed RGBA (0xRRGGBBAA) to CSS string
+      const rgba = colors[i];
+      if (previousColor !== rgba) {
+        const r = (rgba >> 24) & 0xff;
+        const g = (rgba >> 16) & 0xff;
+        const b = (rgba >> 8) & 0xff;
+        const a = (rgba & 0xff) / 255;
+        const cssColor = `rgba(${r},${g},${b},${a})`;
+        ctx.fillStyle = cssColor;
+        previousColor = rgba;
+      }
+      ctx.fillRect(x, y, w, h);
+
+      const flags = patterns[i];
+      if (flags & RECT_PATTERN_HATCHED && w >= 5) {
+        ctx.fillStyle = getHatchedPattern(ctx);
+        ctx.fillRect(x, y, w, h);
+        previousColor = undefined;
+      }
+
+      if (flags & RECT_PATTERN_FADE_RIGHT && w >= 5) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        const gradient = ctx.createLinearGradient(x, y, x + w, y);
+        gradient.addColorStop(0.66, 'rgba(0, 0, 0, 0)');
+        gradient.addColorStop(1.0, 'rgba(0, 0, 0, 1)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x, y, w, h);
+        ctx.restore();
+        previousColor = undefined;
+      }
     }
   }
 
@@ -206,13 +272,6 @@ export class Canvas2DRenderer implements Renderer {
 
     ctx.globalAlpha = 1.0;
     ctx.stroke();
-  }
-
-  flush(): void {
-    // Draw calls are immediate in Canvas2D, so nothing to do here. Reset the
-    // previous color cache as the ctx might be used and the fillStyle changed
-    // externally.
-    this.previousFillStyle = undefined;
   }
 
   clip(x: number, y: number, w: number, h: number): Disposable {

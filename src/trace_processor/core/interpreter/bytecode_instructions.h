@@ -610,6 +610,117 @@ struct Reverse : Bytecode {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_1(RwHandle<Span<uint32_t>>, update_register);
 };
 
+// Fills pre-allocated parent and original_rows spans with data from storage.
+// - Copies parent_id data into parent_span
+// - Sets original_rows_span to identity (0, 1, 2, ...)
+// - Updates span.e = span.b + row_count for both spans
+struct MakeChildToParentTreeStructure : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
+                                     parent_id_storage_register,
+                                     uint32_t,
+                                     row_count,
+                                     RwHandle<Span<uint32_t>>,
+                                     parent_span_register,
+                                     RwHandle<Span<uint32_t>>,
+                                     original_rows_span_register);
+};
+
+// Creates CSR (Compressed Sparse Row) spans from parent span.
+// This enables efficient BFS traversal from roots to children.
+// - offsets[i] = start index in children array for node i's children
+// - children = flattened list of child indices
+// - roots = list of root node indices (nodes with kNullParent)
+//
+// Example: For a tree with parent array [NULL, 0, 0, 1] representing:
+//     0 (root)
+//    / |
+//   1   2
+//   |
+//   3
+//
+// Output:
+//   offsets  = [0, 2, 3, 3, 3]  (node 0 has 2 children at indices 0-1,
+//                                node 1 has 1 child at index 2, etc.)
+//   children = [1, 2, 3]        (node 0's children: 1,2; node 1's child: 3)
+//   roots    = [0]              (single root)
+//
+// The node count is derived from parent_span_register.size().
+//
+// Registers:
+//   - parent_span: input span containing parent indices (kNullParent for roots)
+//   - scratch: size = n, used for child_counts during two-pass algorithm
+//   - offsets: size = n + 1, output span for CSR offsets
+//   - children: size = n, output span for children (actual size = n -
+//   root_count)
+//   - roots: size = n, output span for roots (actual size = root_count)
+struct MakeParentToChildTreeStructure : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{15};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(ReadHandle<Span<uint32_t>>,
+                                     parent_span_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     scratch_register,
+                                     RwHandle<Span<uint32_t>>,
+                                     offsets_register,
+                                     RwHandle<Span<uint32_t>>,
+                                     children_register,
+                                     RwHandle<Span<uint32_t>>,
+                                     roots_register);
+};
+
+// Converts a span of indices to a BitVector with bits set at those indices.
+// Used to convert filtered node indices into a bitvector for FilterTree.
+struct IndexSpanToBitvector : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{5};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<Span<uint32_t>>,
+                                     indices_register,
+                                     uint32_t,
+                                     bitvector_size,
+                                     WriteHandle<BitVector>,
+                                     dest_register);
+};
+
+// Filters a tree by keeping only nodes specified in the bitvector.
+// Children of removed nodes are reparented to their closest surviving ancestor.
+// The parent and original_rows spans are compacted in-place to remove filtered
+// nodes.
+//
+// Algorithm:
+//   1. BFS from roots using CSR structure
+//   2. For each node, track closest surviving ancestor
+//   3. Build compacted parent array with reparenting
+//   4. Build compacted original_rows array
+//
+// The node count is derived from parent_span_register.size().
+// After filtering, both span.e pointers are updated to reflect the new count.
+//
+// Scratch registers:
+//   - scratch1: size = n*2, used for surviving_ancestor (first n) and queue
+//   - scratch2: size = n, used for old_to_new mapping
+struct FilterTree : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{20};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_8(ReadHandle<Span<uint32_t>>,
+                                     offsets_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     children_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     roots_register,
+                                     ReadHandle<BitVector>,
+                                     keep_bitvector_register,
+                                     RwHandle<Span<uint32_t>>,
+                                     parent_span_register,
+                                     RwHandle<Span<uint32_t>>,
+                                     original_rows_span_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     scratch1_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     scratch2_register);
+};
+
 // Bytecode ops that require FilterValueFetcher access.
 #define PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X) \
   X(CastFilterValue<Id>)                        \
@@ -759,7 +870,11 @@ struct Reverse : Bytecode {
   X(In<Int64>)                                         \
   X(In<Double>)                                        \
   X(In<String>)                                        \
-  X(Reverse)
+  X(Reverse)                                           \
+  X(MakeChildToParentTreeStructure)                    \
+  X(MakeParentToChildTreeStructure)                    \
+  X(IndexSpanToBitvector)                              \
+  X(FilterTree)
 
 // Combined list of all bytecode instruction types.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \

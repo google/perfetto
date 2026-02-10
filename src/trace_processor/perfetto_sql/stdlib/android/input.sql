@@ -402,3 +402,107 @@ SELECT
   vsync_id,
   window_id
 FROM __intrinsic_android_input_event_dispatch;
+
+CREATE PERFETTO TABLE _input_consumers_lookup AS
+SELECT
+  id,
+  track_id,
+  ts,
+  dur,
+  printf('0x%x', extract_arg(arg_set_id, 'cookie')) AS cookie
+FROM slice
+WHERE
+  name GLOB 'InputConsumer processing on*';
+
+CREATE PERFETTO INDEX _input_consumers_lookup_idx ON _input_consumers_lookup(cookie);
+
+CREATE PERFETTO TABLE _frame_choreographer_lookup AS
+SELECT
+  id,
+  track_id,
+  ts,
+  dur,
+  CAST(str_split(name, ' ', 1) AS INTEGER) AS frame_id
+FROM slice
+WHERE
+  name GLOB 'Choreographer#doFrame*';
+
+CREATE PERFETTO INDEX _frame_choreographer_lookup_idx ON _frame_choreographer_lookup(frame_id);
+
+-- Retrieves the full lifecycle of an Android input event (Read -> Dispatch -> Receive -> Consume -> Frame)
+-- by matching a given slice ID from any stage of the pipeline.
+CREATE PERFETTO FUNCTION _android_input_lifecycle_by_slice_id(
+    -- The Slice ID any slice in the input lifecycle.
+    slice_id LONG
+)
+RETURNS TABLE (
+  -- The unique integer identifier of the input event.
+  input_id STRING,
+  -- The name of the input channel.
+  channel STRING,
+  -- Total duration from input read to end of frame.
+  total_latency LONG,
+  -- Timestamps
+  ts_reader LONG,
+  ts_dispatch LONG,
+  ts_receive LONG,
+  ts_consume LONG,
+  ts_frame LONG,
+  -- InputReader Stage
+  id_reader LONG,
+  track_reader LONG,
+  dur_reader LONG,
+  -- InputDispatcher Stage
+  id_dispatch LONG,
+  track_dispatch LONG,
+  dur_dispatch LONG,
+  -- App Receiver Stage
+  id_receive LONG,
+  track_receive LONG,
+  dur_receive LONG,
+  -- InputConsumer Stage
+  id_consume LONG,
+  track_consume LONG,
+  dur_consume LONG,
+  -- Choreographer Frame Stage
+  id_frame LONG,
+  track_frame LONG,
+  dur_frame LONG
+) AS
+SELECT
+  e.input_event_id AS input_id,
+  e.event_channel AS channel,
+  e.end_to_end_latency_dur AS total_latency,
+  e.read_time AS ts_reader,
+  e.dispatch_ts AS ts_dispatch,
+  e.receive_ts AS ts_receive,
+  s_cons.ts AS ts_consume,
+  s_frame.ts AS ts_frame,
+  s_read.id AS id_reader,
+  s_read.track_id AS track_reader,
+  s_read.dur AS dur_reader,
+  s_disp.id AS id_dispatch,
+  e.dispatch_track_id AS track_dispatch,
+  s_disp.dur AS dur_dispatch,
+  s_recv.id AS id_receive,
+  e.receive_track_id AS track_receive,
+  s_recv.dur AS dur_receive,
+  s_cons.id AS id_consume,
+  s_cons.track_id AS track_consume,
+  s_cons.dur AS dur_consume,
+  s_frame.id AS id_frame,
+  s_frame.track_id AS track_frame,
+  s_frame.dur AS dur_frame
+FROM android_input_events AS e
+LEFT JOIN slice AS s_read
+  ON s_read.ts = e.read_time AND s_read.track_id != 0
+LEFT JOIN slice AS s_disp
+  ON s_disp.ts = e.dispatch_ts AND s_disp.track_id = e.dispatch_track_id
+LEFT JOIN slice AS s_recv
+  ON s_recv.ts = e.receive_ts AND s_recv.track_id = e.receive_track_id
+LEFT JOIN _input_consumers_lookup AS s_cons
+  ON s_cons.cookie = e.event_seq
+LEFT JOIN _frame_choreographer_lookup AS s_frame
+  ON s_frame.frame_id = CAST(e.frame_id AS LONG)
+WHERE
+  $slice_id IN (s_read.id, s_disp.id, s_recv.id, s_cons.id, s_frame.id);

@@ -1404,6 +1404,7 @@ perfetto_filegroup(
         "include/perfetto/trace_processor/iterator.h",
         "include/perfetto/trace_processor/metatrace_config.h",
         "include/perfetto/trace_processor/read_trace.h",
+        "include/perfetto/trace_processor/summarizer.h",
         "include/perfetto/trace_processor/trace_processor.h",
     ],
 )
@@ -1975,6 +1976,7 @@ perfetto_filegroup(
         "src/trace_processor/core/common/op_types.h",
         "src/trace_processor/core/common/sort_types.h",
         "src/trace_processor/core/common/storage_types.h",
+        "src/trace_processor/core/common/tree_types.h",
         "src/trace_processor/core/common/value_fetcher.h",
     ],
 )
@@ -3141,6 +3143,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_conversion.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_conversion.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_filter.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_filter.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.h",
     ],
@@ -3757,6 +3761,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/filter.sql",
         "src/trace_processor/perfetto_sql/stdlib/std/trees/table_conversion.sql",
     ],
 )
@@ -4080,6 +4085,8 @@ perfetto_cc_proto_descriptor(
 perfetto_filegroup(
     name = "src_trace_processor_trace_summary_trace_summary",
     srcs = [
+        "src/trace_processor/trace_summary/summarizer.cc",
+        "src/trace_processor/trace_summary/summarizer.h",
         "src/trace_processor/trace_summary/summary.cc",
         "src/trace_processor/trace_summary/summary.h",
     ],
@@ -7449,6 +7456,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_perfetto_protos",
     srcs = [
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+        "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
     ],
     visibility = [
