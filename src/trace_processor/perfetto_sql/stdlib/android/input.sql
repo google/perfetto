@@ -93,7 +93,7 @@ WITH
     JOIN slice AS start_dispatch_slice
       ON publish_slice.parent_id = start_dispatch_slice.id
     JOIN slice AS enqueue_slice
-      ON start_dispatch_slice.parent_id = enqeue_slice.id
+      ON start_dispatch_slice.parent_id = enqueue_slice.id
     JOIN thread_slice
       ON send_message_slice.id = thread_slice.id
     WHERE
