@@ -38,6 +38,9 @@ export class WebGLRenderer implements Renderer {
   private readonly markers: ChevronBatch;
   private readonly stepArea: StepAreaBatch;
   private transform = Transform2D.Identity;
+  private clipRect:
+    | {left: number; top: number; right: number; bottom: number}
+    | undefined;
 
   constructor(c2d: CanvasRenderingContext2D, gl: WebGL2RenderingContext) {
     this.c2d = c2d;
@@ -90,8 +93,14 @@ export class WebGLRenderer implements Renderer {
   }
 
   drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
-    // Pass buffers directly to the rect batch for efficient GPU upload
-    this.rects.draw(buffers, dataTransform, this.transform);
+    // Use current clip rect, or full canvas if no clip is active
+    const clipRect = this.clipRect ?? {
+      left: 0,
+      top: 0,
+      right: this.gl.canvas.width,
+      bottom: this.gl.canvas.height,
+    };
+    this.rects.draw(buffers, dataTransform, this.transform, clipRect);
   }
 
   drawStepArea(
@@ -150,10 +159,20 @@ export class WebGLRenderer implements Renderer {
     ctx.rect(x, y, w, h);
     ctx.clip();
 
+    // Store clip rect in screen space for shader-based vertex clamping
+    const previousClipRect = this.clipRect;
+    this.clipRect = {
+      left: physX,
+      top: physY,
+      right: physX + physW,
+      bottom: physY + physH,
+    };
+
     return {
       [Symbol.dispose]: () => {
         ctx.restore();
         gl.disable(gl.SCISSOR_TEST);
+        this.clipRect = previousClipRect;
       },
     };
   }
