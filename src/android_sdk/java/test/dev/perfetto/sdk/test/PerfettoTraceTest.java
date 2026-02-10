@@ -31,6 +31,9 @@ import dev.perfetto.sdk.PerfettoTrackEventBuilder;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashSet;
+import java.util.HashMap;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -73,6 +76,7 @@ public class PerfettoTraceTest {
   private final Set<String> mEventNames = new ArraySet<>();
   private final Set<String> mDebugAnnotationNames = new ArraySet<>();
   private final Set<String> mTrackNames = new ArraySet<>();
+  private final Map<String, Set<Long>> mTrackNameToTrackUuids = new HashMap<>();
 
   @Before
   public void setUp() {
@@ -87,6 +91,7 @@ public class PerfettoTraceTest {
     mEventNames.clear();
     mDebugAnnotationNames.clear();
     mTrackNames.clear();
+    mTrackNameToTrackUuids.clear();
   }
 
   @Test
@@ -212,6 +217,50 @@ public class PerfettoTraceTest {
     assertThat(mDebugAnnotationNames).contains("bool_val");
     assertThat(mDebugAnnotationNames).contains("double_val");
     assertThat(mDebugAnnotationNames).contains("string_val");
+  }
+
+  @Test
+  public void testTwoNamedTrackWithDifferentIds() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.instant(FOO_CATEGORY, "event1")
+        .usingNamedTrack(123, FOO, PerfettoTrace.getProcessTrackUuid())
+        .emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "event2")
+        .usingNamedTrack(456, FOO, PerfettoTrace.getProcessTrackUuid())
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    for (TracePacket packet : trace.getPacketList()) {
+      collectTrackNameAndUuid(packet);
+    }
+
+    assertThat(mTrackNameToTrackUuids.get(FOO).size()).isEqualTo(2);
+  }
+
+  @Test
+  public void testTwoNamedTrackWithDifferentParentUuids() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.instant(FOO_CATEGORY, "event1")
+        .usingNamedTrack(123, FOO, PerfettoTrace.getProcessTrackUuid())
+        .emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "event2")
+        .usingNamedTrack(123, FOO, PerfettoTrace.getThreadTrackUuid(Process.myTid()))
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    for (TracePacket packet : trace.getPacketList()) {
+      collectTrackNameAndUuid(packet);
+    }
+
+    assertThat(mTrackNameToTrackUuids.get(FOO).size()).isEqualTo(2);
   }
 
   @Test
@@ -837,4 +886,14 @@ public class PerfettoTraceTest {
     TrackDescriptor desc = packet.getTrackDescriptor();
     mTrackNames.add(desc.getName());
   }
+
+
+  private void collectTrackNameAndUuid(TracePacket packet) {
+    if (!packet.hasTrackDescriptor()) {
+      return;
+    }
+    TrackDescriptor desc = packet.getTrackDescriptor();
+    mTrackNameToTrackUuids.putIfAbsent(desc.getName(), new HashSet<>());
+    mTrackNameToTrackUuids.get(desc.getName()).add(desc.getUuid());
+  } 
 }
