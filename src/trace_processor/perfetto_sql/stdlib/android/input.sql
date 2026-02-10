@@ -80,7 +80,7 @@ WHERE
 
 CREATE PERFETTO TABLE _event_seq_to_input_event_id AS
 WITH
-  raw_channel_data AS (
+  _send_message_events AS (
     SELECT
       send_message_slice.name,
       enqeue_slice.name AS enqueue_name,
@@ -107,7 +107,7 @@ SELECT
   str_split(str_split(enqueue_name, '=', 2), ')', 0) AS input_event_id,
   utid,
   thread_name
-FROM raw_channel_data;
+FROM _send_message_events;
 
 CREATE PERFETTO TABLE _clean_android_frames AS
 SELECT
