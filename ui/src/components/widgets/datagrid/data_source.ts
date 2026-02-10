@@ -14,7 +14,7 @@
 
 import {QueryResult} from '../../../base/query_slot';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {AggregateFunction, Filter, GroupPath} from './model';
+import {AggregateFunction, Filter, GroupPath, IdBasedTree} from './model';
 
 /**
  * Data source interface for DataGrid.
@@ -117,7 +117,19 @@ export interface PivotModel extends DataSourceModelBase {
   readonly collapsedGroups?: readonly GroupPath[];
 }
 
-export type DataSourceModel = FlatModel | PivotModel;
+// Tree mode: hierarchical data using id/parent_id columns
+export interface TreeModel extends DataSourceModelBase {
+  readonly mode: 'tree';
+  // Columns to display
+  readonly columns: readonly {
+    readonly field: string;
+    readonly alias: string;
+  }[];
+  // Tree configuration from IdBasedTree
+  readonly tree: IdBasedTree;
+}
+
+export type DataSourceModel = FlatModel | PivotModel | TreeModel;
 
 export interface DataSourceRows {
   // The total number of rows available in the dataset

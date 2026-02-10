@@ -103,14 +103,25 @@ export interface Pivot {
   readonly collapsedGroups?: readonly GroupPath[];
 }
 
-// ID-based tree configuration for displaying hierarchical data using id/parent_id columns.
-// Uses __intrinsic_tree virtual table for efficient tree operations.
-// Unlike path-based TreeGrouping, this expects the data to have explicit id and parent_id columns.
+// ID-based tree configuration for displaying hierarchical data using
+// id/parent_id columns. Uses recursive CTE for efficient tree traversal with
+// sorting. Unlike path-based pivot tree, this expects the data to have explicit
+// id and parent_id columns.
+//
+// Expansion modes (mutually exclusive):
+// 1. Allowlist (expandedIds): Only specified node IDs are expanded. Empty set =
+//    only root nodes visible (all collapsed).
+// 2. Denylist (collapsedIds): All nodes expanded EXCEPT those specified. Empty
+//    set = all nodes expanded.
+// 3. Neither set: Default to showing only root level (collapsed by default).
+//
+// If both are set, collapsedIds takes precedence (denylist mode).
 export interface IdBasedTree {
-  // Column containing the row's unique ID
-  readonly idColumn: string;
-  // Column containing the parent's ID (NULL for root nodes)
-  readonly parentIdColumn: string;
+  // The field in the datasouce containing the row's unique ID
+  readonly idField: string;
+  // The field in the datasouce containing the parent row's ID (NULL for root
+  // nodes)
+  readonly parentIdField: string;
   // Column to display as the tree (shows chevrons and indentation)
   // If not specified, the first visible column is used
   readonly treeColumn?: string;
@@ -128,9 +139,9 @@ export interface Model {
   // TODO(stevegolton): Add post-aggregate (HAVING) filters.
   readonly pivot?: Pivot;
 
-  // ID-based tree mode using __intrinsic_tree virtual table.
-  // Similar to tree mode but uses explicit id/parent_id columns instead of
-  // path-based hierarchy. Supports sorting and expand/collapse like pivot mode.
-  // Mutually exclusive with pivot and tree modes.
-  readonly idBasedTree?: IdBasedTree;
+  // ID-based tree mode for displaying hierarchical data with id/parent_id columns.
+  // Uses recursive CTE for tree traversal with proper sorting within siblings.
+  // Supports expand/collapse and renders chevrons on the tree column.
+  // Mutually exclusive with pivot mode.
+  readonly tree?: IdBasedTree;
 }
