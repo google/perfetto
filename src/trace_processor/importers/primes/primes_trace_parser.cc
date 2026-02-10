@@ -33,6 +33,8 @@ namespace tracks = perfetto::trace_processor::tracks;
 
 namespace perfetto::trace_processor::primes {
 
+namespace {
+
 static constexpr auto kExecutorDimension =
     tracks::LongDimensionBlueprint("executor_id");
 // Use TrackCompressor::SliceBlueprint for CONCURRENT executors to avoid
@@ -43,8 +45,13 @@ static constexpr auto kExecutorCompressorBlueprint =
         tracks::DimensionBlueprints(kExecutorDimension),
         tracks::DynamicNameBlueprint());
 
+}  // namespace
+
 PrimesTraceParser::PrimesTraceParser(TraceProcessorContext* ctx)
-    : context_(ctx) {}
+    : context_(ctx),
+      edge_id_string_(context_->storage->InternString("edge_id")),
+      parent_id_string_(context_->storage->InternString("parent_id")),
+      debug_edge_id_(context_->storage->InternString("debug_edge_id")) {}
 
 PrimesTraceParser::~PrimesTraceParser() = default;
 
@@ -63,7 +70,7 @@ void PrimesTraceParser::Parse(int64_t ts, TraceBlobView trace_edge) {
         stats::primes_unknown_edge_type, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
           inserter.AddArg(
-              context_->storage->InternString("edge_id"),
+              edge_id_string_,
               Variadic::Integer(static_cast<int64_t>(edge_decoder.id())));
         });
   }
@@ -77,7 +84,6 @@ void PrimesTraceParser::HandleSliceBegin(
   primespb::TraceEdge::TraceEntityDetails::Decoder details_decoder(
       sb_decoder.entity_details());
 
-  TrackId track_id;
   StringId executor_name;
   int64_t executor_id;
   int64_t edge_id = static_cast<int64_t>(edge_decoder.id());
@@ -95,9 +101,9 @@ void PrimesTraceParser::HandleSliceBegin(
       context_->import_logs_tracker->RecordParserError(
           stats::primes_executor_not_found, ts,
           [&](ArgsTracker::BoundInserter& inserter) {
-            inserter.AddArg(context_->storage->InternString("edge_id"),
+            inserter.AddArg(edge_id_string_,
                             Variadic::Integer(edge_id));
-            inserter.AddArg(context_->storage->InternString("parent_id"),
+            inserter.AddArg(parent_id_string_,
                             Variadic::Integer(parent_id));
           });
       return;
@@ -108,7 +114,7 @@ void PrimesTraceParser::HandleSliceBegin(
     context_->import_logs_tracker->RecordParserError(
         stats::primes_missing_parent_id, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(context_->storage->InternString("edge_id"),
+          inserter.AddArg(edge_id_string_,
                           Variadic::Integer(edge_id));
         });
     return;
@@ -117,7 +123,7 @@ void PrimesTraceParser::HandleSliceBegin(
   // use their parent_id to look up their executor.
   edge_to_executor_map_[edge_id] = executor_id;
 
-  track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->track_compressor->InternBegin(
       kExecutorCompressorBlueprint, tracks::Dimensions(executor_id), edge_id,
       executor_name);
 
@@ -148,7 +154,7 @@ void PrimesTraceParser::HandleSliceEnd(
     context_->import_logs_tracker->RecordParserError(
         stats::primes_end_without_matching_begin, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(context_->storage->InternString("edge_id"),
+          inserter.AddArg(edge_id_string_,
                           Variadic::Integer(edge_id));
         });
     return;
@@ -169,7 +175,7 @@ void PrimesTraceParser::HandleMark(int64_t ts,
     context_->import_logs_tracker->RecordParserError(
         stats::primes_missing_entity_details, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(context_->storage->InternString("edge_id"),
+          inserter.AddArg(edge_id_string_,
                           Variadic::Integer(edge_id));
         });
     return;
@@ -180,7 +186,7 @@ void PrimesTraceParser::HandleMark(int64_t ts,
     context_->import_logs_tracker->RecordParserError(
         stats::primes_missing_parent_id, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(context_->storage->InternString("edge_id"),
+          inserter.AddArg(edge_id_string_,
                           Variadic::Integer(edge_id));
         });
     return;
@@ -193,7 +199,7 @@ void PrimesTraceParser::HandleMark(int64_t ts,
     context_->import_logs_tracker->RecordParserError(
         stats::primes_executor_not_found, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(context_->storage->InternString("debug_edge_id"),
+          inserter.AddArg(debug_edge_id_,
                           Variadic::Integer(edge_id));
         });
     return;

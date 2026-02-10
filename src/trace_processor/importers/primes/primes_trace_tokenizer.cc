@@ -35,9 +35,13 @@ PrimesTraceTokenizer::PrimesTraceTokenizer(TraceProcessorContext* ctx)
 
 PrimesTraceTokenizer::~PrimesTraceTokenizer() = default;
 
-static int64_t to_nanos(int64_t seconds, int32_t nanos) {
+namespace {
+
+static int64_t ToNanos(int64_t seconds, int32_t nanos) {
   return seconds * 1000000000LL + nanos;
 }
+
+}  // namespace
 
 // Uses ProtoDecoder to buffer and parse the Trace message.
 // 1. Buffers all incoming TraceBlobView chunks.
@@ -65,7 +69,7 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
     return base::ErrStatus("Primes Trace proto did not contain a start time.");
   }
   primespb::Timestamp::Decoder ts_decoder(decoder.start_time());
-  int64_t start_time = to_nanos(ts_decoder.seconds(), ts_decoder.nanos());
+  int64_t start_time = ToNanos(ts_decoder.seconds(), ts_decoder.nanos());
 
   for (auto edge = decoder.edges(); edge; ++edge) {
     // Calculate the timestamp for this edge.
@@ -80,7 +84,7 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
     primespb::Duration::Decoder offset_decoder(
         edge_decoder.trace_start_offset());
     int64_t edge_timestamp =
-        start_time + to_nanos(offset_decoder.seconds(), offset_decoder.nanos());
+        start_time + ToNanos(offset_decoder.seconds(), offset_decoder.nanos());
 
     // Create a TraceBlobView for the edge data.
     TraceBlobView edge_slice = slice->slice_off(

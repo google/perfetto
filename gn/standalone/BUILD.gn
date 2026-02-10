@@ -105,7 +105,6 @@ config("extra_warnings") {
       # TODO(primiano): -Wswitch-default could be useful but will require a mass
       # codebase cleanup.
       "-Wno-switch-default",
-      "-Wno-nullability-extension",
     ]
 
     # This is required for at least upstream and FreeBSD clang 19.
@@ -218,13 +217,6 @@ config("default") {
     ldflags += [
       "-Wl,--build-id",
       "-Wl,-z,max-page-size=16384",
-    ]
-  }
-
-  if (is_mac && !is_wasm) {
-    ldflags += [
-      "-framework",
-      "CoreFoundation",
     ]
   }
 

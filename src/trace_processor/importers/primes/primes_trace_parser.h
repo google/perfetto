@@ -46,6 +46,9 @@ class PrimesTraceParser
   void HandleFlows(
       TrackId track_id,
       const primespb::TraceEdge::TraceEntityDetails::Decoder& details);
+  StringPool::Id edge_id_string_;
+  StringPool::Id parent_id_string_;
+  StringPool::Id debug_edge_id_;
 };
 
 }  // namespace perfetto::trace_processor::primes
