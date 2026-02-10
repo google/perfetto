@@ -14,8 +14,8 @@
 
 import {assertExists} from '../../base/logging';
 import {
-  metricsFromTableOrSubquery,
   QueryFlamegraph,
+  QueryFlamegraphMetric,
   QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {PerfettoPlugin} from '../../public/plugin';
@@ -67,6 +67,8 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   ];
 
   private store?: Store<LinuxPerfPluginState>;
+  // Cache of counter types per perf session, populated during onTraceLoad.
+  private counterTypesBySession = new Map<number, {name: string}[]>();
 
   private migrateLinuxPerfPluginState(init: unknown): LinuxPerfPluginState {
     const result = LINUX_PERF_PLUGIN_STATE_SCHEMA.safeParse(init);
@@ -78,6 +80,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       this.migrateLinuxPerfPluginState(init),
     );
     const store = assertExists(this.store);
+    await this.cacheCounterTypesPerSession(trace);
     await this.addProcessPerfSamplesTracks(trace, store);
     await this.addThreadPerfSamplesTracks(trace, store);
     await this.addPerfCounterTracks(trace);
@@ -85,6 +88,36 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     trace.onTraceReady.addListener(async () => {
       await selectPerfTracksIfSingleProcess(trace);
     });
+  }
+
+  // Pre-fetch and cache all counter types per perf session for faster
+  // flamegraph rendering.
+  private async cacheCounterTypesPerSession(trace: Trace): Promise<void> {
+    const result = await trace.engine.query(`
+      SELECT pct.perf_session_id, pct.name, MAX(pct.is_timebase) as is_timebase
+      FROM perf_counter_track pct
+      GROUP BY pct.perf_session_id, pct.name
+      ORDER BY pct.perf_session_id, is_timebase DESC, pct.name
+    `);
+
+    for (
+      const it = result.iter({
+        perf_session_id: NUM,
+        name: STR_NULL,
+        is_timebase: NUM_NULL,
+      });
+      it.valid();
+      it.next()
+    ) {
+      const sessionId = it.perf_session_id;
+      const name = it.name;
+      if (name === null) continue;
+
+      if (!this.counterTypesBySession.has(sessionId)) {
+        this.counterTypesBySession.set(sessionId, []);
+      }
+      this.counterTypesBySession.get(sessionId)!.push({name});
+    }
   }
 
   private async addProcessPerfSamplesTracks(
@@ -404,11 +437,11 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
         if (changed) {
+          previousSelection = selection;
           flamegraphWithMetrics = this.computePerfSampleFlamegraph(
             trace,
             selection,
           );
-          previousSelection = selection;
         }
         if (flamegraphWithMetrics === undefined) {
           return undefined;
@@ -441,6 +474,17 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       return undefined;
     }
 
+    // Get unique session IDs from selected tracks
+    const sessionIds = [
+      ...new Set([
+        ...processTrackTags.map(([_, sessionId]) => sessionId),
+        ...threadTrackTags.map(([_, sessionId]) => sessionId),
+      ]),
+    ];
+
+    // Get available counter types for selected sessions from cache
+    const counterTypes = this.getCounterTypesForSessions(sessionIds);
+
     const trackConstraints = [
       ...processTrackTags.map(
         ([upid, sessionId]) =>
@@ -452,16 +496,68 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       ),
     ].join(' OR ');
 
-    const metrics = metricsFromTableOrSubquery({
-      tableOrSubquery: `
-      (
+    const metrics: QueryFlamegraphMetric[] = [];
+
+    // Common properties for all metrics
+    const unaggregatableProperties = [
+      {name: 'mapping_name', displayName: 'Mapping'},
+    ];
+    const aggregatableProperties = [
+      {
+        name: 'source_location',
+        displayName: 'Source location',
+        mergeAggregation: 'ONE_OR_SUMMARY' as const,
+      },
+    ];
+
+    // Add a metric for each counter type (uses weighted macro with counter values)
+    for (const {name: counterName} of counterTypes) {
+      metrics.push({
+        name: `Perf Samples (${counterName})`,
+        unit: '',
+        nameColumnLabel: 'Symbol',
+        dependencySql: `
+          include perfetto module callstacks.stack_profile;
+          include perfetto module linux.perf.counters;
+        `,
+        statement: `
+          select
+            id,
+            parent_id as parentId,
+            name,
+            mapping_name,
+            source_file || ':' || line_number as source_location,
+            self_value as value
+          from _callstacks_for_callsites_weighted!((
+            select p.callsite_id, p.counter_value as value
+            from linux_perf_sample_with_counters p
+            join thread t ON p.utid = t.id
+            join perf_counter_track pct ON p.track_id = pct.id
+            where p.ts >= ${currentSelection.start}
+              and p.ts <= ${currentSelection.end}
+              and pct.name = '${counterName}'
+              and (${trackConstraints})
+          ))
+        `,
+        unaggregatableProperties,
+        aggregatableProperties,
+      });
+    }
+
+    // Add sample count metric (uses existing query)
+    metrics.push({
+      name: 'Perf Samples (Sample Count)',
+      unit: '',
+      nameColumnLabel: 'Symbol',
+      dependencySql: 'include perfetto module linux.perf.samples',
+      statement: `
         select
           id,
           parent_id as parentId,
           name,
           mapping_name,
           source_file || ':' || line_number as source_location,
-          self_count
+          self_count as value
         from _callstacks_for_callsites!((
           select p.callsite_id
           from perf_sample p
@@ -470,28 +566,11 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
             and p.ts <= ${currentSelection.end}
             and (${trackConstraints})
         ))
-      )
-    `,
-      tableMetrics: [
-        {
-          name: 'Perf Samples',
-          unit: '',
-          columnName: 'self_count',
-        },
-      ],
-      dependencySql: 'include perfetto module linux.perf.samples',
-      unaggregatableProperties: [
-        {name: 'mapping_name', displayName: 'Mapping'},
-      ],
-      aggregatableProperties: [
-        {
-          name: 'source_location',
-          displayName: 'Source location',
-          mergeAggregation: 'ONE_OR_SUMMARY',
-        },
-      ],
-      nameColumnLabel: 'Symbol',
+      `,
+      unaggregatableProperties,
+      aggregatableProperties,
     });
+
     const store = assertExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
@@ -500,6 +579,29 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       );
     });
     return {flamegraph: new QueryFlamegraph(trace), metrics};
+  }
+
+  // Get counter types for the given session IDs from the pre-populated cache.
+  private getCounterTypesForSessions(sessionIds: number[]): {name: string}[] {
+    if (sessionIds.length === 0) {
+      return [];
+    }
+
+    // Collect unique counter names across all sessions, preserving order
+    // (timebase counters first, then alphabetical).
+    const seen = new Set<string>();
+    const counterTypes: {name: string}[] = [];
+
+    for (const sessionId of sessionIds) {
+      const counters = this.counterTypesBySession.get(sessionId) ?? [];
+      for (const counter of counters) {
+        if (!seen.has(counter.name)) {
+          seen.add(counter.name);
+          counterTypes.push(counter);
+        }
+      }
+    }
+    return counterTypes;
   }
 }
 
