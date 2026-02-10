@@ -101,10 +101,8 @@ void PrimesTraceParser::HandleSliceBegin(
       context_->import_logs_tracker->RecordParserError(
           stats::primes_executor_not_found, ts,
           [&](ArgsTracker::BoundInserter& inserter) {
-            inserter.AddArg(edge_id_string_,
-                            Variadic::Integer(edge_id));
-            inserter.AddArg(parent_id_string_,
-                            Variadic::Integer(parent_id));
+            inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
+            inserter.AddArg(parent_id_string_, Variadic::Integer(parent_id));
           });
       return;
     }
@@ -114,8 +112,7 @@ void PrimesTraceParser::HandleSliceBegin(
     context_->import_logs_tracker->RecordParserError(
         stats::primes_missing_parent_id, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(edge_id_string_,
-                          Variadic::Integer(edge_id));
+          inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
         });
     return;
   }
@@ -154,8 +151,7 @@ void PrimesTraceParser::HandleSliceEnd(
     context_->import_logs_tracker->RecordParserError(
         stats::primes_end_without_matching_begin, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(edge_id_string_,
-                          Variadic::Integer(edge_id));
+          inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
         });
     return;
   }
@@ -175,8 +171,7 @@ void PrimesTraceParser::HandleMark(int64_t ts,
     context_->import_logs_tracker->RecordParserError(
         stats::primes_missing_entity_details, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(edge_id_string_,
-                          Variadic::Integer(edge_id));
+          inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
         });
     return;
   }
@@ -186,8 +181,7 @@ void PrimesTraceParser::HandleMark(int64_t ts,
     context_->import_logs_tracker->RecordParserError(
         stats::primes_missing_parent_id, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(edge_id_string_,
-                          Variadic::Integer(edge_id));
+          inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
         });
     return;
   }
@@ -199,8 +193,7 @@ void PrimesTraceParser::HandleMark(int64_t ts,
     context_->import_logs_tracker->RecordParserError(
         stats::primes_executor_not_found, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(debug_edge_id_,
-                          Variadic::Integer(edge_id));
+          inserter.AddArg(debug_edge_id_, Variadic::Integer(edge_id));
         });
     return;
   }
