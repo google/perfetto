@@ -65,7 +65,7 @@ clean:
 	touch $@
 
 .deps/upload-startup-script: ${GCE_LOCAL_STARTUP_SCRIPT} ${COMMON_DEPS}
-	gcloud storage cp --predefined-acl=public-read ${GCE_LOCAL_STARTUP_SCRIPT} ${GCE_STARTUP_SCRIPT}
+	gcloud storage cp --predefined-acl=publicRead ${GCE_LOCAL_STARTUP_SCRIPT} ${GCE_STARTUP_SCRIPT}
 	touch $@
 
 .deps/gce-template: ${COMMON_DEPS} .deps/upload-startup-script
