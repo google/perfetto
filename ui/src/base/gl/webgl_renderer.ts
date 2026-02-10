@@ -38,7 +38,9 @@ export class WebGLRenderer implements Renderer {
   private readonly markers: ChevronBatch;
   private readonly stepArea: StepAreaBatch;
   private transform = Transform2D.Identity;
-  private clipRect: {left: number; top: number; right: number; bottom: number} | undefined;
+  private clipRect:
+    | {left: number; top: number; right: number; bottom: number}
+    | undefined;
 
   constructor(c2d: CanvasRenderingContext2D, gl: WebGL2RenderingContext) {
     this.c2d = c2d;

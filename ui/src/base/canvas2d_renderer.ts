@@ -188,7 +188,12 @@ export class Canvas2DRenderer implements Renderer {
         ctx.save();
         ctx.globalCompositeOperation = 'destination-out';
         // Fade ends at the clamped right edge
-        const gradient = ctx.createLinearGradient(drawX, drawY, drawX + drawW, drawY);
+        const gradient = ctx.createLinearGradient(
+          drawX,
+          drawY,
+          drawX + drawW,
+          drawY,
+        );
         gradient.addColorStop(0.66, 'rgba(0, 0, 0, 0)');
         gradient.addColorStop(1.0, 'rgba(0, 0, 0, 1)');
         ctx.fillStyle = gradient;
