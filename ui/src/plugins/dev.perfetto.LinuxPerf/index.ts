@@ -428,7 +428,6 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   private createAreaSelectionTab(trace: Trace) {
     let previousSelection: AreaSelection | undefined;
     let flamegraphWithMetrics: QueryFlamegraphWithMetrics | undefined;
-    let isLoading = false;
 
     return {
       id: 'perf_sample_flamegraph',
@@ -439,20 +438,10 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           !areaSelectionsEqual(previousSelection, selection);
         if (changed) {
           previousSelection = selection;
-          flamegraphWithMetrics = undefined;
-          isLoading = true;
-
-          this.computePerfSampleFlamegraph(trace, selection).then((result) => {
-            flamegraphWithMetrics = result;
-            isLoading = false;
-            trace.raf.scheduleFullRedraw();
-          });
-        }
-        if (isLoading) {
-          return {
-            isLoading: true,
-            content: undefined,
-          };
+          flamegraphWithMetrics = this.computePerfSampleFlamegraph(
+            trace,
+            selection,
+          );
         }
         if (flamegraphWithMetrics === undefined) {
           return undefined;
@@ -475,10 +464,10 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     };
   }
 
-  private async computePerfSampleFlamegraph(
+  private computePerfSampleFlamegraph(
     trace: Trace,
     currentSelection: AreaSelection,
-  ): Promise<QueryFlamegraphWithMetrics | undefined> {
+  ): QueryFlamegraphWithMetrics | undefined {
     const processTrackTags = getSelectedProcessTrackTags(currentSelection);
     const threadTrackTags = getSelectedThreadTrackTags(currentSelection);
     if (processTrackTags.length === 0 && threadTrackTags.length === 0) {
