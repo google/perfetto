@@ -20,6 +20,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
+#include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
 
@@ -37,26 +38,48 @@ void BytecodeBuilder::ClearCacheScope(uint32_t scope_id) {
 }
 
 BytecodeBuilder::ScratchRegisters BytecodeBuilder::GetOrCreateScratchRegisters(
+    uint32_t slot_id,
     uint32_t size) {
-  if (scratch_indices_) {
-    PERFETTO_CHECK(size <= scratch_indices_->size);
-    PERFETTO_CHECK(!scratch_indices_->in_use);
-    return ScratchRegisters{scratch_indices_->slab, scratch_indices_->span};
+  if (slot_id >= scratch_slots_.size()) {
+    scratch_slots_.resize(slot_id + 1);
+  }
+  auto& slot = scratch_slots_[slot_id];
+  if (slot.has_value()) {
+    PERFETTO_CHECK(size <= slot->size);
+    PERFETTO_CHECK(!slot->in_use);
+    return ScratchRegisters{slot->slab, slot->span};
   }
   auto slab = AllocateRegister<Slab<uint32_t>>();
   auto span = AllocateRegister<Span<uint32_t>>();
-  scratch_indices_ = ScratchIndices{size, slab, span, false};
+  slot = ScratchIndices{size, slab, span, false};
   return ScratchRegisters{slab, span};
 }
 
-void BytecodeBuilder::MarkScratchInUse() {
-  PERFETTO_CHECK(scratch_indices_.has_value());
-  scratch_indices_->in_use = true;
+BytecodeBuilder::ScratchRegisters BytecodeBuilder::AllocateScratch(
+    uint32_t slot_id,
+    uint32_t size) {
+  auto regs = GetOrCreateScratchRegisters(slot_id, size);
+
+  auto& alloc = AddOpcode<AllocateIndices>(Index<AllocateIndices>());
+  alloc.arg<AllocateIndices::size>() = size;
+  alloc.arg<AllocateIndices::dest_slab_register>() = regs.slab;
+  alloc.arg<AllocateIndices::dest_span_register>() = regs.span;
+
+  // GetOrCreateScratchRegisters guarantees the slot exists
+  scratch_slots_[slot_id]->in_use = true;
+
+  return regs;
 }
 
-void BytecodeBuilder::ReleaseScratch() {
-  if (scratch_indices_) {
-    scratch_indices_->in_use = false;
+void BytecodeBuilder::MarkScratchInUse(uint32_t slot_id) {
+  PERFETTO_CHECK(slot_id < scratch_slots_.size() &&
+                 scratch_slots_[slot_id].has_value());
+  scratch_slots_[slot_id]->in_use = true;
+}
+
+void BytecodeBuilder::ReleaseScratch(uint32_t slot_id) {
+  if (slot_id < scratch_slots_.size() && scratch_slots_[slot_id].has_value()) {
+    scratch_slots_[slot_id]->in_use = false;
   }
 }
 

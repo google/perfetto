@@ -236,6 +236,10 @@ export class TraceImpl implements Trace, Disposable {
     return this;
   }
 
+  get taskTracker() {
+    return this.app.taskTracker;
+  }
+
   get currentWorkspace() {
     return this.workspaces.currentWorkspace;
   }

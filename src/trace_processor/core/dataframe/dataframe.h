@@ -33,6 +33,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/cursor.h"
+#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -186,8 +187,8 @@ class Dataframe {
   template <typename FilterValueFetcherImpl>
   void PrepareCursor(const QueryPlan& plan,
                      Cursor<FilterValueFetcherImpl>& c) const {
-    c.Initialize(plan.plan_, uint32_t(column_ptrs_.size()), column_ptrs_.data(),
-                 indexes_.data(), string_pool_);
+    c.Initialize(plan.plan_, static_cast<uint32_t>(column_ptrs_.size()),
+                 column_ptrs_.data(), indexes_.data(), string_pool_);
   }
 
   // Given a typed spec, a column index and a row index, returns the value
@@ -408,6 +409,8 @@ class Dataframe {
  private:
   friend class AdhocDataframeBuilder;
   friend class TypedCursor;
+  friend class QueryPlanBuilder;
+  friend struct QueryPlanImpl;
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.

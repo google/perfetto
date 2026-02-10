@@ -20,10 +20,10 @@ import {QueryExecutionService} from './query_execution_service';
  *
  * Responsibilities:
  * - Cleans up JavaScript resources (intervals, subscriptions) via dispose()
- * - Cleans up SQL resources (materialized tables)
- * - Provides cleanup on component unmount
  * - Coordinates cleanup between multiple cleanup operations
- * - Prevents orphaned resources
+ *
+ * Note: Materialized tables are managed by Trace Processor. Use
+ * dropAllMaterializations() on component unmount for full cleanup.
  */
 export class CleanupManager {
   private queryExecutionService: QueryExecutionService;
@@ -43,12 +43,11 @@ export class CleanupManager {
 
   /**
    * Cleans up a single node's resources.
-   * Handles both synchronous (JS) and asynchronous (SQL) cleanup.
    *
    * @param node The node to clean up
    */
-  async cleanupNode(node: QueryNode): Promise<void> {
-    // First: Synchronous cleanup (intervals, subscriptions, etc.)
+  cleanupNode(node: QueryNode): void {
+    // Synchronous cleanup (intervals, subscriptions, etc.)
     if (this.isDisposable(node)) {
       try {
         node.dispose();
@@ -57,75 +56,18 @@ export class CleanupManager {
           `Failed to dispose resources for node ${node.nodeId}:`,
           e,
         );
-        // Continue - don't block cleanup on individual failures
       }
     }
-
-    // Second: Asynchronous cleanup (materialized tables)
-    if (node.state.materialized === true) {
-      try {
-        await this.queryExecutionService.dropMaterialization(node);
-      } catch (e) {
-        console.error(
-          `Failed to drop materialization for node ${node.nodeId}:`,
-          e,
-        );
-        // Continue - don't block cleanup on individual failures
-      }
-    }
-
-    // Third: Clean up cached query hash to prevent memory leak
-    this.queryExecutionService.deleteNodeHash(node);
   }
 
   /**
-   * Cleans up multiple nodes' resources in parallel.
+   * Cleans up multiple nodes' resources.
    *
    * @param nodes The nodes to clean up
    */
-  async cleanupNodes(nodes: QueryNode[]): Promise<void> {
-    // First: Synchronous cleanup (dispose) for all nodes
+  cleanupNodes(nodes: QueryNode[]): void {
     for (const node of nodes) {
-      if (this.isDisposable(node)) {
-        try {
-          node.dispose();
-        } catch (e) {
-          console.error(
-            `Failed to dispose resources for node ${node.nodeId}:`,
-            e,
-          );
-          // Continue - don't block cleanup on individual failures
-        }
-      }
-    }
-
-    // Second: Asynchronous cleanup (materialized tables) in parallel
-    const materialized = nodes.filter(
-      (node) => node.state.materialized === true,
-    );
-
-    if (materialized.length > 0) {
-      // Drop all materializations in parallel
-      const results = await Promise.allSettled(
-        materialized.map((node) =>
-          this.queryExecutionService.dropMaterialization(node),
-        ),
-      );
-
-      // Log failures but don't throw - cleanup should be best-effort
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          console.error(
-            `Failed to drop materialization for node ${materialized[index].nodeId}:`,
-            result.reason,
-          );
-        }
-      });
-    }
-
-    // Third: Clean up cached query hashes for all nodes to prevent memory leak
-    for (const node of nodes) {
-      this.queryExecutionService.deleteNodeHash(node);
+      this.cleanupNode(node);
     }
   }
 
@@ -136,6 +78,13 @@ export class CleanupManager {
    * @param allNodes All nodes in the graph
    */
   async cleanupAll(allNodes: QueryNode[]): Promise<void> {
-    await this.cleanupNodes(allNodes);
+    // Step 1 (synchronous): Dispose JS resources (intervals, subscriptions).
+    // This is synchronous and completes before Step 2 starts, ensuring no JS
+    // code (e.g., timers, callbacks) tries to access tables during cleanup.
+    this.cleanupNodes(allNodes);
+
+    // Step 2 (async): Drop all materialized tables in TP.
+    // Safe to call after Step 1 because all JS resources are already disposed.
+    await this.queryExecutionService.dropAllMaterializations();
   }
 }

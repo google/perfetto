@@ -395,20 +395,6 @@ struct StructuredQueryBytes {
   Format format;
 };
 
-// Experimental. Not considered part of Trace Processor API and shouldn't be
-// used.
-struct AnalyzedStructuredQuery {
-  std::string sql;
-  std::string textproto;
-
-  // Modules referenced by sql
-  std::vector<std::string> modules;
-  // Preambles referenced by sql
-  std::vector<std::string> preambles;
-  // Columns output by sql
-  std::vector<std::string> columns;
-};
-
 // Deprecated. Please use `RegisterSqlPackage` and `SqlPackage` instead.
 struct SqlModule {
   std::string name;

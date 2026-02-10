@@ -216,6 +216,13 @@
   border-radius: 4px;
 }
 
+// Filter in column selectors - side by side layout
+.pf-filter-in-column-selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 // Join column selector - for selecting columns with checkboxes and aliasing
 .pf-join-column-selector {
   display: flex;

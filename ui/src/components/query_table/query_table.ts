@@ -293,12 +293,13 @@ export class QueryResultsTable
     return m(DataGrid, {
       schema,
       rootSchema: 'data',
-      initialColumns: resp.columns.map((col) => ({id: col, field: col})),
-      // If filters are defined by no onFilterChanged handler, the grid operates
-      // in filter read only mode.
-      enablePivotControls: false, // In-memory datasource does not support pivoting
+      // Fixed columns - ensures that any changes to the query response are
+      // reflected in the table immediately.
+      // TODO(stevegolton): Support column manipulation but sync with results on
+      // the query page.
+      columns: resp.columns.map((col) => ({id: col, field: col})),
+      enablePivotControls: false, // In-memory datasource doesn't support pivot
       fillHeight: true,
-      filters: [],
       data: dataSource,
       onReady: (api) => {
         this.dataGridApi = api;

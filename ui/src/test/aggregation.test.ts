@@ -65,7 +65,15 @@ test('sched', async () => {
 
 test('gpu counter', async () => {
   await page.keyboard.press('Escape');
-  const gpuTrack = pth.locateTrack('Gpu 0 Frequency');
+  const gpuGroup = pth.locateTrack('GPU');
+  await gpuGroup.scrollIntoViewIfNeeded();
+  await pth.toggleTrackGroup(gpuGroup);
+  const gpuFreqGroup = pth.locateTrack('GPU/GPU Frequency', gpuGroup);
+  await pth.toggleTrackGroup(gpuFreqGroup);
+  const gpuTrack = pth.locateTrack(
+    'GPU/GPU Frequency/Gpu 0 Frequency',
+    gpuFreqGroup,
+  );
   const coords = assertExists(await gpuTrack.boundingBox());
   await page.mouse.move(600, coords.y + 10);
   await page.mouse.down();

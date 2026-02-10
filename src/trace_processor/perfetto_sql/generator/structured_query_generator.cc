@@ -233,6 +233,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> CounterIntervals(
       const StructuredQuery::ExperimentalCounterIntervals::Decoder&);
 
+  base::StatusOr<std::string> FilterIn(
+      const StructuredQuery::ExperimentalFilterIn::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
   static base::StatusOr<std::string> ExperimentalFilterGroup(
@@ -301,7 +304,8 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
       !root_query.has_group_by() && !root_query.select_columns() &&
       !root_query.has_experimental_add_columns() &&
       !root_query.has_experimental_create_slices() &&
-      !root_query.has_experimental_counter_intervals();
+      !root_query.has_experimental_counter_intervals() &&
+      !root_query.has_experimental_filter_in();
 
   std::string sql = "WITH ";
   size_t cte_count = 0;
@@ -387,6 +391,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
       StructuredQuery::ExperimentalCounterIntervals::Decoder
           counter_intervals_decoder(q.experimental_counter_intervals());
       ASSIGN_OR_RETURN(source, CounterIntervals(counter_intervals_decoder));
+    } else if (q.has_experimental_filter_in()) {
+      StructuredQuery::ExperimentalFilterIn::Decoder filter_in_decoder(
+          q.experimental_filter_in());
+      ASSIGN_OR_RETURN(source, FilterIn(filter_in_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -1235,6 +1243,37 @@ base::StatusOr<std::string> GeneratorImpl::CounterIntervals(
   return sql;
 }
 
+base::StatusOr<std::string> GeneratorImpl::FilterIn(
+    const StructuredQuery::ExperimentalFilterIn::Decoder& filter_in) {
+  // Validate required fields
+  if (filter_in.base().size == 0) {
+    return base::ErrStatus("FilterIn must specify a base query");
+  }
+  if (filter_in.match_values().size == 0) {
+    return base::ErrStatus("FilterIn must specify a match_values query");
+  }
+  if (filter_in.base_column().size == 0) {
+    return base::ErrStatus("FilterIn must specify a base_column");
+  }
+  if (filter_in.match_column().size == 0) {
+    return base::ErrStatus("FilterIn must specify a match_column");
+  }
+
+  std::string base_col = filter_in.base_column().ToStdString();
+  std::string match_col = filter_in.match_column().ToStdString();
+
+  // Generate nested sources
+  std::string base_source = NestedSource(filter_in.base());
+  std::string match_source = NestedSource(filter_in.match_values());
+
+  // Build the SQL for the filter-in operation (semi-join)
+  std::string sql = "(SELECT base.* FROM " + base_source + " AS base WHERE " +
+                    "base." + base_col + " IN (SELECT " + match_col + " FROM " +
+                    match_source + "))";
+
+  return sql;
+}
+
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
     protozero::ConstChars raw_id) {
   std::string id = raw_id.ToStdString();
@@ -1253,10 +1292,20 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   if (!it) {
     return base::ErrStatus("Shared query with id '%s' not found", id.c_str());
   }
+  // Check if this query is already in queries_ (non-inlined case).
   auto sq = std::find_if(queries_.begin(), queries_.end(),
                          [&](const Query& sq) { return id == sq.id; });
   if (sq != queries_.end()) {
     return sq->table_name;
+  }
+  // Check if we've already created a state entry for this ID (inlined case).
+  // This prevents creating duplicate CTEs with collision suffixes when the
+  // same shared query is referenced multiple times.
+  for (const auto& s : state_) {
+    if (s.type == QueryType::kShared && s.id_from_proto &&
+        *s.id_from_proto == id) {
+      return s.table_name;
+    }
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},

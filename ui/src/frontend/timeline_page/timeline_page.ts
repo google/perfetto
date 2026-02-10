@@ -152,18 +152,6 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       },
     });
     this.trash.use(panZoomHandler);
-    this.onupdate(vnode);
-  }
-
-  onupdate({attrs}: m.VnodeDOM<TimelinePageAttrs>) {
-    // TODO(stevegolton): It's assumed that the TrackStacks will call into
-    // trace.tracks.getTrackRenderer() in their view() functions which will mark
-    // track renderers as used. We call flushOldTracks() here as it's guaranteed
-    // to be called after view() on all child elements, and is only called once
-    // per render cycle. However, this approach involves a bit too much magic.
-    // The TODO is to sort this out and make it so the track flushing is
-    // consolidated into one place.
-    attrs.trace.tracks.flushOldTracks();
   }
 
   onremove() {

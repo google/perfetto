@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -131,12 +132,10 @@ class TraceProcessorImpl : public TraceProcessor,
   std::vector<uint8_t> GetMetricDescriptors() override;
 
   // ===================
-  // |  Experimental   |
+  // |   Summarizer    |
   // ===================
 
-  base::Status AnalyzeStructuredQuery(const TraceSummarySpecBytes& spec,
-                                      const std::string& query_id,
-                                      AnalyzedStructuredQuery* output) override;
+  base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
  private:
   // Needed for iterators to be able to access the context.

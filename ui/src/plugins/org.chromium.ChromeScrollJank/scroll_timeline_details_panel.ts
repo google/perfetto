@@ -26,23 +26,13 @@ import {Timestamp} from '../../components/widgets/timestamp';
 import {DurationWidget} from '../../components/widgets/duration';
 import {fromSqlBool, renderSqlRef} from './utils';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {ColumnDefinition} from '../../components/widgets/sql/table/table_description';
-import {ScrollTimelineModel} from './scroll_timeline_model';
-import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
-
-const SCROLL_TIMELINE_TABLE_COLUMNS: ColumnDefinition[] = [
-  {column: 'id', type: {kind: 'id', source: {table: 'slice', column: 'id'}}},
-  {column: 'scroll_update_id', type: PerfettoSqlTypes.INT},
-  {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
-  {column: 'dur', type: PerfettoSqlTypes.DURATION},
-  {column: 'name', type: PerfettoSqlTypes.STRING},
-  {column: 'classification', type: PerfettoSqlTypes.STRING},
-];
+import {SCROLL_TIMELINE_TRACK} from './tracks';
+import {SCROLL_TIMELINE_TABLE_DEFINITION} from './scroll_timeline_model';
 
 export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
   // Information about the scroll update *slice*, which was emitted by
   // ScrollTimelineTrack.
-  // Source: this.tableName[id=this.id]
+  // Source: SCROLL_TIMELINE_TRACK.tableName[id=this.id]
   private sliceData?: {
     name: string;
     ts: time;
@@ -65,7 +55,6 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
 
   constructor(
     private readonly trace: Trace,
-    private readonly model: ScrollTimelineModel,
     // ID of the slice in tableName.
     private readonly id: number,
   ) {}
@@ -83,7 +72,7 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
         ts,
         dur,
         scroll_update_id
-      FROM ${this.model.tableName}
+      FROM ${SCROLL_TIMELINE_TRACK.tableName}
       WHERE id = ${this.id}`);
     const row = queryResult.firstRow({
       name: STR,
@@ -179,11 +168,8 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
           left: 'SQL ID',
           right: renderSqlRef({
             trace: this.trace,
-            tableName: this.model.tableName,
-            tableDefinition: {
-              name: this.model.tableName,
-              columns: SCROLL_TIMELINE_TABLE_COLUMNS,
-            },
+            tableName: SCROLL_TIMELINE_TRACK.tableName,
+            tableDefinition: SCROLL_TIMELINE_TABLE_DEFINITION,
             id: this.id,
           }),
         }),
