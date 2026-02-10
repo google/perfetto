@@ -113,7 +113,7 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
 
     const concurrencyNode = new TrackNode({
       uri: concurrencyUri,
-      name: `OOM Score ${bucket}: Concurrent Processes`,
+      name: `${bucket} processes count`,
       removable: true,
     });
 
