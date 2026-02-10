@@ -40,10 +40,6 @@ export interface RectBuffers {
   readonly patterns: Uint8Array;
   // Number of valid rects
   readonly count: number;
-  // Minimum width in screen pixels (after transform). Default: 1
-  readonly minWidth?: number;
-  // Screen X coordinate where incomplete rects (w === -1) extend to
-  readonly screenEnd?: number;
 }
 
 // Buffers for step-area chart data.
