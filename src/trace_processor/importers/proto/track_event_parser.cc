@@ -321,8 +321,9 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
   active_chrome_processes_tracker_.AddProcessDescriptor(packet_timestamp, upid);
   if (decoder.has_process_name() && decoder.process_name().size) {
     // Don't override system-provided names.
-    context_->process_tracker->SetProcessNameIfUnset(
-        upid, context_->storage->InternString(decoder.process_name()));
+    context_->process_tracker->UpdateProcessName(
+        upid, context_->storage->InternString(decoder.process_name()),
+        ProcessNamePriority::kTrackDescriptor);
   }
   if (decoder.has_start_timestamp_ns() && decoder.start_timestamp_ns() > 0) {
     context_->process_tracker->SetStartTsIfUnset(upid,
@@ -333,7 +334,8 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
     StringId name_id =
         chrome_string_lookup_.GetProcessName(decoder.chrome_process_type());
     // Don't override system-provided names.
-    context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
+    context_->process_tracker->UpdateProcessName(
+        upid, name_id, ProcessNamePriority::kTrackDescriptor);
   }
   int label_index = 0;
   for (auto it = decoder.process_labels(); it; it++) {
@@ -358,7 +360,8 @@ void TrackEventParser::ParseChromeProcessDescriptor(
   StringId name_id =
       chrome_string_lookup_.GetProcessName(decoder.process_type());
   // Don't override system-provided names.
-  context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
+  context_->process_tracker->UpdateProcessName(
+      upid, name_id, ProcessNamePriority::kTrackDescriptor);
 
   ArgsTracker::BoundInserter process_args =
       context_->process_tracker->AddArgsToProcess(upid);
