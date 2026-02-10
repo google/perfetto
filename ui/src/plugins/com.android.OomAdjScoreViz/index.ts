@@ -22,12 +22,20 @@ import {
 import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {time, TimeSpan} from '../../base/time';
+import {z} from 'zod';
 
 export default class OomAdjScoreViz implements PerfettoPlugin {
   static readonly id = 'com.android.OomAdjScoreViz';
 
   private static readonly TBL_INTERVALS = `_${OomAdjScoreViz.id.replace(/\./g, '_')}_oom_intervals`;
   private static readonly TBL_COUNT = `_${OomAdjScoreViz.id.replace(/\./g, '_')}_oom_count`;
+
+  private static readonly TimeSpanSchema = z
+    .object({
+      startTime: z.string().optional(),
+      endTime: z.string().optional(),
+    })
+    .default({});
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await ctx.engine.query(`
@@ -61,14 +69,15 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
     `);
 
     ctx.commands.registerCommand({
-      id: `${OomAdjScoreViz.id}.visualize`,
+      id: `com.android.visualizeOomAdjScore`,
       name: 'OOM Adjuster Score: Visualize (over selection)',
       callback: async (...args: unknown[]) => {
-        const params = args[0] as {[key: string]: unknown} | undefined;
+        const params = OomAdjScoreViz.TimeSpanSchema.parse(args[0]);
+
         let window: TimeSpan;
-        if (params?.ts_start !== undefined && params?.ts_end !== undefined) {
-          const start = BigInt(params.ts_start as number) as time;
-          const end = BigInt(params.ts_end as number) as time;
+        if (params.startTime !== undefined && params.endTime !== undefined) {
+          const start = BigInt(params.startTime) as time;
+          const end = BigInt(params.endTime) as time;
           window = new TimeSpan(start, end);
         } else {
           window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
@@ -99,11 +108,12 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
         concurrencyUri,
         OomAdjScoreViz.getConcurrencyTrackQuery(window, bucket),
       ),
+      description: `This track shows the number of processes that are concurrently in the same OOM score bucket '${bucket}' over time.`,
     });
 
     const concurrencyNode = new TrackNode({
       uri: concurrencyUri,
-      name: `OOM Score: ${bucket} concurrency`,
+      name: `OOM Score ${bucket}: Concurrent Processes`,
       removable: true,
     });
 
@@ -117,10 +127,12 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
     ) {
       const processName = procIter.get('process_name') as string;
       const upid = procIter.get('upid') as number;
+      const pid = procIter.get('pid') as number;
       const processNode = await this.createSingleProcessTrack(
         ctx,
         window,
         upid,
+        pid,
         processName,
       );
       concurrencyNode.addChildLast(processNode);
@@ -132,9 +144,10 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
     ctx: Trace,
     window: TimeSpan,
     upid: number,
+    pid: number,
     processName: string,
   ): Promise<TrackNode> {
-    const name = `Process: ${processName}`;
+    const name = `${processName} ${pid}`;
     const uri = `${OomAdjScoreViz.id}.process.${upid}.${uuidv4()}`;
     const renderer = await createQueryCounterTrack({
       trace: ctx,
@@ -180,7 +193,8 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
     return `
       SELECT
         coalesce(process.name, 'Unknown process') as process_name,
-        upid
+        upid,
+        pid
       FROM 
         ${OomAdjScoreViz.TBL_INTERVALS}
       JOIN process USING(upid)
@@ -189,7 +203,7 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
         ts < ${window.end} AND
         ts + dur > ${window.start}
       GROUP BY
-        upid, process_name
+        upid, pid, process_name
       ORDER BY
         SUM(MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start})) DESC,
         MAX(score) DESC,
