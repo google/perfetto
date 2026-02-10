@@ -345,12 +345,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\trace_processor_shell.exe",
       "gs://perfetto-luci-artifacts//windows-amd64/trace_processor_shell.exe"
@@ -378,12 +374,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\trace_processor_shell.exe",
       "gs://perfetto-luci-artifacts/latest/windows-amd64/trace_processor_shell.exe"
@@ -411,12 +403,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\trace_processor_shell.exe.pdb",
       "gs://perfetto-luci-artifacts//windows-amd64/trace_processor_shell.exe.pdb"
@@ -444,12 +432,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\trace_processor_shell.exe.pdb",
       "gs://perfetto-luci-artifacts/latest/windows-amd64/trace_processor_shell.exe.pdb"
@@ -557,12 +541,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traceconv.exe",
       "gs://perfetto-luci-artifacts//windows-amd64/traceconv.exe"
@@ -590,12 +570,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traceconv.exe",
       "gs://perfetto-luci-artifacts/latest/windows-amd64/traceconv.exe"
@@ -623,12 +599,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traceconv.exe.pdb",
       "gs://perfetto-luci-artifacts//windows-amd64/traceconv.exe.pdb"
@@ -656,12 +628,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traceconv.exe.pdb",
       "gs://perfetto-luci-artifacts/latest/windows-amd64/traceconv.exe.pdb"
@@ -769,12 +737,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\perfetto.exe",
       "gs://perfetto-luci-artifacts//windows-amd64/perfetto.exe"
@@ -802,12 +766,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\perfetto.exe",
       "gs://perfetto-luci-artifacts/latest/windows-amd64/perfetto.exe"
@@ -835,12 +795,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\perfetto.exe.pdb",
       "gs://perfetto-luci-artifacts//windows-amd64/perfetto.exe.pdb"
@@ -868,12 +824,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\perfetto.exe.pdb",
       "gs://perfetto-luci-artifacts/latest/windows-amd64/perfetto.exe.pdb"
@@ -981,12 +933,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traced.exe",
       "gs://perfetto-luci-artifacts//windows-amd64/traced.exe"
@@ -1014,12 +962,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traced.exe",
       "gs://perfetto-luci-artifacts/latest/windows-amd64/traced.exe"
@@ -1047,12 +991,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traced.exe.pdb",
       "gs://perfetto-luci-artifacts//windows-amd64/traced.exe.pdb"
@@ -1080,12 +1020,8 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
+      "gcloud",
+      "storage",
       "cp",
       "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traced.exe.pdb",
       "gs://perfetto-luci-artifacts/latest/windows-amd64/traced.exe.pdb"

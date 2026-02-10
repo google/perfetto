@@ -72,7 +72,7 @@ EOF
 SHA256CMD='import hashlib; import sys; sha1=hashlib.sha256(); sha1.update(sys.stdin.read()); print(sha1.hexdigest())'
 SHA256=$(python -c "$SHA256CMD" < "$ARCHIVE")
 GCS_TARGET="gs://perfetto/catapult_trace_viewer-$SHA256.tar.gz"
-gsutil cp -n -a public-read "$ARCHIVE" "$GCS_TARGET"
+gcloud storage cp --no-clobber --predefined-acl=public-read "$ARCHIVE" "$GCS_TARGET"
 rm -rf "$OUTDIR"
 
 # Update the reference to the new prebuilt in tools/install-build-deps.
