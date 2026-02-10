@@ -79,7 +79,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 5
   trusted_pid: 1305
-  shell_transition { id: 9 finish_time_ns: 77873935462 }
+  shell_transition { id: 9 wm_abort_time_ns: 77876414732 }
 }
 packet {
   trusted_uid: 1000
@@ -105,7 +105,7 @@ packet {
   trusted_uid: 10241
   trusted_packet_sequence_id: 6
   trusted_pid: 2528
-  shell_transition { id: 8 dispatch_time_ns: 77320527177 handler: 3 }
+  shell_transition { id: 8 handler: 3 }
 }
 packet {
   trusted_uid: 10241
@@ -125,7 +125,6 @@ packet {
   trusted_pid: 2528
   shell_transition {
     id: 11
-    dispatch_time_ns: 82536817137
     handler: 2
     targets { layer_id: 4 }
   }
@@ -140,5 +139,38 @@ packet {
     merge_time_ns: 82697060749
     merge_target: 11
     targets { window_id: 12 layer_id: 4 }
+    dispatch_time_ns: 77876454832
+    finish_time_ns: 82697061749
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 1305
+  shell_transition {
+    id: 13
+    create_time_ns: 82498127051
+    send_time_ns: 82535513845
+    wm_abort_time_ns: 82536819537
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 1305
+  shell_transition {
+    id: 14
+    create_time_ns: 82498127051
+    finish_time_ns: 82536819537
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 1305
+  shell_transition {
+    id: 15
+    send_time_ns: 82498127051
+    finish_time_ns: 82536819537
   }
 }
