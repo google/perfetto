@@ -48,9 +48,8 @@ uint64_t ComputePacketHash(
   return hasher.digest();
 }
 
-template <typename T>
-void IncrementWithSaturation(T* v) {
-  *v += *v < std::numeric_limits<T>::max() ? *v + 1 : 0;
+void IncrementWithSaturation(uint16_t* v) {
+  *v += *v < UINT16_MAX ? 1 : 0;
 }
 
 }  // namespace
