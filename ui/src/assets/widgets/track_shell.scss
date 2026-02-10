@@ -104,16 +104,16 @@
     }
 
     .pf-visible-on-hover {
-      visibility: hidden;
+      display: none;
 
       &.pf-active {
-        visibility: unset;
+        display: unset;
       }
     }
 
     &:hover {
       .pf-visible-on-hover {
-        visibility: unset;
+        display: unset;
       }
     }
   }
@@ -169,6 +169,9 @@
 
   &__title {
     grid-area: title;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 
     &-popup {
       position: absolute;
@@ -198,6 +201,9 @@
   &__subtitle {
     grid-area: subtitle;
     font-size: 11px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   &__buttons {
