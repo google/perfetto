@@ -61,7 +61,7 @@ cc_test {
         ":CtsPerfettoDebuggableApp",
         ":perfetto_device_preparer_sh",
     ],
-    stl: "libc++_static",
+    stl: "libc++",
     // This test is also run via Mainline Testing against the ART Mainline
     // Module, which is updatable since Android 12 (API level 31).
     // TODO(rsavitski): is this still necessary with the MTS tests split off into

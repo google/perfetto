@@ -492,7 +492,7 @@ cc_library_shared {
     header_libs: [
         "bionic_libc_platform_headers",
     ],
-    stl: "libc++_static",
+    stl: "libc++",
     version_script: "src/profiling/memory/heapprofd_client_api.map.txt",
 }
 
@@ -19694,7 +19694,7 @@ cc_binary {
                 "libz",
                 "sqlite_ext_percentile",
             ],
-            stl: "libc++_static",
+            stl: "libc++",
             dist: {
                 targets: [
                     "sdk_repo",

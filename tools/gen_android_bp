@@ -295,7 +295,7 @@ additional_args = {
         ('static_libs', {'libasync_safe'}),
         ('version_script', 'src/profiling/memory/heapprofd_client_api.map.txt'),
         ('export_include_dirs', {'src/profiling/memory/include'}),
-        ('stl', 'libc++_static'),
+        ('stl', 'libc++'),
     ],
     'perfetto_unittests': [
         ('data', set(enumerate_data_deps())),
@@ -315,7 +315,7 @@ additional_args = {
             'all': True
         }),
         ('host', {
-            'stl': 'libc++_static',
+            'stl': 'libc++',
             'dist': {
                 'targets': ['sdk_repo']
             },
