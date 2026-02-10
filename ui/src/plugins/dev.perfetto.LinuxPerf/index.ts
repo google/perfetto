@@ -67,6 +67,8 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
   ];
 
   private store?: Store<LinuxPerfPluginState>;
+  // Cache of counter types per perf session, populated during onTraceLoad.
+  private counterTypesBySession = new Map<number, {name: string}[]>();
 
   private migrateLinuxPerfPluginState(init: unknown): LinuxPerfPluginState {
     const result = LINUX_PERF_PLUGIN_STATE_SCHEMA.safeParse(init);
@@ -78,6 +80,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       this.migrateLinuxPerfPluginState(init),
     );
     const store = assertExists(this.store);
+    await this.cacheCounterTypesPerSession(trace);
     await this.addProcessPerfSamplesTracks(trace, store);
     await this.addThreadPerfSamplesTracks(trace, store);
     await this.addPerfCounterTracks(trace);
@@ -85,6 +88,36 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     trace.onTraceReady.addListener(async () => {
       await selectPerfTracksIfSingleProcess(trace);
     });
+  }
+
+  // Pre-fetch and cache all counter types per perf session for faster
+  // flamegraph rendering.
+  private async cacheCounterTypesPerSession(trace: Trace): Promise<void> {
+    const result = await trace.engine.query(`
+      SELECT pct.perf_session_id, pct.name, MAX(pct.is_timebase) as is_timebase
+      FROM perf_counter_track pct
+      GROUP BY pct.perf_session_id, pct.name
+      ORDER BY pct.perf_session_id, is_timebase DESC, pct.name
+    `);
+
+    for (
+      const it = result.iter({
+        perf_session_id: NUM,
+        name: STR_NULL,
+        is_timebase: NUM_NULL,
+      });
+      it.valid();
+      it.next()
+    ) {
+      const sessionId = it.perf_session_id;
+      const name = it.name;
+      if (name === null) continue;
+
+      if (!this.counterTypesBySession.has(sessionId)) {
+        this.counterTypesBySession.set(sessionId, []);
+      }
+      this.counterTypesBySession.get(sessionId)!.push({name});
+    }
   }
 
   private async addProcessPerfSamplesTracks(
@@ -460,11 +493,8 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       ]),
     ];
 
-    // Query available counter types for selected sessions
-    const counterTypes = await this.getCounterTypesForSessions(
-      trace,
-      sessionIds,
-    );
+    // Get available counter types for selected sessions from cache
+    const counterTypes = this.getCounterTypesForSessions(sessionIds);
 
     const trackConstraints = [
       ...processTrackTags.map(
@@ -562,34 +592,24 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     return {flamegraph: new QueryFlamegraph(trace), metrics};
   }
 
-  private async getCounterTypesForSessions(
-    trace: Trace,
-    sessionIds: number[],
-  ): Promise<{name: string}[]> {
+  // Get counter types for the given session IDs from the pre-populated cache.
+  private getCounterTypesForSessions(sessionIds: number[]): {name: string}[] {
     if (sessionIds.length === 0) {
       return [];
     }
 
-    const sessionFilter = sessionIds
-      .map((id) => `perf_session_id = ${id}`)
-      .join(' OR ');
-    // Group by name to get unique counter types (one per counter name, not per CPU)
-    const result = await trace.engine.query(`
-      SELECT pct.name, MAX(pct.is_timebase) as is_timebase
-      FROM perf_counter_track pct
-      WHERE (${sessionFilter})
-      GROUP BY pct.name
-      ORDER BY is_timebase DESC, pct.name
-    `);
-
+    // Collect unique counter names across all sessions, preserving order
+    // (timebase counters first, then alphabetical).
+    const seen = new Set<string>();
     const counterTypes: {name: string}[] = [];
-    for (
-      const it = result.iter({name: STR_NULL, is_timebase: NUM_NULL});
-      it.valid();
-      it.next()
-    ) {
-      if (it.name !== null) {
-        counterTypes.push({name: it.name});
+
+    for (const sessionId of sessionIds) {
+      const counters = this.counterTypesBySession.get(sessionId) ?? [];
+      for (const counter of counters) {
+        if (!seen.has(counter.name)) {
+          seen.add(counter.name);
+          counterTypes.push(counter);
+        }
       }
     }
     return counterTypes;
