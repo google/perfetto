@@ -23,7 +23,7 @@ export class PrettyPrintedSource {
   ) {}
 
   get sourceMap(): Int32Array {
-    throw new Error("Not Implemented yet");
+    throw new Error('Not Implemented yet');
   }
 
   // Returns a rough estimate of the entry size, might be off for certain
