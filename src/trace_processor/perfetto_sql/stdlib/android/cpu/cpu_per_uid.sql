@@ -29,7 +29,7 @@ CREATE PERFETTO TABLE android_cpu_per_uid_track (
   -- Total number of cpu millis used by this track.
   total_cpu_millis LONG,
   -- A package name for the UID. If there are multiple for a UID, one is chosen
-  -- arbitrarily. UIDs below 10000 always have null package name.
+  -- arbitrarily.
   package_name STRING
 ) AS
 SELECT
@@ -37,14 +37,7 @@ SELECT
   uid,
   cluster,
   total_cpu_millis,
-  (
-    SELECT
-      package_name
-    FROM package_list
-    WHERE
-      uid = track.uid % 100000 AND uid >= 10000
-    LIMIT 1
-  ) AS package_name
+  package_lookup(track.uid) AS package_name
 FROM __intrinsic_android_cpu_per_uid_track AS track;
 
 -- View of counters for CPU-per-UID data. Each row represents one instant in
