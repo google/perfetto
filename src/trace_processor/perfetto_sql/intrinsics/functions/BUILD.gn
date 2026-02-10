@@ -48,6 +48,8 @@ source_set("functions") {
     "metadata.h",
     "package_lookup.cc",
     "package_lookup.h",
+    "perf_counter.cc",
+    "perf_counter.h",
     "pprof_functions.cc",
     "pprof_functions.h",
     "replace_numbers_function.cc",
