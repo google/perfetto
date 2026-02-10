@@ -74,6 +74,8 @@ export default defineConfig({
             '--hide-scrollbars',
             '--enable-skia-renderer',
             '--js-flags=--random-seed=1',
+            // Disable WebGL in CI to avoid rendering inconsistencies
+            ...(isCi ? ['--disable-webgl', '--disable-webgl2'] : []),
           ],
         },
         ignoreHTTPSErrors: true,
