@@ -18,6 +18,7 @@ import {Gate} from '../base/mithril_utils';
 import {Button} from './button';
 import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
+import {maybeUndefined} from '../base/utils';
 
 export interface TabsTab {
   // Unique identifier for the tab.
@@ -42,6 +43,11 @@ export interface TabsAttrs {
   onTabChange?(key: string): void;
   // Called when a tab's close button is clicked.
   onTabClose?(key: string): void;
+  // Whether tabs can be reordered via drag and drop.
+  readonly reorderable?: boolean;
+  // Called when tabs are reordered. Receives the key of the dragged tab and
+  // the key of the tab it was dropped before (or undefined if dropped at end).
+  onTabReorder?(draggedKey: string, beforeKey: string | undefined): void;
   // Additional class name for the container.
   readonly className?: string;
 }
@@ -52,11 +58,31 @@ interface TabHandleAttrs {
   readonly onClose?: () => void;
   readonly onclick?: () => void;
   readonly leftIcon?: string | m.Children;
+  readonly tabKey?: string;
+  readonly reorderable?: boolean;
+  readonly onDragStart?: (key: string) => void;
+  readonly onDragEnd?: () => void;
+  readonly onDragOver?: (key: string, position: 'before' | 'after') => void;
+  readonly onDragLeave?: () => void;
+  readonly onDrop?: (key: string) => void;
 }
 
 class TabHandle implements m.ClassComponent<TabHandleAttrs> {
   view({attrs, children}: m.CVnode<TabHandleAttrs>): m.Children {
-    const {active, hasCloseButton, onClose, onclick, leftIcon} = attrs;
+    const {
+      active,
+      hasCloseButton,
+      onClose,
+      onclick,
+      leftIcon,
+      tabKey,
+      reorderable,
+      onDragStart,
+      onDragEnd,
+      onDragOver,
+      onDragLeave,
+      onDrop,
+    } = attrs;
 
     const renderLeftIcon = () => {
       if (leftIcon === undefined) {
@@ -75,6 +101,45 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
         className: classNames(active && 'pf-tabs__tab--active'),
         onclick,
         onauxclick: () => onClose?.(),
+        draggable: reorderable,
+        ondragstart: reorderable
+          ? (e: DragEvent) => {
+              if (tabKey) {
+                e.dataTransfer?.setData('text/plain', tabKey);
+                onDragStart?.(tabKey);
+              }
+            }
+          : undefined,
+        ondragend: reorderable ? () => onDragEnd?.() : undefined,
+        ondragover: reorderable
+          ? (e: DragEvent) => {
+              e.preventDefault();
+              if (tabKey) {
+                const target = e.currentTarget as HTMLElement;
+                const rect = target.getBoundingClientRect();
+                const midpoint = rect.left + rect.width / 2;
+                const position = e.clientX < midpoint ? 'before' : 'after';
+                onDragOver?.(tabKey, position);
+              }
+            }
+          : undefined,
+        ondragleave: reorderable
+          ? (e: DragEvent) => {
+              const target = e.currentTarget as HTMLElement;
+              const related = e.relatedTarget as HTMLElement | null;
+              if (related && !target.contains(related)) {
+                onDragLeave?.();
+              }
+            }
+          : undefined,
+        ondrop: reorderable
+          ? (e: DragEvent) => {
+              e.preventDefault();
+              if (tabKey) {
+                onDrop?.(tabKey);
+              }
+            }
+          : undefined,
       },
       renderLeftIcon(),
       m('.pf-tabs__tab-title', children),
@@ -94,9 +159,21 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
 export class Tabs implements m.ClassComponent<TabsAttrs> {
   // Current active tab key (for uncontrolled mode).
   private internalActiveTab?: string;
+  // Drag state for reordering.
+  private draggedKey?: string;
+  private dropTargetKey?: string;
+  private dropPosition?: 'before' | 'after';
 
   view({attrs}: m.CVnode<TabsAttrs>): m.Children {
-    const {tabs, activeTabKey, onTabChange, onTabClose, className} = attrs;
+    const {
+      tabs,
+      activeTabKey,
+      onTabChange,
+      onTabClose,
+      reorderable,
+      onTabReorder,
+      className,
+    } = attrs;
 
     // Get active tab key (controlled or uncontrolled)
     const activeKey = activeTabKey ?? this.internalActiveTab ?? tabs[0]?.key;
@@ -106,22 +183,93 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       {className},
       m(
         '.pf-tabs__tabs',
-        tabs.map((tab) =>
-          m(
-            TabHandle,
+        tabs.map((tab, index) => {
+          const isDragTarget = this.dropTargetKey === tab.key;
+          const showDropBefore =
+            isDragTarget &&
+            this.dropPosition === 'before' &&
+            this.draggedKey !== tab.key;
+          const showDropAfter =
+            isDragTarget &&
+            this.dropPosition === 'after' &&
+            this.draggedKey !== tab.key;
+          // Also show drop-after on the previous tab if we're dropping before
+          const prevTab = maybeUndefined(tabs[index - 1]);
+          const showDropAfterFromNext =
+            prevTab &&
+            this.dropTargetKey === tabs[index]?.key &&
+            this.dropPosition === 'before' &&
+            this.draggedKey !== prevTab.key &&
+            this.draggedKey !== tab.key;
+
+          return m(
+            '.pf-tabs__tab-wrapper',
             {
-              active: tab.key === activeKey,
-              hasCloseButton: tab.closeButton,
-              leftIcon: tab.leftIcon,
-              onclick: () => {
-                this.internalActiveTab = tab.key;
-                onTabChange?.(tab.key);
-              },
-              onClose: () => onTabClose?.(tab.key),
+              key: tab.key,
+              className: classNames(
+                showDropBefore && 'pf-tabs__tab-wrapper--drop-before',
+                (showDropAfter || showDropAfterFromNext) &&
+                  'pf-tabs__tab-wrapper--drop-after',
+                this.draggedKey === tab.key && 'pf-tabs__tab-wrapper--dragging',
+              ),
             },
-            tab.title,
-          ),
-        ),
+            m(
+              TabHandle,
+              {
+                active: tab.key === activeKey,
+                hasCloseButton: tab.closeButton,
+                leftIcon: tab.leftIcon,
+                tabKey: tab.key,
+                reorderable,
+                onclick: () => {
+                  this.internalActiveTab = tab.key;
+                  onTabChange?.(tab.key);
+                },
+                onClose: () => onTabClose?.(tab.key),
+                onDragStart: (key) => {
+                  this.draggedKey = key;
+                },
+                onDragEnd: () => {
+                  this.draggedKey = undefined;
+                  this.dropTargetKey = undefined;
+                  this.dropPosition = undefined;
+                },
+                onDragOver: (key, position) => {
+                  this.dropTargetKey = key;
+                  this.dropPosition = position;
+                },
+                onDragLeave: () => {
+                  this.dropTargetKey = undefined;
+                  this.dropPosition = undefined;
+                },
+                onDrop: (targetKey) => {
+                  if (
+                    this.draggedKey &&
+                    this.draggedKey !== targetKey &&
+                    onTabReorder
+                  ) {
+                    // Find the key of the tab to insert before
+                    const targetIndex = tabs.findIndex(
+                      (t) => t.key === targetKey,
+                    );
+                    let beforeKey: string | undefined;
+                    if (this.dropPosition === 'before') {
+                      beforeKey = targetKey;
+                    } else {
+                      // 'after' - insert before the next tab
+                      beforeKey = tabs[targetIndex + 1]?.key;
+                    }
+                    onTabReorder(this.draggedKey, beforeKey);
+                  }
+                  this.draggedKey = undefined;
+                  this.dropTargetKey = undefined;
+                  this.dropPosition = undefined;
+                },
+              },
+              tab.title,
+            ),
+          );
+        }),
       ),
       m(
         '.pf-tabs__content',
