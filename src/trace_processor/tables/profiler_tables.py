@@ -530,8 +530,9 @@ PERF_SAMPLE_TABLE = Table(
         C(
             'counter_set_id',
             CppOptional(CppUint32()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+            sql_access=SqlAccess.HIGH_PERF,
         ),
     ],
     tabledoc=TableDoc(

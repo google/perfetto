@@ -34,6 +34,7 @@ import {
   FilterDuringNode,
   FilterDuringNodeState,
 } from './nodes/filter_during_node';
+import {FilterInNode, FilterInNodeState} from './nodes/filter_in_node';
 import {
   IntervalIntersectNode,
   IntervalIntersectNodeState,
@@ -196,6 +197,18 @@ export function registerCoreNodes() {
     category: 'Time',
     factory: (state) => {
       return new FilterDuringNode(state as FilterDuringNodeState);
+    },
+  });
+
+  nodeRegistry.register('filter_in', {
+    name: 'Filter In',
+    description:
+      'Filter rows to only those where a column value exists in another query result.',
+    icon: Icons.Filter,
+    type: 'multisource',
+    category: 'Filtering',
+    factory: (state) => {
+      return new FilterInNode(state as FilterInNodeState);
     },
   });
 

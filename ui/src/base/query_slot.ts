@@ -67,6 +67,7 @@
  *   the queue to stay synchronized with in-flight queries.
  */
 
+import m from 'mithril';
 import {stringifyJsonWithBigints} from './json_utils';
 
 /**
@@ -198,6 +199,8 @@ export class QuerySlot<T> {
   private pendingKey?: object;
   private disposed = false;
   private currentSignal?: {cancelled: boolean};
+  // Stores error keyed by keyStr - thrown on next use() with same key
+  private error?: {keyStr: string; error: Error};
 
   constructor(private readonly queue: SerialTaskQueue) {}
 
@@ -213,6 +216,11 @@ export class QuerySlot<T> {
     }
     const {key, queryFn, enabled, retainOn = []} = options;
     const keyStr = stringifyJsonWithBigints(key);
+
+    // If we have a stored error for this key, throw it
+    if (this.error?.keyStr === keyStr) {
+      throw this.error.error;
+    }
 
     // Check if we need to schedule a new query
     const pendingKeyStr = this.pendingKey
@@ -239,15 +247,26 @@ export class QuerySlot<T> {
 
       this.pendingKey = key;
       this.queue.schedule(this, async () => {
-        // Dispose of previous result before running new query
-        await this.disposeCache();
-        const result = await queryFn({
-          get isCancelled() {
-            return signal.cancelled;
-          },
-        });
+        try {
+          // Dispose of previous result before running new query
+          await this.disposeCache();
+          const result = await queryFn({
+            get isCancelled() {
+              return signal.cancelled;
+            },
+          });
 
-        this.finaliseQuery(key, result);
+          this.finaliseQuery(key, result);
+        } catch (e) {
+          // Support both throwing and returning QUERY_CANCELLED
+          if (e === QUERY_CANCELLED) {
+            this.finaliseQuery(key, QUERY_CANCELLED);
+          } else {
+            this.finaliseError(key, e);
+          }
+        } finally {
+          m.redraw();
+        }
       });
     }
 
@@ -296,6 +315,26 @@ export class QuerySlot<T> {
     // Cache the result (unless cancelled)
     if (result !== QUERY_CANCELLED) {
       this.cache = {key, keyStr, data: result};
+    }
+  }
+
+  /**
+   * Called when a query fails with an error. Stores the error keyed by the
+   * query key - next use() with the same key will throw this error.
+   */
+  private finaliseError(key: object, e: unknown): void {
+    const keyStr = stringifyJsonWithBigints(key);
+    this.error = {
+      keyStr,
+      error: e instanceof Error ? e : new Error(String(e)),
+    };
+
+    // Clear pending if it matches (don't clear if a different query was scheduled)
+    if (
+      this.pendingKey &&
+      stringifyJsonWithBigints(this.pendingKey) === keyStr
+    ) {
+      this.pendingKey = undefined;
     }
   }
 

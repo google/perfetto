@@ -102,63 +102,105 @@ registerCoreNodes() {
 
 **Phase 1: Analysis (Validation)**
 ```
-Node Graph → Structured Query Protobuf → Engine.analyzeStructuredQuery() →
-Query {sql, textproto, modules, preambles, columns} | Error
+Node Graph → Structured Query Protobuf → Engine.updateSummarizerSpec() + querySummarizer() →
+Query {sql, textproto, columns} | Error
 ```
-- Validates query structure without execution
-- Returns generated SQL and metadata
-- Computes query hash for change detection
+- Creates summarizer via `createSummarizer(summarizerId)` (once per session)
+- Registers queries with TP via `updateSummarizerSpec(summarizerId, spec)`
+- Fetches SQL and metadata via `querySummarizer(summarizerId, queryId)` (triggers lazy materialization)
+- TP computes proto hash for change detection internally
 
 **Phase 2: Materialization (Execution)**
 ```
-Query → CREATE PERFETTO TABLE _exp_materialized_{nodeId} AS {sql} →
-COUNT(*) + Column Metadata → SQLDataSource → DataGrid Display
+engine.querySummarizer(summarizerId, nodeId) → TP creates/reuses table →
+{tableName, rowCount, columns, durationMs} → SQLDataSource → DataGrid Display
 ```
-- Creates persistent table for server-side pagination
-- Fetches row count and column schema
-- Reuses table if query hash unchanged
+- TP creates persistent table for server-side pagination (lazy, on first querySummarizer)
+- TP handles caching internally (reuses table if proto hash unchanged)
+- querySummarizer returns all metadata needed for display
 
 ### QueryExecutionService
 
-**Purpose** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts:27-71`)
-- Prevents race conditions during rapid user interaction
-- Coordinates materialization lifecycle (create/drop/reuse tables)
-- Caches query hashes to avoid expensive recomputation
-- Implements staleness detection to skip outdated operations
+**Purpose** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts`)
+- Prevents race conditions during rapid user interaction via FIFO execution queue
+- Debounces rapid requests to batch user input
+- Coordinates with Trace Processor's materialization API
+- Query analysis (validation) before execution
 
-**FIFO Execution Queue** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts:442-659`)
-- Serialized execution (one operation at a time)
-- Preserves node dependencies (parent materializes before child)
-- Staleness detection: operations store query hash at queue time, skip if hash changed
-- Per-operation error isolation (one failure doesn't block queue)
+**Trace Processor as Single Source of Truth**
 
-**Materialization Lifecycle** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts:122-279`)
+All materialization state is managed by Trace Processor (TP), not the UI:
+- TP tracks which queries are materialized (by query_id)
+- TP compares SQL hashes internally to detect changes
+- TP creates/drops tables as needed
+- TP stores table names and error states
+
+The UI queries TP on-demand instead of caching:
 ```typescript
-// Create/reuse materialized table
-materializeNode(node, query, queryHash) {
-  if (canReuseTable(node, queryHash)) return existingTable;
-  if (node.state.materialized) await dropMaterialization(node);
-  const tableName = await createTable(query);
-  node.state.materializedQueryHash = queryHash;
-  return tableName;
-}
-
-// Critical: State updated BEFORE dropping table to prevent race conditions
-dropMaterialization(node) {
-  node.state.materialized = false;  // ← Update first
-  await engine.query(`DROP TABLE ${tableName}`);  // ← Then drop
+// Fetch table name from TP when needed (e.g., for "Copy Table Name" or export)
+async getTableName(nodeId: string): Promise<string | undefined> {
+  const result = await engine.querySummarizer(DATA_EXPLORER_SUMMARIZER_ID, nodeId);
+  if (result.exists !== true || result.error) {
+    return undefined;
+  }
+  return result.tableName;
 }
 ```
 
-**Auto-Execute Logic** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts:892-1028`)
+This eliminates state synchronization bugs between UI and TP.
 
-| autoExecute | manual | materialized | Behavior                              |
-|-------------|--------|--------------|---------------------------------------|
-| true        | false  | -            | Analyze + execute if query changed    |
-| true        | true   | -            | Analyze + execute (forced)            |
-| false       | false  | true         | Load existing data from table         |
-| false       | false  | false        | Skip - show "Run Query" button        |
-| false       | true   | -            | Analyze + execute (user clicked)      |
+**FIFO Execution Queue**
+- Serialized execution (one operation at a time)
+- Preserves node dependencies (parent materializes before child)
+- Per-operation error isolation (errors are logged, not thrown)
+
+**Rapid Node Click Handling** (`ui/src/base/async_limiter.ts`)
+
+The `AsyncLimiter` ensures only the latest queued task runs when clicking nodes rapidly:
+```typescript
+// AsyncLimiter behavior:
+while ((task = taskQueue.shift())) {
+  if (taskQueue.length > 0) {
+    task.deferred.resolve();  // Skip - newer tasks waiting
+  } else {
+    await task.work();  // Run - this is the latest
+  }
+}
+```
+
+Example: Click A → B → C rapidly while A is processing:
+1. A starts processing
+2. B queued, C queued
+3. A finishes
+4. B skipped (queue has C), C runs
+
+This ensures the currently selected node (C) is processed, intermediate clicks (B) are skipped.
+
+**Materialization via TP API**
+```typescript
+// Sync all queries with TP, then fetch result for the target node
+async processNode(node: QueryNode): Promise<void> {
+  // 1. Ensure summarizer exists (created once per session)
+  await engine.createSummarizer(DATA_EXPLORER_SUMMARIZER_ID);
+
+  // 2. Register all queries with TP (handles change detection)
+  const spec = buildTraceSummarySpec(allNodes);
+  await engine.updateSummarizerSpec(DATA_EXPLORER_SUMMARIZER_ID, spec);
+
+  // 3. Fetch result - triggers lazy materialization
+  const result = await engine.querySummarizer(DATA_EXPLORER_SUMMARIZER_ID, node.nodeId);
+  // Returns: tableName, rowCount, columns, durationMs, sql, textproto
+}
+```
+
+**Auto-Execute Logic** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts`)
+
+| autoExecute | manual | Behavior                              |
+|-------------|--------|---------------------------------------|
+| true        | false  | Analyze + execute automatically       |
+| true        | true   | Analyze + execute (forced)            |
+| false       | false  | Skip - show "Run Query" button        |
+| false       | true   | Analyze + execute (user clicked)      |
 
 Auto-execute disabled for: SqlSourceNode, IntervalIntersectNode, UnionNode, FilterDuringNode, CreateSlicesNode
 
@@ -275,21 +317,72 @@ async handleDeleteNode(node) {
 
 ## Invalidation and Caching
 
-**Node Invalidation** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts:369-440`)
+**TP-Managed Caching**
+
+Query hash caching and change detection is handled entirely by Trace Processor:
+- TP computes and stores proto hashes for each materialized query
+- When `updateSummarizerSpec()` is called, TP compares new hash to stored hash
+- If unchanged, TP returns existing table name without re-execution
+- If changed, TP drops old table and creates new one
+
+**Lazy Materialization**
+
+Materialization is lazy - TP only materializes a query when `querySummarizer()` is called
+for that specific query. When `updateSummarizerSpec()` is called, all valid queries in
+the graph are registered with TP, but no SQL is executed. Only when `querySummarizer(nodeId)`
+is called does TP actually materialize that query (and its dependencies). This avoids
+unnecessary work for nodes the user hasn't viewed yet.
+
+**Smart Re-materialization Optimization**
+
+When queries are synced with TP via `updateSummarizerSpec()`, TP performs intelligent change
+detection and dependency tracking to minimize redundant work:
+
+1. **Proto-based change detection**: Each query's structured query proto bytes are
+   hashed (not the generated SQL). This works correctly for queries with
+   `inner_query_id` references, which cannot have their SQL generated independently.
+
+2. **Dependency propagation**: If query B depends on query A via `inner_query_id`,
+   and A's proto changes, B must also be re-materialized even if B's proto is
+   unchanged (because B's output depends on A's data). TP propagates this
+   transitively through the entire dependency chain.
+
+3. **Table-source substitution**: For unchanged queries that are already
+   materialized, TP substitutes them with simple table-source structured queries
+   that reference the materialized table. When SQL is generated for changed queries,
+   they reference these tables directly instead of re-expanding the full query chain.
+
+Example: For chain A → B → C → D, if C changes:
+- A, B: Unchanged, use existing materialized tables (`_exp_mat_0`, `_exp_mat_1`)
+- C: Changed, re-materialize (SQL references B's materialized table directly)
+- D: Transitively changed (depends on C), re-materialize (SQL references C's new table)
+
+This optimization significantly speeds up incremental edits in long query chains
+by avoiding redundant SQL generation and execution. The TP-side implementation
+lives in `src/trace_processor/trace_summary/summarizer.cc`.
+
+**On-Demand State Queries**
+
+The UI queries materialization state from TP when needed:
 ```typescript
-invalidateNode(node) {
-  const downstreamNodes = getAllDownstreamNodes(node);
-  for (const downstream of downstreamNodes) {
-    queryHashCache.delete(downstream.nodeId);  // Force hash recomputation
-    downstream.state.materializedQueryHash = undefined;  // Mark table stale
-  }
-}
+// Get current state from TP (for "Copy Table Name", export, etc.)
+const result = await engine.querySummarizer(DATA_EXPLORER_SUMMARIZER_ID, nodeId);
+// Returns: { exists: boolean, tableName?: string, error?: string, ... }
 ```
 
-**Query Hash Caching** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_builder_utils.ts`)
-- `hashNodeQuery()`: Expensive JSON stringification of entire query tree
-- Cached per node to avoid redundant computation during rapid analysis
-- Cache invalidated when node or upstream dependencies change
+This design ensures:
+- No UI-side state can become stale or out of sync with TP
+- TP is the authoritative source for all materialization state
+- Simpler UI code with no cache invalidation logic
+
+**Trace Processor Restart Handling**
+
+If the Trace Processor restarts or crashes, all summarizer state (including materialized
+tables) is lost. The UI may still hold a stale `summarizerId` that no longer exists in TP.
+When the next `querySummarizer()` call is made, TP will return an error indicating the
+summarizer doesn't exist. The UI handles this gracefully by treating it as a need to
+re-create the summarizer and re-sync all queries on the next execution attempt. Users
+may see an error message, but clicking "Run Query" again will recover the state.
 
 ## Structured Query Generation
 
@@ -310,8 +403,12 @@ getStructuredQueries(finalNode) {
 
 analyzeNode(node, engine) {
   const structuredQueries = getStructuredQueries(node);
-  const result = await engine.analyzeStructuredQuery(structuredQueries);
-  return {sql, textproto, modules, preambles, columns};
+  const spec = new TraceSummarySpec();
+  spec.query = structuredQueries;
+  await engine.createSummarizer(ANALYZE_NODE_SUMMARIZER_ID);  // Ensure summarizer exists
+  await engine.updateSummarizerSpec(ANALYZE_NODE_SUMMARIZER_ID, spec);  // Register with TP
+  const result = await engine.querySummarizer(ANALYZE_NODE_SUMMARIZER_ID, node.nodeId);  // Fetch result
+  return {sql: result.sql, textproto: result.textproto};
 }
 ```
 
@@ -344,22 +441,25 @@ Nodes maintain both forward and backward links:
 - `nextNodes`: Array of children (consumers of this node's output)
 - Graph operations maintain consistency across all links
 
-### 3. Two-Phase Execution with Materialization
+### 3. Two-Phase Execution with Lazy Materialization
 - Analysis phase: Validate query structure without execution
 - Execution phase: Materialize into PERFETTO table for pagination
-- Materialized tables reused when query hash unchanged
+- Lazy materialization: only materialize selected node and its upstream dependencies
+- TP manages table caching internally (reuses when proto hash unchanged)
+- Smart re-materialization: unchanged parent queries use table-source substitution
 - Server-side pagination via SQLDataSource (no full result fetch)
 
-### 4. FIFO Queue with Staleness Detection
+### 4. FIFO Queue with TP-Managed State
 - Prevents race conditions during rapid user input
 - Operations execute in order (preserves node dependencies)
-- Staleness check: skip operations with outdated query hashes
 - Per-operation error isolation (one failure doesn't block queue)
+- TP handles all caching/change detection internally
+- UI queries TP on-demand for table names (no UI-side caching)
 
 ### 5. Structured Query Protocol
 - Nodes generate protobuf `PerfettoSqlStructuredQuery`
-- Engine validates and converts to SQL via `analyzeStructuredQuery()`
-- Hash-based change detection (entire query tree serialized to JSON)
+- Engine validates and converts to SQL via `updateSummarizerSpec()` + `querySummarizer()`
+- Hash-based change detection (proto bytes hashed by TP)
 - Enables query analysis without SQL string manipulation
 
 ## File Path Reference
@@ -386,3 +486,8 @@ Nodes maintain both forward and backward links:
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/cleanup_manager.ts` - Resource cleanup
 - `ui/src/plugins/dev.perfetto.ExplorePage/history_manager.ts` - Undo/redo management
 - `ui/src/plugins/dev.perfetto.ExplorePage/json_handler.ts` - Serialization
+
+**Trace Processor (C++)**:
+- `src/trace_processor/trace_summary/summarizer.cc` - Smart re-materialization with change detection and dependency propagation
+- `src/trace_processor/trace_summary/summarizer.h` - Summarizer class definition and QueryState
+- `src/trace_processor/perfetto_sql/generator/structured_query_generator.cc` - SQL generation from structured queries
