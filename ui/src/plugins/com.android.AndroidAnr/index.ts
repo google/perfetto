@@ -99,7 +99,7 @@ export default class AndroidAnr implements PerfettoPlugin {
             SELECT
               ts - coalesce(anr_dur_ms, default_anr_dur_ms, 0) * 1000000 AS ts,
               coalesce(anr_dur_ms, default_anr_dur_ms, 0) * 1000000 AS dur,
-              process_name || ' ' || pid || ': ' || anr_type AS name
+              process_name || ' ' || pid || ' : ' || anr_type AS name
             FROM android_anrs
           `,
         }),
