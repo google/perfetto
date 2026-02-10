@@ -16,56 +16,20 @@ import * as prettier from 'prettier/standalone';
 import * as babelPlugin from 'prettier/plugins/babel';
 import * as estreePlugin from 'prettier/plugins/estree';
 
-export function computePositionMapping(
-  original: string,
-  formatted: string,
-): Int32Array {
-  const map = new Int32Array(original.length).fill(-1);
-  let j = 0;
-  for (let i = 0; i < original.length; i++) {
-    if (/\s/.test(original[i])) continue;
-
-    // Scan ahead in formatted to find match
-    let found = -1;
-    for (let k = j; k < Math.min(formatted.length, j + 200); k++) {
-      if (charsMatch(original[i], formatted[k])) {
-        found = k;
-        break;
-      }
-    }
-
-    if (found !== -1) {
-      map[i] = found;
-      j = found + 1;
-    }
-  }
-  return map;
-}
-
-function charsMatch(c1: string, c2: string): boolean {
-  if (c1 === c2) return true;
-  if ((c1 === '"' || c1 === "'") && (c2 === '"' || c2 === "'")) return true;
-  return false;
-}
-
 export class PrettyPrintedSource {
-  private _sourceMap: Int32Array | undefined = undefined;
   constructor(
     public readonly original: string,
     public readonly formatted: string,
   ) {}
 
   get sourceMap(): Int32Array {
-    if (!this._sourceMap) {
-      this._sourceMap = computePositionMapping(this.original, this.formatted);
-    }
-    return this._sourceMap;
+    throw new Error("Not Implemented yet");
   }
 
   // Returns a rough estimate of the entry size, might be off for certain
   // strings by factor 2.
   get estimatedSize() {
-    return this.formatted.length + (this._sourceMap?.length ?? 0) * 4;
+    return this.formatted.length;
   }
 }
 
@@ -123,6 +87,7 @@ export class PrettyPrinter {
   }
 
   private pruneCache() {
+    // lruCache is sorted, oldest entries come
     const entries = Array.from(this.lruCache.values());
     let currentSize = entries.reduce((size, entry) => {
       return size + entry.estimatedSize;

@@ -118,12 +118,14 @@ export class V8SourcesTab implements Tab {
   private functionsDataSource: SQLDataSource;
   private functionsFilters: readonly Filter[] = [];
   private isReady = false;
+
+  private selectedScriptId: number | undefined = undefined;
+  private selectedScriptSource: string = '';
+
   private showPrettyPrinted = false;
   private isPrettyPrinting = false;
-  private selectedScriptId: number | undefined = undefined;
   private prettyPrinter: PrettyPrinter = new PrettyPrinter();
   private prettyPrintedSource: PrettyPrintedSource | undefined = undefined;
-  private selectedScriptSource: string = '';
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -250,19 +252,6 @@ export class V8SourcesTab implements Tab {
       this.isPrettyPrinting = false;
       m.redraw();
     }
-  }
-
-  mapSourcePosition(originalPos: number): number {
-    if (this.prettyPrintedSource == undefined) return originalPos;
-    const sourceMap = this.prettyPrintedSource.sourceMap;
-    // If the exact position is not mapped (e.g. whitespace), find the next mapped position.
-    for (let i = originalPos; i < sourceMap.length; i++) {
-      if (sourceMap[i] !== -1) {
-        return sourceMap[i];
-      }
-    }
-    // If not found (e.g. trailing whitespace), return the end of formatted string or last mapped.
-    return this.prettyPrintedSource.formatted.length ?? 0;
   }
 
   private renderSourceTab(source: string) {
