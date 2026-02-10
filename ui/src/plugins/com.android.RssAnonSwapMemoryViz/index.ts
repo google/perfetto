@@ -20,8 +20,8 @@ import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {TimeSpan} from '../../base/time';
 
-export default class RssAnonSwapMemoryViz implements PerfettoPlugin {
-  static readonly id = 'com.android.RssAnonSwapMemoryViz';
+export default class MemoryViz implements PerfettoPlugin {
+  static readonly id = 'com.android.MemoryViz';
   static readonly table_prefix = '_rss_anon_swap_memory_';
 
   static readonly BLACKLIST_THRESHOLD_BYTES = 100 * 1024 * 1024; // 100 MiB
@@ -30,115 +30,111 @@ export default class RssAnonSwapMemoryViz implements PerfettoPlugin {
     await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.oom_adjuster;
       INCLUDE PERFETTO MODULE intervals.intersect;
+      INCLUDE PERFETTO MODULE counters.intervals;
 
-      -- ============================================================================
-      -- 1. DATA PREPARATION (Blacklist & Baselines)
-      -- ============================================================================
-      CREATE OR REPLACE PERFETTO TABLE blacklisted_tracks AS
-      WITH diffs AS (
-      SELECT track_id, value - LAG(value) OVER (PARTITION BY track_id ORDER BY ts) AS d
-      FROM counter
-      )
-      SELECT DISTINCT track_id FROM diffs WHERE ABS(d) > ${RssAnonSwapMemoryViz.BLACKLIST_THRESHOLD_BYTES};
-
-      CREATE OR REPLACE PERFETTO TABLE android_app_processes AS
-      SELECT upid FROM process
-      WHERE parent_upid IN (
-      SELECT upid FROM process
-      WHERE name IN ('zygote', 'zygote64', 'webview_zygote')
-      );
-
-      CREATE OR REPLACE PERFETTO TABLE zygote_baseline AS
+      -- Create a table containing intervals of memory counters values, adjusted to process lifetime.
+      CREATE OR REPLACE PERFETTO TABLE ${MemoryViz.table_prefix}mem_intervals_raw AS
+      WITH
+        -- We blacklist tracks that have a single jump greater than 100MiB
+        blacklisted_tracks AS (
+          WITH diffs AS (
+            SELECT
+              track_id,
+              value - LAG(value) OVER (PARTITION BY track_id ORDER BY ts) AS d
+            FROM counter
+          )
+          SELECT DISTINCT track_id
+          FROM diffs
+          WHERE ABS(d) > ${MemoryViz.BLACKLIST_THRESHOLD_BYTES}
+        ),
+        target_counters AS (
+          SELECT c.id, c.ts, c.track_id, c.value
+          FROM counter c
+          JOIN process_counter_track t ON c.track_id = t.id
+          WHERE
+            (t.name = 'mem.rss.anon' OR t.name = 'mem.swap' OR t.name = 'mem.rss.file')
+            AND t.id NOT IN (SELECT track_id FROM blacklisted_tracks)
+        ),
+        -- Get all memory counter values for all processes, and clip them to process lifetime.
+        marked_intervals AS (
+          SELECT
+            i.ts,
+            i.ts + i.dur AS raw_end_ts,
+            p.upid,
+            p.start_ts,
+            p.end_ts,
+            t.name AS track_name,
+            i.value
+          FROM counter_leading_intervals!(target_counters) i
+          JOIN process_counter_track t ON i.track_id = t.id
+          JOIN process p USING (upid)
+        )
       SELECT
-      MAX(CASE WHEN track_name = 'mem.rss.anon' THEN avg_val END) AS rss_anon_base,
-      MAX(CASE WHEN track_name = 'mem.swap' THEN avg_val END) AS swap_base
-      FROM (
-      SELECT t.name AS track_name, AVG(c.value) AS avg_val
-      FROM counter c
-      JOIN process_counter_track t ON c.track_id = t.id
-      JOIN process p USING (upid)
-      WHERE (p.name = 'zygote' OR p.name = 'zygote64')
-        AND (t.name = 'mem.rss.anon' OR t.name = 'mem.swap')
-      GROUP BY t.name
-      );
-
-      -- ============================================================================
-      -- 2. SPAN LEFT JOIN FOR OOM BUCKET ATTRIBUTION
-      -- ============================================================================
-      -- Prepare Left Side: Memory Intervals (Dropping first AND last samples per track)
-      CREATE OR REPLACE PERFETTO TABLE mem_intervals_raw AS
-      WITH marked_intervals AS (
-        SELECT
-          c.ts,
-          -- Calculate the "natural" end of this counter sample (next sample or trace end)
-          IFNULL(
-            LEAD(c.ts) OVER (PARTITION BY track_id ORDER BY c.ts), 
-            (SELECT end_ts FROM trace_bounds)
-          ) AS raw_end_ts,
-          p.upid,
-          p.start_ts, -- Can be NULL
-          p.end_ts,   -- Can be NULL
-          t.name AS track_name,
-          c.value
-        FROM counter c
-        JOIN process_counter_track t ON c.track_id = t.id
-        JOIN process p USING (upid)
-        WHERE (t.name = 'mem.rss.anon' OR t.name = 'mem.swap')
-          AND t.id NOT IN (SELECT track_id FROM blacklisted_tracks)
-      )
-      SELECT
-        -- 1. CLIP START:
-        -- If the counter sample is recorded before the process start, shift it to start_ts.
-        -- IFNULL handles cases where process.start_ts is missing.
         MAX(ts, IFNULL(start_ts, ts)) as ts,
-
-        -- 2. CLIP DURATION:
-        -- Duration = (The Earliest End Time) - (The Latest Start Time)
-        -- End Time is min(natural_end, process_end)
         MIN(raw_end_ts, IFNULL(end_ts, raw_end_ts)) - MAX(ts, IFNULL(start_ts, ts)) as dur,
-
         upid,
         track_name,
         value
       FROM marked_intervals
-      WHERE 
-        -- 3. VALIDITY CHECK:
-        -- Only keep rows where the clipping resulted in a positive duration.
-        (MIN(raw_end_ts, IFNULL(end_ts, raw_end_ts)) - MAX(ts, IFNULL(start_ts, ts))) > 0;
+      -- Only keep rows where the clipping resulted in a positive duration.
+      WHERE (
+        MIN(raw_end_ts, IFNULL(end_ts, raw_end_ts)) - MAX(ts, IFNULL(start_ts, ts))) > 0;
 
-      -- Prepare Right Side: OOM Intervals (Must be a table for virtual table usage)
-      CREATE OR REPLACE PERFETTO TABLE oom_intervals_prepared AS
+      -- Create a table containing intervals of OOM adjustment scores.
+      -- This table will be used as the right side of a span join.
+      CREATE OR REPLACE PERFETTO TABLE ${MemoryViz.table_prefix}oom_intervals_prepared AS
       SELECT ts, dur, upid, bucket
       FROM android_oom_adj_intervals
       WHERE dur > 0;
 
-      -- Create the Virtual Table
-      DROP TABLE IF EXISTS mem_oom_span_join;
-      CREATE VIRTUAL TABLE mem_oom_span_join
+      -- Create a virtual table that joins memory counter intervals with OOM
+      -- adjustment score intervals.
+      DROP TABLE IF EXISTS ${MemoryViz.table_prefix}mem_oom_span_join;
+      CREATE VIRTUAL TABLE ${MemoryViz.table_prefix}mem_oom_span_join
       USING SPAN_LEFT_JOIN(
-      mem_intervals_raw PARTITIONED upid,
-      oom_intervals_prepared PARTITIONED upid
+        ${MemoryViz.table_prefix}mem_intervals_raw PARTITIONED upid,
+        ${MemoryViz.table_prefix}oom_intervals_prepared PARTITIONED upid
       );
 
-      -- Materialize and clean up IDs for the Macro
-      CREATE OR REPLACE PERFETTO TABLE mem_with_buckets_indexed AS
+      -- Create a table containing memory counter intervals with OOM buckets.
+      CREATE OR REPLACE PERFETTO TABLE ${MemoryViz.table_prefix}mem_with_buckets_indexed AS
+      WITH
+        -- Get the baseline values for RSS anon and swap from the zygote process.
+        zygote_baseline AS (
+          SELECT
+            MAX(CASE WHEN track_name = 'mem.rss.anon' THEN avg_val END) AS rss_anon_base,
+            MAX(CASE WHEN track_name = 'mem.swap' THEN avg_val END) AS swap_base,
+            MAX(CASE WHEN track_name = 'mem.rss.file' THEN avg_val END) AS rss_file_base
+          FROM (
+            SELECT t.name AS track_name, AVG(c.value) AS avg_val
+            FROM counter c
+            JOIN process_counter_track t ON c.track_id = t.id
+            JOIN process p USING (upid)
+            WHERE
+              (p.name = 'zygote' OR p.name = 'zygote64') AND
+              (t.name = 'mem.rss.anon' OR t.name = 'mem.swap' OR t.name = 'mem.rss.file')
+            GROUP BY t.name
+          )
+        )
       SELECT
-      row_number() OVER () AS id,
-      ts,
-      dur,
-      track_name,
-      app.name as process_name,
-      upid,
-      pid,
-      IFNULL(bucket, 'unknown') AS bucket,
-      CASE
-        WHEN app.upid IS NOT NULL AND track_name = 'mem.rss.anon'
-        THEN MAX(0, CAST(value AS INT) - CAST(IFNULL((SELECT rss_anon_base FROM zygote_baseline), 0) AS INT))
-        WHEN app.upid IS NOT NULL AND track_name = 'mem.swap'
-        THEN MAX(0, CAST(value AS INT) - CAST(IFNULL((SELECT swap_base FROM zygote_baseline), 0) AS INT))
-        ELSE CAST(value AS INT)
-      END AS adjusted_value
-      FROM mem_oom_span_join
+        row_number() OVER () AS id,
+        ts,
+        dur,
+        track_name,
+        app.name as process_name,
+        upid,
+        pid,
+        IFNULL(bucket, 'unknown') AS bucket,
+        CASE
+          WHEN app.upid IS NOT NULL AND track_name = 'mem.rss.anon'
+            THEN MAX(0, CAST(value AS INT) - CAST(IFNULL((SELECT rss_anon_base FROM zygote_baseline), 0) AS INT)))
+          WHEN app.upid IS NOT NULL AND track_name = 'mem.swap'
+            THEN MAX(0, CAST(value AS INT) - CAST(IFNULL((SELECT swap_base FROM zygote_baseline), 0) AS INT)))
+          WHEN app.upid IS NOT NULL AND track_name = 'mem.rss.file'
+            THEN MAX(0, CAST(value AS INT) - CAST(IFNULL((SELECT rss_file_base FROM zygote_baseline), 0) AS INT)))
+          ELSE CAST(value AS INT)
+        END AS adjusted_value
+      FROM ${MemoryViz.table_prefix}mem_oom_span_join
       LEFT JOIN process app USING (upid)
       WHERE dur > 0;
 `);
@@ -148,33 +144,34 @@ export default class RssAnonSwapMemoryViz implements PerfettoPlugin {
       name: 'RSS Anon/Swap: Visualize (over selection)',
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
-        const rootTrack = await this.createRootTrack(ctx, window);
-        ctx.defaultWorkspace.pinnedTracksNode.addChildLast(rootTrack);
+        const rssAnonSwapTrack = await this.createRssAnonSwapTrack(ctx, window);
+        ctx.defaultWorkspace.pinnedTracksNode.addChildLast(rssAnonSwapTrack);
+
+        const rssFileTrack = await this.createBreakdownTrack(
+          ctx,
+          window,
+          'mem.rss.file',
+          'RSS File',
+        );
+        ctx.defaultWorkspace.pinnedTracksNode.addChildLast(rssFileTrack);
       },
     });
   }
 
-  private async createRootTrack(
+  private async createTrack(
     ctx: Trace,
-    window: TimeSpan,
+    uri: string,
+    sqlSource: string,
+    name: string,
+    description: string,
+    removable = true,
   ): Promise<TrackNode> {
-    const uri = `${RssAnonSwapMemoryViz.id}.rss_anon_swap.${uuidv4()}`;
     const track = await createQueryCounterTrack({
       trace: ctx,
       uri,
       materialize: false,
       data: {
-        sqlSource: `
-          SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
-            SELECT
-              id,
-              MAX(ts, ${window.start}) as ts,
-              MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-            FROM mem_with_buckets_indexed
-            WHERE ts < ${window.end} and ts + dur > ${window.start}
-          )) iss JOIN mem_with_buckets_indexed m USING(id)
-          GROUP BY group_id
-        `,
+        sqlSource,
       },
       columns: {
         ts: 'ts',
@@ -184,13 +181,32 @@ export default class RssAnonSwapMemoryViz implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       renderer: track,
+      description,
     });
 
-    const rootNode = new TrackNode({
+    return new TrackNode({
       uri,
-      name: 'RSS Anon + Swap',
-      removable: true,
+      name,
+      removable,
     });
+  }
+
+  private async createRssAnonSwapTrack(
+    ctx: Trace,
+    window: TimeSpan,
+  ): Promise<TrackNode> {
+    const uri = `${MemoryViz.id}.rss_anon_swap.${uuidv4()}`;
+    const sqlSource = this.getSqlSource(window, [
+      `(track_name = 'mem.rss.anon' OR track_name = 'mem.swap')`,
+    ]);
+    const rootNode = await this.createTrack(
+      ctx,
+      uri,
+      sqlSource,
+      'RSS Anon + Swap',
+      'Sum of anonymous RSS and Swap memory across all processes.',
+      true,
+    );
 
     const rssAnonNode = await this.createBreakdownTrack(
       ctx,
@@ -217,43 +233,22 @@ export default class RssAnonSwapMemoryViz implements PerfettoPlugin {
     trackName: string,
     name: string,
   ): Promise<TrackNode> {
-    const uri = `${RssAnonSwapMemoryViz.id}.${trackName}.${uuidv4()}`;
-    const track = await createQueryCounterTrack({
-      trace: ctx,
+    const uri = `${MemoryViz.id}.${trackName}.${uuidv4()}`;
+    const sqlSource = this.getSqlSource(window, [
+      `track_name = '${trackName}'`,
+    ]);
+    const breakdownNode = await this.createTrack(
+      ctx,
       uri,
-      materialize: false,
-      data: {
-        sqlSource: `
-          SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
-            SELECT
-              id,
-              MAX(ts, ${window.start}) as ts,
-              MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-            FROM mem_with_buckets_indexed
-            WHERE track_name = '${trackName}' AND ts < ${window.end} AND ts + dur > ${window.start}
-          )) iss JOIN mem_with_buckets_indexed m USING(id)
-          GROUP BY group_id
-        `,
-      },
-      columns: {
-        ts: 'ts',
-        value: 'value',
-      },
-    });
-    ctx.tracks.registerTrack({
-      uri,
-      renderer: track,
-    });
-
-    const breakdownNode = new TrackNode({
-      uri,
+      sqlSource,
       name,
-      removable: true,
-    });
+      `Total ${name} memory usage across all processes.`,
+      true,
+    );
 
     const buckets = await ctx.engine.query(`
       SELECT DISTINCT bucket
-      FROM mem_with_buckets_indexed
+      FROM ${MemoryViz.table_prefix}mem_with_buckets_indexed
       WHERE track_name = '${trackName}'
       ORDER BY bucket ASC
     `);
@@ -278,39 +273,21 @@ export default class RssAnonSwapMemoryViz implements PerfettoPlugin {
     trackName: string,
     bucket: string,
   ): Promise<TrackNode> {
-    const uri = `${RssAnonSwapMemoryViz.id}.${trackName}.${bucket}.${uuidv4()}`;
-    const track = await createQueryCounterTrack({
-      trace: ctx,
+    const uri = `${MemoryViz.id}.${trackName}.${bucket}.${uuidv4()}`;
+    const sqlSource = this.getSqlSource(window, [
+      `bucket = '${bucket}'`,
+      `track_name = '${trackName}'`,
+    ]);
+    const bucketNode = await this.createTrack(
+      ctx,
       uri,
-      materialize: false,
-      data: {
-        sqlSource: `
-          SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
-            SELECT
-              id,
-              MAX(ts, ${window.start}) as ts,
-              MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-            FROM mem_with_buckets_indexed
-            WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND ts < ${window.end} AND ts + dur > ${window.start}
-          )) iss JOIN mem_with_buckets_indexed m USING(id)
-          GROUP BY group_id
-        `,
-      },
-      columns: {
-        ts: 'ts',
-        value: 'value',
-      },
-    });
-    ctx.tracks.registerTrack({
-      uri,
-      renderer: track,
-    });
-
-    const bucketNode = new TrackNode({
-      uri,
-      name: bucket,
-      removable: true,
-    });
+      sqlSource,
+      bucket,
+      `Total ${trackName} memory usage across all processes while in the '${
+        bucket
+      }' OOM bucket.`,
+      true,
+    );
 
     const processes = await ctx.engine.query(`
       SELECT upid, pid, process_name, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as max_value FROM interval_self_intersect!((
@@ -318,11 +295,14 @@ export default class RssAnonSwapMemoryViz implements PerfettoPlugin {
           id,
           MAX(ts, ${window.start}) as ts,
           MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-        FROM mem_with_buckets_indexed
-        WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND ts < ${window.end} AND ts + dur > ${window.start}
+        FROM ${MemoryViz.table_prefix}mem_with_buckets_indexed
+        WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND ts < ${
+          window.end
+        } AND ts + dur > ${window.start}
       )) iss
-      JOIN mem_with_buckets_indexed m USING(id) 
+      JOIN ${MemoryViz.table_prefix}mem_with_buckets_indexed m USING(id)
       GROUP BY upid, pid, process_name
+      HAVING max_value > 0
       ORDER BY max_value DESC
       `);
     for (
@@ -357,36 +337,37 @@ export default class RssAnonSwapMemoryViz implements PerfettoPlugin {
     bucket: string,
   ): Promise<TrackNode> {
     const name = `${processName} ${pid}`;
-    const uri = `${RssAnonSwapMemoryViz.id}.process.${upid}.${trackName}.${uuidv4()}`;
-    const renderer = await createQueryCounterTrack({
-      trace: ctx,
+    const uri = `${MemoryViz.id}.process.${upid}.${trackName}.${uuidv4()}`;
+    const sqlSource = this.getSqlSource(window, [
+      `bucket = '${bucket}'`,
+      `track_name = '${trackName}'`,
+      `upid = ${upid}`,
+    ]);
+    return this.createTrack(
+      ctx,
       uri,
-      materialize: false,
-      data: {
-        sqlSource: `
-          SELECT iss.ts as ts, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
-            SELECT
-              id,
-              MAX(ts, ${window.start}) as ts,
-              MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-            FROM mem_with_buckets_indexed
-            WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND upid = ${upid} AND ts < ${window.end} AND ts + dur > ${window.start}
-          )) iss JOIN mem_with_buckets_indexed m USING(id)
-          GROUP BY group_id
-        `,
-      },
-      columns: {
-        ts: 'ts',
-        value: 'value',
-      },
-    });
-    ctx.tracks.registerTrack({
-      uri,
-      renderer,
-    });
-    return new TrackNode({
+      sqlSource,
       name,
-      uri,
-    });
+      `Process ${processName} (${pid}) ${trackName} memory usage while in the '${
+        bucket
+      }' OOM bucket`,
+      true,
+    );
+  }
+
+  private getSqlSource(window: TimeSpan, whereClauses: string[] = []): string {
+    const whereClause =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    return `
+      SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
+        SELECT
+          id,
+          MAX(ts, ${window.start}) as ts,
+          MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
+        FROM ${MemoryViz.table_prefix}mem_with_buckets_indexed
+        ${whereClause} AND ts < ${window.end} and ts + dur > ${window.start}
+      )) iss JOIN ${MemoryViz.table_prefix}mem_with_buckets_indexed m USING(id)
+      GROUP BY group_id
+    `;
   }
 }
