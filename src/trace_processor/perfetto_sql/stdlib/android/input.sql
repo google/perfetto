@@ -83,7 +83,7 @@ WITH
   _send_message_events AS (
     SELECT
       send_message_slice.name,
-      enqeue_slice.name AS enqueue_name,
+      enqueue_slice.name AS enqueue_name,
       thread_slice.utid,
       thread_slice.thread_name,
       str_split(str_split(send_message_slice.name, '=', 1), ',', 0) AS event_channel
@@ -92,7 +92,7 @@ WITH
       ON send_message_slice.parent_id = publish_slice.id
     JOIN slice AS start_dispatch_slice
       ON publish_slice.parent_id = start_dispatch_slice.id
-    JOIN slice AS enqeue_slice
+    JOIN slice AS enqueue_slice
       ON start_dispatch_slice.parent_id = enqeue_slice.id
     JOIN thread_slice
       ON send_message_slice.id = thread_slice.id
