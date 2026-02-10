@@ -13,42 +13,10 @@
 // limitations under the License.
 
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
+import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {Engine} from '../../trace_processor/engine';
-
-/**
- * A model of the scroll timeline according to Chrome's scroll jank v4 metric.
- *
- * See
- * https://docs.google.com/document/d/1AaBvTIf8i-c-WTKkjaL4vyhQMkSdynxo3XEiwpofdeA
- * and scroll_jank_v4*.{h,cc} source files in
- * https://source.chromium.org/chromium/chromium/src/+/main:cc/metrics/ for more
- * details about the v4 metric.
- */
-export interface ScrollTimelineV4Model {
-  /**
-   * The name of the SQL table which contains information about the slices in
-   * the track visualizing the timeline created by
-   * {@link scroll_timeline_v4_track#createScrollTimelineV4Track}. Each slice
-   * corresponds to a single frame that contains one or more scroll updates.
-   *
-   * The table has the following columns:
-   *
-   *   id (NUM): Unique ID of the slice (monotonically increasing). Note that
-   *     it cannot joined with any tables in Chrome's tracing stdlib. Not
-   *     guaranteed to be stable.
-   *   ts (LONG/TIMESTAMP): Start timestamp of the slice.
-   *   dur (LONG/DURATION): Duration of the slice.
-   *   depth (NUM): Depth of the slice on the track.
-   *   name (STRING): Title of the slice.
-   *   classification (NUM): Classification of the frame for the purposes of
-   *     trace visualization. Guaranteed to be one of the values in
-   *     {@link ScrollFrameClassification}.
-   */
-  readonly tableName: string;
-
-  /** A unique identifier of the track. */
-  readonly trackUri: string;
-}
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
+import {SCROLL_TIMELINE_V4_TRACK} from './tracks';
 
 /**
  * Classification of a frame that contains one or more scroll updates, for the
@@ -86,25 +54,70 @@ export enum ScrollFrameClassification {
   DESCENDANT_SLICE = -1,
 }
 
-export async function createScrollTimelineV4Model(
-  engine: Engine,
-  tableName: string,
-  trackUri: string,
-): Promise<ScrollTimelineV4Model> {
-  await createTable(engine, tableName);
-  return {tableName, trackUri};
-}
+/**
+ * Definition of the Perfetto table created by
+ * {@link createScrollTimelineV4Model}, which underpins
+ * {@link tracks#SCROLL_TIMELINE_V4_TRACK}.
+ *
+ * Note: The table contains both:
+ *
+ *   1. parent slices for entire scroll updates (e.g. 'Janky Inertial Frame')
+ *      and
+ *   2. child slices for relevant events within a scroll update (e.g. 'Begin
+ *      frame').
+ */
+export const SCROLL_TIMELINE_V4_TABLE_DEFINITION: SqlTableDefinition = {
+  name: SCROLL_TIMELINE_V4_TRACK.tableName,
+  columns: [
+    /**
+     * Unique ID of the slice (monotonically increasing). Note that it cannot
+     * joined with any tables in Chrome's tracing stdlib. Not guaranteed to be
+     * stable.
+     */
+    {
+      column: 'id',
+      type: {
+        kind: 'id',
+        source: {table: SCROLL_TIMELINE_V4_TRACK.tableName, column: 'id'},
+      },
+    },
+
+    /** Start timestamp of the slice. */
+    {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+
+    /** Duration of the slice. */
+    {column: 'dur', type: PerfettoSqlTypes.DURATION},
+
+    /** Depth of the slice on the track. */
+    {column: 'depth', type: PerfettoSqlTypes.INT},
+
+    /** Title of the slice. */
+    {column: 'name', type: PerfettoSqlTypes.STRING},
+
+    /**
+     * Classification of the frame for the purposes of trace visualization.
+     * Guaranteed to be one of the values in {@link ScrollFrameClassification}.
+     *
+     * For events within a scroll update, this column is equal to
+     * {@link ScrollFrameClassification#DESCENDANT_SLICE}.
+     */
+    {column: 'classification', type: PerfettoSqlTypes.INT},
+  ],
+};
 
 /**
- * Creates a Perfetto table named `tableName` representing the slices of a the
- * track created by {@link scroll_timeline_v4_track#createScrollTimelineV4Track}
- * for a given trace.
+ * Creates a Perfetto table named {@link SCROLL_TIMELINE_V4_TRACK.tableName}
+ * representing the slices of a the track created by
+ * {@link scroll_timeline_v4_track#createScrollTimelineV4Track} for a given
+ * trace.
  */
-async function createTable(engine: Engine, tableName: string): Promise<void> {
+export async function createScrollTimelineV4Model(
+  engine: Engine,
+): Promise<void> {
   await engine.query(
     `INCLUDE PERFETTO MODULE chrome.scroll_jank_v4;
 
-    CREATE PERFETTO TABLE ${tableName} AS
+    CREATE PERFETTO TABLE ${SCROLL_TIMELINE_V4_TRACK.tableName} AS
     WITH descendant_slices AS (
       SELECT
         ancestor.id AS ancestor_id,

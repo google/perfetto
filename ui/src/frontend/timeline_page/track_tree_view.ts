@@ -24,7 +24,6 @@
 
 import {hex} from 'color-convert';
 import m from 'mithril';
-import {canvasClip, canvasSave} from '../../base/canvas_utils';
 import {classNames} from '../../base/classnames';
 import {DisposableStack} from '../../base/disposable_stack';
 import {findRef, toHTMLElement} from '../../base/dom_utils';
@@ -32,6 +31,7 @@ import {
   HorizontalBounds,
   Rect2D,
   Size2D,
+  Transform2D,
   VerticalBounds,
 } from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
@@ -96,6 +96,29 @@ const WEBGL_RENDERING = featureFlags.register({
 // Snap-to-boundaries feature constants
 const SNAP_THRESHOLD_PX = 15;
 const SNAP_ENABLED_DEFAULT = true;
+
+// Cache for CSS color to packed RGBA conversion
+const cssColorCache = new Map<string, number>();
+
+// Convert a CSS color string to packed RGBA (0xRRGGBBAA)
+function cssColorToRgba(cssColor: string): number {
+  const cached = cssColorCache.get(cssColor);
+  if (cached !== undefined) return cached;
+
+  // Use an offscreen canvas to parse CSS color
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = cssColor;
+  ctx.fillRect(0, 0, 1, 1);
+  const imageData = ctx.getImageData(0, 0, 1, 1);
+  const [r, g, b, a] = imageData.data;
+  const packed = ((r << 24) | (g << 16) | (b << 8) | a) >>> 0;
+
+  cssColorCache.set(cssColor, packed);
+  return packed;
+}
 
 export interface TrackTreeViewAttrs {
   // Access to the trace, for accessing the track registry / selection manager.
@@ -414,11 +437,15 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     const start = performance.now();
 
-    // Save, translate & clip the canvas to the area of the timeline.
-    using _ = canvasSave(ctx);
-    canvasClip(ctx, timelineRect);
+    // Clip to the timeline area for WebGL rendering
+    using _clip = renderer.clip(
+      timelineRect.left,
+      timelineRect.top,
+      timelineRect.width,
+      timelineRect.height,
+    );
 
-    this.drawGridLines(ctx, timescale, timelineRect);
+    this.drawGridLines(renderer, timescale, timelineRect);
 
     const colors: CanvasColors = {
       COLOR_BORDER,
@@ -460,30 +487,60 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   }
 
   private drawGridLines(
-    ctx: CanvasRenderingContext2D,
+    renderer: Renderer,
     timescale: TimeScale,
-    size: Size2D,
+    timelineRect: Rect2D,
   ): void {
-    ctx.strokeStyle = COLOR_BORDER_SECONDARY;
-    ctx.lineWidth = 1;
+    if (timelineRect.width <= 0 || timescale.timeSpan.duration <= 0n) {
+      return;
+    }
 
-    if (size.width > 0 && timescale.timeSpan.duration > 0n) {
-      const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = this.trace.timeline.getTimeAxisOrigin();
-      for (const {type, time} of generateTicks(
-        timescale.timeSpan.toTimeSpan(),
-        maxMajorTicks,
-        offset,
-      )) {
-        const px = Math.floor(timescale.timeToPx(time));
-        if (type === TickType.MAJOR) {
-          ctx.beginPath();
-          ctx.moveTo(px + 0.5, 0);
-          ctx.lineTo(px + 0.5, size.height);
-          ctx.stroke();
-        }
+    const maxMajorTicks = getMaxMajorTicks(timelineRect.width);
+    const offset = this.trace.timeline.getTimeAxisOrigin();
+
+    // Collect all major tick positions
+    const tickPositions: number[] = [];
+    for (const {type, time} of generateTicks(
+      timescale.timeSpan.toTimeSpan(),
+      maxMajorTicks,
+      offset,
+    )) {
+      if (type === TickType.MAJOR) {
+        tickPositions.push(Math.floor(timescale.timeToPx(time)));
       }
     }
+
+    if (tickPositions.length === 0) return;
+
+    // Create buffers for WebGL rendering
+    const count = tickPositions.length;
+    const xs = new Float32Array(count);
+    const ys = new Float32Array(count);
+    const ws = new Float32Array(count);
+    const colors = new Uint32Array(count);
+    const patterns = new Uint8Array(count);
+    const gridColor = cssColorToRgba(COLOR_BORDER_SECONDARY);
+
+    for (let i = 0; i < count; i++) {
+      xs[i] = tickPositions[i];
+      ys[i] = 0;
+      ws[i] = 1;
+      colors[i] = gridColor;
+      patterns[i] = 0;
+    }
+
+    renderer.drawRects(
+      {
+        xs,
+        ys,
+        ws,
+        h: timelineRect.height,
+        colors,
+        patterns,
+        count,
+      },
+      Transform2D.Identity,
+    );
   }
 
   // Render all tracks - WebGL rectangles and Canvas 2D content in one pass
