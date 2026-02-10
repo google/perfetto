@@ -140,8 +140,8 @@ export default class MemoryViz implements PerfettoPlugin {
 `);
 
     ctx.commands.registerCommand({
-      id: `com.android.visualizeRssAnonSwapMemory`,
-      name: 'RSS Anon/Swap: Visualize (over selection)',
+      id: `com.android.visualizeMemory`,
+      name: 'Memory: Visualize (over selection)',
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         const rssAnonSwapTrack = await this.createRssAnonSwapTrack(ctx, window);
