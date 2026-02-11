@@ -23,6 +23,9 @@ import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 import {addConnection, removeConnection} from './query_builder/graph_utils';
 import {UIFilter} from './query_builder/operations/filter';
 import {ColumnInfo} from './query_builder/column_info';
+import {registerCoreNodes} from './query_builder/core_nodes';
+
+registerCoreNodes();
 
 describe('HistoryManager', () => {
   let trace: Trace;
