@@ -12,19 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, Page} from '@playwright/test';
-import {PerfettoTestHelper} from './perfetto_ui_test_helper';
+import {test} from '@playwright/test';
 
-let pth: PerfettoTestHelper;
-let page: Page;
-
-test.beforeAll(async ({browser}, _testInfo) => {
-  page = await browser.newPage();
-  pth = new PerfettoTestHelper(page);
-  await pth.openTraceFile('api34_startup_colƒd.perfetto-trace');
-});
-
-test('debug GPU info', async () => {
+test('debug GPU info', async ({browser}) => {
+  const page = await browser.newPage();
   const info = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
