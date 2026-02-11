@@ -34,10 +34,17 @@ describe('NodeRegistry', () => {
     } as QueryNode;
   }
 
+  // Default required fields for test descriptors (nodeType, deserialize).
+  const defaults = {
+    nodeType: NodeType.kTable,
+    deserialize: () => createMockNode('mock'),
+  };
+
   describe('register', () => {
     it('should register a node descriptor', () => {
       const registry = new NodeRegistry();
       const descriptor: NodeDescriptor = {
+        ...defaults,
         name: 'Test Node',
         description: 'A test node',
         icon: 'test-icon',
@@ -54,6 +61,7 @@ describe('NodeRegistry', () => {
     it('should allow registering multiple nodes', () => {
       const registry = new NodeRegistry();
       const descriptor1: NodeDescriptor = {
+        ...defaults,
         name: 'Node 1',
         description: 'First node',
         icon: 'icon1',
@@ -61,6 +69,7 @@ describe('NodeRegistry', () => {
         factory: (_state: QueryNodeState) => createMockNode('node1'),
       };
       const descriptor2: NodeDescriptor = {
+        ...defaults,
         name: 'Node 2',
         description: 'Second node',
         icon: 'icon2',
@@ -78,6 +87,7 @@ describe('NodeRegistry', () => {
     it('should overwrite existing registration with same id', () => {
       const registry = new NodeRegistry();
       const descriptor1: NodeDescriptor = {
+        ...defaults,
         name: 'Node 1',
         description: 'First node',
         icon: 'icon1',
@@ -85,6 +95,7 @@ describe('NodeRegistry', () => {
         factory: (_state: QueryNodeState) => createMockNode('node1'),
       };
       const descriptor2: NodeDescriptor = {
+        ...defaults,
         name: 'Node 1 Updated',
         description: 'Updated node',
         icon: 'icon1-updated',
@@ -104,6 +115,7 @@ describe('NodeRegistry', () => {
       const registry = new NodeRegistry();
       const preCreate = async (_context: PreCreateContext) => ({});
       const descriptor: NodeDescriptor = {
+        ...defaults,
         name: 'Advanced Node',
         description: 'Node with optional fields',
         icon: 'advanced-icon',
@@ -133,6 +145,7 @@ describe('NodeRegistry', () => {
     it('should return registered descriptor', () => {
       const registry = new NodeRegistry();
       const descriptor: NodeDescriptor = {
+        ...defaults,
         name: 'Test Node',
         description: 'A test node',
         icon: 'test-icon',
@@ -150,6 +163,7 @@ describe('NodeRegistry', () => {
     it('should handle special characters in id', () => {
       const registry = new NodeRegistry();
       const descriptor: NodeDescriptor = {
+        ...defaults,
         name: 'Special Node',
         description: 'Node with special id',
         icon: 'special-icon',
@@ -176,6 +190,7 @@ describe('NodeRegistry', () => {
     it('should return all registered nodes', () => {
       const registry = new NodeRegistry();
       const descriptor1: NodeDescriptor = {
+        ...defaults,
         name: 'Node 1',
         description: 'First node',
         icon: 'icon1',
@@ -183,6 +198,7 @@ describe('NodeRegistry', () => {
         factory: (_state: QueryNodeState) => createMockNode('node1'),
       };
       const descriptor2: NodeDescriptor = {
+        ...defaults,
         name: 'Node 2',
         description: 'Second node',
         icon: 'icon2',
@@ -190,6 +206,7 @@ describe('NodeRegistry', () => {
         factory: (_state: QueryNodeState) => createMockNode('node2'),
       };
       const descriptor3: NodeDescriptor = {
+        ...defaults,
         name: 'Node 3',
         description: 'Third node',
         icon: 'icon3',
@@ -212,6 +229,7 @@ describe('NodeRegistry', () => {
     it('should return tuples of [id, descriptor]', () => {
       const registry = new NodeRegistry();
       const descriptor: NodeDescriptor = {
+        ...defaults,
         name: 'Test Node',
         description: 'A test node',
         icon: 'test-icon',
@@ -231,6 +249,7 @@ describe('NodeRegistry', () => {
     it('should reflect updates when node is re-registered', () => {
       const registry = new NodeRegistry();
       const descriptor1: NodeDescriptor = {
+        ...defaults,
         name: 'Node 1',
         description: 'First node',
         icon: 'icon1',
@@ -238,6 +257,7 @@ describe('NodeRegistry', () => {
         factory: (_state: QueryNodeState) => createMockNode('node1'),
       };
       const descriptor2: NodeDescriptor = {
+        ...defaults,
         name: 'Node 1 Updated',
         description: 'Updated node',
         icon: 'icon1-updated',
@@ -266,6 +286,7 @@ describe('NodeRegistry', () => {
 
       // Register first node
       const descriptor1: NodeDescriptor = {
+        ...defaults,
         name: 'Source Node',
         description: 'A source node',
         icon: 'source-icon',
@@ -278,6 +299,7 @@ describe('NodeRegistry', () => {
 
       // Register second node
       const descriptor2: NodeDescriptor = {
+        ...defaults,
         name: 'Modify Node',
         description: 'A modification node',
         icon: 'modify-icon',
@@ -290,6 +312,7 @@ describe('NodeRegistry', () => {
 
       // Update first node
       const descriptor1Updated: NodeDescriptor = {
+        ...defaults,
         name: 'Source Node Updated',
         description: 'Updated source node',
         icon: 'source-icon-updated',
