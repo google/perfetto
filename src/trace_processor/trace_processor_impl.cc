@@ -1252,7 +1252,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   if constexpr (regex::IsRegexSupported()) {
     RegisterFunction<Regexp>(engine.get());
     RegisterFunction<RegexpExtract>(engine.get());
-    RegisterFunction<RegexpReplace>(engine.get());
+    RegisterFunction<RegexpReplaceSimple>(engine.get());
   }
 
   RegisterFunction<UnHex>(engine.get());

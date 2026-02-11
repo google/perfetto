@@ -398,8 +398,8 @@ struct RegexpExtract : public sqlite::Function<RegexpExtract> {
   }
 };
 
-struct RegexpReplace : public sqlite::Function<RegexpReplace> {
-  static constexpr char kName[] = "regexp_replace";
+struct RegexpReplaceSimple : public sqlite::Function<RegexpReplaceSimple> {
+  static constexpr char kName[] = "regexp_replace_simple";
   static constexpr int kArgCount = 3;
 
   using AuxData = regex::Regex;

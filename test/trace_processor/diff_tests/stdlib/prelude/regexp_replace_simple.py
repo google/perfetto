@@ -20,16 +20,16 @@ from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
-class RegexpReplace(TestSuite):
+class RegexpReplaceSimple(TestSuite):
 
-  def test_regexp_replace(self):
+  def test_regexp_replace_simple(self):
     return DiffTestBlueprint(
         trace=TextProto(''),
         query="""
         SELECT
-          REGEXP_REPLACE('abcde', 'c', 'C') AS c,
-          REGEXP_REPLACE('abcde', 'i', 'I') AS i,
-          REGEXP_REPLACE('abcde', '', '|') AS interpolate
+          REGEXP_REPLACE_SIMPLE('abcde', 'c', 'C') AS c,
+          REGEXP_REPLACE_SIMPLE('abcde', 'i', 'I') AS i,
+          REGEXP_REPLACE_SIMPLE('abcde', '', '|') AS interpolate
         """,
         out=Csv("""
         "c","i","interpolate"
