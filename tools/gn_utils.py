@@ -608,7 +608,8 @@ class GnParser(object):
         jni_library = dep.type == 'shared_library' and dep.custom_target_type(
         ) == 'perfetto_android_jni_library'
         android_lib = dep.custom_action_type == 'perfetto_android_library'
-        assert (jni_library or android_lib or dep.is_third_party_dep_)
+        assert (jni_library or android_lib or dep.is_third_party_dep_ or
+                dep.type == 'action')
 
       if target.custom_action_type == 'perfetto_android_instrumentation_test':
         assert (dep.custom_action_type == 'perfetto_android_app')

@@ -5094,6 +5094,7 @@ perfetto_android_binary(
 perfetto_android_library(
     name = "src_android_sdk_java_main_perfetto_trace_lib",
     srcs = [
+        ":src_android_sdk_java_main_gen_perfetto_categories",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
@@ -8914,6 +8915,21 @@ perfetto_py_binary(
     data = ["CHANGELOG"],
     main = "tools/write_version_header.py",
     python_version = "PY3",
+)
+
+perfetto_py_binary(
+    name = "gen_categories_py",
+    srcs = ["src/android_sdk/java/main/dev/perfetto/sdk/gen_categories.py"],
+    main = "src/android_sdk/java/main/dev/perfetto/sdk/gen_categories.py",
+    python_version = "PY3",
+)
+
+perfetto_genrule(
+    name = "src_android_sdk_java_main_gen_perfetto_categories",
+    srcs = [],
+    outs = ["dev/perfetto/sdk/PerfettoCategories.java"],
+    cmd = "$(location :gen_categories_py) --input NONE --output $@",
+    tools = [":gen_categories_py"],
 )
 
 exports_files(

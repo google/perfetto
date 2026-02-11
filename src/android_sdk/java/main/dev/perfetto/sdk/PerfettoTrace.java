@@ -18,6 +18,7 @@ package dev.perfetto.sdk;
 
 import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
+import dev.perfetto.sdk.PerfettoCategories;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -297,5 +298,12 @@ public final class PerfettoTrace {
   public static void registerWithDebugChecks(boolean isBackendInProcess) {
     sIsDebug = true;
     register(isBackendInProcess);
+  }
+
+  /** Registers all the categories. */
+  public static void registerCategories() {
+    for (PerfettoTrace.Category cat : PerfettoCategories.ALL_CATEGORIES) {
+      cat.register();
+    }
   }
 }

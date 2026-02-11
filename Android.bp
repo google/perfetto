@@ -18535,6 +18535,7 @@ java_library {
 java_defaults {
     name: "perfetto_trace_lib_java_defaults",
     srcs: [
+        ":perfetto_gen_perfetto_categories",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
@@ -21521,4 +21522,20 @@ cc_aconfig_library {
         "com.android.profiling",
     ],
     min_sdk_version: "30",
+}
+
+java_genrule {
+    name: "perfetto_gen_perfetto_categories",
+    srcs: [
+        ":perfetto_categories_textproto",
+    ],
+    out: [
+        "dev/perfetto/sdk/PerfettoCategories.java",
+    ],
+    tool_files: [
+        "src/android_sdk/java/main/dev/perfetto/sdk/gen_categories.py",
+    ],
+    cmd: "python3 $(location src/android_sdk/java/main/dev/perfetto/sdk/gen_categories.py) " +
+         "--input $(location :perfetto_categories_textproto) " +
+         "--output $(out)",
 }

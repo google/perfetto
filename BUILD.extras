@@ -105,6 +105,21 @@ perfetto_py_binary(
     python_version = "PY3",
 )
 
+perfetto_py_binary(
+    name = "gen_categories_py",
+    srcs = ["src/android_sdk/java/main/dev/perfetto/sdk/gen_categories.py"],
+    main = "src/android_sdk/java/main/dev/perfetto/sdk/gen_categories.py",
+    python_version = "PY3",
+)
+
+perfetto_genrule(
+    name = "src_android_sdk_java_main_gen_perfetto_categories",
+    srcs = [],
+    outs = ["dev/perfetto/sdk/PerfettoCategories.java"],
+    cmd = "$(location :gen_categories_py) --input NONE --output $@",
+    tools = [":gen_categories_py"],
+)
+
 exports_files(
     ["ui/src/assets/favicon.png"],
     visibility = PERFETTO_CONFIG.public_visibility,

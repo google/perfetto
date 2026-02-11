@@ -10,7 +10,10 @@ perfetto_android_library("perfetto_trace_lib") {
     "dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
     "dev/perfetto/sdk/PerfettoTrackEventExtra.java",
   ]
-  deps = [ "../../jni:libperfetto_jni" ]
+  deps = [
+    ":gen_perfetto_categories",
+    "../../jni:libperfetto_jni",
+  ]
   manifest = "AndroidManifest.xml"
   android_bp_java_target_name_suffix = "_java"
   android_bp_copy_java_target_name_suffix = "_framework_java"
@@ -20,4 +23,16 @@ perfetto_android_library("perfetto_trace_lib") {
 perfetto_android_app("perfetto_trace_app") {
   deps = [ ":perfetto_trace_lib" ]
   manifest = "AndroidManifest.xml"
+}
+
+action("gen_perfetto_categories") {
+  script = "dev/perfetto/sdk/gen_categories.py"
+  sources = []
+  outputs = [ "$target_gen_dir/dev/perfetto/sdk/PerfettoCategories.java" ]
+  args = [
+    "--input",
+    "NONE",
+    "--output",
+    rebase_path(outputs[0], root_build_dir),
+  ]
 }
