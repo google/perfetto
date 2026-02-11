@@ -20,6 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class PrimesTraceParser(TestSuite):
+
   def test_primes_trace_slice_smoke(self):
     return DiffTestBlueprint(
         trace=DataPath('primes_trace_for_test.primestrace'),
