@@ -19,7 +19,6 @@ import {Trace} from '../../../../public/trace';
 import {SqlValue, STR} from '../../../../trace_processor/query_result';
 import {
   asSchedSqlId,
-  asSliceSqlId,
   asThreadStateSqlId,
   asUpid,
   asUtid,
@@ -28,7 +27,6 @@ import {renderError} from '../../../../widgets/error';
 import {DurationWidget} from '../../duration';
 import {showProcessDetailsMenuItem} from '../../process';
 import {SchedRef} from '../../sched';
-import {SliceRef} from '../../slice';
 import {showThreadDetailsMenuItem} from '../../thread';
 import {ThreadStateRef} from '../../thread_state';
 import {Timestamp} from '../../timestamp';
@@ -56,6 +54,7 @@ import {Args} from '../../../sql_utils/args';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 
 import {SqlTableDefinition, SqlTableDescription} from './table_description';
+import {TrackEventRef} from '../../track_event_ref';
 
 // Converts a raw SqlTableDefinition (just data) into a SqlTableDescription
 // with fully constructed TableColumn objects that have rendering logic.
@@ -347,9 +346,10 @@ export function sliceIdColumn(
       ],
     },
     render: (id) => ({
-      content: m(SliceRef, {
+      content: m(TrackEventRef, {
         trace,
-        id: asSliceSqlId(Number(id)),
+        table: 'slice',
+        id: Number(id),
         name: `${id}`,
         switchToCurrentSelectionTab: false,
       }),

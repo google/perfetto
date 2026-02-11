@@ -179,6 +179,21 @@ void ExtractInnerQueryIds(const uint8_t* data,
     }
   }
 
+  // Check experimental_filter_in.base and .match_values.
+  if (query.has_experimental_filter_in()) {
+    auto fi = query.experimental_filter_in();
+    using FI = PerfettoSqlStructuredQuery::ExperimentalFilterIn;
+    FI::Decoder fi_dec(fi.data, fi.size);
+    if (fi_dec.has_base()) {
+      auto base = fi_dec.base();
+      ExtractInnerQueryIds(base.data, base.size, out_ids);
+    }
+    if (fi_dec.has_match_values()) {
+      auto match_values = fi_dec.match_values();
+      ExtractInnerQueryIds(match_values.data, match_values.size, out_ids);
+    }
+  }
+
   // Check sql.dependencies[].query (recursively).
   if (query.has_sql()) {
     auto sql = query.sql();

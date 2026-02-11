@@ -26,18 +26,25 @@ export interface SqlRefAttrs {
   // The ID of our row.
   // If not provided, `table[Unknown]` is shown with no popup menu.
   id?: number | bigint;
+  // The name of the ID column of the table.
+  // If not provided, defaults to 'id'.
+  idColumnName?: string;
   // Optional additional popup menu items.
   additionalMenuItems?: m.Children;
 }
 
 export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
   view({attrs}: m.CVnode<SqlRefAttrs>) {
-    const {table, id, additionalMenuItems} = attrs;
+    const {table, id, idColumnName = 'id', additionalMenuItems} = attrs;
     if (id !== undefined) {
       return m(
         PopupMenu,
         {
-          trigger: m(Anchor, {icon: Icons.ContextMenu}, `${table}[${id}]`),
+          trigger: m(
+            Anchor,
+            {icon: Icons.ContextMenu},
+            `${table}[${idColumnName === 'id' ? '' : `${idColumnName}=`}${id}]`,
+          ),
         },
         m(MenuItem, {
           label: 'Copy ID',
@@ -48,7 +55,9 @@ export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
           label: 'Copy SQL query',
           icon: 'file_copy',
           onclick: () =>
-            copyToClipboard(`select * from ${table} where id=${id}`),
+            copyToClipboard(
+              `select * from ${table} where ${idColumnName}=${id}`,
+            ),
         }),
         additionalMenuItems,
       );

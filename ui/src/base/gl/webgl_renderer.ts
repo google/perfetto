@@ -17,7 +17,13 @@
 // 1. Rects pipeline - plain/hatched rectangles
 // 2. Markers pipeline - SDF-based shapes like chevrons
 
-import {Renderer, MarkerRenderFunc, StepAreaBuffers} from './../renderer';
+import {
+  Renderer,
+  MarkerRenderFunc,
+  MarkerBuffers,
+  StepAreaBuffers,
+  RectBuffers,
+} from './../renderer';
 import {DisposableStack} from './../disposable_stack';
 import {RectBatch} from './rects';
 import {ChevronBatch} from './chevrons';
@@ -32,6 +38,9 @@ export class WebGLRenderer implements Renderer {
   private readonly markers: ChevronBatch;
   private readonly stepArea: StepAreaBatch;
   private transform = Transform2D.Identity;
+  private clipRect:
+    | {left: number; top: number; right: number; bottom: number}
+    | undefined;
 
   constructor(c2d: CanvasRenderingContext2D, gl: WebGL2RenderingContext) {
     this.c2d = c2d;
@@ -75,32 +84,23 @@ export class WebGLRenderer implements Renderer {
     };
   }
 
-  drawMarker(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    color: Color,
+  drawMarkers(
+    buffers: MarkerBuffers,
+    dataTransform: Transform2D,
     _render: MarkerRenderFunc,
   ): void {
-    if (this.markers.isFull) {
-      this.markers.flush(this.transform);
-    }
-    this.markers.add(x, y, w, h, color.rgba);
+    this.markers.draw(buffers, dataTransform, this.transform);
   }
 
-  drawRect(
-    left: number,
-    top: number,
-    right: number,
-    bottom: number,
-    color: Color,
-    flags = 0,
-  ): void {
-    if (this.rects.isFull) {
-      this.rects.flush(this.transform);
-    }
-    this.rects.add(left, top, right, bottom, color.rgba, flags);
+  drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
+    // Use current clip rect, or full canvas if no clip is active
+    const clipRect = this.clipRect ?? {
+      left: 0,
+      top: 0,
+      right: this.gl.canvas.width,
+      bottom: this.gl.canvas.height,
+    };
+    this.rects.draw(buffers, dataTransform, this.transform, clipRect);
   }
 
   drawStepArea(
@@ -120,14 +120,7 @@ export class WebGLRenderer implements Renderer {
     );
   }
 
-  flush(): void {
-    this.rects.flush(this.transform);
-    this.markers.flush(this.transform);
-    // StepAreaBatch.draw() is immediate, no flush needed
-  }
-
   resetTransform(): void {
-    this.flush();
     this.transform = Transform2D.Identity;
     this.c2d.resetTransform();
   }
@@ -145,8 +138,6 @@ export class WebGLRenderer implements Renderer {
   clip(x: number, y: number, w: number, h: number): Disposable {
     const gl = this.gl;
     const ctx = this.c2d;
-
-    this.flush();
 
     // Apply transform: physPos = offset + pos * scale
     const physX = this.transform.offsetX + x * this.transform.scaleX;
@@ -168,11 +159,20 @@ export class WebGLRenderer implements Renderer {
     ctx.rect(x, y, w, h);
     ctx.clip();
 
+    // Store clip rect in screen space for shader-based vertex clamping
+    const previousClipRect = this.clipRect;
+    this.clipRect = {
+      left: physX,
+      top: physY,
+      right: physX + physW,
+      bottom: physY + physH,
+    };
+
     return {
       [Symbol.dispose]: () => {
-        this.flush();
         ctx.restore();
         gl.disable(gl.SCISSOR_TEST);
+        this.clipRect = previousClipRect;
       },
     };
   }
