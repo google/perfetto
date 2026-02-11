@@ -48,7 +48,7 @@ CREATE PERFETTO VIEW counter_track (
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -89,7 +89,7 @@ CREATE PERFETTO TABLE cpu_counter_track (
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -134,7 +134,7 @@ CREATE PERFETTO TABLE gpu_counter_track (
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -179,7 +179,7 @@ CREATE PERFETTO TABLE process_counter_track (
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -224,7 +224,7 @@ CREATE PERFETTO TABLE thread_counter_track (
   -- tracepoints etc.
   source_arg_set_id JOINID(track.id),
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -269,7 +269,7 @@ CREATE PERFETTO TABLE perf_counter_track (
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.

@@ -21,7 +21,7 @@ CREATE PERFETTO TABLE linux_per_cpu_idle_time_in_state_counters (
   -- Timestamp.
   ts TIMESTAMP,
   -- The machine this residency is calculated for.
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- State name.
   state STRING,
   -- CPU.
@@ -113,7 +113,7 @@ CREATE PERFETTO TABLE linux_cpu_idle_time_in_state_counters (
   -- Timestamp.
   ts TIMESTAMP,
   -- The machine this residency is calculated for.
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- State name.
   state STRING,
   -- Percentage of time all CPUS spent in this state.
