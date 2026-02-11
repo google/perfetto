@@ -16,16 +16,22 @@
 
 #include "src/trace_redaction/prune_perf_events.h"
 
-#include "perfetto/protozero/field.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
+#include <cstdint>
+#include <optional>
+#include <string>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_redaction/proto_util.h"
+#include "src/trace_redaction/redactor_clock_converter.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 using namespace perfetto::trace_processor;
 namespace perfetto::trace_redaction {
@@ -84,7 +90,7 @@ base::Status PrunePerfEvents::Transform(const Context& context,
 base::Status PrunePerfEvents::OnPerfSample(
     const Context& context,
     uint64_t ts,
-    std::optional<int64_t> trace_packet_clock_id,
+    std::optional<uint32_t> trace_packet_clock_id,
     std::optional<int64_t> trusted_packet_sequence_id,
     protozero::Field& perf_sample_field,
     protos::pbzero::TracePacket* message) const {
@@ -121,7 +127,7 @@ base::Status PrunePerfEvents::OnPerfSample(
                       static_cast<uint32_t>(trusted_packet_sequence_id.value()),
                       RedactorClockConverter::DataSourceType::kPerfDataSource));
   } else {
-    clock_id = trace_packet_clock_id.value();
+    clock_id = ClockId(trace_packet_clock_id.value());
   }
 
   ASSIGN_OR_RETURN(trace_ts,

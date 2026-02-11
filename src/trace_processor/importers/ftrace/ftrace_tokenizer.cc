@@ -140,7 +140,7 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   // Deal with ftrace recorded using a clock that isn't our preferred default
   // (boottime). Do a best-effort fit to the "primary trace clock" based on
   // per-bundle timestamp snapshots.
-  ClockTracker::ClockId clock_id = BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
+  ClockTracker::ClockId clock_id(BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
   if (decoder.has_ftrace_clock()) {
     ASSIGN_OR_RETURN(clock_id,
                      HandleFtraceClockSnapshot(decoder, packet_sequence_id));
@@ -442,13 +442,14 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
     protos::pbzero::FtraceEventBundle::Decoder& decoder,
     uint32_t packet_sequence_id) {
   // Convert from ftrace clock enum to a clock id for trace parsing.
-  ClockTracker::ClockId clock_id = BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
+  ClockTracker::ClockId clock_id(BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
   switch (decoder.ftrace_clock()) {
     case FtraceClock::FTRACE_CLOCK_UNSPECIFIED:
-      clock_id = BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
+      clock_id = ClockTracker::ClockId(BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
       break;
     case FtraceClock::FTRACE_CLOCK_MONO_RAW:
-      clock_id = BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
+      clock_id =
+          ClockTracker::ClockId(BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW);
       break;
     case FtraceClock::FTRACE_CLOCK_GLOBAL:
     case FtraceClock::FTRACE_CLOCK_LOCAL:
@@ -462,7 +463,8 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
       // cpu0 as recorded in the bundle. Note: the timestamps will be in the
       // future relative to the data covered by the bundle, as the timestamping
       // is done at ftrace read time.
-      clock_id = ClockTracker::SequenceToGlobalClock(packet_sequence_id,
+      clock_id = ClockTracker::SequenceToGlobalClock(context_->trace_id().value,
+                                                     packet_sequence_id,
                                                      kSequenceScopedClockId);
       break;
     default:
@@ -474,12 +476,14 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
   // duplicates since multiple sequential ftrace bundles can share a snapshot.
   if (decoder.has_ftrace_timestamp() && decoder.has_boot_timestamp() &&
       latest_ftrace_clock_snapshot_ts_ != decoder.ftrace_timestamp()) {
-    PERFETTO_DCHECK(clock_id != BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
+    PERFETTO_DCHECK(clock_id != ClockTracker::ClockId(
+                                    BuiltinClock::BUILTIN_CLOCK_BOOTTIME));
     int64_t ftrace_timestamp = decoder.ftrace_timestamp();
     context_->clock_tracker->AddSnapshot(
         {ClockTracker::ClockTimestamp(clock_id, ftrace_timestamp),
-         ClockTracker::ClockTimestamp(BuiltinClock::BUILTIN_CLOCK_BOOTTIME,
-                                      decoder.boot_timestamp())});
+         ClockTracker::ClockTimestamp(
+             ClockTracker::ClockId(BuiltinClock::BUILTIN_CLOCK_BOOTTIME),
+             decoder.boot_timestamp())});
     latest_ftrace_clock_snapshot_ts_ = ftrace_timestamp;
   }
   return clock_id;
@@ -507,7 +511,7 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
   // Enforce clock type for the event data to be CLOCK_MONOTONIC_RAW
   // as specified, to calculate the timestamp correctly.
   std::optional<int64_t> timestamp = context_->clock_tracker->ToTraceTime(
-      BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW,
+      ClockTracker::ClockId(BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW),
       static_cast<int64_t>(raw_timestamp));
 
   // ClockTracker will increment some error stats if it failed to convert the

@@ -434,7 +434,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
     std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
+        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+        timestamp);
     if (trace_ts)
       timestamp = *trace_ts;
   } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
@@ -444,7 +445,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
     std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
+        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+        timestamp);
     if (trace_ts)
       timestamp = *trace_ts;
   } else if (packet.has_timestamp()) {
@@ -639,7 +641,8 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     const V8Profile& profile = *profile_or;
     if (profile.start_time.has_value()) {
       std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
-          protos::pbzero::BUILTIN_CLOCK_MONOTONIC, *profile.start_time * 1000);
+          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+          *profile.start_time * 1000);
       if (ts) {
         v8_tracker_->SetStartTsForSessionAndPid(
             legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), *ts);
