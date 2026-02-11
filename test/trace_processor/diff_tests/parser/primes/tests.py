@@ -20,10 +20,9 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class PrimesTraceParser(TestSuite):
-
   def test_primes_trace_slice_smoke(self):
     return DiffTestBlueprint(
-        trace=DataPath('startup.primestrace'),
+        trace=DataPath('primes_trace_for_test.primestrace'),
         query="""
           SELECT id, ts, dur, track_id, name, slice_id
           FROM slice
@@ -32,21 +31,21 @@ class PrimesTraceParser(TestSuite):
         """,
         out=Csv('''
           "id","ts","dur","track_id","name","slice_id"
-          0,1762575324667907750,209225666,0,"startup",0
-          1,1762575324682560666,150582375,1,"-[GDAAppDelegate application:willFinishLaunchingWithOptions:]",1
-          584,1762575324749003375,71142250,4,"InjectGDAUserMediator",584
-          4,1762575324686395291,54320417,3,"injectGDKPrimesLatencyManager()",4
-          5,1762575324686596375,53317791,4,"InjectGDAApplicationServices",5
-          946,1762575324776541291,44636125,271,"-[CCTLogWriter writeLog:pseudonymousID:logDirectory:clock:logTransformers:logLossMetricsService:completionQueue:completion:]",946
-          611,1762575324750041125,37464458,166,"injectFileDropService(gaiaAccountID:)",611
-          614,1762575324750121541,22349542,167,"InjectGDAUserServices",614
-          971,1762575324787560125,18815041,166,"injectGenAIAccountMetadataListener(gaiaAccountID:)",971
-          1275,1762575324821346583,17858917,271,"-[CCTLogWriter writeLog:pseudonymousID:logDirectory:clock:logTransformers:logLossMetricsService:completionQueue:completion:]",1275
+          0,1770756106884713625,207370958,0,"Trace_1",0
+          5,1770756106899977333,178825250,2,"Entity_3",5
+          414,1770756106965413042,97789916,5,"Entity_170",414
+          183,1770756106935184042,62630250,79,"Entity_94",183
+          8,1770756106903541417,53630958,4,"Entity_6",8
+          477,1770756106974937250,53480042,151,"Entity_189",477
+          9,1770756106903668833,51949459,5,"Entity_7",9
+          481,1770756106975265833,51887000,152,"Entity_190",481
+          11,1770756106903803083,51811834,6,"Entity_9",11
+          482,1770756106975287625,36242792,154,"Entity_191",482
         '''))
 
   def test_primes_trace_track_smoke(self):
     return DiffTestBlueprint(
-        trace=DataPath('startup.primestrace'),
+        trace=DataPath('primes_trace_for_test.primestrace'),
         query="""
         SELECT id, name, track_group_id
         FROM track
@@ -55,14 +54,14 @@ class PrimesTraceParser(TestSuite):
       """,
         out=Csv('''
         "id","name","track_group_id"
-        0,"com.apple.main-thread",0
-        12,"com.google.ExperimentStateQueue.clienttracing.ios#com.google.Drive.dev",1
-        16,"com.google.drive.phenotype",2
-        19,"PHTFlatFilePhenotype",3
-        22,"CCTClearcutAutoCounters",4
-        23,"PHTFlatFilePhenotypeCompletion",5
-        44,"com.google.ExperimentStateQueue.ssoauth_ios#com.google.Drive.dev",6
-        53,"com.google.ssoauth.SSOServiceIvarQueue",7
-        61,"com.google.ssoauth.deviceupgrade",8
-        71,"com.google.ExperimentStateQueue.com.google.ios.apps.drive.device#com.google.Drive.dev",9
+        0,"Executor_1",0
+        14,"Executor_2",1
+        18,"Executor_3",2
+        19,"Executor_4",3
+        21,"Executor_5",4
+        28,"Executor_6",5
+        31,"Executor_7",6
+        55,"Executor_8",7
+        65,"Executor_9",8
+        73,"Executor_10",9
       '''))
