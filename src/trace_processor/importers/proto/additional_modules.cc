@@ -36,7 +36,6 @@
 #include "src/trace_processor/importers/proto/metadata_module.h"
 #include "src/trace_processor/importers/proto/network_trace_module.h"
 #include "src/trace_processor/importers/proto/pixel_modem_module.h"
-#include "src/trace_processor/importers/proto/profile_module.h"
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
@@ -83,8 +82,6 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
   module_context->modules.emplace_back(new V8Module(module_context, context));
   module_context->modules.emplace_back(
       new PixelModemModule(module_context, context));
-  module_context->modules.emplace_back(
-      new ProfileModule(module_context, context));
   module_context->modules.emplace_back(
       new AppWakelockModule(module_context, context));
   module_context->modules.emplace_back(
