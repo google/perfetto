@@ -13,12 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import {DisposableStack} from '../../base/disposable_stack';
 import {toHTMLElement} from '../../base/dom_utils';
 import {Rect2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {AppImpl} from '../../core/app_impl';
 import {featureFlags} from '../../core/feature_flags';
+import {settingsManager} from '../../core/settings_manager';
 import {raf} from '../../core/raf_scheduler';
 import {Minimap} from './minimap';
 import {TabPanel} from './tab_panel';
@@ -31,7 +33,7 @@ import {TrackSearchManager} from '../../core/track_search_manager';
 import {HotkeyContext} from '../../widgets/hotkey_context';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {setTrackShellWidth, TRACK_SHELL_WIDTH} from '../css_constants';
-import {TrackSearchPanel} from './track_search_panel';
+import {TrackSearchBar} from './track_search_bar';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -40,11 +42,22 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   defaultValue: true,
 });
 
-const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
+export const VIRTUAL_TRACK_SCROLLING = settingsManager.register({
   id: 'virtualTrackScrolling',
   name: 'Virtual track scrolling',
-  description: `Use virtual scrolling in the timeline view to improve performance on large traces.`,
+  description: `Use virtual scrolling in the timeline view to improve performance on large traces.
+    WARNING: Disabling this feature can severely degrade performance on large traces.`,
   defaultValue: true,
+  schema: z.boolean(),
+});
+
+export const USE_ALTERNATIVE_SEARCH_HOTKEY = settingsManager.register({
+  id: 'alternativeSearchHotkey',
+  name: 'Use Shift+F for track search',
+  description:
+    'Use Shift+F instead of Mod+F for track search, to avoid overriding browser find.',
+  defaultValue: false,
+  schema: z.boolean(),
 });
 
 const MIN_TRACK_SHELL_WIDTH = 100;
@@ -73,6 +86,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
     const virtualScrollingEnabled = VIRTUAL_TRACK_SCROLLING.get();
+    const useAlternativeHotkey = USE_ALTERNATIVE_SEARCH_HOTKEY.get();
 
     return m(
       HotkeyContext,
@@ -80,7 +94,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         hotkeys: virtualScrollingEnabled
           ? [
               {
-                hotkey: '!Mod+F',
+                hotkey: useAlternativeHotkey ? 'Shift+F' : 'Mod+F',
                 callback: () => this.trackSearch.show(),
               },
             ]
@@ -101,7 +115,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private renderTrackSearchPanel(): m.Children {
     return (
       this.trackSearch.isVisible &&
-      m(TrackSearchPanel, {searchManager: this.trackSearch})
+      m(TrackSearchBar, {searchManager: this.trackSearch})
     );
   }
 

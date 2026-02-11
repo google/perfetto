@@ -14,12 +14,12 @@
 
 @import "../theme";
 
-.pf-track-search-panel {
+.pf-track-search-bar {
   background: var(--pf-color-background);
   border-bottom: 1px solid var(--pf-color-border);
-  padding: 4px 8px;
+  padding: 4px;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: flex-end;
   gap: 4px;
   font-family: var(--pf-font-family);
@@ -34,12 +34,30 @@
   &__count {
     color: var(--pf-color-text-muted);
     white-space: nowrap;
-    min-width: 80px;
     text-align: right;
   }
 
   &__buttons {
     display: flex;
     gap: 2px;
+  }
+
+  &__bubble {
+    border-radius: 4px;
+    padding: 2px 6px;
+    gap: 4px;
+    background: var(--pf-color-background-secondary);
+    display: inline-flex;
+    align-items: baseline;
+  }
+}
+
+.pf-track-search-help {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  p {
+    margin: 0;
   }
 }

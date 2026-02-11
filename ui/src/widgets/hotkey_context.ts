@@ -24,7 +24,7 @@ export interface HotkeyConfig {
 
 export interface HotkeyContextAttrs {
   // An array of hotkeys to listen for.
-  readonly hotkeys: HotkeyConfig[];
+  readonly hotkeys: readonly HotkeyConfig[];
 
   // If true, the context will fill the height of its parent container.
   // This is useful for contexts that are used as a full-screen overlay.
@@ -49,7 +49,7 @@ export interface HotkeyContextAttrs {
 }
 
 export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
-  private hotkeys?: HotkeyConfig[];
+  private hotkeys?: readonly HotkeyConfig[];
   private eventTarget?: EventTarget;
   private dom?: Element;
 

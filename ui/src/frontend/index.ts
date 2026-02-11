@@ -55,11 +55,7 @@ import {
 import {addVisualizedArgTracks} from '../components/tracks/visualized_args_tracks';
 import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {assetSrc, initAssets} from '../base/assets';
-import {
-  PERFETTO_SETTINGS_STORAGE_KEY,
-  SettingsManagerImpl,
-} from '../core/settings_manager';
-import {LocalStorage} from '../core/local_storage';
+import {settingsManager} from '../core/settings_manager';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {timezoneOffsetMap} from '../base/time';
 import {ThemeProvider} from './theme_provider';
@@ -201,11 +197,6 @@ function main() {
   // Setup content security policy before anything else.
   setupContentSecurityPolicy();
   initAssets();
-
-  // Create settings Manager
-  const settingsManager = new SettingsManagerImpl(
-    new LocalStorage(PERFETTO_SETTINGS_STORAGE_KEY),
-  );
 
   // Initialize core settings...
   const timestampFormatSetting = settingsManager.register({

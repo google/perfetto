@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,11 +37,20 @@ export class TrackSearchManager {
   private _searchCollapsed = false;
   private _useRegex = false;
   private _trackManager?: TrackManagerImpl;
+  private _shouldFocus = false;
 
   // The list of track nodes to search through.
   // This is updated by TrackTreeView during rendering.
   private _visibleTracks: TrackNode[] = [];
   private _allTracks: TrackNode[] = [];
+
+  get shouldFocus(): boolean {
+    return this._shouldFocus;
+  }
+
+  clearShouldFocus(): void {
+    this._shouldFocus = false;
+  }
 
   /**
    * Set the track manager reference for scrolling support.
@@ -138,6 +147,7 @@ export class TrackSearchManager {
    */
   show(): void {
     this._isVisible = true;
+    this._shouldFocus = true;
   }
 
   /**
