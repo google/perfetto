@@ -335,7 +335,9 @@ function inlineQueryRefs(
   // Resolve sub-queries in multi-input operations.
   inlineMultiInputRefs(obj, queryMap, visited);
 
-  if (id !== undefined) visited.delete(id);
+  // Note: Do NOT remove from visited set. Once a node is processed, it should
+  // remain marked as visited to prevent infinite recursion if referenced again
+  // through a different path in the query graph.
   return obj;
 }
 
