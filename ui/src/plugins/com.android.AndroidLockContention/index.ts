@@ -20,6 +20,13 @@ import {AndroidLockContentionTab} from './tab';
 
 export default class AndroidLockContentionPlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidLockContention';
+  static readonly description = `
+  This plugin shows the blocking thread which is causing monitor contention.
+
+  To use this, when selecting a track event beginning with 'monitor contention', you can call the command 'Android Lock
+  Contention: Toggle Blocked/Blocking Slice' which shows a tab with details of the blocking + blocked methods with
+  links to navigate. The default hotkey for this command is ']'.
+  `;
   static readonly dependencies = [RelatedEventsPlugin];
 
   async onTraceLoad(trace: Trace): Promise<void> {
@@ -36,7 +43,7 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
 
     trace.commands.registerCommand({
       id: 'toggleContentionNavigation',
-      name: 'Toggle Blocked/Blocking Slice',
+      name: 'Android Lock Contention: Toggle Blocked/Blocking Slice',
       defaultHotkey: ']',
       callback: async () => {
         const selection = trace.selection.selection;
