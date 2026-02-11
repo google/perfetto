@@ -137,8 +137,7 @@ class ClockSynchronizerBase {
     uint32_t trace_file_id = 0;
 
     constexpr ClockId() = default;
-    constexpr explicit ClockId(int64_t cid)
-        : clock_id(static_cast<uint32_t>(cid)) {}
+    constexpr explicit ClockId(uint32_t _clock_id) : ClockId(_clock_id, 0, 0) {}
     constexpr ClockId(uint32_t cid, uint32_t sid, uint32_t tfi)
         : clock_id(cid), seq_id(sid), trace_file_id(tfi) {}
 

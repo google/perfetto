@@ -54,6 +54,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/descriptors.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -68,6 +69,8 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+using ClockId = ClockSynchronizerBase::ClockId;
 
 class TracePacketSink
     : public TraceSorter::Sink<TracePacketData, TracePacketSink> {
@@ -536,21 +539,20 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   if (evt.primary_trace_clock()) {
     context_->clock_tracker->SetTraceTimeClock(
-        static_cast<ClockTracker::ClockId>(evt.primary_trace_clock()));
+        ClockId(static_cast<uint32_t>(evt.primary_trace_clock())));
   }
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
     ClockTracker::ClockId clock_id(clk.clock_id());
-    if (ClockTracker::IsSequenceClock(static_cast<uint32_t>(clk.clock_id()))) {
+    if (ClockTracker::IsSequenceClock(clk.clock_id())) {
       if (!seq_id) {
         return base::ErrStatus(
             "ClockSnapshot packet is specifying a sequence-scoped clock id "
             "(%" PRIu32 ") but the TracePacket sequence_id is zero",
             clock_id.clock_id);
       }
-      clock_id = ClockTracker::SequenceToGlobalClock(
-          context_->trace_id().value, seq_id,
-          static_cast<uint32_t>(clk.clock_id()));
+      clock_id = ClockTracker::SequenceToGlobalClock(context_->trace_id().value,
+                                                     seq_id, clk.clock_id());
     }
     int64_t unit_multiplier_ns =
         clk.unit_multiplier_ns()
@@ -617,7 +619,7 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
 }
 
 base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
-  protos::pbzero::RemoteClockSync::Decoder evt(blob.data, blob.size);
+  protos::pbzero::RemoteClockSync::Decoder evt(blob);
 
   std::vector<SyncClockSnapshots> sync_clock_snapshots;
   // Decode the RemoteClockSync message into a struct for calculating offsets.
@@ -656,17 +658,17 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
   // Calculate clock offsets and report to the ClockTracker.
   auto clock_offsets = CalculateClockOffsets(sync_clock_snapshots);
   for (auto it = clock_offsets.GetIterator(); it; ++it) {
-    context_->clock_tracker->SetRemoteClockOffset(
-        ClockTracker::ClockId(it.key()), it.value());
+    context_->clock_tracker->SetRemoteClockOffset(it.key(), it.value());
   }
-
   return base::OkStatus();
 }
 
-base::FlatHashMap<int64_t /*Clock Id*/, int64_t /*Offset*/>
+base::FlatHashMap<ClockSynchronizerBase::ClockId /*Clock Id*/,
+                  int64_t /*Offset*/>
 ProtoTraceReader::CalculateClockOffsets(
     std::vector<SyncClockSnapshots>& sync_clock_snapshots) {
-  base::FlatHashMap<int64_t /*Clock Id*/, int64_t /*Offset*/> clock_offsets;
+  base::FlatHashMap<ClockSynchronizerBase::ClockId, int64_t /*Offset*/>
+      clock_offsets;
 
   // The RemoteClockSync message contains a sequence of |synced_clocks|
   // messages. Each |synced_clocks| message contains pairs of ClockSnapshots
@@ -681,7 +683,7 @@ ProtoTraceReader::CalculateClockOffsets(
   //
   // These four snapshots are used to estimate the clock offset between the
   // client and host for each default clock domain present in the ClockSnapshot.
-  std::map<int64_t, std::vector<int64_t>> raw_clock_offsets;
+  std::map<uint32_t, std::vector<int64_t>> raw_clock_offsets;
   // Remote clock syncs happen in an interval of 30 sec. 2 adjacent clock
   // snapshots belong to the same round if they happen within 30 secs.
   constexpr uint64_t clock_sync_interval_ns = 30lu * 1000000000;
@@ -730,7 +732,7 @@ ProtoTraceReader::CalculateClockOffsets(
       int64_t avg_offset =
           std::accumulate(offsets.begin(), offsets.end(), 0LL) /
           static_cast<int64_t>(offsets.size());
-      clock_offsets[clock_id] = avg_offset;
+      clock_offsets[ClockId(clock_id)] = avg_offset;
     }
   }
 
