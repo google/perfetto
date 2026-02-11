@@ -25,7 +25,7 @@ import {raf} from '../../core/raf_scheduler';
 import {Minimap} from './minimap';
 import {TabPanel} from './tab_panel';
 import {TimelineHeader} from './timeline_header';
-import {TrackTreeView, TrackTreeViewApi} from './track_tree_view';
+import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
@@ -95,7 +95,6 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private trackSearchBarApi?: TrackSearchBarApi;
   private trackSearchMatches: readonly TrackSearchMatch[] = [];
   private currentSearchMatchIndex = 0;
-  private mainTrackTreeApi?: TrackTreeViewApi;
 
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
@@ -147,10 +146,16 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         const firstMatch = this.trackSearchMatches[0];
         if (firstMatch) {
           firstMatch.node.reveal();
-          this.mainTrackTreeApi?.scrollToTrack(firstMatch.node.id);
+          trace.tracks.scrollToTrackNodeId = firstMatch.node.id;
         }
       },
-      onClose: () => (this.trackSearchBarVisible = false),
+      onClose: () => {
+        this.trackSearchBarVisible = false;
+        this.trackSearchModel = {
+          ...this.trackSearchModel,
+          searchTerm: '',
+        };
+      },
       onStepForward: () => {
         if (matchCount > 0) {
           this.currentSearchMatchIndex =
@@ -158,7 +163,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           const match = this.trackSearchMatches[this.currentSearchMatchIndex];
           if (match) {
             match.node.reveal();
-            this.mainTrackTreeApi?.scrollToTrack(match.node.id);
+            trace.tracks.scrollToTrackNodeId = match.node.id;
           }
         }
       },
@@ -169,7 +174,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           const match = this.trackSearchMatches[this.currentSearchMatchIndex];
           if (match) {
             match.node.reveal();
-            this.mainTrackTreeApi?.scrollToTrack(match.node.id);
+            trace.tracks.scrollToTrackNodeId = match.node.id;
           }
         }
       },
@@ -295,7 +300,6 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       trackSearchMatches: this.trackSearchMatches,
       currentSearchMatch,
       virtualScrollingEnabled: VIRTUAL_TRACK_SCROLLING.get(),
-      onReady: (api) => (this.mainTrackTreeApi = api),
     });
   }
 

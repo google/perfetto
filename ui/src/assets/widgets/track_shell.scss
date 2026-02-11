@@ -197,24 +197,20 @@
       font-weight: 500;
 
       .pf-track__search-highlight {
-        background-color: color-mix(
-          in srgb,
-          var(--pf-color-accent) 50%,
-          transparent
-        );
+        color: var(--pf-color-text-on-accent);
+        background-color: var(--pf-color-accent);
       }
     }
   }
 
   &__search-highlight {
+    color: var(--pf-color-text-on-accent);
     background-color: color-mix(
       in srgb,
-      var(--pf-color-accent) 30%,
+      var(--pf-color-accent) 50%,
       transparent
     );
-    color: var(--pf-color-text-on-accent);
     border-radius: 2px;
-    padding: 0 2px;
   }
 
   &__chips {
