@@ -111,7 +111,8 @@
       }
     }
 
-    &:hover {
+    &:hover,
+    &:has(.pf-active) {
       .pf-visible-on-hover {
         display: unset;
       }
