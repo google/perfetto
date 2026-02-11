@@ -13,38 +13,47 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Time, Duration, duration, time} from '../../base/time';
-import {Trace} from '../../public/trace';
-import {DetailsShell} from '../../widgets/details_shell';
-import {Grid, GridHeaderCell, GridCell, GridColumn} from '../../widgets/grid';
-import {EmptyState} from '../../widgets/empty_state';
+import {GridColumn, GridHeaderCell, Grid, GridCell} from '../../widgets/grid';
 import {Spinner} from '../../widgets/spinner';
+import {AndroidInputEventSource} from './android_input_event_source';
 import {
-  NUM,
-  STR,
-  LONG,
-  LONG_NULL,
-  NUM_NULL,
-  UNKNOWN,
-} from '../../trace_processor/query_result';
-import {Dataset, UnionDatasetWithLineage} from '../../trace_processor/dataset';
-import {Anchor} from '../../widgets/anchor';
+  getTrackUriForTrackId,
+  TrackPinningManager,
+  NavTarget,
+} from '../dev.perfetto.RelatedEvents';
 import {Icons} from '../../base/semantic_icons';
-import {Checkbox} from '../../widgets/checkbox';
-import {LifecycleOverlay} from './overlay';
-import {ArrowConnection} from './arrow_visualiser';
+import {duration} from '../../base/time';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Tab} from '../../public/tab';
+import {Trace} from '../../public/trace';
+import {Anchor} from '../../widgets/anchor';
+import {Checkbox} from '../../widgets/checkbox';
+import {DetailsShell} from '../../widgets/details_shell';
+import {EmptyState} from '../../widgets/empty_state';
 
 // --- Interfaces ---
 
-interface NavTarget {
-  id: number;
-  trackId: number;
-  trackUri: string;
-  ts: time;
-  dur: duration;
-  depth: number;
+interface InputLifecycleArgs {
+  channel: string;
+  totalLatency: duration | null;
+  reader: {dur: duration; nav: NavTarget} | null;
+  dispatcher: {delta: duration | null; dur: duration; nav: NavTarget} | null;
+  receiver: {delta: duration | null; dur: duration; nav: NavTarget} | null;
+  consumer: {delta: duration | null; dur: duration; nav: NavTarget} | null;
+  frame: {delta: duration | null; dur: duration; nav: NavTarget} | null;
+  allTrackIds: number[];
+}
+
+function isInputLifecycleArgs(args: unknown): args is InputLifecycleArgs {
+  if (typeof args !== 'object' || args === null) return false;
+  const obj = args as Record<string, unknown>;
+  return (
+    typeof obj.channel === 'string' &&
+    typeof obj.allTrackIds === 'object' &&
+    Array.isArray(obj.allTrackIds)
+    // We can add more checks here for reader, dispatcher, etc. if needed
+    // to ensure they have the expected structure.
+  );
 }
 
 interface InputChainRow {
@@ -66,42 +75,24 @@ interface InputChainRow {
   navFrame?: NavTarget;
 
   allTrackIds: number[];
-  input_id_val: string;
+  allTrackUris: string[];
 }
 
-function getTrackUriForTrackId(trace: Trace, trackId: number): string {
-  const track = trace.tracks.findTrack((t) =>
-    t.tags?.trackIds?.includes(trackId),
-  );
-  return track?.uri || `/slice_${trackId}`;
-}
-
-const RELATION_SCHEMA = {
-  id: NUM,
-  name: STR,
-  ts: LONG,
-  dur: LONG,
-  track_id: NUM,
-  depth: NUM,
-};
-
-export class AndroidInputTab implements Tab {
+export class AndroidInputLifecycleTab implements Tab {
   private rows: InputChainRow[] = [];
   private visibleRowIds = new Set<string>();
-  private pinnedRowIds = new Set<string>();
   private currentSelectionId?: number;
   private isLoading = false;
 
   constructor(
     private trace: Trace,
-    private overlay: LifecycleOverlay,
+    private source: AndroidInputEventSource,
+    private pinningManager: TrackPinningManager,
   ) {}
 
   onHide() {
-    this.overlay.update([]);
     this.rows = [];
     this.visibleRowIds.clear();
-    this.pinnedRowIds.clear();
     this.currentSelectionId = undefined;
     this.isLoading = false;
   }
@@ -121,242 +112,66 @@ export class AndroidInputTab implements Tab {
 
   private async loadData(clickedEventId: number) {
     this.isLoading = true;
-
-    const query = `
-      SELECT * FROM _android_input_lifecycle_by_slice_id(${clickedEventId})
-    `;
+    this.rows = [];
+    this.visibleRowIds.clear();
 
     try {
-      const result = await this.trace.engine.query(query);
-
-      const it = result.iter({
-        input_id: STR,
-        channel: STR,
-        total_latency: LONG_NULL,
-
-        ts_reader: LONG_NULL,
-        ts_dispatch: LONG_NULL,
-        ts_receive: LONG_NULL,
-        ts_consume: LONG_NULL,
-        ts_frame: LONG_NULL,
-
-        id_reader: NUM_NULL,
-        track_reader: NUM_NULL,
-        dur_reader: LONG_NULL,
-        id_dispatch: NUM_NULL,
-        track_dispatch: NUM_NULL,
-        dur_dispatch: LONG_NULL,
-        id_receive: NUM_NULL,
-        track_receive: NUM_NULL,
-        dur_receive: LONG_NULL,
-        id_consume: NUM_NULL,
-        track_consume: NUM_NULL,
-        dur_consume: LONG_NULL,
-        id_frame: NUM_NULL,
-        track_frame: NUM_NULL,
-        dur_frame: LONG_NULL,
-      });
-
-      this.rows = [];
-      this.visibleRowIds.clear();
-      this.pinnedRowIds.clear();
-
+      const data = await this.source.getRelatedEventData(clickedEventId);
       let index = 0;
-      let rowToHighlight: string | undefined;
-
-      while (it.valid()) {
-        const uniqueId = `row-${index++}`;
-
-        // 1. Create Nav Targets
-        const navReader = this.makeNav(
-          it.id_reader,
-          it.track_reader,
-          it.ts_reader,
-          it.dur_reader,
-        );
-        const navDispatch = this.makeNav(
-          it.id_dispatch,
-          it.track_dispatch,
-          it.ts_dispatch,
-          it.dur_dispatch,
-        );
-        const navReceive = this.makeNav(
-          it.id_receive,
-          it.track_receive,
-          it.ts_receive,
-          it.dur_receive,
-        );
-        const navConsume = this.makeNav(
-          it.id_consume,
-          it.track_consume,
-          it.ts_consume,
-          it.dur_consume,
-        );
-        const navFrame = this.makeNav(
-          it.id_frame,
-          it.track_frame,
-          it.ts_frame,
-          it.dur_frame,
-        );
-
-        // 2. Calculate Deltas
-        const durReader =
-          it.dur_reader !== null ? Duration.fromRaw(it.dur_reader) : null;
-        const deltaDispatch =
-          it.ts_dispatch !== null && it.ts_reader !== null
-            ? Duration.fromRaw(it.ts_dispatch - it.ts_reader)
-            : null;
-        const deltaReceive =
-          it.ts_receive !== null && it.ts_dispatch !== null
-            ? Duration.fromRaw(it.ts_receive - it.ts_dispatch)
-            : null;
-        const deltaConsume =
-          it.ts_consume !== null && it.ts_receive !== null
-            ? Duration.fromRaw(it.ts_consume - it.ts_receive)
-            : null;
-        const deltaFrame =
-          it.ts_frame !== null && it.ts_consume !== null
-            ? Duration.fromRaw(it.ts_frame - it.ts_consume)
-            : null;
-
-        const tracks = new Set<number>();
-        [navReader, navDispatch, navConsume, navReceive, navFrame].forEach(
-          (n) => {
-            if (n) tracks.add(n.trackId);
-          },
-        );
-
-        // 3. Check if this row matches the clicked event
-        const matchesClickedEvent = [
-          it.id_reader,
-          it.id_dispatch,
-          it.id_receive,
-          it.id_consume,
-          it.id_frame,
-        ].includes(clickedEventId);
-
-        if (matchesClickedEvent && rowToHighlight === undefined) {
-          rowToHighlight = uniqueId;
+      for (const event of data.events) {
+        if (event.type === 'InputLifecycle') {
+          const args = event.customArgs;
+          if (isInputLifecycleArgs(args)) {
+            const uniqueId = `row-${index++}`;
+            const allTrackIds = args.allTrackIds;
+            const allTrackUris = allTrackIds.map((id: number) =>
+              getTrackUriForTrackId(this.trace, id),
+            );
+            this.rows.push({
+              uiRowId: uniqueId,
+              channel: args.channel,
+              totalLatency: args.totalLatency,
+              durReader: args.reader?.dur ?? null,
+              deltaDispatch: args.dispatcher?.delta ?? null,
+              deltaReceive: args.receiver?.delta ?? null,
+              deltaConsume: args.consumer?.delta ?? null,
+              deltaFrame: args.frame?.delta ?? null,
+              navReader: args.reader?.nav,
+              navDispatch: args.dispatcher?.nav,
+              navReceive: args.receiver?.nav,
+              navConsume: args.consumer?.nav,
+              navFrame: args.frame?.nav,
+              allTrackIds,
+              allTrackUris,
+            });
+            this.visibleRowIds.add(uniqueId);
+          } else {
+            console.error('Invalid customArgs for InputLifecycle event', args);
+          }
         }
-
-        this.rows.push({
-          uiRowId: uniqueId,
-          channel: it.channel,
-          totalLatency:
-            it.total_latency !== null
-              ? Duration.fromRaw(it.total_latency)
-              : null,
-          durReader,
-          deltaDispatch,
-          deltaReceive,
-          deltaConsume,
-          deltaFrame,
-          navReader,
-          navDispatch,
-          navConsume,
-          navReceive,
-          navFrame,
-          allTrackIds: Array.from(tracks),
-          input_id_val: it.input_id,
-        });
-
-        it.next();
       }
-
-      if (rowToHighlight) {
-        this.visibleRowIds.add(rowToHighlight);
-      }
-
-      this.updateWorkspacePinning();
-
-      if (this.rows.length > 0) {
-        await this.enrichDepths();
-      }
-      this.updateOverlay();
+      this.pinningManager.applyPinning(this.trace);
     } finally {
       this.isLoading = false;
+      m.redraw();
     }
   }
 
-  private makeNav(
-    id: number | null,
-    trackId: number | null,
-    ts: bigint | null,
-    dur: bigint | null,
-  ): NavTarget | undefined {
-    if (id === null || trackId === null || ts === null) return undefined;
-    return {
-      id,
-      trackId,
-      trackUri: getTrackUriForTrackId(this.trace, trackId),
-      ts: Time.fromRaw(ts),
-      dur: Duration.fromRaw(dur ?? 0n),
-      depth: 0,
-    };
+  private getRowTrackUris(row: InputChainRow): string[] {
+    return row.allTrackUris;
   }
 
-  private async enrichDepths(): Promise<void> {
-    const trackIds = new Set<number>();
-    const eventIds = new Set<number>();
-    const nodeMap = new Map<number, NavTarget[]>();
-
-    for (const row of this.rows) {
-      [
-        row.navReader,
-        row.navDispatch,
-        row.navConsume,
-        row.navReceive,
-        row.navFrame,
-      ].forEach((nav) => {
-        if (!nav) return;
-        trackIds.add(nav.trackId);
-        eventIds.add(nav.id);
-        if (!nodeMap.has(nav.id)) nodeMap.set(nav.id, []);
-        nodeMap.get(nav.id)!.push(nav);
-      });
-    }
-
-    const trackDatasets: Dataset[] = [];
-    for (const trackId of trackIds) {
-      const trackUri = getTrackUriForTrackId(this.trace, trackId);
-      const track = this.trace.tracks.getTrack(trackUri);
-      if (track?.renderer?.getDataset) {
-        const ds = track.renderer.getDataset();
-        if (ds) trackDatasets.push(ds);
-      }
-    }
-
-    if (trackDatasets.length === 0) return;
-
-    const unionDataset = UnionDatasetWithLineage.create(trackDatasets);
-    const idsArray = Array.from(eventIds);
-    const querySchema = {
-      ...RELATION_SCHEMA,
-      __groupid: NUM,
-      __partition: UNKNOWN,
-    };
-
-    const sql = `SELECT * FROM (${unionDataset.query(querySchema)}) WHERE id IN (${idsArray.join(',')})`;
-
-    try {
-      const result = await this.trace.engine.query(sql);
-      const it = result.iter(querySchema);
-      while (it.valid()) {
-        const nodes = nodeMap.get(it.id);
-        if (nodes) {
-          nodes.forEach((n) => (n.depth = Number(it.depth)));
-        }
-        it.next();
-      }
-    } catch (e) {
-      console.error(`Error fetching depths:`, e);
-    }
+  private isRowPinned(row: InputChainRow): boolean {
+    const trackUris = this.getRowTrackUris(row);
+    return (
+      trackUris.length > 0 &&
+      trackUris.every((uri) => this.pinningManager.isTrackPinned(uri))
+    );
   }
 
   private toggleVisibility(rowId: string) {
     if (this.visibleRowIds.has(rowId)) this.visibleRowIds.delete(rowId);
     else this.visibleRowIds.add(rowId);
-    this.updateOverlay();
   }
 
   private toggleAllVisibility() {
@@ -365,74 +180,18 @@ export class AndroidInputTab implements Tab {
     );
     if (allVisible) this.visibleRowIds.clear();
     else this.rows.forEach((r) => this.visibleRowIds.add(r.uiRowId));
-    this.updateOverlay();
   }
 
   private togglePinning(row: InputChainRow) {
-    if (this.pinnedRowIds.has(row.uiRowId)) {
-      this.pinnedRowIds.delete(row.uiRowId);
-    } else this.pinnedRowIds.add(row.uiRowId);
-    this.updateWorkspacePinning();
-  }
+    const trackUris = this.getRowTrackUris(row);
+    const currentlyPinned = this.isRowPinned(row);
 
-  private updateWorkspacePinning() {
-    const tracksToPin = new Set<number>();
-    this.rows.forEach((row) => {
-      if (this.pinnedRowIds.has(row.uiRowId)) {
-        row.allTrackIds.forEach((tid) => tracksToPin.add(tid));
-      }
-    });
-
-    const allManagedTracks = new Set<number>();
-    this.rows.forEach((row) =>
-      row.allTrackIds.forEach((tid) => allManagedTracks.add(tid)),
-    );
-
-    this.trace.currentWorkspace.flatTracks.forEach((trackNode) => {
-      if (!trackNode.uri) return;
-      const descriptor = this.trace.tracks.getTrack(trackNode.uri);
-      const trackSqlIds = descriptor?.tags?.trackIds;
-      if (!trackSqlIds || trackSqlIds.length === 0) return;
-
-      const isManaged = trackSqlIds.some((id) => allManagedTracks.has(id));
-      if (!isManaged) return;
-
-      const shouldBePinned = trackSqlIds.some((id) => tracksToPin.has(id));
-      if (shouldBePinned && !trackNode.isPinned) trackNode.pin();
-      else if (!shouldBePinned && trackNode.isPinned) trackNode.unpin();
-    });
-  }
-
-  private updateOverlay() {
-    const arrows: ArrowConnection[] = [];
-    const visibleRows = this.rows.filter((r) =>
-      this.visibleRowIds.has(r.uiRowId),
-    );
-
-    for (const row of visibleRows) {
-      const steps = [
-        row.navReader,
-        row.navDispatch,
-        row.navReceive,
-        row.navConsume,
-        row.navFrame,
-      ];
-      const presentSteps = steps.filter((s): s is NavTarget => s !== undefined);
-
-      for (let i = 0; i < presentSteps.length - 1; i++) {
-        const start = presentSteps[i];
-        const end = presentSteps[i + 1];
-        arrows.push({
-          start: {
-            trackUri: start.trackUri,
-            ts: Time.add(start.ts, start.dur),
-            depth: start.depth,
-          },
-          end: {trackUri: end.trackUri, ts: end.ts, depth: end.depth},
-        });
-      }
+    if (currentlyPinned) {
+      this.pinningManager.unpinTracks(trackUris);
+    } else {
+      this.pinningManager.pinTracks(trackUris);
     }
-    this.overlay.update(arrows);
+    this.pinningManager.applyPinning(this.trace);
   }
 
   private goTo(nav?: NavTarget) {
@@ -534,7 +293,7 @@ export class AndroidInputTab implements Tab {
             GridCell,
             {},
             m(Checkbox, {
-              checked: this.pinnedRowIds.has(row.uiRowId),
+              checked: this.isRowPinned(row),
               onchange: () => this.togglePinning(row),
             }),
           ),
@@ -571,7 +330,7 @@ export class AndroidInputTab implements Tab {
       dur !== null
         ? m(DurationWidget, {dur, trace: this.trace})
         : m('span', '-'),
-      nav &&
+      nav !== undefined &&
         m(Anchor, {
           icon: Icons.GoTo,
           onclick: () => this.goTo(nav),
