@@ -128,8 +128,9 @@ export class PerfettoTestHelper {
     return (trackGroup ?? this.page).locator(`.pf-track[ref="${name}"]`);
   }
 
-  pinTrackUsingShellBtn(track: Locator) {
-    track.locator('button[title="Pin to top"]').click({force: true});
+  async pinTrackUsingShellBtn(track: Locator) {
+    await track.locator('.pf-track__shell').hover();
+    await track.locator('button[title="Pin to top"]').click();
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
