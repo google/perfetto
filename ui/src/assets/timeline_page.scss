@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+.pf-timeline-header {
+  position: relative;
+}
+
 .pf-timeline-page {
   isolation: isolate;
   overflow: hidden;
@@ -19,6 +23,19 @@
 
   .pf-resize-handle {
     flex-shrink: 0;
+  }
+
+  &__timeline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+
+    // Horizontal resize handle for track shell width - spans full height
+    > .pf-resize-handle--horizontal {
+      z-index: 10;
+    }
   }
 
   &__overview {
