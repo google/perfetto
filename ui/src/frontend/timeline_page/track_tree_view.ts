@@ -287,6 +287,19 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       const childNodes: m.Children = [];
       let childrenHeight = 0;
       let atLeastOneChildVisible = false;
+      let pendingSpacerHeight = 0;
+
+      // Helper to flush accumulated spacer height into a single div
+      const flushSpacer = () => {
+        if (pendingSpacerHeight > 0) {
+          childNodes.push(
+            m('.pf-track-spacer', {
+              style: {height: `${pendingSpacerHeight}px`},
+            }),
+          );
+          pendingSpacerHeight = 0;
+        }
+      };
 
       if ((node.expanded || filtersApplied) && node.hasChildren) {
         for (const child of node.children) {
@@ -294,12 +307,19 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             child,
             depth + 1,
             childStickyTop,
-            false, // Children are not root level - use spacers when offscreen
+            false, // Children are not root level
           );
-          childNodes.push(result.vnodes);
           childrenHeight += result.subtreeHeight;
-          if (result.isVisible) atLeastOneChildVisible = true;
+          if (result.isVisible) {
+            atLeastOneChildVisible = true;
+            flushSpacer();
+            childNodes.push(result.vnodes);
+          } else {
+            // Offscreen subtree - accumulate height for aggregated spacer
+            pendingSpacerHeight += result.subtreeHeight;
+          }
         }
+        flushSpacer(); // Flush any remaining spacer at the end
       }
 
       const subtreeHeight = trackView.height + childrenHeight;
@@ -316,20 +336,9 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       const isVisible = trackOnScreen || atLeastOneChildVisible;
 
       // When virtual scrolling is enabled, skip rendering offscreen subtrees
+      // Return false for vnodes - the parent will aggregate spacers
       if (useVirtualScrolling && !subtreeOnScreen) {
-        if (isRootLevel) {
-          // Root level: don't render anything, height accounted for in container
-          return {vnodes: false, subtreeHeight, isVisible: false};
-        } else {
-          // Nested child: render a spacer to maintain layout flow
-          return {
-            vnodes: m('.pf-track-spacer', {
-              style: {height: `${subtreeHeight}px`},
-            }),
-            subtreeHeight,
-            isVisible: false,
-          };
-        }
+        return {vnodes: false, subtreeHeight, isVisible: false};
       }
 
       // Render this track with its children nested inside
