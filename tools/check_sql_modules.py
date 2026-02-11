@@ -79,6 +79,7 @@ ALLOWED_TOPLEVEL_PUBLIC_PACKAGES = frozenset({
     "time",
     "traced",
     "v8",
+    "wattson",
 })
 
 

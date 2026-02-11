@@ -116,17 +116,7 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
-    const {
-      xs,
-      ys,
-      ws,
-      h,
-      colors,
-      patterns,
-      count,
-      minWidth = 1,
-      screenEnd,
-    } = buffers;
+    const {xs, ys, ws, h, colors, patterns, count} = buffers;
     const ctx = this.ctx;
     const clip = this.physicalClipBounds;
     const t = this.transform;
@@ -134,35 +124,24 @@ export class Canvas2DRenderer implements Renderer {
     let previousColor: number | undefined = undefined;
 
     for (let i = 0; i < count; i++) {
-      // Skip instant slices (dur === 0) - handled separately with drawMarker
-      if (ws[i] === 0) continue;
-
       // Transform X and Y from data coordinates to screen coordinates
-      let x = xs[i] * scaleX + offsetX;
+      const x = xs[i] * scaleX + offsetX;
       const y = ys[i] * scaleY + offsetY;
-      let w: number;
+      const w = Math.max(ws[i] * scaleX, 1);
 
-      // Handle incomplete rects (w === -1 means extend to screenEnd)
-      if (ws[i] < 0) {
-        x = Math.max(x, -1);
-        w = (screenEnd ?? 0) - x;
-      } else {
-        w = ws[i] * scaleX;
-        // Clamp to visible region
-        const xEnd = Math.min(x + w, screenEnd ?? x + w);
-        x = Math.max(x, -1);
-        w = xEnd - x;
-      }
+      // CPU-side culling and clamping to clip bounds
+      let drawX = x;
+      let drawY = y;
+      let drawW = w;
+      let drawH = h;
 
-      // Apply minimum width
-      w = Math.max(w, minWidth);
-
-      // CPU-side culling
       if (clip !== undefined) {
         const physLeft = t.offsetX + x * t.scaleX;
         const physRight = t.offsetX + (x + w) * t.scaleX;
         const physTop = t.offsetY + y * t.scaleY;
         const physBottom = t.offsetY + (y + h) * t.scaleY;
+
+        // Cull if completely outside
         if (
           physRight < clip.left ||
           physLeft > clip.right ||
@@ -171,6 +150,18 @@ export class Canvas2DRenderer implements Renderer {
         ) {
           continue;
         }
+
+        // Clamp to clip bounds (in physical space, then convert back to screen space)
+        const cPhysLeft = Math.max(physLeft, clip.left);
+        const cPhysRight = Math.min(physRight, clip.right);
+        const cPhysTop = Math.max(physTop, clip.top);
+        const cPhysBottom = Math.min(physBottom, clip.bottom);
+
+        // Convert clamped physical coords back to screen space
+        drawX = (cPhysLeft - t.offsetX) / t.scaleX;
+        drawY = (cPhysTop - t.offsetY) / t.scaleY;
+        drawW = (cPhysRight - cPhysLeft) / t.scaleX;
+        drawH = (cPhysBottom - cPhysTop) / t.scaleY;
       }
 
       // Convert packed RGBA (0xRRGGBBAA) to CSS string
@@ -184,23 +175,29 @@ export class Canvas2DRenderer implements Renderer {
         ctx.fillStyle = cssColor;
         previousColor = rgba;
       }
-      ctx.fillRect(x, y, w, h);
+      ctx.fillRect(drawX, drawY, drawW, drawH);
 
       const flags = patterns[i];
       if (flags & RECT_PATTERN_HATCHED && w >= 5) {
         ctx.fillStyle = getHatchedPattern(ctx);
-        ctx.fillRect(x, y, w, h);
+        ctx.fillRect(drawX, drawY, drawW, drawH);
         previousColor = undefined;
       }
 
       if (flags & RECT_PATTERN_FADE_RIGHT && w >= 5) {
         ctx.save();
         ctx.globalCompositeOperation = 'destination-out';
-        const gradient = ctx.createLinearGradient(x, y, x + w, y);
+        // Fade ends at the clamped right edge
+        const gradient = ctx.createLinearGradient(
+          drawX,
+          drawY,
+          drawX + drawW,
+          drawY,
+        );
         gradient.addColorStop(0.66, 'rgba(0, 0, 0, 0)');
         gradient.addColorStop(1.0, 'rgba(0, 0, 0, 1)');
         ctx.fillStyle = gradient;
-        ctx.fillRect(x, y, w, h);
+        ctx.fillRect(drawX, drawY, drawW, drawH);
         ctx.restore();
         previousColor = undefined;
       }

@@ -61,7 +61,8 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   // Thread* / Process*.
   context_->process_tracker->UpdateThreadName(utid, thread->fmt,
                                               ThreadNamePriority::kOther);
-  context_->process_tracker->SetProcessNameIfUnset(upid, process->fmt);
+  context_->process_tracker->UpdateProcessName(upid, process->fmt,
+                                               ProcessNamePriority::kOther);
 
   auto& stack_profile_tracker = *context_->stack_profile_tracker;
 
