@@ -12,45 +12,60 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Hitbox: 5px total clickable area (via ::before extending beyond visible area)
+// Accent: 3px visible hover area
+// Border: 1px visible line when not hovering
+$hitbox: 3px; // Extra clickable area on each side
+$accent: 1px;
+$thickness: 1px;
+
 .pf-resize-handle {
-  cursor: row-resize;
-  margin-block: -3px;
-  height: 7px;
   z-index: 10;
-  position: relative;
   touch-action: none;
+  position: relative;
+  background-color: var(--pf-color-border);
+  flex-shrink: 0;
+
+  &::before {
+    content: "";
+    position: absolute;
+  }
 
   &:hover {
-    background: var(--pf-color-accent);
     &::after {
-      display: none;
+      content: "";
+      position: absolute;
+      background: var(--pf-color-accent);
     }
   }
 
-  &::after {
-    content: "";
-    height: 1px;
-    display: block;
-    position: relative;
-    top: 3px;
-    background: var(--pf-color-border);
+  // Vertical variant (horizontal bar for top/bottom dragging)
+  &--vertical {
+    cursor: row-resize;
+    width: 100%;
+    height: $thickness;
+
+    &::before {
+      inset: (-$hitbox) 0;
+    }
+
+    &::after {
+      inset: (-$accent) 0;
+    }
   }
 
   // Horizontal variant (vertical bar for left/right dragging)
   &--horizontal {
     cursor: col-resize;
-    margin-block: 0;
-    margin-inline: -3px;
-    width: 7px;
+    width: $thickness;
     height: 100%;
 
+    &::before {
+      inset: 0 (-$hitbox);
+    }
+
     &::after {
-      width: 1px;
-      height: 100%;
-      display: block;
-      position: relative;
-      left: 3px;
-      top: 0;
+      inset: 0 (-$accent);
     }
   }
 }
