@@ -20,176 +20,103 @@ export interface TrackSearchMatch {
   readonly matchLength: number;
 }
 
-export class TrackSearchResults {
-  constructor(
-    readonly matches: readonly TrackSearchMatch[],
-    readonly currentMatchIndex: number,
-  ) {}
-
-  getMatchForTrack(
-    node: TrackNode,
-  ): {start: number; length: number} | undefined {
-    const match = this.matches.find((m) => m.node === node);
-    if (match) {
-      return {start: match.matchStart, length: match.matchLength};
-    }
-    return undefined;
-  }
-
-  isCurrentMatch(node: TrackNode): boolean {
-    const current = this.matches[this.currentMatchIndex];
-    return current !== undefined && current.node === node;
-  }
+export interface TrackSearchModel {
+  readonly searchTerm: string;
+  readonly useRegex: boolean;
+  readonly searchWithinCollapsedGroups: boolean;
 }
+
 /**
- * Manages track search state for the timeline.
+ * Pure function to search tracks in a workspace.
  *
  * Unlike the track filter (which hides non-matching tracks), track search:
  * - Keeps all tracks visible
  * - Highlights matching parts of track names
  * - Allows navigation between matches with Enter/Shift+Enter
  */
-export class TrackSearchCache {
-  private _matches: TrackSearchMatch[] = [];
-  private _currentMatchIndex = -1;
-  private _workspace?: Workspace;
-  private _searchTerm = '';
-  private _useRegex = false;
-  private _searchCollapsed = false;
+export function searchTracks(
+  workspace: Workspace,
+  model: TrackSearchModel,
+): readonly TrackSearchMatch[] {
+  const {searchTerm, useRegex, searchWithinCollapsedGroups} = model;
 
-  useTrackSearchResults(
-    workspace: Workspace,
-    searchTerm: string,
-    useRegex: boolean,
-    searchWithinCollapsedGroups: boolean,
-  ): TrackSearchResults {
-    const needsUpdate =
-      this._workspace !== workspace ||
-      this._searchTerm !== searchTerm ||
-      this._useRegex !== useRegex ||
-      this._searchCollapsed !== searchWithinCollapsedGroups;
-
-    if (needsUpdate) {
-      this._workspace = workspace;
-      this._searchTerm = searchTerm;
-      this._useRegex = useRegex;
-      this._searchCollapsed = searchWithinCollapsedGroups;
-      this.performSearch();
-    }
-
-    return new TrackSearchResults(this._matches, this._currentMatchIndex);
+  if (!searchTerm) {
+    return [];
   }
 
-  stepForward(): void {
-    if (this._matches.length === 0) return;
-    this._currentMatchIndex =
-      (this._currentMatchIndex + 1) % this._matches.length;
-  }
+  const tracksToSearch = getSearchableTracks(
+    workspace,
+    searchWithinCollapsedGroups,
+  );
+  const matches: TrackSearchMatch[] = [];
 
-  stepBackwards(): void {
-    if (this._matches.length === 0) return;
-    this._currentMatchIndex =
-      (this._currentMatchIndex - 1 + this._matches.length) %
-      this._matches.length;
-  }
-
-  private performSearch(preserveCurrentMatch = false): void {
-    // Remember the current match node before re-searching
-    const previousMatchNode = this._matches[this._currentMatchIndex]?.node;
-
-    this._matches = [];
-
-    if (!this._searchTerm || !this._workspace) {
-      this._currentMatchIndex = -1;
-      return;
+  if (useRegex) {
+    let regex: RegExp;
+    try {
+      regex = new RegExp(searchTerm, 'i');
+    } catch {
+      // Invalid regex, no matches
+      return [];
     }
 
-    const tracksToSearch = this.getSearchableTracks();
-
-    if (this._useRegex) {
-      // Regex search
-      let regex: RegExp;
-      try {
-        regex = new RegExp(this._searchTerm, 'i');
-      } catch {
-        // Invalid regex, no matches
-        this._currentMatchIndex = -1;
-        return;
-      }
-
-      for (const node of tracksToSearch) {
-        const match = regex.exec(node.name);
-        if (match) {
-          this._matches.push({
-            node,
-            matchStart: match.index,
-            matchLength: match[0].length,
-          });
-        }
-      }
-    } else {
-      // Plain text search (case-insensitive)
-      const searchTermLower = this._searchTerm.toLowerCase();
-
-      for (const node of tracksToSearch) {
-        const nameLower = node.name.toLowerCase();
-        const matchIndex = nameLower.indexOf(searchTermLower);
-
-        if (matchIndex !== -1) {
-          this._matches.push({
-            node,
-            matchStart: matchIndex,
-            matchLength: this._searchTerm.length,
-          });
-        }
+    for (const node of tracksToSearch) {
+      const match = regex.exec(node.name);
+      if (match) {
+        matches.push({
+          node,
+          matchStart: match.index,
+          matchLength: match[0].length,
+        });
       }
     }
+  } else {
+    // Plain text search (case-insensitive)
+    const searchTermLower = searchTerm.toLowerCase();
 
-    if (this._matches.length > 0) {
-      if (preserveCurrentMatch && previousMatchNode) {
-        // Try to find the previous match node in the new matches
-        const newIndex = this._matches.findIndex(
-          (m) => m.node === previousMatchNode,
-        );
-        if (newIndex !== -1) {
-          this._currentMatchIndex = newIndex;
-          return; // Don't scroll, we're already there
-        }
+    for (const node of tracksToSearch) {
+      const nameLower = node.name.toLowerCase();
+      const matchIndex = nameLower.indexOf(searchTermLower);
+
+      if (matchIndex !== -1) {
+        matches.push({
+          node,
+          matchStart: matchIndex,
+          matchLength: searchTerm.length,
+        });
       }
-      // Reset to first match
-      this._currentMatchIndex = 0;
-    } else {
-      this._currentMatchIndex = -1;
     }
   }
 
-  private getSearchableTracks(): TrackNode[] {
-    if (!this._workspace) return [];
+  return matches;
+}
 
-    const result: TrackNode[] = [];
+function getSearchableTracks(
+  workspace: Workspace,
+  searchCollapsed: boolean,
+): TrackNode[] {
+  const result: TrackNode[] = [];
 
-    const collectTracks = (node: TrackNode) => {
-      if (!node.headless) {
-        result.push(node);
-      }
-
-      if (this._searchCollapsed || node.headless || node.expanded) {
-        for (const child of node.children) {
-          collectTracks(child);
-        }
-      }
-    };
-
-    // Pinned tracks
-    for (const node of this._workspace.pinnedTracks) {
-      collectTracks(node);
+  const collectTracks = (node: TrackNode) => {
+    if (!node.headless) {
+      result.push(node);
     }
 
-    // Main tracks
-    for (const node of this._workspace.children) {
-      collectTracks(node);
+    if (searchCollapsed || node.headless || node.expanded) {
+      for (const child of node.children) {
+        collectTracks(child);
+      }
     }
+  };
 
-    return result;
+  // Pinned tracks
+  for (const node of workspace.pinnedTracks) {
+    collectTracks(node);
   }
+
+  // Main tracks
+  for (const node of workspace.children) {
+    collectTracks(node);
+  }
+
+  return result;
 }

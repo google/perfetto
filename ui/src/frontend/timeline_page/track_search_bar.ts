@@ -20,15 +20,10 @@ import {TextInput} from '../../widgets/text_input';
 import {Tooltip} from '../../widgets/tooltip';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {Anchor} from '../../widgets/anchor';
+import {TrackSearchModel} from '../../core/track_search_manager';
 
 export interface TrackSearchBarApi {
   focus(): void;
-}
-
-export interface TrackSearchModel {
-  readonly searchTerm: string;
-  readonly useRegex: boolean;
-  readonly searchWithinCollapsedGroups: boolean;
 }
 
 export interface TrackSearchBarAttrs {

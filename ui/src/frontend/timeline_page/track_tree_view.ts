@@ -45,7 +45,7 @@ import {
 } from '../../base/zoned_interaction_handler';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {TraceImpl} from '../../core/trace_impl';
-import {TrackSearchResults} from '../../core/track_search_manager';
+import {TrackSearchMatch} from '../../core/track_search_manager';
 import {TrackNode} from '../../public/workspace';
 import {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -113,6 +113,10 @@ function cssColorToRgba(cssColor: string): number {
   return packed;
 }
 
+export interface TrackTreeViewApi {
+  scrollToTrack(trackId: string): void;
+}
+
 export interface TrackTreeViewAttrs {
   // Access to the trace, for accessing the track registry / selection manager.
   readonly trace: TraceImpl;
@@ -143,17 +147,19 @@ export interface TrackTreeViewAttrs {
 
   readonly filtersApplied?: boolean;
 
-  // Track search results for highlighting search matches.
-  readonly trackSearch?: TrackSearchResults;
+  // Track search matches for highlighting.
+  readonly trackSearchMatches?: readonly TrackSearchMatch[];
+
+  // The current search match node (for highlighting the current match).
+  readonly currentSearchMatch?: TrackNode;
 
   // Whether virtual scrolling is enabled. When true, offscreen tracks are not
   // rendered at all. When false, offscreen tracks render in "lite" mode.
   // Default: true
   readonly virtualScrollingEnabled?: boolean;
 
-  // When set, scrolls this track node into view on the next update cycle.
-  // Can be a TrackNode or a string ID.
-  readonly scrollIntoView?: TrackNode | string;
+  // Callback to receive the API for imperative operations.
+  onReady?(api: TrackTreeViewApi): void;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -175,9 +181,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private canvasRect?: Rect2D;
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
-
-  // Track previous scrollIntoView value to detect changes
-  private lastScrollIntoView?: TrackNode | string;
 
   // Reference to the scroll container element
   private scrollContainer?: HTMLElement;
@@ -201,7 +204,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       rootNode,
       trackFilter,
       filtersApplied,
-      trackSearch,
+      trackSearchMatches,
+      currentSearchMatch,
       virtualScrollingEnabled = true,
     } = attrs;
     const renderedTracks = new Array<TrackView>();
@@ -343,7 +347,12 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           absoluteTop:
             useVirtualScrolling && isRootLevel ? trackAbsoluteTop : undefined,
           // Only enable track search when virtual scrolling is enabled
-          trackSearch: virtualScrollingEnabled ? trackSearch : undefined,
+          trackSearchMatches: virtualScrollingEnabled
+            ? trackSearchMatches
+            : undefined,
+          currentSearchMatch: virtualScrollingEnabled
+            ? currentSearchMatch
+            : undefined,
           onTrackMouseOver: () => {
             this.hoveredTrackNode = node;
           },
@@ -480,10 +489,15 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       }),
     );
 
+    // Expose the API for imperative operations
+    vnode.attrs.onReady?.({
+      scrollToTrack: (trackId: string) => this.scrollToTrack(trackId),
+    });
+
     this.onupdate(vnode);
   }
 
-  onupdate({dom, attrs}: m.VnodeDOM<TrackTreeViewAttrs>) {
+  onupdate({dom}: m.VnodeDOM<TrackTreeViewAttrs>) {
     // Depending on the state of the filter/workspace, we sometimes have a
     // TRACK_CONTAINER_REF element and sometimes we don't (see the view
     // function). This means the DOM element could potentially appear/disappear
@@ -515,18 +529,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     if (scrollToId !== undefined) {
       this.scrollToTrack(scrollToId);
       this.trace.tracks.scrollToTrackNodeId = undefined;
-    }
-
-    // Handle scrollIntoView attr changes
-    if (attrs.scrollIntoView !== this.lastScrollIntoView) {
-      this.lastScrollIntoView = attrs.scrollIntoView;
-      if (attrs.scrollIntoView !== undefined) {
-        const targetId =
-          typeof attrs.scrollIntoView === 'string'
-            ? attrs.scrollIntoView
-            : attrs.scrollIntoView.id;
-        this.scrollToTrack(targetId);
-      }
     }
   }
 
