@@ -24,7 +24,7 @@ export default class MemoryViz implements PerfettoPlugin {
   static readonly id = 'com.android.MemoryViz';
   static readonly table_prefix = '_rss_anon_swap_memory_';
 
-  static readonly BLACKLIST_THRESHOLD_BYTES = 100 * 1024 * 1024; // 100 MiB
+  static readonly DENY_THRESHOLD_BYTES = 100 * 1024 * 1024; // 100 MiB
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await ctx.engine.query(`
@@ -35,8 +35,9 @@ export default class MemoryViz implements PerfettoPlugin {
       -- Create a table containing intervals of memory counters values, adjusted to process lifetime.
       CREATE OR REPLACE PERFETTO TABLE ${MemoryViz.table_prefix}mem_intervals_raw AS
       WITH
-        -- We blacklist tracks that have a single jump greater than 100MiB
-        blacklisted_tracks AS (
+        -- We deny tracks that have large swings in value
+        -- This can happen because of rss_stat accounting issue: see b/418231246 for details.
+        denied_tracks AS (
           WITH diffs AS (
             SELECT
               track_id,
@@ -45,15 +46,15 @@ export default class MemoryViz implements PerfettoPlugin {
           )
           SELECT DISTINCT track_id
           FROM diffs
-          WHERE ABS(d) > ${MemoryViz.BLACKLIST_THRESHOLD_BYTES}
+          WHERE ABS(d) > ${MemoryViz.DENY_THRESHOLD_BYTES}
         ),
         target_counters AS (
           SELECT c.id, c.ts, c.track_id, c.value
           FROM counter c
           JOIN process_counter_track t ON c.track_id = t.id
           WHERE
-            (t.name = 'mem.rss.anon' OR t.name = 'mem.swap' OR t.name = 'mem.rss.file')
-            AND t.id NOT IN (SELECT track_id FROM blacklisted_tracks)
+            t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file')
+            AND t.id NOT IN (SELECT track_id FROM denied_tracks)
         ),
         -- Get all memory counter values for all processes, and clip them to process lifetime.
         marked_intervals AS (
@@ -111,8 +112,9 @@ export default class MemoryViz implements PerfettoPlugin {
             JOIN process_counter_track t ON c.track_id = t.id
             JOIN process p USING (upid)
             WHERE
-              (p.name = 'zygote' OR p.name = 'zygote64') AND
-              (t.name = 'mem.rss.anon' OR t.name = 'mem.swap' OR t.name = 'mem.rss.file')
+              -- TODO: improve zygote process detection
+              p.name IN ('zygote', 'zygote64', 'webview_zygote') AND
+              t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file')
             GROUP BY t.name
           )
         )
@@ -127,13 +129,13 @@ export default class MemoryViz implements PerfettoPlugin {
         IFNULL(bucket, 'unknown') AS bucket,
         CASE
           WHEN app.upid IS NOT NULL AND track_name = 'mem.rss.anon'
-            THEN MAX(0, CAST(value AS INT) - CAST(IFNULL((SELECT rss_anon_base FROM zygote_baseline), 0) AS INT)))
+            THEN MAX(0, cast_int!(value) - cast_int!(IFNULL((SELECT rss_anon_base FROM zygote_baseline), 0)))
           WHEN app.upid IS NOT NULL AND track_name = 'mem.swap'
-            THEN MAX(0, CAST(value AS INT) - CAST(IFNULL((SELECT swap_base FROM zygote_baseline), 0) AS INT)))
+            THEN MAX(0, cast_int!(value) - cast_int!(IFNULL((SELECT swap_base FROM zygote_baseline), 0)))
           WHEN app.upid IS NOT NULL AND track_name = 'mem.rss.file'
-            THEN MAX(0, CAST(value AS INT) - CAST(IFNULL((SELECT rss_file_base FROM zygote_baseline), 0) AS INT)))
-          ELSE CAST(value AS INT)
-        END AS adjusted_value
+            THEN MAX(0, cast_int!(value) - cast_int!(IFNULL((SELECT rss_file_base FROM zygote_baseline), 0)))
+          ELSE cast_int!(value)
+        END AS zygote_adjusted_value
       FROM ${MemoryViz.table_prefix}mem_oom_span_join
       LEFT JOIN process app USING (upid)
       WHERE dur > 0;
@@ -197,7 +199,7 @@ export default class MemoryViz implements PerfettoPlugin {
   ): Promise<TrackNode> {
     const uri = `${MemoryViz.id}.rss_anon_swap.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
-      `(track_name = 'mem.rss.anon' OR track_name = 'mem.swap')`,
+      `track_name IN ('mem.rss.anon', 'mem.swap')`,
     ]);
     const rootNode = await this.createTrack(
       ctx,
@@ -290,7 +292,7 @@ export default class MemoryViz implements PerfettoPlugin {
     );
 
     const processes = await ctx.engine.query(`
-      SELECT upid, pid, process_name, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as max_value FROM interval_self_intersect!((
+      SELECT upid, pid, process_name, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.zygote_adjusted_value, 0)) as max_value FROM interval_self_intersect!((
         SELECT
           id,
           MAX(ts, ${window.start}) as ts,
@@ -359,7 +361,7 @@ export default class MemoryViz implements PerfettoPlugin {
     const whereClause =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
     return `
-      SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.adjusted_value, 0)) as value FROM interval_self_intersect!((
+      SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.zygote_adjusted_value, 0)) as value FROM interval_self_intersect!((
         SELECT
           id,
           MAX(ts, ${window.start}) as ts,
