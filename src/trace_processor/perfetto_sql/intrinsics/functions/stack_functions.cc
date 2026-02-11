@@ -34,7 +34,6 @@
 #include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"

@@ -63,12 +63,12 @@ class CollectClocksTest : public testing::Test {
 TEST_F(CollectClocksTest, CollectsClocksAndConvertsPerfToTraceTs) {
   // We need a trusted sequence id that will be used to map the clock ids.
   constexpr uint32_t trusted_sequence_id = 7;
-  constexpr uint32_t perf_clock_id = 1;
-  constexpr int trace_clock_id = 4;
+  constexpr ClockId perf_clock_id(1);
+  constexpr ClockId trace_clock_id(4);
 
   protos::gen::TracePacket trace_defaults_packet;
   AddPerfTraceDefaultsToPacket(trace_defaults_packet, trusted_sequence_id,
-                               perf_clock_id);
+                               perf_clock_id.clock_id);
 
   packets_.push_back(trace_defaults_packet);
 
@@ -76,17 +76,17 @@ TEST_F(CollectClocksTest, CollectsClocksAndConvertsPerfToTraceTs) {
 
   auto* clock_snapshot = clock_snapshot_packet.mutable_clock_snapshot();
   clock_snapshot->set_primary_trace_clock(
-      static_cast<protos::gen::BuiltinClock>(trace_clock_id));
+      static_cast<protos::gen::BuiltinClock>(trace_clock_id.clock_id));
   auto* clocks = clock_snapshot->mutable_clocks();
 
   // Add a few clocks
   protos::gen::ClockSnapshot_Clock clock1;
-  clock1.set_clock_id(trace_clock_id);
+  clock1.set_clock_id(trace_clock_id.clock_id);
   clock1.set_timestamp(100);
   clocks->push_back(clock1);
 
   protos::gen::ClockSnapshot_Clock clock2;
-  clock2.set_clock_id(perf_clock_id);
+  clock2.set_clock_id(perf_clock_id.clock_id);
   clock2.set_timestamp(500);
   clocks->push_back(clock2);
 
@@ -123,44 +123,46 @@ TEST_F(CollectClocksTest, CollectsClocksAndConvertsPerfToTraceTs) {
 
 TEST_F(CollectClocksTest, CollectsClocksMultiSequence) {
   packets_.clear();
-  constexpr int trace_clock_id = 4;
+  constexpr ClockId trace_clock_id(4);
 
   // Create defaults for first trusted sequence
   constexpr int trusted_sequence_id_1 = 1;
-  constexpr int perf_clock_id_seq_1 = 5;
+  constexpr ClockId perf_clock_id_seq_1(5);
   protos::gen::TracePacket trace_defaults_packet_seq_1;
   AddPerfTraceDefaultsToPacket(trace_defaults_packet_seq_1,
-                               trusted_sequence_id_1, perf_clock_id_seq_1);
+                               trusted_sequence_id_1,
+                               perf_clock_id_seq_1.clock_id);
   packets_.push_back(trace_defaults_packet_seq_1);
 
   // Create defaults for second trusted sequence
   constexpr int trusted_sequence_id_2 = 2;
-  constexpr int perf_clock_id_seq_2 = 6;
+  constexpr ClockId perf_clock_id_seq_2(6);
   protos::gen::TracePacket trace_defaults_packet_seq_2;
   AddPerfTraceDefaultsToPacket(trace_defaults_packet_seq_2,
-                               trusted_sequence_id_2, perf_clock_id_seq_2);
+                               trusted_sequence_id_2,
+                               perf_clock_id_seq_2.clock_id);
   packets_.push_back(trace_defaults_packet_seq_2);
 
   protos::gen::TracePacket clock_snapshot_packet;
 
   auto* clock_snapshot = clock_snapshot_packet.mutable_clock_snapshot();
   clock_snapshot->set_primary_trace_clock(
-      static_cast<protos::gen::BuiltinClock>(trace_clock_id));
+      static_cast<protos::gen::BuiltinClock>(trace_clock_id.clock_id));
   auto* clocks = clock_snapshot->mutable_clocks();
 
   // Add a few clocks
   protos::gen::ClockSnapshot_Clock clock1;
-  clock1.set_clock_id(trace_clock_id);
+  clock1.set_clock_id(trace_clock_id.clock_id);
   clock1.set_timestamp(100);
   clocks->push_back(clock1);
 
   protos::gen::ClockSnapshot_Clock clock2;
-  clock2.set_clock_id(perf_clock_id_seq_1);
+  clock2.set_clock_id(perf_clock_id_seq_1.clock_id);
   clock2.set_timestamp(500);
   clocks->push_back(clock2);
 
   protos::gen::ClockSnapshot_Clock clock3;
-  clock3.set_clock_id(perf_clock_id_seq_2);
+  clock3.set_clock_id(perf_clock_id_seq_2.clock_id);
   clock3.set_timestamp(800);
   clocks->push_back(clock3);
   packets_.push_back(clock_snapshot_packet);

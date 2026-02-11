@@ -58,14 +58,14 @@ base::Status ClockSynchronizerListenerImpl::OnInvalidClockSnapshot() {
 base::Status ClockSynchronizerListenerImpl::OnTraceTimeClockIdChanged(
     ClockSynchronizerBase::ClockId clock_id) {
   context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
-                                          Variadic::Integer(clock_id));
+                                          Variadic::Integer(clock_id.clock_id));
   return base::OkStatus();
 }
 
 base::Status ClockSynchronizerListenerImpl::OnSetTraceTimeClock(
     ClockSynchronizerBase::ClockId clock_id) {
   context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
-                                          Variadic::Integer(clock_id));
+                                          Variadic::Integer(clock_id.clock_id));
   return base::OkStatus();
 }
 
@@ -91,24 +91,24 @@ void ClockSynchronizerListenerImpl::RecordConversionError(
       return;
   }
   auto args = [&](ArgsTracker::BoundInserter& inserter) {
-    if (ClockTracker::IsSequenceClock(static_cast<uint32_t>(source_clock_id))) {
-      auto [seq_id, seq_clock_id] =
-          ClockTracker::ExtractSequenceClockId(source_clock_id);
+    if (source_clock_id.seq_id != 0) {
       inserter.AddArg(source_sequence_id_key_,
-                      Variadic::UnsignedInteger(seq_id));
-      inserter.AddArg(source_clock_id_key_, Variadic::Integer(seq_clock_id));
+                      Variadic::UnsignedInteger(source_clock_id.seq_id));
+      inserter.AddArg(source_clock_id_key_,
+                      Variadic::Integer(source_clock_id.clock_id));
     } else {
-      inserter.AddArg(source_clock_id_key_, Variadic::Integer(source_clock_id));
+      inserter.AddArg(source_clock_id_key_,
+                      Variadic::Integer(source_clock_id.clock_id));
     }
     inserter.AddArg(source_timestamp_key_, Variadic::Integer(source_timestamp));
-    if (ClockTracker::IsSequenceClock(static_cast<uint32_t>(target_clock_id))) {
-      auto [seq_id, seq_clock_id] =
-          ClockTracker::ExtractSequenceClockId(target_clock_id);
+    if (target_clock_id.seq_id != 0) {
       inserter.AddArg(target_sequence_id_key_,
-                      Variadic::UnsignedInteger(seq_id));
-      inserter.AddArg(target_clock_id_key_, Variadic::Integer(seq_clock_id));
+                      Variadic::UnsignedInteger(target_clock_id.seq_id));
+      inserter.AddArg(target_clock_id_key_,
+                      Variadic::Integer(target_clock_id.clock_id));
     } else {
-      inserter.AddArg(target_clock_id_key_, Variadic::Integer(target_clock_id));
+      inserter.AddArg(target_clock_id_key_,
+                      Variadic::Integer(target_clock_id.clock_id));
     }
   };
   if (byte_offset) {
