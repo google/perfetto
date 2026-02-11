@@ -102,6 +102,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
     const virtualScrollingEnabled = VIRTUAL_TRACK_SCROLLING.get();
     const useAlternativeHotkey = USE_ALTERNATIVE_SEARCH_HOTKEY.get();
 
+    // Update the cache and get results (used for both search bar and track highlighting)
     let trackSearchResults: TrackSearchResults | undefined = undefined;
     if (virtualScrollingEnabled && this.trackSearchBarVisible) {
       trackSearchResults = this.trackSearchCache.useTrackSearchResults(
@@ -140,7 +141,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   }
 
   private renderTrackSearchPanel(
-    trackSearchResults?: TrackSearchResults,
+    trackSearchResults: TrackSearchResults,
   ): m.Children {
     if (!this.trackSearchBarVisible) return null;
     return m(TrackSearchBar, {
@@ -163,7 +164,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
 
   private renderTimeline(
     trace: TraceImpl,
-    trackSearchResults: TrackSearchResults,
+    trackSearchResults: TrackSearchResults | undefined,
   ): m.Children {
     return m(
       '.pf-timeline-page__timeline',
@@ -214,7 +215,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
 
   private renderTracks(
     trace: TraceImpl,
-    trackSearchResults: TrackSearchResults,
+    trackSearchResults: TrackSearchResults | undefined,
   ): m.Children {
     // Hide tracks while the trace is loading to prevent thrashing.
     if (AppImpl.instance.isLoadingTrace) return null;
@@ -227,7 +228,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
 
   private renderPinnedTracks(
     trace: TraceImpl,
-    trackSearchResults: TrackSearchResults,
+    trackSearchResults: TrackSearchResults | undefined,
   ): m.Children {
     if (trace.currentWorkspace.pinnedTracks.length === 0) return null;
 
@@ -268,7 +269,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
 
   private renderMainTracks(
     trace: TraceImpl,
-    trackSearchResults: TrackSearchResults,
+    trackSearchResults: TrackSearchResults | undefined,
   ): m.Children {
     return m(TrackTreeView, {
       trace,

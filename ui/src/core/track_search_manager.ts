@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {TrackNode, Workspace} from '../public/workspace';
-import {TrackManagerImpl} from './track_manager';
-import {TrackSearchModel} from '../frontend/timeline_page/track_search_bar';
 
 export interface TrackSearchMatch {
   readonly node: TrackNode;
@@ -23,9 +20,26 @@ export interface TrackSearchMatch {
   readonly matchLength: number;
 }
 
-export interface TrackSearchResults {
-  readonly matches: readonly TrackSearchMatch[];
-  readonly currentMatchIndex: number;
+export class TrackSearchResults {
+  constructor(
+    readonly matches: readonly TrackSearchMatch[],
+    readonly currentMatchIndex: number,
+  ) {}
+
+  getMatchForTrack(
+    node: TrackNode,
+  ): {start: number; length: number} | undefined {
+    const match = this.matches.find((m) => m.node === node);
+    if (match) {
+      return {start: match.matchStart, length: match.matchLength};
+    }
+    return undefined;
+  }
+
+  isCurrentMatch(node: TrackNode): boolean {
+    const current = this.matches[this.currentMatchIndex];
+    return current !== undefined && current.node === node;
+  }
 }
 /**
  * Manages track search state for the timeline.
@@ -36,10 +50,12 @@ export interface TrackSearchResults {
  * - Allows navigation between matches with Enter/Shift+Enter
  */
 export class TrackSearchCache {
-  private cachedMatches: TrackSearchMatch[] = [];
-  private currentMatchIndex = -1;
-  private workspace?: Workspace;
-  private model?: TrackSearchModel;
+  private _matches: TrackSearchMatch[] = [];
+  private _currentMatchIndex = -1;
+  private _workspace?: Workspace;
+  private _searchTerm = '';
+  private _useRegex = false;
+  private _searchCollapsed = false;
 
   useTrackSearchResults(
     workspace: Workspace,
@@ -47,77 +63,39 @@ export class TrackSearchCache {
     useRegex: boolean,
     searchWithinCollapsedGroups: boolean,
   ): TrackSearchResults {
-    console.log(
-      workspace,
-      `Updating track search: term="${searchTerm}", regex=${useRegex}, searchCollapsed=${searchWithinCollapsedGroups}`,
-    );
+    const needsUpdate =
+      this._workspace !== workspace ||
+      this._searchTerm !== searchTerm ||
+      this._useRegex !== useRegex ||
+      this._searchCollapsed !== searchWithinCollapsedGroups;
 
-    return {
-      matches: this.cachedMatches,
-      currentMatchIndex: this._currentMatchIndex,
-    };
-    // TODO - depending on what changed in the model, maybe update the internal
-    // state and return the new track search results.
+    if (needsUpdate) {
+      this._workspace = workspace;
+      this._searchTerm = searchTerm;
+      this._useRegex = useRegex;
+      this._searchCollapsed = searchWithinCollapsedGroups;
+      this.performSearch();
+    }
+
+    return new TrackSearchResults(this._matches, this._currentMatchIndex);
   }
 
   stepForwards(): void {
     if (this._matches.length === 0) return;
     this._currentMatchIndex =
       (this._currentMatchIndex + 1) % this._matches.length;
-    this.scrollToCurrentMatch();
   }
 
-  /**
-   * Navigate to the previous match (with wrap-around).
-   */
   stepBackwards(): void {
     if (this._matches.length === 0) return;
     this._currentMatchIndex =
       (this._currentMatchIndex - 1 + this._matches.length) %
       this._matches.length;
-    this.scrollToCurrentMatch();
-  }
-
-  /**
-   * Check if a track matches the current search and return highlight info.
-   * Returns undefined if there's no match.
-   */
-  getMatchForTrack(
-    node: TrackNode,
-  ): {start: number; length: number} | undefined {
-    if (!this._searchTerm) return undefined;
-
-    const match = this._matches.find((m) => m.node === node);
-    if (match) {
-      return {start: match.matchStart, length: match.matchLength};
-    }
-    return undefined;
-  }
-
-  /**
-   * Check if a track is the current match (for special highlighting).
-   */
-  isCurrentMatch(node: TrackNode): boolean {
-    const current = this.currentMatch;
-    return current !== undefined && current.node === node;
-  }
-
-  /**
-   * Scrolls to the current match, expanding parent groups if necessary.
-   */
-  scrollToCurrentMatch(): void {
-    const match = this.currentMatch;
-    if (match && this._trackManager) {
-      // Expand all parent groups so the track becomes visible
-      match.node.reveal();
-      // Use the existing scroll-to-track mechanism
-      this._trackManager.scrollToTrackNodeId = match.node.id;
-    }
   }
 
   private performSearch(preserveCurrentMatch = false): void {
     // Remember the current match node before re-searching
-    const previousMatchNode = this.currentMatch?.node;
+    const previousMatchNode = this._matches[this._currentMatchIndex]?.node;
 
     this._matches = [];
 
@@ -180,7 +158,6 @@ export class TrackSearchCache {
       }
       // Reset to first match
       this._currentMatchIndex = 0;
-      this.scrollToCurrentMatch();
     } else {
       this._currentMatchIndex = -1;
     }

@@ -45,7 +45,7 @@ import {
 } from '../../base/zoned_interaction_handler';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {TraceImpl} from '../../core/trace_impl';
-import {TrackSearchCache} from '../../core/track_search_manager';
+import {TrackSearchResults} from '../../core/track_search_manager';
 import {TrackNode} from '../../public/workspace';
 import {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -143,13 +143,17 @@ export interface TrackTreeViewAttrs {
 
   readonly filtersApplied?: boolean;
 
-  // Track search manager for highlighting search matches.
-  readonly trackSearch?: TrackSearchCache;
+  // Track search results for highlighting search matches.
+  readonly trackSearch?: TrackSearchResults;
 
   // Whether virtual scrolling is enabled. When true, offscreen tracks are not
   // rendered at all. When false, offscreen tracks render in "lite" mode.
   // Default: true
   readonly virtualScrollingEnabled?: boolean;
+
+  // When set, scrolls this track node into view on the next update cycle.
+  // Can be a TrackNode or a string ID.
+  readonly scrollIntoView?: TrackNode | string;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -171,6 +175,12 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private canvasRect?: Rect2D;
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
+
+  // Track previous scrollIntoView value to detect changes
+  private lastScrollIntoView?: TrackNode | string;
+
+  // Reference to the scroll container element
+  private scrollContainer?: HTMLElement;
 
   // Store rendered tracks for scroll-to-track functionality
   private renderedTracks: TrackView[] = [];
@@ -207,22 +217,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       if (node.children?.some(filterMatches)) return true;
 
       return false;
-    }
-
-    // Collect all track nodes recursively, including those inside collapsed
-    // groups. Used for search-in-collapsed functionality.
-    function collectAllTracks(node: TrackNode, result: TrackNode[]): void {
-      if (node.headless) {
-        // Headless nodes are invisible, just collect children.
-        for (const child of node.children) {
-          collectAllTracks(child, result);
-        }
-        return;
-      }
-      result.push(node);
-      for (const child of node.children) {
-        collectAllTracks(child, result);
-      }
     }
 
     const useVirtualScrolling =
@@ -489,7 +483,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     this.onupdate(vnode);
   }
 
-  onupdate({dom}: m.VnodeDOM<TrackTreeViewAttrs>) {
+  onupdate({dom, attrs}: m.VnodeDOM<TrackTreeViewAttrs>) {
     // Depending on the state of the filter/workspace, we sometimes have a
     // TRACK_CONTAINER_REF element and sometimes we don't (see the view
     // function). This means the DOM element could potentially appear/disappear
@@ -508,27 +502,43 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       }
     }
 
+    // Cache scroll container reference
+    const scrollContainerEl = findRef(dom, SCROLL_CONTAINER_REF);
+    if (scrollContainerEl) {
+      this.scrollContainer = toHTMLElement(scrollContainerEl);
+    }
+
     // Handle pending scroll-to-track requests. With virtual scrolling, the
     // target track may be rendered as a spacer, so we scroll the container
     // to the track's known vertical position instead of relying on DOM.
     const scrollToId = this.trace.tracks.scrollToTrackNodeId;
     if (scrollToId !== undefined) {
-      const trackView = this.renderedTracks.find(
-        (tv) => tv.node.id === scrollToId,
-      );
-      if (trackView) {
-        const scrollContainer = findRef(dom, SCROLL_CONTAINER_REF);
-        if (scrollContainer) {
-          const container = toHTMLElement(scrollContainer);
-          // Scroll to center the track in the viewport
-          const targetTop = trackView.verticalBounds.top;
-          const trackHeight = trackView.height;
-          const viewportHeight = container.clientHeight;
-          const scrollTop = targetTop - (viewportHeight - trackHeight) / 2;
-          container.scrollTop = Math.max(0, scrollTop);
-        }
-      }
+      this.scrollToTrack(scrollToId);
       this.trace.tracks.scrollToTrackNodeId = undefined;
+    }
+
+    // Handle scrollIntoView attr changes
+    if (attrs.scrollIntoView !== this.lastScrollIntoView) {
+      this.lastScrollIntoView = attrs.scrollIntoView;
+      if (attrs.scrollIntoView !== undefined) {
+        const targetId =
+          typeof attrs.scrollIntoView === 'string'
+            ? attrs.scrollIntoView
+            : attrs.scrollIntoView.id;
+        this.scrollToTrack(targetId);
+      }
+    }
+  }
+
+  private scrollToTrack(trackId: string): void {
+    const trackView = this.renderedTracks.find((tv) => tv.node.id === trackId);
+    if (trackView && this.scrollContainer) {
+      // Scroll to center the track in the viewport using computed position
+      const targetTop = trackView.verticalBounds.top;
+      const trackHeight = trackView.height;
+      const viewportHeight = this.scrollContainer.clientHeight;
+      const scrollTop = targetTop - (viewportHeight - trackHeight) / 2;
+      this.scrollContainer.scrollTop = Math.max(0, scrollTop);
     }
   }
 
