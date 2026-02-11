@@ -270,11 +270,29 @@ class GeneratorImpl {
   base::FlatHashMap<std::string, std::nullptr_t>& referenced_modules_;
   std::vector<std::string>& preambles_;
   std::set<std::string> used_table_names_;
+
+  // If the root query specifies referenced_queries, all referenced_query
+  // sources must appear in this set.
+  std::optional<std::set<std::string>> allowed_referenced_queries_;
+
+  // Tracks which entries from allowed_referenced_queries_ were actually used
+  // during generation. After generation, any unused entries are an error.
+  std::set<std::string> used_referenced_queries_;
 };
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
     protozero::ConstBytes bytes,
     bool inline_shared_queries) {
+  // If the root query declares referenced_queries, build the allowed set.
+  StructuredQuery::Decoder root_dec(bytes);
+  // Repeated field iterator is truthy when at least one entry exists.
+  if (root_dec.referenced_queries()) {
+    allowed_referenced_queries_.emplace();
+    for (auto it = root_dec.referenced_queries(); it; ++it) {
+      allowed_referenced_queries_->insert(it->as_std_string());
+    }
+  }
+
   state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt,
                       used_table_names_);
   for (; state_index_ < state_.size(); ++state_index_) {
@@ -299,8 +317,8 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
       !root_query.has_experimental_filter_to_intervals() &&
       !root_query.has_experimental_join() &&
       !root_query.has_experimental_union() && !root_query.has_sql() &&
-      !root_query.has_inner_query_id() && !root_query.filters() &&
-      !root_query.has_experimental_filter_group() &&
+      !root_query.has_inner_query_id() && !root_query.has_referenced_query() &&
+      !root_query.filters() && !root_query.has_experimental_filter_group() &&
       !root_query.has_group_by() && !root_query.select_columns() &&
       !root_query.has_experimental_add_columns() &&
       !root_query.has_experimental_create_slices() &&
@@ -340,6 +358,19 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
   } else {
     sql += "\nSELECT *\nFROM " + state_[0].table_name;
   }
+
+  // Verify every entry in referenced_queries was actually used.
+  if (allowed_referenced_queries_) {
+    for (const auto& allowed : *allowed_referenced_queries_) {
+      if (used_referenced_queries_.count(allowed) == 0) {
+        return base::ErrStatus(
+            "referenced_queries entry '%s' is not actually referenced by any "
+            "query",
+            allowed.c_str());
+      }
+    }
+  }
+
   return sql;
 }
 
@@ -401,7 +432,13 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     } else if (q.has_inner_query()) {
       source = NestedSource(q.inner_query());
     } else if (q.has_inner_query_id()) {
+      if (q.has_referenced_query()) {
+        return base::ErrStatus(
+            "Query must not set both inner_query_id and referenced_query");
+      }
       ASSIGN_OR_RETURN(source, ReferencedSharedQuery(q.inner_query_id()));
+    } else if (q.has_referenced_query()) {
+      ASSIGN_OR_RETURN(source, ReferencedSharedQuery(q.referenced_query()));
     } else {
       return base::ErrStatus("Query must specify a source");
     }
@@ -1277,6 +1314,19 @@ base::StatusOr<std::string> GeneratorImpl::FilterIn(
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
     protozero::ConstChars raw_id) {
   std::string id = raw_id.ToStdString();
+
+  // If the root query declared referenced_queries, verify this reference is
+  // listed there.
+  if (allowed_referenced_queries_ &&
+      allowed_referenced_queries_->count(id) == 0) {
+    return base::ErrStatus(
+        "Referenced query '%s' is not listed in referenced_queries",
+        id.c_str());
+  }
+  if (allowed_referenced_queries_) {
+    used_referenced_queries_.insert(id);
+  }
+
   for (std::optional<size_t> curr_idx = state_index_; curr_idx;
        curr_idx = state_[*curr_idx].parent_index) {
     const auto& query = state_[*curr_idx];

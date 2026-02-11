@@ -398,8 +398,8 @@ describe('CounterToIntervalsNode', () => {
       const sq = node.getStructuredQuery();
       const inputQuery = sq?.experimentalCounterIntervals?.inputQuery;
 
-      // Should reference the input node's query via innerQueryId
-      expect(inputQuery?.innerQueryId).toBe(inputNode.nodeId);
+      // Should reference the input node's query via referencedQuery
+      expect(inputQuery?.referencedQuery).toBe(inputNode.nodeId);
     });
   });
 

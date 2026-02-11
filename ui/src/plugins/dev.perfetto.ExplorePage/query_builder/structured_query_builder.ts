@@ -20,10 +20,10 @@ import {nextNodeId, QueryNode} from '../query_node';
  *
  * This builder uses two strategies for composing queries:
  *
- * 1. **Reference by ID (innerQueryId)**: Used for single-input operations
+ * 1. **Reference by ID (referencedQuery)**: Used for single-input operations
  *    - Operations: SELECT, WHERE, ORDER BY, LIMIT/OFFSET, GROUP BY, etc.
  *    - Advantage: More efficient, creates flatter query graphs
- *    - Implementation: Set innerQueryId to reference the input query's id
+ *    - Implementation: Set referencedQuery to reference the input query's id
  *
  * 2. **Full Query Embedding (innerQuery)**: Used for multi-input operations
  *    - Operations: JOIN, UNION, interval operations
@@ -180,7 +180,7 @@ export class StructuredQueryBuilder {
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = nodeId;
-    sq.innerQueryId = queryId;
+    sq.referencedQuery = queryId;
     return sq;
   }
 
@@ -237,7 +237,7 @@ export class StructuredQueryBuilder {
 
     return protos.PerfettoSqlStructuredQuery.create({
       id: nodeId,
-      innerQueryId: queryId,
+      referencedQuery: queryId,
       orderBy: protos.PerfettoSqlStructuredQuery.OrderBy.create({
         orderingSpecs,
       }),
@@ -265,7 +265,7 @@ export class StructuredQueryBuilder {
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = nodeId ?? nextNodeId();
-    sq.innerQueryId = queryId;
+    sq.referencedQuery = queryId;
 
     if (limit !== undefined && limit >= 0) {
       sq.limit = limit;
@@ -300,7 +300,7 @@ export class StructuredQueryBuilder {
     // (not just an ID), so we wrap the reference in a passthrough query.
     const inputRef = new protos.PerfettoSqlStructuredQuery();
     inputRef.id = `${actualNodeId}_input_ref`;
-    inputRef.innerQueryId = queryId;
+    inputRef.referencedQuery = queryId;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = actualNodeId;
@@ -362,17 +362,17 @@ export class StructuredQueryBuilder {
    * Creates a simple reference query.
    * This is a private helper method used by multi-input operations.
    *
-   * @param innerQueryId The ID of the query to reference
+   * @param referencedQueryId The ID of the query to reference
    * @param refId The ID for this reference query
-   * @returns A new structured query referencing the inner query
+   * @returns A new structured query referencing the referred query
    */
   private static createRef(
-    innerQueryId: string,
+    referencedQueryId: string,
     refId: string,
   ): protos.PerfettoSqlStructuredQuery {
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = refId;
-    sq.innerQueryId = innerQueryId;
+    sq.referencedQuery = referencedQueryId;
     return sq;
   }
 
@@ -380,17 +380,17 @@ export class StructuredQueryBuilder {
    * Creates a reference query with a dur >= 0 filter applied.
    * This is a private helper method used by multi-input operations.
    *
-   * @param innerQueryId The ID of the query to reference
+   * @param referencedQueryId The ID of the query to reference
    * @param refId The ID for this reference query
-   * @returns A new structured query referencing the inner query with dur filter
+   * @returns A new structured query referencing the referred query with dur filter
    */
   private static createDurFilteredRef(
-    innerQueryId: string,
+    referencedQueryId: string,
     refId: string,
   ): protos.PerfettoSqlStructuredQuery {
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = refId;
-    sq.innerQueryId = innerQueryId;
+    sq.referencedQuery = referencedQueryId;
 
     // Create the dur >= 0 filter
     const filter = new protos.PerfettoSqlStructuredQuery.Filter();
@@ -424,7 +424,7 @@ export class StructuredQueryBuilder {
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = nodeId;
-    sq.innerQueryId = queryId;
+    sq.referencedQuery = queryId;
 
     const groupByProto = new protos.PerfettoSqlStructuredQuery.GroupBy();
     groupByProto.columnNames = groupByColumns;
@@ -480,7 +480,7 @@ export class StructuredQueryBuilder {
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = nodeId ?? nextNodeId();
-    sq.innerQueryId = queryId;
+    sq.referencedQuery = queryId;
 
     sq.selectColumns = columns.map((col) => {
       const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
@@ -863,7 +863,7 @@ export class StructuredQueryBuilder {
 
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = nodeId ?? nextNodeId();
-    sq.innerQueryId = queryId;
+    sq.referencedQuery = queryId;
     sq.experimentalFilterGroup = filterGroup;
 
     return sq;

@@ -6337,4 +6337,121 @@ TEST(StructuredQueryGeneratorTest, FilterInMissingMatchColumnFails) {
               testing::HasSubstr("FilterIn must specify a match_column"));
 }
 
+// Test that referenced_query works identically to inner_query_id.
+TEST(StructuredQueryGeneratorTest, ReferencedQueryReferencesSharedQuery) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 1.0 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query via referenced_query
+  auto main_proto = ToProto(R"(
+    referenced_query: "shared_query"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify the generated SQL references the shared query's table name
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_shared_query"));
+
+  // Verify the shared query is tracked in referenced_queries
+  auto refs = gen.referenced_queries();
+  ASSERT_EQ(refs.size(), 1u);
+  EXPECT_EQ(refs[0].id, "shared_query");
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("SELECT 1.0 as value"));
+}
+
+// Test that referenced_query validates against referenced_queries.
+TEST(StructuredQueryGeneratorTest,
+     ReferencedQueryNotInReferencedQueriesReturnsError) {
+  StructuredQueryGenerator gen;
+
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 1.0 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // referenced_query references "shared_query" but referenced_queries lists
+  // something else.
+  auto main_proto = ToProto(R"(
+    referenced_query: "shared_query"
+    referenced_queries: "wrong_id"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("not listed in referenced_queries"));
+}
+
+// Test that referenced_query passes when listed in referenced_queries.
+TEST(StructuredQueryGeneratorTest, ReferencedQueryInReferencedQueriesSucceeds) {
+  StructuredQueryGenerator gen;
+
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 1.0 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  auto main_proto = ToProto(R"(
+    referenced_query: "shared_query"
+    referenced_queries: "shared_query"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK(ret);
+  EXPECT_THAT(*ret, testing::HasSubstr("shared_sq_shared_query"));
+}
+
+// Test that unused entries in referenced_queries are rejected.
+TEST(StructuredQueryGeneratorTest, UnusedReferencedQueriesEntryReturnsError) {
+  StructuredQueryGenerator gen;
+
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 1.0 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  auto unused_proto = ToProto(R"(
+    id: "unused_query"
+    sql {
+      sql: "SELECT 2.0 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(unused_proto.data(), unused_proto.size()));
+
+  // referenced_queries lists both, but only shared_query is actually used.
+  auto main_proto = ToProto(R"(
+    referenced_query: "shared_query"
+    referenced_queries: "shared_query"
+    referenced_queries: "unused_query"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("not actually referenced"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

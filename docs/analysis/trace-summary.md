@@ -787,9 +787,18 @@ A query's source can be one of the following:
 - **`sql`**: An arbitrary SQL `SELECT` statement.
 - **`simple_slices`**: A convenience for querying the `slice` table.
 - **`inner_query`**: A nested structured query.
-- **`inner_query_id`**: A reference to a shared structured query.
+- **`referenced_query`**: A reference to a shared structured query by its `id`.
+  The referenced ID must be listed in the query's `referenced_queries` field.
 - **`interval_intersect`**: A time-based intersection of a `base` data source
   with one or more `interval` data sources.
+
+#### Referenced Queries
+
+The **`referenced_queries`** field declares the IDs of all shared structured
+queries referenced via `referenced_query` within this query (including any
+embedded sub-queries). If at least one entry is specified, then all
+`referenced_query` references must be listed and every entry must correspond
+to an actual reference.
 
 #### Query Operations
 

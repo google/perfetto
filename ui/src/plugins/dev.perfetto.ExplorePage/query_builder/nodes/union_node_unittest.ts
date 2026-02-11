@@ -574,19 +574,19 @@ describe('UnionNode', () => {
 
       // Each union query is a reference to the wrapped SELECT query.
       // Verify:
-      // 1. Each query has an ID and innerQueryId
-      // 2. The innerQueryIds are unique (different SELECT queries for each input)
+      // 1. Each query has an ID and referencedQuery
+      // 2. The referencedQuery values are unique (different SELECT queries for each input)
       const queryIds = new Set<string>();
-      const innerQueryIds = new Set<string>();
+      const referencedQueryIds = new Set<string>();
       queries?.forEach((query) => {
         expect(query.id).toBeDefined();
-        expect(query.innerQueryId).toBeDefined();
+        expect(query.referencedQuery).toBeDefined();
         queryIds.add(query.id!);
-        innerQueryIds.add(query.innerQueryId!);
+        referencedQueryIds.add(query.referencedQuery!);
       });
-      // Should have 2 unique query IDs and 2 unique innerQueryIds
+      // Should have 2 unique query IDs and 2 unique referencedQuery values
       expect(queryIds.size).toBe(2);
-      expect(innerQueryIds.size).toBe(2);
+      expect(referencedQueryIds.size).toBe(2);
     });
   });
 

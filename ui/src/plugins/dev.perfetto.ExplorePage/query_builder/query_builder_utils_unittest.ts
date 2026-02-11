@@ -18,6 +18,8 @@ import {
   queryToRun,
   isAQuery,
   hashNodeQuery,
+  collectReferencedQueryIds,
+  populateReferencedQueries,
 } from './query_builder_utils';
 import {Query, QueryNode, NodeType} from '../query_node';
 import {QueryResponse} from '../../../components/query_table/queries';
@@ -558,6 +560,239 @@ describe('query_builder_utils', () => {
       if (typeof hash === 'string') {
         expect(hash.length).toBeGreaterThan(0);
       }
+    });
+  });
+
+  describe('collectReferencedQueryIds', () => {
+    it('should return empty for source queries with no references', () => {
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.table = new protos.PerfettoSqlStructuredQuery.Table();
+      sq.table.tableName = 'slice';
+
+      expect(collectReferencedQueryIds(sq)).toEqual([]);
+    });
+
+    it('should collect referencedQuery', () => {
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.referencedQuery = 'parent_id';
+
+      expect(collectReferencedQueryIds(sq)).toEqual(['parent_id']);
+    });
+
+    it('should collect innerQueryId (deprecated field)', () => {
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.innerQueryId = 'parent_id';
+
+      expect(collectReferencedQueryIds(sq)).toEqual(['parent_id']);
+    });
+
+    it('should collect from embedded inner_query recursively', () => {
+      const inner = new protos.PerfettoSqlStructuredQuery();
+      inner.referencedQuery = 'deep_ref';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.innerQuery = inner;
+
+      expect(collectReferencedQueryIds(sq)).toEqual(['deep_ref']);
+    });
+
+    it('should collect from experimentalJoin left and right', () => {
+      const left = new protos.PerfettoSqlStructuredQuery();
+      left.referencedQuery = 'left_id';
+      const right = new protos.PerfettoSqlStructuredQuery();
+      right.referencedQuery = 'right_id';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.experimentalJoin =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalJoin();
+      sq.experimentalJoin.leftQuery = left;
+      sq.experimentalJoin.rightQuery = right;
+
+      const ids = collectReferencedQueryIds(sq);
+      expect(ids).toContain('left_id');
+      expect(ids).toContain('right_id');
+      expect(ids.length).toBe(2);
+    });
+
+    it('should collect from experimentalUnion queries', () => {
+      const q1 = new protos.PerfettoSqlStructuredQuery();
+      q1.referencedQuery = 'union_1';
+      const q2 = new protos.PerfettoSqlStructuredQuery();
+      q2.referencedQuery = 'union_2';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.experimentalUnion =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalUnion();
+      sq.experimentalUnion.queries = [q1, q2];
+
+      const ids = collectReferencedQueryIds(sq);
+      expect(ids).toContain('union_1');
+      expect(ids).toContain('union_2');
+      expect(ids.length).toBe(2);
+    });
+
+    it('should collect from intervalIntersect base and intervals', () => {
+      const base = new protos.PerfettoSqlStructuredQuery();
+      base.referencedQuery = 'base_id';
+      const interval = new protos.PerfettoSqlStructuredQuery();
+      interval.referencedQuery = 'interval_id';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.intervalIntersect =
+        new protos.PerfettoSqlStructuredQuery.IntervalIntersect();
+      sq.intervalIntersect.base = base;
+      sq.intervalIntersect.intervalIntersect = [interval];
+
+      const ids = collectReferencedQueryIds(sq);
+      expect(ids).toContain('base_id');
+      expect(ids).toContain('interval_id');
+      expect(ids.length).toBe(2);
+    });
+
+    it('should deduplicate IDs', () => {
+      const left = new protos.PerfettoSqlStructuredQuery();
+      left.referencedQuery = 'same_id';
+      const right = new protos.PerfettoSqlStructuredQuery();
+      right.referencedQuery = 'same_id';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.experimentalJoin =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalJoin();
+      sq.experimentalJoin.leftQuery = left;
+      sq.experimentalJoin.rightQuery = right;
+
+      expect(collectReferencedQueryIds(sq)).toEqual(['same_id']);
+    });
+
+    it('should collect from experimentalFilterIn base and matchValues', () => {
+      const base = new protos.PerfettoSqlStructuredQuery();
+      base.referencedQuery = 'base_id';
+      const matchValues = new protos.PerfettoSqlStructuredQuery();
+      matchValues.referencedQuery = 'match_id';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.experimentalFilterIn =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalFilterIn();
+      sq.experimentalFilterIn.base = base;
+      sq.experimentalFilterIn.matchValues = matchValues;
+
+      const ids = collectReferencedQueryIds(sq);
+      expect(ids).toContain('base_id');
+      expect(ids).toContain('match_id');
+      expect(ids.length).toBe(2);
+    });
+
+    it('should collect from experimentalCounterIntervals inputQuery', () => {
+      const input = new protos.PerfettoSqlStructuredQuery();
+      input.referencedQuery = 'input_id';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.experimentalCounterIntervals =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalCounterIntervals();
+      sq.experimentalCounterIntervals.inputQuery = input;
+
+      expect(collectReferencedQueryIds(sq)).toEqual(['input_id']);
+    });
+
+    it('should collect from experimentalAddColumns coreQuery and inputQuery', () => {
+      const core = new protos.PerfettoSqlStructuredQuery();
+      core.referencedQuery = 'core_id';
+      const input = new protos.PerfettoSqlStructuredQuery();
+      input.referencedQuery = 'input_id';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.experimentalAddColumns =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalAddColumns();
+      sq.experimentalAddColumns.coreQuery = core;
+      sq.experimentalAddColumns.inputQuery = input;
+
+      const ids = collectReferencedQueryIds(sq);
+      expect(ids).toContain('core_id');
+      expect(ids).toContain('input_id');
+      expect(ids.length).toBe(2);
+    });
+
+    it('should collect from experimentalCreateSlices startsQuery and endsQuery', () => {
+      const starts = new protos.PerfettoSqlStructuredQuery();
+      starts.referencedQuery = 'starts_id';
+      const ends = new protos.PerfettoSqlStructuredQuery();
+      ends.referencedQuery = 'ends_id';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.experimentalCreateSlices =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalCreateSlices();
+      sq.experimentalCreateSlices.startsQuery = starts;
+      sq.experimentalCreateSlices.endsQuery = ends;
+
+      const ids = collectReferencedQueryIds(sq);
+      expect(ids).toContain('starts_id');
+      expect(ids).toContain('ends_id');
+      expect(ids.length).toBe(2);
+    });
+
+    it('should collect from experimentalFilterToIntervals base and intervals', () => {
+      const base = new protos.PerfettoSqlStructuredQuery();
+      base.referencedQuery = 'base_id';
+      const intervals = new protos.PerfettoSqlStructuredQuery();
+      intervals.referencedQuery = 'intervals_id';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.experimentalFilterToIntervals =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalFilterToIntervals();
+      sq.experimentalFilterToIntervals.base = base;
+      sq.experimentalFilterToIntervals.intervals = intervals;
+
+      const ids = collectReferencedQueryIds(sq);
+      expect(ids).toContain('base_id');
+      expect(ids).toContain('intervals_id');
+      expect(ids.length).toBe(2);
+    });
+
+    it('should collect from sql.dependencies[].query', () => {
+      const depQuery = new protos.PerfettoSqlStructuredQuery();
+      depQuery.referencedQuery = 'dep_id';
+
+      const dep = new protos.PerfettoSqlStructuredQuery.Sql.Dependency();
+      dep.query = depQuery;
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.sql = new protos.PerfettoSqlStructuredQuery.Sql();
+      sq.sql.dependencies = [dep];
+
+      expect(collectReferencedQueryIds(sq)).toEqual(['dep_id']);
+    });
+  });
+
+  describe('populateReferencedQueries', () => {
+    it('should set referencedQueries from actual references', () => {
+      const left = new protos.PerfettoSqlStructuredQuery();
+      left.referencedQuery = 'left_id';
+      const right = new protos.PerfettoSqlStructuredQuery();
+      right.referencedQuery = 'right_id';
+
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.experimentalJoin =
+        new protos.PerfettoSqlStructuredQuery.ExperimentalJoin();
+      sq.experimentalJoin.leftQuery = left;
+      sq.experimentalJoin.rightQuery = right;
+
+      expect(sq.referencedQueries).toEqual([]);
+
+      populateReferencedQueries(sq);
+
+      expect(sq.referencedQueries).toContain('left_id');
+      expect(sq.referencedQueries).toContain('right_id');
+      expect(sq.referencedQueries?.length).toBe(2);
+    });
+
+    it('should set empty referencedQueries when no references exist', () => {
+      const sq = new protos.PerfettoSqlStructuredQuery();
+      sq.table = new protos.PerfettoSqlStructuredQuery.Table();
+      sq.table.tableName = 'slice';
+
+      populateReferencedQueries(sq);
+
+      expect(sq.referencedQueries).toEqual([]);
     });
   });
 });

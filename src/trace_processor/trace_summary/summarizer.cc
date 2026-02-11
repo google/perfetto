@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/trace_summary/summarizer.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -26,6 +27,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
@@ -64,24 +66,34 @@ std::vector<uint8_t> CreateTableSourceQuery(
   return sq.SerializeAsArray();
 }
 
-// Recursively extracts all inner_query_id fields from a structured query proto.
+// Recursively extracts all referenced query IDs from a structured query proto.
 // This is needed because queries can embed other queries (e.g.,
 // join.left_query, filter_to_intervals.base), and those embedded queries may
 // reference other queries by ID that need to be tracked as dependencies.
-void ExtractInnerQueryIds(const uint8_t* data,
-                          size_t size,
-                          std::vector<std::string>& out_ids) {
+base::Status ExtractReferencedQueryIds(const uint8_t* data,
+                                       size_t size,
+                                       std::vector<std::string>& out_ids) {
   PerfettoSqlStructuredQuery::Decoder query(data, size);
 
-  // Check top-level inner_query_id.
+  // inner_query_id and referenced_query are in the same proto oneof, but
+  // protozero doesn't enforce oneof constraints, so we validate explicitly.
+  if (query.has_inner_query_id() && query.has_referenced_query()) {
+    return base::ErrStatus(
+        "Query must not set both inner_query_id and referenced_query");
+  }
+
+  // Check top-level inner_query_id or referenced_query.
   if (query.has_inner_query_id()) {
     out_ids.push_back(query.inner_query_id().ToStdString());
+  }
+  if (query.has_referenced_query()) {
+    out_ids.push_back(query.referenced_query().ToStdString());
   }
 
   // Check embedded inner_query (recursively).
   if (query.has_inner_query()) {
     auto inner = query.inner_query();
-    ExtractInnerQueryIds(inner.data, inner.size, out_ids);
+    RETURN_IF_ERROR(ExtractReferencedQueryIds(inner.data, inner.size, out_ids));
   }
 
   // Check interval_intersect.base and interval_intersect.interval_intersect[].
@@ -91,10 +103,11 @@ void ExtractInnerQueryIds(const uint8_t* data,
     II::Decoder ii_dec(ii.data, ii.size);
     if (ii_dec.has_base()) {
       auto base = ii_dec.base();
-      ExtractInnerQueryIds(base.data, base.size, out_ids);
+      RETURN_IF_ERROR(ExtractReferencedQueryIds(base.data, base.size, out_ids));
     }
     for (auto it = ii_dec.interval_intersect(); it; ++it) {
-      ExtractInnerQueryIds(it->data(), it->size(), out_ids);
+      RETURN_IF_ERROR(
+          ExtractReferencedQueryIds(it->data(), it->size(), out_ids));
     }
   }
 
@@ -105,11 +118,12 @@ void ExtractInnerQueryIds(const uint8_t* data,
     FTI::Decoder fti_dec(fti.data, fti.size);
     if (fti_dec.has_base()) {
       auto base = fti_dec.base();
-      ExtractInnerQueryIds(base.data, base.size, out_ids);
+      RETURN_IF_ERROR(ExtractReferencedQueryIds(base.data, base.size, out_ids));
     }
     if (fti_dec.has_intervals()) {
       auto intervals = fti_dec.intervals();
-      ExtractInnerQueryIds(intervals.data, intervals.size, out_ids);
+      RETURN_IF_ERROR(
+          ExtractReferencedQueryIds(intervals.data, intervals.size, out_ids));
     }
   }
 
@@ -120,11 +134,12 @@ void ExtractInnerQueryIds(const uint8_t* data,
     Join::Decoder join_dec(join.data, join.size);
     if (join_dec.has_left_query()) {
       auto left = join_dec.left_query();
-      ExtractInnerQueryIds(left.data, left.size, out_ids);
+      RETURN_IF_ERROR(ExtractReferencedQueryIds(left.data, left.size, out_ids));
     }
     if (join_dec.has_right_query()) {
       auto right = join_dec.right_query();
-      ExtractInnerQueryIds(right.data, right.size, out_ids);
+      RETURN_IF_ERROR(
+          ExtractReferencedQueryIds(right.data, right.size, out_ids));
     }
   }
 
@@ -134,7 +149,8 @@ void ExtractInnerQueryIds(const uint8_t* data,
     using Union = PerfettoSqlStructuredQuery::ExperimentalUnion;
     Union::Decoder un_dec(un.data, un.size);
     for (auto it = un_dec.queries(); it; ++it) {
-      ExtractInnerQueryIds(it->data(), it->size(), out_ids);
+      RETURN_IF_ERROR(
+          ExtractReferencedQueryIds(it->data(), it->size(), out_ids));
     }
   }
 
@@ -145,11 +161,12 @@ void ExtractInnerQueryIds(const uint8_t* data,
     AC::Decoder ac_dec(ac.data, ac.size);
     if (ac_dec.has_core_query()) {
       auto core = ac_dec.core_query();
-      ExtractInnerQueryIds(core.data, core.size, out_ids);
+      RETURN_IF_ERROR(ExtractReferencedQueryIds(core.data, core.size, out_ids));
     }
     if (ac_dec.has_input_query()) {
       auto input = ac_dec.input_query();
-      ExtractInnerQueryIds(input.data, input.size, out_ids);
+      RETURN_IF_ERROR(
+          ExtractReferencedQueryIds(input.data, input.size, out_ids));
     }
   }
 
@@ -160,11 +177,12 @@ void ExtractInnerQueryIds(const uint8_t* data,
     CS::Decoder cs_dec(cs.data, cs.size);
     if (cs_dec.has_starts_query()) {
       auto starts = cs_dec.starts_query();
-      ExtractInnerQueryIds(starts.data, starts.size, out_ids);
+      RETURN_IF_ERROR(
+          ExtractReferencedQueryIds(starts.data, starts.size, out_ids));
     }
     if (cs_dec.has_ends_query()) {
       auto ends = cs_dec.ends_query();
-      ExtractInnerQueryIds(ends.data, ends.size, out_ids);
+      RETURN_IF_ERROR(ExtractReferencedQueryIds(ends.data, ends.size, out_ids));
     }
   }
 
@@ -175,7 +193,8 @@ void ExtractInnerQueryIds(const uint8_t* data,
     CI::Decoder ci_dec(ci.data, ci.size);
     if (ci_dec.has_input_query()) {
       auto input = ci_dec.input_query();
-      ExtractInnerQueryIds(input.data, input.size, out_ids);
+      RETURN_IF_ERROR(
+          ExtractReferencedQueryIds(input.data, input.size, out_ids));
     }
   }
 
@@ -186,11 +205,12 @@ void ExtractInnerQueryIds(const uint8_t* data,
     FI::Decoder fi_dec(fi.data, fi.size);
     if (fi_dec.has_base()) {
       auto base = fi_dec.base();
-      ExtractInnerQueryIds(base.data, base.size, out_ids);
+      RETURN_IF_ERROR(ExtractReferencedQueryIds(base.data, base.size, out_ids));
     }
     if (fi_dec.has_match_values()) {
       auto match_values = fi_dec.match_values();
-      ExtractInnerQueryIds(match_values.data, match_values.size, out_ids);
+      RETURN_IF_ERROR(ExtractReferencedQueryIds(match_values.data,
+                                                match_values.size, out_ids));
     }
   }
 
@@ -203,10 +223,13 @@ void ExtractInnerQueryIds(const uint8_t* data,
       Sql::Dependency::Decoder dep_dec(it->data(), it->size());
       if (dep_dec.has_query()) {
         auto dep_query = dep_dec.query();
-        ExtractInnerQueryIds(dep_query.data, dep_query.size, out_ids);
+        RETURN_IF_ERROR(
+            ExtractReferencedQueryIds(dep_query.data, dep_query.size, out_ids));
       }
     }
   }
+
+  return base::OkStatus();
 }
 
 }  // namespace
@@ -245,9 +268,68 @@ base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
     std::string query_id = id_field.as_std_string();
     std::string proto_hash = ComputeProtoHash(it->data(), it->size());
 
-    // Extract all inner_query_id dependencies (including nested ones).
-    std::vector<std::string> inner_query_ids;
-    ExtractInnerQueryIds(it->data(), it->size(), inner_query_ids);
+    // Extract actual referenced_query/inner_query_id dependencies (including
+    // nested ones) for validation.
+    std::vector<std::string> actual_refs;
+    RETURN_IF_ERROR(
+        ExtractReferencedQueryIds(it->data(), it->size(), actual_refs));
+
+    // Deduplicate (a query may be referenced from multiple embedded
+    // sub-queries).
+    std::sort(actual_refs.begin(), actual_refs.end());
+    actual_refs.erase(std::unique(actual_refs.begin(), actual_refs.end()),
+                      actual_refs.end());
+
+    // Read the declared referenced_queries field.
+    PerfettoSqlStructuredQuery::Decoder query_decoder(it->data(), it->size());
+    std::vector<std::string> declared_refs;
+    for (auto rq_it = query_decoder.referenced_queries(); rq_it; ++rq_it) {
+      declared_refs.push_back(rq_it->as_std_string());
+    }
+
+    // Validate: if referenced_queries has at least one entry, it must exactly
+    // match the set of actual references.
+    if (!declared_refs.empty()) {
+      // Sort for binary_search and duplicate detection.
+      std::sort(declared_refs.begin(), declared_refs.end());
+
+      // Check for duplicate entries.
+      for (size_t i = 1; i < declared_refs.size(); ++i) {
+        if (declared_refs[i] == declared_refs[i - 1]) {
+          return base::ErrStatus(
+              "Query '%s': duplicate entry '%s' in referenced_queries",
+              query_id.c_str(), declared_refs[i].c_str());
+        }
+      }
+
+      // Check every actual ref is declared.
+      for (const auto& ref : actual_refs) {
+        if (!std::binary_search(declared_refs.begin(), declared_refs.end(),
+                                ref)) {
+          return base::ErrStatus(
+              "Query '%s': referenced query '%s' is not listed in "
+              "referenced_queries",
+              query_id.c_str(), ref.c_str());
+        }
+      }
+
+      // Check every declared ref is actually used.
+      // actual_refs is already sorted above.
+      for (const auto& ref : declared_refs) {
+        if (!std::binary_search(actual_refs.begin(), actual_refs.end(), ref)) {
+          return base::ErrStatus(
+              "Query '%s': referenced_queries entry '%s' is not actually "
+              "referenced by any query",
+              query_id.c_str(), ref.c_str());
+        }
+      }
+    }
+
+    // Use declared_refs for dependency tracking if available, otherwise fall
+    // back to extracted refs (backwards compatibility).
+    std::vector<std::string> dependency_ids = declared_refs.empty()
+                                                  ? std::move(actual_refs)
+                                                  : std::move(declared_refs);
 
     new_query_ids.Insert(query_id, true);
 
@@ -260,7 +342,7 @@ base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
       // (to save memory), but we may need it again if a dependency changes
       // and this query needs to be re-materialized transitively.
       existing->proto_data.assign(it->data(), it->data() + it->size());
-      existing->inner_query_ids = std::move(inner_query_ids);
+      existing->dependency_ids = std::move(dependency_ids);
       continue;
     }
 
@@ -268,7 +350,7 @@ base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
     QueryState state;
     state.proto_hash = proto_hash;
     state.proto_data.assign(it->data(), it->data() + it->size());
-    state.inner_query_ids = std::move(inner_query_ids);
+    state.dependency_ids = std::move(dependency_ids);
     state.needs_materialization = true;
 
     // If existing, defer dropping the old table until new materialization.
@@ -316,7 +398,7 @@ base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
         continue;  // Already marked.
       }
       // Check all dependencies (including nested ones from embedded queries).
-      for (const auto& dep_id : state.inner_query_ids) {
+      for (const auto& dep_id : state.dependency_ids) {
         QueryState* dep = query_states_.Find(dep_id);
         if (dep && dep->needs_materialization) {
           // Dependency needs re-materialization, so does this query.
@@ -368,7 +450,7 @@ std::vector<std::string> SummarizerImpl::CollectDependencies(
     }
 
     // Add all dependencies (so they get materialized before this query).
-    for (const auto& dep_id : state->inner_query_ids) {
+    for (const auto& dep_id : state->dependency_ids) {
       stack.push_back(dep_id);
     }
 

@@ -134,6 +134,7 @@ export function getStructuredQueries(
         `Cannot get structured queries: node ${node.nodeId} returned undefined from getStructuredQuery()`,
       );
     }
+    populateReferencedQueries(sq);
     structuredQueries.push(sq);
   }
 
@@ -256,4 +257,151 @@ export function isAQuery(
     !(maybeQuery instanceof Error) &&
     maybeQuery.sql !== undefined
   );
+}
+
+// ============================================================================
+// Referenced Query ID Collection
+// ============================================================================
+
+// Populates the `referencedQueries` field on a structured query from its
+// actual inner query references. This should be called on every structured
+// query before serialization.
+export function populateReferencedQueries(
+  sq: protos.PerfettoSqlStructuredQuery,
+): void {
+  sq.referencedQueries = collectReferencedQueryIds(sq);
+}
+
+// Collects all query IDs referenced via `referencedQuery` or `innerQueryId`
+// within a structured query (including embedded sub-queries). Returns a
+// deduplicated array. This mirrors the C++ ExtractReferencedQueryIds function.
+export function collectReferencedQueryIds(
+  sq: protos.PerfettoSqlStructuredQuery,
+): string[] {
+  const ids: string[] = [];
+  collectReferencedQueryIdsRecursive(sq, ids);
+  return [...new Set(ids)];
+}
+
+function collectReferencedQueryIdsRecursive(
+  sq: protos.IPerfettoSqlStructuredQuery,
+  ids: string[],
+): void {
+  // Check top-level referencedQuery / innerQueryId.
+  if (sq.referencedQuery) {
+    ids.push(sq.referencedQuery);
+  }
+  if (sq.innerQueryId) {
+    ids.push(sq.innerQueryId);
+  }
+
+  // Check embedded inner_query (recursively).
+  if (sq.innerQuery) {
+    collectReferencedQueryIdsRecursive(sq.innerQuery, ids);
+  }
+
+  // Check intervalIntersect.base and intervalIntersect.intervalIntersect[].
+  if (sq.intervalIntersect) {
+    if (sq.intervalIntersect.base) {
+      collectReferencedQueryIdsRecursive(sq.intervalIntersect.base, ids);
+    }
+    for (const interval of sq.intervalIntersect.intervalIntersect ?? []) {
+      collectReferencedQueryIdsRecursive(interval, ids);
+    }
+  }
+
+  // Check experimentalFilterToIntervals.base and .intervals.
+  if (sq.experimentalFilterToIntervals) {
+    if (sq.experimentalFilterToIntervals.base) {
+      collectReferencedQueryIdsRecursive(
+        sq.experimentalFilterToIntervals.base,
+        ids,
+      );
+    }
+    if (sq.experimentalFilterToIntervals.intervals) {
+      collectReferencedQueryIdsRecursive(
+        sq.experimentalFilterToIntervals.intervals,
+        ids,
+      );
+    }
+  }
+
+  // Check experimentalJoin.leftQuery and .rightQuery.
+  if (sq.experimentalJoin) {
+    if (sq.experimentalJoin.leftQuery) {
+      collectReferencedQueryIdsRecursive(sq.experimentalJoin.leftQuery, ids);
+    }
+    if (sq.experimentalJoin.rightQuery) {
+      collectReferencedQueryIdsRecursive(sq.experimentalJoin.rightQuery, ids);
+    }
+  }
+
+  // Check experimentalUnion.queries[].
+  if (sq.experimentalUnion) {
+    for (const query of sq.experimentalUnion.queries ?? []) {
+      collectReferencedQueryIdsRecursive(query, ids);
+    }
+  }
+
+  // Check experimentalAddColumns.coreQuery and .inputQuery.
+  if (sq.experimentalAddColumns) {
+    if (sq.experimentalAddColumns.coreQuery) {
+      collectReferencedQueryIdsRecursive(
+        sq.experimentalAddColumns.coreQuery,
+        ids,
+      );
+    }
+    if (sq.experimentalAddColumns.inputQuery) {
+      collectReferencedQueryIdsRecursive(
+        sq.experimentalAddColumns.inputQuery,
+        ids,
+      );
+    }
+  }
+
+  // Check experimentalCreateSlices.startsQuery and .endsQuery.
+  if (sq.experimentalCreateSlices) {
+    if (sq.experimentalCreateSlices.startsQuery) {
+      collectReferencedQueryIdsRecursive(
+        sq.experimentalCreateSlices.startsQuery,
+        ids,
+      );
+    }
+    if (sq.experimentalCreateSlices.endsQuery) {
+      collectReferencedQueryIdsRecursive(
+        sq.experimentalCreateSlices.endsQuery,
+        ids,
+      );
+    }
+  }
+
+  // Check experimentalCounterIntervals.inputQuery.
+  if (sq.experimentalCounterIntervals?.inputQuery) {
+    collectReferencedQueryIdsRecursive(
+      sq.experimentalCounterIntervals.inputQuery,
+      ids,
+    );
+  }
+
+  // Check experimentalFilterIn.base and .matchValues.
+  if (sq.experimentalFilterIn) {
+    if (sq.experimentalFilterIn.base) {
+      collectReferencedQueryIdsRecursive(sq.experimentalFilterIn.base, ids);
+    }
+    if (sq.experimentalFilterIn.matchValues) {
+      collectReferencedQueryIdsRecursive(
+        sq.experimentalFilterIn.matchValues,
+        ids,
+      );
+    }
+  }
+
+  // Check sql.dependencies[].query.
+  if (sq.sql?.dependencies) {
+    for (const dep of sq.sql.dependencies) {
+      if (dep.query) {
+        collectReferencedQueryIdsRecursive(dep.query, ids);
+      }
+    }
+  }
 }

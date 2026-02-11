@@ -75,10 +75,10 @@ class SummarizerImpl : public Summarizer {
     // For lazy materialization:
     std::vector<uint8_t> proto_data;  // Stored proto for deferred execution.
     // All query IDs this query depends on, extracted recursively from all
-    // embedded query fields (inner_query, inner_query_id, join.left_query,
+    // embedded query fields (inner_query, referenced_query, join.left_query,
     // filter_to_intervals.base, etc.). Used for transitive invalidation:
     // if any dependency changes, this query must also be re-materialized.
-    std::vector<std::string> inner_query_ids;
+    std::vector<std::string> dependency_ids;
     bool needs_materialization = true;  // True until successfully materialized.
     std::string old_table_name;  // Old table to drop after new materialization.
 

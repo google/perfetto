@@ -589,10 +589,20 @@ message PerfettoSqlStructuredQuery {
   // Optional.
   repeated string referenced_modules = 11;
 
-  // Represents the "source" of the query which will be translared to an SQL
+  // The IDs of other structured queries referenced via `referenced_query`
+  // within this query (including any embedded sub-queries).
+  // Required when used in Summarizer contexts (e.g., Explore Page); optional
+  // elsewhere for backward compatibility.
+  //
+  // If at least one entry is specified, then ALL `referenced_query` references
+  // within this query must be listed here. Every entry must correspond to an
+  // actual reference; unused entries are treated as an error.
+  repeated string referenced_queries = 15;
+
+  // Represents the "source" of the query which will be translated to an SQL
   // "FROM" clause. One of the following is required.
   oneof source {
-    // Source is an SQL table, possible in a PerfettoSQL module.
+    // Source is an SQL table, possibly in a PerfettoSQL module.
     Table table = 2;
 
     // Source is an arbitrary snippet of SQL.
@@ -601,27 +611,18 @@ message PerfettoSqlStructuredQuery {
     // Source is a simple set of slices.
     SimpleSlices simple_slices = 4;
 
+    // Source is an interval intersect operation. See IntervalIntersect
+    // documentation for more information.
+    IntervalIntersect interval_intersect = 7;
+
     // Source is a nested query. Useful for aliasing columns,
     // filtering etc.
     PerfettoSqlStructuredQuery inner_query = 5;
 
-    // Source is a nested query with the given id which should be
-    // looked up in some external data structure.
-    //
-    // This field is quite special and cannot be used in all StructuredQuery
-    // contexts. It exists to share some common structured queries between many
-    // other structured queries and is only available in contexts where this is
-    // supported.
-    //
-    // Contexts where this is supported that we are aware of:
-    // 1) Trace-Based Metrics v2
-    //
-    // Please see the documentation of the embedding system for more context.
-    string inner_query_id = 6;
-
-    // Source is an interval intersect operation. See IntervalIntersect
-    // documentation for more information.
-    IntervalIntersect interval_intersect = 7;
+    // Source is a query referenced by its `id` field. When the
+    // `referenced_queries` field is populated, this value must be one of the
+    // IDs listed there.
+    string referenced_query = 16;
 
     // DON'T USE. EXPERIMENTAL.
     ExperimentalJoin experimental_join = 100;
@@ -652,6 +653,9 @@ message PerfettoSqlStructuredQuery {
     // Source is a filter-in operation (semi-join). See
     // ExperimentalFilterIn documentation for more information.
     ExperimentalFilterIn experimental_filter_in = 108;
+
+    // DEPRECATED. Use `referenced_query` instead.
+    string inner_query_id = 6;
   }
 
   // Evaluation order of operations:

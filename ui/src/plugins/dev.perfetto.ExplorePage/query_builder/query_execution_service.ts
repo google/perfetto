@@ -16,6 +16,7 @@ import {uuidv4Sql} from '../../../base/uuid';
 import protos from '../../../protos';
 import {Engine} from '../../../trace_processor/engine';
 import {Query, QueryNode} from '../query_node';
+import {populateReferencedQueries} from './query_builder_utils';
 
 /**
  * Returns an Error if the error string is non-empty, otherwise undefined.
@@ -156,6 +157,7 @@ export class QueryExecutionService {
       if (node.validate() && node.finalCols !== undefined) {
         const sq = node.getStructuredQuery();
         if (sq !== undefined) {
+          populateReferencedQueries(sq);
           structuredQueries.push(sq);
         }
       }

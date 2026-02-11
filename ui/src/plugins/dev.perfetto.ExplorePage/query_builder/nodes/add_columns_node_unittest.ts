@@ -128,7 +128,7 @@ describe('AddColumnsNode', () => {
       // Should return a passthrough query with its own ID referencing the primary input
       expect(query).toBeDefined();
       expect(query?.id).toBe(node.nodeId);
-      expect(query?.innerQueryId).toBe(primaryNode.nodeId);
+      expect(query?.referencedQuery).toBe(primaryNode.nodeId);
     });
 
     it('should skip invalid computed columns', () => {

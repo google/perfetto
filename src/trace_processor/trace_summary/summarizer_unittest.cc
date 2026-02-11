@@ -621,5 +621,192 @@ TEST_F(SummarizerTest, NestedEmbeddedQueryDependencyPropagation) {
   EXPECT_EQ(info_c2.row_count, 1);
 }
 
+TEST_F(SummarizerTest, ReferencedQueriesMatchingActualRefsSucceeds) {
+  // Query B references A via referenced_query and declares it in
+  // referenced_queries - this should succeed.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("A");
+    auto* sql_source = query->set_sql();
+    sql_source->set_sql("SELECT 42 as value");
+    sql_source->add_column_names("value");
+  }
+  {
+    auto* query = spec->add_query();
+    query->set_id("B");
+    query->set_referenced_query("A");
+    query->add_referenced_queries("A");
+  }
+  auto data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(summarizer_->UpdateSpec(data.data(), data.size(), &result));
+  ASSERT_EQ(result.queries.size(), 2u);
+
+  // Both queries should be materialized.
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("B", &info));
+  EXPECT_TRUE(info.exists);
+}
+
+TEST_F(SummarizerTest, ReferencedQueriesActualRefNotDeclaredReturnsError) {
+  // Query B references A via referenced_query but referenced_queries only
+  // lists "C" (not "A") - validation should reject the missing declaration.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("A");
+    auto* sql_source = query->set_sql();
+    sql_source->set_sql("SELECT 42 as value");
+    sql_source->add_column_names("value");
+  }
+  {
+    auto* query = spec->add_query();
+    query->set_id("C");
+    auto* sql_source = query->set_sql();
+    sql_source->set_sql("SELECT 1 as value");
+    sql_source->add_column_names("value");
+  }
+  {
+    auto* query = spec->add_query();
+    query->set_id("B");
+    query->set_referenced_query("A");
+    // Declares "C" but not "A" - the actual reference "A" is missing.
+    query->add_referenced_queries("C");
+  }
+  auto data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  auto status = summarizer_->UpdateSpec(data.data(), data.size(), &result);
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.message(), HasSubstr("not listed in referenced_queries"));
+}
+
+TEST_F(SummarizerTest, ReferencedQueriesUnusedEntryReturnsError) {
+  // Query B references A but also declares "unused" in referenced_queries.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("A");
+    auto* sql_source = query->set_sql();
+    sql_source->set_sql("SELECT 42 as value");
+    sql_source->add_column_names("value");
+  }
+  {
+    auto* query = spec->add_query();
+    query->set_id("B");
+    query->set_referenced_query("A");
+    query->add_referenced_queries("A");
+    query->add_referenced_queries("unused");
+  }
+  auto data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  auto status = summarizer_->UpdateSpec(data.data(), data.size(), &result);
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.message(), HasSubstr("not actually referenced"));
+}
+
+TEST_F(SummarizerTest, ReferencedQueryWorksLikeInnerQueryId) {
+  // Query B uses referenced_query to reference A (new field).
+  // Should work the same as inner_query_id.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("A");
+    auto* sql_source = query->set_sql();
+    sql_source->set_sql("SELECT 1 as value UNION ALL SELECT 2 as value");
+    sql_source->add_column_names("value");
+  }
+  {
+    auto* query = spec->add_query();
+    query->set_id("B");
+    query->set_referenced_query("A");
+    query->add_referenced_queries("A");
+    auto* filter = query->add_filters();
+    filter->set_column_name("value");
+    filter->set_op(
+        protos::pbzero::PerfettoSqlStructuredQuery::Filter::GREATER_THAN);
+    filter->add_int64_rhs(1);
+  }
+  auto data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(summarizer_->UpdateSpec(data.data(), data.size(), &result));
+
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("B", &info));
+  EXPECT_TRUE(info.exists);
+  EXPECT_EQ(info.row_count, 1);  // Only value=2 passes filter > 1.
+}
+
+TEST_F(SummarizerTest, ReferencedQueriesDuplicateEntryReturnsError) {
+  // Query B references A but lists "A" twice in referenced_queries.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("A");
+    auto* sql_source = query->set_sql();
+    sql_source->set_sql("SELECT 42 as value");
+    sql_source->add_column_names("value");
+  }
+  {
+    auto* query = spec->add_query();
+    query->set_id("B");
+    query->set_referenced_query("A");
+    query->add_referenced_queries("A");
+    query->add_referenced_queries("A");
+  }
+  auto data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  auto status = summarizer_->UpdateSpec(data.data(), data.size(), &result);
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.message(), HasSubstr("duplicate entry"));
+}
+
+TEST_F(SummarizerTest, InnerQueryIdWithoutReferencedQueriesStillWorks) {
+  // Backwards compatibility: inner_query_id without referenced_queries
+  // should still work (the field is optional for backwards compat).
+  auto spec_data = CreateChainedSpec("SELECT 1 as value");
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("C", &info));
+  EXPECT_TRUE(info.exists);
+}
+
+TEST_F(SummarizerTest, BothInnerQueryIdAndReferencedQueryReturnsError) {
+  // Setting both inner_query_id and referenced_query on the same query should
+  // fail.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("A");
+    auto* sql_source = query->set_sql();
+    sql_source->set_sql("SELECT 42 as value");
+    sql_source->add_column_names("value");
+  }
+  {
+    auto* query = spec->add_query();
+    query->set_id("B");
+    // Set both (should be mutually exclusive).
+    query->set_inner_query_id("A");
+    query->set_referenced_query("A");
+  }
+  auto data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  auto status = summarizer_->UpdateSpec(data.data(), data.size(), &result);
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(
+      status.message(),
+      HasSubstr("must not set both inner_query_id and referenced_query"));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::summary

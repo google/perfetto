@@ -340,9 +340,9 @@ detection and dependency tracking to minimize redundant work:
 
 1. **Proto-based change detection**: Each query's structured query proto bytes are
    hashed (not the generated SQL). This works correctly for queries with
-   `inner_query_id` references, which cannot have their SQL generated independently.
+   `referenced_query` references, which cannot have their SQL generated independently.
 
-2. **Dependency propagation**: If query B depends on query A via `inner_query_id`,
+2. **Dependency propagation**: If query B depends on query A via `referenced_query`,
    and A's proto changes, B must also be re-materialized even if B's proto is
    unchanged (because B's output depends on A's data). TP propagates this
    transitively through the entire dependency chain.
