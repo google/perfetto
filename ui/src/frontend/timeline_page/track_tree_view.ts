@@ -45,7 +45,7 @@ import {
 } from '../../base/zoned_interaction_handler';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {TraceImpl} from '../../core/trace_impl';
-import {TrackSearchManager} from '../../core/track_search_manager';
+import {TrackSearchCache} from '../../core/track_search_manager';
 import {TrackNode} from '../../public/workspace';
 import {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -144,7 +144,7 @@ export interface TrackTreeViewAttrs {
   readonly filtersApplied?: boolean;
 
   // Track search manager for highlighting search matches.
-  readonly trackSearch?: TrackSearchManager;
+  readonly trackSearch?: TrackSearchCache;
 
   // Whether virtual scrolling is enabled. When true, offscreen tracks are not
   // rendered at all. When false, offscreen tracks render in "lite" mode.
@@ -371,17 +371,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       const result = renderTrack(track, 0, 0, true); // Root level tracks
       trackVnodes.push(result.vnodes);
       totalHeight += result.subtreeHeight;
-    }
-
-    // Update the track search manager with the list of tracks.
-    // Visible tracks are those that are rendered (expanded).
-    // All tracks includes those inside collapsed groups.
-    // Only enable search when virtual scrolling is enabled.
-    if (trackSearch && virtualScrollingEnabled) {
-      const visibleTracks = renderedTracks.map((tv) => tv.node);
-      const allTracks: TrackNode[] = [];
-      collectAllTracks(rootNode, allTracks);
-      trackSearch.setTracks(visibleTracks, allTracks);
     }
 
     // Store for scroll-to-track in onupdate

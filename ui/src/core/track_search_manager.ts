@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackNode} from '../public/workspace';
+import m from 'mithril';
+import {TrackNode, Workspace} from '../public/workspace';
 import {TrackManagerImpl} from './track_manager';
+import {TrackSearchModel} from '../frontend/timeline_page/track_search_bar';
 
 export interface TrackSearchMatch {
   readonly node: TrackNode;
@@ -21,6 +23,10 @@ export interface TrackSearchMatch {
   readonly matchLength: number;
 }
 
+export interface TrackSearchResults {
+  readonly matches: readonly TrackSearchMatch[];
+  readonly currentMatchIndex: number;
+}
 /**
  * Manages track search state for the timeline.
  *
@@ -29,141 +35,32 @@ export interface TrackSearchMatch {
  * - Highlights matching parts of track names
  * - Allows navigation between matches with Enter/Shift+Enter
  */
-export class TrackSearchManager {
-  private _searchTerm = '';
-  private _matches: TrackSearchMatch[] = [];
-  private _currentMatchIndex = -1;
-  private _isVisible = false;
-  private _searchCollapsed = false;
-  private _useRegex = false;
-  private _trackManager?: TrackManagerImpl;
-  private _shouldFocus = false;
+export class TrackSearchCache {
+  private cachedMatches: TrackSearchMatch[] = [];
+  private currentMatchIndex = -1;
+  private workspace?: Workspace;
+  private model?: TrackSearchModel;
 
-  // The list of track nodes to search through.
-  // This is updated by TrackTreeView during rendering.
-  private _visibleTracks: TrackNode[] = [];
-  private _allTracks: TrackNode[] = [];
+  useTrackSearchResults(
+    workspace: Workspace,
+    searchTerm: string,
+    useRegex: boolean,
+    searchWithinCollapsedGroups: boolean,
+  ): TrackSearchResults {
+    console.log(
+      workspace,
+      `Updating track search: term="${searchTerm}", regex=${useRegex}, searchCollapsed=${searchWithinCollapsedGroups}`,
+    );
 
-  get shouldFocus(): boolean {
-    return this._shouldFocus;
+    return {
+      matches: this.cachedMatches,
+      currentMatchIndex: this._currentMatchIndex,
+    };
+    // TODO - depending on what changed in the model, maybe update the internal
+    // state and return the new track search results.
   }
 
-  clearShouldFocus(): void {
-    this._shouldFocus = false;
-  }
-
-  /**
-   * Set the track manager reference for scrolling support.
-   */
-  setTrackManager(trackManager: TrackManagerImpl): void {
-    this._trackManager = trackManager;
-  }
-
-  get searchTerm(): string {
-    return this._searchTerm;
-  }
-
-  get matches(): ReadonlyArray<TrackSearchMatch> {
-    return this._matches;
-  }
-
-  get currentMatchIndex(): number {
-    return this._currentMatchIndex;
-  }
-
-  get currentMatch(): TrackSearchMatch | undefined {
-    if (
-      this._currentMatchIndex >= 0 &&
-      this._currentMatchIndex < this._matches.length
-    ) {
-      return this._matches[this._currentMatchIndex];
-    }
-    return undefined;
-  }
-
-  get matchCount(): number {
-    return this._matches.length;
-  }
-
-  get isVisible(): boolean {
-    return this._isVisible;
-  }
-
-  get searchCollapsed(): boolean {
-    return this._searchCollapsed;
-  }
-
-  set searchCollapsed(value: boolean) {
-    if (this._searchCollapsed !== value) {
-      this._searchCollapsed = value;
-      // Re-run search with the appropriate track list
-      if (this._searchTerm) {
-        this.performSearch(true /* preserveCurrentMatch */);
-      }
-    }
-  }
-
-  get useRegex(): boolean {
-    return this._useRegex;
-  }
-
-  set useRegex(value: boolean) {
-    if (this._useRegex !== value) {
-      this._useRegex = value;
-      // Re-run search with new mode
-      if (this._searchTerm) {
-        this.performSearch(true /* preserveCurrentMatch */);
-      }
-    }
-  }
-
-  /**
-   * Updates the list of tracks to search through.
-   * Called by TrackTreeView during rendering.
-   * @param visibleTracks - Tracks that are currently visible (expanded)
-   * @param allTracks - All tracks including those inside collapsed groups
-   */
-  setTracks(visibleTracks: TrackNode[], allTracks: TrackNode[]): void {
-    this._visibleTracks = visibleTracks;
-    this._allTracks = allTracks;
-    // Re-run search with new tracks, preserving current match
-    if (this._searchTerm) {
-      this.performSearch(true /* preserveCurrentMatch */);
-    }
-  }
-
-  /**
-   * Sets the search term and performs the search.
-   */
-  setSearchTerm(term: string): void {
-    const termChanged = this._searchTerm !== term;
-    this._searchTerm = term;
-    // Only reset to first match if the search term actually changed
-    this.performSearch(!termChanged /* preserveCurrentMatch */);
-  }
-
-  /**
-   * Shows the search overlay.
-   */
-  show(): void {
-    this._isVisible = true;
-    this._shouldFocus = true;
-  }
-
-  /**
-   * Hides the search overlay and clears the search.
-   */
-  hide(): void {
-    this._isVisible = false;
-    this._searchTerm = '';
-    this._matches = [];
-    this._currentMatchIndex = -1;
-  }
-
-  /**
-   * Navigate to the next match (with wrap-around).
-   */
-  stepForward(): void {
+  stepForwards(): void {
     if (this._matches.length === 0) return;
     this._currentMatchIndex =
       (this._currentMatchIndex + 1) % this._matches.length;
@@ -224,14 +121,12 @@ export class TrackSearchManager {
 
     this._matches = [];
 
-    if (!this._searchTerm) {
+    if (!this._searchTerm || !this._workspace) {
       this._currentMatchIndex = -1;
       return;
     }
 
-    const tracksToSearch = this._searchCollapsed
-      ? this._allTracks
-      : this._visibleTracks;
+    const tracksToSearch = this.getSearchableTracks();
 
     if (this._useRegex) {
       // Regex search
@@ -289,5 +184,35 @@ export class TrackSearchManager {
     } else {
       this._currentMatchIndex = -1;
     }
+  }
+
+  private getSearchableTracks(): TrackNode[] {
+    if (!this._workspace) return [];
+
+    const result: TrackNode[] = [];
+
+    const collectTracks = (node: TrackNode) => {
+      if (!node.headless) {
+        result.push(node);
+      }
+
+      if (this._searchCollapsed || node.headless || node.expanded) {
+        for (const child of node.children) {
+          collectTracks(child);
+        }
+      }
+    };
+
+    // Pinned tracks
+    for (const node of this._workspace.pinnedTracks) {
+      collectTracks(node);
+    }
+
+    // Main tracks
+    for (const node of this._workspace.children) {
+      collectTracks(node);
+    }
+
+    return result;
   }
 }

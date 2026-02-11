@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {TrackSearchManager} from '../../core/track_search_manager';
 import {Button} from '../../widgets/button';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {TextInput} from '../../widgets/text_input';
@@ -22,8 +21,25 @@ import {Tooltip} from '../../widgets/tooltip';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {Anchor} from '../../widgets/anchor';
 
+export interface TrackSearchBarApi {
+  focus(): void;
+}
+
+export interface TrackSearchModel {
+  readonly searchTerm: string;
+  readonly useRegex: boolean;
+  readonly searchWithinCollapsedGroups: boolean;
+}
+
 export interface TrackSearchBarAttrs {
-  readonly searchManager: TrackSearchManager;
+  readonly matchCount: number;
+  readonly currentMatchIndex: number;
+  readonly model: TrackSearchModel;
+  onModelChange?(newModel: TrackSearchModel): void;
+  onStepForward?(): void;
+  onStepBackwards?(): void;
+  onClose?(): void;
+  onReady?(api: TrackSearchBarApi): void;
 }
 
 /**
@@ -32,49 +48,63 @@ export interface TrackSearchBarAttrs {
  */
 export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
   view({attrs}: m.Vnode<TrackSearchBarAttrs>): m.Children {
-    const {searchManager} = attrs;
+    const {
+      model,
+      onModelChange,
+      onStepBackwards,
+      onStepForward,
+      onClose,
+      matchCount,
+      currentMatchIndex,
+    } = attrs;
 
     return m(
       '.pf-track-search-bar',
       m(
         '.pf-track-search-bar__bubble',
-        this.renderMatchCount(searchManager),
-        this.renderHelpButton(searchManager),
+        this.renderMatchCount(matchCount, currentMatchIndex),
+        this.renderHelpButton(),
         m(TextInput, {
           autofocus: true,
           placeholder: 'Search tracks...',
-          value: searchManager.searchTerm,
+          value: model.searchTerm,
           onInput: (value: string) => {
-            searchManager.setSearchTerm(value);
+            onModelChange?.({
+              ...model,
+              searchTerm: value,
+            });
           },
           onkeydown: (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
               e.preventDefault();
-              searchManager.hide();
+              onClose?.();
             } else if (e.key === 'Enter' && e.shiftKey) {
               e.preventDefault();
-              searchManager.stepBackwards();
+              onStepForward?.();
             } else if (e.key === 'Enter') {
               e.preventDefault();
-              searchManager.stepForward();
+              onStepBackwards?.();
             }
           },
         }),
-        this.renderButtons(searchManager),
+        this.renderButtons(attrs),
       ),
     );
   }
 
   onupdate({dom, attrs}: m.VnodeDOM<TrackSearchBarAttrs>) {
-    // After the component updates, reset the focus flag so that it only triggers
-    // on the first render after show() is called.
-    if (attrs.searchManager.shouldFocus) {
-      dom.querySelector('input')?.focus();
-      attrs.searchManager.clearShouldFocus();
+    const {onReady} = attrs;
+
+    if (onReady) {
+      onReady({
+        focus: () => {
+          dom.querySelector('input')?.focus();
+        },
+      });
     }
   }
 
-  private renderHelpButton(searchManager: TrackSearchManager) {
+  private renderHelpButton(onClose?: () => void): m.Children {
     return m(
       Popup,
       {
@@ -96,7 +126,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             Anchor,
             {
               href: '#!/settings/virtualTrackScrolling',
-              onclick: () => searchManager.hide(),
+              onclick: onClose,
             },
             'disable virtual scrolling',
           ),
@@ -105,7 +135,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             Anchor,
             {
               href: '#!/settings/alternativeSearchHotkey',
-              onclick: () => searchManager.hide(),
+              onclick: onClose,
             },
             'use Shift+F',
           ),
@@ -117,7 +147,16 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
     );
   }
 
-  private renderButtons(searchManager: TrackSearchManager) {
+  private renderButtons(attrs: TrackSearchBarAttrs) {
+    const {
+      onStepBackwards,
+      onStepForward,
+      onClose,
+      matchCount,
+      model,
+      onModelChange,
+    } = attrs;
+
     return m(
       '.pf-track-search-bar__buttons',
       m(
@@ -126,9 +165,12 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
           position: PopupPosition.Top,
           trigger: m(Button, {
             icon: 'regular_expression',
-            active: searchManager.useRegex,
+            active: model.useRegex,
             onclick: () => {
-              searchManager.useRegex = !searchManager.useRegex;
+              onModelChange?.({
+                ...model,
+                useRegex: !model.useRegex,
+              });
             },
           }),
         },
@@ -140,9 +182,12 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
           position: PopupPosition.Top,
           trigger: m(Button, {
             icon: 'account_tree',
-            active: searchManager.searchCollapsed,
+            active: model.searchWithinCollapsedGroups,
             onclick: () => {
-              searchManager.searchCollapsed = !searchManager.searchCollapsed;
+              onModelChange?.({
+                ...model,
+                searchWithinCollapsedGroups: !model.searchWithinCollapsedGroups,
+              });
             },
           }),
         },
@@ -154,8 +199,8 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
           position: PopupPosition.Top,
           trigger: m(Button, {
             icon: Icons.Up,
-            disabled: searchManager.matchCount === 0,
-            onclick: () => searchManager.stepBackwards(),
+            disabled: matchCount === 0,
+            onclick: onStepForward,
           }),
         },
         'Previous match (Shift+Enter)',
@@ -166,8 +211,8 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
           position: PopupPosition.Top,
           trigger: m(Button, {
             icon: Icons.Down,
-            disabled: searchManager.matchCount === 0,
-            onclick: () => searchManager.stepForward(),
+            disabled: matchCount === 0,
+            onclick: onStepBackwards,
           }),
         },
         'Next match (Enter)',
@@ -178,7 +223,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
           position: PopupPosition.Top,
           trigger: m(Button, {
             icon: Icons.Close,
-            onclick: () => searchManager.hide(),
+            onclick: onClose,
           }),
         },
         'Close (Escape)',
@@ -186,12 +231,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
     );
   }
 
-  private renderMatchCount(searchManager: TrackSearchManager): m.Children {
-    const count = searchManager.matchCount;
-    const current = searchManager.currentMatchIndex;
-
-    if (!searchManager.searchTerm) return null;
-
+  private renderMatchCount(count: number, current: number): m.Children {
     const matchText = count === 0 ? 'No matches' : `${current + 1} of ${count}`;
     return m('.pf-track-search-bar__count', matchText);
   }

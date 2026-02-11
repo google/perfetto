@@ -34,7 +34,7 @@ import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackWrapper} from '../../core/track_manager';
-import {TrackSearchManager} from '../../core/track_search_manager';
+import {TrackSearchCache} from '../../core/track_search_manager';
 import {TrackRenderer, Track} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
@@ -90,7 +90,7 @@ export interface TrackViewAttrs {
   // Used for virtual scrolling where we skip rendering offscreen tracks.
   readonly absoluteTop?: number;
   // Track search manager for highlighting search matches.
-  readonly trackSearch?: TrackSearchManager;
+  readonly trackSearch?: TrackSearchCache;
   onTrackMouseOver(): void;
   onTrackMouseOut(): void;
 }
