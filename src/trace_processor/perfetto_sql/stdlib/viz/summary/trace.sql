@@ -16,7 +16,7 @@
 -- Returns whether a machine is running a Linux kernel.
 CREATE PERFETTO FUNCTION _is_linux_machine(
     -- Machine id.
-    machine_id LONG
+    machine_id JOINID(machine.id)
 )
 RETURNS LONG AS
 SELECT

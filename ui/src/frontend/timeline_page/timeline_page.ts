@@ -94,7 +94,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         hotkeys: virtualScrollingEnabled
           ? [
               {
-                hotkey: useAlternativeHotkey ? 'Shift+F' : 'Mod+F',
+                hotkey: useAlternativeHotkey ? 'Shift+F' : '!Mod+F',
                 callback: () => this.trackSearch.show(),
               },
             ]

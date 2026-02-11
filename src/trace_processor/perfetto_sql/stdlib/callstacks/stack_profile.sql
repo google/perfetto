@@ -182,6 +182,37 @@ RETURNS TableOrSubquery AS
     USING (callsite_id)
 );
 
+-- Similar to _callstacks_for_callsites but accepts samples with a value column
+-- and returns the sum of values instead of count.
+-- Input: subquery with (callsite_id, value) columns
+-- Output: callstacks with self_value (SUM of value)
+CREATE PERFETTO MACRO _callstacks_for_callsites_weighted(
+    samples TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  WITH
+    metrics AS MATERIALIZED (
+      SELECT
+        callsite_id,
+        sum(value) AS self_value
+      FROM $samples
+      GROUP BY
+        callsite_id
+    )
+  SELECT
+    c.id,
+    c.parent_id,
+    c.name,
+    c.mapping_name,
+    c.source_file,
+    c.line_number,
+    iif(c.is_leaf_function_in_callsite_frame, coalesce(m.self_value, 0), 0) AS self_value
+  FROM _callstacks_for_stack_profile_samples!(metrics) AS c
+  LEFT JOIN metrics AS m
+    USING (callsite_id)
+);
+
 CREATE PERFETTO MACRO _callstacks_self_to_cumulative(
     callstacks TableOrSubquery
 )
