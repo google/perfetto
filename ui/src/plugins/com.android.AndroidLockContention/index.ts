@@ -15,7 +15,6 @@
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import RelatedEventsPlugin from '../dev.perfetto.RelatedEvents';
-import {GenericRelatedEventsOverlay} from '../dev.perfetto.RelatedEvents/generic_overlay';
 import {AndroidLockContentionEventSource} from './android_lock_contention_event_source';
 import {AndroidLockContentionTab} from './tab';
 
@@ -26,34 +25,67 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.engine.query('INCLUDE PERFETTO MODULE android.monitor_contention');
 
-    const overlay = new GenericRelatedEventsOverlay(trace);
-    trace.tracks.registerOverlay(overlay);
-
     const source = new AndroidLockContentionEventSource(trace);
-
     const tab = new AndroidLockContentionTab({trace, source});
-    source.setOnDataLoadedCallback((data) => {
-      overlay.update(data);
-    });
 
     trace.tabs.registerTab({
       uri: 'com.android.AndroidLockContentionTab',
       isEphemeral: false,
       content: tab,
-      onHide() {
-        overlay.update({
-          events: [],
-          relations: [],
-        });
-      },
     });
 
     trace.commands.registerCommand({
-      id: 'openAndroidLockContentionTab',
-      name: 'Show Android Lock Contention',
-      callback: () => {
+      id: 'toggleContentionNavigation',
+      name: 'Toggle Blocked/Blocking Slice',
+      defaultHotkey: ']',
+      callback: async () => {
+        const selection = trace.selection.selection;
+        const tabInstance = tab;
+
         trace.tabs.showTab('com.android.AndroidLockContentionTab');
-        tab.syncSelection();
+
+        if (!tabInstance.hasEvent()) {
+          if (selection.kind === 'track_event') {
+            await tabInstance.loadData(selection.eventId);
+          }
+          return;
+        }
+
+        const currentEventArgs = tabInstance.getEventArgs();
+        if (!currentEventArgs) return;
+
+        const contentionId = tabInstance.getContentionId();
+        const {blockingTrackUri, blockingSliceId} = currentEventArgs;
+
+        if (selection.kind === 'track_event') {
+          if (selection.eventId === contentionId) {
+            // Currently on blocked, jump to blocking
+            if (blockingTrackUri && blockingSliceId !== undefined) {
+              trace.selection.selectTrackEvent(
+                blockingTrackUri,
+                blockingSliceId,
+                {
+                  scrollToSelection: true,
+                  switchToCurrentSelectionTab: false,
+                },
+              );
+            }
+          } else if (selection.eventId === blockingSliceId) {
+            // Currently on blocking, jump back to blocked
+            const blockedTrackUri = tabInstance.getEventTrackUri();
+            if (blockedTrackUri && contentionId !== undefined) {
+              trace.selection.selectTrackEvent(blockedTrackUri, contentionId, {
+                scrollToSelection: true,
+                switchToCurrentSelectionTab: false,
+              });
+            }
+          } else {
+            // New selection, load it
+            await tabInstance.loadData(selection.eventId);
+          }
+        } else {
+          // No selection, do nothing to the navigation
+        }
       },
     });
   }

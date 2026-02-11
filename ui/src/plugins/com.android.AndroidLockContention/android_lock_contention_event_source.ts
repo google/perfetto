@@ -17,23 +17,13 @@ import {
   EventSource,
   RelatedEvent,
   RelatedEventData,
-  Relation,
   getTrackUriForTrackId,
 } from '../dev.perfetto.RelatedEvents';
 import {time, duration} from '../../base/time';
 import {STR, NUM_NULL, LONG_NULL} from '../../trace_processor/query_result';
-import {enrichDepths} from '../dev.perfetto.RelatedEvents/utils';
-
-export type OnDataLoadedCallback = (data: RelatedEventData) => void;
 
 export class AndroidLockContentionEventSource implements EventSource {
-  private onDataLoadedCallback?: OnDataLoadedCallback;
-
   constructor(private trace: Trace) {}
-
-  setOnDataLoadedCallback(callback: OnDataLoadedCallback) {
-    this.onDataLoadedCallback = callback;
-  }
 
   async getRelatedEventData(eventId: number): Promise<RelatedEventData> {
     const query = `
@@ -45,8 +35,11 @@ export class AndroidLockContentionEventSource implements EventSource {
         amc.blocked_utid,
         amc.blocking_utid,
         amc.short_blocked_method,
+        amc.blocked_thread_name,
+        amc.blocked_src,
         amc.short_blocking_method,
         amc.blocking_thread_name,
+        amc.blocking_src,
         s.id AS blocking_slice_id,
         s.track_id AS blocking_track_id,
         s.ts AS blocking_ts,
@@ -69,8 +62,11 @@ export class AndroidLockContentionEventSource implements EventSource {
       blocked_utid: NUM_NULL,
       blocking_utid: NUM_NULL,
       short_blocked_method: STR,
+      blocked_thread_name: STR,
+      blocked_src: STR,
       short_blocking_method: STR,
       blocking_thread_name: STR,
+      blocking_src: STR,
       blocking_slice_id: NUM_NULL,
       blocking_track_id: NUM_NULL,
       blocking_ts: LONG_NULL,
@@ -78,13 +74,9 @@ export class AndroidLockContentionEventSource implements EventSource {
     });
 
     const events: RelatedEvent[] = [];
-    const overlayEvents: RelatedEvent[] = [];
-    const overlayRelations: Relation[] = [];
 
     if (!it.valid()) {
-      const data = {events: [], relations: [], overlayEvents, overlayRelations};
-      this.onDataLoadedCallback?.(data);
-      return data;
+      return {events: [], relations: []};
     }
 
     const blockedEventId = it.contention_id!;
@@ -108,55 +100,16 @@ export class AndroidLockContentionEventSource implements EventSource {
       type: 'Lock Contention',
       customArgs: {
         short_blocked_method: it.short_blocked_method,
+        blocked_thread_name: it.blocked_thread_name,
+        blocked_src: it.blocked_src,
         short_blocking_method: it.short_blocking_method,
         blocking_thread_name: blockingThreadName,
+        blocking_src: it.blocking_src,
         blockingTrackUri: blockingTrackUri,
         blockingSliceId: it.blocking_slice_id,
       },
     };
     events.push(tabEvent);
-
-    // Event for the selected contention slice itself
-    const blockedOverlayEvent: RelatedEvent = {
-      id: blockedEventId,
-      ts: blockedTs,
-      dur: blockedDur,
-      trackUri: blockedTrackUri,
-      type: 'Lock Contention',
-      customArgs: {
-        Blocked: it.short_blocked_method,
-        Blocking: it.short_blocking_method,
-      },
-    };
-    overlayEvents.push(blockedOverlayEvent);
-
-    const blockingSliceId = it.blocking_slice_id;
-    if (blockingSliceId !== null && blockingTrackUri) {
-      const blockingEvent: RelatedEvent = {
-        id: blockingSliceId,
-        ts: BigInt(it.blocking_ts!) as time,
-        dur: BigInt(it.blocking_dur!) as duration,
-        trackUri: blockingTrackUri,
-        type: 'Blocking Slice',
-        customArgs: {
-          name: it.short_blocking_method,
-        },
-      };
-      overlayEvents.push(blockingEvent);
-
-      const relation: Relation = {
-        sourceId: blockedEventId,
-        targetId: blockingSliceId,
-        type: 'blocked_on',
-        customArgs: {color: 'red'},
-      };
-      overlayRelations.push(relation);
-    }
-
-    await enrichDepths(this.trace, overlayEvents);
-
-    const data = {events, relations: [], overlayEvents, overlayRelations};
-    this.onDataLoadedCallback?.(data);
-    return data;
+    return {events, relations: []};
   }
 }

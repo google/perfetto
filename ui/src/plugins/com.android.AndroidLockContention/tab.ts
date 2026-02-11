@@ -26,9 +26,12 @@ import {RelatedEvent} from '../dev.perfetto.RelatedEvents/interface';
 
 interface LockContentionArgs {
   short_blocked_method: string;
+  blocked_thread_name: string;
+  blocked_src: string;
   short_blocking_method: string;
   blocking_thread_name: string;
-  blockingTrackUri: string;
+  blocking_src: string;
+  blockingTrackUri?: string;
   blockingSliceId?: number;
   allTrackUris?: string[];
 }
@@ -59,6 +62,7 @@ export class AndroidLockContentionTab implements Tab {
       this.loadData(selection.eventId);
     } else {
       this.event = null;
+      m.redraw();
     }
   }
 
@@ -66,12 +70,32 @@ export class AndroidLockContentionTab implements Tab {
     if (this.isLoading) return;
     this.isLoading = true;
     this.event = null;
+    m.redraw();
     try {
       const data = await this.config.source.getRelatedEventData(eventId);
       this.event = data.events.length > 0 ? data.events[0] : null;
     } finally {
       this.isLoading = false;
+      m.redraw();
     }
+  }
+
+  hasEvent(): boolean {
+    return this.event !== null;
+  }
+
+  getEventArgs(): LockContentionArgs | null {
+    if (!this.event || !this.event.customArgs) return null;
+    if (!isLockContentionArgs(this.event.customArgs)) return null;
+    return this.event.customArgs;
+  }
+
+  getEventTrackUri(): string | undefined {
+    return this.event?.trackUri;
+  }
+
+  getContentionId(): number | undefined {
+    return this.event?.id;
   }
 
   getTitle() {
@@ -125,45 +149,58 @@ export class AndroidLockContentionTab implements Tab {
       DetailsShell,
       {title: this.getTitle()},
       m(
-        Section,
-        {
-          title: 'Contention Details',
-        },
-        m('div', `Blocked Method: ${args.short_blocked_method}`),
-        m('div', `Blocking Method: ${args.short_blocking_method}`),
+        '.contention-details',
         m(
-          Anchor,
+          Section,
           {
-            icon: Icons.GoTo,
-            onclick: () => this.goTo(this.event!.trackUri, this.event!.id),
-            title: 'Go to Blocked Event',
+            title: 'Blocked Thread/Method',
           },
-          'Go to Blocked',
+          m('div', `Thread: ${args.blocked_thread_name}`),
+          m('div', `Method: ${args.short_blocked_method}`),
+          m('div', `Source: ${args.blocked_src}`),
+          m(
+            Anchor,
+            {
+              icon: Icons.GoTo,
+              onclick: () => this.goTo(this.event!.trackUri, this.event!.id),
+              title: 'Go to Blocked Event',
+            },
+            'Go to Blocked',
+          ),
         ),
-        args.blockingTrackUri &&
-          args.blockingSliceId !== undefined &&
-          m(
-            Anchor,
-            {
-              icon: Icons.GoTo,
-              onclick: () =>
-                this.goTo(args.blockingTrackUri!, args.blockingSliceId!),
-              title: 'Go to Blocking Slice',
-            },
-            'Go to Blocking Slice',
-          ),
-        args.blockingTrackUri &&
-          args.blockingSliceId === undefined &&
-          m(
-            Anchor,
-            {
-              icon: Icons.GoTo,
-              onclick: () =>
-                this.scrollToTime(args.blockingTrackUri!, this.event!.ts),
-              title: 'Scroll to Blocking Thread at Contention Time',
-            },
-            'Scroll to Blocking Thread',
-          ),
+        m(
+          Section,
+          {
+            title: 'Blocking Thread/Method',
+          },
+          m('div', `Thread: ${args.blocking_thread_name}`),
+          m('div', `Method: ${args.short_blocking_method}`),
+          m('div', `Source: ${args.blocking_src}`),
+          args.blockingTrackUri &&
+            args.blockingSliceId !== undefined &&
+            m(
+              Anchor,
+              {
+                icon: Icons.GoTo,
+                onclick: () =>
+                  this.goTo(args.blockingTrackUri!, args.blockingSliceId!),
+                title: 'Go to Blocking Slice',
+              },
+              'Go to Blocking Slice',
+            ),
+          args.blockingTrackUri &&
+            args.blockingSliceId === undefined &&
+            m(
+              Anchor,
+              {
+                icon: Icons.GoTo,
+                onclick: () =>
+                  this.scrollToTime(args.blockingTrackUri!, this.event!.ts),
+                title: 'Scroll to Blocking Thread at Contention Time',
+              },
+              'Scroll to Blocking Thread',
+            ),
+        ),
       ),
     );
   }
