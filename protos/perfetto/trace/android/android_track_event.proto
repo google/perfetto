@@ -33,6 +33,14 @@ message AndroidMessageQueue {
   optional uint64 message_delay_ms = 4;
 }
 
+// Information about ProcState of process in the system
+message ProcState {
+  // Name of the Process State.
+  optional string proc_state = 1;
+  // Count of processes in the proc_state
+  optional int32 count_of_processes = 2;
+}
+
 message AndroidJobSchedulerJob {
   // Job id.
   optional int32 job_id = 1;
