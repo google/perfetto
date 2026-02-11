@@ -51,7 +51,7 @@ std::string ProtozeroToText(const DescriptorPool& pool,
                             const std::string& type,
                             const std::vector<uint8_t>& protobytes,
                             NewLinesMode new_lines_mode,
-                            bool skip_unknown_fields);
+                            bool skip_unknown_fields = false);
 
 }  // namespace protozero_to_text
 }  // namespace perfetto::trace_processor
