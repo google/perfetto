@@ -80,7 +80,7 @@ export class TrackSearchCache {
     return new TrackSearchResults(this._matches, this._currentMatchIndex);
   }
 
-  stepForwards(): void {
+  stepForward(): void {
     if (this._matches.length === 0) return;
     this._currentMatchIndex =
       (this._currentMatchIndex + 1) % this._matches.length;

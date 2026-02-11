@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,10 +80,10 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
               onClose?.();
             } else if (e.key === 'Enter' && e.shiftKey) {
               e.preventDefault();
-              onStepForward?.();
+              onStepBackwards?.();
             } else if (e.key === 'Enter') {
               e.preventDefault();
-              onStepBackwards?.();
+              onStepForward?.();
             }
           },
         }),
@@ -200,7 +200,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
           trigger: m(Button, {
             icon: Icons.Up,
             disabled: matchCount === 0,
-            onclick: onStepForward,
+            onclick: onStepBackwards,
           }),
         },
         'Previous match (Shift+Enter)',
@@ -212,7 +212,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
           trigger: m(Button, {
             icon: Icons.Down,
             disabled: matchCount === 0,
-            onclick: onStepBackwards,
+            onclick: onStepForward,
           }),
         },
         'Next match (Enter)',

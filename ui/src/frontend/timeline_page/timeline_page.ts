@@ -146,14 +146,14 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
     if (!this.trackSearchBarVisible) return null;
     return m(TrackSearchBar, {
       model: this.trackSearchModel,
-      matchCount: trackSearchResults.matches.length, // TODO: Wire up actual match count
-      currentMatchIndex: trackSearchResults.currentMatchIndex, // TODO: Wire up actual current match index
+      matchCount: trackSearchResults.matches.length,
+      currentMatchIndex: trackSearchResults.currentMatchIndex,
       onModelChange: (newModel) => {
         this.trackSearchModel = newModel;
       },
       onClose: () => (this.trackSearchBarVisible = false),
       onStepForward: () => {
-        this.trackSearchCache.stepForwards();
+        this.trackSearchCache.stepForward();
       },
       onStepBackwards: () => {
         this.trackSearchCache.stepBackwards();
