@@ -324,70 +324,105 @@ class PERFETTO_EXPORT_COMPONENT TracedDictionary {
 
 namespace internal {
 
-// SFINAE helpers for finding a right overload to convert a given class to
-// trace-friendly form, ordered from most to least preferred.
-
-constexpr int kMaxWriteImplPriority = 4;
-
-// If T has WriteIntoTracedValue member function, call it.
 template <typename T>
-decltype(std::declval<T>().WriteIntoTracedValue(std::declval<TracedValue>()),
-         void())
-WriteImpl(base::priority_tag<4>, TracedValue context, T&& value) {
-  value.WriteIntoTracedValue(std::move(context));
-}
+auto WriteImpl(TracedValue context, T&& value);
 
-// If T has WriteIntoTrace member function, call it.
-template <typename T>
-decltype(std::declval<T>().WriteIntoTrace(std::declval<TracedValue>()), void())
-WriteImpl(base::priority_tag<4>, TracedValue context, T&& value) {
-  value.WriteIntoTrace(std::move(context));
-}
+template <typename T, class Result>
+struct check_traced_value_support;
 
-// If perfetto::TraceFormatTraits<T>::WriteIntoTracedValue(TracedValue, const
-// T&) is available, use it.
+// Returns std::true_type if the type can be serialized, std::false_type
+// otherwise.
 template <typename T>
-decltype(TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTracedValue(
-             std::declval<TracedValue>(),
-             std::declval<T>()),
-         void())
-WriteImpl(base::priority_tag<3>, TracedValue context, T&& value) {
-  TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTracedValue(
-      std::move(context), std::forward<T>(value));
-}
+auto WriteImpl(TracedValue context, T&& value) {
+  // A helper to check if a lambda is valid.
+  constexpr auto is_valid = [](auto lambda) {
+    return
+        [lambda](auto&&... args) -> decltype(lambda(
+                                     std::forward<decltype(args)>(args)...)) {
+          return lambda(std::forward<decltype(args)>(args)...);
+        };
+  };
 
-// If perfetto::TraceFormatTraits<T>::WriteIntoTrace(TracedValue, const T&)
-// is available, use it.
-template <typename T>
-decltype(TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTrace(
-             std::declval<TracedValue>(),
-             std::declval<T>()),
-         void())
-WriteImpl(base::priority_tag<3>, TracedValue context, T&& value) {
-  TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTrace(
-      std::move(context), std::forward<T>(value));
-}
+  constexpr auto has_write_into_traced_value =
+      is_valid([](auto&& v) -> decltype(v.WriteIntoTracedValue(
+                                TracedValue(std::declval<TracedValue>()))) {});
 
-// If T has operator(), which takes TracedValue, use it.
-// Very useful for lambda resolutions.
-template <typename T>
-decltype(std::declval<T>()(std::declval<TracedValue>()), void())
-WriteImpl(base::priority_tag<2>, TracedValue context, T&& value) {
-  std::forward<T>(value)(std::move(context));
-}
+  constexpr auto has_write_into_trace =
+      is_valid([](auto&& v) -> decltype(v.WriteIntoTrace(
+                                TracedValue(std::declval<TracedValue>()))) {});
 
-// If T is a container and its elements have tracing support, use it.
-//
-// Note: a reference to T should be passed to std::begin, otherwise
-// for non-reference types const T& will be passed to std::begin, losing
-// support for non-const WriteIntoTracedValue methods.
-template <typename T>
-typename check_traced_value_support<
-    decltype(*std::begin(std::declval<T&>()))>::type
-WriteImpl(base::priority_tag<1>, TracedValue context, T&& value) {
-  auto array = std::move(context).WriteArray();
-  for (auto&& item : value) {
-    array.Append(item);
+  constexpr auto has_trace_format_traits_write_into_traced_value = is_valid(
+      [](auto&& v)
+          -> decltype(TraceFormatTraits<base::remove_cvref_t<decltype(v)>>::
+                          WriteIntoTracedValue(
+                              TracedValue(std::declval<TracedValue>()), v)) {});
+
+  constexpr auto has_trace_format_traits_write_into_trace = is_valid(
+      [](auto&& v)
+          -> decltype(TraceFormatTraits<base::remove_cvref_t<decltype(v)>>::
+                          WriteIntoTrace(
+                              TracedValue(std::declval<TracedValue>()), v)) {});
+
+  constexpr auto is_callable_with_traced_value = is_valid(
+      [](auto&& v) -> decltype(v(TracedValue(std::declval<TracedValue>()))) {});
+
+  constexpr auto is_container_with_trace_support = is_valid(
+      [](auto&& v)
+          -> decltype((void)std::begin(v), (void)std::end(v),
+                      std::enable_if_t<
+                          decltype(WriteImpl(
+                              TracedValue(std::declval<TracedValue>()),
+                              *std::begin(
+                                  std::declval<decltype(v)&>())))::value,
+                          void>()) {});
+
+  // If T has WriteIntoTracedValue member function, call it.
+  if constexpr (std::is_invocable_v<decltype(has_write_into_traced_value),
+                                    T&>) {
+    value.WriteIntoTracedValue(std::move(context));
+    return std::true_type{};
+  } else if constexpr (std::is_invocable_v<decltype(has_write_into_trace),
+                                           T&>) {
+    // If T has WriteIntoTrace member function, call it.
+    value.WriteIntoTrace(std::move(context));
+    return std::true_type{};
+  } else if constexpr (
+      // If perfetto::TraceFormatTraits<T>::WriteIntoTracedValue(TracedValue,
+      // const T&) is available, use it.
+      std::is_invocable_v<
+          decltype(has_trace_format_traits_write_into_traced_value), T&>) {
+    TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTracedValue(
+        std::move(context), std::forward<T>(value));
+    return std::true_type{};
+  } else if constexpr (std::is_invocable_v<
+                           decltype(has_trace_format_traits_write_into_trace),
+                           T&>) {
+    // If perfetto::TraceFormatTraits<T>::WriteIntoTrace(TracedValue, const T&)
+    // is available, use it.
+    TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTrace(
+        std::move(context), std::forward<T>(value));
+    return std::true_type{};
+  } else if constexpr (std::is_invocable_v<
+                           decltype(is_callable_with_traced_value), T&>) {
+    // If T has operator(), which takes TracedValue, use it.
+    // Very useful for lambda resolutions.
+    std::forward<T>(value)(std::move(context));
+    return std::true_type{};
+  } else if constexpr (std::is_invocable_v<
+                           decltype(is_container_with_trace_support), T&>) {
+    // If T is a container and its elements have tracing support, use it.
+    //
+    // Note: a reference to T should be passed to std::begin, otherwise
+    // for non-reference types const T& will be passed to std::begin, losing
+    // support for non-const WriteIntoTracedValue methods.
+    auto array = std::move(context).WriteArray();
+    for (auto&& item : value) {
+      array.Append(item);
+    }
+    return std::true_type{};
+  } else {
+    // If we reach here, the type is not supported
+    return std::false_type{};
   }
 }
 
@@ -424,12 +459,10 @@ struct is_incomplete_type<const char[]> {
 // helpful compiler results.
 template <typename T, class Result = void>
 using check_traced_value_support_t =
-    decltype(internal::WriteImpl(
-                 std::declval<
-                     base::priority_tag<internal::kMaxWriteImplPriority>>(),
-                 std::declval<TracedValue>(),
-                 std::declval<T>()),
-             std::declval<Result>());
+    typename std::enable_if<decltype(internal::WriteImpl(
+                                std::declval<TracedValue>(),
+                                std::declval<T>()))::value,
+                            Result>::type;
 
 // check_traced_value_support<T, V>::type is defined (and equal to V) iff T
 // supports being passed to WriteIntoTracedValue. See the comment in
@@ -483,9 +516,10 @@ void WriteIntoTracedValue(TracedValue context, T&& value) {
       "/ TracedDictionary::Add) does not support being written in a trace "
       "format. Please see the comment in traced_value.h for more details.");
 
-  // Should be kept in sync with check_traced_value_support_t!
-  internal::WriteImpl(base::priority_tag<internal::kMaxWriteImplPriority>(),
-                      std::move(context), std::forward<T>(value));
+  auto result = internal::WriteImpl(std::move(context), std::forward<T>(value));
+  static_assert(
+      decltype(result)::value,
+      "The provided type does not support being written in a trace format");
 }
 
 // Helpers to write a given value into TracedValue even if the given type
