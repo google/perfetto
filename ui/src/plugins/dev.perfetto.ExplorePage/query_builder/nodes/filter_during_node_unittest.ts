@@ -19,7 +19,7 @@ import protos from '../../../../protos';
 
 // Interface for accessing private methods during testing
 interface FilterDuringNodeWithPrivates {
-  getCommonColumns(): string[];
+  getCommonColumnsForPartition(): string[];
   cleanupPartitionColumns(): void;
 }
 
@@ -606,14 +606,14 @@ describe('FilterDuringNode', () => {
       });
     });
 
-    describe('getCommonColumns', () => {
+    describe('getCommonColumnsForPartition', () => {
       it('should return empty array when no primary input', () => {
         const node = new FilterDuringNode({});
 
         // Access private method for testing
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual([]);
       });
@@ -631,7 +631,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual([]);
       });
@@ -660,7 +660,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual(['cpu', 'utid']);
       });
@@ -684,7 +684,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual([]);
       });
@@ -714,7 +714,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual(['utid']);
       });
@@ -744,7 +744,7 @@ describe('FilterDuringNode', () => {
 
         const commonColumns = (
           node as unknown as FilterDuringNodeWithPrivates
-        ).getCommonColumns();
+        ).getCommonColumnsForPartition();
 
         expect(commonColumns).toEqual(['aaa', 'mmm', 'zzz']);
       });

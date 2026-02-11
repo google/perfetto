@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
+#ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_TREE_TYPES_H_
+#define SRC_TRACE_PROCESSOR_CORE_COMMON_TREE_TYPES_H_
 
-#include "perfetto/base/status.h"
+#include <cstdint>
+#include <limits>
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::core {
 
-base::Status LegacySqlFunction::VerifyPostConditions(Context*) {
-  return base::OkStatus();
-}
+// Sentinel value representing a null parent in tree structures.
+// Root nodes have this value as their parent.
+inline constexpr uint32_t kNullParent = std::numeric_limits<uint32_t>::max();
 
-void LegacySqlFunction::Cleanup(Context*) {}
+}  // namespace perfetto::trace_processor::core
 
-}  // namespace perfetto::trace_processor
+#endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_TREE_TYPES_H_

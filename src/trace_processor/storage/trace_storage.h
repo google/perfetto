@@ -633,6 +633,13 @@ class TraceStorage {
     return mutable_table<tables::PerfSampleTable>();
   }
 
+  const tables::PerfCounterSetTable& perf_counter_set_table() const {
+    return table<tables::PerfCounterSetTable>();
+  }
+  tables::PerfCounterSetTable* mutable_perf_counter_set_table() {
+    return mutable_table<tables::PerfCounterSetTable>();
+  }
+
   const tables::InstrumentsSampleTable& instruments_sample_table() const {
     return table<tables::InstrumentsSampleTable>();
   }

@@ -136,6 +136,7 @@ export class TrackView {
     const buttons = attrs.lite
       ? []
       : [
+          // Hover-only buttons first
           renderer?.track.getTrackShellButtons?.(),
           description !== undefined &&
             this.renderHelpButton(
@@ -144,10 +145,13 @@ export class TrackView {
                 : linkify(description),
             ),
           (removable || node.removable) && this.renderCloseButton(),
+          this.renderTrackMenuButton(),
+          // Always-visible buttons last (pin button is visible when pinned)
           // We don't want summary tracks to be pinned as they rarely have
           // useful information.
           !node.isSummary && this.renderPinButton(),
-          this.renderTrackMenuButton(),
+          // Area seletion (when in area selection mode is always visible so put
+          // it at the end)
           this.renderAreaSelectionCheckbox(),
         ];
 
@@ -213,9 +217,6 @@ export class TrackView {
               timescale,
             }) ?? false
           );
-        },
-        onupdate: () => {
-          renderer?.track.onFullRedraw?.();
         },
         onMoveBefore: (nodeId: string) => {
           // We are the reference node (the one to be moved relative to), nodeId
@@ -326,9 +327,6 @@ export class TrackView {
         renderer: renderer,
       });
 
-    // Flush after each track
-    renderer.flush();
-
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);
 
     const renderTime = performance.now() - start;
@@ -352,6 +350,7 @@ export class TrackView {
       onclick: () => {
         this.node.remove();
       },
+      className: 'pf-visible-on-hover',
       icon: Icons.Close,
       title: 'Remove track',
       compact: true,

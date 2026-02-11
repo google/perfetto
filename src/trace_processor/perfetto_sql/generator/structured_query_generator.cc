@@ -233,6 +233,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> CounterIntervals(
       const StructuredQuery::ExperimentalCounterIntervals::Decoder&);
 
+  base::StatusOr<std::string> FilterIn(
+      const StructuredQuery::ExperimentalFilterIn::Decoder&);
+
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
   static base::StatusOr<std::string> ExperimentalFilterGroup(
@@ -301,7 +304,8 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
       !root_query.has_group_by() && !root_query.select_columns() &&
       !root_query.has_experimental_add_columns() &&
       !root_query.has_experimental_create_slices() &&
-      !root_query.has_experimental_counter_intervals();
+      !root_query.has_experimental_counter_intervals() &&
+      !root_query.has_experimental_filter_in();
 
   std::string sql = "WITH ";
   size_t cte_count = 0;
@@ -387,6 +391,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
       StructuredQuery::ExperimentalCounterIntervals::Decoder
           counter_intervals_decoder(q.experimental_counter_intervals());
       ASSIGN_OR_RETURN(source, CounterIntervals(counter_intervals_decoder));
+    } else if (q.has_experimental_filter_in()) {
+      StructuredQuery::ExperimentalFilterIn::Decoder filter_in_decoder(
+          q.experimental_filter_in());
+      ASSIGN_OR_RETURN(source, FilterIn(filter_in_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -1231,6 +1239,37 @@ base::StatusOr<std::string> GeneratorImpl::CounterIntervals(
   // and returns (id, ts, dur, track_id, value, next_value, delta_value)
   std::string sql =
       "(SELECT * FROM counter_leading_intervals!(" + input_table + "))";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::FilterIn(
+    const StructuredQuery::ExperimentalFilterIn::Decoder& filter_in) {
+  // Validate required fields
+  if (filter_in.base().size == 0) {
+    return base::ErrStatus("FilterIn must specify a base query");
+  }
+  if (filter_in.match_values().size == 0) {
+    return base::ErrStatus("FilterIn must specify a match_values query");
+  }
+  if (filter_in.base_column().size == 0) {
+    return base::ErrStatus("FilterIn must specify a base_column");
+  }
+  if (filter_in.match_column().size == 0) {
+    return base::ErrStatus("FilterIn must specify a match_column");
+  }
+
+  std::string base_col = filter_in.base_column().ToStdString();
+  std::string match_col = filter_in.match_column().ToStdString();
+
+  // Generate nested sources
+  std::string base_source = NestedSource(filter_in.base());
+  std::string match_source = NestedSource(filter_in.match_values());
+
+  // Build the SQL for the filter-in operation (semi-join)
+  std::string sql = "(SELECT base.* FROM " + base_source + " AS base WHERE " +
+                    "base." + base_col + " IN (SELECT " + match_col + " FROM " +
+                    match_source + "))";
 
   return sql;
 }

@@ -38,6 +38,9 @@ import {ColumnInfo} from './query_builder/column_info';
 import {FilterDuringNode} from './query_builder/nodes/filter_during_node';
 import {TimeRangeSourceNode} from './query_builder/nodes/sources/timerange_source';
 import {Time} from '../../base/time';
+import {registerCoreNodes} from './query_builder/core_nodes';
+
+registerCoreNodes();
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;

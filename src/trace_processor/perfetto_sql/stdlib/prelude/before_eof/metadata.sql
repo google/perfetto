@@ -26,7 +26,7 @@ CREATE PERFETTO VIEW metadata (
   -- String value of the entry.
   str_value STRING,
   -- Machine identifier.
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- Trace identifier.
   trace_id LONG
 ) AS

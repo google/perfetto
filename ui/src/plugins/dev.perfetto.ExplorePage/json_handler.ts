@@ -13,94 +13,17 @@
 // limitations under the License.
 
 import {ExplorePageState} from './explore_page';
-import {
-  QueryNode,
-  NodeType,
-  singleNodeOperation,
-  ensureCounterAbove,
-} from './query_node';
+import {QueryNode, NodeType, ensureCounterAbove} from './query_node';
 import {getAllNodes as getAllNodesUtil} from './query_builder/graph_utils';
-import {
-  TableSourceNode,
-  TableSourceSerializedState,
-} from './query_builder/nodes/sources/table_source';
-import {
-  SlicesSourceNode,
-  SlicesSourceSerializedState,
-} from './query_builder/nodes/sources/slices_source';
-import {
-  SqlSourceNode,
-  SqlSourceSerializedState,
-} from './query_builder/nodes/sources/sql_source';
-import {
-  TimeRangeSourceNode,
-  TimeRangeSourceSerializedState,
-} from './query_builder/nodes/sources/timerange_source';
-import {
-  AggregationNode,
-  AggregationSerializedState,
-} from './query_builder/nodes/aggregation_node';
-import {
-  ModifyColumnsNode,
-  ModifyColumnsSerializedState,
-} from './query_builder/nodes/modify_columns_node';
-import {
-  IntervalIntersectNode,
-  IntervalIntersectSerializedState,
-} from './query_builder/nodes/interval_intersect_node';
 import {Trace} from '../../public/trace';
 import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
-import {
-  AddColumnsNode,
-  AddColumnsNodeState,
-} from './query_builder/nodes/add_columns_node';
-import {
-  LimitAndOffsetNode,
-  LimitAndOffsetNodeState,
-} from './query_builder/nodes/limit_and_offset_node';
-import {SortNode, SortNodeState} from './query_builder/nodes/sort_node';
-import {FilterNode, FilterNodeState} from './query_builder/nodes/filter_node';
-import {JoinNode, JoinSerializedState} from './query_builder/nodes/join_node';
-import {
-  CreateSlicesNode,
-  CreateSlicesSerializedState,
-} from './query_builder/nodes/create_slices_node';
-import {
-  UnionNode,
-  UnionSerializedState,
-} from './query_builder/nodes/union_node';
-import {
-  FilterDuringNode,
-  FilterDuringNodeState,
-} from './query_builder/nodes/filter_during_node';
-import {
-  CounterToIntervalsNode,
-  CounterToIntervalsNodeState,
-} from './query_builder/nodes/counter_to_intervals_node';
-
-type SerializedNodeState =
-  | TableSourceSerializedState
-  | SlicesSourceSerializedState
-  | SqlSourceSerializedState
-  | TimeRangeSourceSerializedState
-  | AggregationSerializedState
-  | ModifyColumnsSerializedState
-  | IntervalIntersectSerializedState
-  | AddColumnsNodeState
-  | LimitAndOffsetNodeState
-  | SortNodeState
-  | FilterNodeState
-  | JoinSerializedState
-  | CreateSlicesSerializedState
-  | UnionSerializedState
-  | FilterDuringNodeState
-  | CounterToIntervalsNodeState;
+import {nodeRegistry} from './query_builder/node_registry';
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {
   nodeId: string;
   type: NodeType;
-  state: SerializedNodeState; // This will hold the serializable state of the node
+  state: object;
   nextNodes: string[];
   // Input node IDs (for multi-source nodes like Union, Merge, IntervalIntersect)
   inputNodeIds?: string[];
@@ -127,19 +50,12 @@ function serializeNode(node: QueryNode): SerializedNode {
     throw new Error(`Node type ${node.type} is not serializable.`);
   }
 
-  const state = node.serializeState() as SerializedNodeState;
-
-  const serialized: SerializedNode = {
+  return {
     nodeId: node.nodeId,
     type: node.type,
-    state: state,
+    state: node.serializeState(),
     nextNodes: node.nextNodes.map((n: QueryNode) => n.nodeId),
   };
-
-  // Connection information is stored in nextNodes and node-specific serializedState
-  // Each node's serializeState() method handles its own input connections
-
-  return serialized;
 }
 
 interface LabelData {
@@ -275,107 +191,11 @@ function createNodeInstance(
   trace: Trace,
   sqlModules: SqlModules,
 ): QueryNode {
-  const {state} = serializedNode;
-  switch (serializedNode.type) {
-    case NodeType.kTable:
-      return new TableSourceNode(
-        TableSourceNode.deserializeState(
-          trace,
-          sqlModules,
-          state as TableSourceSerializedState,
-        ),
-      );
-    case NodeType.kSimpleSlices:
-      return new SlicesSourceNode({trace, sqlModules});
-    case NodeType.kSqlSource:
-      return new SqlSourceNode({
-        ...(state as SqlSourceSerializedState),
-        trace,
-      });
-    case NodeType.kTimeRangeSource:
-      return new TimeRangeSourceNode(
-        TimeRangeSourceNode.deserializeState(
-          trace,
-          state as TimeRangeSourceSerializedState,
-        ),
-      );
-    case NodeType.kAggregation:
-      return new AggregationNode({
-        ...AggregationNode.deserializeState(
-          state as AggregationSerializedState,
-        ),
-        sqlModules,
-      });
-    case NodeType.kModifyColumns:
-      return new ModifyColumnsNode(
-        ModifyColumnsNode.deserializeState(
-          sqlModules,
-          state as ModifyColumnsSerializedState,
-        ),
-      );
-    case NodeType.kAddColumns:
-      return new AddColumnsNode(
-        AddColumnsNode.deserializeState(
-          sqlModules,
-          state as AddColumnsNodeState,
-        ),
-      );
-    case NodeType.kLimitAndOffset:
-      return new LimitAndOffsetNode({
-        ...LimitAndOffsetNode.deserializeState(
-          state as LimitAndOffsetNodeState,
-        ),
-        sqlModules,
-      });
-    case NodeType.kSort:
-      return new SortNode({
-        ...SortNode.deserializeState(state as SortNodeState),
-        sqlModules,
-      });
-    case NodeType.kFilter:
-      return new FilterNode({
-        ...FilterNode.deserializeState(state as FilterNodeState),
-        sqlModules,
-      });
-    case NodeType.kIntervalIntersect:
-      return new IntervalIntersectNode({
-        ...IntervalIntersectNode.deserializeState(
-          state as IntervalIntersectSerializedState,
-        ),
-        sqlModules,
-      });
-    case NodeType.kJoin:
-      return new JoinNode({
-        ...JoinNode.deserializeState(state as JoinSerializedState),
-        sqlModules,
-      });
-    case NodeType.kCreateSlices:
-      return new CreateSlicesNode({
-        ...CreateSlicesNode.deserializeState(
-          state as CreateSlicesSerializedState,
-        ),
-        sqlModules,
-      });
-    case NodeType.kUnion:
-      return new UnionNode({
-        ...UnionNode.deserializeState(state as UnionSerializedState),
-        sqlModules,
-      });
-    case NodeType.kFilterDuring:
-      return new FilterDuringNode({
-        ...FilterDuringNode.deserializeState(state as FilterDuringNodeState),
-        sqlModules,
-      });
-    case NodeType.kCounterToIntervals:
-      return new CounterToIntervalsNode({
-        ...CounterToIntervalsNode.deserializeState(
-          state as CounterToIntervalsNodeState,
-        ),
-        sqlModules,
-      });
-    default:
-      throw new Error(`Unknown node type: ${serializedNode.type}`);
+  const descriptor = nodeRegistry.getByNodeType(serializedNode.type);
+  if (!descriptor) {
+    throw new Error(`Unknown node type: ${serializedNode.type}`);
   }
+  return descriptor.deserialize(serializedNode.state, trace, sqlModules);
 }
 
 export function deserializeState(
@@ -439,16 +259,26 @@ export function deserializeState(
     });
   }
 
-  // Third pass: set backward connections using serialized state
-  // For single-input operations, we use primaryInputId from state rather than inferring
-  // from nextNodes. This is important for nodes like AddColumnsNode that have both
-  // primaryInput AND secondaryInputs.
+  // Third pass: set backward connections using the node registry
   for (const serializedNode of serializedGraph.nodes) {
-    const node = nodes.get(serializedNode.nodeId)!;
-    const serializedState = serializedNode.state as {primaryInputId?: string};
+    const node = nodes.get(serializedNode.nodeId);
+    if (!node) {
+      throw new Error(
+        `Graph is corrupted. Node "${serializedNode.nodeId}" not found.`,
+      );
+    }
+    const descriptor = nodeRegistry.getByNodeType(serializedNode.type);
+    if (!descriptor) {
+      throw new Error(`Unknown node type: ${serializedNode.type}`);
+    }
 
-    // Set primaryInput for single-input operations using the serialized primaryInputId
-    if (singleNodeOperation(node.type)) {
+    // Restore primary input for nodes that have one
+    const hasPrimary =
+      descriptor.hasPrimaryInput ?? descriptor.type === 'modification';
+    if (hasPrimary) {
+      const serializedState = serializedNode.state as {
+        primaryInputId?: string;
+      };
       if (serializedState.primaryInputId) {
         const inputNode = nodes.get(serializedState.primaryInputId);
         if (inputNode) {
@@ -457,149 +287,22 @@ export function deserializeState(
       }
     }
 
-    // Node-specific connection deserialization for multi-input operations
-    if (serializedNode.type === NodeType.kIntervalIntersect) {
-      const intervalNode = node as IntervalIntersectNode;
-      const serializedState =
-        serializedNode.state as IntervalIntersectSerializedState;
-      const deserializedConnections =
-        IntervalIntersectNode.deserializeConnections(nodes, serializedState);
-      intervalNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < deserializedConnections.inputNodes.length; i++) {
-        intervalNode.secondaryInputs.connections.set(
-          i,
-          deserializedConnections.inputNodes[i],
-        );
-      }
-    }
-    if (serializedNode.type === NodeType.kJoin) {
-      const joinNode = node as JoinNode;
-      const deserializedConnections = JoinNode.deserializeConnections(
-        nodes,
-        serializedNode.state as JoinSerializedState,
-      );
-      if (deserializedConnections.leftNode) {
-        joinNode.secondaryInputs.connections.set(
-          0,
-          deserializedConnections.leftNode,
-        );
-      }
-      if (deserializedConnections.rightNode) {
-        joinNode.secondaryInputs.connections.set(
-          1,
-          deserializedConnections.rightNode,
-        );
-      }
-    }
-    if (serializedNode.type === NodeType.kCreateSlices) {
-      const createSlicesNode = node as CreateSlicesNode;
-      const deserializedConnections = CreateSlicesNode.deserializeConnections(
-        nodes,
-        serializedNode.state as CreateSlicesSerializedState,
-      );
-      if (deserializedConnections.startsNode) {
-        createSlicesNode.secondaryInputs.connections.set(
-          0,
-          deserializedConnections.startsNode,
-        );
-      }
-      if (deserializedConnections.endsNode) {
-        createSlicesNode.secondaryInputs.connections.set(
-          1,
-          deserializedConnections.endsNode,
-        );
-      }
-    }
-    if (serializedNode.type === NodeType.kUnion) {
-      const unionNode = node as UnionNode;
-      const serializedState = serializedNode.state as UnionSerializedState;
-      const deserializedConnections = UnionNode.deserializeConnections(
-        nodes,
-        serializedState,
-      );
-      unionNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < deserializedConnections.inputNodes.length; i++) {
-        unionNode.secondaryInputs.connections.set(
-          i,
-          deserializedConnections.inputNodes[i],
-        );
-      }
-    }
-    if (serializedNode.type === NodeType.kAddColumns) {
-      const addColumnsNode = node as AddColumnsNode;
-      const serializedState = serializedNode.state as {
-        secondaryInputNodeId?: string;
-      };
-      if (serializedState.secondaryInputNodeId) {
-        const secondaryInputNode = nodes.get(
-          serializedState.secondaryInputNodeId,
-        );
-        if (secondaryInputNode) {
-          addColumnsNode.secondaryInputs.connections.set(0, secondaryInputNode);
-        }
-      }
-    }
-    if (serializedNode.type === NodeType.kFilterDuring) {
-      const filterDuringNode = node as FilterDuringNode;
-      const serializedState = serializedNode.state as {
-        secondaryInputNodeIds?: string[];
-      };
-      const deserializedConnections = FilterDuringNode.deserializeConnections(
-        nodes,
-        serializedState,
-      );
-      filterDuringNode.secondaryInputs.connections.clear();
-      for (
-        let i = 0;
-        i < deserializedConnections.secondaryInputNodes.length;
-        i++
-      ) {
-        filterDuringNode.secondaryInputs.connections.set(
-          i,
-          deserializedConnections.secondaryInputNodes[i],
-        );
-      }
-    }
-    if (serializedNode.type === NodeType.kSqlSource) {
-      const sqlSourceNode = node as SqlSourceNode;
-      const serializedState = serializedNode.state as SqlSourceSerializedState;
-      const deserializedConnections = SqlSourceNode.deserializeConnections(
-        nodes,
-        serializedState,
-      );
-      sqlSourceNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < deserializedConnections.inputNodes.length; i++) {
-        sqlSourceNode.secondaryInputs.connections.set(
-          i,
-          deserializedConnections.inputNodes[i],
-        );
-      }
-    }
+    // Node-specific connection deserialization
+    descriptor.deserializeConnections?.(node, serializedNode.state, nodes);
   }
 
-  // Third pass: resolve columns
-  for (const node of nodes.values()) {
-    if (node.type === NodeType.kAggregation) {
-      (node as AggregationNode).resolveColumns();
-    }
-    if (node.type === NodeType.kModifyColumns) {
-      (node as ModifyColumnsNode).resolveColumns();
-    }
+  // Fourth pass: post-deserialization (resolve internal references, then
+  // update derived state). Two phases ensure that all nodes are resolved
+  // before any derived state is computed.
+  const descriptors = [...nodes.values()].map((node) => ({
+    node,
+    descriptor: nodeRegistry.getByNodeType(node.type),
+  }));
+  for (const {node, descriptor} of descriptors) {
+    descriptor?.postDeserialize?.(node);
   }
-
-  // Fourth pass: call onPrevNodesUpdated on specific node types that need it
-  // JoinNode needs special handling because:
-  // 1. Its constructor calls updateColumnArrays() which needs connected nodes
-  // 2. During deserialization, connections don't exist yet (restored above in third pass)
-  // 3. So updateColumnArrays() runs with no connections, creating empty arrays
-  // 4. We need to call it again now that connections are restored
-  // We DON'T call this on all nodes because some nodes (like AddColumnsNode) have
-  // onPrevNodesUpdated() implementations that can reset/modify state inappropriately
-  // during deserialization (e.g., clearing selectedColumns).
-  for (const node of nodes.values()) {
-    if (node.type === NodeType.kJoin) {
-      (node as JoinNode).onPrevNodesUpdated();
-    }
+  for (const {node, descriptor} of descriptors) {
+    descriptor?.postDeserializeLate?.(node);
   }
 
   const rootNodes = serializedGraph.rootNodeIds.map((id) => {

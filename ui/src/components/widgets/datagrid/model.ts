@@ -14,54 +14,10 @@
 
 import {SqlValue} from '../../../trace_processor/query_result';
 
-/**
- * A Set-like collection for storing paths of SqlValue arrays.
- * Uses string serialization internally for efficient lookup while preserving
- * the original SqlValue types for SQL generation.
- */
-export class PathSet implements Iterable<readonly SqlValue[]> {
-  private readonly map = new Map<string, readonly SqlValue[]>();
-
-  constructor(paths?: Iterable<readonly SqlValue[]>) {
-    if (paths) {
-      for (const path of paths) {
-        this.add(path);
-      }
-    }
-  }
-
-  private static toKey(path: readonly SqlValue[]): string {
-    return path.map((v) => String(v)).join('\x00');
-  }
-
-  add(path: readonly SqlValue[]): this {
-    this.map.set(PathSet.toKey(path), path);
-    return this;
-  }
-
-  has(path: readonly SqlValue[]): boolean {
-    return this.map.has(PathSet.toKey(path));
-  }
-
-  delete(path: readonly SqlValue[]): boolean {
-    return this.map.delete(PathSet.toKey(path));
-  }
-
-  get size(): number {
-    return this.map.size;
-  }
-
-  [Symbol.iterator](): Iterator<readonly SqlValue[]> {
-    return this.map.values();
-  }
-
-  values(): IterableIterator<readonly SqlValue[]> {
-    return this.map.values();
-  }
-}
-
 export type AggregateFunction = 'ANY' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
 export type SortDirection = 'ASC' | 'DESC';
+export type GroupDisplay = 'flat' | 'tree';
+export const DEFAULT_GROUP_DISPLAY: GroupDisplay = 'flat';
 
 interface ColumnBase {
   // Unique identifier for this column. Allows multiple columns with the same
@@ -108,46 +64,72 @@ export interface GroupByColumn extends ColumnBase {
   readonly field: string;
 }
 
-// Base pivot configuration without expansion state
-interface PivotBase {
+// A path in the pivot tree, represented as an array of group column values.
+// For a tree with groupBy [category, name]:
+// - Root path: []
+// - Category "Foo": ["Foo"]
+// - Category "Foo", Name "Bar": ["Foo", "Bar"]
+// Paths are stable across configuration changes (unlike internal IDs).
+export type GroupPath = readonly SqlValue[];
+
+// Value-based expansion mode: Uses group column values as stable identifiers.
+//
+// Two mutually exclusive modes:
+// 1. Allowlist (expandedGroups): Only specified paths are expanded.
+//    Empty array = only root children visible (all collapsed).
+// 2. Denylist (collapsedGroups): All nodes expanded EXCEPT those specified.
+//    Empty array = all nodes expanded.
+//
+// If both are set, collapsedGroups takes precedence.
+export interface Pivot {
   // List of fields to group by
   readonly groupBy: readonly GroupByColumn[];
 
   // List of aggregate column definitions.
-  readonly aggregates?: readonly AggregateColumn[];
+  readonly aggregates: readonly AggregateColumn[];
 
   // When set, shows raw rows filtered by these groupBy column values.
   // This allows drilling down into a specific pivot group to see the
   // underlying data. The keys are the groupBy column names.
   readonly drillDown?: readonly {field: string; value: SqlValue}[];
 
-  // When true, shows leaf-level rows only (no rollup/summary rows).
-  // This displays the data in a flat table format without hierarchical grouping.
-  readonly collapsibleGroups?: boolean;
+  // How to display grouped data: 'flat' shows leaf rows only, 'tree' shows
+  // hierarchical structure with expand/collapse.
+  readonly groupDisplay?: GroupDisplay;
+
+  // Allowlist mode: only these group paths are expanded
+  readonly expandedGroups?: readonly GroupPath[];
+  // Denylist mode: all nodes expanded except these group paths
+  readonly collapsedGroups?: readonly GroupPath[];
 }
 
-// Group expansion state for multi-level pivots.
-// Each path is an array of groupBy values from level 0 to the expanded level.
-// For example, with groupBy: [{field: 'process'}, {field: 'thread'}]:
-// - ['processA'] means processA is expanded/collapsed (affecting its threads)
-
-// Whitelist mode: Only groups in expandedGroups are expanded.
-// Empty PathSet = all groups collapsed (default when entering multi-level)
-export interface PivotWithExpandedGroups extends PivotBase {
-  readonly expandedGroups?: PathSet;
+// ID-based tree configuration for displaying hierarchical data using
+// id/parent_id columns. Uses recursive CTE for efficient tree traversal with
+// sorting. Unlike path-based pivot tree, this expects the data to have explicit
+// id and parent_id columns.
+//
+// Expansion modes (mutually exclusive):
+// 1. Allowlist (expandedIds): Only specified node IDs are expanded. Empty set =
+//    only root nodes visible (all collapsed).
+// 2. Denylist (collapsedIds): All nodes expanded EXCEPT those specified. Empty
+//    set = all nodes expanded.
+// 3. Neither set: Default to showing only root level (collapsed by default).
+//
+// If both are set, collapsedIds takes precedence (denylist mode).
+export interface IdBasedTree {
+  // The field in the datasouce containing the row's unique ID
+  readonly idField: string;
+  // The field in the datasouce containing the parent row's ID (NULL for root
+  // nodes)
+  readonly parentIdField: string;
+  // Column to display as the tree (shows chevrons and indentation)
+  // If not specified, the first visible column is used
+  readonly treeColumn?: string;
+  // Allowlist mode: only these node IDs are expanded
+  readonly expandedIds?: ReadonlySet<bigint>;
+  // Denylist mode: all nodes expanded except these IDs
+  readonly collapsedIds?: ReadonlySet<bigint>;
 }
-
-// Blacklist mode: All groups expanded EXCEPT those in collapsedGroups.
-// Empty PathSet = all groups expanded (used by "Expand All")
-export interface PivotWithCollapsedGroups extends PivotBase {
-  readonly collapsedGroups?: PathSet;
-}
-
-export type Pivot =
-  | PivotWithExpandedGroups
-  | PivotWithCollapsedGroups
-  | PivotBase;
-
 export interface Model {
   readonly columns: readonly Column[];
   readonly filters: readonly Filter[];
@@ -156,4 +138,10 @@ export interface Model {
   // Filters are treated as pre-aggregate filters.
   // TODO(stevegolton): Add post-aggregate (HAVING) filters.
   readonly pivot?: Pivot;
+
+  // ID-based tree mode for displaying hierarchical data with id/parent_id columns.
+  // Uses recursive CTE for tree traversal with proper sorting within siblings.
+  // Supports expand/collapse and renders chevrons on the tree column.
+  // Mutually exclusive with pivot mode.
+  readonly tree?: IdBasedTree;
 }

@@ -22,27 +22,11 @@ function mkSpan(start: bigint, end: bigint) {
 }
 
 describe('BufferedBounds', () => {
-  it('returns needsUpdate=true on first call with no data', () => {
-    const bounds = new BufferedBounds();
-    const result = bounds.update(mkSpan(100n, 200n), 1n, false);
-
-    expect(result.needsUpdate).toBe(true);
-  });
-
-  it('returns needsUpdate=true on first call even with hasData=true', () => {
-    // hasData=true but bounds haven't been set yet, so visible window
-    // exceeds loaded bounds (which are 0-0)
-    const bounds = new BufferedBounds();
-    const result = bounds.update(mkSpan(100n, 200n), 1n, true);
-
-    expect(result.needsUpdate).toBe(true);
-  });
-
   it('pads bounds by visible duration on each side (3x total)', () => {
     const bounds = new BufferedBounds();
     // Visible span: 100-200, duration=100
     // Padded: 0-300 (100-100, 200+100)
-    const result = bounds.update(mkSpan(100n, 200n), 1n, false);
+    const result = bounds.update(mkSpan(100n, 200n), 1n);
 
     expect(result.start).toBe(t(0n));
     expect(result.end).toBe(t(300n));
@@ -53,69 +37,65 @@ describe('BufferedBounds', () => {
     // Visible span: 105-195, duration=90
     // Padded: 15-285
     // Quantized with resolution=10: floor(15/10)*10=10, ceil(285/10)*10=290
-    const result = bounds.update(mkSpan(105n, 195n), 10n, false);
+    const result = bounds.update(mkSpan(105n, 195n), 10n);
 
     expect(result.start).toBe(t(10n));
     expect(result.end).toBe(t(290n));
   });
 
-  it('returns needsUpdate=false when visible window is within loaded bounds', () => {
+  it('does not change bounds when visible window is within loaded bounds', () => {
     const bounds = new BufferedBounds();
 
-    // First update sets bounds
-    bounds.update(mkSpan(100n, 200n), 1n, false);
+    // First update sets bounds: visible 100-200 -> padded 0-300
+    bounds.update(mkSpan(100n, 200n), 1n);
 
-    // Second update within bounds (original was 100-200, padded to 0-300)
-    const result = bounds.update(mkSpan(50n, 250n), 1n, true);
+    // Second update within bounds
+    const result = bounds.update(mkSpan(50n, 250n), 1n);
 
-    expect(result.needsUpdate).toBe(false);
     // Bounds should remain unchanged
     expect(result.start).toBe(t(0n));
     expect(result.end).toBe(t(300n));
   });
 
-  it('returns needsUpdate=true when visible window exceeds loaded start', () => {
+  it('recalculates bounds when visible window exceeds loaded start', () => {
     const bounds = new BufferedBounds();
 
     // First update: visible 100-200 -> padded 0-300
-    bounds.update(mkSpan(100n, 200n), 1n, false);
+    bounds.update(mkSpan(100n, 200n), 1n);
 
     // Pan left beyond loaded bounds
-    const result = bounds.update(mkSpan(-50n, 50n), 1n, true);
+    const result = bounds.update(mkSpan(-50n, 50n), 1n);
 
-    expect(result.needsUpdate).toBe(true);
     // Should recalculate: visible -50 to 50, duration=100
     // Padded: -150 to 150
     expect(result.start).toBe(t(-150n));
     expect(result.end).toBe(t(150n));
   });
 
-  it('returns needsUpdate=true when visible window exceeds loaded end', () => {
+  it('recalculates bounds when visible window exceeds loaded end', () => {
     const bounds = new BufferedBounds();
 
     // First update: visible 100-200 -> padded 0-300
-    bounds.update(mkSpan(100n, 200n), 1n, false);
+    bounds.update(mkSpan(100n, 200n), 1n);
 
     // Pan right beyond loaded bounds
-    const result = bounds.update(mkSpan(250n, 350n), 1n, true);
+    const result = bounds.update(mkSpan(250n, 350n), 1n);
 
-    expect(result.needsUpdate).toBe(true);
     // Should recalculate: visible 250-350, duration=100
     // Padded: 150-450
     expect(result.start).toBe(t(150n));
     expect(result.end).toBe(t(450n));
   });
 
-  it('returns needsUpdate=true when resolution changes', () => {
+  it('recalculates bounds when resolution changes', () => {
     const bounds = new BufferedBounds();
 
     // First update with resolution 1
-    bounds.update(mkSpan(100n, 200n), 1n, false);
+    bounds.update(mkSpan(100n, 200n), 1n);
 
     // Same visible window but different resolution
-    const result = bounds.update(mkSpan(100n, 200n), 10n, true);
+    const result = bounds.update(mkSpan(100n, 200n), 10n);
 
-    expect(result.needsUpdate).toBe(true);
     expect(result.resolution).toBe(10n);
     // Bounds recalculated and quantized to new resolution
     expect(result.start).toBe(t(0n));
@@ -125,19 +105,22 @@ describe('BufferedBounds', () => {
   it('reset() forces refetch on next update', () => {
     const bounds = new BufferedBounds();
 
-    // First update
-    bounds.update(mkSpan(100n, 200n), 1n, false);
+    // First update: visible 100-200 -> padded 0-300
+    bounds.update(mkSpan(100n, 200n), 1n);
 
-    // Verify within bounds
-    let result = bounds.update(mkSpan(100n, 200n), 1n, true);
-    expect(result.needsUpdate).toBe(false);
+    // Verify within bounds - should not change
+    let result = bounds.update(mkSpan(100n, 200n), 1n);
+    expect(result.start).toBe(t(0n));
+    expect(result.end).toBe(t(300n));
 
     // Reset
     bounds.reset();
 
-    // Same call should now need update
-    result = bounds.update(mkSpan(100n, 200n), 1n, true);
-    expect(result.needsUpdate).toBe(true);
+    // Same call should recalculate bounds
+    result = bounds.update(mkSpan(100n, 200n), 1n);
+    // Bounds recalculated fresh
+    expect(result.start).toBe(t(0n));
+    expect(result.end).toBe(t(300n));
   });
 
   it('bounds getter returns current values without updating', () => {
@@ -149,7 +132,7 @@ describe('BufferedBounds', () => {
     expect(bounds.bounds.resolution).toBe(0n);
 
     // Update
-    bounds.update(mkSpan(100n, 200n), 5n, false);
+    bounds.update(mkSpan(100n, 200n), 5n);
 
     // Getter should return updated values
     expect(bounds.bounds.start).toBe(t(0n));
@@ -166,27 +149,15 @@ describe('BufferedBounds', () => {
     const bounds = new BufferedBounds();
 
     // Start with narrow view
-    bounds.update(mkSpan(100n, 110n), 1n, false);
+    bounds.update(mkSpan(100n, 110n), 1n);
 
     // Zoom out significantly
-    const result = bounds.update(mkSpan(0n, 1000n), 10n, true);
+    const result = bounds.update(mkSpan(0n, 1000n), 10n);
 
-    expect(result.needsUpdate).toBe(true);
     // Visible: 0-1000, duration=1000
     // Padded: -1000 to 2000
     // Quantized to 10: -1000 to 2000
     expect(result.start).toBe(t(-1000n));
     expect(result.end).toBe(t(2000n));
-  });
-
-  it('handles hasData=false forcing update even within bounds', () => {
-    const bounds = new BufferedBounds();
-
-    // First update
-    bounds.update(mkSpan(100n, 200n), 1n, false);
-
-    // Same call with hasData=false should force update
-    const result = bounds.update(mkSpan(100n, 200n), 1n, false);
-    expect(result.needsUpdate).toBe(true);
   });
 });
