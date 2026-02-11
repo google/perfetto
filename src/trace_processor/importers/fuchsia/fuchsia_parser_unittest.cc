@@ -118,8 +118,10 @@ class MockProcessTracker : public ProcessTracker {
 
   MOCK_METHOD(UniquePid, GetOrCreateProcess, (int64_t pid), (override));
   MOCK_METHOD(void,
-              SetProcessNameIfUnset,
-              (UniquePid upid, StringId process_name_id),
+              UpdateProcessName,
+              (UniquePid upid,
+               StringId process_name_id,
+               ProcessNamePriority priority),
               (override));
 };
 class MockBoundInserter : public ArgsTracker::BoundInserter {

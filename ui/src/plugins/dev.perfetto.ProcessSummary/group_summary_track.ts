@@ -638,8 +638,6 @@ export class GroupSummaryTrack implements TrackRenderer {
         colors: renderColors,
         patterns: data.patterns,
         count,
-        minWidth: 1,
-        screenEnd: size.width,
       },
       {offsetX: baseOffsetPx, offsetY: 0, scaleX: pxPerNs, scaleY: 1},
     );
