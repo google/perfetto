@@ -115,8 +115,16 @@ std::optional<int> VersionStringToSdkVersion(const std::string& version) {
   return std::nullopt;
 }
 
-std::optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
-  // Try to parse the SDK version from the fingerprint.
+struct FingerprintParts {
+  std::optional<int> version;
+  std::string incremental;
+};
+
+std::optional<FingerprintParts> ParseAndroidFingerprint(
+    const std::string& fingerprint) {
+  // According to Android CDD, the format is:
+  // $(BRAND)/$(PRODUCT)/$(DEVICE):$(VERSION.RELEASE)/$(ID)/$(VERSION.INCREMENTAL):$(TYPE)/$(TAGS)
+  //
   // Examples of fingerprints:
   // google/shamu/shamu:7.0/NBD92F/3753956:userdebug/dev-keys
   // google/coral/coral:12/SP1A.210812.015/7679548:userdebug/dev-keys
@@ -124,12 +132,26 @@ std::optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
   if (colon == std::string::npos)
     return std::nullopt;
 
-  size_t slash = fingerprint.find('/', colon);
-  if (slash == std::string::npos)
+  size_t release_slash = fingerprint.find('/', colon);
+  if (release_slash == std::string::npos)
     return std::nullopt;
 
-  std::string version = fingerprint.substr(colon + 1, slash - (colon + 1));
-  return VersionStringToSdkVersion(version);
+  std::string version_str =
+      fingerprint.substr(colon + 1, release_slash - (colon + 1));
+
+  size_t id_slash = fingerprint.find('/', release_slash + 1);
+  if (id_slash == std::string::npos)
+    return std::nullopt;
+
+  size_t incremental_colon = fingerprint.find(':', id_slash);
+  if (incremental_colon == std::string::npos)
+    return std::nullopt;
+
+  std::string incremental =
+      fingerprint.substr(id_slash + 1, incremental_colon - (id_slash + 1));
+
+  return FingerprintParts{VersionStringToSdkVersion(version_str),
+                          std::move(incremental)};
 }
 
 struct ArmCpuIdentifier {
@@ -695,7 +717,7 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     // note: early kernel threads can have an age of zero (at tick resolution)
     if (proc.has_process_start_from_boot()) {
       std::optional<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
-          protos::pbzero::BUILTIN_CLOCK_BOOTTIME,
+          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
           static_cast<int64_t>(proc.process_start_from_boot()));
       if (start_ts) {
         context_->process_tracker->SetStartTsIfUnset(upid, *start_ts);
@@ -908,6 +930,7 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
                                                  kNanosInMinute);
   }
 
+  std::optional<FingerprintParts> fingerprint_parts;
   if (packet.has_android_build_fingerprint()) {
     auto android_build_fingerprint =
         context_->storage->InternString(packet.android_build_fingerprint());
@@ -915,6 +938,15 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
         metadata::android_build_fingerprint,
         Variadic::String(android_build_fingerprint));
     machine_tracker->SetAndroidBuildFingerprint(android_build_fingerprint);
+
+    fingerprint_parts = ParseAndroidFingerprint(
+        packet.android_build_fingerprint().ToStdString());
+    if (fingerprint_parts.has_value()) {
+      context_->metadata_tracker->SetMetadata(
+          metadata::android_incremental_build,
+          Variadic::String(context_->storage->InternString(
+              fingerprint_parts.value().incremental)));
+    }
   }
 
   if (packet.has_android_device_manufacturer()) {
@@ -931,9 +963,9 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   std::optional<int64_t> opt_sdk_version;
   if (packet.has_android_sdk_version()) {
     opt_sdk_version = static_cast<int64_t>(packet.android_sdk_version());
-  } else if (packet.has_android_build_fingerprint()) {
-    opt_sdk_version = FingerprintToSdkVersion(
-        packet.android_build_fingerprint().ToStdString());
+  } else if (fingerprint_parts.has_value() &&
+             fingerprint_parts.value().version.has_value()) {
+    opt_sdk_version = fingerprint_parts.value().version.value();
   }
 
   if (opt_sdk_version) {

@@ -120,7 +120,8 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
 
 // This is called after the last Parse() call. At this point all |jobs_| have
 // been populated.
-base::Status NinjaLogParser::NotifyEndOfFile() {
+base::Status NinjaLogParser::OnPushDataToSorter() {
+  // Phase 1: Sort jobs and write slices directly to storage
   std::sort(jobs_.begin(), jobs_.end(),
             [](const Job& x, const Job& y) { return x.start_ms < y.start_ms; });
 
@@ -161,9 +162,9 @@ base::Status NinjaLogParser::NotifyEndOfFile() {
 
       // All workers are busy, allocate a new one.
       uint32_t worker_id = static_cast<uint32_t>(workers.size()) + 1;
-      ctx_->process_tracker->SetProcessNameIfUnset(
+      ctx_->process_tracker->UpdateProcessName(
           ctx_->process_tracker->GetOrCreateProcess(kSyntheticNinjaPid),
-          ctx_->storage->InternString("Build"));
+          ctx_->storage->InternString("Build"), ProcessNamePriority::kOther);
       auto utid =
           ctx_->process_tracker->UpdateThread(worker_id, kSyntheticNinjaPid);
 

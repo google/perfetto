@@ -14,6 +14,7 @@
 
 import {defer} from './deferred';
 import {Time} from './time';
+import {sha1, digestToHex} from './hash';
 
 export const BUCKET_NAME = 'perfetto-ui-data';
 export const MIME_JSON = 'application/json; charset=utf-8';
@@ -157,21 +158,6 @@ export class GcsUploader {
 }
 
 /**
- * Computes the SHA-1 of a string or ArrayBuffer(View)
- * @param data a string or ArrayBuffer to hash.
- */
-async function sha1(data: string | ArrayBuffer): Promise<string> {
-  let buffer: ArrayBuffer;
-  if (typeof data === 'string') {
-    buffer = new TextEncoder().encode(data);
-  } else {
-    buffer = data;
-  }
-  const digest = await crypto.subtle.digest('SHA-1', buffer);
-  return digestToHex(digest);
-}
-
-/**
  * Converts a hash for the given file in streaming mode, without loading the
  * whole file into memory. The result is "a" SHA-1 but is not the same of
  * `shasum -a 1 file`. The reason for this is that the crypto APIs support
@@ -195,15 +181,4 @@ async function hashFileStreaming(file: Blob): Promise<string> {
     chunkDigests += digestToHex(digest);
   }
   return sha1(chunkDigests);
-}
-
-/**
- * Converts the return value of crypto.digest() to a hex string.
- * @param digest an array of bytes containing the digest
- * @returns hex-encoded string of the digest.
- */
-function digestToHex(digest: ArrayBuffer): string {
-  return Array.from(new Uint8Array(digest))
-    .map((x) => x.toString(16).padStart(2, '0'))
-    .join('');
 }

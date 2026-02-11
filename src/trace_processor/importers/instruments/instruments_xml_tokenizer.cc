@@ -16,9 +16,6 @@
 
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 
-#include "perfetto/ext/base/murmur_hash.h"
-#include "src/trace_processor/importers/instruments/row_parser.h"
-
 #include <expat.h>
 #include <algorithm>
 #include <cctype>
@@ -38,6 +35,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
@@ -47,6 +45,7 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/instruments/row_data_tracker.h"
+#include "src/trace_processor/importers/instruments/row_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
@@ -150,25 +149,39 @@ class InstrumentsXmlTokenizer::Impl {
  public:
   explicit Impl(TraceProcessorContext* context)
       : context_(context),
-        parser_(XML_ParserCreate(nullptr)),
+        parser_(nullptr),
+        has_data_(false),
         stream_(context->sorter->CreateStream(
             std::make_unique<RowParser>(context, data_))) {
-    XML_SetElementHandler(parser_, ElementStart, ElementEnd);
-    XML_SetCharacterDataHandler(parser_, CharacterData);
-    XML_SetUserData(parser_, this);
-
     static constexpr std::string_view kSubsystem =
         "dev.perfetto.instruments_clock";
-    clock_ = static_cast<ClockTracker::ClockId>(
-        base::MurmurHashValue(kSubsystem) | 0x80000000);
+    clock_ = ClockTracker::ClockId(
+        static_cast<uint32_t>(base::MurmurHashValue(kSubsystem) | 0x80000000),
+        0, context->trace_id().value);
 
     // Use the above clock if we can, in case there is no other trace and
     // no clock sync events.
     context_->clock_tracker->SetTraceTimeClock(clock_);
   }
-  ~Impl() { XML_ParserFree(parser_); }
+  ~Impl() {
+    if (parser_) {
+      XML_ParserFree(parser_);
+    }
+  }
 
   base::Status Parse(TraceBlobView view) {
+    // Create parser on first call
+    if (!parser_) {
+      parser_ = XML_ParserCreate(nullptr);
+      if (!parser_) {
+        return base::ErrStatus("Failed to create XML parser");
+      }
+      XML_SetElementHandler(parser_, ElementStart, ElementEnd);
+      XML_SetCharacterDataHandler(parser_, CharacterData);
+      XML_SetUserData(parser_, this);
+    }
+
+    has_data_ = true;
     const char* data = reinterpret_cast<const char*>(view.data());
     size_t length = view.length();
     while (length > 0) {
@@ -206,11 +219,23 @@ class InstrumentsXmlTokenizer::Impl {
   }
 
   base::Status End() {
+    // Idempotency: if no data or parser already freed, we've already ended
+    if (!has_data_ || !parser_) {
+      return base::OkStatus();
+    }
+
     if (!XML_Parse(parser_, nullptr, 0, true)) {
       return base::ErrStatus("XML parse error at end, line %lu: %s\n",
                              XML_GetCurrentLineNumber(parser_),
                              XML_ErrorString(XML_GetErrorCode(parser_)));
     }
+
+    // Consume the parser and clear data flag so subsequent calls have nothing
+    // to do
+    XML_ParserFree(parser_);
+    parser_ = nullptr;
+    has_data_ = false;
+
     return base::OkStatus();
   }
 
@@ -392,7 +417,8 @@ class InstrumentsXmlTokenizer::Impl {
             latest_clock_sync_timestamp_ = clock_sync_timestamp;
             auto status = context_->clock_tracker->AddSnapshot(
                 {{clock_, current_row_.timestamp_},
-                 {protos::pbzero::ClockSnapshot::Clock::BOOTTIME,
+                 {ClockTracker::ClockId(
+                      protos::pbzero::ClockSnapshot::Clock::BOOTTIME),
                   static_cast<int64_t>(latest_clock_sync_timestamp_)}});
             if (!status.ok()) {
               PERFETTO_FATAL("Error adding clock snapshot: %s",
@@ -498,6 +524,7 @@ class InstrumentsXmlTokenizer::Impl {
   RowDataTracker data_;
 
   XML_Parser parser_;
+  bool has_data_;
   std::vector<std::string> tag_stack_;
   int64_t latest_timestamp_;
 
@@ -545,7 +572,8 @@ base::Status InstrumentsXmlTokenizer::Parse(TraceBlobView view) {
   return impl_->Parse(std::move(view));
 }
 
-[[nodiscard]] base::Status InstrumentsXmlTokenizer::NotifyEndOfFile() {
+[[nodiscard]] base::Status InstrumentsXmlTokenizer::OnPushDataToSorter() {
+  // Phase 1: Finalize XML parsing
   return impl_->End();
 }
 

@@ -40,7 +40,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/all_tables_fwd.h"
 #include "src/trace_processor/types/destructible.h"
@@ -96,6 +96,8 @@ using TrackEventCallstacksId = tables::TrackEventCallstacksTable_Id;
 
 static const TrackId kInvalidTrackId =
     TrackId(std::numeric_limits<uint32_t>::max());
+
+static constexpr uint32_t kDefaultMachineId = 0;
 
 // Stores a data inside a trace file in a columnar form. This makes it efficient
 // to read or search across a single field of the trace (e.g. all the thread
@@ -316,12 +318,6 @@ class TraceStorage {
   // Virtual for testing.
   virtual NullTermStringView GetString(std::optional<StringId> id) const {
     return id ? string_pool_.Get(*id) : NullTermStringView();
-  }
-
-  // Requests the removal of unused capacity.
-  // Matches the semantics of std::vector::shrink_to_fit.
-  void ShrinkToFitTables() {
-    // TODO(lalitm): remove.
   }
 
   const tables::ThreadTable& thread_table() const {
@@ -635,6 +631,13 @@ class TraceStorage {
   }
   tables::PerfSampleTable* mutable_perf_sample_table() {
     return mutable_table<tables::PerfSampleTable>();
+  }
+
+  const tables::PerfCounterSetTable& perf_counter_set_table() const {
+    return table<tables::PerfCounterSetTable>();
+  }
+  tables::PerfCounterSetTable* mutable_perf_counter_set_table() {
+    return mutable_table<tables::PerfCounterSetTable>();
   }
 
   const tables::InstrumentsSampleTable& instruments_sample_table() const {

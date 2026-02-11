@@ -5921,4 +5921,420 @@ TEST(StructuredQueryGeneratorTest, ExperimentalCounterIntervalsMissingInput) {
               testing::HasSubstr("must specify an input_query"));
 }
 
+// Test that inner_query_id correctly references a shared query.
+// The generator tracks shared queries in referenced_queries() and generates
+// SQL that references the shared query's table name.
+TEST(StructuredQueryGeneratorTest, InnerQueryIdReferencesSharedQuery) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 1.0 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query via inner_query_id
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify the generated SQL references the shared query's table name
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_shared_query"));
+
+  // Verify the shared query is tracked in referenced_queries
+  auto refs = gen.referenced_queries();
+  ASSERT_EQ(refs.size(), 1u);
+  EXPECT_EQ(refs[0].id, "shared_query");
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("SELECT 1.0 as value"));
+}
+
+// Test that inner_query_id works with group_by operations on the shared query.
+TEST(StructuredQueryGeneratorTest, InnerQueryIdWithGroupBy) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query with group_by
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 'cat1' as category, 1.0 as value"
+      column_names: "category"
+      column_names: "value"
+    }
+    group_by {
+      column_names: "category"
+      aggregates {
+        column_name: "value"
+        op: SUM
+        result_column_name: "total_value"
+      }
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify the generated SQL references the shared query
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_shared_query"));
+
+  // Verify the shared query's SQL includes the group by and aggregation
+  auto refs = gen.referenced_queries();
+  ASSERT_EQ(refs.size(), 1u);
+  EXPECT_EQ(refs[0].id, "shared_query");
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("GROUP BY"));
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("SUM"));
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("total_value"));
+}
+
+// Test that inner_query_id works with a table source in the shared query.
+TEST(StructuredQueryGeneratorTest, InnerQueryIdWithTableSource) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query that uses a table source
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    table {
+      table_name: "slice"
+      column_names: "id"
+      column_names: "name"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Verify the generated SQL references the shared query
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_shared_query"));
+
+  // Verify the shared query's SQL references the slice table
+  auto refs = gen.referenced_queries();
+  ASSERT_EQ(refs.size(), 1u);
+  EXPECT_EQ(refs[0].id, "shared_query");
+  EXPECT_THAT(refs[0].sql, testing::HasSubstr("slice"));
+}
+
+// Test that inline_shared_queries option inlines shared queries as CTEs.
+// When inline_shared_queries=true, the shared query should be included
+// directly in the generated SQL as a CTE, not tracked in referenced_queries().
+TEST(StructuredQueryGeneratorTest, InlineSharedQueriesOption) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 42 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  // Generate with inline_shared_queries=true
+  auto ret = gen.Generate(main_proto.data(), main_proto.size(),
+                          /*inline_shared_queries=*/true);
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // The shared query should be inlined as a CTE in the SQL
+  EXPECT_THAT(res, testing::HasSubstr("shared_sq_shared_query AS ("));
+  EXPECT_THAT(res, testing::HasSubstr("SELECT 42 as value"));
+
+  // With inline_shared_queries=true, referenced_queries should be empty
+  // because the shared queries are inlined directly into the SQL.
+  auto refs = gen.referenced_queries();
+  EXPECT_EQ(refs.size(), 0u);
+}
+
+// Test that inline_shared_queries=false (default) keeps the old behavior.
+TEST(StructuredQueryGeneratorTest, InlineSharedQueriesDefaultBehavior) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query
+  auto shared_proto = ToProto(R"(
+    id: "shared_query"
+    sql {
+      sql: "SELECT 42 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(shared_proto.data(), shared_proto.size()));
+
+  // Create a query that references the shared query
+  auto main_proto = ToProto(R"(
+    inner_query_id: "shared_query"
+  )");
+
+  // Generate with default options (inline_shared_queries=false)
+  auto ret = gen.Generate(main_proto.data(), main_proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // The shared query should be referenced but NOT inlined as a CTE
+  EXPECT_THAT(res, testing::HasSubstr("FROM shared_sq_shared_query"));
+
+  // The shared query should be tracked in referenced_queries
+  auto refs = gen.referenced_queries();
+  ASSERT_EQ(refs.size(), 1u);
+  EXPECT_EQ(refs[0].id, "shared_query");
+}
+
+// Test that when the same shared query is referenced multiple times with
+// inline_shared_queries=true, only one CTE is created (no duplicates with
+// collision suffixes like "shared_sq_X_1").
+TEST(StructuredQueryGeneratorTest, InlineSharedQueriesNoDuplicateCTEs) {
+  StructuredQueryGenerator gen;
+
+  // Register a shared query "base_data"
+  auto base_proto = ToProto(R"(
+    id: "base_data"
+    sql {
+      sql: "SELECT 1 as value"
+      column_names: "value"
+    }
+  )");
+  ASSERT_OK(gen.AddQuery(base_proto.data(), base_proto.size()));
+
+  // Create a union query where BOTH branches reference the same shared query.
+  // This creates a scenario where base_data is encountered twice during
+  // generation - once for each branch of the union.
+  auto main_proto = ToProto(R"(
+    experimental_union {
+      queries {
+        inner_query_id: "base_data"
+        filters {
+          column_name: "value"
+          op: GREATER_THAN
+          int64_rhs: 0
+        }
+      }
+      queries {
+        inner_query_id: "base_data"
+        filters {
+          column_name: "value"
+          op: LESS_THAN
+          int64_rhs: 100
+        }
+      }
+      use_union_all: true
+    }
+  )");
+
+  // Generate with inline_shared_queries=true
+  auto ret = gen.Generate(main_proto.data(), main_proto.size(),
+                          /*inline_shared_queries=*/true);
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+
+  // Count occurrences of "shared_sq_base_data" in CTE definitions.
+  // There should be exactly 1 CTE for the shared query, not duplicates.
+  size_t count = 0;
+  size_t pos = 0;
+  // Match "shared_sq_base_data AS" or "shared_sq_base_data_N AS" patterns
+  while ((pos = res.find("shared_sq_base_data", pos)) != std::string::npos) {
+    // Check if this is a CTE definition (followed by " AS" or "_N AS")
+    size_t end_pos = pos + strlen("shared_sq_base_data");
+    // Skip any suffix like "_0", "_1", etc.
+    while (end_pos < res.size() &&
+           (res[end_pos] == '_' || std::isdigit(res[end_pos]))) {
+      end_pos++;
+    }
+    // Check if followed by " AS"
+    if (res.substr(end_pos, 4) == " AS ") {
+      count++;
+    }
+    pos = end_pos;
+  }
+  EXPECT_EQ(count, 1u) << "Expected exactly one CTE for base_data, but found "
+                       << count << ". Generated SQL:\n"
+                       << res;
+
+  // Verify there's no collision suffix version like "shared_sq_base_data_0"
+  // or "shared_sq_base_data_1" - these indicate duplicates were created.
+  EXPECT_THAT(res, testing::Not(testing::HasSubstr("shared_sq_base_data_0")))
+      << "Found collision suffix '_0', indicating duplicate CTE. SQL:\n"
+      << res;
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInBasic) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      match_values: {
+        table: {
+          table_name: "important_threads"
+        }
+      }
+      base_column: "utid"
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM important_threads),
+    sq_1 AS (SELECT * FROM slice),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT base.* FROM sq_1 AS base
+        WHERE base.utid IN (SELECT id FROM sq_2)
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInWithFilters) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+        filters: {
+          column_name: "dur"
+          op: GREATER_THAN
+          int64_rhs: 1000
+        }
+      }
+      match_values: {
+        table: {
+          table_name: "thread"
+        }
+        filters: {
+          column_name: "name"
+          op: GLOB
+          string_rhs: "*main*"
+        }
+      }
+      base_column: "utid"
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH
+    sq_2 AS (SELECT * FROM thread WHERE name GLOB '*main*'),
+    sq_1 AS (SELECT * FROM slice WHERE dur > 1000),
+    sq_0 AS (
+      SELECT * FROM (
+        SELECT base.* FROM sq_1 AS base
+        WHERE base.utid IN (SELECT id FROM sq_2)
+      )
+    )
+    SELECT * FROM sq_0
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInMissingBaseFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      match_values: {
+        table: {
+          table_name: "important_threads"
+        }
+      }
+      base_column: "utid"
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("FilterIn must specify a base query"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInMissingMatchValuesFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      base_column: "utid"
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("FilterIn must specify a match_values query"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInMissingBaseColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      match_values: {
+        table: {
+          table_name: "important_threads"
+        }
+      }
+      match_column: "id"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("FilterIn must specify a base_column"));
+}
+
+TEST(StructuredQueryGeneratorTest, FilterInMissingMatchColumnFails) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    experimental_filter_in: {
+      base: {
+        table: {
+          table_name: "slice"
+        }
+      }
+      match_values: {
+        table: {
+          table_name: "important_threads"
+        }
+      }
+      base_column: "utid"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("FilterIn must specify a match_column"));
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

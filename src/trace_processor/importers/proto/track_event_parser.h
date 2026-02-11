@@ -63,7 +63,7 @@ class TrackEventParser {
                        protozero::ConstBytes,
                        uint32_t packet_sequence_id);
 
-  void NotifyEndOfFile();
+  void OnEventsFullyExtracted();
 
  private:
   friend class TrackEventEventImporter;

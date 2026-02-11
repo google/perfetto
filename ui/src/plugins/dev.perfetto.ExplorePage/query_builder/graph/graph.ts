@@ -97,11 +97,13 @@ function shouldShowTopPort(node: QueryNode): boolean {
 
 export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
-  readonly selectedNode?: QueryNode;
+  readonly selectedNodes: ReadonlySet<string>;
   readonly nodeLayouts: LayoutMap;
   readonly labels: ReadonlyArray<TextLabelData>;
   readonly loadGeneration?: number;
   readonly onNodeSelected: (node: QueryNode) => void;
+  readonly onNodeAddToSelection: (node: QueryNode) => void;
+  readonly onNodeRemoveFromSelection: (nodeId: string) => void;
   readonly onDeselect: () => void;
   readonly onNodeLayoutChange: (nodeId: string, layout: Position) => void;
   readonly onLabelsChange?: (labels: TextLabelData[]) => void;
@@ -622,6 +624,11 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     this.deserializeLabels(vnode.attrs.labels as TextLabelData[]);
   }
 
+  oncreate(vnode: m.VnodeDOM<GraphAttrs>) {
+    // Focus the graph container so WSAD keyboard controls work immediately
+    (vnode.dom as HTMLElement).focus();
+  }
+
   onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
     // Only update labels if the reference changed (indicating external state update)
     if (vnode.attrs.labels !== old.attrs.labels) {
@@ -778,7 +785,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 
   view({attrs}: m.CVnode<GraphAttrs>) {
-    const {rootNodes, selectedNode} = attrs;
+    const {rootNodes} = attrs;
 
     const nodes = renderNodes(rootNodes, attrs, this.nodeGraphApi);
     const connections = buildConnections(rootNodes, attrs.nodeLayouts);
@@ -831,14 +838,49 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       '.pf-exp-node-graph',
       {
         tabindex: 0,
+        onkeydown: (e: KeyboardEvent) => {
+          // Skip if user is typing in an input or textarea
+          const target = e.target as HTMLElement;
+          if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+            return;
+          }
+
+          // Shift+W/S for zoom in/out (matches Timeline behavior)
+          // Use KeyboardEvent.code for physical key position (layout-independent)
+          const ZOOM_STEP = 0.1;
+          if (e.shiftKey && this.nodeGraphApi !== null) {
+            if (e.code === 'KeyW') {
+              this.nodeGraphApi.zoomBy(ZOOM_STEP);
+              e.preventDefault();
+              return;
+            }
+            if (e.code === 'KeyS') {
+              this.nodeGraphApi.zoomBy(-ZOOM_STEP);
+              e.preventDefault();
+              return;
+            }
+          }
+
+          // WASD keyboard panning (only without Shift modifier)
+          const PAN_STEP = 50;
+          const panMap: Record<string, [number, number]> = {
+            KeyW: [0, PAN_STEP],
+            KeyA: [PAN_STEP, 0],
+            KeyS: [0, -PAN_STEP],
+            KeyD: [-PAN_STEP, 0],
+          };
+          const pan = panMap[e.code];
+          if (pan !== undefined && this.nodeGraphApi !== null) {
+            this.nodeGraphApi.panBy(pan[0], pan[1]);
+            e.preventDefault();
+          }
+        },
       },
       [
         m(NodeGraph, {
           nodes,
           connections,
-          selectedNodeIds: new Set(
-            selectedNode?.nodeId ? [selectedNode.nodeId] : [],
-          ),
+          selectedNodeIds: attrs.selectedNodes,
           hideControls: true,
           fillHeight: true,
           onReady: (api: NodeGraphApi) => {
@@ -850,12 +892,21 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
               this.recenterRequired = false;
             }
           },
-          multiselect: false,
+          multiselect: true,
           onNodeSelect: (nodeId: string) => {
             const qnode = findQueryNode(nodeId, rootNodes);
             if (qnode) {
               attrs.onNodeSelected(qnode);
             }
+          },
+          onNodeAddToSelection: (nodeId: string) => {
+            const qnode = findQueryNode(nodeId, rootNodes);
+            if (qnode) {
+              attrs.onNodeAddToSelection(qnode);
+            }
+          },
+          onNodeRemoveFromSelection: (nodeId: string) => {
+            attrs.onNodeRemoveFromSelection(nodeId);
           },
           onSelectionClear: () => {
             attrs.onDeselect();

@@ -28,9 +28,9 @@ CREATE PERFETTO TABLE linux_kernel_threads (
   process_name STRING,
   -- Name of kernel thread. Alias of |thread.name|.
   thread_name STRING,
-  -- Machine id of kernel thread. If NULL then it's a single machine trace.
+  -- Machine id of kernel thread.
   -- Alias of |process.machine_id|.
-  machine_id LONG
+  machine_id JOINID(machine.id)
 ) AS
 WITH
   pid_2 AS (

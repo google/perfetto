@@ -27,10 +27,12 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_builder.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace protozero {
 struct ConstBytes;
@@ -64,12 +66,13 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
+  void OnEventsFullyExtracted() override;
 
   using SyncClockSnapshots = base::FlatHashMap<
-      int64_t,
+      uint32_t,
       std::pair</*host ts*/ uint64_t, /*client ts*/ uint64_t>>;
-  static base::FlatHashMap<int64_t /*Clock Id*/, int64_t /*Offset*/>
+  static base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/>
   CalculateClockOffsetsForTesting(
       std::vector<SyncClockSnapshots>& sync_clock_snapshots) {
     return CalculateClockOffsets(sync_clock_snapshots);
@@ -103,7 +106,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   void ParseTraceConfig(ConstBytes);
   void ParseTraceStats(ConstBytes);
 
-  static base::FlatHashMap<int64_t /*Clock Id*/, int64_t /*Offset*/>
+  static base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/>
   CalculateClockOffsets(std::vector<SyncClockSnapshots>&);
 
   PacketSequenceStateBuilder* GetIncrementalStateForPacketSequence(

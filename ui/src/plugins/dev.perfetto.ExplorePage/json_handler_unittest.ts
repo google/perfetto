@@ -38,6 +38,9 @@ import {ColumnInfo} from './query_builder/column_info';
 import {FilterDuringNode} from './query_builder/nodes/filter_during_node';
 import {TimeRangeSourceNode} from './query_builder/nodes/sources/timerange_source';
 import {Time} from '../../base/time';
+import {registerCoreNodes} from './query_builder/core_nodes';
+
+registerCoreNodes();
 
 describe('JSON serialization/deserialization', () => {
   let trace: Trace;
@@ -88,6 +91,7 @@ describe('JSON serialization/deserialization', () => {
     const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -113,6 +117,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode.nodeId, {x: 10, y: 20}],
         [modifyNode.nodeId, {x: 100, y: 200}],
@@ -172,6 +177,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -205,6 +211,7 @@ describe('JSON serialization/deserialization', () => {
     });
     const initialState: ExplorePageState = {
       rootNodes: [sqlNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -243,6 +250,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -293,6 +301,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -351,6 +360,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, tableNode3],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -412,6 +422,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -449,6 +460,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -492,6 +504,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -528,6 +541,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode, sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode.nodeId, {x: 10, y: 20}],
         [sliceNode.nodeId, {x: 100, y: 200}],
@@ -573,6 +587,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -602,6 +617,7 @@ describe('JSON serialization/deserialization', () => {
   test('serializes and deserializes an empty graph', () => {
     const initialState: ExplorePageState = {
       rootNodes: [],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -631,6 +647,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -676,6 +693,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -713,6 +731,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -760,6 +779,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode1.nodeId, {x: 0, y: 0}],
         [addColumnsNode.nodeId, {x: 0, y: 100}],
@@ -889,6 +909,7 @@ describe('JSON serialization/deserialization', () => {
     // Now test serialization/deserialization preserves this
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -988,6 +1009,7 @@ describe('JSON serialization/deserialization', () => {
     // Serialize and deserialize
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1048,6 +1070,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1081,6 +1104,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1124,6 +1148,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1184,6 +1209,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1236,6 +1262,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1295,6 +1322,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1430,6 +1458,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, tableNode3],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1504,6 +1533,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1562,6 +1592,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1679,6 +1710,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1704,6 +1736,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [modifyColumnsNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1783,6 +1816,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1883,6 +1917,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode.nodeId, {x: 0, y: 0}],
         [filterNode.nodeId, {x: 0, y: 50}],
@@ -1961,6 +1996,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -1984,6 +2020,7 @@ describe('JSON serialization/deserialization', () => {
     const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2029,6 +2066,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [slicesNode, timeRangeNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2111,6 +2149,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2190,6 +2229,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2269,6 +2309,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, tableNode3],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2334,6 +2375,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2397,6 +2439,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, tableNode3],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2451,6 +2494,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, unionNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2499,6 +2543,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode1, tableNode2, slicesNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2538,6 +2583,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [timeRangeNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2574,6 +2620,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels,
     };
@@ -2606,6 +2653,7 @@ describe('JSON serialization/deserialization', () => {
     const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2620,6 +2668,7 @@ describe('JSON serialization/deserialization', () => {
     const sliceNode = new SlicesSourceNode({});
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels: [],
     };
@@ -2651,6 +2700,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map(),
       labels,
     };
@@ -2671,6 +2721,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode, sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode.nodeId, {x: 500, y: 300}],
         [sliceNode.nodeId, {x: 800, y: 600}],
@@ -2720,6 +2771,7 @@ describe('JSON serialization/deserialization', () => {
 
     const initialState: ExplorePageState = {
       rootNodes: [tableNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([[tableNode.nodeId, {x: 0, y: 0}]]),
       labels: [],
     };
@@ -2745,6 +2797,7 @@ describe('JSON serialization/deserialization', () => {
     // State with non-zero minimum coordinates
     const initialState: ExplorePageState = {
       rootNodes: [tableNode, sliceNode],
+      selectedNodes: new Set(),
       nodeLayouts: new Map([
         [tableNode.nodeId, {x: 500, y: 300}],
         [sliceNode.nodeId, {x: 800, y: 600}],

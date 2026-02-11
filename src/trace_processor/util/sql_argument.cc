@@ -55,6 +55,9 @@ std::optional<Type> ParseType(base::StringView str) {
   if (str.CaseInsensitiveOneOf({"bytes", "proto"})) {
     return Type::kBytes;
   }
+  if (str.CaseInsensitiveEq("any")) {
+    return Type::kAny;
+  }
   return std::nullopt;
 }
 
@@ -71,6 +74,8 @@ const char* TypeToHumanFriendlyString(sql_argument::Type type) {
       return "STRING";
     case Type::kBytes:
       return "BYTES";
+    case Type::kAny:
+      return "ANY";
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -87,6 +92,10 @@ SqlValue::Type TypeToSqlValueType(sql_argument::Type type) {
       return SqlValue::kString;
     case Type::kBytes:
       return SqlValue::kBytes;
+    case Type::kAny:
+      // For ANY type, there's no specific SqlValue::Type - callers must handle
+      // this specially by skipping type checking.
+      PERFETTO_FATAL("TypeToSqlValueType should not be called for kAny");
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -130,6 +139,9 @@ std::string SerializeArguments(const std::vector<ArgumentDefinition>& args) {
     serialized.append(arg.name().c_str());
     serialized.push_back(' ');
     serialized.append(TypeToHumanFriendlyString(arg.type()));
+    if (arg.is_variadic()) {
+      serialized.append("...");
+    }
   }
   return serialized;
 }

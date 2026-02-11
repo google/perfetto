@@ -191,7 +191,11 @@ base::Status TarTraceReader::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status TarTraceReader::NotifyEndOfFile() {
+base::Status TarTraceReader::OnPushDataToSorter() {
+  if (!parsers_.empty()) {
+    return base::OkStatus();
+  }
+
   if (state_ != State::kDone) {
     return base::ErrStatus("Premature end of TAR file");
   }
@@ -205,13 +209,19 @@ base::Status TarTraceReader::NotifyEndOfFile() {
     for (auto& data : file.second.data) {
       RETURN_IF_ERROR(parser.Parse(std::move(data)));
     }
-    RETURN_IF_ERROR(parser.NotifyEndOfFile());
+    RETURN_IF_ERROR(parser.OnPushDataToSorter());
     // Make sure the ForwardingTraceParser determined the same trace type as we
     // did.
     PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
   }
 
   return base::OkStatus();
+}
+
+void TarTraceReader::OnEventsFullyExtracted() {
+  for (auto it = parsers_.rbegin(); it != parsers_.rend(); ++it) {
+    (*it)->OnEventsFullyExtracted();
+  }
 }
 
 base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
@@ -280,8 +290,9 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
     metadata_->name = std::move(*long_name_);
     long_name_.reset();
   } else {
-    metadata_->name =
-        ExtractString(header.prefix) + "/" + ExtractString(header.name);
+    std::string prefix = ExtractString(header.prefix);
+    std::string name = ExtractString(header.name);
+    metadata_->name = prefix.empty() ? name : prefix + "/" + name;
   }
 
   switch (metadata_->type_flag) {

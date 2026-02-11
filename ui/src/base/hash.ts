@@ -20,3 +20,29 @@ export function hash(s: string, max: number): number {
   }
   return Math.abs(hash) % max;
 }
+
+/**
+ * Computes the SHA-1 of a string or ArrayBuffer(View)
+ * @param data a string or ArrayBuffer to hash.
+ */
+export async function sha1(data: string | ArrayBuffer): Promise<string> {
+  let buffer: ArrayBuffer;
+  if (typeof data === 'string') {
+    buffer = new TextEncoder().encode(data);
+  } else {
+    buffer = data;
+  }
+  const digest = await crypto.subtle.digest('SHA-1', buffer);
+  return digestToHex(digest);
+}
+
+/**
+ * Converts the return value of crypto.digest() to a hex string.
+ * @param digest an array of bytes containing the digest
+ * @returns hex-encoded string of the digest.
+ */
+export function digestToHex(digest: ArrayBuffer): string {
+  return Array.from(new Uint8Array(digest))
+    .map((x) => x.toString(16).padStart(2, '0'))
+    .join('');
+}

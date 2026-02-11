@@ -78,7 +78,12 @@ jobs:
             if (uiBuildUrl && context.issue.number) {
               // Unique marker to identify our comment
               const marker = "<!-- perfetto-ui-build-comment -->";
-              const body = `${marker}\n### 🎨 Perfetto UI Build\n\n✅ UI build is ready: ${uiBuildUrl}`;
+              const header = `${marker}\n### 🎨 Perfetto UI Builds\n`;
+
+              // Get commit info for the new entry
+              const commitSha = context.sha.substring(0, 7);
+              const commitDate = new Date().toISOString().split('T')[0];
+              const newEntry = `- **${commitSha}** (${commitDate}): ${uiBuildUrl}`;
 
               // Get existing comments
               const { data: comments } = await github.rest.issues.listComments({
@@ -90,8 +95,10 @@ jobs:
               // Find the bot's previous comment
               const botComment = comments.find(c => c.body.includes(marker));
 
-              // Update existing or create new
+              let body;
               if (botComment) {
+                // Append new entry to existing comment
+                body = botComment.body + '\n' + newEntry;
                 await github.rest.issues.updateComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -99,6 +106,8 @@ jobs:
                   body: body
                 });
               } else {
+                // Create new comment with header and first entry
+                body = header + '\n' + newEntry;
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -122,7 +131,7 @@ jobs:
         run: |
           mkdir /tmp/chrome
           cd /tmp/chrome
-          CHROME_VERSION=138.0.7204.92
+          CHROME_VERSION=145.0.7632.45
           curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
           dpkg-deb -x chrome.deb  .
 

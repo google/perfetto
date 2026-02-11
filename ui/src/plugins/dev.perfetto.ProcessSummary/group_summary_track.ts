@@ -12,33 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchEq, searchRange} from '../../base/binary_search';
+import {deferChunkedTask} from '../../base/chunked_task';
+import {Color} from '../../base/color';
+import {ColorScheme} from '../../base/color_scheme';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {Point2D} from '../../base/geom';
 import {assertExists, assertTrue} from '../../base/logging';
-import {duration, time, Time} from '../../base/time';
-import m from 'mithril';
-import {colorForThread, colorForTid} from '../../components/colorizer';
-import {TrackData} from '../../components/tracks/track_data';
-import {TimelineFetcher} from '../../components/tracks/track_helper';
-import {checkerboardExcept} from '../../components/checkerboard';
-import {TrackRenderer} from '../../public/track';
-import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
-import {uuidv4Sql} from '../../base/uuid';
+import {Monitor} from '../../base/monitor';
 import {
-  TrackContext,
+  CancellationSignal,
+  QUERY_CANCELLED,
+  QuerySlot,
+  SerialTaskQueue,
+} from '../../base/query_slot';
+import {duration, time, Time} from '../../base/time';
+import {TimeScale} from '../../base/time_scale';
+import {checkerboardExcept} from '../../components/checkerboard';
+import {colorForThread, colorForTid} from '../../components/colorizer';
+import {Trace} from '../../public/trace';
+import {
   TrackMouseEvent,
   TrackRenderContext,
+  TrackRenderer,
 } from '../../public/track';
-import {Point2D} from '../../base/geom';
-import {Trace} from '../../public/trace';
-import {ThreadMap} from '../dev.perfetto.Thread/threads';
-import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {TrackNode} from '../../public/workspace';
+import {Dataset} from '../../trace_processor/dataset';
+import {LONG, NUM} from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
   createVirtualTable,
 } from '../../trace_processor/sql_utils';
-import {Dataset} from '../../trace_processor/dataset';
-import {TrackNode} from '../../public/workspace';
+import {ThreadMap} from '../dev.perfetto.Thread/threads';
+import {CHUNKED_TASK_BACKGROUND_PRIORITY} from '../../components/tracks/feature_flags';
+import {BufferedBounds} from '../../components/tracks/buffered_bounds';
 
 export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 
@@ -46,7 +55,11 @@ const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
-interface Data extends TrackData {
+interface Data {
+  start: time;
+  end: time;
+  resolution: duration;
+  length: number;
   maxLanes: number;
 
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -55,6 +68,17 @@ interface Data extends TrackData {
   ends: BigInt64Array;
   utids: Int32Array;
   lanes: Uint32Array;
+  // Cached color schemes for each slice (only used in 'sched' mode).
+  colorSchemes: ColorScheme[];
+  // Relative timestamps for fast rendering (relative to data.start)
+  startRelNs: Float32Array;
+  durRelNs: Float32Array;
+  // Pre-computed Y positions in screen pixels
+  ys: Float32Array;
+  // Working buffer for per-frame color computation (reused each frame)
+  renderColors: Uint32Array;
+  // Reusable patterns buffer (all zeros - no patterns)
+  patterns: Uint8Array;
 }
 
 export interface Config {
@@ -65,16 +89,71 @@ export interface Config {
 
 type Mode = 'sched' | 'slices';
 
+interface GroupSummaryHover {
+  utid: number;
+  lane: number;
+  count: number;
+  pid?: bigint;
+}
+
+function computeHover(
+  pos: Point2D | undefined,
+  timescale: TimeScale,
+  data: Data,
+  threads: ThreadMap,
+): GroupSummaryHover | undefined {
+  if (pos === undefined) return undefined;
+
+  const {x, y} = pos;
+  if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) return undefined;
+
+  const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+  const lane = Math.floor((y - MARGIN_TOP) / (laneHeight + 1));
+  const t = timescale.pxToHpTime(x).toTime('floor');
+
+  const [i, j] = searchRange(data.starts, t, searchEq(data.lanes, lane));
+  if (i === j || i >= data.starts.length || t > data.ends[i]) return undefined;
+
+  const utid = data.utids[i];
+  const count = data.counts[i];
+  const pid = threads.get(utid)?.pid;
+  return {utid, lane, count, pid};
+}
+
+// Result from table creation query - contains the table and metadata
+// Implements AsyncDisposable so QuerySlot can auto-dispose it
+interface MipmapTable extends AsyncDisposable {
+  tableName: string;
+  maxLanes: number;
+  sliceTracks: Array<{uri: string; dataset: Dataset}>;
+}
+
 export class GroupSummaryTrack implements TrackRenderer {
-  private mousePos?: Point2D;
-  private utidHoveredInThisTrack = -1;
-  private laneHoveredInThisTrack = -1;
-  private countHoveredInThisTrack = -1;
-  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-  private trackUuid = uuidv4Sql();
-  private mode: Mode = 'slices';
-  private maxLanes: number = 1;
+  private hover?: GroupSummaryHover;
+  private readonly mode: Mode;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
+
+  // Cached color scheme for 'slices' mode (constant for track lifetime).
+  private readonly slicesModeColor: ColorScheme;
+
+  // Monitor for local hover state (triggers DOM redraw for tooltip).
+  private readonly hoverMonitor = new Monitor([
+    () => this.hover?.utid,
+    () => this.hover?.lane,
+    () => this.hover?.count,
+  ]);
+
+  // QuerySlot infrastructure
+  private readonly queue = new SerialTaskQueue();
+  private readonly tableSlot = new QuerySlot<MipmapTable>(this.queue);
+  private readonly dataSlot = new QuerySlot<Data>(this.queue);
+
+  // Cached data for rendering (populated from dataSlot)
+  private data?: Data;
+
+  // Track the bounds we've requested data for (with padding/skirt)
+  // Only refetch when visible window exceeds these bounds
+  private readonly bufferedBounds = new BufferedBounds();
 
   constructor(
     private readonly trace: Trace,
@@ -84,17 +163,20 @@ export class GroupSummaryTrack implements TrackRenderer {
     hasSched: boolean,
   ) {
     this.mode = hasSched ? 'sched' : 'slices';
+    this.slicesModeColor = colorForTid(this.config.pidForColor);
   }
 
-  async onCreate(ctx: TrackContext): Promise<void> {
+  // Creates the mipmap table - called declaratively from render via QuerySlot
+  private async createMipmapTable(trackNode: TrackNode): Promise<MipmapTable> {
+    // Note: Table creation is typically fast, so we don't check cancellation here
     if (this.mode === 'sched') {
-      await this.createSchedMipmap();
+      return this.createSchedMipmap();
     } else {
-      await this.createSlicesMipmap(ctx.trackNode);
+      return this.createSlicesMipmap(trackNode);
     }
   }
 
-  private async createSchedMipmap(): Promise<void> {
+  private async createSchedMipmap(): Promise<MipmapTable> {
     const getQuery = () => {
       if (this.config.upid !== null) {
         return `
@@ -129,16 +211,14 @@ export class GroupSummaryTrack implements TrackRenderer {
     };
 
     const trash = new AsyncDisposableStack();
-    trash.use(
-      await createPerfettoTable({
-        engine: this.trace.engine,
-        name: `tmp_${this.trackUuid}`,
-        as: getQuery(),
-      }),
-    );
-    await createVirtualTable({
+    const tmpTable = await createPerfettoTable({
       engine: this.trace.engine,
-      name: `process_summary_${this.trackUuid}`,
+      as: getQuery(),
+    });
+    trash.use(tmpTable);
+
+    const mipmapTable = await createVirtualTable({
+      engine: this.trace.engine,
       using: `__intrinsic_slice_mipmap((
         select
           s.id,
@@ -148,7 +228,7 @@ export class GroupSummaryTrack implements TrackRenderer {
             ifnull(
               (
                 select n.ts
-                from tmp_${this.trackUuid} n
+                from ${tmpTable.name} n
                 where n.ts > s.ts and n.cpu = s.cpu
                 order by ts
                 limit 1
@@ -158,21 +238,29 @@ export class GroupSummaryTrack implements TrackRenderer {
             s.dur
           ) as dur,
           s.cpu as depth
-        from tmp_${this.trackUuid} s
+        from ${tmpTable.name} s
       ))`,
     });
     await trash.asyncDispose();
 
-    this.maxLanes = this.cpuCount;
+    return {
+      tableName: mipmapTable.name,
+      maxLanes: this.cpuCount,
+      sliceTracks: [],
+      [Symbol.asyncDispose]: () => mipmapTable[Symbol.asyncDispose](),
+    };
   }
 
-  private fetchDatasetsFromSliceTracks(node: TrackNode) {
+  private fetchDatasetsFromSliceTracks(
+    trackNode: TrackNode,
+  ): Array<{uri: string; dataset: Dataset}> {
     assertTrue(
       this.mode === 'slices',
       'Can only collect slice tracks in slice mode',
     );
-    const stack: TrackNode[] = [node];
-    while (stack.length > 0 && this.sliceTracks.length < 8) {
+    const sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
+    const stack: TrackNode[] = [trackNode];
+    while (stack.length > 0 && sliceTracks.length < 8) {
       const node = stack.pop()!;
 
       // Try to get track and dataset
@@ -188,7 +276,7 @@ export class GroupSummaryTrack implements TrackRenderer {
 
       if (isValidSliceTrack && dataset !== undefined) {
         // Add track - we'll filter to depth = 0 in SQL
-        this.sliceTracks.push({
+        sliceTracks.push({
           uri: node.uri!,
           dataset: dataset,
         });
@@ -199,17 +287,17 @@ export class GroupSummaryTrack implements TrackRenderer {
         }
       }
     }
+    return sliceTracks;
   }
 
-  private async createSlicesMipmap(node: TrackNode): Promise<void> {
+  private async createSlicesMipmap(trackNode: TrackNode): Promise<MipmapTable> {
     // Fetch datasets from child tracks
-    this.fetchDatasetsFromSliceTracks(node);
+    const sliceTracks = this.fetchDatasetsFromSliceTracks(trackNode);
 
-    if (this.sliceTracks.length === 0) {
+    if (sliceTracks.length === 0) {
       // No valid slice tracks found - create empty table
-      await createVirtualTable({
+      const table = await createVirtualTable({
         engine: this.trace.engine,
-        name: `process_summary_${this.trackUuid}`,
         using: `__intrinsic_slice_mipmap((
           select
             cast(0 as int) as id,
@@ -219,12 +307,16 @@ export class GroupSummaryTrack implements TrackRenderer {
           where 0
         ))`,
       });
-      this.maxLanes = 1;
-      return;
+      return {
+        tableName: table.name,
+        maxLanes: 1,
+        sliceTracks: [],
+        [Symbol.asyncDispose]: () => table[Symbol.asyncDispose](),
+      };
     }
 
     // Create union of all slice tracks with track index as depth
-    const unions = this.sliceTracks
+    const unions = sliceTracks
       .map(({dataset}, idx) => {
         return `
         select
@@ -238,51 +330,64 @@ export class GroupSummaryTrack implements TrackRenderer {
       })
       .join(' union all ');
 
-    await createVirtualTable({
+    const table = await createVirtualTable({
       engine: this.trace.engine,
-      name: `process_summary_${this.trackUuid}`,
       using: `__intrinsic_slice_mipmap((
         ${unions}
       ))`,
     });
-    this.maxLanes = 8;
+    return {
+      tableName: table.name,
+      maxLanes: 8,
+      sliceTracks,
+      [Symbol.asyncDispose]: () => table[Symbol.asyncDispose](),
+    };
   }
 
-  async onUpdate({
-    visibleWindow,
-    resolution,
-  }: TrackRenderContext): Promise<void> {
-    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
-  }
-
-  async onDestroy(): Promise<void> {
-    this.fetcher[Symbol.dispose]();
-    await this.trace.engine.tryQuery(`
-      drop table process_summary_${this.trackUuid}
-    `);
-  }
-
-  async onBoundsChange(
+  private async fetchData(
+    tableName: string,
+    maxLanes: number,
     start: time,
     end: time,
     resolution: duration,
+    signal: CancellationSignal,
   ): Promise<Data> {
     // Resolution must always be a power of 2 for this logic to work
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
-    const queryRes = await this.queryData(start, end, resolution);
+    const queryRes = await this.queryData(tableName, start, end, resolution);
+
+    // Check cancellation after query completes
+    if (signal.isCancelled) throw QUERY_CANCELLED;
+
+    const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
+      ? 'background'
+      : undefined;
+    const task = await deferChunkedTask({priority});
+
     const numRows = queryRes.numRows();
+    const laneHeight = Math.floor(RECT_HEIGHT / maxLanes);
     const slices: Data = {
       start,
       end,
       resolution,
       length: numRows,
-      maxLanes: this.maxLanes,
+      maxLanes,
       counts: new Uint32Array(numRows),
       starts: new BigInt64Array(numRows),
       ends: new BigInt64Array(numRows),
       lanes: new Uint32Array(numRows),
       utids: new Int32Array(numRows),
+      colorSchemes: new Array(numRows),
+      // Relative timestamps for fast rendering
+      startRelNs: new Float32Array(numRows),
+      durRelNs: new Float32Array(numRows),
+      // Pre-computed Y positions in screen pixels
+      ys: new Float32Array(numRows),
+      // Working buffer for per-frame color computation
+      renderColors: new Uint32Array(numRows),
+      // Reusable patterns buffer (all zeros - no patterns)
+      patterns: new Uint8Array(numRows),
     };
 
     const it = queryRes.iter({
@@ -294,25 +399,51 @@ export class GroupSummaryTrack implements TrackRenderer {
     });
 
     for (let row = 0; it.valid(); it.next(), row++) {
-      const start = Time.fromRaw(it.ts);
+      // Periodically check for cancellation during iteration
+      if (row % 50 === 0) {
+        if (signal.isCancelled) {
+          throw QUERY_CANCELLED;
+        }
+
+        if (task.shouldYield()) {
+          await task.yield();
+        }
+      }
+
+      const ts = it.ts;
       const dur = it.dur;
-      const end = Time.add(start, dur);
+      const endTs = ts + dur;
 
       slices.counts[row] = it.count;
-      slices.starts[row] = start;
-      slices.ends[row] = end;
+      slices.starts[row] = ts;
+      slices.ends[row] = endTs;
       slices.lanes[row] = it.lane;
       slices.utids[row] = it.utid;
-      slices.end = Time.max(end, slices.end);
+      slices.end = Time.max(Time.fromRaw(endTs), slices.end);
+
+      // Store relative timestamps as floats for fast rendering
+      slices.startRelNs[row] = Number(ts - start);
+      slices.durRelNs[row] = Number(dur);
+
+      // Pre-compute Y position in screen pixels
+      const lane = it.lane;
+      slices.ys[row] = MARGIN_TOP + laneHeight * lane + lane;
+
+      // Cache color scheme for 'sched' mode (depends on utid).
+      if (this.mode === 'sched') {
+        const threadInfo = this.threads.get(it.utid);
+        slices.colorSchemes[row] = colorForThread(threadInfo);
+      }
     }
     return slices;
   }
 
   private async queryData(
+    tableName: string,
     start: time,
     end: time,
     bucketSize: duration,
-  ): Promise<QueryResult> {
+  ) {
     if (this.mode === 'sched') {
       return this.trace.engine.query(`
         select
@@ -321,7 +452,7 @@ export class GroupSummaryTrack implements TrackRenderer {
           z.count,
           z.depth as lane,
           s.utid
-        from process_summary_${this.trackUuid}(
+        from ${tableName}(
           ${start}, ${end}, ${bucketSize}
         ) z
         cross join sched s using (id)
@@ -334,7 +465,7 @@ export class GroupSummaryTrack implements TrackRenderer {
           z.count,
           z.depth as lane,
           -1 as utid
-        from process_summary_${this.trackUuid}(
+        from ${tableName}(
           ${start}, ${end}, ${bucketSize}
         ) z
       `);
@@ -346,24 +477,20 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   renderTooltip(): m.Children {
-    if (this.mousePos === undefined) {
+    if (this.hover === undefined) {
       return undefined;
     }
 
     if (this.mode === 'sched') {
       // Show thread/process info for scheduling mode
-      if (this.utidHoveredInThisTrack === -1) {
-        return undefined;
-      }
-
-      const hoveredThread = this.threads.get(this.utidHoveredInThisTrack);
+      const hoveredThread = this.threads.get(this.hover.utid);
       if (!hoveredThread) {
         return undefined;
       }
 
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
 
-      const count = this.countHoveredInThisTrack;
+      const count = this.hover.count;
       const countDiv = count > 1 && m('div', `and ${count - 1} other events`);
       if (hoveredThread.pid !== undefined) {
         const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
@@ -373,7 +500,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       }
     } else {
       // Show track name/info for slice mode
-      const laneIndex = this.laneHoveredInThisTrack;
+      const laneIndex = this.hover.lane;
       if (laneIndex < 0 || laneIndex >= this.sliceTracks.length) {
         return undefined;
       }
@@ -382,16 +509,68 @@ export class GroupSummaryTrack implements TrackRenderer {
       const track = this.trace.tracks.getTrack(trackUri);
       const trackTitle = (track as {title?: string})?.title ?? trackUri;
 
-      const count = this.countHoveredInThisTrack;
+      const count = this.hover.count;
       const countDiv = count > 1 && m('div', `${count} slices`);
 
       return m('.tooltip', [m('div', `Track: ${trackTitle}`), countDiv]);
     }
   }
 
-  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
-    const data = this.fetcher.data;
+  render({
+    ctx,
+    size,
+    timescale,
+    renderer,
+    visibleWindow,
+    resolution,
+    trackNode,
+  }: TrackRenderContext): void {
+    // Step 1: Declaratively ensure mipmap table exists
+    const tableResult = this.tableSlot.use({
+      // Key is constant - table only needs to be created once
+      key: {mode: this.mode, upid: this.config.upid, utid: this.config.utid},
+      queryFn: () => this.createMipmapTable(trackNode),
+    });
 
+    // Update sliceTracks from table result for tooltip rendering
+    if (tableResult.data) {
+      this.sliceTracks = tableResult.data.sliceTracks;
+    }
+
+    // Step 2: Declaratively fetch data from the table with buffered bounds
+    const visibleSpan = visibleWindow.toTimeSpan();
+    const bounds = this.bufferedBounds.update(visibleSpan, resolution);
+
+    // Use the stable loaded bounds as the key - only changes when we decide to refetch
+    const dataResult = this.dataSlot.use({
+      key: {
+        start: bounds.start,
+        end: bounds.end,
+        resolution: bounds.resolution,
+      },
+      queryFn: async (signal) => {
+        const result = await this.trace.taskTracker.track(
+          this.fetchData(
+            tableResult.data!.tableName,
+            tableResult.data!.maxLanes,
+            bounds.start,
+            bounds.end,
+            bounds.resolution,
+            signal,
+          ),
+          'Loading group summary',
+        );
+        this.trace.raf.scheduleCanvasRedraw();
+        return result;
+      },
+      retainOn: ['start', 'end', 'resolution'], // Retain all old data until new data is loaded
+      enabled: tableResult.data !== undefined,
+    });
+
+    // Cache data for mouse event handlers
+    this.data = dataResult.data;
+
+    const data = this.data;
     if (data === undefined) return; // Can't possibly draw anything.
 
     // If the cached trace slices don't fully cover the visible time range,
@@ -409,102 +588,82 @@ export class GroupSummaryTrack implements TrackRenderer {
     assertTrue(data.starts.length === data.utids.length);
 
     const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+    const timeline = this.trace.timeline;
+    const count = data.length;
 
-    for (let i = 0; i < data.ends.length; i++) {
-      const tStart = Time.fromRaw(data.starts[i]);
-      const tEnd = Time.fromRaw(data.ends[i]);
-
-      // Cull slices that lie completely outside the visible window
-      if (!visibleWindow.overlaps(tStart, tEnd)) continue;
-
-      const utid = data.utids[i];
-      const lane = data.lanes[i];
-
-      const rectStart = Math.floor(timescale.timeToPx(tStart));
-      const rectEnd = Math.floor(timescale.timeToPx(tEnd));
-      const rectWidth = Math.max(1, rectEnd - rectStart);
-
-      let colorScheme;
-
-      if (this.mode === 'sched') {
-        // Scheduling mode: color by thread (utid)
+    // Compute colors into the working buffer based on hover state
+    const renderColors = data.renderColors;
+    if (this.mode === 'sched') {
+      const isHovering = timeline.hoveredUtid !== undefined;
+      for (let i = 0; i < count; i++) {
+        const colorScheme = data.colorSchemes[i];
+        const utid = data.utids[i];
         const threadInfo = this.threads.get(utid);
         // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
         const pid = (threadInfo ? threadInfo.pid : -1) || -1;
 
-        const isHovering = this.trace.timeline.hoveredUtid !== undefined;
-        const isThreadHovered = this.trace.timeline.hoveredUtid === utid;
-        const isProcessHovered = this.trace.timeline.hoveredPid === pid;
-        colorScheme = colorForThread(threadInfo);
+        const isThreadHovered = timeline.hoveredUtid === utid;
+        const isProcessHovered = timeline.hoveredPid === pid;
 
+        let color: Color;
         if (isHovering && !isThreadHovered) {
           if (!isProcessHovered) {
-            ctx.fillStyle = colorScheme.disabled.cssString;
+            color = colorScheme.disabled;
           } else {
-            ctx.fillStyle = colorScheme.variant.cssString;
+            color = colorScheme.variant;
           }
         } else {
-          ctx.fillStyle = colorScheme.base.cssString;
+          color = colorScheme.base;
         }
-      } else {
-        // Slice mode: consistent color based on pidForColor
-        colorScheme = colorForTid(this.config.pidForColor);
-        ctx.fillStyle = colorScheme.base.cssString;
+        renderColors[i] = color.rgba;
       }
-
-      const y = MARGIN_TOP + laneHeight * lane + lane;
-      ctx.fillRect(rectStart, y, rectWidth, laneHeight);
+    } else {
+      // Slice mode: all same color
+      const baseRgba = this.slicesModeColor.base.rgba;
+      renderColors.fill(baseRgba);
     }
+
+    // Draw all rects in one batch call
+    // xs and ws are in data space (nanoseconds relative to data.start)
+    // dataTransform converts: screenX = xs * scaleX + offsetX
+    const pxPerNs = timescale.durationToPx(1n);
+    const baseOffsetPx = timescale.timeToPx(data.start);
+
+    renderer.drawRects(
+      {
+        xs: data.startRelNs,
+        ys: data.ys,
+        ws: data.durRelNs,
+        h: laneHeight,
+        colors: renderColors,
+        patterns: data.patterns,
+        count,
+      },
+      {offsetX: baseOffsetPx, offsetY: 0, scaleX: pxPerNs, scaleY: 1},
+    );
   }
 
   onMouseMove({x, y, timescale}: TrackMouseEvent) {
-    const data = this.fetcher.data;
-    this.mousePos = {x, y};
+    const data = this.data;
     if (data === undefined) return;
-    if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
-      this.utidHoveredInThisTrack = -1;
-      this.laneHoveredInThisTrack = -1;
-      this.countHoveredInThisTrack = -1;
-      this.trace.timeline.hoveredUtid = undefined;
-      this.trace.timeline.hoveredPid = undefined;
-      return;
+    this.hover = computeHover({x, y}, timescale, data, this.threads);
+    if (this.hoverMonitor.ifStateChanged()) {
+      if (this.mode === 'sched') {
+        this.trace.timeline.hoveredUtid = this.hover?.utid;
+        this.trace.timeline.hoveredPid = this.hover?.pid;
+      }
+      this.trace.raf.scheduleFullRedraw();
     }
-
-    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
-    const lane = Math.floor((y - MARGIN_TOP) / (laneHeight + 1));
-    const t = timescale.pxToHpTime(x).toTime('floor');
-
-    const [i, j] = searchRange(data.starts, t, searchEq(data.lanes, lane));
-    if (i === j || i >= data.starts.length || t > data.ends[i]) {
-      this.utidHoveredInThisTrack = -1;
-      this.laneHoveredInThisTrack = -1;
-      this.countHoveredInThisTrack = -1;
-      this.trace.timeline.hoveredUtid = undefined;
-      this.trace.timeline.hoveredPid = undefined;
-      return;
-    }
-
-    const utid = data.utids[i];
-    const count = data.counts[i];
-    this.utidHoveredInThisTrack = utid;
-    this.laneHoveredInThisTrack = lane;
-    this.countHoveredInThisTrack = count;
-
-    if (this.mode === 'sched') {
-      const threadInfo = this.threads.get(utid);
-      this.trace.timeline.hoveredUtid = utid;
-      this.trace.timeline.hoveredPid = threadInfo?.pid;
-    }
-
-    // Trigger redraw to update tooltip
-    m.redraw();
   }
 
   onMouseOut() {
-    this.utidHoveredInThisTrack = -1;
-    this.laneHoveredInThisTrack = -1;
-    this.trace.timeline.hoveredUtid = undefined;
-    this.trace.timeline.hoveredPid = undefined;
-    this.mousePos = undefined;
+    this.hover = undefined;
+    if (this.hoverMonitor.ifStateChanged()) {
+      if (this.mode === 'sched') {
+        this.trace.timeline.hoveredUtid = undefined;
+        this.trace.timeline.hoveredPid = undefined;
+      }
+      this.trace.raf.scheduleFullRedraw();
+    }
   }
 }

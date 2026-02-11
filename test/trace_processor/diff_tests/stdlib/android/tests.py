@@ -1308,6 +1308,7 @@ class AndroidStdlib(TestSuite):
         dispatch_latency_dur,
         tid,
         thread_name,
+        upid,
         pid,
         process_name,
         event_type,
@@ -1322,17 +1323,17 @@ class AndroidStdlib(TestSuite):
         LIMIT 10
       """,
         out=Csv("""
-        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","tid","thread_name","pid","process_name","event_type","event_seq","event_channel","dispatch_ts","dispatch_dur","receive_ts","receive_dur"
-        377149054,77503,377032734,7493,"ndroid.systemui",7493,"com.android.systemui","0x3","0x1","4325794 NotificationShade (server)",578307771330,1292,578684804064,1412
-        1684318,772908,48433,7493,"ndroid.systemui",7493,"com.android.systemui","0x1","0x2","a0526ca NavigationBar0 (server)",581956322279,1299,581956370712,1806
-        22069988,12614508,804831,7493,"ndroid.systemui",7493,"com.android.systemui","0x1","0x3","4325794 NotificationShade (server)",581956391308,1212,581957196139,1362
-        1603522,645723,75328,7964,"droid.launcher3",7964,"com.android.launcher3","0x1","0x4","[Gesture Monitor] swipe-up (server)",581956445376,1232,581956520704,1708
-        1583707,644313,208973,7310,"android.ui",7288,"system_server","0x1","0x5","PointerEventDispatcher0 (server)",581956495788,1208,581956704761,1281
-        22622740,22582066,25729,7493,"ndroid.systemui",7493,"com.android.systemui","0x1","0x6","4325794 NotificationShade (server)",582019627670,1230,582019653399,1607
-        20228399,20116160,95263,7964,"droid.launcher3",7964,"com.android.launcher3","0x1","0x7","[Gesture Monitor] swipe-up (server)",582019685639,1309,582019780902,1942
-        459763,287436,27342,7310,"android.ui",7288,"system_server","0x1","0x8","PointerEventDispatcher0 (server)",582019737156,1192,582019764498,1664
-        9848456,9806401,22714,7493,"ndroid.systemui",7493,"com.android.systemui","0x1","0x9","4325794 NotificationShade (server)",582051061377,1227,582051084091,1596
-        5533919,5487703,25013,7964,"droid.launcher3",7964,"com.android.launcher3","0x1","0xa","[Gesture Monitor] swipe-up (server)",582051112236,1258,582051137249,1771
+        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","tid","thread_name","upid","pid","process_name","event_type","event_seq","event_channel","dispatch_ts","dispatch_dur","receive_ts","receive_dur"
+        377149054,77503,377032734,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x3","0x1","4325794 NotificationShade (server)",578307771330,1292,578684804064,1412
+        1684318,772908,48433,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x1","0x2","a0526ca NavigationBar0 (server)",581956322279,1299,581956370712,1806
+        22069988,12614508,804831,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x1","0x3","4325794 NotificationShade (server)",581956391308,1212,581957196139,1362
+        1603522,645723,75328,7964,"droid.launcher3",418,7964,"com.android.launcher3","0x1","0x4","[Gesture Monitor] swipe-up (server)",581956445376,1232,581956520704,1708
+        1583707,644313,208973,7310,"android.ui",395,7288,"system_server","0x1","0x5","PointerEventDispatcher0 (server)",581956495788,1208,581956704761,1281
+        22622740,22582066,25729,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x1","0x6","4325794 NotificationShade (server)",582019627670,1230,582019653399,1607
+        20228399,20116160,95263,7964,"droid.launcher3",418,7964,"com.android.launcher3","0x1","0x7","[Gesture Monitor] swipe-up (server)",582019685639,1309,582019780902,1942
+        459763,287436,27342,7310,"android.ui",395,7288,"system_server","0x1","0x8","PointerEventDispatcher0 (server)",582019737156,1192,582019764498,1664
+        9848456,9806401,22714,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x1","0x9","4325794 NotificationShade (server)",582051061377,1227,582051084091,1596
+        5533919,5487703,25013,7964,"droid.launcher3",418,7964,"com.android.launcher3","0x1","0xa","[Gesture Monitor] swipe-up (server)",582051112236,1258,582051137249,1771
       """))
 
   def test_input_events_end_to_end_latency(self):
@@ -1347,6 +1348,7 @@ class AndroidStdlib(TestSuite):
         end_to_end_latency_dur,
         tid,
         thread_name,
+        upid,
         pid,
         process_name,
         event_type
@@ -1355,9 +1357,9 @@ class AndroidStdlib(TestSuite):
         ORDER BY dispatch_ts
       """,
         out=Csv("""
-        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","end_to_end_latency_dur","tid","thread_name","pid","process_name","event_type"
-        3422992,2937418,363000,51007097,4816,"ndroid.settings",4816,"com.android.settings","MOTION"
-        2139405,1956366,81387,50642855,4816,"ndroid.settings",4816,"com.android.settings","MOTION"
+        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","end_to_end_latency_dur","tid","thread_name","upid","pid","process_name","event_type"
+        3422992,2937418,363000,51007097,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION"
+        2139405,1956366,81387,50642855,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION"
       """))
 
   def test_job_scheduler_events(self):
@@ -1728,6 +1730,179 @@ class AndroidStdlib(TestSuite):
         """,
         out=Csv("""
         "name","machine_id"
-        "oriole","[NULL]"
+        "oriole",0
         "raven",1
+        """))
+
+  def test_android_suspend_state_multi_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 1
+              }
+            }
+            event {
+              timestamp: 103000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 0
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 106000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 1
+              }
+            }
+            event {
+              timestamp: 109000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 0
+              }
+            }
+          }
+          machine_id: 1001
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.suspend;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","power_state","machine_id"
+          100000000000,0,"awake",0
+          100000000000,6000000000,"awake",1
+          100000000000,3000000000,"suspended",0
+          103000000000,6000000000,"awake",0
+          106000000000,3000000000,"suspended",1
+          109000000000,0,"awake",1
+          """))
+
+  def test_android_suspend_state_one_machine_no_events(self):
+    # Machine 0 has suspend events, machine 1 does not
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 1
+              }
+            }
+            event {
+              timestamp: 103000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 0
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "5.10.0-android12"
+              version: "#1 SMP PREEMPT"
+              machine: "aarch64"
+            }
+            android_build_fingerprint: "google/raven/raven:14/AP1A.240405.002/11487190:user/release-keys"
+            num_cpus: 8
+          }
+          machine_id: 1001
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.suspend;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY machine_id, ts;
+        """,
+        out=Csv("""
+        "ts","dur","power_state","machine_id"
+        100000000000,0,"awake",0
+        100000000000,3000000000,"suspended",0
+        103000000000,0,"awake",0
+        100000000000,3000000000,"awake",1
+        """))
+
+  def test_android_suspend_state_no_events(self):
+    # Both machines have no suspend events, but have other trace events
+    # to establish a timeline
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100000000000
+              pid: 1
+              print {
+                buf: "some other event\n"
+              }
+            }
+            event {
+              timestamp: 105000000000
+              pid: 1
+              print {
+                buf: "another event\n"
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 102000000000
+              pid: 1
+              print {
+                buf: "event on machine 2\n"
+              }
+            }
+            event {
+              timestamp: 108000000000
+              pid: 1
+              print {
+                buf: "another event on machine 2\n"
+              }
+            }
+          }
+          machine_id: 1001
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.suspend;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY machine_id, ts;
+        """,
+        out=Csv("""
+        "ts","dur","power_state","machine_id"
+        100000000000,8000000000,"awake",0
+        100000000000,8000000000,"awake",1
         """))

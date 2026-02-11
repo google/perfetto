@@ -35,11 +35,6 @@ _base_unittests_targets += [
   "src/protovm:unittests",
 ]
 
-_profiling_unittests_targets += [
-  "src/profiling:unittests",
-  "src/profiling/symbolizer:unittests",
-]
-
 _tracing_unittests_targets += [
   "src/tracing/core:unittests",
   "src/tracing/service:unittests",
@@ -98,8 +93,10 @@ if (enable_perfetto_trace_processor) {
   ]
 
   if (enable_perfetto_trace_processor_sqlite) {
-    _trace_processor_unittests_targets +=
-        [ "src/trace_processor/metrics:unittests" ]
+    _trace_processor_unittests_targets += [
+      "src/trace_processor/metrics:unittests",
+      "src/trace_processor/trace_summary:unittests",
+    ]
   }
 }
 

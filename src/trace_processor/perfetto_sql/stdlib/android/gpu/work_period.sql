@@ -20,8 +20,8 @@
 CREATE PERFETTO TABLE android_gpu_work_period_track (
   -- Unique identifier for this track. Joinable with track.id.
   id LONG,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The UID of the package for which the GPU work period events were emitted.
   uid LONG,
   -- The GPU identifier for which the GPU work period events were emitted.

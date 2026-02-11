@@ -175,3 +175,19 @@ task-1234-567    ( 567) [000] ....   100.001000: tracing_mark_write: E|567
         "slice_count"
         1
         """))
+
+  def test_hex_preempt_count(self):
+    return DiffTestBlueprint(
+        trace=Systrace("""cpus=8
+chrome-10830 ( 10830) [000] dNsa. 4213.033572: tracing_mark_write: B|10830|hex_preempt
+chrome-10830 ( 10830) [000] dNsa. 4213.033672: tracing_mark_write: E|10830
+        """),
+        query="""
+        SELECT ts, name
+        FROM slice
+        WHERE name = 'hex_preempt';
+        """,
+        out=Csv("""
+        "ts","name"
+        4213033572000,"hex_preempt"
+        """))

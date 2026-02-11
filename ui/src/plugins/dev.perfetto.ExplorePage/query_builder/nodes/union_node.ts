@@ -352,22 +352,20 @@ export class UnionNode implements QueryNode {
     }));
 
     // Create wrapper queries for each input that selects only the common columns
-    const wrappedNodes: QueryNode[] = [];
+    // Pass the query protos directly to withUnion (not nodes)
+    const wrappedQueries: protos.PerfettoSqlStructuredQuery[] = [];
     for (const inputNode of this.inputNodesList) {
-      // Create a temporary wrapper that selects only common columns
-      const wrapper = {
-        getStructuredQuery: () =>
-          StructuredQueryBuilder.withSelectColumns(
-            inputNode,
-            columnSpecs,
-            undefined,
-          ),
-      } as QueryNode;
-      wrappedNodes.push(wrapper);
+      const selectQuery = StructuredQueryBuilder.withSelectColumns(
+        inputNode,
+        columnSpecs,
+        undefined,
+      );
+      if (!selectQuery) return undefined;
+      wrappedQueries.push(selectQuery);
     }
 
     // Create the union from the wrapped queries
-    return StructuredQueryBuilder.withUnion(wrappedNodes, true, this.nodeId);
+    return StructuredQueryBuilder.withUnion(wrappedQueries, true, this.nodeId);
   }
 
   serializeState(): UnionSerializedState {

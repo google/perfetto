@@ -17,13 +17,13 @@ import {duration, time} from '../base/time';
 import {Size2D, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {ColorScheme} from '../base/color_scheme';
 import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
 import {SourceDataset} from '../trace_processor/dataset';
 import {TrackNode} from './workspace';
 import {CanvasColors} from './canvas_colors';
 import {z} from 'zod';
+import {Renderer} from '../base/renderer';
 
 /**
  * Represents a snap point for the snap-to-boundaries feature.
@@ -128,6 +128,12 @@ export interface TrackRenderContext extends TrackContext {
    * Semantic colors which can vary depending on the current theme.
    */
   readonly colors: CanvasColors;
+
+  /**
+   * A high-performance renderer for drawing rectangles and billboards.
+   * Uses WebGL when available, with Canvas 2D fallback.
+   */
+  readonly renderer: Renderer;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -252,43 +258,15 @@ export interface TrackRenderer {
   readonly settings?: ReadonlyArray<TrackSetting<unknown>>;
 
   /**
-   * Optional lifecycle hook called on the first render cycle. Should be used to
-   * create any required resources.
-   *
-   * These lifecycle hooks are asynchronous, but they are run synchronously,
-   * meaning that perfetto will wait for each one to complete before calling the
-   * next one, so the user doesn't have to serialize these calls manually.
-   *
-   * Exactly when this hook is called is left purposely undefined. The only
-   * guarantee is that it will be called exactly once before the first call to
-   * onUpdate().
-   *
-   * Note: On the first render cycle, both onCreate and onUpdate are called one
-   * after another.
-   */
-  onCreate?(ctx: TrackContext): Promise<void>;
-
-  /**
-   * Optional lifecycle hook called on every render cycle.
-   *
-   * The track should inspect things like the visible window, track size, and
-   * resolution to work out whether any data needs to be reloaded based on these
-   * properties and perform a reload.
-   */
-  onUpdate?(ctx: TrackRenderContext): Promise<void>;
-
-  /**
-   * Optional lifecycle hook called when the track is no longer visible. Should
-   * be used to clear up any resources.
-   */
-  onDestroy?(): Promise<void>;
-
-  /**
    * Required method used to render the track's content to the canvas, called
    * synchronously on every render cycle.
+   *
+   * Tracks can use ctx (Canvas 2D) for text and shapes, and canvasRenderer
+   * (WebGL) for high-performance rectangle rendering. Both are available
+   * in the same render call, and the WebGL content will appear behind
+   * Canvas 2D content.
    */
   render(ctx: TrackRenderContext): void;
-  onFullRedraw?(): void;
 
   /**
    * Return the vertical bounds (top & bottom) of a slice were it to be rendered
@@ -381,38 +359,6 @@ interface WellKnownTrackTags {
 
   // Track type, used for filtering
   type: string;
-}
-
-export interface Slice {
-  // These properties are updated only once per query result when the Slice
-  // object is created and don't change afterwards.
-  readonly id: number;
-  readonly startNs: time;
-  readonly endNs: time;
-  readonly durNs: duration;
-  readonly ts: time;
-  readonly count: number;
-  readonly dur: duration;
-  readonly depth: number;
-  readonly flags: number;
-
-  // Each slice can represent some extra numerical information by rendering a
-  // portion of the slice with a lighter tint.
-  // |fillRatio\ describes the ratio of the normal area to the tinted area
-  // width of the slice, normalized between 0.0 -> 1.0.
-  // 0.0 means the whole slice is tinted.
-  // 1.0 means none of the slice is tinted.
-  // E.g. If |fillRatio| = 0.65 the slice will be rendered like this:
-  // [############|*******]
-  // ^------------^-------^
-  //     Normal     Light
-  readonly fillRatio: number;
-
-  // These can be changed by the Impl.
-  title?: string;
-  subTitle: string;
-  colorScheme: ColorScheme;
-  isHighlighted: boolean;
 }
 
 /**

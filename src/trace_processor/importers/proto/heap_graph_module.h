@@ -38,7 +38,7 @@ class HeapGraphModule : public ProtoImporterModule {
                             const TracePacketData&,
                             uint32_t field_id) override;
 
-  void NotifyEndOfFile() override;
+  void OnEventsFullyExtracted() override;
 
  private:
   void ParseHeapGraph(uint32_t seq_id, int64_t ts, protozero::ConstBytes);

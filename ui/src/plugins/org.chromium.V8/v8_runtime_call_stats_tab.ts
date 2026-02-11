@@ -33,7 +33,14 @@ import {
 import {Tab} from '../../public/tab';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Row, SqlValue} from '../../trace_processor/query_result';
+import {
+  NUM,
+  Row,
+  SqlValue,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {DownloadToFileButton} from '../../widgets/download_to_file_button';
 import {MultiSelectDiff, PopupMultiSelect} from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
 import {Spinner} from '../../widgets/spinner';
@@ -74,7 +81,7 @@ const GROUP_COLORS: {[key: string]: string} = {
   total: '#BBB',
   unclassified: '#000',
 };
-const GROUP_COLORS_LENGHT = Object.keys(GROUP_COLORS).length;
+const GROUP_COLORS_LENGTH = Object.keys(GROUP_COLORS).length;
 
 export class V8RuntimeCallStatsTab implements Tab {
   private previousSelection?: Selection;
@@ -120,7 +127,9 @@ export class V8RuntimeCallStatsTab implements Tab {
       schema: this.getUiSchema(),
       rootSchema: 'v8_rcs',
       toolbarItemsLeft: this.renderGroupFilter(),
+      toolbarItemsRight: this.renderExportButton(),
       data: this.dataSource,
+      fillHeight: true,
       initialPivot: {
         groupBy: [{field: 'v8_rcs_group', id: 'v8_rcs_group'}],
         aggregates: [
@@ -246,6 +255,27 @@ export class V8RuntimeCallStatsTab implements Tab {
     });
   }
 
+  private renderExportButton() {
+    let selection = 'All';
+    switch (this.previousSelection?.kind) {
+      case 'area':
+        selection = 'Area';
+        break;
+      case 'track_event':
+        selection = 'Slice';
+        break;
+      case 'track':
+        selection = 'Trace';
+        break;
+    }
+
+    return m(DownloadToFileButton, {
+      fileName: 'rcs.json',
+      label: `Export ${selection} RCS`,
+      content: () => new RcsJsonExporter().export(this.trace),
+    });
+  }
+
   private hasSelectionChanged(selection: Selection): boolean {
     if (this.previousSelection === undefined) return true;
     if (this.previousSelection.kind !== selection.kind) return true;
@@ -349,7 +379,7 @@ export class V8RuntimeCallStatsTab implements Tab {
     }
 
     let groupWhereClause = '1 = 1';
-    if (this.selectedGroups.size !== GROUP_COLORS_LENGHT) {
+    if (this.selectedGroups.size !== GROUP_COLORS_LENGTH) {
       const selectedGroups = Array.from(this.selectedGroups)
         .map((name) => `'${name}'`)
         .join(',');
@@ -413,6 +443,7 @@ export class V8RuntimeCallStatsTab implements Tab {
             ELSE 'runtime'
           END AS v8_rcs_group,
           name AS v8_rcs_name,
+          track_id,
           SUM(CASE WHEN suffix = '[1]'
             THEN CAST(int_value * 1000 * ratio AS INT)
             ELSE 0
@@ -422,7 +453,7 @@ export class V8RuntimeCallStatsTab implements Tab {
             ELSE 0
             END) AS v8_rcs_count
         FROM rcs_entries
-        GROUP BY name
+        GROUP BY name, track_id
       )
       SELECT
         *,
@@ -431,5 +462,117 @@ export class V8RuntimeCallStatsTab implements Tab {
       FROM rcs_aggregated
       WHERE ${groupWhereClause}
     `);
+  }
+}
+
+const RCS_PROCESS_URL_RE = /https?:\/\/[^\/\s]+/;
+
+class RcsJsonExporter {
+  private pageNames = new Map<number, string>();
+  private tldCounts = new Map<string, number>();
+  private pageStats: {
+    [pageName: string]: {
+      [key: string]: {
+        count: {
+          average: number;
+          stddev: number;
+        };
+        duration: {
+          average: number;
+          stddev: number;
+        };
+      };
+    };
+  } = Object.create(null);
+
+  public async export(trace: Trace): Promise<string> {
+    const result = await trace.engine.query(`
+      SELECT
+        p.upid,
+        args.string_value AS process_label,
+        v.v8_rcs_name,
+        SUM(v.v8_rcs_dur) AS v8_rcs_dur,
+        SUM(v.v8_rcs_count) AS v8_rcs_count
+      FROM v8_rcs_view v
+      JOIN thread_track tt ON v.track_id = tt.id
+      JOIN thread t ON tt.utid = t.utid
+      JOIN process p ON t.upid = p.upid
+      LEFT JOIN args ON p.arg_set_id = args.arg_set_id AND args.key = 'chrome.process_label[0]'
+      GROUP BY p.upid, v.v8_rcs_name
+    `);
+
+    const it = result.iter({
+      upid: NUM,
+      process_label: STR_NULL,
+      v8_rcs_name: STR,
+      v8_rcs_count: NUM,
+      v8_rcs_dur: NUM,
+    });
+
+    for (; it.valid(); it.next()) {
+      const pageName = this.getPageName(it.upid, it.process_label ?? '');
+      const pageStats = this.getPageStats(pageName);
+      pageStats[it.v8_rcs_name] = this.newEntry(
+        it.v8_rcs_count,
+        it.v8_rcs_dur / 1_000_000,
+      );
+    }
+
+    for (const pageStats of Object.values(this.pageStats)) {
+      let totalCount = 0;
+      let totalDurationMs = 0;
+      for (const rcsEntry of Object.values(pageStats)) {
+        totalCount += rcsEntry.count.average;
+        totalDurationMs += rcsEntry.duration.average;
+      }
+      pageStats['Total'] = this.newEntry(totalCount, totalDurationMs);
+    }
+
+    return JSON.stringify(
+      {
+        'default version': this.pageStats,
+      },
+      null,
+      2,
+    );
+  }
+
+  getPageName(upid: number, processLabel: string): string {
+    const cachedPageName = this.pageNames.get(upid);
+    if (cachedPageName) return cachedPageName;
+
+    const match = processLabel.match(RCS_PROCESS_URL_RE);
+    let tld;
+    if (match) {
+      const rawURL = match[0];
+      tld = new URL(rawURL).hostname;
+    } else {
+      tld = `PID=${upid}`;
+    }
+    const tldCount = (this.tldCounts.get(tld) ?? 0) + 1;
+    this.tldCounts.set(tld, tldCount);
+    const pageName = tldCount == 1 ? tld : `${tld}-${tldCount}`;
+    this.pageNames.set(upid, pageName);
+    return pageName;
+  }
+
+  getPageStats(pageName: string) {
+    if (pageName in this.pageStats) return this.pageStats[pageName];
+    const newStats = Object.create(null);
+    this.pageStats[pageName] = newStats;
+    return newStats;
+  }
+
+  newEntry(count: number, duration: number) {
+    return {
+      count: {
+        average: count,
+        stddev: 0,
+      },
+      duration: {
+        average: duration,
+        stddev: 0,
+      },
+    };
   }
 }
