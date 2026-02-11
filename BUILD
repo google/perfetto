@@ -399,7 +399,6 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_grammar_grammar",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
-        ":src_trace_processor_perfetto_sql_intrinsics_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
         ":src_trace_processor_perfetto_sql_intrinsics_operators_operators",
@@ -606,7 +605,6 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_grammar_grammar",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
-        ":src_trace_processor_perfetto_sql_intrinsics_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
         ":src_trace_processor_perfetto_sql_intrinsics_operators_operators",
@@ -3201,15 +3199,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/intrinsics/functions:interface
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_intrinsics_functions_interface",
-    srcs = [
-        "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h",
     ],
 )
 
@@ -8225,7 +8214,6 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_grammar_grammar",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
-        ":src_trace_processor_perfetto_sql_intrinsics_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
         ":src_trace_processor_perfetto_sql_intrinsics_operators_operators",
@@ -8461,7 +8449,6 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_grammar_grammar",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
-        ":src_trace_processor_perfetto_sql_intrinsics_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
         ":src_trace_processor_perfetto_sql_intrinsics_operators_operators",
