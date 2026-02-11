@@ -70,7 +70,7 @@
 namespace perfetto::trace_processor {
 namespace {
 
-using ClockId = ClockSynchronizerBase::ClockId;
+using ClockId = ClockTracker::ClockId;
 
 class TracePacketSink
     : public TraceSorter::Sink<TracePacketData, TracePacketSink> {
@@ -663,12 +663,10 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
   return base::OkStatus();
 }
 
-base::FlatHashMap<ClockSynchronizerBase::ClockId /*Clock Id*/,
-                  int64_t /*Offset*/>
+base::FlatHashMap<ClockTracker::ClockId /*Clock Id*/, int64_t /*Offset*/>
 ProtoTraceReader::CalculateClockOffsets(
     std::vector<SyncClockSnapshots>& sync_clock_snapshots) {
-  base::FlatHashMap<ClockSynchronizerBase::ClockId, int64_t /*Offset*/>
-      clock_offsets;
+  base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/> clock_offsets;
 
   // The RemoteClockSync message contains a sequence of |synced_clocks|
   // messages. Each |synced_clocks| message contains pairs of ClockSnapshots

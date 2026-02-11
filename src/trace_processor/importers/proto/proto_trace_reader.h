@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 
 namespace protozero {
@@ -71,7 +72,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   using SyncClockSnapshots = base::FlatHashMap<
       uint32_t,
       std::pair</*host ts*/ uint64_t, /*client ts*/ uint64_t>>;
-  static base::FlatHashMap<ClockSynchronizerBase::ClockId, int64_t /*Offset*/>
+  static base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/>
   CalculateClockOffsetsForTesting(
       std::vector<SyncClockSnapshots>& sync_clock_snapshots) {
     return CalculateClockOffsets(sync_clock_snapshots);
@@ -105,7 +106,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   void ParseTraceConfig(ConstBytes);
   void ParseTraceStats(ConstBytes);
 
-  static base::FlatHashMap<ClockSynchronizerBase::ClockId, int64_t /*Offset*/>
+  static base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/>
   CalculateClockOffsets(std::vector<SyncClockSnapshots>&);
 
   PacketSequenceStateBuilder* GetIncrementalStateForPacketSequence(
