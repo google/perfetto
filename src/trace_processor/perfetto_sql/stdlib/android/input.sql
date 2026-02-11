@@ -114,7 +114,7 @@ SELECT
   do_frame_id AS id,
   ts,
   dur,
-  CAST(ui_thread_utid AS INTEGER) AS utid,
+  cast_int!(ui_thread_utid) AS utid,
   frame_id
 FROM android_frames;
 
@@ -123,7 +123,7 @@ SELECT
   s.id,
   s.ts,
   s.dur,
-  CAST(t.utid AS INTEGER) AS utid,
+  cast_int!(t.utid) AS utid,
   t.process_name,
   str_split(s.name, '=', 3) AS extracted_input_event_id,
   str_split(str_split(parent.name, '_', 1), ' ', 0) AS event_action,
@@ -137,6 +137,45 @@ JOIN slice AS parent
 WHERE
   s.name GLOB 'deliverInputEvent src=*';
 
+CREATE PERFETTO TABLE _input_event_frame_intersections AS
+SELECT
+  ii.id_0 AS frame_id_key,
+  ii.id_1 AS event_id_key,
+  0 AS is_speculative_match
+FROM _interval_intersect!(
+  (_clean_android_frames, _clean_deliver_events),
+  (utid)
+) ii;
+
+CREATE PERFETTO TABLE _input_events_pending_frame_match AS
+SELECT *
+FROM _clean_deliver_events
+WHERE id NOT IN (SELECT event_id_key FROM _input_event_frame_intersections);
+
+-- Speculative Match: Find the immediate next frame for non-vsync-aligned events
+CREATE PERFETTO TABLE _input_event_frame_speculative_matches AS
+WITH _ordered_future_frames AS (
+  SELECT
+    e.id AS event_id_key,
+    f.id AS frame_id_key,
+    ROW_NUMBER() OVER (PARTITION BY e.id ORDER BY f.ts ASC) AS rn
+  FROM _input_events_pending_frame_match e
+  JOIN _clean_android_frames f
+    ON e.utid = f.utid
+    AND f.ts >= e.ts
+)
+SELECT
+  frame_id_key,
+  event_id_key,
+  1 AS is_speculative_match
+FROM _ordered_future_frames
+WHERE rn = 1;
+
+CREATE PERFETTO TABLE _input_event_frame_association AS
+SELECT * FROM _input_event_frame_intersections
+UNION ALL
+SELECT * FROM _input_event_frame_speculative_matches;
+
 CREATE PERFETTO TABLE _input_event_id_to_android_frame AS
 SELECT
   dev.extracted_input_event_id AS input_event_id,
@@ -147,17 +186,14 @@ SELECT
   dev.process_name,
   af.frame_id,
   af.ts AS frame_ts,
-  map.event_channel
-FROM _interval_intersect!(
-  (_clean_android_frames,
-   _clean_deliver_events),
-  (utid)
-) AS ii
-JOIN _clean_android_frames AS af
-  ON ii.id_0 = af.id
-JOIN _clean_deliver_events AS dev
-  ON ii.id_1 = dev.id
-JOIN _event_seq_to_input_event_id AS map
+  map.event_channel,
+  CAST(assoc.is_speculative_match AS BOOL) AS is_speculative_match
+FROM _input_event_frame_association assoc
+JOIN _clean_android_frames af
+  ON assoc.frame_id_key = af.id
+JOIN _clean_deliver_events dev
+  ON assoc.event_id_key = dev.id
+JOIN _event_seq_to_input_event_id map
   ON dev.extracted_input_event_id = map.input_event_id
   AND map.process_name = dev.process_name;
 
@@ -197,7 +233,8 @@ SELECT
     LIMIT 1
   ) AS frame_id,
   event_seq,
-  event_action
+  event_action,
+  _input_event_id_to_android_frame.is_speculative_match
 FROM _input_event_id_to_android_frame
 RIGHT JOIN _event_seq_to_input_event_id
   ON _input_event_id_to_android_frame.input_event_id = _event_seq_to_input_event_id.input_event_id
@@ -258,7 +295,9 @@ CREATE PERFETTO TABLE android_input_events (
   -- Duration of input event receipt.
   receive_dur DURATION,
   -- Vsync Id associated with the input. Null if an input event has no associated frame event.
-  frame_id LONG
+  frame_id LONG,
+  -- Indicates if the frame association was speculative rather than exact based on id match.
+  is_speculative_frame BOOL
 ) AS
 WITH
   dispatch AS (
@@ -326,7 +365,8 @@ SELECT
   receive.ts AS receive_ts,
   receive.dur AS receive_dur,
   receive.track_id AS receive_track_id,
-  frame.frame_id
+  frame.frame_id,
+  frame.is_speculative_match AS is_speculative_frame
 FROM dispatch
 JOIN receive
   ON receive.dispatch_event_channel = dispatch.event_channel
@@ -445,7 +485,7 @@ SELECT
   track_id,
   ts,
   dur,
-  CAST(str_split(name, ' ', 1) AS INTEGER) AS frame_id
+  cast_int!(str_split(name, ' ', 1))AS frame_id
 FROM slice
 WHERE
   name GLOB 'Choreographer#doFrame*';
@@ -490,7 +530,8 @@ RETURNS TABLE (
   -- Choreographer Frame Stage
   id_frame LONG,
   track_frame LONG,
-  dur_frame LONG
+  dur_frame LONG,
+  is_speculative_frame BOOL
 ) AS
 SELECT
   e.input_event_id AS input_id,
@@ -515,7 +556,8 @@ SELECT
   s_cons.dur AS dur_consume,
   s_frame.id AS id_frame,
   s_frame.track_id AS track_frame,
-  s_frame.dur AS dur_frame
+  s_frame.dur AS dur_frame,
+  e.is_speculative_frame
 FROM android_input_events AS e
 LEFT JOIN slice AS s_read
   ON s_read.ts = e.read_time AND s_read.track_id != 0
