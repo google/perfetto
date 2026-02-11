@@ -17,6 +17,7 @@ import {time, Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {Trace} from '../../public/trace';
 import {TrackBounds} from '../../public/track';
+import {RelatedEventData, Relation} from './interface';
 
 /**
  * Represents a specific point in time and space (track + vertical depth)
@@ -38,10 +39,11 @@ export interface ArrowPoint {
 export interface ArrowConnection {
   start: ArrowPoint;
   end: ArrowPoint;
+  color?: string;
 }
 
 export class ArrowVisualiser {
-  private static readonly LINE_COLOR = `hsla(0, 100%, 60%, 1.00)`;
+  private static readonly DEFAULT_LINE_COLOR = `hsla(0, 100%, 60%, 1.00)`;
   private static readonly LINE_WIDTH = 2;
 
   constructor(private trace: Trace) {}
@@ -52,7 +54,6 @@ export class ArrowVisualiser {
     renderedTracks: ReadonlyArray<TrackBounds>,
     connections: ArrowConnection[],
   ): void {
-    canvasCtx.strokeStyle = ArrowVisualiser.LINE_COLOR;
     canvasCtx.lineWidth = ArrowVisualiser.LINE_WIDTH;
 
     const trackBoundsMap = new Map<string, TrackBounds>();
@@ -68,6 +69,9 @@ export class ArrowVisualiser {
 
       // We can only draw if both source and dest tracks are currently rendered (visible)
       if (leftTrackBounds && rightTrackBounds) {
+        canvasCtx.strokeStyle =
+          connection.color || ArrowVisualiser.DEFAULT_LINE_COLOR;
+
         const arrowStartX = timescale.timeToPx(
           Time.fromRaw(connection.start.ts),
         );
@@ -122,4 +126,47 @@ export class ArrowVisualiser {
     // Fallback: Track vertical center
     return trackRect.top + (trackRect.bottom - trackRect.top) / 2;
   }
+}
+
+function getColorForRelation(relation: Relation): string | undefined {
+  if (relation.type === 'lifecycle_step') return 'hsla(210, 100%, 70%, 1.00)';
+  const customArgs = relation.customArgs as {color?: string} | undefined;
+  if (customArgs?.color) return customArgs.color;
+  return undefined; // Default color
+}
+
+// Wrapper function to use ArrowVisualiser with RelatedEvents
+export function drawRelatedEvents(
+  canvasCtx: CanvasRenderingContext2D,
+  trace: Trace,
+  timescale: TimeScale,
+  renderedTracks: ReadonlyArray<TrackBounds>,
+  data: RelatedEventData,
+) {
+  const visualiser = new ArrowVisualiser(trace);
+  const eventMap = new Map(data.events.map((e) => [e.id, e]));
+  const connections: ArrowConnection[] = [];
+
+  for (const relation of data.relations) {
+    const sourceEvent = eventMap.get(relation.sourceId);
+    const targetEvent = eventMap.get(relation.targetId);
+
+    if (sourceEvent && targetEvent) {
+      connections.push({
+        start: {
+          trackUri: sourceEvent.trackUri,
+          ts: Time.add(sourceEvent.ts, sourceEvent.dur),
+          depth: sourceEvent.depth,
+        },
+        end: {
+          trackUri: targetEvent.trackUri,
+          ts: targetEvent.ts,
+          depth: targetEvent.depth,
+        },
+        color: getColorForRelation(relation),
+      });
+    }
+  }
+
+  visualiser.draw(canvasCtx, timescale, renderedTracks, connections);
 }
