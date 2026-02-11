@@ -15167,6 +15167,13 @@ message TrackEvent {
   // consumption.
   repeated fixed64 flow_ids = 47;
 
+  // A span is a timed operation in a trace which can be comprised of children.
+  // A child span will always refer to its parent by using the `parent_span_ids`
+  // field. For e.g.
+  optional fixed64 span_id = 55;
+  // The `span_id` for the parents from which the operation branched off from.
+  repeated fixed64 parent_span_ids = 56;
+
   // List of flow ids which should terminate on this event, otherwise same as
   // |flow_ids|.
   // Any one flow ID should be either listed as part of |flow_ids| OR

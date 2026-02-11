@@ -61,6 +61,32 @@ void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
   }
 }
 
+void FlowTracker::BeginSpan(SliceId slice_id, FlowId flow_id) {
+  auto it_and_ins = spans_map_.Insert(flow_id, slice_id);
+  if (!it_and_ins.second) {
+    context_->storage->IncrementStats(stats::flow_duplicate_id);
+    return;
+  }
+}
+
+void FlowTracker::InsertSpan(SliceId slice_id,
+                             FlowId parent_span_id,
+                             FlowId span_id) {
+  // The key difference between InsertSpan and Step is the fact that Step keeps
+  // track of the top most slice for a given track_id, and InsertSpan is very
+  // explicit about the span_id's being used.
+  BeginSpan(slice_id, span_id);
+  auto* parent_slice = spans_map_.Find(parent_span_id);
+  if (!parent_slice) {
+    context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
+    return;
+  }
+  InsertFlow(parent_span_id, *parent_slice, slice_id);
+  // It _might_ be nice to insert another flow backwards to the parent_slice,
+  // but the Perfetto UI only shows flows from the start of a slice to the start
+  // of the next slice.
+}
+
 void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
   std::optional<SliceId> open_slice_id =
       context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
