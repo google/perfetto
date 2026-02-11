@@ -43,5 +43,23 @@ TEST(Regex, SubmatchOptionalGroup) {
   EXPECT_THAT(matches, testing::ElementsAre("ac", ""));
 }
 
+TEST(Regex, Replace) {
+  auto regex = std::move(*Regex::Create("o"));
+  auto actual = regex.Replace("foo", "repl");
+  EXPECT_EQ(actual, "freplrepl");
+}
+
+TEST(Regex, ReplaceNoMatch) {
+  auto regex = std::move(*Regex::Create("nope"));
+  auto actual = regex.Replace("foo", "repl");
+  EXPECT_EQ(actual, "foo");
+}
+
+TEST(Regex, ReplaceZeroLengthMatch) {
+  auto regex = std::move(*Regex::Create("a?"));
+  auto actual = regex.Replace("foo", "R");
+  EXPECT_EQ(actual, "RfRoRoR");
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::regex
