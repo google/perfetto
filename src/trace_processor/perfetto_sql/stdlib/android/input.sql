@@ -145,36 +145,47 @@ SELECT
 FROM _interval_intersect!(
   (_clean_android_frames, _clean_deliver_events),
   (utid)
-) ii;
+) AS ii;
 
 CREATE PERFETTO TABLE _input_events_pending_frame_match AS
-SELECT *
+SELECT
+  *
 FROM _clean_deliver_events
-WHERE id NOT IN (SELECT event_id_key FROM _input_event_frame_intersections);
+WHERE
+  NOT id IN (
+    SELECT
+      event_id_key
+    FROM _input_event_frame_intersections
+  );
 
 -- Speculative Match: Find the immediate next frame for non-vsync-aligned events
 CREATE PERFETTO TABLE _input_event_frame_speculative_matches AS
-WITH _ordered_future_frames AS (
-  SELECT
-    e.id AS event_id_key,
-    f.id AS frame_id_key,
-    ROW_NUMBER() OVER (PARTITION BY e.id ORDER BY f.ts ASC) AS rn
-  FROM _input_events_pending_frame_match e
-  JOIN _clean_android_frames f
-    ON e.utid = f.utid
-    AND f.ts >= e.ts
-)
+WITH
+  _ordered_future_frames AS (
+    SELECT
+      e.id AS event_id_key,
+      f.id AS frame_id_key,
+      row_number() OVER (PARTITION BY e.id ORDER BY f.ts ASC) AS rn
+    FROM _input_events_pending_frame_match AS e
+    JOIN _clean_android_frames AS f
+      ON e.utid = f.utid AND f.ts >= e.ts
+  )
 SELECT
   frame_id_key,
   event_id_key,
   1 AS is_speculative_match
 FROM _ordered_future_frames
-WHERE rn = 1;
+WHERE
+  rn = 1;
 
 CREATE PERFETTO TABLE _input_event_frame_association AS
-SELECT * FROM _input_event_frame_intersections
+SELECT
+  *
+FROM _input_event_frame_intersections
 UNION ALL
-SELECT * FROM _input_event_frame_speculative_matches;
+SELECT
+  *
+FROM _input_event_frame_speculative_matches;
 
 CREATE PERFETTO TABLE _input_event_id_to_android_frame AS
 SELECT
@@ -188,12 +199,12 @@ SELECT
   af.ts AS frame_ts,
   map.event_channel,
   CAST(assoc.is_speculative_match AS BOOL) AS is_speculative_match
-FROM _input_event_frame_association assoc
-JOIN _clean_android_frames af
+FROM _input_event_frame_association AS assoc
+JOIN _clean_android_frames AS af
   ON assoc.frame_id_key = af.id
-JOIN _clean_deliver_events dev
+JOIN _clean_deliver_events AS dev
   ON assoc.event_id_key = dev.id
-JOIN _event_seq_to_input_event_id map
+JOIN _event_seq_to_input_event_id AS map
   ON dev.extracted_input_event_id = map.input_event_id
   AND map.process_name = dev.process_name;
 
@@ -485,7 +496,7 @@ SELECT
   track_id,
   ts,
   dur,
-  cast_int!(str_split(name, ' ', 1))AS frame_id
+  cast_int!(str_split(name, ' ', 1)) AS frame_id
 FROM slice
 WHERE
   name GLOB 'Choreographer#doFrame*';
