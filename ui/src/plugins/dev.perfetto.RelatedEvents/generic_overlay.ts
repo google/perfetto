@@ -16,18 +16,16 @@ import {Size2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {Trace} from '../../public/trace';
 import {Overlay, TrackBounds} from '../../public/track';
-import {ArrowConnection, ArrowVisualiser} from './arrow_visualiser';
+import {drawRelatedEvents} from './arrow_visualiser';
+import {RelatedEventData} from './interface';
 
-export class LifecycleOverlay implements Overlay {
-  private readonly arrowVisualiser: ArrowVisualiser;
-  private connections: ArrowConnection[] = [];
+export class GenericRelatedEventsOverlay implements Overlay {
+  private data: RelatedEventData = {events: [], relations: []};
 
-  constructor(trace: Trace) {
-    this.arrowVisualiser = new ArrowVisualiser(trace);
-  }
+  constructor(public trace: Trace) {}
 
-  update(connections: ArrowConnection[]) {
-    this.connections = connections;
+  update(data: RelatedEventData) {
+    this.data = data;
   }
 
   render(
@@ -36,8 +34,10 @@ export class LifecycleOverlay implements Overlay {
     _size: Size2D,
     tracks: ReadonlyArray<TrackBounds>,
   ): void {
-    if (this.connections.length > 0) {
-      this.arrowVisualiser.draw(ctx, ts, tracks, this.connections);
-    }
+    const overlayData: RelatedEventData = {
+      events: this.data.overlayEvents || [],
+      relations: this.data.overlayRelations || [],
+    };
+    drawRelatedEvents(ctx, this.trace, ts, tracks, overlayData);
   }
 }
