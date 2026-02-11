@@ -40,6 +40,13 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   defaultValue: true,
 });
 
+const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
+  id: 'virtualTrackScrolling',
+  name: 'Virtual track scrolling',
+  description: `Use virtual scrolling in the timeline view to improve performance on large traces.`,
+  defaultValue: true,
+});
+
 const MIN_TRACK_SHELL_WIDTH = 100;
 const MAX_TRACK_SHELL_WIDTH = 1000;
 
@@ -65,15 +72,19 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
 
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
+    const virtualScrollingEnabled = VIRTUAL_TRACK_SCROLLING.get();
+
     return m(
       HotkeyContext,
       {
-        hotkeys: [
-          {
-            hotkey: '!Mod+F',
-            callback: () => this.trackSearch.show(),
-          },
-        ],
+        hotkeys: virtualScrollingEnabled
+          ? [
+              {
+                hotkey: '!Mod+F',
+                callback: () => this.trackSearch.show(),
+              },
+            ]
+          : [],
         focusable: false, // Global hotkey, works without element focus
         fillHeight: true,
       },
@@ -81,7 +92,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         TabPanel,
         {trace},
         this.renderMinimap(trace),
-        this.renderTrackSearchPanel(),
+        virtualScrollingEnabled && this.renderTrackSearchPanel(),
         this.renderTimeline(trace),
       ),
     );
@@ -167,6 +178,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           canReorderNodes: true,
           scrollToNewTracks: true,
           trackSearch: this.trackSearch,
+          virtualScrollingEnabled: VIRTUAL_TRACK_SCROLLING.get(),
         }),
       ),
       m(ResizeHandle, {
@@ -195,6 +207,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       canRemoveNodes: trace.currentWorkspace.userEditable,
       trackFilter: (track) => trackMatchesFilter(trace, track),
       trackSearch: this.trackSearch,
+      virtualScrollingEnabled: VIRTUAL_TRACK_SCROLLING.get(),
     });
   }
 

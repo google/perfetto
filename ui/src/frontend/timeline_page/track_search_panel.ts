@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
+import {AppImpl} from '../../core/app_impl';
 import {TrackSearchManager} from '../../core/track_search_manager';
 import {Button} from '../../widgets/button';
 import {PopupPosition} from '../../widgets/popup';
@@ -59,6 +60,35 @@ export class TrackSearchPanel
       }),
       m(
         '.pf-track-search-panel__buttons',
+        m(
+          Tooltip,
+          {
+            position: PopupPosition.Top,
+            trigger: m(Button, {
+              icon: Icons.Help,
+              onclick: () => {
+                AppImpl.instance.navigate('#!/flags/virtualTrackScrolling');
+              },
+            }),
+          },
+          m(
+            '',
+            'Browser find (Ctrl+F) is disabled when virtual scrolling is enabled. ',
+            m(
+              'a',
+              {
+                href: '#!/flags/virtualTrackScrolling',
+                onclick: (e: Event) => {
+                  e.preventDefault();
+                  searchManager.hide();
+                  AppImpl.instance.navigate('#!/flags/virtualTrackScrolling');
+                },
+              },
+              'Disable virtual scrolling',
+            ),
+            ' to use Ctrl+F instead.',
+          ),
+        ),
         m(
           Tooltip,
           {

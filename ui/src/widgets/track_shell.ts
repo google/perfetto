@@ -113,6 +113,10 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // Used for virtual scrolling where we skip rendering offscreen tracks.
   readonly absoluteTop?: number;
 
+  // Render a lighter version of the track shell, with no buttons or chips, just
+  // the track title. Used for offscreen tracks when virtual scrolling is disabled.
+  readonly lite?: boolean;
+
   // Called when the track is expanded or collapsed (when the node is clicked).
   onCollapsedChanged?(collapsed: boolean): void;
 
@@ -146,6 +150,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       depth = 0,
       stickyTop = 0,
       absoluteTop,
+      lite,
     } = attrs;
 
     const expanded = collapsible && !collapsed;
@@ -184,7 +189,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           ),
         },
         this.renderShell(attrs),
-        this.renderContent(attrs),
+        !lite && this.renderContent(attrs),
       ),
       hasChildren(vnode) && m('.pf-track__children', vnode.children),
     );
@@ -215,6 +220,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       onMoveInside = () => {},
       buttons,
       highlight,
+      lite,
       summary,
     } = attrs;
 
@@ -239,6 +245,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         className: classNames(
           collapsible && 'pf-track__shell--clickable',
           highlight && 'pf-track__shell--highlight',
+          lite && 'pf-track__shell--lite',
         ),
         onclick: () => {
           collapsible && attrs.onCollapsedChanged?.(!collapsed);
@@ -333,47 +340,49 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           target.classList.remove(dragBeforeClassName);
         },
       },
-      m(
-        '.pf-track__menubar',
-        collapsible
-          ? m(Button, {
-              className: 'pf-track__collapse-button',
-              compact: true,
-              icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp,
-            })
-          : m('.pf-track__title-spacer'),
-        m(TrackTitle, {
-          title: attrs.title,
-          highlightMatch: attrs.highlightMatch,
-          isCurrentSearchMatch: attrs.isCurrentSearchMatch,
-        }),
-        chips &&
-          m(
-            Stack,
-            {
-              className: 'pf-track__chips',
-              spacing: 'small',
-              orientation: 'horizontal',
-            },
-            chips.map((chip) =>
-              m(Chip, {label: chip, compact: true, rounded: true}),
+      lite
+        ? m('.pf-track__menubar', m('.pf-track__title', attrs.title))
+        : m(
+            '.pf-track__menubar',
+            collapsible
+              ? m(Button, {
+                  className: 'pf-track__collapse-button',
+                  compact: true,
+                  icon: collapsed ? Icons.ExpandDown : Icons.ExpandUp,
+                })
+              : m('.pf-track__title-spacer'),
+            m(TrackTitle, {
+              title: attrs.title,
+              highlightMatch: attrs.highlightMatch,
+              isCurrentSearchMatch: attrs.isCurrentSearchMatch,
+            }),
+            chips &&
+              m(
+                Stack,
+                {
+                  className: 'pf-track__chips',
+                  spacing: 'small',
+                  orientation: 'horizontal',
+                },
+                chips.map((chip) =>
+                  m(Chip, {label: chip, compact: true, rounded: true}),
+                ),
+              ),
+            m(
+              ButtonBar,
+              {
+                className: 'pf-track__buttons',
+                // Block button clicks from hitting the shell's on click event
+                onclick: (e: MouseEvent) => e.stopPropagation(),
+              },
+              buttons,
+              // Always render this one last
+              attrs.error && renderCrashButton(attrs.error, attrs.pluginId),
             ),
+            attrs.subtitle &&
+              !showSubtitleInContent(attrs) &&
+              m('.pf-track__subtitle', attrs.subtitle),
           ),
-        m(
-          ButtonBar,
-          {
-            className: 'pf-track__buttons',
-            // Block button clicks from hitting the shell's on click event
-            onclick: (e: MouseEvent) => e.stopPropagation(),
-          },
-          buttons,
-          // Always render this one last
-          attrs.error && renderCrashButton(attrs.error, attrs.pluginId),
-        ),
-        attrs.subtitle &&
-          !showSubtitleInContent(attrs) &&
-          m('.pf-track__subtitle', attrs.subtitle),
-      ),
     );
   }
 

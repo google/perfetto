@@ -78,14 +78,6 @@ import {CanvasColors} from '../../public/canvas_colors';
 import {Icons} from '../../base/semantic_icons';
 import {Renderer} from '../../base/renderer';
 
-const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
-  id: 'virtualTrackScrolling',
-  name: 'Virtual track scrolling',
-  description: `[Experimental] Use virtual scrolling in the timeline view to
-    improve performance on large traces.`,
-  defaultValue: true,
-});
-
 const WEBGL_RENDERING = featureFlags.register({
   id: 'webglRendering',
   name: 'WebGL rendering',
@@ -153,6 +145,11 @@ export interface TrackTreeViewAttrs {
 
   // Track search manager for highlighting search matches.
   readonly trackSearch?: TrackSearchManager;
+
+  // Whether virtual scrolling is enabled. When true, offscreen tracks are not
+  // rendered at all. When false, offscreen tracks render in "lite" mode.
+  // Default: true
+  readonly virtualScrollingEnabled?: boolean;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -195,6 +192,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       trackFilter,
       filtersApplied,
       trackSearch,
+      virtualScrollingEnabled = true,
     } = attrs;
     const renderedTracks = new Array<TrackView>();
     let top = 0;
@@ -228,40 +226,49 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     }
 
     const useVirtualScrolling =
-      VIRTUAL_TRACK_SCROLLING.get() && this.canvasRect !== undefined;
+      virtualScrollingEnabled && this.canvasRect !== undefined;
 
     // Check if a region overlaps with the visible canvas
     const isOnScreen = (top: number, bottom: number): boolean => {
-      if (!useVirtualScrolling) return true;
-      return this.canvasRect!.overlaps({left: 0, right: 1, top, bottom});
+      if (!this.canvasRect) return true;
+      return this.canvasRect.overlaps({left: 0, right: 1, top, bottom});
     };
 
     // Recursively render tracks, maintaining hierarchy for sticky headers.
-    // Returns {vnodes, subtreeHeight} where subtreeHeight is the total height
-    // of this track and all its children.
-    // When isRootLevel=true, offscreen tracks return null vnodes.
-    // When isRootLevel=false (nested children), offscreen tracks return spacers.
+    // Returns {vnodes, subtreeHeight, isVisible} where subtreeHeight is the
+    // total height of this track and all its children.
+    // When virtual scrolling is enabled:
+    //   - Root level offscreen tracks return null vnodes
+    //   - Nested offscreen tracks return spacers
+    // When virtual scrolling is disabled:
+    //   - All tracks are rendered, but offscreen tracks use lite mode
     const renderTrack = (
       node: TrackNode,
       depth: number,
       stickyTop: number,
       isRootLevel: boolean,
-    ): {vnodes: m.Children; subtreeHeight: number} => {
+    ): {vnodes: m.Children; subtreeHeight: number; isVisible: boolean} => {
       // Skip nodes that don't match the filter and have no matching children.
       if (!filterMatches(node)) {
-        return {vnodes: false, subtreeHeight: 0};
+        return {vnodes: false, subtreeHeight: 0, isVisible: false};
       }
 
       if (node.headless) {
         // Headless nodes are invisible, just render children.
         const childNodes: m.Children = [];
         let totalChildHeight = 0;
+        let atLeastOneChildVisible = false;
         for (const child of node.children) {
           const result = renderTrack(child, depth, stickyTop, isRootLevel);
           childNodes.push(result.vnodes);
           totalChildHeight += result.subtreeHeight;
+          if (result.isVisible) atLeastOneChildVisible = true;
         }
-        return {vnodes: childNodes, subtreeHeight: totalChildHeight};
+        return {
+          vnodes: childNodes,
+          subtreeHeight: totalChildHeight,
+          isVisible: atLeastOneChildVisible,
+        };
       }
 
       const trackView = new TrackView(trace, node, top);
@@ -281,6 +288,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Render children recursively - children are NOT root level
       const childNodes: m.Children = [];
       let childrenHeight = 0;
+      let atLeastOneChildVisible = false;
 
       if ((node.expanded || filtersApplied) && node.hasChildren) {
         for (const child of node.children) {
@@ -292,19 +300,28 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           );
           childNodes.push(result.vnodes);
           childrenHeight += result.subtreeHeight;
+          if (result.isVisible) atLeastOneChildVisible = true;
         }
       }
 
       const subtreeHeight = trackView.height + childrenHeight;
+      const trackOnScreen = isOnScreen(
+        trackAbsoluteTop,
+        trackAbsoluteTop + trackView.height,
+      );
       const subtreeOnScreen = isOnScreen(
         trackAbsoluteTop,
         trackAbsoluteTop + subtreeHeight,
       );
 
-      if (!subtreeOnScreen) {
+      // Track is visible if it's on screen or has visible children
+      const isVisible = trackOnScreen || atLeastOneChildVisible;
+
+      // When virtual scrolling is enabled, skip rendering offscreen subtrees
+      if (useVirtualScrolling && !subtreeOnScreen) {
         if (isRootLevel) {
           // Root level: don't render anything, height accounted for in container
-          return {vnodes: false, subtreeHeight};
+          return {vnodes: false, subtreeHeight, isVisible: false};
         } else {
           // Nested child: render a spacer to maintain layout flow
           return {
@@ -312,6 +329,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               style: {height: `${subtreeHeight}px`},
             }),
             subtreeHeight,
+            isVisible: false,
           };
         }
       }
@@ -319,16 +337,19 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Render this track with its children nested inside
       const vnodes = trackView.renderDOM(
         {
+          // When virtual scrolling is disabled, use lite mode for offscreen tracks
+          lite: !useVirtualScrolling && !isVisible,
           scrollToOnCreate: scrollToNewTracks,
           reorderable: canReorderNodes,
           removable: canRemoveNodes,
           stickyTop,
           depth,
           collapsible: !filtersApplied,
-          // Only use absolute positioning for root-level tracks
+          // Only use absolute positioning for root-level tracks with virtual scrolling
           absoluteTop:
             useVirtualScrolling && isRootLevel ? trackAbsoluteTop : undefined,
-          trackSearch,
+          // Only enable track search when virtual scrolling is enabled
+          trackSearch: virtualScrollingEnabled ? trackSearch : undefined,
           onTrackMouseOver: () => {
             this.hoveredTrackNode = node;
           },
@@ -339,7 +360,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         childNodes,
       );
 
-      return {vnodes, subtreeHeight};
+      return {vnodes, subtreeHeight, isVisible};
     };
 
     // Render all root-level tracks
@@ -355,7 +376,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     // Update the track search manager with the list of tracks.
     // Visible tracks are those that are rendered (expanded).
     // All tracks includes those inside collapsed groups.
-    if (trackSearch) {
+    // Only enable search when virtual scrolling is enabled.
+    if (trackSearch && virtualScrollingEnabled) {
       const visibleTracks = renderedTracks.map((tv) => tv.node);
       const allTracks: TrackNode[] = [];
       collectAllTracks(rootNode, allTracks);
@@ -414,7 +436,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             renderer,
           );
 
-          if (VIRTUAL_TRACK_SCROLLING.get()) {
+          if (virtualScrollingEnabled) {
             // The VOC can ask us to redraw the canvas for any number of
             // reasons, we're interested in the case where the canvas rect has
             // moved (which indicates that the user has scrolled enough to
