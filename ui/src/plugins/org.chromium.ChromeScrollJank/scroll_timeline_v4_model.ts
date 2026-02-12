@@ -70,9 +70,9 @@ export const SCROLL_TIMELINE_V4_TABLE_DEFINITION: SqlTableDefinition = {
   name: SCROLL_TIMELINE_V4_TRACK.tableName,
   columns: [
     /**
-     * Unique ID of the slice (monotonically increasing). Note that it cannot
-     * joined with any tables in Chrome's tracing stdlib. Not guaranteed to be
-     * stable.
+     * Unique ID of the slice created by the plugin (monotonically increasing).
+     * Note that it cannot joined with any tables in Chrome's tracing stdlib.
+     * Not guaranteed to be stable.
      */
     {
       column: 'id',
@@ -102,6 +102,30 @@ export const SCROLL_TIMELINE_V4_TABLE_DEFINITION: SqlTableDefinition = {
      * {@link ScrollFrameClassification#DESCENDANT_SLICE}.
      */
     {column: 'classification', type: PerfettoSqlTypes.INT},
+
+    /**
+     * ID of the original slice emitted by Chrome in the trace. Can be joined
+     * with `chrome_scroll_frame_info_v4.id` and `slice.id`.
+     */
+    {
+      column: 'original_slice_id',
+      type: {
+        kind: 'joinid',
+        source: {table: 'slice', column: 'id'},
+      },
+    },
+
+    /**
+     * ID of the parent scroll update slice if the row corresponds to an event
+     * within a scroll update. NULL if the row corresponds to a scroll update.
+     */
+    {
+      column: 'parent_id',
+      type: {
+        kind: 'joinid',
+        source: {table: SCROLL_TIMELINE_V4_TRACK.tableName, column: 'id'},
+      },
+    },
   ],
 };
 
@@ -121,6 +145,7 @@ export async function createScrollTimelineV4Model(
     WITH descendant_slices AS (
       SELECT
         ancestor.id AS ancestor_id,
+        descendant.id,
         descendant.ts,
         descendant.dur,
         descendant.name,
@@ -177,7 +202,9 @@ export async function createScrollTimelineV4Model(
           WHEN real_max_abs_inertial_raw_delta_pixels IS NOT NULL
             THEN ${ScrollFrameClassification.INERTIAL}
           ELSE ${ScrollFrameClassification.DEFAULT}
-        END AS classification
+        END AS classification,
+        results.id AS original_slice_id,
+        NULL AS original_parent_slice_id
       FROM chrome_scroll_jank_v4_results AS results
       JOIN frame_layout USING(id)
       JOIN max_depth
@@ -188,15 +215,36 @@ export async function createScrollTimelineV4Model(
         frame_layout.depth * (max_depth.max_depth + 1) + descendant.depth
           AS depth,
         descendant.name,
-        ${ScrollFrameClassification.DESCENDANT_SLICE} AS classification
+        ${ScrollFrameClassification.DESCENDANT_SLICE} AS classification,
+        descendant.id AS original_slice_id,
+        descendant.ancestor_id AS original_parent_slice_id
       FROM descendant_slices AS descendant
       JOIN frame_layout ON descendant.ancestor_id = frame_layout.id
       JOIN max_depth
+    ), timeline_slices_with_id AS (
+      SELECT
+        row_number() OVER (ORDER BY ts ASC) AS id,
+        ts,
+        dur,
+        depth,
+        name,
+        classification,
+        original_slice_id,
+        original_parent_slice_id
+      FROM timeline_slices_without_id
     )
     SELECT
-      row_number() OVER (ORDER BY ts ASC) AS id,
-      *
-    FROM timeline_slices_without_id
-    ORDER BY ts ASC;`,
+      frame_or_stage.id,
+      frame_or_stage.ts,
+      frame_or_stage.dur,
+      frame_or_stage.depth,
+      frame_or_stage.name,
+      frame_or_stage.classification,
+      frame_or_stage.original_slice_id,
+      parent_frame.id AS parent_id
+    FROM timeline_slices_with_id AS frame_or_stage
+    LEFT JOIN timeline_slices_with_id AS parent_frame
+      ON frame_or_stage.original_parent_slice_id = parent_frame.original_slice_id
+    ORDER BY frame_or_stage.ts ASC;`,
   );
 }

@@ -60,7 +60,9 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
     const isHorizontal = direction === 'horizontal';
 
     return m('.pf-resize-handle', {
-      class: isHorizontal ? 'pf-resize-handle--horizontal' : '',
+      class: isHorizontal
+        ? 'pf-resize-handle--horizontal'
+        : 'pf-resize-handle--vertical',
       oncontextmenu: (e: Event) => {
         e.preventDefault();
       },

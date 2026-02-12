@@ -47,6 +47,243 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_AndroidSurfaceFlingerWorkload, Source){
                                   FRAME_SIGNAL) = 1,
 };
 
+PERFETTO_PB_MSG(perfetto_protos_AndroidProcessStateChangedEvent);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  uid,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  pid,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  prev_proc_state,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  cur_proc_state,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  prev_capability_flags,
+                  5);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  cur_capability_flags,
+                  6);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  prev_oom_score,
+                  7);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  cur_oom_score,
+                  8);
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidProcessDiedEvent);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,
+                  VARINT,
+                  int32_t,
+                  uid,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,
+                  VARINT,
+                  int32_t,
+                  pid,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,
+                  STRING,
+                  const char*,
+                  process_name,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,
+                  VARINT,
+                  uint32_t,
+                  reason,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,
+                  VARINT,
+                  uint32_t,
+                  sub_reason,
+                  5);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,
+                  VARINT,
+                  uint32_t,
+                  importance,
+                  6);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,
+                  VARINT,
+                  int32_t,
+                  rss_kb,
+                  7);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,
+                  VARINT,
+                  int32_t,
+                  has_foreground_services,
+                  8);
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidProcessStartEvent);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStartEvent,
+                  VARINT,
+                  int32_t,
+                  uid,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStartEvent,
+                  VARINT,
+                  int32_t,
+                  pid,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStartEvent,
+                  STRING,
+                  const char*,
+                  process_name,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStartEvent,
+                  VARINT,
+                  int64_t,
+                  bind_application_delay_ms,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStartEvent,
+                  VARINT,
+                  int64_t,
+                  process_start_delay_ms,
+                  5);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStartEvent,
+                  STRING,
+                  const char*,
+                  hosting_name,
+                  6);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStartEvent,
+                  VARINT,
+                  uint32_t,
+                  hosting_type,
+                  7);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStartEvent,
+                  VARINT,
+                  uint32_t,
+                  trigger_type,
+                  8);
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidFreezerEvent);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidFreezerEvent, VARINT, int32_t, uid, 1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidFreezerEvent, VARINT, int32_t, pid, 2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidFreezerEvent,
+                  VARINT,
+                  int64_t,
+                  unfrozen_dur_ms,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidFreezerEvent,
+                  VARINT,
+                  int64_t,
+                  frozen_dur_ms,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidFreezerEvent,
+                  VARINT,
+                  uint32_t,
+                  unfreeze_reason,
+                  5);
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidBroadcastEvent);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  int32_t,
+                  receiver_uid,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  int32_t,
+                  receiver_pid,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  int32_t,
+                  sender_uid,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  int32_t,
+                  sender_pid,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  STRING,
+                  const char*,
+                  action_name,
+                  5);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  uint32_t,
+                  receiver_type,
+                  6);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  uint32_t,
+                  proc_start_type,
+                  7);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  int64_t,
+                  dispatch_delay_ms,
+                  8);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  int64_t,
+                  receive_delay_ms,
+                  9);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  int64_t,
+                  finish_delay_ms,
+                  10);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  uint32_t,
+                  package_stopped_state,
+                  11);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  uint32_t,
+                  broadcast_type,
+                  12);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  uint32_t,
+                  delivery_group_policy,
+                  13);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  int32_t,
+                  intent_flags,
+                  14);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  int32_t,
+                  filter_priority,
+                  15);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  uint32_t,
+                  sender_process_state,
+                  16);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  uint32_t,
+                  receiver_process_state,
+                  17);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
+                  VARINT,
+                  uint32_t,
+                  first_launch,
+                  18);
+
 PERFETTO_PB_MSG(perfetto_protos_AndroidSurfaceFlingerWorkload);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidSurfaceFlingerWorkload,
                   VARINT,
@@ -375,4 +612,34 @@ PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
                             perfetto_protos_AndroidSurfaceFlingerWorkload,
                             surfaceflinger_workload,
                             2007);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidBroadcastEvent,
+                            broadcast_event,
+                            2008);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidFreezerEvent,
+                            freezer_event,
+                            2009);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidProcessStartEvent,
+                            process_start_event,
+                            2010);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidProcessDiedEvent,
+                            process_died_event,
+                            2011);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidProcessStateChangedEvent,
+                            process_state_changed_event,
+                            2012);
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_ANDROID_ANDROID_TRACK_EVENT_PZC_H_

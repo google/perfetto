@@ -21,6 +21,11 @@ import {SqlRef} from '../../widgets/sql_ref';
 import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {MenuItem} from '../../widgets/menu';
 import {extensions} from '../../components/extensions';
+import {TreeNode} from '../../widgets/tree';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {Tooltip} from '../../widgets/tooltip';
+import {Icon} from '../../widgets/icon';
+import {TrackEventRef} from '../../components/widgets/track_event_ref';
 
 export const SCROLLS_TRACK_URI = 'perfetto.ChromeScrollJank#toplevelScrolls';
 export const EVENT_LATENCY_TRACK_URI = 'perfetto.ChromeScrollJank#eventLatency';
@@ -31,7 +36,7 @@ export function renderSliceRef(args: {
   id: number;
   trackUri: string;
   title: m.Children;
-}) {
+}): m.Child {
   return m(
     Anchor,
     {
@@ -51,7 +56,8 @@ export function renderSqlRef(args: {
   tableName: string;
   tableDefinition: SqlTableDefinition | undefined;
   id: number | bigint;
-}) {
+  idColumnName?: string;
+}): m.Child {
   const tableDefinition = args.tableDefinition;
   return m(SqlRef, {
     table: args.tableName,
@@ -66,13 +72,65 @@ export function renderSqlRef(args: {
             filters: [
               {
                 op: ([columnName]) => `${columnName} = ${args.id}`,
-                columns: ['id'],
+                columns: [args.idColumnName ?? 'id'],
               },
             ],
           }),
       }),
     ],
+    idColumnName: args.idColumnName,
   });
+}
+
+/**
+ * Returns a {@link TreeNode} where the left-hand side is a reference to a track
+ * event and the right-hand side is a reference to the corresponding SQL table
+ * row.
+ */
+export function trackEventRefTreeNode(args: {
+  trace: Trace;
+  table: string;
+  id: number;
+  name: string;
+}): m.Child {
+  return m(TreeNode, {
+    left: m(TrackEventRef, {
+      trace: args.trace,
+      table: args.table,
+      id: args.id,
+      name: args.name,
+    }),
+    right: m(SqlRef, {
+      table: args.table,
+      id: args.id,
+    }),
+  });
+}
+
+/** Returns a reference to a row in a standard library SQL table. */
+export function stdlibRef(args: {
+  trace: Trace;
+  table: string;
+  id: number | bigint;
+  idColumnName?: string;
+}): m.Child {
+  const sqlModulesPlugin = args.trace.plugins.getPlugin(SqlModulesPlugin);
+  const sqlModules = sqlModulesPlugin.getSqlModules();
+  return renderSqlRef({
+    trace: args.trace,
+    tableName: args.table,
+    id: args.id,
+    idColumnName: args.idColumnName,
+    tableDefinition: sqlModules
+      ?.getModuleForTable(args.table)
+      ?.getSqlTableDefinition(args.table),
+  });
+}
+
+/** Returns a "circled i" icon with the provided tooltip text. */
+export function infoTooltip(text: string): m.Child {
+  // https://fonts.google.com/icons?selected=Material+Symbols+Sharp:info
+  return m(Tooltip, {trigger: m(Icon, {icon: 'info'})}, text);
 }
 
 /**

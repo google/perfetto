@@ -157,6 +157,7 @@ proto_groups = {
         'targets': [
             '//protos/perfetto/trace:non_minimal_source_set',
             '//protos/perfetto/trace/android:winscope_extensions_source_set',
+            '//protos/perfetto/trace/android:android_track_event_source_set',
         ]
     },
     'config': {

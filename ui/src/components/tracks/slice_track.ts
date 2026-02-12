@@ -358,7 +358,13 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.trace = attrs.trace;
     this.uri = attrs.uri;
     this.rootTableName = attrs.rootTableName;
-    this.rowCount = attrs.initialMaxDepth ?? 1;
+    if (attrs.initialMaxDepth !== undefined) {
+      // Row count is max depth + 1
+      this.rowCount = attrs.initialMaxDepth + 1;
+    } else {
+      // Assume at least one row
+      this.rowCount = 1;
+    }
     this.instantWidthPx = attrs.instantStyle?.width ?? CHEVRON_WIDTH_PX;
 
     const sliceLayout = attrs.sliceLayout ?? {};
