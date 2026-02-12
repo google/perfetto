@@ -1066,7 +1066,9 @@ void UnixSocket::ReadPeerCredentialsPosix() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
   int fd = sock_raw_.fd();
-  int res = getpeereid(fd, &peer_uid_, nullptr);
+  gid_t peer_gid = 0;
+  int res = getpeereid(fd, &peer_uid_, &peer_gid);
+  ignore_result(peer_gid);
   PERFETTO_CHECK(res == 0);
   // There is no pid when obtaining peer credentials for QNX
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
