@@ -98,8 +98,7 @@ function getColorSchemeForJank(
         return LIGHT_GREEN_100;
       case 'No Jank': // should not happen
         return GREEN_200;
-      case 'Non Animating': // should not happen
-      case 'Display not ON':
+      case 'Non-perceivable Jank':
         return WHITE_200;
       default:
         return PINK_200;
@@ -117,8 +116,7 @@ function getColorSchemeForJank(
         return LIGHT_GREEN_500;
       case 'No Jank':
         return GREEN_500;
-      case 'Non Animating':
-      case 'Display not ON':
+      case 'Non-perceivable Jank':
         return WHITE_200;
       default:
         return PINK_500;
