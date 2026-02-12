@@ -66,6 +66,8 @@ export default defineConfig({
             '--headless',
             '--disable-accelerated-2d-canvas',
             '--disable-font-subpixel-positioning',
+            '--disable-gpu',
+            '--disable-software-rasterizer', // Diable swiftshader
             '--disable-lcd-text',
             '--disable-spell-checking',
             '--font-render-hinting=none',
@@ -73,10 +75,6 @@ export default defineConfig({
             '--hide-scrollbars',
             '--enable-skia-renderer',
             '--js-flags=--random-seed=1',
-            '--ignore-gpu-blocklist',
-            '--disable-software-rasterizer', // Diable swiftshader
-            '--use-gl=egl', // Use system EGL instead of Chrome's bundled SwiftShader
-            '--use-angle=gl-egl', // ANGLE using native GL/EGL backend (llvmpipe)
           ],
         },
         ignoreHTTPSErrors: true,

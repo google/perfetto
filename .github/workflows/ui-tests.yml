@@ -137,10 +137,7 @@ jobs:
 
       - name: UI integrationtests
         shell: bash
-        run: |
-          # Print GL info
-          eglinfo | grep -i renderer
-          ui/run-integrationtests --out out/ui --no-build
+        run: ui/run-integrationtests --out out/ui --no-build
 
         # UI code formatting checks must be done here, rather than repo-checks,
         # because they need a out/ui build.
