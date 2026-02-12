@@ -203,6 +203,28 @@ class GraphicsParser(TestSuite):
           245,15,666,18,"[NULL]","[NULL]","Dropped Frame",0,0,"Dropped Frame","Unspecified Prediction","Dropped Frame","Unknown"
         """))
 
+  def test_display_power_mode_change(self):
+    return DiffTestBlueprint(
+        trace=Path('frame_timeline_power_mode.py'),
+        query='''
+          SELECT ts, dur, process.pid, display_frame_token, surface_frame_token, layer_name,
+            present_type, on_time_finish, gpu_composition, jank_type, prediction_type, jank_tag, jank_severity_type
+          FROM
+            (SELECT t.*, process_track.name AS track_name FROM
+              process_track LEFT JOIN actual_frame_timeline_slice t
+              ON process_track.id = t.track_id) s
+          JOIN process USING(upid)
+          WHERE s.track_name = 'Actual Timeline'
+          ORDER BY ts;
+        ''',
+        out=Csv("""
+          "ts","dur","pid","display_frame_token","surface_frame_token","layer_name","present_type","on_time_finish","gpu_composition","jank_type","prediction_type","jank_tag","jank_severity_type"
+          100,10,666,1,"[NULL]","[NULL]","On-time Present",1,0,"PowerModeChange in progress","Valid Prediction","Non-perceivable Jank","Unknown"
+          120,15,1000,1,2,"Layer1","On-time Present",1,0,"PowerModeChange in progress","Valid Prediction","Non-perceivable Jank","Unknown"
+          140,10,666,3,"[NULL]","[NULL]","On-time Present",1,0,"Non Animating","Valid Prediction","Non-perceivable Jank","Unknown"
+          160,10,666,4,"[NULL]","[NULL]","On-time Present",1,0,"Display not ON","Valid Prediction","Non-perceivable Jank","Unknown"
+        """))
+
   # Video 4 Linux 2 related tests
   def test_v4l2_vidioc_slice(self):
     return DiffTestBlueprint(
