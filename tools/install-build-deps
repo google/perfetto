@@ -334,6 +334,13 @@ BUILD_DEPS_HOST = [
         'buildtools/open_csd',
         'https://android.googlesource.com/platform/external/OpenCSD.git',
         '0ce01e934f95efb6a216a6efa35af1245151c779', 'all', 'all'),
+
+    # RE2 used both in the tracing binaries, as well as the trace processor.
+    # If updating the version, also update bazel/deps.bzl.
+    Dependency(
+        'buildtools/re2',
+        'https://chromium.googlesource.com/external/github.com/google/re2.git',
+        '927f5d53caf8111721e734cf24724686bb745f55', 'all', 'all'),
 ]
 
 # Dependencies required to build code on the host using Bazel build system.

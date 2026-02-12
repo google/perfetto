@@ -127,6 +127,7 @@ cc_binary {
         "libunwindstack",
     ],
     static_libs: [
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     init_rc: [
@@ -243,6 +244,7 @@ cc_library_shared {
     ],
     static_libs: [
         "libasync_safe",
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     defaults: [
@@ -284,6 +286,7 @@ cc_library_shared {
     ],
     static_libs: [
         "libasync_safe",
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     export_include_dirs: [
@@ -426,6 +429,7 @@ cc_library_shared {
         "libdexfile_support",
         "liblzma",
         "libprocinfo",
+        "libregex_re2",
         "libunwindstack",
         "perfetto_flags_c_lib",
     ],
@@ -526,6 +530,7 @@ cc_binary_host {
     ],
     static_libs: [
         "libprotoc",
+        "libregex_re2",
     ],
     defaults: [
         "perfetto_defaults",
@@ -760,11 +765,13 @@ cc_library_shared {
                 "libz",
             ],
             static_libs: [
+                "libregex_re2",
                 "perfetto_flags_c_lib",
             ],
         },
         host: {
             static_libs: [
+                "libregex_re2",
                 "libz",
             ],
         },
@@ -1014,7 +1021,13 @@ cc_library {
                 "liblog",
             ],
             static_libs: [
+                "libregex_re2",
                 "perfetto_flags_c_lib",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libregex_re2",
             ],
         },
     },
@@ -1277,7 +1290,13 @@ cc_library_static {
     target: {
         android: {
             static_libs: [
+                "libregex_re2",
                 "perfetto_flags_c_lib",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libregex_re2",
             ],
         },
     },
@@ -1471,6 +1490,7 @@ cc_binary {
         "liblog",
     ],
     static_libs: [
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     generated_headers: [
@@ -1883,6 +1903,7 @@ cc_library_static {
         "libgmock",
         "libgtest",
         "libperfetto_client_experimental",
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     whole_static_libs: [
@@ -2064,7 +2085,13 @@ cc_library_static {
     target: {
         android: {
             static_libs: [
+                "libregex_re2",
                 "perfetto_flags_c_lib",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libregex_re2",
             ],
         },
     },
@@ -2232,6 +2259,7 @@ cc_library_static {
     static_libs: [
         "libgmock",
         "libgtest",
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     whole_static_libs: [
@@ -3015,6 +3043,7 @@ cc_test {
         "libgmock",
         "libgtest",
         "libperfetto_client_experimental",
+        "libregex_re2",
         "perfetto_flags_c_lib",
         "perfetto_src_trace_processor_demangle",
         "sqlite_ext_percentile",
@@ -3187,7 +3216,13 @@ cc_test {
     target: {
         android: {
             static_libs: [
+                "libregex_re2",
                 "perfetto_flags_c_lib",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libregex_re2",
             ],
         },
     },
@@ -13183,6 +13218,7 @@ filegroup {
         "src/base/no_destructor_unittest.cc",
         "src/base/paged_memory_unittest.cc",
         "src/base/periodic_task_unittest.cc",
+        "src/base/regex_unittest.cc",
         "src/base/rt_mutex_unittest.cc",
         "src/base/scoped_file_unittest.cc",
         "src/base/scoped_mmap_unittest.cc",
@@ -13896,6 +13932,9 @@ cc_binary_host {
         ":perfetto_src_protozero_protozero",
         "src/protozero/descriptor_diff/main.cc",
     ],
+    static_libs: [
+        "libregex_re2",
+    ],
     generated_headers: [
         "perfetto_protos_perfetto_common_zero_gen_headers",
         "perfetto_protos_perfetto_protovm_zero_gen_headers",
@@ -14027,6 +14066,7 @@ cc_binary_host {
     ],
     static_libs: [
         "libprotoc",
+        "libregex_re2",
     ],
     defaults: [
         "perfetto_defaults",
@@ -16831,6 +16871,7 @@ cc_library_static {
                 "libz",
             ],
             static_libs: [
+                "libregex_re2",
                 "perfetto_flags_c_lib",
                 "sqlite_ext_percentile",
             ],
@@ -16838,6 +16879,7 @@ cc_library_static {
         host: {
             static_libs: [
                 "libprotobuf-cpp-full",
+                "libregex_re2",
                 "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
@@ -19187,6 +19229,7 @@ cc_test {
     static_libs: [
         "libgmock",
         "libgtest",
+        "libregex_re2",
         "perfetto_flags_c_lib",
         "perfetto_src_trace_processor_demangle",
         "sqlite_ext_percentile",
@@ -19558,6 +19601,7 @@ cc_library_static {
     static_libs: [
         "libgmock",
         "libgtest",
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     whole_static_libs: [
@@ -19788,6 +19832,7 @@ cc_binary_host {
     ],
     static_libs: [
         "libprotoc",
+        "libregex_re2",
     ],
     defaults: [
         "perfetto_defaults",
@@ -20134,12 +20179,14 @@ cc_library_static {
                 "libz",
             ],
             static_libs: [
+                "libregex_re2",
                 "perfetto_flags_c_lib",
                 "sqlite_ext_percentile",
             ],
         },
         host: {
             static_libs: [
+                "libregex_re2",
                 "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
@@ -20176,6 +20223,7 @@ cc_binary {
                 "libz",
             ],
             static_libs: [
+                "libregex_re2",
                 "perfetto_flags_c_lib",
                 "sqlite_ext_percentile",
             ],
@@ -20183,6 +20231,7 @@ cc_binary {
         host: {
             static_libs: [
                 "libprotobuf-cpp-full",
+                "libregex_re2",
                 "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
@@ -20260,6 +20309,7 @@ cc_binary {
         "liblog",
     ],
     static_libs: [
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     generated_headers: [
@@ -20508,6 +20558,7 @@ cc_binary_host {
         ":perfetto_src_traceconv_utils",
     ],
     static_libs: [
+        "libregex_re2",
         "libsqlite_static_noicu",
         "libz",
         "perfetto_src_trace_processor_demangle",
@@ -20755,6 +20806,7 @@ cc_binary {
         "libunwindstack",
     ],
     static_libs: [
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     init_rc: [
@@ -20956,6 +21008,7 @@ cc_binary {
         "liblog",
     ],
     static_libs: [
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     generated_headers: [
@@ -21131,6 +21184,7 @@ cc_binary {
         "liblog",
     ],
     static_libs: [
+        "libregex_re2",
         "perfetto_flags_c_lib",
     ],
     generated_headers: [

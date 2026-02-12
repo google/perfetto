@@ -377,6 +377,10 @@ declare_args() {
   enable_perfetto_zlib =
       enable_perfetto_trace_processor || enable_perfetto_platform_services
 
+  # Enables RE2 support.
+  enable_perfetto_re2 =
+      enable_perfetto_trace_processor || enable_perfetto_platform_services
+
   # Enables function name demangling using sources from llvm. Otherwise
   # trace_processor falls back onto using the c++ runtime demangler, which
   # typically handles only itanium mangling.
@@ -448,6 +452,8 @@ declare_args() {
   perfetto_use_system_sqlite = false
 
   perfetto_use_system_zlib = false
+
+  perfetto_use_system_re2 = false
 }
 
 if (is_win) {

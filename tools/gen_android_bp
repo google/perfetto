@@ -413,6 +413,16 @@ def enable_libunwind(module):
   pass
 
 
+def enable_re2(module):
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libregex_re2')
+  elif module.host_supported:
+    module.android.static_libs.add('libregex_re2')
+    module.host.static_libs.add('libregex_re2')
+  else:
+    module.static_libs.add('libregex_re2')
+
+
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libsqlite_static_noicu')
@@ -492,6 +502,8 @@ builtin_deps = {
         enable_protoc_lib,
     '//gn:libunwindstack':
         enable_libunwindstack,
+    '//gn:re2':
+        enable_re2,
     '//gn:sqlite':
         enable_sqlite,
     '//gn:zlib':

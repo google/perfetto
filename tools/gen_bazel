@@ -56,6 +56,7 @@ gn_args_base = {
     'enable_perfetto_traced_perf': 'false',
     'perfetto_force_dcheck': '"off"',
     'enable_perfetto_llvm_demangle': 'true',
+    'enable_perfetto_re2': 'true',
 }
 gn_args = ' '.join((map(lambda x: '='.join(x), gn_args_base.items())))
 
@@ -188,6 +189,7 @@ external_deps = {
     '//gn:protobuf_lite': ['PERFETTO_CONFIG.deps.protobuf_lite'],
     '//gn:protoc_lib': ['PERFETTO_CONFIG.deps.protoc_lib'],
     '//gn:protoc': ['PERFETTO_CONFIG.deps.protoc'],
+    '//gn:re2': ['PERFETTO_CONFIG.deps.re2'],
     '//gn:sqlite': [
         'PERFETTO_CONFIG.deps.sqlite',
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
