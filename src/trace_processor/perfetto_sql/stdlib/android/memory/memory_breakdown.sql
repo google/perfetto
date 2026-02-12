@@ -23,40 +23,44 @@ CREATE PERFETTO TABLE _memory_breakdown_mem_intervals_raw AS
 WITH
   -- We deny tracks that have large swings in value
   -- This can happen because of rss_stat accounting issue: see b/418231246 for details.
-  diffs AS (
+  mem_process_counter_tracks AS (
     SELECT
-      track_id,
-      value - lag(value) OVER (PARTITION BY track_id ORDER BY ts) AS d
-    FROM counter AS c
-    JOIN process_counter_track AS t
-      ON c.track_id = t.id
+      id,
+      name,
+      upid
+    FROM process_counter_track
     WHERE
-      t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file')
+      name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file')
   ),
-  denied_tracks AS (
-    SELECT DISTINCT
-      track_id
-    FROM diffs
-    WHERE
-      -- Filter out changes larger than 100 MiB
-      abs(d) > 104857600
-  ),
-  target_counters AS (
+  mem_counters AS (
     SELECT
       c.id,
       c.ts,
       c.track_id,
       c.value
     FROM counter AS c
-    JOIN process_counter_track AS t
+    JOIN mem_process_counter_tracks AS t
       ON c.track_id = t.id
-    LEFT JOIN denied_tracks AS dt
-      ON t.id = dt.track_id
+  ),
+  mem_intervals AS (
+    SELECT
+      ts,
+      dur,
+      track_id,
+      value,
+      delta_value
+    FROM counter_leading_intervals!(mem_counters)
+  ),
+  denied_tracks AS (
+    SELECT DISTINCT
+      track_id
+    FROM mem_intervals
     WHERE
-      t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file') AND dt.track_id IS NULL
+      -- Filter out changes larger than 100 MiB
+      abs(delta_value) > 104857600
   ),
   -- Get all memory counter values for all processes, and clip them to process lifetime.
-  marked_intervals AS (
+  mem_intervals_with_process_lifetime AS (
     SELECT
       i.ts,
       i.ts + i.dur AS raw_end_ts,
@@ -65,11 +69,17 @@ WITH
       p.end_ts,
       t.name AS track_name,
       i.value
-    FROM counter_leading_intervals!(target_counters) AS i
-    JOIN process_counter_track AS t
+    FROM mem_intervals AS i
+    JOIN mem_process_counter_tracks AS t
       ON i.track_id = t.id
     JOIN process AS p
       USING (upid)
+    WHERE
+      NOT i.track_id IN (
+        SELECT
+          track_id
+        FROM denied_tracks
+      )
   )
 SELECT
   max(ts, coalesce(start_ts, ts)) AS ts,
@@ -77,7 +87,7 @@ SELECT
   upid,
   track_name,
   value
-FROM marked_intervals
+FROM mem_intervals_with_process_lifetime
 -- Only keep rows where the clipping resulted in a positive duration.
 WHERE
   (
