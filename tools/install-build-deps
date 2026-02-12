@@ -682,6 +682,45 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
   return True
 
 
+def ApplyProtobufPatches(protobuf_path):
+  """Apply patches to protobuf for Windows clang-cl compatibility.
+
+  Windows clang-cl builds fail because MSVC's STL std::atomic doesn't support
+  constexpr construction, but protobuf uses [[clang::require_constant_initialization]].
+  See https://github.com/protocolbuffers/protobuf/issues/10159
+
+  TODO(lalitm): Remove this patch when protobuf is upgraded to a version that
+  fixes the upstream issue.
+  """
+  port_def_path = os.path.join(protobuf_path,
+                               'src/google/protobuf/port_def.inc')
+  if not os.path.exists(port_def_path):
+    return
+
+  with open(port_def_path, 'r') as f:
+    content = f.read()
+
+  # Check if already patched
+  if 'defined(_MSC_VER) && defined(__clang__)' in content:
+    return
+
+  # Find the line to patch: "#if defined(_MSC_VER) && !defined(__clang__)"
+  old_line = '#if defined(_MSC_VER) && !defined(__clang__)'
+  new_block = '''// Windows clang-cl: MSVC STL's std::atomic doesn't support constexpr
+// construction, which breaks [[clang::require_constant_initialization]].
+// See https://github.com/protocolbuffers/protobuf/issues/10159
+#if defined(_MSC_VER) && defined(__clang__)
+#  define PROTOBUF_CONSTINIT
+#  define PROTOBUF_CONSTEXPR constexpr
+#elif defined(_MSC_VER) && !defined(__clang__)'''
+
+  if old_line in content:
+    content = content.replace(old_line, new_block, 1)
+    with open(port_def_path, 'w') as f:
+      f.write(content)
+    logging.info('Applied Windows clang-cl patch to protobuf port_def.inc')
+
+
 def InstallNodeModules(force_clean=False):
   if force_clean:
     node_modules = os.path.join(UI_DIR, 'node_modules')
@@ -798,29 +837,30 @@ def CheckPythonVenv():
 
 
 def InstallPythonVenv():
-  # Give actionable instructions to Googlers on how to go/corp-airlock.
-  if shutil.which("gpkg"):
-    DEVNULL = subprocess.DEVNULL
-    res = subprocess.run(["gpkg", "auth"], stderr=DEVNULL, stdout=DEVNULL)
-    if res.returncode != 0:
-      print('Python packages require an update. Please run in a new terminal:')
-      print('gcert; gpkg setup  # See go/corp-airlock')
-      if sys.stdin.isatty:
-        input('Press a key to continue...')
-      else:
-        sys.exit(1)
-
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
-  cur_python_interpreter = sys.executable
+  # Do not use sys.executable since that binary might live in the venv dir
+  # we're about to remove right below.
+  python_interpreter = 'python3' if sys.platform != 'win32' else 'python3.exe'
 
   shutil.rmtree(PYTHON_VENV_DIR, ignore_errors=True)
-  cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+  cmd = [python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
   logging.info(f'Installing python venv {" ".join(cmd)}')
   subprocess.check_call(cmd)
-
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
-  subprocess.check_call(cmd)
+  if subprocess.call(cmd) != 0:
+    if shutil.which("gpkg"):
+      # Give actionable instructions to Googlers on how to go/corp-airlock.
+      print(
+          '''\033[33m
++---------------------------------------------------------+
+| venv installation failed, likely due to go/corp-airlock |
+| Run `gcert && gpkg setup` and try again                 |
++---------------------------------------------------------+
+\033[0m''',
+          file=sys.stderr)
+    sys.exit(1)
+
   with open(PYTHON_STATUS_FILE, 'w') as f:
     f.write(HashLocalFile(PYTHON_REQUIREMENTS))
 
@@ -949,6 +989,9 @@ def Main():
     if dep.source_url.endswith('.git'):
       deps_updated |= CheckoutGitRepo(local_path, dep.source_url, dep.checksum,
                                       args.check_only)
+      # Apply patches for specific dependencies
+      if 'protobuf' in dep.target_folder and not args.check_only:
+        ApplyProtobufPatches(local_path)
       continue
     is_compressed = any(
         [local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])

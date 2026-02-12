@@ -1263,3 +1263,123 @@ class IntervalsIntersect(TestSuite):
         2,3,1,100.000000
         5,3,1,200.000000
         """))
+
+  def test_interval_intersect_with_custom_column_names(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7
+        # A:   _ - - - - - - _
+        # B:   - - _ - - _ - -
+        # res: _ - _ - - _ - _
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(row_id, start_ts, duration) AS (
+            VALUES
+            (0, 1, 6)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(event_id, begin_time, length) AS (
+            VALUES
+            (0, 0, 2),
+            (1, 3, 2),
+            (2, 6, 2)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect_with_col_names!(
+          A, row_id, start_ts, duration,
+          B, event_id, begin_time, length,
+          ()
+        )
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        1,1,0,0
+        3,2,0,1
+        6,1,0,2
+        """))
+
+  def test_interval_intersect_with_custom_column_names_and_partition(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(row_id, start_ts, duration, category) AS (
+            VALUES
+            (0, 1, 5, 'alpha'),
+            (1, 2, 4, 'beta'),
+            (2, 10, 5, 'gamma')
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(event_id, begin_time, len, category) AS (
+            VALUES
+            (10, 0, 3, 'alpha'),
+            (11, 4, 4, 'alpha'),
+            (12, 3, 5, 'beta'),
+            (13, 11, 3, 'gamma')
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, category
+        FROM _interval_intersect_with_col_names!(
+          A, row_id, start_ts, duration,
+          B, event_id, begin_time, len,
+          (category)
+        )
+        ORDER BY ts, category;
+        """,
+        out=Csv("""
+        "ts","dur","category"
+        1,2,"alpha"
+        3,3,"beta"
+        4,2,"alpha"
+        11,3,"gamma"
+        """))
+
+  def test_interval_intersect_with_column_name_conflict(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        # Test that we can use a different column even when 'ts' exists
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(row_id, ts, start_time, duration) AS (
+            VALUES
+            (1, 999, 100, 50),
+            (2, 999, 120, 60)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(event_id, ts, begin_time, len) AS (
+            VALUES
+            (10, 888, 110, 30),
+            (11, 888, 150, 20)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect_with_col_names!(
+          A, row_id, start_time, duration,
+          B, event_id, begin_time, len,
+          ()
+        )
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        110,30,1,10
+        120,20,2,10
+        150,20,2,11
+        """))

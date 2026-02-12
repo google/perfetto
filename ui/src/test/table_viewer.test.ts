@@ -15,7 +15,7 @@
 import {test, Page, Locator} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'parallel'});
+test.describe.configure({mode: 'serial'});
 
 let pth: PerfettoTestHelper;
 let page: Page;

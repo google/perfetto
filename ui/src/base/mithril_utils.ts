@@ -59,7 +59,8 @@ export class Gate implements m.ClassComponent<GateAttrs> {
     return m(
       '',
       {
-        style: {display: attrs.open ? 'contents' : 'none'},
+        'data-gate-open': String(attrs.open),
+        'style': {display: attrs.open ? 'contents' : 'none'},
       },
       this.renderChildren(attrs.open, children),
     );
@@ -80,6 +81,71 @@ export class Gate implements m.ClassComponent<GateAttrs> {
     }
     this.wasOpen = open;
     return this.previousChildren;
+  }
+}
+
+export interface GateDetectorAttrs {
+  onVisibilityChanged: (visible: boolean, dom: Element) => void;
+}
+
+// A component that detects visibility changes from an ancestor Gate component.
+// Place this inside a Gate's subtree to receive callbacks when the Gate opens
+// or closes. Uses MutationObserver to watch for changes to the Gate's
+// data-gate-open attribute.
+//
+// Usage:
+//   view() {
+//     return m(GateDetector, {
+//       onVisibilityChanged: (visible, dom) => {
+//         console.log('Gate is now visible:', visible);
+//       }
+//     }, m(...));
+//   }
+export class GateDetector implements m.ClassComponent<GateDetectorAttrs> {
+  private observer?: MutationObserver;
+  private gateElement?: HTMLElement;
+  private dom?: Element;
+  private wasVisible?: boolean;
+  private callback?: (visible: boolean, dom: Element) => void;
+
+  view({children}: m.Vnode<GateDetectorAttrs>): m.Children {
+    return children;
+  }
+
+  oncreate(vnode: m.VnodeDOM<GateDetectorAttrs>) {
+    this.callback = vnode.attrs.onVisibilityChanged;
+    this.dom = vnode.dom;
+
+    // Find closest Gate wrapper using data attribute
+    const gateElem = this.dom.closest('[data-gate-open]') ?? undefined;
+    this.gateElement = gateElem as HTMLElement | undefined;
+    if (!this.gateElement) return;
+
+    this.observer = new MutationObserver(this.checkVisibility.bind(this));
+    this.observer.observe(this.gateElement, {
+      attributes: true,
+      attributeFilter: ['data-gate-open'],
+    });
+
+    // Fire initial state
+    this.checkVisibility();
+  }
+
+  onupdate(vnode: m.VnodeDOM<GateDetectorAttrs>) {
+    this.callback = vnode.attrs.onVisibilityChanged;
+  }
+
+  private checkVisibility() {
+    if (!this.gateElement || !this.dom) return;
+    const visible = this.gateElement.dataset.gateOpen === 'true';
+    if (visible !== this.wasVisible) {
+      this.wasVisible = visible;
+      this.callback?.(visible, this.dom);
+    }
+  }
+
+  onremove() {
+    this.observer?.disconnect();
   }
 }
 

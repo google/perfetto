@@ -22,7 +22,6 @@
 #include <memory>
 #include <optional>
 
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
@@ -65,7 +64,7 @@ class PerfTracker {
                                UniquePid upid,
                                CreateMappingParams params);
 
-  base::Status NotifyEndOfFile();
+  void OnEventsFullyExtracted();
 
  private:
   void AddMapping(int64_t trace_ts,

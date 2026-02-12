@@ -14,17 +14,14 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {DisposableStack} from '../base/disposable_stack';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Bounds2D, Point2D, Vector2D} from '../base/geom';
-import {assertExists} from '../base/logging';
 import {clamp} from '../base/math_utils';
 import {hasChildren, MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 import {Button, ButtonBar, ButtonVariant} from './button';
 import {Chip} from './chip';
 import {HTMLAttrs, Intent} from './common';
-import {MiddleEllipsis} from './middle_ellipsis';
 import {Popup} from './popup';
 import {Stack} from './stack';
 
@@ -221,6 +218,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         className: classNames(
           collapsible && 'pf-track__shell--clickable',
           highlight && 'pf-track__shell--highlight',
+          lite && 'pf-track__shell--lite',
         ),
         onclick: () => {
           collapsible && attrs.onCollapsedChanged?.(!collapsed);
@@ -352,10 +350,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             ),
             attrs.subtitle &&
               !showSubtitleInContent(attrs) &&
-              m(
-                '.pf-track__subtitle',
-                m(MiddleEllipsis, {text: attrs.subtitle}),
-              ),
+              m('.pf-track__subtitle', attrs.subtitle),
           ),
     );
   }
@@ -416,7 +411,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       },
       attrs.subtitle &&
         showSubtitleInContent(attrs) &&
-        m(MiddleEllipsis, {text: attrs.subtitle}),
+        m('.pf-track__subtitle', attrs.subtitle),
     );
   }
 }
@@ -464,39 +459,7 @@ interface TrackTitleAttrs {
 }
 
 class TrackTitle implements m.ClassComponent<TrackTitleAttrs> {
-  private readonly trash = new DisposableStack();
-
   view({attrs}: m.Vnode<TrackTitleAttrs>) {
-    return m(
-      MiddleEllipsis,
-      {
-        className: 'pf-track__title',
-        text: attrs.title,
-      },
-      m('.pf-track__title-popup', attrs.title),
-    );
-  }
-
-  oncreate({dom}: m.VnodeDOM<TrackTitleAttrs>) {
-    const title = dom;
-    const popup = assertExists(dom.querySelector('.pf-track__title-popup'));
-
-    const resizeObserver = new ResizeObserver(() => {
-      // Determine whether to display a title popup based on ellipsization
-      if (popup.clientWidth > title.clientWidth) {
-        popup.classList.add('pf-track__title-popup--visible');
-      } else {
-        popup.classList.remove('pf-track__title-popup--visible');
-      }
-    });
-
-    resizeObserver.observe(title);
-    resizeObserver.observe(popup);
-
-    this.trash.defer(() => resizeObserver.disconnect());
-  }
-
-  onremove() {
-    this.trash.dispose();
+    return m('.pf-track__title', attrs.title);
   }
 }

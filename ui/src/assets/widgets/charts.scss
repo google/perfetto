@@ -35,3 +35,399 @@
     cursor: text;
   }
 }
+
+// Histogram component styles
+.pf-histogram {
+  --pf-histogram-bar-color: var(--pf-color-primary);
+  --pf-histogram-bar-hover-color: var(--pf-color-accent);
+  --pf-histogram-axis-color: var(--pf-color-border);
+  --pf-histogram-text-color: var(--pf-color-text);
+  --pf-histogram-tooltip-bg: var(--pf-color-background-secondary);
+  --pf-histogram-tooltip-border: var(--pf-color-border);
+
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+
+  &--fill-parent {
+    height: 100%;
+  }
+
+  &__svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  &__loading,
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--pf-color-text-muted);
+    font-size: 14px;
+  }
+
+  &__bar {
+    fill: var(--pf-histogram-bar-color);
+
+    &--hover,
+    &:hover {
+      fill: var(--pf-histogram-bar-hover-color);
+    }
+  }
+
+  &__brush-overlay {
+    cursor: col-resize;
+  }
+
+  &__brush-selection {
+    fill: var(--pf-color-text);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  &__axis-line {
+    stroke: var(--pf-histogram-axis-color);
+    stroke-width: 1;
+  }
+
+  &__tick {
+    stroke: var(--pf-histogram-axis-color);
+    stroke-width: 1;
+  }
+
+  &__tick-label {
+    fill: var(--pf-histogram-text-color);
+    font-size: 10px;
+    font-family: inherit;
+  }
+
+  &__axis-label {
+    fill: var(--pf-histogram-text-color);
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 500;
+  }
+
+  &__tooltip {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  &__tooltip-content {
+    background: var(--pf-histogram-tooltip-bg);
+    border: 1px solid var(--pf-histogram-tooltip-border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-size: 12px;
+    color: var(--pf-histogram-text-color);
+  }
+
+  &__tooltip-row {
+    white-space: nowrap;
+
+    &:not(:last-child) {
+      margin-bottom: 4px;
+    }
+  }
+}
+
+// BarChart component styles
+.pf-bar-chart {
+  --pf-bar-chart-bar-color: var(--pf-color-primary);
+  --pf-bar-chart-bar-hover-color: var(--pf-color-accent);
+  --pf-bar-chart-axis-color: var(--pf-color-border);
+  --pf-bar-chart-text-color: var(--pf-color-text);
+  --pf-bar-chart-tooltip-bg: var(--pf-color-background-secondary);
+  --pf-bar-chart-tooltip-border: var(--pf-color-border);
+
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+
+  &--fill-parent {
+    height: 100%;
+  }
+
+  &__svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  &__loading,
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--pf-color-text-muted);
+    font-size: 14px;
+  }
+
+  &__bar {
+    fill: var(--pf-bar-chart-bar-color);
+
+    &--hover,
+    &:hover {
+      fill: var(--pf-bar-chart-bar-hover-color);
+    }
+  }
+
+  &__brush-selection {
+    fill: var(--pf-color-text);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  &__axis-line {
+    stroke: var(--pf-bar-chart-axis-color);
+    stroke-width: 1;
+  }
+
+  &__tick {
+    stroke: var(--pf-bar-chart-axis-color);
+    stroke-width: 1;
+  }
+
+  &__tick-label {
+    fill: var(--pf-bar-chart-text-color);
+    font-size: 10px;
+    font-family: inherit;
+  }
+
+  &__axis-label {
+    fill: var(--pf-bar-chart-text-color);
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 500;
+  }
+
+  &__tooltip {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  &__tooltip-content {
+    background: var(--pf-bar-chart-tooltip-bg);
+    border: 1px solid var(--pf-bar-chart-tooltip-border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-size: 12px;
+    color: var(--pf-bar-chart-text-color);
+  }
+
+  &__tooltip-row {
+    white-space: nowrap;
+
+    &:not(:last-child) {
+      margin-bottom: 4px;
+    }
+  }
+}
+
+// LineChart component styles
+.pf-line-chart {
+  --pf-line-chart-axis-color: var(--pf-color-border);
+  --pf-line-chart-text-color: var(--pf-color-text);
+  --pf-line-chart-tooltip-bg: var(--pf-color-background-secondary);
+  --pf-line-chart-tooltip-border: var(--pf-color-border);
+
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+
+  &--fill-parent {
+    height: 100%;
+  }
+
+  &__svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  &__loading,
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--pf-color-text-muted);
+    font-size: 14px;
+  }
+
+  &__line {
+    fill: none;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  &__point {
+    transition: r 0.1s ease;
+  }
+
+  &__brush-selection {
+    fill: var(--pf-color-text);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  &__axis-line {
+    stroke: var(--pf-line-chart-axis-color);
+    stroke-width: 1;
+  }
+
+  &__tick {
+    stroke: var(--pf-line-chart-axis-color);
+    stroke-width: 1;
+  }
+
+  &__tick-label {
+    fill: var(--pf-line-chart-text-color);
+    font-size: 10px;
+    font-family: inherit;
+  }
+
+  &__axis-label {
+    fill: var(--pf-line-chart-text-color);
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 500;
+  }
+
+  &__legend-label {
+    fill: var(--pf-line-chart-text-color);
+    font-size: 10px;
+    font-family: inherit;
+  }
+
+  &__tooltip {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  &__tooltip-content {
+    background: var(--pf-line-chart-tooltip-bg);
+    border: 1px solid var(--pf-line-chart-tooltip-border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-size: 12px;
+    color: var(--pf-line-chart-text-color);
+  }
+
+  &__tooltip-row {
+    white-space: nowrap;
+
+    &:not(:last-child) {
+      margin-bottom: 4px;
+    }
+  }
+}
+
+// PieChart component styles
+.pf-pie-chart {
+  --pf-pie-chart-text-color: var(--pf-color-text);
+  --pf-pie-chart-tooltip-bg: var(--pf-color-background-secondary);
+  --pf-pie-chart-tooltip-border: var(--pf-color-border);
+
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+
+  &--fill-parent {
+    height: 100%;
+  }
+
+  &__svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  &__loading,
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--pf-color-text-muted);
+    font-size: 14px;
+  }
+
+  &__slice {
+    transition: transform 0.1s ease;
+
+    &--hover {
+      filter: brightness(1.1);
+    }
+  }
+
+  &__slice-label {
+    fill: white;
+    font-size: 10px;
+    font-family: inherit;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+
+  &__legend-label {
+    fill: var(--pf-pie-chart-text-color);
+    font-size: 11px;
+    font-family: inherit;
+
+    &--hover {
+      font-weight: 600;
+    }
+  }
+
+  &__legend-value {
+    fill: var(--pf-color-text-muted);
+    font-size: 10px;
+    font-family: inherit;
+  }
+
+  &__tooltip {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  &__tooltip-content {
+    background: var(--pf-pie-chart-tooltip-bg);
+    border: 1px solid var(--pf-pie-chart-tooltip-border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-size: 12px;
+    color: var(--pf-pie-chart-text-color);
+  }
+
+  &__tooltip-row {
+    white-space: nowrap;
+
+    &:not(:last-child) {
+      margin-bottom: 4px;
+    }
+  }
+}

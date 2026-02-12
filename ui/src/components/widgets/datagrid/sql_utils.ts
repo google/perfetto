@@ -40,9 +40,10 @@ export function sqlValue(value: SqlValue): string {
 
 /**
  * Converts a string to a valid SQL alias by wrapping in double quotes.
+ * Escapes internal double quotes by doubling them (SQL standard).
  */
 export function toAlias(id: string): string {
-  return `"${id}"`;
+  return `"${id.replace(/"/g, '""')}"`;
 }
 
 /**

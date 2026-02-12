@@ -40,6 +40,7 @@ import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
 import {TraceImpl} from './trace_impl';
 import {TraceArrayBufferSource, TraceSource} from './trace_source';
+import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -70,12 +71,13 @@ export interface AppInitArgs {
 export class AppImpl implements App {
   readonly omnibox = new OmniboxManagerImpl();
   readonly commands = new CommandManagerImpl(this.omnibox);
-  readonly pages = new PageManagerImpl();
+  readonly pages: PageManagerImpl;
   readonly sidebar: SidebarManagerImpl;
   readonly plugins = new PluginManagerImpl();
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
+  readonly taskTracker = new TaskTrackerImpl();
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
@@ -150,6 +152,7 @@ export class AppImpl implements App {
       this.embeddedMode,
       initArgs.analyticsSetting.get(),
     );
+    this.pages = new PageManagerImpl(this.analytics);
   }
 
   setActiveTrace(trace: TraceImpl) {

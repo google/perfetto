@@ -127,7 +127,8 @@ ModuleResult AndroidProbesModule::TokenizePacket(
         // timestamp_ms is always in boottime per protobuf spec.
         int64_t ts_ns = static_cast<int64_t>(data.timestamp_ms()) * 1000000;
         auto trace_ts = context_->clock_tracker->ToTraceTime(
-            protos::pbzero::BUILTIN_CLOCK_BOOTTIME, ts_ns);
+            ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+            ts_ns);
         if (!trace_ts.has_value()) {
           // Rely on implicitly incremented error stat in ToTraceTime instead
           // of fatally erroring.
@@ -168,7 +169,8 @@ ModuleResult AndroidProbesModule::TokenizePacket(
       protos::pbzero::AndroidLogPacket::LogEvent::Decoder evt(*it);
       auto realtime_ts = static_cast<int64_t>(evt.timestamp());
       std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-          protos::pbzero::BUILTIN_CLOCK_REALTIME, realtime_ts);
+          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_REALTIME),
+          realtime_ts);
       if (!trace_ts.has_value()) {
         continue;
       }

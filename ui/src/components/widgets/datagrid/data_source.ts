@@ -12,76 +12,135 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {QueryResult} from '../../../base/query_slot';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Column, Filter, Pivot} from './model';
+import {AggregateFunction, Filter, GroupPath, IdBasedTree} from './model';
 
-export interface Pagination {
-  readonly offset: number;
-  readonly limit: number;
-}
-
+/**
+ * Data source interface for DataGrid.
+ *
+ * Uses a slot-like API where each use* method:
+ * - Takes the current model/parameters
+ * - Returns the current state (data, isPending, isFresh)
+ * - Automatically schedules fetches when parameters change
+ *
+ * Call these methods on every render cycle - they handle caching internally.
+ */
 export interface DataSource {
-  // The row data for the current data grid state (filters, sorting, pagination,
-  // etc)
-  readonly rows?: DataSourceRows;
+  /**
+   * Fetch rows for the current model state.
+   * Call every render with the current model to get rows and trigger updates.
+   */
+  useRows(model: DataSourceModel): DataSourceRows;
 
-  // Available distinct values for specified columns (for filter dropdowns)
-  readonly distinctValues?: ReadonlyMap<string, readonly SqlValue[]>;
+  /**
+   * Fetch aggregate summaries (aggregates across all filtered rows).
+   * Returns summaries for columns with aggregate functions or pivot aggregates.
+   */
+  useAggregateSummaries(model: DataSourceModel): QueryResult<Row>;
 
-  // Available parameter keys for parameterized columns (e.g., for 'args' ->
-  // ['foo', 'bar'])
-  readonly parameterKeys?: ReadonlyMap<string, readonly string[]>;
+  /**
+   * Fetch distinct values for a column (for filter dropdowns).
+   * Pass undefined to skip fetching.
+   */
+  useDistinctValues(
+    column: string | undefined,
+  ): QueryResult<readonly SqlValue[]>;
 
-  // Computed aggregate totals for each aggregate column (grand total across all
-  // filtered rows)
-  readonly aggregateTotals?: ReadonlyMap<string, SqlValue>;
+  /**
+   * Fetch parameter keys for a parameterized column prefix (e.g., 'args' -> ['foo', 'bar']).
+   * Pass undefined to skip fetching.
+   */
+  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]>;
 
-  // Whether the data source is currently loading data/updating.
-  readonly isLoading?: boolean;
-
-  // Called when the data grid parameters change (sorting, filtering,
-  // pagination, etc), which might trigger a data reload.
-  notify(model: DataSourceModel): void;
-
-  // Export all data with current filters/sorting applied. Returns a promise
-  // that resolves to all filtered and sorted rows.
-  exportData(): Promise<readonly Row[]>;
+  /**
+   * Export all data with current filters/sorting applied (no pagination).
+   * Returns a promise that resolves to all filtered and sorted rows.
+   */
+  exportData(model: DataSourceModel): Promise<readonly Row[]>;
 }
 
-export interface DataSourceModel {
-  // The columns to display, including their sort direction if any
-  readonly columns?: readonly Column[];
-
+// Common fields shared across all data source modes
+interface DataSourceModelBase {
   // Active filters to apply to the data
   readonly filters?: readonly Filter[];
 
   // Pagination settings (offset and limit for the current page)
-  readonly pagination?: Pagination;
+  readonly pagination?: {
+    readonly offset: number;
+    readonly limit: number;
+  };
 
-  // Pivot configuration for grouped/aggregated views
-  readonly pivot?: Pivot;
-
-  // Columns for which to fetch distinct values (for filter dropdowns)
-  readonly distinctValuesColumns?: ReadonlySet<string>;
-
-  // Parameterized column prefixes for which to fetch available keys (e.g.,
-  // 'args')
-  readonly parameterKeyColumns?: ReadonlySet<string>;
+  // Sorting specification (by output alias)
+  readonly sort?: {
+    readonly alias: string;
+    readonly direction: 'ASC' | 'DESC';
+  };
 }
+
+// Flat mode: simple column selection
+export interface FlatModel extends DataSourceModelBase {
+  readonly mode: 'flat';
+  readonly columns: readonly {
+    readonly field: string;
+    readonly alias: string;
+    readonly aggregate?: AggregateFunction;
+  }[];
+}
+
+// Pivot mode: grouped/aggregated views
+export interface PivotModel extends DataSourceModelBase {
+  readonly mode: 'pivot';
+  // Columns to group by (hierarchy levels)
+  readonly groupBy: readonly {
+    readonly field: string;
+    readonly alias: string;
+  }[];
+  // Aggregate expressions
+  readonly aggregates: readonly (
+    | {
+        readonly function: 'COUNT';
+        readonly alias: string;
+      }
+    | {
+        readonly function: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'ANY';
+        readonly field: string;
+        readonly alias: string;
+      }
+  )[];
+  // How to display grouped data: 'flat' shows leaf rows only, 'tree' shows
+  // hierarchical structure with expand/collapse
+  readonly groupDisplay?: 'flat' | 'tree';
+  // Allowlist mode: only these group paths are expanded
+  readonly expandedGroups?: readonly GroupPath[];
+  // Denylist mode: all nodes expanded except these group paths
+  readonly collapsedGroups?: readonly GroupPath[];
+}
+
+// Tree mode: hierarchical data using id/parent_id columns
+export interface TreeModel extends DataSourceModelBase {
+  readonly mode: 'tree';
+  // Columns to display
+  readonly columns: readonly {
+    readonly field: string;
+    readonly alias: string;
+  }[];
+  // Tree configuration from IdBasedTree
+  readonly tree: IdBasedTree;
+}
+
+export type DataSourceModel = FlatModel | PivotModel | TreeModel;
 
 export interface DataSourceRows {
   // The total number of rows available in the dataset
-  readonly totalRows: number;
+  readonly totalRows?: number;
 
   // The offset of the first row in this batch
-  readonly rowOffset: number;
+  readonly rowOffset?: number;
 
   // The actual row data for this batch
-  readonly rows: readonly Row[];
-}
+  readonly rows?: readonly Row[];
 
-// Reserved column name for rollup level indicator in multi-level pivot tables.
-// The value indicates the depth of the row:
-// - Level 0: Only first groupBy column has value (most aggregated)
-// - Level N-1: All groupBy columns have values (leaf level)
-export const ROLLUP_LEVEL_COLUMN = '__level__';
+  // Whether the data is currently being fetched
+  readonly isPending: boolean;
+}

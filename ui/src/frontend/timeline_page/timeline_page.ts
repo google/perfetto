@@ -28,6 +28,7 @@ import {KeyboardNavigationHandler} from './wasd_navigation_handler';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
 import {ResizeHandle} from '../../widgets/resize_handle';
+import {setTrackShellWidth, TRACK_SHELL_WIDTH} from '../css_constants';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -35,6 +36,9 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   description: 'Show the panel providing an overview of the trace',
   defaultValue: true,
 });
+
+const MIN_TRACK_SHELL_WIDTH = 100;
+const MAX_TRACK_SHELL_WIDTH = 1000;
 
 export function renderTimelinePage() {
   // Only render if a trace is loaded
@@ -62,67 +66,112 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       m(
         TabPanel,
         {trace},
-        OVERVIEW_PANEL_FLAG.get() &&
-          m(Minimap, {
-            trace,
-            className: 'pf-timeline-page__overview',
-          }),
-        m(TimelineHeader, {
-          trace,
-          className: 'pf-timeline-page__header',
-          // There are three independent canvases on this page which we could
-          // use keep track of the timeline width, but we use the header one
-          // because it's always rendered.
-          onTimelineBoundsChange: (rect) => (this.timelineBounds = rect),
-        }),
-        // Hide tracks while the trace is loading to prevent thrashing.
-        !AppImpl.instance.isLoadingTrace && [
-          // Don't render pinned tracks if we have none.
-          trace.currentWorkspace.pinnedTracks.length > 0 && [
-            m(
-              '.pf-timeline-page__pinned-track-tree',
-              {
-                style:
-                  this.pinnedTracksHeight === 'auto'
-                    ? {maxHeight: '40%'}
-                    : {height: `${this.pinnedTracksHeight}px`},
-              },
-              m(TrackTreeView, {
-                trace,
-                rootNode: trace.currentWorkspace.pinnedTracksNode,
-                canReorderNodes: true,
-                scrollToNewTracks: true,
-              }),
-            ),
-            m(ResizeHandle, {
-              onResize: (deltaPx: number) => {
-                if (this.pinnedTracksHeight === 'auto') {
-                  this.pinnedTracksHeight = toHTMLElement(
-                    document.querySelector(
-                      '.pf-timeline-page__pinned-track-tree',
-                    )!,
-                  ).getBoundingClientRect().height;
-                }
-                this.pinnedTracksHeight = this.pinnedTracksHeight + deltaPx;
-                m.redraw();
-              },
-              ondblclick: () => {
-                this.pinnedTracksHeight = 'auto';
-              },
-            }),
-          ],
-
-          m(TrackTreeView, {
-            trace,
-            className: 'pf-timeline-page__scrolling-track-tree',
-            rootNode: trace.currentWorkspace.tracks,
-            canReorderNodes: trace.currentWorkspace.userEditable,
-            canRemoveNodes: trace.currentWorkspace.userEditable,
-            trackFilter: (track) => trackMatchesFilter(trace, track),
-          }),
-        ],
+        this.renderMinimap(trace),
+        this.renderTimeline(trace),
       ),
     );
+  }
+
+  private renderTimeline(trace: TraceImpl): m.Children {
+    return m(
+      '.pf-timeline-page__timeline',
+      this.renderHeader(trace),
+      this.renderTracks(trace),
+      this.renderTrackShellResizeHandle(),
+    );
+  }
+
+  private renderTrackShellResizeHandle(): m.Children {
+    return m(ResizeHandle, {
+      direction: 'horizontal',
+      style: {
+        position: 'absolute',
+        left: `${TRACK_SHELL_WIDTH}px`,
+        top: '0',
+        bottom: '0',
+      },
+      onResizeAbsolute: (positionPx: number) => {
+        const clamped = Math.max(
+          MIN_TRACK_SHELL_WIDTH,
+          Math.min(MAX_TRACK_SHELL_WIDTH, positionPx),
+        );
+        setTrackShellWidth(clamped);
+        raf.scheduleFullRedraw();
+      },
+    });
+  }
+
+  private renderMinimap(trace: TraceImpl): m.Children {
+    if (!OVERVIEW_PANEL_FLAG.get()) return null;
+    return m(Minimap, {
+      trace,
+      className: 'pf-timeline-page__overview',
+    });
+  }
+
+  private renderHeader(trace: TraceImpl): m.Children {
+    return m(TimelineHeader, {
+      trace,
+      className: 'pf-timeline-page__header',
+      // There are three independent canvases on this page which we could
+      // use keep track of the timeline width, but we use the header one
+      // because it's always rendered.
+      onTimelineBoundsChange: (rect) => (this.timelineBounds = rect),
+    });
+  }
+
+  private renderTracks(trace: TraceImpl): m.Children {
+    // Hide tracks while the trace is loading to prevent thrashing.
+    if (AppImpl.instance.isLoadingTrace) return null;
+
+    return [this.renderPinnedTracks(trace), this.renderMainTracks(trace)];
+  }
+
+  private renderPinnedTracks(trace: TraceImpl): m.Children {
+    if (trace.currentWorkspace.pinnedTracks.length === 0) return null;
+
+    return [
+      m(
+        '.pf-timeline-page__pinned-track-tree',
+        {
+          style:
+            this.pinnedTracksHeight === 'auto'
+              ? {maxHeight: '40%'}
+              : {height: `${this.pinnedTracksHeight}px`},
+        },
+        m(TrackTreeView, {
+          trace,
+          rootNode: trace.currentWorkspace.pinnedTracksNode,
+          canReorderNodes: true,
+          scrollToNewTracks: true,
+        }),
+      ),
+      m(ResizeHandle, {
+        onResize: (deltaPx: number) => {
+          if (this.pinnedTracksHeight === 'auto') {
+            this.pinnedTracksHeight = toHTMLElement(
+              document.querySelector('.pf-timeline-page__pinned-track-tree')!,
+            ).getBoundingClientRect().height;
+          }
+          this.pinnedTracksHeight = this.pinnedTracksHeight + deltaPx;
+          m.redraw();
+        },
+        ondblclick: () => {
+          this.pinnedTracksHeight = 'auto';
+        },
+      }),
+    ];
+  }
+
+  private renderMainTracks(trace: TraceImpl): m.Children {
+    return m(TrackTreeView, {
+      trace,
+      className: 'pf-timeline-page__scrolling-track-tree',
+      rootNode: trace.currentWorkspace.tracks,
+      canReorderNodes: trace.currentWorkspace.userEditable,
+      canRemoveNodes: trace.currentWorkspace.userEditable,
+      trackFilter: (track) => trackMatchesFilter(trace, track),
+    });
   }
 
   oncreate(vnode: m.VnodeDOM<TimelinePageAttrs>) {
@@ -152,18 +201,6 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       },
     });
     this.trash.use(panZoomHandler);
-    this.onupdate(vnode);
-  }
-
-  onupdate({attrs}: m.VnodeDOM<TimelinePageAttrs>) {
-    // TODO(stevegolton): It's assumed that the TrackStacks will call into
-    // trace.tracks.getTrackRenderer() in their view() functions which will mark
-    // track renderers as used. We call flushOldTracks() here as it's guaranteed
-    // to be called after view() on all child elements, and is only called once
-    // per render cycle. However, this approach involves a bit too much magic.
-    // The TODO is to sort this out and make it so the track flushing is
-    // consolidated into one place.
-    attrs.trace.tracks.flushOldTracks();
   }
 
   onremove() {

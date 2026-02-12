@@ -162,7 +162,7 @@ export default class implements PerfettoPlugin {
             when 'Renderer' then 1
             else 0
           end as chromeProcessRank,
-          ifnull(machine_id, 0) as machine
+          machine_id as machine
         from _process_available_info_summary
         join process using(upid)
       ),
@@ -176,7 +176,7 @@ export default class implements PerfettoPlugin {
           perf_sample_count as perfSampleCount,
           instruments_sample_count as instrumentsSampleCount,
           ifnull(extract_arg(thread.arg_set_id, 'thread_sort_index_hint'), 0) as threadSortIndexHint,
-          ifnull(machine_id, 0) as machine
+          machine_id as machine
         from _thread_available_info_summary
         join thread using (utid)
         where upid is null

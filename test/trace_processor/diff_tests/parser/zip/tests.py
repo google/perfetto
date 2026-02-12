@@ -87,9 +87,9 @@ class Zip(TestSuite):
         "id","parent_id","name","size","trace_type","processing_order"
         0,"[NULL]","[NULL]",94091,"gzip",0
         1,0,"",1126400,"tar",1
-        4,1,"/c.trace.pb",379760,"proto",2
-        3,1,"/b.simpleperf.data",554911,"perf",3
-        2,1,"/a.symbols.pb",186149,"symbols",4
+        4,1,"c.trace.pb",379760,"proto",2
+        3,1,"b.simpleperf.data",554911,"perf",3
+        2,1,"a.symbols.pb",186149,"symbols",4
         '''))
 
   # Make sure the logcat timestamps are correctly converted to trace ts. All
@@ -114,4 +114,18 @@ class Zip(TestSuite):
         out=Csv('''
         "count"
         58
+        '''))
+
+  def test_multi_trace_single_machine_clock(self):
+    return DiffTestBlueprint(
+        trace=DataPath('multi_trace_single_machine_clock.zip'),
+        query='''
+        SELECT ts
+        FROM slice
+        WHERE name = 'InterruptibleSleep::run_with_interval';
+        ''',
+        out=Csv('''
+        "ts"
+        1276407306585477
+        1276408471040116
         '''))

@@ -176,4 +176,9 @@
     PerfettoTePublishCategories();                                             \
   } while (0)
 
+// Returns true if the category `NAME` is enabled. `NAME` should be a category
+// defined with PERFETTO_TE_CATEGORIES_DEFINE.
+#define PERFETTO_TE_IS_CATEGORY_ENABLED(NAME) \
+  PERFETTO_ATOMIC_LOAD_EXPLICIT((NAME).enabled, PERFETTO_MEMORY_ORDER_RELAXED)
+
 #endif  // INCLUDE_PERFETTO_PUBLIC_TE_CATEGORY_MACROS_H_

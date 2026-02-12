@@ -26,6 +26,7 @@ enum TraceType {
   kAndroidBugreportTraceType,
   kAndroidDumpstateTraceType,
   kAndroidLogcatTraceType,
+  kCollapsedStackTraceType,
   kCtraceTraceType,
   kFuchsiaTraceType,
   kGzipTraceType,
@@ -50,6 +51,7 @@ enum TraceType {
 constexpr size_t kGuessTraceMaxLookahead = 128;
 TraceType GuessTraceType(const uint8_t* data, size_t size);
 const char* TraceTypeToString(TraceType type);
+bool IsContainerTraceType(TraceType type);
 
 }  // namespace perfetto::trace_processor
 

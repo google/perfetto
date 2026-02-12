@@ -16,18 +16,21 @@
 
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
 
-#include <json/value.h>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -39,15 +42,278 @@
 #include "src/trace_processor/importers/gecko/gecko_trace_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/json_utils.h"
+#include "src/trace_processor/util/simple_json_parser.h"
 
 namespace perfetto::trace_processor::gecko_importer {
+
+// Parsed gecko thread data (forward declared in header).
+struct GeckoThread {
+  std::string name;
+  uint32_t tid = 0;
+  uint32_t pid = 0;
+
+  // String table (either stringTable for legacy or stringArray for
+  // preprocessed)
+  std::vector<std::string> strings;
+
+  // Legacy format: schema-based tables with data arrays.
+  struct LegacyTable {
+    std::vector<std::string> schema_keys;
+    std::vector<uint32_t> schema_values;
+    std::vector<std::vector<std::variant<uint32_t, double, std::monostate>>>
+        data;
+
+    std::optional<uint32_t> GetSchemaIndex(std::string_view key) const {
+      for (size_t i = 0; i < schema_keys.size(); ++i) {
+        if (schema_keys[i] == key) {
+          return schema_values[i];
+        }
+      }
+      return std::nullopt;
+    }
+  };
+  LegacyTable frame_table;
+  LegacyTable stack_table;
+  LegacyTable samples;
+
+  // Preprocessed format: flat arrays.
+  std::vector<uint32_t> frame_func_indices;
+  std::vector<uint32_t> func_names;
+  std::vector<std::optional<uint32_t>> stack_prefixes;
+  std::vector<uint32_t> stack_frames;
+  std::vector<std::optional<uint32_t>> sample_stacks;
+  std::vector<double> sample_times;
+
+  bool is_preprocessed = false;
+};
+
 namespace {
 
 struct Callsite {
   CallsiteId id;
   uint32_t depth;
 };
+
+// Parse a schema object: {"field1": index1, "field2": index2, ...}
+base::Status ParseSchema(json::SimpleJsonParser& reader,
+                         std::vector<std::string>& keys,
+                         std::vector<uint32_t>& values) {
+  return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+    keys.emplace_back(key);
+    values.push_back(reader.GetUint32().value_or(0));
+    return json::FieldResult::Handled{};
+  });
+}
+
+// Parse a data array where each element is an array of values.
+base::Status ParseDataArray(
+    json::SimpleJsonParser& reader,
+    std::vector<std::vector<std::variant<uint32_t, double, std::monostate>>>&
+        data) {
+  return reader.ForEachArrayElement([&]() {
+    if (!reader.IsArray()) {
+      return base::OkStatus();
+    }
+    std::vector<std::variant<uint32_t, double, std::monostate>> row;
+    RETURN_IF_ERROR(reader.ForEachArrayElement([&]() {
+      if (reader.IsNull()) {
+        row.push_back(std::monostate{});
+      } else if (auto v = reader.GetUint32()) {
+        row.push_back(*v);
+      } else if (auto d = reader.GetDouble()) {
+        row.push_back(*d);
+      } else {
+        row.push_back(std::monostate{});
+      }
+      return base::OkStatus();
+    }));
+    data.push_back(std::move(row));
+    return base::OkStatus();
+  });
+}
+
+// Parse optional uint32 array (elements can be null).
+base::Status ParseOptionalUint32Array(
+    json::SimpleJsonParser& reader,
+    std::vector<std::optional<uint32_t>>& out) {
+  return reader.ForEachArrayElement([&]() {
+    if (reader.IsNull()) {
+      out.emplace_back(std::nullopt);
+    } else {
+      out.push_back(reader.GetUint32());
+    }
+    return base::OkStatus();
+  });
+}
+
+// Parse a single thread object.
+base::Status ParseThread(json::SimpleJsonParser& reader, GeckoThread& t) {
+  return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+    if (key == "name") {
+      t.name = std::string(reader.GetString().value_or(""));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "tid") {
+      if (auto v = reader.GetUint32()) {
+        t.tid = *v;
+      } else if (auto s = reader.GetString()) {
+        t.tid = base::CStringToUInt32(std::string(*s).c_str()).value_or(0);
+      }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "pid") {
+      if (auto v = reader.GetUint32()) {
+        t.pid = *v;
+      } else if (auto s = reader.GetString()) {
+        t.pid = base::CStringToUInt32(std::string(*s).c_str()).value_or(0);
+      }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "stringTable" && reader.IsArray()) {
+      // Legacy format string table.
+      auto result = reader.CollectStringArray();
+      if (result.ok()) {
+        t.strings = std::move(*result);
+      }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "stringArray" && reader.IsArray()) {
+      // Preprocessed format string array.
+      t.is_preprocessed = true;
+      auto result = reader.CollectStringArray();
+      if (result.ok()) {
+        t.strings = std::move(*result);
+      }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "frameTable" && reader.IsObject()) {
+      // Check if this is preprocessed (has "func" array) or legacy (has
+      // "schema").
+      RETURN_IF_ERROR(
+          reader.ForEachField([&](std::string_view fkey) -> json::FieldResult {
+            if (fkey == "schema" && reader.IsObject()) {
+              RETURN_IF_ERROR(ParseSchema(reader, t.frame_table.schema_keys,
+                                          t.frame_table.schema_values));
+              return json::FieldResult::Handled{};
+            }
+            if (fkey == "data" && reader.IsArray()) {
+              RETURN_IF_ERROR(ParseDataArray(reader, t.frame_table.data));
+              return json::FieldResult::Handled{};
+            }
+            if (fkey == "func" && reader.IsArray()) {
+              t.is_preprocessed = true;
+              auto result = reader.CollectUint32Array();
+              if (result.ok()) {
+                t.frame_func_indices = std::move(*result);
+              }
+              return json::FieldResult::Handled{};
+            }
+            return json::FieldResult::Skip{};
+          }));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "funcTable" && reader.IsObject()) {
+      // Preprocessed format function table.
+      RETURN_IF_ERROR(
+          reader.ForEachField([&](std::string_view fkey) -> json::FieldResult {
+            if (fkey == "name" && reader.IsArray()) {
+              auto result = reader.CollectUint32Array();
+              if (result.ok()) {
+                t.func_names = std::move(*result);
+              }
+              return json::FieldResult::Handled{};
+            }
+            return json::FieldResult::Skip{};
+          }));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "stackTable" && reader.IsObject()) {
+      RETURN_IF_ERROR(
+          reader.ForEachField([&](std::string_view skey) -> json::FieldResult {
+            if (skey == "schema" && reader.IsObject()) {
+              RETURN_IF_ERROR(ParseSchema(reader, t.stack_table.schema_keys,
+                                          t.stack_table.schema_values));
+              return json::FieldResult::Handled{};
+            }
+            if (skey == "data" && reader.IsArray()) {
+              RETURN_IF_ERROR(ParseDataArray(reader, t.stack_table.data));
+              return json::FieldResult::Handled{};
+            }
+            if (skey == "prefix" && reader.IsArray()) {
+              t.is_preprocessed = true;
+              RETURN_IF_ERROR(
+                  ParseOptionalUint32Array(reader, t.stack_prefixes));
+              return json::FieldResult::Handled{};
+            }
+            if (skey == "frame" && reader.IsArray()) {
+              auto result = reader.CollectUint32Array();
+              if (result.ok()) {
+                t.stack_frames = std::move(*result);
+              }
+              return json::FieldResult::Handled{};
+            }
+            return json::FieldResult::Skip{};
+          }));
+      return json::FieldResult::Handled{};
+    }
+    if (key == "samples" && reader.IsObject()) {
+      RETURN_IF_ERROR(
+          reader.ForEachField([&](std::string_view skey) -> json::FieldResult {
+            if (skey == "schema" && reader.IsObject()) {
+              RETURN_IF_ERROR(ParseSchema(reader, t.samples.schema_keys,
+                                          t.samples.schema_values));
+              return json::FieldResult::Handled{};
+            }
+            if (skey == "data" && reader.IsArray()) {
+              RETURN_IF_ERROR(ParseDataArray(reader, t.samples.data));
+              return json::FieldResult::Handled{};
+            }
+            if (skey == "stack" && reader.IsArray()) {
+              t.is_preprocessed = true;
+              RETURN_IF_ERROR(
+                  ParseOptionalUint32Array(reader, t.sample_stacks));
+              return json::FieldResult::Handled{};
+            }
+            if (skey == "time" && reader.IsArray()) {
+              auto result = reader.CollectDoubleArray();
+              if (result.ok()) {
+                t.sample_times = std::move(*result);
+              }
+              return json::FieldResult::Handled{};
+            }
+            return json::FieldResult::Skip{};
+          }));
+      return json::FieldResult::Handled{};
+    }
+    return json::FieldResult::Skip{};
+  });
+}
+
+// Parse the root gecko profile object.
+base::StatusOr<std::vector<GeckoThread>> ParseGeckoProfile(
+    std::string_view json) {
+  std::vector<GeckoThread> threads;
+  json::SimpleJsonParser reader(json);
+  RETURN_IF_ERROR(reader.Parse());
+
+  RETURN_IF_ERROR(
+      reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+        if (key == "threads" && reader.IsArray()) {
+          RETURN_IF_ERROR(reader.ForEachArrayElement([&]() {
+            if (reader.IsObject()) {
+              GeckoThread t;
+              RETURN_IF_ERROR(ParseThread(reader, t));
+              threads.push_back(std::move(t));
+            }
+            return base::OkStatus();
+          }));
+          return json::FieldResult::Handled{};
+        }
+        return json::FieldResult::Skip{};
+      }));
+
+  return threads;
+}
 
 }  // namespace
 
@@ -62,233 +328,243 @@ base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
-  std::optional<Json::Value> opt_value =
-      json::ParseJsonString(base::StringView(pending_json_));
-  if (!opt_value) {
+base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
+  auto threads_or = ParseGeckoProfile(pending_json_);
+  if (!threads_or.ok()) {
     return base::ErrStatus(
-        "Syntactic error while Gecko trace; please use an external JSON tool "
-        "(e.g. jq) to understand the source of the error.");
+        "Syntactic error while parsing Gecko trace: %s; please use an external "
+        "JSON tool (e.g. jq) to understand the source of the error.",
+        threads_or.status().message().c_str());
   }
+
   context_->clock_tracker->SetTraceTimeClock(
-      protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
 
-  const Json::Value& value = *opt_value;
-
-  // Detect format: preprocessed uses "stringArray", legacy uses "stringTable".
-  bool is_preprocessed = false;
-  if (!value["threads"].empty()) {
-    const auto& first_thread = value["threads"][0];
-    is_preprocessed = first_thread.isMember("stringArray") ||
-                      (first_thread.isMember("frameTable") &&
-                       first_thread["frameTable"].isMember("func"));
-  }
-
-  if (is_preprocessed) {
-    ParsePreprocessedFormat(value);
-  } else {
-    ParseLegacyFormat(value);
+  for (const auto& t : *threads_or) {
+    if (t.is_preprocessed) {
+      ProcessPreprocessedThread(t);
+    } else {
+      ProcessLegacyThread(t);
+    }
   }
   return base::OkStatus();
 }
 
-void GeckoTraceTokenizer::ParseLegacyFormat(const Json::Value& value) {
-  DummyMemoryMapping* dummy_mapping = nullptr;
-  base::FlatHashMap<std::string, DummyMemoryMapping*> mappings;
+void GeckoTraceTokenizer::ProcessLegacyThread(const GeckoThread& t) {
   std::vector<FrameId> frame_ids;
   std::vector<Callsite> callsites;
 
-  for (const auto& t : value["threads"]) {
-    frame_ids.clear();
-    callsites.clear();
+  // Get schema indices.
+  auto location_idx = t.frame_table.GetSchemaIndex("location");
+  auto prefix_idx = t.stack_table.GetSchemaIndex("prefix");
+  auto frame_idx = t.stack_table.GetSchemaIndex("frame");
+  auto stack_idx = t.samples.GetSchemaIndex("stack");
+  auto time_idx = t.samples.GetSchemaIndex("time");
 
-    const auto& strings = t["stringTable"];
-    const auto& frames = t["frameTable"];
-    const auto& frames_schema = frames["schema"];
-    uint32_t location_idx = frames_schema["location"].asUInt();
-    for (const auto& frame : frames["data"]) {
-      base::StringView name = strings[frame[location_idx].asUInt()].asCString();
+  if (!location_idx || !prefix_idx || !frame_idx || !stack_idx || !time_idx) {
+    return;
+  }
 
-      constexpr std::string_view kMappingStart = " (in ";
-      size_t mapping_meta_start = name.find(
-          base::StringView(kMappingStart.data(), kMappingStart.size()));
-      if (mapping_meta_start == base::StringView::npos &&
-          name.data()[name.size() - 1] == ')') {
-        if (!dummy_mapping) {
-          dummy_mapping =
-              &context_->mapping_tracker->CreateDummyMapping("gecko");
-        }
-        frame_ids.push_back(
-            dummy_mapping->InternDummyFrame(name, base::StringView()));
-        continue;
+  // Process frames.
+  for (const auto& frame : t.frame_table.data) {
+    if (*location_idx >= frame.size()) {
+      continue;
+    }
+    const auto* loc_val = std::get_if<uint32_t>(&frame[*location_idx]);
+    if (!loc_val || *loc_val >= t.strings.size()) {
+      continue;
+    }
+    base::StringView name(t.strings[*loc_val]);
+
+    constexpr std::string_view kMappingStart = " (in ";
+    size_t mapping_meta_start =
+        name.find(base::StringView(kMappingStart.data(), kMappingStart.size()));
+    if (mapping_meta_start == base::StringView::npos && !name.empty() &&
+        name.data()[name.size() - 1] == ')') {
+      if (!dummy_mapping_) {
+        dummy_mapping_ =
+            &context_->mapping_tracker->CreateDummyMapping("gecko");
       }
-
-      DummyMemoryMapping* mapping;
-      size_t mapping_start = mapping_meta_start + kMappingStart.size();
-      size_t mapping_end = name.find(')', mapping_start);
-      std::string mapping_name =
-          name.substr(mapping_start, mapping_end - mapping_start).ToStdString();
-      if (auto* mapping_ptr = mappings.Find(mapping_name); mapping_ptr) {
-        mapping = *mapping_ptr;
-      } else {
-        mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
-        mappings.Insert(mapping_name, mapping);
-      }
-      frame_ids.push_back(mapping->InternDummyFrame(
-          name.substr(0, mapping_meta_start), base::StringView()));
+      frame_ids.push_back(
+          dummy_mapping_->InternDummyFrame(name, base::StringView()));
+      continue;
     }
 
-    const auto& stacks = t["stackTable"];
-    const auto& stacks_schema = stacks["schema"];
-    uint32_t prefix_index = stacks_schema["prefix"].asUInt();
-    uint32_t frame_index = stacks_schema["frame"].asUInt();
-    for (const auto& frame : stacks["data"]) {
-      const auto& prefix = frame[prefix_index];
-      std::optional<CallsiteId> prefix_id;
-      uint32_t depth = 0;
-      if (!prefix.isNull()) {
-        const auto& c = callsites[prefix.asUInt()];
+    DummyMemoryMapping* mapping;
+    size_t mapping_start = mapping_meta_start + kMappingStart.size();
+    size_t mapping_end = name.find(')', mapping_start);
+    std::string mapping_name =
+        name.substr(mapping_start, mapping_end - mapping_start).ToStdString();
+    if (auto* mapping_ptr = mappings_.Find(mapping_name); mapping_ptr) {
+      mapping = *mapping_ptr;
+    } else {
+      mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
+      mappings_.Insert(mapping_name, mapping);
+    }
+    frame_ids.push_back(mapping->InternDummyFrame(
+        name.substr(0, mapping_meta_start), base::StringView()));
+  }
+
+  // Process stacks.
+  for (const auto& stack : t.stack_table.data) {
+    if (*prefix_idx >= stack.size() || *frame_idx >= stack.size()) {
+      continue;
+    }
+
+    std::optional<CallsiteId> prefix_id;
+    uint32_t depth = 0;
+
+    // Check if prefix is not null.
+    if (const auto* prefix_val = std::get_if<uint32_t>(&stack[*prefix_idx])) {
+      if (*prefix_val < callsites.size()) {
+        const auto& c = callsites[*prefix_val];
         prefix_id = c.id;
         depth = c.depth + 1;
       }
-      CallsiteId cid = context_->stack_profile_tracker->InternCallsite(
-          prefix_id, frame_ids[frame[frame_index].asUInt()], depth);
-      callsites.push_back({cid, depth});
     }
 
-    const auto& samples = t["samples"];
-    const auto& samples_schema = samples["schema"];
-    uint32_t stack_index = samples_schema["stack"].asUInt();
-    uint32_t time_index = samples_schema["time"].asUInt();
-    bool added_metadata = false;
-    for (const auto& sample : samples["data"]) {
-      uint32_t stack_idx = sample[stack_index].asUInt();
-      auto ts =
-          static_cast<int64_t>(sample[time_index].asDouble() * 1000 * 1000);
-      if (!added_metadata) {
-        stream_->Push(
-            ts, GeckoEvent{GeckoEvent::ThreadMetadata{
-                    t["tid"].asUInt(), t["pid"].asUInt(),
-                    context_->storage->InternString(t["name"].asCString())}});
-        added_metadata = true;
-      }
-      std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
-          protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts);
-      if (converted) {
-        stream_->Push(*converted,
-                      GeckoEvent{GeckoEvent::StackSample{
-                          t["tid"].asUInt(), callsites[stack_idx].id}});
-      }
+    const auto* frame_val = std::get_if<uint32_t>(&stack[*frame_idx]);
+    if (!frame_val || *frame_val >= frame_ids.size()) {
+      continue;
+    }
+
+    CallsiteId cid = context_->stack_profile_tracker->InternCallsite(
+        prefix_id, frame_ids[*frame_val], depth);
+    callsites.push_back({cid, depth});
+  }
+
+  // Process samples.
+  bool added_metadata = false;
+  for (const auto& sample : t.samples.data) {
+    if (*stack_idx >= sample.size() || *time_idx >= sample.size()) {
+      continue;
+    }
+
+    const auto* stack_val = std::get_if<uint32_t>(&sample[*stack_idx]);
+    if (!stack_val || *stack_val >= callsites.size()) {
+      continue;
+    }
+
+    double time_val = 0;
+    if (const auto* d = std::get_if<double>(&sample[*time_idx])) {
+      time_val = *d;
+    } else if (const auto* u = std::get_if<uint32_t>(&sample[*time_idx])) {
+      time_val = static_cast<double>(*u);
+    }
+
+    auto ts = static_cast<int64_t>(time_val * 1000 * 1000);
+    if (!added_metadata) {
+      stream_->Push(
+          ts, GeckoEvent{GeckoEvent::ThreadMetadata{
+                  t.tid, t.pid,
+                  context_->storage->InternString(base::StringView(t.name))}});
+      added_metadata = true;
+    }
+    std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
+        ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
+        ts);
+    if (converted) {
+      stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
+                                    t.tid, callsites[*stack_val].id}});
     }
   }
 }
 
-void GeckoTraceTokenizer::ParsePreprocessedFormat(const Json::Value& value) {
-  DummyMemoryMapping* dummy_mapping = nullptr;
-  base::FlatHashMap<std::string, DummyMemoryMapping*> mappings;
+void GeckoTraceTokenizer::ProcessPreprocessedThread(const GeckoThread& t) {
   std::vector<FrameId> frame_ids;
   std::vector<Callsite> callsites;
 
-  for (const auto& t : value["threads"]) {
-    frame_ids.clear();
-    callsites.clear();
+  // Process frames using func table indirection.
+  for (uint32_t func_idx : t.frame_func_indices) {
+    if (func_idx >= t.func_names.size()) {
+      continue;
+    }
+    uint32_t name_str_idx = t.func_names[func_idx];
+    if (name_str_idx >= t.strings.size()) {
+      continue;
+    }
+    base::StringView name(t.strings[name_str_idx]);
 
-    const auto& strings = t["stringArray"];
-    const auto& frames = t["frameTable"];
-    const auto& funcs = t["funcTable"];
-
-    // Preprocessed format: frameTable.func[] -> funcTable index,
-    // funcTable.name[] -> stringArray index.
-    const auto& frame_func_indices = frames["func"];
-    const auto& func_names = funcs["name"];
-
-    for (uint32_t i = 0; i < frame_func_indices.size(); ++i) {
-      uint32_t func_idx = frame_func_indices[i].asUInt();
-      uint32_t name_str_idx = func_names[func_idx].asUInt();
-      base::StringView name = strings[name_str_idx].asCString();
-
-      constexpr std::string_view kMappingStart = " (in ";
-      size_t mapping_meta_start = name.find(
-          base::StringView(kMappingStart.data(), kMappingStart.size()));
-      if (mapping_meta_start == base::StringView::npos) {
-        if (!dummy_mapping) {
-          dummy_mapping =
-              &context_->mapping_tracker->CreateDummyMapping("gecko");
-        }
-        frame_ids.push_back(
-            dummy_mapping->InternDummyFrame(name, base::StringView()));
-        continue;
+    constexpr std::string_view kMappingStart = " (in ";
+    size_t mapping_meta_start =
+        name.find(base::StringView(kMappingStart.data(), kMappingStart.size()));
+    if (mapping_meta_start == base::StringView::npos) {
+      if (!dummy_mapping_) {
+        dummy_mapping_ =
+            &context_->mapping_tracker->CreateDummyMapping("gecko");
       }
-
-      DummyMemoryMapping* mapping;
-      size_t mapping_start = mapping_meta_start + kMappingStart.size();
-      size_t mapping_end = name.find(')', mapping_start);
-      std::string mapping_name =
-          name.substr(mapping_start, mapping_end - mapping_start).ToStdString();
-      if (auto* mapping_ptr = mappings.Find(mapping_name); mapping_ptr) {
-        mapping = *mapping_ptr;
-      } else {
-        mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
-        mappings.Insert(mapping_name, mapping);
-      }
-      frame_ids.push_back(mapping->InternDummyFrame(
-          name.substr(0, mapping_meta_start), base::StringView()));
+      frame_ids.push_back(
+          dummy_mapping_->InternDummyFrame(name, base::StringView()));
+      continue;
     }
 
-    // Preprocessed format: stackTable has separate "prefix" and "frame" arrays.
-    const auto& stacks = t["stackTable"];
-    const auto& prefixes = stacks["prefix"];
-    const auto& stack_frames = stacks["frame"];
+    DummyMemoryMapping* mapping;
+    size_t mapping_start = mapping_meta_start + kMappingStart.size();
+    size_t mapping_end = name.find(')', mapping_start);
+    std::string mapping_name =
+        name.substr(mapping_start, mapping_end - mapping_start).ToStdString();
+    if (auto* mapping_ptr = mappings_.Find(mapping_name); mapping_ptr) {
+      mapping = *mapping_ptr;
+    } else {
+      mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
+      mappings_.Insert(mapping_name, mapping);
+    }
+    frame_ids.push_back(mapping->InternDummyFrame(
+        name.substr(0, mapping_meta_start), base::StringView()));
+  }
 
-    for (uint32_t i = 0; i < prefixes.size(); ++i) {
-      const auto& prefix = prefixes[i];
-      std::optional<CallsiteId> prefix_id;
-      uint32_t depth = 0;
-      if (!prefix.isNull()) {
-        const auto& c = callsites[prefix.asUInt()];
+  // Process stacks using separate prefix/frame arrays.
+  for (size_t i = 0; i < t.stack_prefixes.size() && i < t.stack_frames.size();
+       ++i) {
+    std::optional<CallsiteId> prefix_id;
+    uint32_t depth = 0;
+
+    if (t.stack_prefixes[i].has_value()) {
+      uint32_t prefix_idx = *t.stack_prefixes[i];
+      if (prefix_idx < callsites.size()) {
+        const auto& c = callsites[prefix_idx];
         prefix_id = c.id;
         depth = c.depth + 1;
       }
-      CallsiteId cid = context_->stack_profile_tracker->InternCallsite(
-          prefix_id, frame_ids[stack_frames[i].asUInt()], depth);
-      callsites.push_back({cid, depth});
     }
 
-    // Preprocessed format: samples has separate "stack" and "time" arrays.
-    const auto& samples = t["samples"];
-    const auto& sample_stacks = samples["stack"];
-    const auto& sample_times = samples["time"];
+    uint32_t frame_val = t.stack_frames[i];
+    if (frame_val >= frame_ids.size()) {
+      continue;
+    }
 
-    // In preprocessed format, tid/pid can be strings or integers.
-    uint32_t tid = t["tid"].isString()
-                       ? base::CStringToUInt32(t["tid"].asCString()).value_or(0)
-                       : t["tid"].asUInt();
-    uint32_t pid = t["pid"].isString()
-                       ? base::CStringToUInt32(t["pid"].asCString()).value_or(0)
-                       : t["pid"].asUInt();
+    CallsiteId cid = context_->stack_profile_tracker->InternCallsite(
+        prefix_id, frame_ids[frame_val], depth);
+    callsites.push_back({cid, depth});
+  }
 
-    bool added_metadata = false;
-    for (uint32_t i = 0; i < sample_stacks.size(); ++i) {
-      const auto& stack_val = sample_stacks[i];
-      // Stack can be null in the preprocessed format.
-      if (stack_val.isNull()) {
-        continue;
-      }
-      uint32_t stack_idx = stack_val.asUInt();
-      auto ts = static_cast<int64_t>(sample_times[i].asDouble() * 1000 * 1000);
-      if (!added_metadata) {
-        stream_->Push(
-            ts, GeckoEvent{GeckoEvent::ThreadMetadata{
-                    tid, pid,
-                    context_->storage->InternString(t["name"].asCString())}});
-        added_metadata = true;
-      }
-      std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
-          protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts);
-      if (converted) {
-        stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
-                                      tid, callsites[stack_idx].id}});
-      }
+  // Process samples using separate stack/time arrays.
+  bool added_metadata = false;
+  for (size_t i = 0; i < t.sample_stacks.size() && i < t.sample_times.size();
+       ++i) {
+    // Stack can be null in preprocessed format.
+    if (!t.sample_stacks[i].has_value()) {
+      continue;
+    }
+    uint32_t stack_idx = *t.sample_stacks[i];
+    if (stack_idx >= callsites.size()) {
+      continue;
+    }
+
+    auto ts = static_cast<int64_t>(t.sample_times[i] * 1000 * 1000);
+    if (!added_metadata) {
+      stream_->Push(
+          ts, GeckoEvent{GeckoEvent::ThreadMetadata{
+                  t.tid, t.pid,
+                  context_->storage->InternString(base::StringView(t.name))}});
+      added_metadata = true;
+    }
+    std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
+        ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
+        ts);
+    if (converted) {
+      stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
+                                    t.tid, callsites[stack_idx].id}});
     }
   }
 }

@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "test/gtest_and_gmock.h"
 
@@ -65,6 +66,8 @@ class SyscallTrackerTest : public ::testing::Test {
  public:
   SyscallTrackerTest() {
     context.storage.reset(new TraceStorage());
+    context.machine_tracker.reset(
+        new MachineTracker(&context, kDefaultMachineId));
     context.global_args_tracker.reset(
         new GlobalArgsTracker(context.storage.get()));
     track_tracker = new TrackTracker(&context);

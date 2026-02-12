@@ -42,6 +42,7 @@ build-sandbox: .deps/${BUILDER}-sandbox
 
 .PHONY: push
 push: build
+	echo "If push below fails run: gcloud auth configure-docker us-docker.pkg.dev"
 	${BUILDER} push ${WORKER_IMG}
 	${BUILDER} push ${SANDBOX_IMG}
 

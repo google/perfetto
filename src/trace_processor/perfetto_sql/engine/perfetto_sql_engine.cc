@@ -39,12 +39,11 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/adhoc_dataframe_builder.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/runtime_dataframe_builder.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
@@ -53,6 +52,9 @@
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_column.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
@@ -91,60 +93,48 @@ namespace perfetto::trace_processor {
 namespace {
 
 struct SqliteStmtValueFetcher : public dataframe::ValueFetcher {
-  using Type = int;
-  [[maybe_unused]] static constexpr Type kInt64 = SQLITE_INTEGER;
-  [[maybe_unused]] static constexpr Type kDouble = SQLITE_FLOAT;
-  [[maybe_unused]] static constexpr Type kString = SQLITE_TEXT;
-  [[maybe_unused]] static constexpr Type kNull = SQLITE_NULL;
+  using Type = sqlite::Type;
+  static constexpr Type kInt64 = sqlite::Type::kInteger;
+  static constexpr Type kDouble = sqlite::Type::kFloat;
+  static constexpr Type kString = sqlite::Type::kText;
+  static constexpr Type kNull = sqlite::Type::kNull;
+  static constexpr Type kBytes = sqlite::Type::kBlob;
 
-  [[maybe_unused]] int64_t GetInt64Value(uint32_t i) const {
-    return sqlite3_column_int64(stmt_, int(i));
+  int64_t GetInt64Value(uint32_t i) const {
+    return sqlite::column::Int64(stmt_, i);
   }
-  [[maybe_unused]] double GetDoubleValue(uint32_t i) const {
-    return sqlite3_column_double(stmt_, int(i));
+  double GetDoubleValue(uint32_t i) const {
+    return sqlite::column::Double(stmt_, i);
   }
-  [[maybe_unused]] const char* GetStringValue(uint32_t i) const {
-    return reinterpret_cast<const char*>(sqlite3_column_text(stmt_, int(i)));
+  const char* GetStringValue(uint32_t i) const {
+    return sqlite::column::Text(stmt_, i);
   }
-  [[maybe_unused]] Type GetValueType(uint32_t i) const {
-    return static_cast<Type>(sqlite3_column_type(stmt_, int(i)));
-  }
-  [[maybe_unused]] static bool IteratorInit(uint32_t) {
-    PERFETTO_FATAL("Unsupported");
-  }
-  [[maybe_unused]] static bool IteratorNext(uint32_t) {
-    PERFETTO_FATAL("Unsupported");
-  }
+  Type GetValueType(uint32_t i) const { return sqlite::column::Type(stmt_, i); }
   sqlite3_stmt* stmt_;
 };
 
 // Similar to SqliteStmtValueFetcher but for validating views have the correct
 // types. Will ignore blobs and treat them as nulls.
 struct SqliteStmtValueViewFetcher : public dataframe::ValueFetcher {
-  using Type = int;
-  [[maybe_unused]] static constexpr Type kInt64 = SQLITE_INTEGER;
-  [[maybe_unused]] static constexpr Type kDouble = SQLITE_FLOAT;
-  [[maybe_unused]] static constexpr Type kString = SQLITE_TEXT;
-  [[maybe_unused]] static constexpr Type kNull = SQLITE_NULL;
+  using Type = sqlite::Type;
+  static constexpr Type kInt64 = sqlite::Type::kInteger;
+  static constexpr Type kDouble = sqlite::Type::kFloat;
+  static constexpr Type kString = sqlite::Type::kText;
+  static constexpr Type kNull = sqlite::Type::kNull;
+  static constexpr Type kBytes = sqlite::Type::kBlob;
 
-  [[maybe_unused]] int64_t GetInt64Value(uint32_t i) const {
-    return sqlite3_column_int64(stmt_, int(i));
+  int64_t GetInt64Value(uint32_t i) const {
+    return sqlite::column::Int64(stmt_, i);
   }
-  [[maybe_unused]] double GetDoubleValue(uint32_t i) const {
-    return sqlite3_column_double(stmt_, int(i));
+  double GetDoubleValue(uint32_t i) const {
+    return sqlite::column::Double(stmt_, i);
   }
-  [[maybe_unused]] const char* GetStringValue(uint32_t i) const {
-    return reinterpret_cast<const char*>(sqlite3_column_text(stmt_, int(i)));
+  const char* GetStringValue(uint32_t i) const {
+    return sqlite::column::Text(stmt_, i);
   }
   [[maybe_unused]] Type GetValueType(uint32_t i) const {
-    int type = sqlite3_column_type(stmt_, int(i));
-    return type == SQLITE_BLOB ? SQLITE_NULL : static_cast<Type>(type);
-  }
-  [[maybe_unused]] static bool IteratorInit(uint32_t) {
-    PERFETTO_FATAL("Unsupported");
-  }
-  [[maybe_unused]] static bool IteratorNext(uint32_t) {
-    PERFETTO_FATAL("Unsupported");
+    auto type = sqlite::column::Type(stmt_, i);
+    return type == kBytes ? kNull : type;
   }
   sqlite3_stmt* stmt_;
 };
@@ -348,6 +338,8 @@ ArgumentTypeToDataframeType(sql_argument::Type type, bool bytes_as_int64) {
                  ? base::StatusOr<dataframe::AdhocDataframeBuilder::ColumnType>(
                        dataframe::AdhocDataframeBuilder::ColumnType::kInt64)
                  : base::ErrStatus("Bytes type is not supported");
+    case sql_argument::Type::kAny:
+      return base::ErrStatus("ANY type cannot be used in table columns");
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -362,8 +354,9 @@ base::StatusOr<dataframe::Dataframe> CreateDataframeFromSqliteStatement(
     const std::string& name,
     ValueFetcherImpl* fetcher,
     const char* tag) {
-  dataframe::RuntimeDataframeBuilder builder(std::move(column_names), pool,
-                                             types);
+  dataframe::RuntimeDataframeBuilder builder(
+      std::move(column_names), pool,
+      {std::move(types), core::dataframe::NullabilityType::kSparseNull});
   int res;
   for (res = sqlite3_step(sqlite_stmt); res == SQLITE_ROW;
        res = sqlite3_step(sqlite_stmt)) {
@@ -1288,8 +1281,18 @@ base::Status PerfettoSqlEngine::RegisterDelegatingFunction(
 
   const IntrinsicFunctionInfo& info = *info_ptr;
 
+  // Determine the argument count. If the last argument is variadic, use -1
+  // (SQLite's indicator for variadic functions). Otherwise use the argument
+  // count from the prototype.
+  bool has_variadic = !cf.prototype.arguments.empty() &&
+                      cf.prototype.arguments.back().is_variadic();
+  int argc =
+      has_variadic ? -1 : static_cast<int>(cf.prototype.arguments.size());
+
+  // The prototype's argc must match the target function's argc.
+  PERFETTO_CHECK(argc == info.argc);
+
   // Check if function already exists and handle replace logic
-  int argc = static_cast<int>(cf.prototype.arguments.size());
   auto* existing_ctx = sqlite_engine()->GetFunctionContext(new_name, argc);
   if (existing_ctx) {
     if (!cf.replace) {

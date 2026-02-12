@@ -56,6 +56,25 @@
 
 namespace perfetto::trace_processor {
 
+namespace {
+
+// Adds a counter set containing the given counter IDs.
+// Returns the set ID that can be stored in PerfSampleTable.
+uint32_t AddCounterSet(TraceProcessorContext* context,
+                       const std::vector<CounterId>& counter_ids) {
+  auto* table = context->storage->mutable_perf_counter_set_table();
+  uint32_t set_id = static_cast<uint32_t>(table->row_count());
+  for (CounterId counter_id : counter_ids) {
+    tables::PerfCounterSetTable::Row row;
+    row.perf_counter_set_id = set_id;
+    row.counter_id = counter_id;
+    table->Insert(row);
+  }
+  return set_id;
+}
+
+}  // namespace
+
 using perfetto::protos::pbzero::TracePacket;
 using protozero::ConstBytes;
 
@@ -132,7 +151,8 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   auto packet_ts =
       sequence_state->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-      protos::pbzero::BUILTIN_CLOCK_MONOTONIC, packet_ts);
+      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      packet_ts);
   if (trace_ts)
     packet_ts = *trace_ts;
 
@@ -253,18 +273,33 @@ void ProfileModule::ParsePerfSample(
 
   // Populate the |perf_sample| table with everything except the recorded
   // counter values, which go to |counter|.
-  context_->event_tracker->PushCounter(
+  // Collect counter IDs for counter set association
+  std::vector<CounterId> counter_ids;
+
+  auto timebase_counter_id = context_->event_tracker->PushCounter(
       ts, static_cast<double>(sample.timebase_count()),
       sampling_stream.timebase_track_id);
+  if (timebase_counter_id) {
+    counter_ids.push_back(*timebase_counter_id);
+  }
 
   if (sample.has_follower_counts()) {
     auto track_it = sampling_stream.follower_track_ids.begin();
     auto track_end = sampling_stream.follower_track_ids.end();
     for (auto it = sample.follower_counts(); it && track_it != track_end;
          ++it, ++track_it) {
-      context_->event_tracker->PushCounter(ts, static_cast<double>(*it),
-                                           *track_it);
+      auto follower_counter_id = context_->event_tracker->PushCounter(
+          ts, static_cast<double>(*it), *track_it);
+      if (follower_counter_id) {
+        counter_ids.push_back(*follower_counter_id);
+      }
     }
+  }
+
+  // Create counter set if we have any counter IDs
+  std::optional<uint32_t> counter_set_id;
+  if (!counter_ids.empty()) {
+    counter_set_id = AddCounterSet(context_, counter_ids);
   }
 
   const UniqueTid utid =
@@ -295,9 +330,9 @@ void ProfileModule::ParsePerfSample(
     unwind_error_id = storage->InternString(
         ProfilePacketUtils::StringifyStackUnwindError(unwind_error));
   }
-  tables::PerfSampleTable::Row sample_row(ts, utid, sample.cpu(), cpu_mode_id,
-                                          cs_id, unwind_error_id,
-                                          sampling_stream.perf_session_id);
+  tables::PerfSampleTable::Row sample_row(
+      ts, utid, sample.cpu(), cpu_mode_id, cs_id, unwind_error_id,
+      sampling_stream.perf_session_id, counter_set_id);
   context_->storage->mutable_perf_sample_table()->Insert(sample_row);
 }
 
@@ -340,7 +375,8 @@ void ProfileModule::ParseProfilePacket(
 
     std::optional<int64_t> maybe_timestamp =
         context_->clock_tracker->ToTraceTime(
-            protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE,
+            ClockTracker::ClockId(
+                protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE),
             static_cast<int64_t>(entry.timestamp()));
     if (!maybe_timestamp)
       continue;
@@ -518,7 +554,7 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
   }
 }
 
-void ProfileModule::NotifyEndOfFile() {
+void ProfileModule::OnEventsFullyExtracted() {
   for (auto it = context_->storage->stack_profile_mapping_table().IterateRows();
        it; ++it) {
     NullTermStringView path = context_->storage->GetString(it.name());

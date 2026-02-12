@@ -206,6 +206,10 @@ class TracingServiceImpl : public TracingService {
                                       const RegisteredDataSource&,
                                       TracingSession*);
 
+  void MaybeSetUpProtoVm(const DataSourceConfig&,
+                         const RegisteredDataSource&,
+                         BufferID);
+
   // Returns the next available ProducerID that is not in |producers_|.
   ProducerID GetNextProducerID();
 
@@ -261,10 +265,12 @@ class TracingServiceImpl : public TracingService {
   void EmitUuid(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void EmitSystemInfo(std::vector<TracePacket>*);
+  void EmitTraceProvenance(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteSystemInfo(std::vector<TracePacket>*);
   void MaybeEmitCloneTrigger(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);
+  void MaybeEmitProtoVmInstances(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID, FlushFlags);
   void OnDisableTracingTimeout(TracingSessionID);

@@ -59,7 +59,15 @@ WITH
       ("SXR2230P", 2, 0),
       ("SXR2230P", 3, 0),
       ("SXR2230P", 4, 0),
-      ("SXR2230P", 5, 0)) AS _values
+      ("SXR2230P", 5, 0),
+      ("MT6897", 0, 0),
+      ("MT6897", 1, 0),
+      ("MT6897", 2, 0),
+      ("MT6897", 3, 0),
+      ("MT6897", 4, 0),
+      ("MT6897", 5, 0),
+      ("MT6897", 6, 0),
+      ("MT6897", 7, 0)) AS _values
   )
 SELECT
   *
@@ -93,6 +101,7 @@ WITH
           FROM metadata
           WHERE
             name = 'android_guest_soc_model'
+          LIMIT 1
         ),
         -- Get model from metadata
         (
@@ -101,6 +110,7 @@ WITH
           FROM metadata
           WHERE
             name = 'android_soc_model'
+          LIMIT 1
         ),
         -- Get device name from metadata and map it to model
         (
@@ -164,7 +174,15 @@ WITH
       ("SXR2230P", 2, 2),
       ("SXR2230P", 3, 2),
       ("SXR2230P", 4, 2),
-      ("SXR2230P", 5, 2)) AS _values
+      ("SXR2230P", 5, 2),
+      ("MT6897", 0, 0),
+      ("MT6897", 1, 0),
+      ("MT6897", 2, 0),
+      ("MT6897", 3, 0),
+      ("MT6897", 4, 4),
+      ("MT6897", 5, 4),
+      ("MT6897", 6, 4),
+      ("MT6897", 7, 7)) AS _values
   )
 SELECT
   *
@@ -227,6 +245,16 @@ WITH
     SELECT
       *
     FROM (VALUES
+      ("MT6897", 4294967295, -1),
+      ("MT6897", 0, 0),
+      ("MT6897", 1, 1),
+      ("MT6897", 2, 1),
+      ("MT6897", 3, 1),
+      ("MT6897", 4, 1),
+      ("MT6897", 5, 1),
+      ("MT6897", 6, 1),
+      ("MT6897", 7, 1),
+      ("MT6897", 8, 1),
       ("neo", 4294967295, -1),
       ("neo", 0, 0),
       ("neo", 1, 1),

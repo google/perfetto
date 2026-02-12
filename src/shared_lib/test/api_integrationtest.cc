@@ -2503,4 +2503,21 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrack) {
   EXPECT_EQ(counter_parent_uuid, registered_track_uuid);
 }
 
+TEST_F(SharedLibTrackEventTest, TrackEventIsCategoryEnabled) {
+  ASSERT_FALSE(PERFETTO_TE_IS_CATEGORY_ENABLED(cat1));
+
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("cat1")
+                                       .add_disabled_category("*")
+                                       .Build();
+
+  EXPECT_TRUE(PERFETTO_TE_IS_CATEGORY_ENABLED(cat1));
+  EXPECT_FALSE(PERFETTO_TE_IS_CATEGORY_ENABLED(cat2));
+
+  tracing_session.StopBlocking();
+
+  EXPECT_FALSE(PERFETTO_TE_IS_CATEGORY_ENABLED(cat1));
+}
+
 }  // namespace

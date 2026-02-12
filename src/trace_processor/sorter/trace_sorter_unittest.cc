@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -68,6 +69,8 @@ class TraceSorterTest : public ::testing::Test {
   TraceSorterTest() : test_buffer_(TraceBlob::Allocate(8)) {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     CreateSorter();
   }
 

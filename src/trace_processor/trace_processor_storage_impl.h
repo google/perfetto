@@ -40,6 +40,9 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   void Flush() override;
   base::Status NotifyEndOfFile() override;
 
+  base::Status OnPushDataToSorter();
+  void OnEventsFullyExtracted();
+
   void DestroyContext();
 
   TraceProcessorContext* context() { return &context_; }

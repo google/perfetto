@@ -75,7 +75,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
   // perfetto at the time of writing.
   // Therefore, approximate all clocks as MONOTONIC.
   context_->clock_tracker->SetTraceTimeClock(
-      protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
 
   reader_.PushBack(std::move(blob));
   std::vector<FrameId> frames;
@@ -173,16 +173,13 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
     evt.callsite_id = *parent_callsite;
 
     std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, sample->ts);
+        ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
+        sample->ts);
     if (trace_ts) {
       stream_->Push(*trace_ts, evt);
     }
     reader_.PopFrontUntil(it.file_offset());
   }
-}
-
-base::Status PerfTextTraceTokenizer::NotifyEndOfFile() {
-  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::perf_text_importer

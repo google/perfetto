@@ -17,7 +17,7 @@ import {FilterExpression, SearchProvider} from '../public/search';
 import {Track} from '../public/track';
 import {Dataset, UnionDatasetWithLineage} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
-import {LONG, NUM} from '../trace_processor/query_result';
+import {LONG, NUM, NUM_NULL} from '../trace_processor/query_result';
 
 // Type alias for search results
 export type SearchResult = {
@@ -106,7 +106,7 @@ async function searchTracksUsingProvider(
     ...resultSchema,
     ...(filter.columns ?? {}),
     __groupid: NUM,
-    __partition: NUM,
+    __partition: NUM_NULL,
   };
   const baseQuery = unionDataset.query(querySchema);
 
@@ -139,7 +139,11 @@ WHERE ${filter.where}`;
 
   // Process results with lineage resolution
   const results: SearchResult[] = [];
-  const resultIterSchema = {...resultSchema, __groupid: NUM, __partition: NUM};
+  const resultIterSchema = {
+    ...resultSchema,
+    __groupid: NUM,
+    __partition: NUM_NULL,
+  };
   const iter = queryResult.iter(resultIterSchema);
   for (; iter.valid() === true; iter.next()) {
     // Resolve which dataset(s) this row came from

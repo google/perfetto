@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/v8_profile_parser.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
@@ -50,7 +51,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/json_utils.h"
+#include "src/trace_processor/util/simple_json_parser.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -433,7 +434,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
     std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
+        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+        timestamp);
     if (trace_ts)
       timestamp = *trace_ts;
   } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
@@ -443,7 +445,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
     std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
+        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+        timestamp);
     if (trace_ts)
       timestamp = *trace_ts;
   } else if (packet.has_timestamp()) {
@@ -621,7 +624,6 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     const protos::pbzero::TrackEvent::Decoder& event,
     const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy,
     PacketSequenceStateGeneration& state) {
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   for (auto it = event.debug_annotations(); it; ++it) {
     protos::pbzero::DebugAnnotation::Decoder da(*it);
     auto* interned_name = state.LookupInternedMessage<
@@ -631,15 +633,16 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     if (name != "data" || !da.has_legacy_json_value()) {
       continue;
     }
-    auto opt_val = json::ParseJsonString(da.legacy_json_value());
-    if (!opt_val) {
+    auto json = da.legacy_json_value();
+    auto profile_or = ParseV8Profile(std::string_view(json.data, json.size));
+    if (!profile_or.ok()) {
       continue;
     }
-    const auto& val = *opt_val;
-    if (val.isMember("startTime")) {
+    const V8Profile& profile = *profile_or;
+    if (profile.start_time.has_value()) {
       std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
-          protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
-          val["startTime"].asInt64() * 1000);
+          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+          *profile.start_time * 1000);
       if (ts) {
         v8_tracker_->SetStartTsForSessionAndPid(
             legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), *ts);
@@ -649,44 +652,34 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
       }
       continue;
     }
-    const auto& profile = val["cpuProfile"];
-    for (const auto& n : profile["nodes"]) {
-      uint32_t node_id = n["id"].asUInt();
-      std::optional<uint32_t> parent_node_id =
-          n.isMember("parent") ? std::make_optional(n["parent"].asUInt())
-                               : std::nullopt;
-      const auto& frame = n["callFrame"];
-      base::StringView url =
-          frame.isMember("url") ? frame["url"].asCString() : base::StringView();
-      base::StringView function_name = frame["functionName"].asCString();
+    for (const auto& node : profile.nodes) {
+      base::StringView url = node.call_frame.url
+                                 ? base::StringView(*node.call_frame.url)
+                                 : base::StringView();
+      base::StringView function_name(node.call_frame.function_name);
       base::Status status = v8_tracker_->AddCallsite(
-          legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), node_id,
-          parent_node_id, url, function_name, {});
+          legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), node.id,
+          node.parent, url, function_name, node.children);
       if (!status.ok()) {
         context_->storage->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_callsite);
         continue;
       }
     }
-    const auto& samples = profile["samples"];
-    const auto& deltas = val["timeDeltas"];
-    if (samples.size() != deltas.size()) {
+    if (profile.samples.size() != profile.time_deltas.size()) {
       return base::ErrStatus(
           "v8 legacy profile: samples and timestamps do not have same size");
     }
-    for (uint32_t i = 0; i < samples.size(); ++i) {
+    for (uint32_t i = 0; i < profile.samples.size(); ++i) {
       ASSIGN_OR_RETURN(int64_t ts, v8_tracker_->AddDeltaAndGetTs(
                                        legacy.unscoped_id(),
                                        static_cast<uint32_t>(state.pid()),
-                                       deltas[i].asInt64() * 1000));
+                                       profile.time_deltas[i] * 1000));
       v8_stream_->Push(
           ts, {legacy.unscoped_id(), static_cast<uint32_t>(state.pid()),
-               static_cast<uint32_t>(state.tid()), samples[i].asUInt()});
+               static_cast<uint32_t>(state.tid()), profile.samples[i]});
     }
   }
-#else
-  base::ignore_result(event, legacy, state);
-#endif
   return base::OkStatus();
 }
 

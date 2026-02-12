@@ -22,6 +22,120 @@ from python.generators.diff_tests.testing import PrintProfileProto
 
 class LinuxTests(TestSuite):
 
+  def test_perf_sample_with_counters_view(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+            clocks {
+              clock_id: 6
+              timestamp: 273574904041306
+            }
+            clocks {
+              clock_id: 2
+              timestamp: 1737644264730557105
+            }
+            clocks {
+              clock_id: 4
+              timestamp: 106208706668231
+            }
+            clocks {
+              clock_id: 1
+              timestamp: 1737644264734590878
+            }
+            clocks {
+              clock_id: 3
+              timestamp: 106208710702167
+            }
+            clocks {
+              clock_id: 5
+              timestamp: 106208710702494
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          first_packet_on_sequence: true
+          timestamp: 273574983771490
+          timestamp_clock_id: 6
+          sequence_flags: 1
+          trace_packet_defaults {
+            timestamp_clock_id: 3
+            perf_sample_defaults {
+              timebase {
+                frequency: 100
+                counter: SW_CPU_CLOCK
+              }
+              followers {
+                counter: HW_CPU_CYCLES
+              }
+              followers {
+                counter: HW_INSTRUCTIONS
+              }
+            }
+          }
+          trusted_packet_sequence_id: 4
+          previous_packet_dropped: true
+        }
+        packet {
+          interned_data {
+            build_ids {
+              iid: 0
+              str: ""
+            }
+            mapping_paths {
+              iid: 0
+              str: ""
+            }
+            function_names {
+              iid: 0
+              str: ""
+            }
+          }
+          sequence_flags: 2
+          trusted_packet_sequence_id: 4
+        }
+        packet {
+          sequence_flags: 2
+          timestamp: 106208800213886
+          interned_data {
+            callstacks {
+              iid: 1
+            }
+          }
+          perf_sample {
+            cpu: 0
+            pid: 0
+            tid: 0
+            cpu_mode: MODE_KERNEL
+            timebase_count: 10020141
+            follower_counts: 4672142
+            follower_counts: 1144537
+            callstack_iid: 1
+          }
+          trusted_packet_sequence_id: 4
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE linux.perf.counters;
+
+        select
+          sample_id,
+          ts,
+          t.name as counter_name,
+          counter_value
+        from linux_perf_sample_with_counters
+        join track t on t.id = track_id
+        order by sample_id, counter_name
+        """,
+        out=Csv("""
+        "sample_id","ts","counter_name","counter_value"
+        0,273574993553025,"cpu-clock",10020141.000000
+        0,273574993553025,"cpu-cycles",4672142.000000
+        0,273574993553025,"instructions",1144537.000000
+        """))
+
   def test_kernel_threads(self):
     return DiffTestBlueprint(
         trace=DataPath('android_postboot_unlock.pftrace'),

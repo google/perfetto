@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Vector2D, Rect2D, Bounds2D} from './geom';
+import {Vector2D, Rect2D, Bounds2D, Transform2D} from './geom';
 
 describe('Vector2D', () => {
   test('add', () => {
@@ -154,5 +154,49 @@ describe('Rect2D', () => {
       expect(rect.containsPoint({x: 110, y: 20})).toBe(false); // On right edge
       expect(rect.containsPoint({x: 10, y: 70})).toBe(false); // On bottom edge
     });
+  });
+});
+
+describe('Transform2D', () => {
+  test('Identity', () => {
+    expect(Transform2D.Identity).toEqual({
+      offsetX: 0,
+      offsetY: 0,
+      scaleX: 1,
+      scaleY: 1,
+    });
+  });
+
+  test('compose', () => {
+    const a: Transform2D = {
+      offsetX: 10,
+      offsetY: 20,
+      scaleX: 2,
+      scaleY: 3,
+    };
+    const b: Partial<Transform2D> = {
+      offsetX: 5,
+      offsetY: 5,
+      scaleX: 2,
+      scaleY: 2,
+    };
+    const result = Transform2D.compose(a, b);
+    expect(result).toEqual({
+      offsetX: 20,
+      offsetY: 35,
+      scaleX: 4,
+      scaleY: 6,
+    });
+  });
+
+  test('compose with empty partial', () => {
+    const a: Transform2D = {
+      offsetX: 10,
+      offsetY: 20,
+      scaleX: 2,
+      scaleY: 3,
+    };
+    const result = Transform2D.compose(a, {});
+    expect(result).toEqual(a);
   });
 });

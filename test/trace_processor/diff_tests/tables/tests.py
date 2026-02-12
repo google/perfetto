@@ -305,6 +305,153 @@ class Tables(TestSuite):
                 "timezone_off_mins",60
                 """))
 
+  def test_metadata_schema(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Darwin"
+            }
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 100
+              print { buf: "host" }
+            }
+            last_read_event_timestamp: 1000
+          }
+          trusted_packet_sequence_id: 3
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 2000
+              pid: 200
+              print { buf: "remote" }
+            }
+            last_read_event_timestamp: 2000
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 4
+        }
+        """),
+        query=r"""
+          SELECT
+            name,
+            key_type,
+            int_value,
+            str_value,
+            machine_id,
+            trace_id
+          FROM metadata
+          WHERE name IN ('system_name', 'trace_type', 'ftrace_latest_data_start_ns')
+          ORDER BY name, machine_id
+        """,
+        out=Csv(r"""
+          "name","key_type","int_value","str_value","machine_id","trace_id"
+          "ftrace_latest_data_start_ns","single",1000,"[NULL]",0,0
+          "ftrace_latest_data_start_ns","single",2000,"[NULL]",1,0
+          "system_name","single","[NULL]","Linux",0,"[NULL]"
+          "system_name","single","[NULL]","Darwin",1,"[NULL]"
+          "trace_type","single","[NULL]","proto","[NULL]",0
+        """))
+
+  def test_metadata_uuid_upgrade(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trace_uuid {
+            msb: 0
+            lsb: 1
+          }
+          trusted_packet_sequence_id: 1
+        }
+        """),
+        query=r"""
+          SELECT name, str_value, machine_id, trace_id FROM metadata
+          WHERE name = 'trace_uuid';
+        """,
+        out=Csv(r"""
+          "name","str_value","machine_id","trace_id"
+          "trace_uuid","00000000-0000-0000-0000-000000000001","[NULL]",0
+        """))
+
+  def test_metadata_helpers(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Darwin"
+            }
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 100
+              print { buf: "host" }
+            }
+            last_read_event_timestamp: 1000
+          }
+          trusted_packet_sequence_id: 3
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 2000
+              pid: 200
+              print { buf: "remote" }
+            }
+            last_read_event_timestamp: 2000
+          }
+          machine_id: 1001
+          trusted_packet_sequence_id: 4
+        }
+        """),
+        query=r"""
+          SELECT
+            extract_metadata('system_name') as primary_system,
+            extract_metadata_for_machine(0, 'system_name') as machine_0_system,
+            extract_metadata_for_machine(1, 'system_name') as machine_1_system,
+            extract_metadata('ftrace_latest_data_start_ns') as primary_ftrace_start,
+            extract_metadata_for_machine(0, 'ftrace_latest_data_start_ns') as machine_0_ftrace_start,
+            extract_metadata_for_machine(1, 'ftrace_latest_data_start_ns') as machine_1_ftrace_start;
+        """,
+        out=Csv(r"""
+          "primary_system","machine_0_system","machine_1_system","primary_ftrace_start","machine_0_ftrace_start","machine_1_ftrace_start"
+          "Linux","Linux","Darwin",1000,1000,2000
+        """))
+
   def test_flow_table_trace_id(self):
     return DiffTestBlueprint(
         trace=TextProto("""

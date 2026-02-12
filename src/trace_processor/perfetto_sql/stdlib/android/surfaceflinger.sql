@@ -219,3 +219,62 @@ JOIN _android_sf_process
   USING (upid)
 JOIN main_thread_slice
   ON main_thread_slice.vsync = CAST(expected_timeline.name AS INTEGER);
+
+-- Workloads that are submitted to SurfaceFlinger to do compositing work
+CREATE PERFETTO TABLE android_surfaceflinger_workloads (
+  -- Timestamp of the workload
+  ts TIMESTAMP,
+  -- Source of the workload
+  source STRING,
+  -- Name of the output the workload is compositing for
+  output_name STRING,
+  -- SF vsync ID that the workload was scheduled for
+  sf_vsync LONG,
+  -- CPU time of the frame_signal slice in SF
+  sf_cpu_frame_signal_nanos LONG,
+  -- CPU time of the commit slice in SF
+  sf_cpu_commit_nanos LONG,
+  -- CPU time of the composite slice in SF
+  sf_cpu_composite_nanos LONG,
+  -- CPU time of the present call in HWC, observed from SF
+  hwc_present_nanos LONG,
+  -- CPU time of the validate call in HWC, observed from SF
+  hwc_validate_nanos LONG,
+  -- CPU time of the presentOrValidate call in HWC, observed from SF
+  hwc_present_or_validate_nanos LONG,
+  -- CPU time of the drawLayers slice in RenderEngine
+  re_draw_layers_nanos LONG,
+  -- GPU time of work submitted to RenderEngine
+  re_gpu_completion_nanos LONG,
+  -- CPU time of the flush call sent to Skia, observed from SF
+  skia_flush_nanos LONG,
+  -- CPU time of the submit call sent to Skia, observed from SF
+  skia_submit_nanos LONG,
+  -- Number of GPU composited layers for the workload
+  gpu_composited_layers LONG,
+  -- Number of DPU composited layers for the workload
+  dpu_composited_layers LONG
+) AS
+SELECT
+  ts,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.source') AS source,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.output_name') AS output_name,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.vsync_id') AS sf_vsync,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.sf_cpu.frame_signal_nanos') AS sf_cpu_frame_signal_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.sf_cpu.commit_nanos') AS sf_cpu_commit_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.sf_cpu.composite_nanos') AS sf_cpu_composite_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.hwc.present_nanos') AS hwc_present_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.hwc.validate_nanos') AS hwc_validate_nanos,
+  extract_arg(
+    arg_set_id,
+    'surfaceflinger_workload.summary.timings.hwc.present_or_validate_nanos'
+  ) AS hwc_present_or_validate_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.re.draw_layers_nanos') AS re_draw_layers_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.re.gpu_completion_nanos') AS re_gpu_completion_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.skia.flush_nanos') AS skia_flush_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.timings.skia.submit_nanos') AS skia_submit_nanos,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.stats.gpu_composited_layers') AS gpu_composited_layers,
+  extract_arg(arg_set_id, 'surfaceflinger_workload.summary.stats.dpu_composited_layers') AS dpu_composited_layers
+FROM slice
+WHERE
+  category = 'rendering' AND name = 'WorkloadSummary';

@@ -101,6 +101,7 @@
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/android_stats/statsd_logging_helper.h"
+#include "src/protovm/vm.h"
 #include "src/protozero/filtering/message_filter.h"
 #include "src/protozero/filtering/string_filter.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
@@ -120,8 +121,11 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"  // IWYU pragma: keep
+#include "protos/perfetto/config/protovm/protovm_config.gen.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/protovm/vm_program.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -361,9 +365,11 @@ using StringFilterRule =
 
 std::optional<protozero::StringFilter::SemanticTypeMask>
 ConvertSemanticTypeMask(const StringFilterRule& rule) {
-  // If no semantic types are specified, match all semantic types.
+  // UNSPECIFIED (0) is treated as its own category - it only matches rules
+  // that explicitly include bit 0 in their mask. If no semantic types are
+  // specified, default to matching only UNSPECIFIED (bit 0).
   if (rule.semantic_type().empty()) {
-    return protozero::StringFilter::SemanticTypeMask::All();
+    return protozero::StringFilter::SemanticTypeMask::Unspecified();
   }
 
   protozero::StringFilter::SemanticTypeMask mask;
@@ -1205,6 +1211,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     tracing_session->write_period_ms = write_period_ms;
     tracing_session->max_file_size_bytes = cfg.max_file_size_bytes();
     tracing_session->bytes_written_into_file = 0;
+    tracing_session->fflush_post_write =
+        cfg.fflush_post_write() == TraceConfig::FFLUSH_ENABLED;
   }
 
   if (cfg.compression_type() == TraceConfig::COMPRESSION_TYPE_DEFLATE) {
@@ -2639,6 +2647,11 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
           return;
         }
 
+        if (tracing_session->fflush_post_write) {
+          // Ensure all data was written to the file.
+          base::FlushFile(tracing_session->write_into_file.get());
+        }
+
         weak_runner_.PostDelayedTask(
             [this, tsid, async_flush_buffers_before_read] {
               ReadBuffersIntoFile(tsid, async_flush_buffers_before_read);
@@ -2734,6 +2747,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
+    EmitTraceProvenance(tracing_session, &packets);
     if (!tracing_session->config.builtin_data_sources().disable_system_info()) {
       EmitSystemInfo(&packets);
       if (!relay_clients_.empty())
@@ -2755,6 +2769,8 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       !relay_clients_.empty()) {
     MaybeEmitRemoteClockSync(tracing_session, &packets);
   }
+
+  MaybeEmitProtoVmInstances(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
 
@@ -3082,6 +3098,53 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,
   base::ignore_result(notify_traceur);
   base::ignore_result(is_long_trace);
 #endif
+}
+
+void TracingServiceImpl::MaybeSetUpProtoVm(
+    const DataSourceConfig& ds_config,
+    const RegisteredDataSource& ds_instance,
+    BufferID buffer_id) {
+  if (!ds_config.has_protovm_config() &&
+      !ds_instance.descriptor.has_protovm_program()) {
+    return;  // Data source has no ProtoVM
+  }
+  // TODO(keanmariotti): report the errors below in a trace packet as well, so
+  // that we can surface them on the UI.
+  if (!ds_instance.descriptor.has_protovm_program()) {
+    PERFETTO_ELOG(
+        "ProtoVM config for data source %s specifies a ProtoVM, but the data "
+        "source instance (ProducerID: %d) doesn't specify a ProtoVM program",
+        ds_config.name().c_str(), ds_instance.producer_id);
+    return;
+  }
+  if (!ds_config.has_protovm_config()) {
+    PERFETTO_ELOG(
+        "Received ProtoVM program from data souce instance (ProducerID: %d, "
+        "Data source name: %s), but the data source config doesn't specify a "
+        "ProtoVM.",
+        ds_instance.producer_id, ds_config.name().c_str());
+    return;
+  }
+  if (!ds_config.protovm_config().has_memory_limit_kb()) {
+    PERFETTO_ELOG(
+        "ProtoVM config for data source %s doesn't specify a memory limit",
+        ds_config.name().c_str());
+    return;
+  }
+  auto it = buffers_.find(buffer_id);
+  PERFETTO_CHECK(it != buffers_.cend());
+  if (it->second->buf_type() != TraceBuffer::BufType::kV2) {
+    PERFETTO_ELOG(
+        "Data source %s is configured to run a ProtoVM, but the corresponding "
+        "buffer is not of type V2",
+        ds_config.name().c_str());
+    return;
+  }
+  auto* buffer = static_cast<TraceBufferV2*>(it->second.get());
+  buffer->MaybeSetUpProtoVm(
+      ds_config.name(),
+      ds_instance.descriptor.protovm_program().SerializeAsString(),
+      ds_config.protovm_config().memory_limit_kb(), ds_instance.producer_id);
 }
 
 void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
@@ -3419,6 +3482,8 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   PERFETTO_DCHECK(global_id);
   ds_config.set_target_buffer(global_id);
 
+  MaybeSetUpProtoVm(ds_config, data_source, global_id);
+
   PERFETTO_DLOG("Setting up data source %s with target buffer %" PRIu16,
                 ds_config.name().c_str(), global_id);
   if (!producer->shared_memory()) {
@@ -3706,11 +3771,7 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
 
   // Sum up all the trace buffers.
   for (const auto& id_to_buffer : buffers_) {
-    total_buffer_bytes += id_to_buffer.second->size();
-    if (id_to_buffer.second->buf_type() == TraceBuffer::kV1WithV2Shadow) {
-      // kV1WithV2Shadow encapsulates both v1 and v2. Allow 2x budget.
-      total_buffer_bytes += id_to_buffer.second->size();
-    }
+    total_buffer_bytes += id_to_buffer.second->GetMemoryUsageBytes();
   }
 
   // Sum up all the cloned traced buffers.
@@ -3720,7 +3781,7 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
       const PendingClone& clone_op = id_to_clone_op.second;
       for (const std::unique_ptr<TraceBuffer>& buf : clone_op.buffers) {
         if (buf) {
-          total_buffer_bytes += buf->size();
+          total_buffer_bytes += buf->GetMemoryUsageBytes();
         }
       }
     }
@@ -4094,6 +4155,39 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
+void TracingServiceImpl::EmitTraceProvenance(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_timestamp(static_cast<uint64_t>(clock_->GetBootTimeNs().count()));
+  auto* provenance = packet->set_trace_provenance();
+  for (const BufferID buf_id : tracing_session->buffers_index) {
+    auto* buffer_proto = provenance->add_buffers();
+    TraceBuffer* buf = GetBufferByID(buf_id);
+    if (!buf)
+      continue;
+    for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
+      ProducerID producer_id;
+      WriterID writer_id;
+      GetProducerAndWriterID(it.key(), &producer_id, &writer_id);
+      ProducerEndpointImpl* producer = GetProducer(producer_id);
+      // TODO(primiano): here we default to kDefaultMachineID for disconnected
+      // producers. Alternatively we can refactor the writer stats key to
+      // include the machine ID (e.g. MachineAndProducerAndWriterID instead of
+      // ProducerAndWriterID)
+      MachineID machine_id = producer ? producer->client_identity().machine_id()
+                                      : kDefaultMachineID;
+      auto* sequence_proto = buffer_proto->add_sequences();
+      sequence_proto->set_id(tracing_session->GetPacketSequenceID(
+          machine_id, producer_id, writer_id));
+      sequence_proto->set_producer_id(static_cast<int32_t>(producer_id));
+    }
+  }
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+}
+
 void TracingServiceImpl::MaybeEmitRemoteSystemInfo(
     std::vector<TracePacket>* packets) {
   std::unordered_set<MachineID> did_emit_machines;
@@ -4235,6 +4329,58 @@ void TracingServiceImpl::MaybeEmitRemoteClockSync(
   }
 
   tracing_session->did_emit_remote_clock_sync_ = true;
+}
+
+void TracingServiceImpl::MaybeEmitProtoVmInstances(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  if (tracing_session->did_emit_protovm_instances_)
+    return;
+
+  std::optional<protozero::HeapBuffered<protos::pbzero::TracePacket>>
+      maybe_packet;
+
+  auto get_packet_protovms =
+      [&, protovms = static_cast<protos::pbzero::TracePacket::ProtoVms*>(
+              nullptr)]() mutable {
+        if (protovms) {
+          return protovms;
+        }
+        maybe_packet.emplace();
+        protovms = maybe_packet.value()->set_protovms();
+        return protovms;
+      };
+
+  for (auto buffer_id : tracing_session->buffers_index) {
+    auto it = buffers_.find(buffer_id);
+    PERFETTO_CHECK(it != buffers_.cend());
+    if (it->second->buf_type() != TraceBuffer::BufType::kV2) {
+      continue;
+    }
+    auto* buffer = static_cast<TraceBufferV2*>(it->second.get());
+    for (const TraceBufferV2::Vm& vm : buffer->GetProtoVmInstances()) {
+      auto* vm_instance = get_packet_protovms()->add_instance();
+      vm_instance->AppendString(
+          protos::pbzero::TracePacket::ProtoVms::Instance::kProgramFieldNumber,
+          vm.instance->SerializeProgram());
+      vm_instance->AppendString(
+          protos::pbzero::TracePacket::ProtoVms::Instance::kStateFieldNumber,
+          vm.instance->SerializeIncrementalState());
+      vm_instance->set_memory_limit_kb(vm.memory_limit_kb);
+      for (ProducerID producer_id : vm.producers) {
+        vm_instance->add_producer_id(producer_id);
+      }
+    }
+  }
+
+  if (maybe_packet) {
+    maybe_packet.value()->set_trusted_uid(static_cast<int32_t>(uid_));
+    maybe_packet.value()->set_trusted_packet_sequence_id(
+        kServicePacketSequenceID);
+    SerializeAndAppendPacket(packets, maybe_packet->SerializeAsArray());
+  }
+
+  tracing_session->did_emit_protovm_instances_ = true;
 }
 
 void TracingServiceImpl::MaybeEmitCloneTrigger(
