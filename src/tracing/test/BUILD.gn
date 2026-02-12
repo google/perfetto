@@ -25,6 +25,8 @@ perfetto_unittest_source_set("test_support") {
   deps = [
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/common:cpp",
+    "../../../protos/perfetto/protovm:cpp",
     "../../../protos/perfetto/trace:cpp",
     "../../../protos/perfetto/trace:lite",
     "../../../protos/perfetto/trace:zero",
