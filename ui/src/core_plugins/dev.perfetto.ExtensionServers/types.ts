@@ -40,7 +40,7 @@ const githubAuthSchema = z.discriminatedUnion('type', [
   z.object({type: z.literal('none')}),
   z.object({
     type: z.literal('github_pat'),
-    pat: z.string().meta({secret: true}),
+    pat: z.string().meta({secret: true}).default(''),
   }),
 ]);
 
