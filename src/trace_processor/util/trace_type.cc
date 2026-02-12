@@ -290,6 +290,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "art_hprof";
     case kPerfTextTraceType:
       return "perf_text";
+    case kPrimesTraceType:
+      return "primes";
     case kSimpleperfProtoTraceType:
       return "simpleperf_proto";
     case kUnknownTraceType:
@@ -309,6 +311,7 @@ bool IsContainerTraceType(TraceType trace_type) {
     case kTarTraceType:
       return true;
     case kJsonTraceType:
+    case kPrimesTraceType:
     case kProtoTraceType:
     case kSymbolsTraceType:
     case kNinjaLogTraceType:
@@ -447,6 +450,11 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (base::StartsWith(start, "\x0a"))
     return kProtoTraceType;
+
+  // TODO(leemh): This is not robust enough. Chat elkurdi@/lalitm@ to determine
+  // better way.
+  if (base::StartsWith(start, "\x09"))
+    return kPrimesTraceType;
 
   if (base::StartsWith(start, "9,0,i,vers,")) {
     return kAndroidDumpstateTraceType;  // BatteryStats Checkin format.
