@@ -2509,6 +2509,40 @@ message ProtoVmConfig {
 
 // End of protos/perfetto/config/protovm/protovm_config.proto
 
+// Begin of protos/perfetto/config/qnx/qnx_config.proto
+
+// QnxConfig is used with trace_qnx_probes build from
+// https://github.com/qnx-ports/perfetto
+message QnxConfig {
+  // The number of buffers that tracelog will init for the QNX trace.
+  optional uint32 qnx_kernel_buffers = 1;
+
+  // The number of kernel buffers that tracelog will init for the QNX trace.
+  optional uint32 qnx_kernel_kbuffers = 2;
+
+  // Flag indicating whether the QNX kernel tracing should produce wide
+  // events which contain additional data or fast events which are most
+  // concise. In fast mode we lose the priority information
+  optional bool qnx_kernel_wide_events = 3;
+
+  // The number of pages initialized by default the parser's page cache.
+  optional uint32 qnx_cache_pages = 4;
+
+  // The max pages the page cache should allocate (must be at least as big)
+  // as the qnx_cache_pages value. Using -1 will allow the cache to grow
+  // unbounded. The cache will prefer to re-use existing pages so growth will
+  // only happen when needed (when parser is not keeping up).
+  optional int32 qnx_cache_max_pages = 5;
+
+  // The initial size of the the buffer used to hold the trace header values
+  // this dynamic buffer will grow as needed but reallocs can be avoided by
+  // selecting an initial size large enough to hold all the initial header
+  // data.
+  optional uint32 qnx_trace_buffer_init_bytes = 6;
+}
+
+// End of protos/perfetto/config/qnx/qnx_config.proto
+
 // Begin of protos/perfetto/config/statsd/atom_ids.proto
 
 // This enum is obtained by post-processing
@@ -4411,6 +4445,9 @@ message DataSourceConfig {
 
   // Data source name: android.inputmethod
   optional InputMethodConfig inputmethod_config = 139 [lazy = true];
+
+  // Data source name: qnx.kernel
+  optional QnxConfig qnx_config = 150 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
