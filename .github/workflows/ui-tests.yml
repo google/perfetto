@@ -137,7 +137,7 @@ jobs:
 
       - name: UI integrationtests
         shell: bash
-        run: ui/run-integrationtests --out out/ui --no-build
+        run: LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -- ui/run-integrationtests --out out/ui --no-build
 
         # UI code formatting checks must be done here, rather than repo-checks,
         # because they need a out/ui build.

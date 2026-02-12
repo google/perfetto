@@ -66,8 +66,6 @@ export default defineConfig({
             '--headless',
             '--disable-accelerated-2d-canvas',
             '--disable-font-subpixel-positioning',
-            '--disable-gpu',
-            '--disable-software-rasterizer', // Diable swiftshader
             '--disable-lcd-text',
             '--disable-spell-checking',
             '--font-render-hinting=none',
@@ -75,6 +73,8 @@ export default defineConfig({
             '--hide-scrollbars',
             '--enable-skia-renderer',
             '--js-flags=--random-seed=1',
+            '--ignore-gpu-blocklist',
+            '--use-angle=gl',
           ],
         },
         ignoreHTTPSErrors: true,

@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {test} from '@playwright/test';
-import {PerfettoTestHelper} from './perfetto_ui_test_helper';
+// import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test('debug GPU info', async ({browser}) => {
+test('Dump GL info', async ({browser}) => {
   const page = await browser.newPage();
-  const pth = new PerfettoTestHelper(page);
-  await pth.openTraceFile('api34_startup_cold.perfetto-trace');
+  // const pth = new PerfettoTestHelper(page);
+  // await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 
   const info = await page.evaluate(() => {
     // Use separate canvases to accurately detect support for each WebGL version
@@ -87,5 +87,5 @@ test('debug GPU info', async ({browser}) => {
 
     return params;
   });
-  console.log('GPU INFO:', info);
+  console.log('GL INFO:', info);
 });
