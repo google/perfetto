@@ -13,9 +13,83 @@
 // limitations under the License.
 
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
+import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {Engine} from '../../trace_processor/engine';
-import {JANKY_LATENCY_NAME} from './event_latency_track';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {EVENT_LATENCY_TRACK} from './tracks';
+
+export const JANKY_LATENCY_NAME = 'Janky EventLatency';
+
+/**
+ * Definition of the Perfetto table created by
+ * {@link createEventLatencyModel}, which underpins
+ * {@link tracks#EVENT_LATENCY_TRACK}.
+ *
+ * Note: The table contains both:
+ *
+ *   1. parent slices for entire scroll updates (e.g. 'Janky EventLatency') and
+ *   2. child slices for the individual stages of a scroll update (e.g.
+ *      'GenerationToBrowserMain'). Stages can be NESTED (i.e. the parent of
+ *      each stage is either a scroll update or a stage).
+ */
+export const EVENT_LATENCY_TABLE_DEFINITION: SqlTableDefinition = {
+  name: EVENT_LATENCY_TRACK.tableName,
+  columns: [
+    /**
+     * Unique ID of the slice. Copied from the original slices in the `slice`
+     * table. Can be joined with `chrome_event_latencies.id`.
+     */
+    {
+      column: 'id',
+      type: {
+        kind: 'joinid',
+        source: {table: 'slice', column: 'id'},
+      },
+    },
+
+    /** Start timestamp of the slice. */
+    {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+
+    /** Duration of the slice. */
+    {column: 'dur', type: PerfettoSqlTypes.DURATION},
+
+    /** Title of the slice. */
+    {column: 'name', type: PerfettoSqlTypes.STRING},
+
+    /** Depth of the slice on the track. */
+    {column: 'depth', type: PerfettoSqlTypes.INT},
+
+    /**
+     * ID of the scroll update event (aka LatencyInfo.ID). Can be joined with
+     * `chrome_event_latencies.scroll_update_id`, `chrome_scroll_update_info.id`
+     * and many other tables in Chrome's tracing stdlib.
+     *
+     * In general, multiple rows in this table correspond to a single row in
+     * `chrome_event_latencies`. One for the scroll update (parent) slice and
+     * zero or more for the stage (child) slices.
+     */
+    {
+      column: 'scroll_update_id',
+      type: {
+        kind: 'joinid',
+        source: {table: 'chrome_event_latencies', column: 'scroll_update_id'},
+      },
+    },
+
+    /**
+     * ID of the parent scroll update slice or parent stage slice if the row
+     * corresponds to a stage of a scroll update. NULL if the row corresponds to
+     * a scroll update.
+     */
+    {
+      column: 'parent_id',
+      type: {
+        kind: 'joinid',
+        source: {table: 'slice', column: 'id'},
+      },
+    },
+  ],
+};
 
 export async function createEventLatencyModel(engine: Engine): Promise<void> {
   await engine.query(`
@@ -26,7 +100,7 @@ export async function createEventLatencyModel(engine: Engine): Promise<void> {
       WITH
       event_latencies AS MATERIALIZED (
         ${generateSqlWithInternalLayout({
-          columns: ['id', 'ts', 'dur', 'track_id', 'name'],
+          columns: ['id', 'ts', 'dur', 'name', 'scroll_update_id'],
           source: 'chrome_event_latencies',
           ts: 'ts',
           dur: 'dur',
@@ -43,11 +117,12 @@ export async function createEventLatencyModel(engine: Engine): Promise<void> {
           stage.id,
           stage.ts,
           stage.dur,
-          stage.track_id,
           stage.name,
           stage.depth,
           event.id as event_latency_id,
-          event.depth as event_latency_depth
+          event.depth as event_latency_depth,
+          event.scroll_update_id,
+          stage.parent_id
         FROM event_latencies event
         JOIN descendant_slice(event.id) stage
         UNION ALL
@@ -55,7 +130,6 @@ export async function createEventLatencyModel(engine: Engine): Promise<void> {
           event.id,
           event.ts,
           event.dur,
-          event.track_id,
           IIF(
             id IN (SELECT id FROM chrome_janky_event_latencies_v3),
             '${JANKY_LATENCY_NAME}',
@@ -63,7 +137,9 @@ export async function createEventLatencyModel(engine: Engine): Promise<void> {
           ) as name,
           0 as depth,
           event.id as event_latency_id,
-          event.depth as event_latency_depth
+          event.depth as event_latency_depth,
+          event.scroll_update_id,
+          NULL as parent_id
         FROM event_latencies event
       ),
       -- Event latencies have already had layout computed, but the width of event latency can vary (3 or 4),
@@ -101,6 +177,8 @@ export async function createEventLatencyModel(engine: Engine): Promise<void> {
           JOIN event_latency_layout_offset offset ON event.depth = offset.event_latency_depth
           WHERE id = stage.event_latency_id
         )
-      ) AS depth
+      ) AS depth,
+      stage.scroll_update_id,
+      stage.parent_id
     FROM latency_stages stage;`);
 }
