@@ -587,6 +587,12 @@ config("upb_config") {
     "protobuf/upb/reflection/stage0",  # For pre-generated descriptor.upb.h
     "protobuf/third_party/utf8_range",  # For utf8_range.h
   ]
+  if (is_gcc) {
+    cflags = [
+      "-Wno-stringop-overread",
+      "-Wno-stringop-overflow",
+    ]
+  }
   defines = [ "UPB_BOOTSTRAP_STAGE=0" ]  # Use stage0 minitable functions
 }
 

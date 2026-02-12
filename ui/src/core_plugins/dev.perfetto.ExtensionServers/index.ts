@@ -45,6 +45,11 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
   }
 }
 
+function authLabel(server: ExtensionServer): string | undefined {
+  if (server.auth.type === 'github_pat') return ' | Auth: PAT';
+  return undefined;
+}
+
 export function renderExtensionServersSettings(
   setting: Setting<ExtensionServer[]>,
 ): m.Children {
@@ -113,11 +118,12 @@ export function renderExtensionServersSettings(
                   '.pf-extension-servers-settings__item-content',
                   m(
                     '.pf-extension-servers-settings__item-url',
-                    makeDisplayUrl(server.url),
+                    makeDisplayUrl(server),
                   ),
                   m(
                     '.pf-extension-servers-settings__item-info',
                     `${server.enabledModules.length} module${server.enabledModules.length === 1 ? '' : 's'}`,
+                    authLabel(server),
                     !server.enabled && ' (Disabled)',
                   ),
                 ),
