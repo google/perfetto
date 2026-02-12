@@ -23,19 +23,22 @@ CREATE PERFETTO TABLE _memory_breakdown_mem_intervals_raw AS
 WITH
   -- We deny tracks that have large swings in value
   -- This can happen because of rss_stat accounting issue: see b/418231246 for details.
+  diffs AS (
+    SELECT
+      track_id,
+      value - lag(value) OVER (PARTITION BY track_id ORDER BY ts) AS d
+    FROM counter AS c
+    JOIN process_counter_track AS t
+      ON c.track_id = t.id
+    WHERE
+      t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file')
+  ),
   denied_tracks AS (
-    WITH
-      diffs AS (
-        SELECT
-          track_id,
-          value - lag(value) OVER (PARTITION BY track_id ORDER BY ts) AS d
-        FROM counter
-      )
     SELECT DISTINCT
       track_id
     FROM diffs
     WHERE
-      -- 100 MiB
+      -- Filter out changes larger than 100 MiB
       abs(d) > 104857600
   ),
   target_counters AS (
@@ -47,13 +50,10 @@ WITH
     FROM counter AS c
     JOIN process_counter_track AS t
       ON c.track_id = t.id
+    LEFT JOIN denied_tracks AS dt
+      ON t.id = dt.track_id
     WHERE
-      t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file')
-      AND NOT t.id IN (
-        SELECT
-          track_id
-        FROM denied_tracks
-      )
+      t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file') AND dt.track_id IS NULL
   ),
   -- Get all memory counter values for all processes, and clip them to process lifetime.
   marked_intervals AS (
@@ -104,7 +104,7 @@ CREATE VIRTUAL TABLE _memory_breakdown_mem_oom_span_join USING SPAN_LEFT_JOIN (
 );
 
 -- Create a table containing memory counter intervals with OOM buckets.
-CREATE PERFETTO TABLE _memory_breakdown_mem_with_buckets_indexed AS
+CREATE PERFETTO TABLE _memory_breakdown_mem_with_buckets AS
 WITH
   -- Get the baseline values for RSS anon and swap from the zygote process.
   zygote_baseline AS (
@@ -128,6 +128,21 @@ WITH
       GROUP BY
         t.name
     )
+  ),
+  mem_with_zygote_baseline AS (
+    SELECT
+      s.*,
+      CASE
+        WHEN track_name = 'mem.rss.anon'
+        THEN b.rss_anon_base
+        WHEN track_name = 'mem.swap'
+        THEN b.swap_base
+        WHEN track_name = 'mem.rss.file'
+        THEN b.rss_file_base
+        ELSE 0
+      END AS zygote_baseline_value
+    FROM _memory_breakdown_mem_oom_span_join AS s
+    CROSS JOIN zygote_baseline AS b
   )
 SELECT
   row_number() OVER () AS id,
@@ -139,15 +154,11 @@ SELECT
   pid,
   coalesce(bucket, 'unknown') AS bucket,
   CASE
-    WHEN NOT app.upid IS NULL AND track_name = 'mem.rss.anon'
-    THEN max(0, cast_int!(value) - cast_int!(IFNULL((SELECT rss_anon_base FROM zygote_baseline), 0)))
-    WHEN NOT app.upid IS NULL AND track_name = 'mem.swap'
-    THEN max(0, cast_int!(value) - cast_int!(IFNULL((SELECT swap_base FROM zygote_baseline), 0)))
-    WHEN NOT app.upid IS NULL AND track_name = 'mem.rss.file'
-    THEN max(0, cast_int!(value) - cast_int!(IFNULL((SELECT rss_file_base FROM zygote_baseline), 0)))
+    WHEN app.upid IS NOT NULL
+    THEN max(0, cast_int!(value) - cast_int!(IFNULL(zygote_baseline_value, 0)))
     ELSE cast_int!(value)
   END AS zygote_adjusted_value
-FROM _memory_breakdown_mem_oom_span_join
+FROM mem_with_zygote_baseline
 LEFT JOIN process AS app
   USING (upid)
 WHERE

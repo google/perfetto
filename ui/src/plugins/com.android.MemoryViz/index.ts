@@ -138,7 +138,7 @@ export default class MemoryViz implements PerfettoPlugin {
 
     const buckets = await ctx.engine.query(`
       SELECT DISTINCT bucket
-      FROM _memory_breakdown_mem_with_buckets_indexed
+      FROM _memory_breakdown_mem_with_buckets
       WHERE track_name = '${trackName}'
       ORDER BY bucket ASC
     `);
@@ -185,12 +185,12 @@ export default class MemoryViz implements PerfettoPlugin {
           id,
           MAX(ts, ${window.start}) as ts,
           MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-        FROM _memory_breakdown_mem_with_buckets_indexed
+        FROM _memory_breakdown_mem_with_buckets
         WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND ts < ${
           window.end
         } AND ts + dur > ${window.start}
       )) iss
-      JOIN _memory_breakdown_mem_with_buckets_indexed m USING(id)
+      JOIN _memory_breakdown_mem_with_buckets m USING(id)
       GROUP BY upid, pid, process_name
       HAVING max_value > 0
       ORDER BY max_value DESC
@@ -254,9 +254,9 @@ export default class MemoryViz implements PerfettoPlugin {
           id,
           MAX(ts, ${window.start}) as ts,
           MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-        FROM _memory_breakdown_mem_with_buckets_indexed
+        FROM _memory_breakdown_mem_with_buckets
         ${whereClause} AND ts < ${window.end} and ts + dur > ${window.start}
-      )) iss JOIN _memory_breakdown_mem_with_buckets_indexed m USING(id)
+      )) iss JOIN _memory_breakdown_mem_with_buckets m USING(id)
       GROUP BY group_id
     `;
   }
