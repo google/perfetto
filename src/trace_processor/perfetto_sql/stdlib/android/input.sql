@@ -137,7 +137,7 @@ JOIN thread_slice AS t
 JOIN slice AS parent
   ON s.parent_id = parent.id
 WHERE
-  s.name GLOB 'deliverInputEvent src=*' AND dur > 0;
+  s.name GLOB 'deliverInputEvent src=*' AND s.dur > 0;
 
 CREATE PERFETTO TABLE _input_event_frame_intersections AS
 SELECT
