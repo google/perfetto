@@ -311,6 +311,18 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
                   job_state_flags,
                   20);
 
+PERFETTO_PB_MSG(perfetto_protos_AndroidProcState);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcState,
+                  STRING,
+                  const char*,
+                  proc_state,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcState,
+                  VARINT,
+                  int32_t,
+                  count_of_processes,
+                  2);
+
 PERFETTO_PB_MSG(perfetto_protos_AndroidMessageQueue);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidMessageQueue,
                   STRING,
@@ -375,4 +387,10 @@ PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
                             perfetto_protos_AndroidSurfaceFlingerWorkload,
                             surfaceflinger_workload,
                             2007);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidProcState,
+                            proc_state,
+                            2008);
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_ANDROID_ANDROID_TRACK_EVENT_PZC_H_
