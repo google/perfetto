@@ -206,18 +206,7 @@ SELECT
   _stats_cpu6.cpu6_curve,
   _stats_cpu7.cpu7_curve,
   _wattson_dsu_frequency.dsu_freq,
-  cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static + cpu5_static + cpu6_static + cpu7_static AS static_1d,
-  min(idle_0, idle_1, idle_2, idle_3, idle_4, idle_5, idle_6, idle_7) AS all_cpu_deep_idle,
-  min(
-    iif(0 IN _cpus_for_static, idle_0, 1),
-    iif(1 IN _cpus_for_static, idle_1, 1),
-    iif(2 IN _cpus_for_static, idle_2, 1),
-    iif(3 IN _cpus_for_static, idle_3, 1),
-    iif(4 IN _cpus_for_static, idle_4, 1),
-    iif(5 IN _cpus_for_static, idle_5, 1),
-    iif(6 IN _cpus_for_static, idle_6, 1),
-    iif(7 IN _cpus_for_static, idle_7, 1)
-  ) AS no_static
+  cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static + cpu5_static + cpu6_static + cpu7_static AS static_1d
 FROM _idle_freq_l3_hit_l3_miss_slice AS base
 JOIN _wattson_dsu_frequency
   ON _wattson_dsu_frequency._auto_id = base.dsu_id
@@ -255,6 +244,17 @@ WITH
       max(cpu = 7) AS dsu_7
     FROM _cpu_w_dsu_dependency
   ),
+  _static_checks AS (
+    SELECT
+      0 IN _cpus_for_static AS c0,
+      1 IN _cpus_for_static AS c1,
+      2 IN _cpus_for_static AS c2,
+      3 IN _cpus_for_static AS c3,
+      4 IN _cpus_for_static AS c4,
+      5 IN _cpus_for_static AS c5,
+      6 IN _cpus_for_static AS c6,
+      7 IN _cpus_for_static AS c7
+  ),
   _w_unique_configs AS (
     SELECT
       config_hash,
@@ -284,9 +284,19 @@ WITH
       cpu7_curve,
       dsu_freq,
       static_1d,
-      all_cpu_deep_idle,
-      no_static
+      min(idle_0, idle_1, idle_2, idle_3, idle_4, idle_5, idle_6, idle_7) AS all_cpu_deep_idle,
+      min(
+        iif(sc.c0, idle_0, 1),
+        iif(sc.c1, idle_1, 1),
+        iif(sc.c2, idle_2, 1),
+        iif(sc.c3, idle_3, 1),
+        iif(sc.c4, idle_4, 1),
+        iif(sc.c5, idle_5, 1),
+        iif(sc.c6, idle_6, 1),
+        iif(sc.c7, idle_7, 1)
+      ) AS no_static
     FROM _w_independent_cpus_calc
+    CROSS JOIN _static_checks AS sc
     GROUP BY
       config_hash
   ),
