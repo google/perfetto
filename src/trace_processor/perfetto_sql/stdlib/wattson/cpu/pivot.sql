@@ -229,14 +229,13 @@ JOIN _stats_cpu2
   ON _stats_cpu2._auto_id = base.cpu2_id
 JOIN _stats_cpu3
   ON _stats_cpu3._auto_id = base.cpu3_id
--- Get CPU power curves for CPUs that aren't always present
-LEFT JOIN _stats_cpu4
+JOIN _stats_cpu4
   ON _stats_cpu4._auto_id = base.cpu4_id
-LEFT JOIN _stats_cpu5
+JOIN _stats_cpu5
   ON _stats_cpu5._auto_id = base.cpu5_id
-LEFT JOIN _stats_cpu6
+JOIN _stats_cpu6
   ON _stats_cpu6._auto_id = base.cpu6_id
-LEFT JOIN _stats_cpu7
+JOIN _stats_cpu7
   ON _stats_cpu7._auto_id = base.cpu7_id;
 
 -- Slices view with all UNIQUE configs of independent and dependent CPU data
