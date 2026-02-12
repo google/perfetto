@@ -379,7 +379,7 @@ class AddExtensionServerModal {
       }
       // PAT auth requires a non-empty token.
       const auth = this.userInput.auth;
-      if (auth.type === 'github_pat' && !auth.pat?.trim()) {
+      if (auth.type === 'github_pat' && !auth.pat.trim()) {
         return true;
       }
       return false;
