@@ -117,7 +117,8 @@ SELECT
   cast_int!(ui_thread_utid) AS utid,
   frame_id
 FROM android_frames
-WHERE dur > 0;
+WHERE
+  dur > 0;
 
 CREATE PERFETTO TABLE _clean_deliver_events AS
 SELECT
@@ -136,8 +137,7 @@ JOIN thread_slice AS t
 JOIN slice AS parent
   ON s.parent_id = parent.id
 WHERE
-  s.name GLOB 'deliverInputEvent src=*'
-  AND dur > 0;
+  s.name GLOB 'deliverInputEvent src=*' AND dur > 0;
 
 CREATE PERFETTO TABLE _input_event_frame_intersections AS
 SELECT
