@@ -3,6 +3,7 @@
 **Authors:** @primiano
 **Status:** Draft
 **PR:** N/A
+**Internal bug**: b/483721243
 
 ## Problem
 
@@ -192,6 +193,10 @@ Realistically I don't think it's worth going into this complexity.
 
 Note that we also have the ability of stripping out unwanted descriptors via the
 privacy filter bytecode.
+
+### Other notes
+
+- We will still need a copybara from Android -> google-internal for the logs proto
 
 ## Alternatives considered
 
