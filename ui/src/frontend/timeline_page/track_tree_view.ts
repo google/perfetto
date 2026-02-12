@@ -188,8 +188,89 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   // Store rendered tracks for scroll-to-track functionality
   private renderedTracks: TrackView[] = [];
 
+  // Store attrs needed for position calculation outside of view()
+  private rootNode?: TrackNode;
+  private trackFilter?: (track: TrackNode) => boolean;
+  private filtersApplied = false;
+
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
+  }
+
+  // Calculate the height of a track (without rendering)
+  private getNodeHeight(node: TrackNode): number {
+    const renderer = node.uri
+      ? this.trace.tracks.getWrappedTrack(node.uri)
+      : undefined;
+    return getTrackHeight(node, renderer?.track);
+  }
+
+  // Check if a node matches the filter
+  private filterMatches(node: TrackNode): boolean {
+    if (!this.trackFilter) return true;
+    if (this.trackFilter(node)) return true;
+    if (node.children?.some((c) => this.filterMatches(c))) return true;
+    return false;
+  }
+
+  // Calculate subtree height for a node
+  private getSubtreeHeightForNode(node: TrackNode): number {
+    if (!this.filterMatches(node)) return 0;
+    if (node.headless) {
+      let height = 0;
+      for (const child of node.children) {
+        height += this.getSubtreeHeightForNode(child);
+      }
+      return height;
+    }
+    const trackHeight = this.getNodeHeight(node);
+    let childrenHeight = 0;
+    if ((node.expanded || this.filtersApplied) && node.hasChildren) {
+      for (const child of node.children) {
+        childrenHeight += this.getSubtreeHeightForNode(child);
+      }
+    }
+    return trackHeight + childrenHeight;
+  }
+
+  // Find the absolute position of a track by walking the tree
+  private findTrackPosition(
+    targetId: string,
+    node: TrackNode,
+    currentTop: number,
+  ): {top: number; height: number} | undefined {
+    if (!this.filterMatches(node)) return undefined;
+
+    if (node.headless) {
+      // Headless nodes: search children without adding height
+      for (const child of node.children) {
+        const result = this.findTrackPosition(targetId, child, currentTop);
+        if (result) return result;
+        currentTop += this.getSubtreeHeightForNode(child);
+      }
+      return undefined;
+    }
+
+    const trackHeight = this.getNodeHeight(node);
+
+    // Check if this is the target
+    if (node.id === targetId) {
+      return {top: currentTop, height: trackHeight};
+    }
+
+    // Move past this track's header
+    currentTop += trackHeight;
+
+    // Search children if expanded
+    if ((node.expanded || this.filtersApplied) && node.hasChildren) {
+      for (const child of node.children) {
+        const result = this.findTrackPosition(targetId, child, currentTop);
+        if (result) return result;
+        currentTop += this.getSubtreeHeightForNode(child);
+      }
+    }
+
+    return undefined;
   }
 
   private hoveredTrackNode?: TrackNode;
@@ -208,6 +289,12 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       currentSearchMatch,
       virtualScrollingEnabled = true,
     } = attrs;
+
+    // Store for use in scrollToTrack
+    this.rootNode = rootNode;
+    this.trackFilter = trackFilter;
+    this.filtersApplied = filtersApplied ?? false;
+
     const renderedTracks = new Array<TrackView>();
     let top = 0;
 
@@ -579,13 +666,33 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   }
 
   private scrollToTrack(trackId: string): void {
+    if (!this.scrollContainer) return;
+
+    // First, try to find in rendered tracks (fast path)
     const trackView = this.renderedTracks.find((tv) => tv.node.id === trackId);
-    if (trackView && this.scrollContainer) {
-      // Scroll to center the track in the viewport using computed position
+    if (trackView) {
       const targetTop = trackView.verticalBounds.top;
       const trackHeight = trackView.height;
       const viewportHeight = this.scrollContainer.clientHeight;
       const scrollTop = targetTop - (viewportHeight - trackHeight) / 2;
+      this.scrollContainer.scrollTop = Math.max(0, scrollTop);
+      return;
+    }
+
+    // Track not rendered (virtual scrolling) - calculate position by walking tree
+    if (!this.rootNode) return;
+
+    let position: {top: number; height: number} | undefined;
+    let currentTop = 0;
+    for (const child of this.rootNode.children) {
+      position = this.findTrackPosition(trackId, child, currentTop);
+      if (position) break;
+      currentTop += this.getSubtreeHeightForNode(child);
+    }
+
+    if (position) {
+      const viewportHeight = this.scrollContainer.clientHeight;
+      const scrollTop = position.top - (viewportHeight - position.height) / 2;
       this.scrollContainer.scrollTop = Math.max(0, scrollTop);
     }
   }
