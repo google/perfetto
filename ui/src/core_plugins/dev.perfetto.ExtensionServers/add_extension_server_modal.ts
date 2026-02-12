@@ -58,9 +58,11 @@ class AddExtensionServerModal {
   private userInput: UserInput;
   private loadedState?: LoadedState;
 
-  constructor(server?: ExtensionServer) {
-    this.userInput = createInitial(server);
-    this.scheduleManifestFetch(server?.enabledModules);
+  constructor(server?: ExtensionServer, prefill?: ExtensionServer) {
+    this.userInput = createInitial(server ?? prefill);
+    this.scheduleManifestFetch(
+      server?.enabledModules ?? prefill?.enabledModules,
+    );
   }
 
   view() {
@@ -379,16 +381,22 @@ class AddExtensionServerModal {
   }
 }
 
+export interface ShowModalOpts {
+  existingServer?: ExtensionServer; // Edit mode
+  prefill?: ExtensionServer; // Add mode with defaults (e.g. from shared link)
+}
+
 export function showAddExtensionServerModal(
-  server?: ExtensionServer,
+  opts?: ShowModalOpts,
 ): Promise<ExtensionServer | undefined> {
   const deferred = defer<ExtensionServer | undefined>();
-  const modal = new AddExtensionServerModal(server);
+  const existing = opts?.existingServer;
+  const modal = new AddExtensionServerModal(existing, opts?.prefill);
   showModal({
-    title: server ? 'Edit Extension Server' : 'Add Extension Server',
+    title: existing ? 'Edit Extension Server' : 'Add Extension Server',
     buttons: [
       {
-        text: server ? 'Save' : 'Add',
+        text: existing ? 'Save' : 'Add',
         primary: true,
         disabled: () => !modal.canSave(),
         action: () => deferred.resolve(modal.getResult()),
