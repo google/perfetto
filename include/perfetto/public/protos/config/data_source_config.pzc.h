@@ -56,6 +56,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_PixelModemConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PriorityBoostConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoVmConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StatsdTracingConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerLayersConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerTransactionsConfig);
@@ -142,6 +143,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_PriorityBoostConfig,
                   priority_boost,
                   10);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_ProtoVmConfig,
+                  protovm_config,
+                  12);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_FtraceConfig,
