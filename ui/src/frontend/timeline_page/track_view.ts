@@ -55,7 +55,7 @@ export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
 export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
 export const MINIMUM_TRACK_MIN_HEIGHT_PX = DEFAULT_TRACK_MIN_HEIGHT_PX;
 
-function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
+export function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
   // Headless tracks have an effective height of 0.
   if (node.headless) return 0;
 
@@ -89,6 +89,10 @@ export interface TrackViewAttrs {
   // If set, the track is rendered with absolute positioning at this top value.
   // Used for virtual scrolling where we skip rendering offscreen tracks.
   readonly absoluteTop?: number;
+  // If set, the children container will have this fixed height.
+  // Used for virtual scrolling where offscreen children aren't rendered but
+  // the container maintains the scroll height.
+  readonly childrenHeight?: number;
   // Track search matches for highlighting.
   readonly trackSearchMatches?: readonly TrackSearchMatch[];
   // The current search match node (for highlighting the current match).
@@ -139,6 +143,7 @@ export class TrackView {
       removable,
       trackSearchMatches,
       currentSearchMatch,
+      childrenHeight,
     } = attrs;
     const {node, renderer, height} = this;
 
@@ -211,6 +216,7 @@ export class TrackView {
         depth: attrs.depth,
         stickyTop: attrs.stickyTop,
         absoluteTop: attrs.absoluteTop,
+        childrenHeight,
         lite,
         pluginId: renderer?.desc.pluginId,
         onCollapsedChanged: () => {

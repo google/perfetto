@@ -113,6 +113,10 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // Used for virtual scrolling where we skip rendering offscreen tracks.
   readonly absoluteTop?: number;
 
+  // If set, the children container will have this fixed height with relative
+  // positioning, allowing children to be absolutely positioned within.
+  readonly childrenHeight?: number;
+
   // Render a lighter version of the track shell, with no buttons or chips, just
   // the track title. Used for offscreen tracks when virtual scrolling is disabled.
   readonly lite?: boolean;
@@ -150,6 +154,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       depth = 0,
       stickyTop = 0,
       absoluteTop,
+      childrenHeight,
       lite,
     } = attrs;
 
@@ -191,7 +196,20 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         this.renderShell(attrs),
         !lite && this.renderContent(attrs),
       ),
-      hasChildren(vnode) && m('.pf-track__children', vnode.children),
+      hasChildren(vnode) &&
+        m(
+          '.pf-track__children',
+          {
+            style:
+              childrenHeight !== undefined
+                ? {
+                    position: 'relative',
+                    height: `${childrenHeight}px`,
+                  }
+                : undefined,
+          },
+          vnode.children,
+        ),
     );
   }
 
