@@ -74,6 +74,9 @@ export default defineConfig({
             '--enable-skia-renderer',
             '--js-flags=--random-seed=1',
             '--ignore-gpu-blocklist',
+            '--disable-software-rasterizer', // Diable swiftshader
+            '--use-gl=egl', // Use system EGL instead of Chrome's bundled SwiftShader
+            '--use-angle=gl-egl', // ANGLE using native GL/EGL backend (llvmpipe)
           ],
         },
         ignoreHTTPSErrors: true,
