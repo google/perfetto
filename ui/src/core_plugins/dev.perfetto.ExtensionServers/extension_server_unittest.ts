@@ -98,8 +98,8 @@ describe('extension_server', () => {
       const manifest = {
         name: 'Test',
         namespace: 'test',
-        features: ['macros', 'sql_modules'],
-        modules: ['default'],
+        features: [{name: 'macros'}, {name: 'sql_modules'}],
+        modules: [{name: 'default'}],
       };
       mockFetch.mockImplementation(() => mockJsonResponse(manifest));
 
@@ -125,7 +125,7 @@ describe('extension_server', () => {
     test('returns error for missing required fields', async () => {
       // Missing namespace and features
       mockFetch.mockImplementation(() =>
-        mockJsonResponse({name: 'Test', modules: ['test']}),
+        mockJsonResponse({name: 'Test', modules: [{name: 'test'}]}),
       );
       const result = await loadManifest(TEST_SERVER);
       expect(result.ok).toBe(false);
@@ -146,8 +146,8 @@ describe('extension_server', () => {
       const manifest = {
         name: 'Test',
         namespace: 'test',
-        features: ['macros'],
-        modules: ['default'],
+        features: [{name: 'macros'}],
+        modules: [{name: 'default'}],
       };
       mockFetch.mockImplementation(() => mockJsonResponse(manifest));
 
@@ -165,8 +165,12 @@ describe('extension_server', () => {
       const manifest = {
         name: 'Test Server',
         namespace: 'test',
-        features: ['macros', 'sql_modules', 'proto_descriptors'],
-        modules: ['default', 'android'],
+        features: [
+          {name: 'macros'},
+          {name: 'sql_modules'},
+          {name: 'proto_descriptors'},
+        ],
+        modules: [{name: 'default'}, {name: 'android'}],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -210,8 +214,8 @@ describe('extension_server', () => {
       const manifest = {
         name: 'Test',
         namespace: 'myext',
-        features: ['macros'],
-        modules: ['default'],
+        features: [{name: 'macros'}],
+        modules: [{name: 'default'}],
       };
       // Macro IDs must start with namespace
       const macros = [{id: 'myext.macro1', name: 'My Macro', run: []}];
@@ -238,7 +242,7 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'test',
         features: [], // No features supported
-        modules: ['default'],
+        modules: [{name: 'default'}],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -266,8 +270,8 @@ describe('extension_server', () => {
       const manifest = {
         name: 'Test',
         namespace: 'test',
-        features: ['macros'],
-        modules: ['other'], // 'default' is not available
+        features: [{name: 'macros'}],
+        modules: [{name: 'other'}], // 'default' is not available
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -307,8 +311,8 @@ describe('extension_server', () => {
       const manifest = {
         name: 'Test',
         namespace: 'test',
-        features: ['macros'],
-        modules: ['default', 'android'],
+        features: [{name: 'macros'}],
+        modules: [{name: 'default'}, {name: 'android'}],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -343,8 +347,8 @@ describe('extension_server', () => {
       const manifest = {
         name: 'Test',
         namespace: 'myext',
-        features: ['sql_modules'],
-        modules: ['default'],
+        features: [{name: 'sql_modules'}],
+        modules: [{name: 'default'}],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -375,8 +379,8 @@ describe('extension_server', () => {
       const manifest = {
         name: 'Test',
         namespace: 'myext',
-        features: ['macros'],
-        modules: ['default'],
+        features: [{name: 'macros'}],
+        modules: [{name: 'default'}],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -404,8 +408,8 @@ describe('extension_server', () => {
       const manifest = {
         name: 'Test',
         namespace: 'myext',
-        features: ['sql_modules'],
-        modules: ['default'],
+        features: [{name: 'sql_modules'}],
+        modules: [{name: 'default'}],
       };
 
       mockFetch.mockImplementation((url: string) => {
