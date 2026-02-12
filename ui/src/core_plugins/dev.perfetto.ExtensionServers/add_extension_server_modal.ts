@@ -338,15 +338,22 @@ class AddExtensionServerModal {
     }
 
     const manifest = manifestResult.value;
+    const moduleNames = manifest.modules.map((m) => m.name);
     const enabledModules = preserveEnabledModules
       ? new Set(
-          preserveEnabledModules.filter((m) => manifest.modules.includes(m)),
+          preserveEnabledModules.filter((m) =>
+            manifest.modules.some((mod) => mod.name === m),
+          ),
         )
-      : new Set(manifest.modules.includes('default') ? ['default'] : []);
+      : new Set(
+          manifest.modules.some((mod) => mod.name === 'default')
+            ? ['default']
+            : [],
+        );
 
     this.loadedState = {
       type: 'ok',
-      availableModules: manifest.modules,
+      availableModules: moduleNames,
       enabledModules,
     };
     m.redraw();
