@@ -78,7 +78,7 @@
 #include "src/perfetto_cmd/config.h"
 #include "src/perfetto_cmd/packet_writer.h"
 #include "src/perfetto_cmd/trigger_producer.h"
-#include "src/trace_config_utils/txt_to_pb.h"
+#include "src/proto_text_utils/txt_to_pb.h"
 
 #include "protos/perfetto/common/ftrace_descriptor.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"

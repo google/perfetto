@@ -34,6 +34,7 @@ source_set("txt_to_pb") {
 source_set("pb_to_txt") {
   deps = [
     ":gen_cc_config_descriptor",
+    ":gen_cc_trace_summary_descriptor",
     "../../gn:default_deps",
     "../base",
     "../protozero",
@@ -61,7 +62,12 @@ perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
   descriptor_target = "../../protos/perfetto/config:descriptor"
 }
 
-executable("trace_config_utils") {
+perfetto_cc_proto_descriptor("gen_cc_trace_summary_descriptor") {
+  descriptor_name = "trace_summary.descriptor"
+  descriptor_target = "../../protos/perfetto/trace_summary:descriptor"
+}
+
+executable("proto_text_utils") {
   testonly = true
   deps = [
     ":main",
@@ -70,8 +76,8 @@ executable("trace_config_utils") {
 }
 
 if (enable_perfetto_ui) {
-  wasm_lib("trace_config_utils_wasm") {
-    name = "trace_config_utils"
+  wasm_lib("proto_text_utils_wasm") {
+    name = "proto_text_utils"
     sources = [ "wasm.cc" ]
     deps = [
       ":pb_to_txt",
@@ -91,8 +97,13 @@ perfetto_unittest_source_set("unittests") {
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
+    "../../protos/perfetto/perfetto_sql:cpp",
+    "../../protos/perfetto/perfetto_sql:zero",
     "../../protos/perfetto/trace:cpp",
+    "../../protos/perfetto/trace_summary:cpp",
+    "../../protos/perfetto/trace_summary:zero",
     "../base",
+    "../protozero",
   ]
   sources = [
     "pb_to_txt_unittest.cc",

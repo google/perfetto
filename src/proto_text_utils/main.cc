@@ -18,8 +18,8 @@
 #include <string.h>
 
 #include "perfetto/ext/base/file_utils.h"
-#include "src/trace_config_utils/pb_to_txt.h"
-#include "src/trace_config_utils/txt_to_pb.h"
+#include "src/proto_text_utils/pb_to_txt.h"
+#include "src/proto_text_utils/txt_to_pb.h"
 
 namespace {
 void PrintUsage(const char* argv0) {

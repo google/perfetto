@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_CONFIG_UTILS_PB_TO_TXT_H_
-#define SRC_TRACE_CONFIG_UTILS_PB_TO_TXT_H_
+#ifndef SRC_PROTO_TEXT_UTILS_PB_TO_TXT_H_
+#define SRC_PROTO_TEXT_UTILS_PB_TO_TXT_H_
 
 #include <stddef.h>
 #include <string>
@@ -23,6 +23,8 @@
 namespace perfetto {
 
 std::string TraceConfigPbToTxt(const void* data, size_t size);
+std::string TraceSummarySpecPbToTxt(const void* data, size_t size);
+std::string TraceMetricV2SpecPbToTxt(const void* data, size_t size);
 
-}
-#endif  // SRC_TRACE_CONFIG_UTILS_PB_TO_TXT_H_
+}  // namespace perfetto
+#endif  // SRC_PROTO_TEXT_UTILS_PB_TO_TXT_H_

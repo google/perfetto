@@ -89,7 +89,7 @@ if (enable_perfetto_traced_perf) {
 if (enable_perfetto_trace_processor) {
   _trace_processor_unittests_targets += [
     "src/trace_processor:unittests",
-    "src/trace_config_utils:unittests",
+    "src/proto_text_utils:unittests",
   ]
 
   if (enable_perfetto_trace_processor_sqlite) {

@@ -14,22 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_CONFIG_UTILS_TXT_TO_PB_H_
-#define SRC_TRACE_CONFIG_UTILS_TXT_TO_PB_H_
+#include "src/proto_text_utils/txt_to_pb.h"
 
-#include "perfetto/ext/base/status_or.h"
-
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/status_or.h"
+#include "src/protozero/text_to_proto/text_to_proto.h"
+#include "src/proto_text_utils/config.descriptor.h"
+
 namespace perfetto {
+namespace {
+constexpr char kConfigProtoName[] = ".perfetto.protos.TraceConfig";
+
+}  // namespace
 
 base::StatusOr<std::vector<uint8_t>> TraceConfigTxtToPb(
     const std::string& input,
-    const std::string& file_name = "-");
+    const std::string& file_name) {
+  return protozero::TextToProto(kConfigDescriptor.data(),
+                                kConfigDescriptor.size(), kConfigProtoName,
+                                file_name, input);
+}
 
 }  // namespace perfetto
-
-#endif  // SRC_TRACE_CONFIG_UTILS_TXT_TO_PB_H_
