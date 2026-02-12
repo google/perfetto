@@ -30,7 +30,7 @@ CREATE PERFETTO TABLE linux_kernel_threads (
   thread_name STRING,
   -- Machine id of kernel thread.
   -- Alias of |process.machine_id|.
-  machine_id LONG
+  machine_id JOINID(machine.id)
 ) AS
 WITH
   pid_2 AS (

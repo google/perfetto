@@ -81,8 +81,8 @@ RedactorClockConverter::RedactorClockConverter()
 base::StatusOr<ClockId> RedactorClockConverter::GetTraceClock() {
   if (!primary_trace_clock_.has_value()) {
     // Set the default clocks if none has been provided.
-    RETURN_IF_ERROR(
-        SetTraceClock(protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME));
+    RETURN_IF_ERROR(SetTraceClock(
+        ClockId(protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME)));
   }
   PERFETTO_DCHECK(primary_trace_clock_.has_value());
   return primary_trace_clock_.value();
@@ -116,7 +116,7 @@ base::StatusOr<ClockId> RedactorClockConverter::GetGlobalDefaultDataSourceClock(
     const DataSourceType& clock_type) const {
   switch (clock_type) {
     case DataSourceType::kPerfDataSource:
-      return protos::pbzero::BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
+      return ClockId(protos::pbzero::BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW);
     case DataSourceType::kUnknown:
       // A default needs to be set for the data source if you get here.
       return base::ErrStatus(
@@ -153,9 +153,9 @@ base::StatusOr<uint64_t> RedactorClockConverter::ConvertToTrace(
   std::optional<int64_t> trace_ts = clock_synchronizer_.ToTraceTime(
       source_clock_id, static_cast<int64_t>(source_ts));
   if (!trace_ts.has_value()) {
-    return base::ErrStatus("Failed to convert timestamp from clock id=%" PRId64
+    return base::ErrStatus("Failed to convert timestamp from clock id=%" PRIu32
                            " to trace time clock",
-                           source_clock_id);
+                           source_clock_id.clock_id);
   }
   return static_cast<uint64_t>(trace_ts.value());
 }

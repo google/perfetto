@@ -71,12 +71,16 @@ namespace {
 using ::testing::NiceMock;
 using Clock = protos::pbzero::ClockSnapshot::Clock;
 
-constexpr auto REALTIME = protos::pbzero::BUILTIN_CLOCK_REALTIME;
-constexpr auto BOOTTIME = protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
-constexpr auto MONOTONIC = protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
-constexpr auto MONOTONIC_COARSE =
-    protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE;
-constexpr auto MONOTONIC_RAW = protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
+constexpr ClockTracker::ClockId REALTIME(
+    protos::pbzero::BUILTIN_CLOCK_REALTIME);
+constexpr ClockTracker::ClockId BOOTTIME(
+    protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+constexpr ClockTracker::ClockId MONOTONIC(
+    protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+constexpr ClockTracker::ClockId MONOTONIC_COARSE(
+    protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE);
+constexpr ClockTracker::ClockId MONOTONIC_RAW(
+    protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
 
 TEST_F(ClockTrackerTest, ClockDomainConversions) {
   EXPECT_FALSE(ct_->ToTraceTime(REALTIME, 0).has_value());
@@ -226,10 +230,10 @@ TEST_F(ClockTrackerTest, NonStrictlyMonotonic) {
 TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  ClockTracker::ClockId c64_1 = ClockTracker::SequenceToGlobalClock(1, 64);
-  ClockTracker::ClockId c65_1 = ClockTracker::SequenceToGlobalClock(1, 65);
-  ClockTracker::ClockId c66_1 = ClockTracker::SequenceToGlobalClock(1, 66);
-  ClockTracker::ClockId c66_2 = ClockTracker::SequenceToGlobalClock(2, 64);
+  ClockTracker::ClockId c64_1 = ClockTracker::SequenceToGlobalClock(0, 1, 64);
+  ClockTracker::ClockId c65_1 = ClockTracker::SequenceToGlobalClock(0, 1, 65);
+  ClockTracker::ClockId c66_1 = ClockTracker::SequenceToGlobalClock(0, 1, 66);
+  ClockTracker::ClockId c66_2 = ClockTracker::SequenceToGlobalClock(0, 2, 64);
 
   ct_->AddSnapshot({{MONOTONIC, 10000},
                     {c64_1, 100000},
@@ -366,8 +370,8 @@ TEST_F(ClockTrackerTest, ClockOffset) {
   ct_->AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
   ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
-  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(2, 64);
+  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(0, 1, 64);
+  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(0, 2, 64);
   ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
   ct_->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
@@ -407,8 +411,8 @@ TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
   ct_->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
   ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
-  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(2, 64);
+  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(0, 1, 64);
+  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(0, 2, 64);
   ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
   ct_->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
@@ -445,7 +449,7 @@ TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
   ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(1, 64);
+  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(0, 1, 64);
   ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
 
   int64_t realtime_to_trace_time_delta = -10 + 10010 - 100000 + 1000 - (-2000);
