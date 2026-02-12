@@ -216,9 +216,173 @@ message AndroidSurfaceFlingerWorkload {
   optional Summary summary = 4;
 }
 
+message AndroidBroadcastEvent {
+  // The package uid of the broadcast receiver.
+  optional int32 receiver_uid = 1;
+
+  // The pid of the broadcast receiver.
+  optional int32 receiver_pid = 2;
+
+  // The package uid of the broadcast sender.
+  optional int32 sender_uid = 3;
+
+  // The pid of the broadcast sender.
+  optional int32 sender_pid = 4;
+
+  // The action name of the broadcast.
+  optional string action_name = 5;
+
+  // The type of the current broadcast receiver.
+  // Options: UNKNOWN=0, RUNTIME=1, MANIFEST=2
+  optional uint32 receiver_type = 6;
+
+  // The start type of the host process. (ProcessStartType)
+  optional uint32 proc_start_type = 7;
+
+  // The delay in ms from enqueue to dispatch of this intent to the set of
+  // receivers.
+  optional int64 dispatch_delay_ms = 8;
+
+  // The delay in ms from beginning of dispatch to this specific receiver.
+  optional int64 receive_delay_ms = 9;
+
+  // The delay in ms from dispatch to finish the handling of this intent.
+  optional int64 finish_delay_ms = 10;
+
+  // The stopped state (if any) the package was in before the broadcast was
+  // delivered (PackageStoppedState).
+  optional uint32 package_stopped_state = 11;
+
+  // The type of the broadcast.
+  optional uint32 broadcast_type = 12;
+
+  // Delivery group policy set for the broadcast (BroadcastDeliveryGroupPolicy).
+  optional uint32 delivery_group_policy = 13;
+
+  // Flags set in the broadcast intent.
+  optional int32 intent_flags = 14;
+
+  // The intent filter priority of the broadcast receiver.
+  optional int32 filter_priority = 15;
+
+  // The procstate of the broadcast sender (ProcessStateEnum)
+  optional uint32 sender_process_state = 16;
+
+  // The procstate of the broadcast receiver before receiving this broadcast
+  // (ProcessStateEnum)
+  optional uint32 receiver_process_state = 17;
+
+  // Whether this is the first launch of the app since install
+  optional uint32 first_launch = 18;
+}
+
+message AndroidFreezerEvent {
+  // The uid of the process being frozen or unfrozen.
+  optional int32 uid = 1;
+
+  // The pid of the process being frozen or unfrozen.
+  optional int32 pid = 2;
+
+  // Time since last unfrozen.
+  optional int64 unfrozen_dur_ms = 3;
+
+  // Time since last frozen.
+  optional int64 frozen_dur_ms = 4;
+
+  // Unfreeze reason.
+  optional uint32 unfreeze_reason = 5;
+}
+
+message AndroidProcessStartEvent {
+  // The uid of the ProcessRecord.
+  optional int32 uid = 1;
+
+  // The process pid.
+  optional int32 pid = 2;
+
+  // The process name.
+  optional string process_name = 3;
+
+  // Number of milliseconds it takes to reach bind application.
+  optional int64 bind_application_delay_ms = 4;
+
+  // Number of milliseconds it takes to finish start of the process.
+  optional int64 process_start_delay_ms = 5;
+
+  // hostingNameStr field in ProcessRecord.
+  optional string hosting_name = 6;
+
+  // Options: HOSTING_TYPE_UNKNOWN=0, HOSTING_TYPE_ACTIVITY=1,
+  // HOSTING_TYPE_ADDED_APPLICATION=2, HOSTING_TYPE_BACKUP=3,
+  // HOSTING_TYPE_BROADCAST=4, HOSTING_TYPE_CONTENT_PROVIDER=5,
+  // HOSTING_TYPE_LINK_FAIL=6, HOSTING_TYPE_ON_HOLD=7,
+  // HOSTING_TYPE_NEXT_ACTIVITY=8, HOSTING_TYPE_NEXT_TOP_ACTIVITY=9,
+  // HOSTING_TYPE_RESTART=10, HOSTING_TYPE_SERVICE=11, HOSTING_TYPE_SYSTEM=12,
+  // HOSTING_TYPE_TOP_ACTIVITY=13, HOSTING_TYPE_EMPTY=14
+  optional uint32 hosting_type = 7;
+
+  // Options: TRIGGER_TYPE_UNKNOWN=0, TRIGGER_TYPE_ALARM=1,
+  // TRIGGER_TYPE_PUSH_MESSAGE=2, TRIGGER_TYPE_PUSH_MESSAGE_OVER_QUOTA=3,
+  // TRIGGER_TYPE_JOB=4
+  optional uint32 trigger_type = 8;
+}
+
+message AndroidProcessDiedEvent {
+  // Uid of the package of the dying process.
+  optional int32 uid = 1;
+
+  // Pid of the dying process.
+  optional int32 pid = 2;
+
+  // The process name.
+  optional string process_name = 3;
+
+  // The reason code of why the process dies (android.app.AppExitReasonCode)
+  optional uint32 reason = 4;
+
+  // The supplemental reason code of why the process dies
+  // (android.app.AppExitSubReasonCode)
+  optional uint32 sub_reason = 5;
+
+  // The importance of the process when it dies (android.app.Importance)
+  optional uint32 importance = 6;
+
+  // The last known RSS (in kB) of the process before it dies, could be 0.
+  optional int32 rss_kb = 7;
+
+  // Whether or not this process is hosting one or more foreground services.
+  optional int32 has_foreground_services = 8;
+}
+
+message AndroidProcessStateChangedEvent {
+  // Uid of the package of the process changing state.
+  optional int32 uid = 1;
+
+  // Pid of the process changing state.
+  optional int32 pid = 2;
+
+  // Previous proc state.
+  optional int32 prev_proc_state = 3;
+
+  // Current proc state.
+  optional int32 cur_proc_state = 4;
+
+  // Previous capability flags.
+  optional int32 prev_capability_flags = 5;
+
+  // Current capability flags.
+  optional int32 cur_capability_flags = 6;
+
+  // Previous oom score.
+  optional int32 prev_oom_score = 7;
+
+  // Current oom score.
+  optional int32 cur_oom_score = 8;
+}
+
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2008
+  // Next id: 2013
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -235,5 +399,15 @@ message AndroidTrackEvent {
     optional AndroidJobSchedulerJob job_scheduler_job = 2006;
     // SurfaceFlinger workload.
     optional AndroidSurfaceFlingerWorkload surfaceflinger_workload = 2007;
+    // Broadcasts delivered.
+    optional AndroidBroadcastEvent broadcast_event = 2008;
+    // Freezer event.
+    optional AndroidFreezerEvent freezer_event = 2009;
+    // Process start event.
+    optional AndroidProcessStartEvent process_start_event = 2010;
+    // Process died event.
+    optional AndroidProcessDiedEvent process_died_event = 2011;
+    // Process state changed event.
+    optional AndroidProcessStateChangedEvent process_state_changed_event = 2012;
   }
 }
