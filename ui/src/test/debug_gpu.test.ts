@@ -62,7 +62,9 @@ test('debug GPU info', async ({browser}) => {
       maxRenderbufferSize: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
       maxVertexAttribs: gl.getParameter(gl.MAX_VERTEX_ATTRIBS),
       maxVertexUniformVectors: gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS),
-      maxFragmentUniformVectors: gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS),
+      maxFragmentUniformVectors: gl.getParameter(
+        gl.MAX_FRAGMENT_UNIFORM_VECTORS,
+      ),
       maxVaryingVectors: gl.getParameter(gl.MAX_VARYING_VECTORS),
       maxTextureImageUnits: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
       maxCombinedTextureImageUnits: gl.getParameter(
