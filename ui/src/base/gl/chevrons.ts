@@ -123,7 +123,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
   `;
 
   const fsSource = `#version 300 es
-    precision mediump float;
+    precision highp float;
     in vec4 v_color;
     in vec2 v_uv;
     out vec4 fragColor;

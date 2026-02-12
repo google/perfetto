@@ -117,7 +117,7 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
   `;
 
   const fsSource = `#version 300 es
-    precision mediump float;
+    precision highp float;
     in float v_fill;
     in float v_physX;
     in float v_physY;

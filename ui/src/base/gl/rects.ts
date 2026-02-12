@@ -80,9 +80,6 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
       float screenX = a_x * u_dataScale.x + u_dataOffset.x;
       float screenW = a_w * u_dataScale.x;
 
-      // Calculate local position for patterns and fadeout in the fragment shader
-      v_localPos = a_quadCorner * vec2(screenW, u_height);
-
       // Limit rects to a minimum of 1px wide in screen space
       // TODO(stevegolton): This is specific to slice rendering, maybe use a uniform for this threshold?
       screenW = max(screenW, 1.0);
@@ -114,6 +111,10 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
         mix(cTop, cBottom, a_quadCorner.y)
       );
 
+      // Calculate local position within original rect (for patterns/fadeout)
+      // This accounts for clipping - if rect is clipped on left, localPos.x > 0
+      v_localPos = (pixelPos - vec2(left, top)) / u_viewScale;
+
       vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
 
@@ -129,7 +130,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
   `;
 
   const fsSource = `#version 300 es
-    precision mediump float;
+    precision highp float;
     in vec4 v_color;
     in vec2 v_localPos;
     flat in uint v_flags;
@@ -152,7 +153,8 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
       }
 
       if ((v_flags & FLAG_HATCHED) != 0u && v_rectWidth >= HATCH_MIN_WIDTH) {
-        float diag = v_localPos.x + v_localPos.y;
+        // Use mod on x first to avoid precision loss with large rect widths
+        float diag = mod(v_localPos.x, HATCH_SPACING) + v_localPos.y;
         float stripe = mod(diag, HATCH_SPACING);
         if (stripe < HATCH_WIDTH) {
           fragColor.rgb = mix(fragColor.rgb, vec3(1.0), 0.3);
