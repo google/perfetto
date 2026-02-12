@@ -12,44 +12,60 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {resolveServerUrl} from './url_utils';
+import {makeDisplayUrl} from './url_utils';
 
-describe('resolveServerUrl', () => {
-  test('resolves github:// URLs', () => {
-    expect(resolveServerUrl('github://owner/repo/main')).toEqual(
-      'https://raw.githubusercontent.com/owner/repo/main',
-    );
-    expect(resolveServerUrl('github://owner/repo/main/path/to/dir')).toEqual(
-      'https://raw.githubusercontent.com/owner/repo/main/path/to/dir',
-    );
+describe('makeDisplayUrl', () => {
+  test('formats GitHub server as repo @ ref', () => {
+    expect(
+      makeDisplayUrl({
+        type: 'github',
+        repo: 'owner/repo',
+        ref: 'main',
+        path: '/',
+        auth: {type: 'none'},
+      }),
+    ).toEqual('owner/repo @ main');
   });
 
-  test('passes through https:// URLs', () => {
-    const url = 'https://perfetto.corp.example.com/extensions';
-    expect(resolveServerUrl(url)).toEqual(url);
+  test('includes path when not root', () => {
+    expect(
+      makeDisplayUrl({
+        type: 'github',
+        repo: 'owner/repo',
+        ref: 'main',
+        path: '/subdir',
+        auth: {type: 'none'},
+      }),
+    ).toEqual('owner/repo:/subdir @ main');
   });
 
-  test('throws on http:// URL', () => {
-    expect(() => resolveServerUrl('http://example.com/path')).toThrow(
-      'Invalid server URL: http:// is not supported, use https:// instead',
-    );
+  test('strips https:// from HTTPS server URL', () => {
+    expect(
+      makeDisplayUrl({
+        type: 'https',
+        url: 'https://example.com/extensions',
+        auth: {type: 'none'},
+      }),
+    ).toEqual('example.com/extensions');
   });
 
-  test('handles whitespace', () => {
-    expect(resolveServerUrl('  github://owner/repo/main  ')).toEqual(
-      'https://raw.githubusercontent.com/owner/repo/main',
-    );
+  test('strips http:// from HTTPS server URL', () => {
+    expect(
+      makeDisplayUrl({
+        type: 'https',
+        url: 'http://example.com/extensions',
+        auth: {type: 'none'},
+      }),
+    ).toEqual('example.com/extensions');
   });
 
-  test('throws on empty github:// URL', () => {
-    expect(() => resolveServerUrl('github://')).toThrow(
-      'Invalid GitHub URL: missing owner/repo/ref',
-    );
-  });
-
-  test('throws on invalid protocol', () => {
-    expect(() => resolveServerUrl('ftp://example.com')).toThrow(
-      'Invalid server URL: must start with https:// or github://',
-    );
+  test('passes through URL without protocol prefix', () => {
+    expect(
+      makeDisplayUrl({
+        type: 'https',
+        url: 'example.com/extensions',
+        auth: {type: 'none'},
+      }),
+    ).toEqual('example.com/extensions');
   });
 });

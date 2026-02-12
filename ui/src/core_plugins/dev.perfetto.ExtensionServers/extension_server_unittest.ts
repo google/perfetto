@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {loadManifest, initializeExtensions} from './extension_server';
+import {
+  loadManifest,
+  initializeExtensions,
+  buildFetchRequest,
+} from './extension_server';
 import {AppImpl} from '../../core/app_impl';
 import {Macro} from '../../core/command_manager';
 import {SqlPackage} from '../../public/extra_sql_packages';
+import {ExtensionServer, UserInput} from './types';
 
 // =============================================================================
 // Test Helpers
@@ -65,6 +70,24 @@ function createMockAppImpl() {
 // Tests
 // =============================================================================
 
+const TEST_SERVER: UserInput = {
+  type: 'https',
+  url: 'https://server.com',
+  auth: {type: 'none'},
+};
+
+function testExtServer(
+  overrides: {enabledModules?: string[]; enabled?: boolean} = {},
+): ExtensionServer {
+  return {
+    type: 'https',
+    url: 'https://server.com',
+    enabledModules: overrides.enabledModules ?? ['default'],
+    enabled: overrides.enabled ?? true,
+    auth: {type: 'none'},
+  };
+}
+
 describe('extension_server', () => {
   beforeEach(() => {
     mockFetch.mockClear();
@@ -80,7 +103,7 @@ describe('extension_server', () => {
       };
       mockFetch.mockImplementation(() => mockJsonResponse(manifest));
 
-      const result = await loadManifest('https://server.com');
+      const result = await loadManifest(TEST_SERVER);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value).toEqual(manifest);
@@ -89,13 +112,13 @@ describe('extension_server', () => {
 
     test('returns error for HTTP failures', async () => {
       mockFetch.mockImplementation(() => mockErrorResponse(404));
-      const result = await loadManifest('https://server.com');
+      const result = await loadManifest(TEST_SERVER);
       expect(result.ok).toBe(false);
     });
 
     test('returns error for invalid JSON', async () => {
       mockFetch.mockImplementation(() => mockJsonResponse('invalid'));
-      const result = await loadManifest('https://server.com');
+      const result = await loadManifest(TEST_SERVER);
       expect(result.ok).toBe(false);
     });
 
@@ -104,7 +127,7 @@ describe('extension_server', () => {
       mockFetch.mockImplementation(() =>
         mockJsonResponse({name: 'Test', modules: ['test']}),
       );
-      const result = await loadManifest('https://server.com');
+      const result = await loadManifest(TEST_SERVER);
       expect(result.ok).toBe(false);
     });
   });
@@ -130,11 +153,7 @@ describe('extension_server', () => {
 
       const mockApp = createMockAppImpl();
       initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default'],
-          enabled: false,
-        },
+        testExtServer({enabled: false}),
       ]);
 
       expect(mockApp.addMacros).not.toHaveBeenCalled();
@@ -173,13 +192,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-      ]);
+      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
 
       // Wait for all promises to settle
       await Promise.all([
@@ -214,13 +227,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-      ]);
+      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const macrosResult = await mockApp.getMacrosAdded()[0];
       expect(macrosResult).toEqual(macros);
@@ -242,13 +249,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-      ]);
+      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const [macros, sqlPackages, protos] = await Promise.all([
         mockApp.getMacrosAdded()[0],
@@ -278,11 +279,7 @@ describe('extension_server', () => {
 
       const mockApp = createMockAppImpl();
       initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default'], // Requesting non-existent module
-          enabled: true,
-        },
+        testExtServer(), // Requesting 'default' module which doesn't exist
       ]);
 
       const macros = await mockApp.getMacrosAdded()[0];
@@ -293,13 +290,7 @@ describe('extension_server', () => {
       mockFetch.mockImplementation(() => mockErrorResponse(500));
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-      ]);
+      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const [macros, sqlPackages, protos] = await Promise.all([
         mockApp.getMacrosAdded()[0],
@@ -339,11 +330,7 @@ describe('extension_server', () => {
 
       const mockApp = createMockAppImpl();
       initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default', 'android'],
-          enabled: true,
-        },
+        testExtServer({enabledModules: ['default', 'android']}),
       ]);
 
       // Should be called twice (once per module)
@@ -376,13 +363,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-      ]);
+      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const sqlPackages = await mockApp.getSqlPackagesAdded()[0];
       expect(sqlPackages).toHaveLength(1);
@@ -412,13 +393,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-      ]);
+      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
 
       // Should return empty array due to validation failure
       const macros = await mockApp.getMacrosAdded()[0];
@@ -447,17 +422,54 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
-        {
-          url: 'https://server.com',
-          enabledModules: ['default'],
-          enabled: true,
-        },
-      ]);
+      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
 
       // Should return empty array due to validation failure
       const sqlPackages = await mockApp.getSqlPackagesAdded()[0];
       expect(sqlPackages).toEqual([]);
+    });
+  });
+
+  describe('buildFetchRequest', () => {
+    test('builds GitHub API URL with PAT auth header', () => {
+      const server: UserInput = {
+        type: 'github',
+        repo: 'owner/repo',
+        ref: 'main',
+        path: '/',
+        auth: {type: 'github_pat', pat: 'ghp_test123'},
+      };
+      const req = buildFetchRequest(server, 'manifest');
+      expect(req.url).toBe(
+        'https://api.github.com/repos/owner/repo/contents/manifest?ref=main',
+      );
+      expect(
+        (req.init.headers as Record<string, string>)['Authorization'],
+      ).toBe('token ghp_test123');
+    });
+
+    test('builds GitHub API URL with subdir path', () => {
+      const server: UserInput = {
+        type: 'github',
+        repo: 'owner/repo',
+        ref: 'v2',
+        path: '/extensions',
+        auth: {type: 'none'},
+      };
+      const req = buildFetchRequest(server, 'manifest');
+      expect(req.url).toBe(
+        'https://api.github.com/repos/owner/repo/contents/extensions/manifest?ref=v2',
+      );
+    });
+
+    test('strips trailing slash from HTTPS URL', () => {
+      const server: UserInput = {
+        type: 'https',
+        url: 'https://example.com/ext/',
+        auth: {type: 'none'},
+      };
+      const req = buildFetchRequest(server, 'manifest');
+      expect(req.url).toBe('https://example.com/ext/manifest');
     });
   });
 });
