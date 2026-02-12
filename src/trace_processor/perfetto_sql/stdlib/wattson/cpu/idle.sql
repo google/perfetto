@@ -75,14 +75,51 @@ WITH
     JOIN cpu_counter_track AS cct
       ON cli.track_id = cct.id
   ),
-  swapper_as_idle AS (
+  swapper_events AS (
+    -- Transition to idle (using swapper as idle)
     SELECT
       ts,
       cpu,
-      iif(is_idle, p.deepest_idle, 4294967295) AS idle
-    FROM sched, const_params AS p
-    LEFT JOIN thread
-      USING (utid)
+      p.deepest_idle AS idle
+    FROM const_params AS p
+    CROSS JOIN sched
+    -- dur != 0 to handle unfinished slices
+    WHERE
+      utid IN (
+        SELECT
+          utid
+        FROM thread
+        WHERE
+          is_idle
+      ) AND dur != 0
+    UNION ALL
+    -- Transition to active
+    SELECT
+      ts + dur AS ts,
+      cpu,
+      4294967295 AS idle
+    FROM const_params AS p
+    CROSS JOIN sched
+    -- dur > 0 to prevent ts + (-1)
+    WHERE
+      utid IN (
+        SELECT
+          utid
+        FROM thread
+        WHERE
+          is_idle
+      ) AND dur > 0
+  ),
+  -- Merge transition points if an idle slice exactly abuts an active state
+  swapper_transitions AS (
+    SELECT
+      ts,
+      cpu,
+      min(idle) AS idle
+    FROM swapper_events
+    GROUP BY
+      cpu,
+      ts
   ),
   idle_transitions AS (
     SELECT
@@ -90,7 +127,7 @@ WITH
       cpu,
       idle,
       lag(idle, 1, idle) OVER (PARTITION BY cpu ORDER BY ts) != idle AS transitioned
-    FROM swapper_as_idle
+    FROM swapper_transitions
   ),
   continuous_idle_slices AS (
     SELECT
