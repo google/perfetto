@@ -51,7 +51,8 @@ static void WriteToOutput(std::ostream* output, const char (&str)[N]) {
 //    write the output in given std::ostream*.
 class OnlineTraceToText {
  public:
-  OnlineTraceToText(std::ostream* output) : output_(output) {
+  OnlineTraceToText(std::ostream* output, const TraceToTextOptions& options)
+      : output_(output), skip_unknown_fields_(options.skip_unknown_fields) {
     pool_.AddFromFileDescriptorSet(kTraceDescriptor.data(),
                                    kTraceDescriptor.size());
     pool_.AddFromFileDescriptorSet(kWinscopeDescriptor.data(),
@@ -73,6 +74,7 @@ class OnlineTraceToText {
   DescriptorPool pool_;
   size_t bytes_processed_ = 0;
   size_t packet_ = 0;
+  bool skip_unknown_fields_ = false;
 };
 
 std::string OnlineTraceToText::TracePacketToText(protozero::ConstBytes packet,
@@ -80,7 +82,7 @@ std::string OnlineTraceToText::TracePacketToText(protozero::ConstBytes packet,
   namespace pb0_to_text = trace_processor::protozero_to_text;
   return pb0_to_text::ProtozeroToText(pool_, ".perfetto.protos.TracePacket",
                                       packet, pb0_to_text::kIncludeNewLines,
-                                      indent_depth);
+                                      indent_depth, skip_unknown_fields_);
 }
 
 void OnlineTraceToText::PrintCompressedPackets(protozero::ConstBytes packets) {
@@ -176,13 +178,15 @@ class InputReader {
 
 }  // namespace
 
-bool TraceToText(std::istream* input, std::ostream* output) {
+bool TraceToText(std::istream* input,
+                 std::ostream* output,
+                 const TraceToTextOptions& options) {
   constexpr size_t kMaxMsgSize = protozero::ProtoRingBuffer::kMaxMsgSize;
   std::unique_ptr<uint8_t[]> buffer(new uint8_t[kMaxMsgSize]);
   uint32_t buffer_len = 0;
 
   InputReader input_reader(input);
-  OnlineTraceToText online_trace_to_text(output);
+  OnlineTraceToText online_trace_to_text(output, options);
 
   input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize);
   TraceType type = trace_processor::GuessTraceType(buffer.get(), buffer_len);

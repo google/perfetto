@@ -16,9 +16,6 @@
 
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 
-#include "perfetto/ext/base/murmur_hash.h"
-#include "src/trace_processor/importers/instruments/row_parser.h"
-
 #include <expat.h>
 #include <algorithm>
 #include <cctype>
@@ -38,6 +35,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
@@ -47,6 +45,7 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/instruments/row_data_tracker.h"
+#include "src/trace_processor/importers/instruments/row_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
@@ -156,8 +155,9 @@ class InstrumentsXmlTokenizer::Impl {
             std::make_unique<RowParser>(context, data_))) {
     static constexpr std::string_view kSubsystem =
         "dev.perfetto.instruments_clock";
-    clock_ = static_cast<ClockTracker::ClockId>(
-        base::MurmurHashValue(kSubsystem) | 0x80000000);
+    clock_ = ClockTracker::ClockId(
+        static_cast<uint32_t>(base::MurmurHashValue(kSubsystem) | 0x80000000),
+        0, context->trace_id().value);
 
     // Use the above clock if we can, in case there is no other trace and
     // no clock sync events.
@@ -417,7 +417,8 @@ class InstrumentsXmlTokenizer::Impl {
             latest_clock_sync_timestamp_ = clock_sync_timestamp;
             auto status = context_->clock_tracker->AddSnapshot(
                 {{clock_, current_row_.timestamp_},
-                 {protos::pbzero::ClockSnapshot::Clock::BOOTTIME,
+                 {ClockTracker::ClockId(
+                      protos::pbzero::ClockSnapshot::Clock::BOOTTIME),
                   static_cast<int64_t>(latest_clock_sync_timestamp_)}});
             if (!status.ok()) {
               PERFETTO_FATAL("Error adding clock snapshot: %s",

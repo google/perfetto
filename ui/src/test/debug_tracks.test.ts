@@ -57,7 +57,9 @@ test('debug tracks', async () => {
   });
 
   // Close the debug track.
-  await pth.locateTrack('debug track').getByText('close').first().click();
+  const track = pth.locateTrack('debug track');
+  await track.locator('.pf-track__shell').hover();
+  await track.getByText('close').first().click();
   await pth.waitForPerfettoIdle();
   await pth.waitForIdleAndScreenshot('debug track removed.png', {
     mask: [page.locator('.pf-query-table .pf-header-bar')],

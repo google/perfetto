@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_BASE_INTRUSIVE_TREE_H_
-#define SRC_BASE_INTRUSIVE_TREE_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_INTRUSIVE_TREE_H_
+#define INCLUDE_PERFETTO_EXT_BASE_INTRUSIVE_TREE_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -246,4 +246,4 @@ class IntrusiveTree {
 
 }  // namespace perfetto::base
 
-#endif  // SRC_BASE_INTRUSIVE_TREE_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_INTRUSIVE_TREE_H_

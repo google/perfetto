@@ -132,7 +132,7 @@ base::Status AndroidBugreportReader::Parse(std::vector<util::ZipFile> files) {
   // in case of early boot events before NTP kicks in, which get emitted as
   // 1970), but that is the state of affairs.
   context_->clock_tracker->SetTraceTimeClock(
-      protos::pbzero::BUILTIN_CLOCK_REALTIME);
+      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_REALTIME));
 
   ASSIGN_OR_RETURN(std::vector<TimestampedAndroidLogEvent> logcat_events,
                    ParseDumpstateTxt(bug_report));

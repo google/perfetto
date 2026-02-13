@@ -118,6 +118,7 @@ class TraceBuffer {
   virtual const WriterStats& writer_stats() const = 0;
   virtual size_t size() const = 0;
   virtual size_t used_size() const = 0;
+  virtual size_t GetMemoryUsageBytes() const = 0;
   virtual OverwritePolicy overwrite_policy() const = 0;
   virtual bool has_data() const = 0;
   virtual BufType buf_type() const = 0;

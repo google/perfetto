@@ -26,6 +26,7 @@ TRACE_PROCESSOR_TEST_DIR = os.path.dirname(
 sys.path.append(TRACE_PROCESSOR_TEST_DIR)
 
 from diff_tests.metrics.android.tests import AndroidMetrics
+from diff_tests.parser.primes.tests import PrimesTraceParser
 from diff_tests.metrics.camera.tests import Camera
 from diff_tests.metrics.chrome.tests import ChromeMetrics
 from diff_tests.metrics.chrome.tests_args import ChromeArgs
@@ -271,6 +272,7 @@ def fetch_all_diff_tests(
       PerfTextParser,
       PprofParser,
       CollapsedStackParser,
+      PrimesTraceParser,
   ]
 
   metrics_tests = [

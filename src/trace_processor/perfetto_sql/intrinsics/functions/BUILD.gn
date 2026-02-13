@@ -101,7 +101,6 @@ source_set("functions") {
     "../../parser",
     "../types",
   ]
-  public_deps = [ ":interface" ]
   if (enable_perfetto_llvm_symbolizer) {
     sources += [
       "symbolize.cc",
@@ -112,19 +111,6 @@ source_set("functions") {
       "../../../util/symbolizer:llvm_symbolizer_c_api",
     ]
   }
-}
-
-source_set("interface") {
-  sources = [
-    "sql_function.cc",
-    "sql_function.h",
-  ]
-  deps = [
-    "../../../../../gn:default_deps",
-    "../../../../../gn:sqlite",
-    "../../../../../include/perfetto/trace_processor:basic_types",
-    "../../../../base",
-  ]
 }
 
 perfetto_tp_tables("tables") {

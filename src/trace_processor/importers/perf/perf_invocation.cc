@@ -92,9 +92,9 @@ base::StatusOr<RefPtr<PerfInvocation>> PerfInvocation::Builder::Build() {
         !first_attr->id_offset_from_end().has_value()))) {
     return base::ErrStatus("No id offsets for multiple perf_event_attr");
   }
-  return RefPtr<PerfInvocation>(new PerfInvocation(context_, std::move(first_attr),
-                                                   std::move(attrs_by_id),
-                                                   attr_with_ids_.size() == 1));
+  return RefPtr<PerfInvocation>(
+      new PerfInvocation(context_, std::move(first_attr),
+                         std::move(attrs_by_id), attr_with_ids_.size() == 1));
 }
 
 base::StatusOr<RefPtr<PerfEventAttr>> PerfInvocation::FindAttrForRecord(
@@ -129,8 +129,8 @@ base::StatusOr<RefPtr<PerfEventAttr>> PerfInvocation::FindAttrForRecord(
 }
 
 bool PerfInvocation::ReadEventId(const perf_event_header& header,
-                              const TraceBlobView& payload,
-                              uint64_t& id) const {
+                                 const TraceBlobView& payload,
+                                 uint64_t& id) const {
   const PerfEventAttr& first = *attrs_by_id_.GetIterator().value();
   Reader reader(payload.copy());
 
@@ -163,8 +163,8 @@ void PerfInvocation::SetEventName(uint64_t event_id, std::string name) {
 }
 
 void PerfInvocation::SetEventName(uint32_t type,
-                               uint64_t config,
-                               const std::string& name) {
+                                  uint64_t config,
+                                  const std::string& name) {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
     if (it.value()->type() == type && it.value()->config() == config) {
       it.value()->set_event_name(name);
@@ -173,8 +173,8 @@ void PerfInvocation::SetEventName(uint32_t type,
 }
 
 void PerfInvocation::AddBuildId(int32_t pid,
-                             std::string filename,
-                             BuildId build_id) {
+                                std::string filename,
+                                BuildId build_id) {
   build_ids_.Insert({pid, std::move(filename)}, std::move(build_id));
 }
 
@@ -202,7 +202,8 @@ void PerfInvocation::SetCmdline(const std::vector<std::string>& args) {
 
 bool PerfInvocation::HasPerfClock() const {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
-    if (it.value()->clock_id() == protos::pbzero::BUILTIN_CLOCK_PERF) {
+    if (it.value()->clock_id() ==
+        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_PERF)) {
       return true;
     }
   }

@@ -33,7 +33,6 @@ import {
 } from './thread_state';
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
-import {SliceRef} from '../widgets/slice';
 import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
 import {assertIsInstance} from '../../base/logging';
 import {Trace} from '../../public/trace';
@@ -43,6 +42,7 @@ import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
 import {SLICE_TABLE} from '../widgets/sql/table_definitions';
+import {TrackEventRef} from '../widgets/track_event_ref';
 
 interface ContextMenuItem {
   name: string;
@@ -348,9 +348,10 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
           rowData: inFlows.map((flow) => [
             m(
               GridCell,
-              m(SliceRef, {
+              m(TrackEventRef, {
                 trace: this.trace,
-                id: asSliceSqlId(flow.begin.sliceId),
+                table: 'slice',
+                id: flow.begin.sliceId,
                 name: flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
               }),
             ),
@@ -391,9 +392,10 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
           rowData: outFlows.map((flow) => [
             m(
               GridCell,
-              m(SliceRef, {
+              m(TrackEventRef, {
                 trace: this.trace,
-                id: asSliceSqlId(flow.end.sliceId),
+                table: 'slice',
+                id: flow.end.sliceId,
                 name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
               }),
             ),

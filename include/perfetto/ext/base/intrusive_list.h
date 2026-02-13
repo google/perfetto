@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_BASE_INTRUSIVE_LIST_H_
-#define SRC_BASE_INTRUSIVE_LIST_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_INTRUSIVE_LIST_H_
+#define INCLUDE_PERFETTO_EXT_BASE_INTRUSIVE_LIST_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -145,4 +145,4 @@ class IntrusiveList : private internal::ListOps {
 
 }  // namespace perfetto::base
 
-#endif  // SRC_BASE_INTRUSIVE_LIST_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_INTRUSIVE_LIST_H_

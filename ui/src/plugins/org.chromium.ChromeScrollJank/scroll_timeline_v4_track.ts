@@ -21,6 +21,7 @@ import {HSLColor} from '../../base/color';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {ScrollFrameClassification} from './scroll_timeline_v4_model';
+import {ScrollTimelineV4DetailsPanel} from './scroll_timeline_v4_details_panel';
 import {SCROLL_TIMELINE_V4_TRACK} from './tracks';
 
 const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
@@ -54,6 +55,7 @@ export function createScrollTimelineV4Track(trace: Trace) {
   return SliceTrack.create({
     trace,
     uri: SCROLL_TIMELINE_V4_TRACK.uri,
+    rootTableName: SCROLL_TIMELINE_V4_TRACK.tableName,
     dataset: new SourceDataset({
       src: SCROLL_TIMELINE_V4_TRACK.tableName,
       schema: {
@@ -68,5 +70,6 @@ export function createScrollTimelineV4Track(trace: Trace) {
     colorizer: (row) => {
       return toColorScheme(row.classification) ?? getColorForSlice(row.name);
     },
+    detailsPanel: (row) => new ScrollTimelineV4DetailsPanel(trace, row.id),
   });
 }

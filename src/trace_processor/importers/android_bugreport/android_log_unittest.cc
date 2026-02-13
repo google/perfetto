@@ -78,7 +78,7 @@ class AndroidLogReaderTest : public ::testing::Test {
             TraceProcessorContext::TraceState{TraceId(0)});
     context_.metadata_tracker = std::make_unique<MetadataTracker>(&context_);
     context_.clock_tracker->SetTraceTimeClock(
-        protos::pbzero::ClockSnapshot::Clock::REALTIME);
+        ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::REALTIME));
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kDefault);
   }

@@ -88,6 +88,11 @@ export interface QueryPageAttrs {
 
   // Called when the user renames a tab.
   onTabRename?(tabId: string, newName: string): void;
+
+  // Called when the user reorders tabs via drag and drop.
+  // draggedTabId is the tab being moved, beforeTabId is the tab it should be
+  // placed before (or undefined if moved to the end).
+  onTabReorder?(draggedTabId: string, beforeTabId: string | undefined): void;
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
@@ -145,6 +150,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       className: 'pf-query-page__editor-tabs',
       tabs: leftTabs,
       activeTabKey: activeTabId,
+      reorderable: true,
       onTabChange: (key) => {
         if (key === '__add_tab__') {
           attrs.onTabAdd?.();
@@ -153,6 +159,13 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         }
       },
       onTabClose: (key) => attrs.onTabClose?.(key),
+      onTabReorder: (draggedKey, beforeKey) => {
+        // Don't allow reordering with the add tab button
+        if (draggedKey === '__add_tab__' || beforeKey === '__add_tab__') {
+          return;
+        }
+        attrs.onTabReorder?.(draggedKey, beforeKey);
+      },
     });
 
     const activeTab = editorTabs.find((t) => t.id === activeTabId);

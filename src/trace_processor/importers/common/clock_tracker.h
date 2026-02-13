@@ -30,6 +30,27 @@ class ClockTrackerTest;
 class TraceProcessorContext;
 
 class ClockSynchronizerListenerImpl {
+ public:
+  using ClockId = ClockSynchronizerBase::ClockId;
+
+  explicit ClockSynchronizerListenerImpl(TraceProcessorContext* context);
+
+  base::Status OnClockSyncCacheMiss();
+
+  base::Status OnInvalidClockSnapshot();
+
+  base::Status OnTraceTimeClockIdChanged(ClockId);
+
+  base::Status OnSetTraceTimeClock(ClockId);
+
+  void RecordConversionError(ClockSynchronizerBase::ErrorType,
+                             ClockId source_clock_id,
+                             ClockId target_clock_id,
+                             int64_t source_timestamp,
+                             std::optional<size_t>);
+
+  bool IsLocalHost();
+
  private:
   TraceProcessorContext* context_;
   StringId source_clock_id_key_;
@@ -37,25 +58,6 @@ class ClockSynchronizerListenerImpl {
   StringId source_timestamp_key_;
   StringId source_sequence_id_key_;
   StringId target_sequence_id_key_;
-
- public:
-  explicit ClockSynchronizerListenerImpl(TraceProcessorContext* context);
-
-  base::Status OnClockSyncCacheMiss();
-
-  base::Status OnInvalidClockSnapshot();
-
-  base::Status OnTraceTimeClockIdChanged(ClockSynchronizerBase::ClockId);
-
-  base::Status OnSetTraceTimeClock(ClockSynchronizerBase::ClockId);
-
-  void RecordConversionError(ClockSynchronizerBase::ErrorType,
-                             ClockSynchronizerBase::ClockId source_clock_id,
-                             ClockSynchronizerBase::ClockId target_clock_id,
-                             int64_t source_timestamp,
-                             std::optional<size_t>);
-
-  bool IsLocalHost();
 };
 
 using ClockTracker = ClockSynchronizer<ClockSynchronizerListenerImpl>;

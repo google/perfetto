@@ -32,10 +32,9 @@ async function getTrackHelpButton(
 ): Promise<Locator> {
   const track = pth.locateTrack(trackName, groupTrack);
   await track.scrollIntoViewIfNeeded();
-  const trackButtons = track.locator('.pf-track__buttons');
-  // To make sure the help button is visible.
-  await trackButtons.hover();
-  return trackButtons.locator('button i.pf-icon:has-text("help")');
+  // Hover on the track shell to make the help button visible.
+  await track.locator('.pf-track__shell').hover();
+  return track.locator('.pf-track__buttons button i.pf-icon:has-text("help")');
 }
 
 [

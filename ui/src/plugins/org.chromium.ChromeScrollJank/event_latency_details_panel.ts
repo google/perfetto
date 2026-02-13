@@ -25,7 +25,7 @@ import {
 import {asSliceSqlId, SliceSqlId} from '../../components/sql_utils/core_types';
 import {Grid, GridColumn, GridHeaderCell, GridCell} from '../../widgets/grid';
 import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
@@ -39,11 +39,26 @@ import {
   getScrollJankCauseStage,
 } from './scroll_jank_cause_link_utils';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
-import {sliceRef} from '../../components/widgets/slice';
-import {JANKS_TRACK_URI, renderSliceRef} from './utils';
+import {
+  infoTooltip,
+  JANKS_TRACK_URI,
+  renderSliceRef,
+  renderSqlRef,
+  stdlibRef,
+  trackEventRefTreeNode,
+} from './utils';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {renderSliceArguments} from '../../components/details/slice_args';
+import {TrackEventRef} from '../../components/widgets/track_event_ref';
+import {SLICE_TABLE} from '../../components/widgets/sql/table_definitions';
+import {assertExists, assertTrue} from '../../base/logging';
+import {
+  EVENT_LATENCY_TRACK,
+  SCROLL_TIMELINE_TRACK,
+  SCROLL_TIMELINE_V4_TRACK,
+} from './tracks';
+import {EVENT_LATENCY_TABLE_DEFINITION} from './event_latency_model';
 
 // Given a node in the slice tree, return a path from root to it.
 function getPath(slice: SliceTreeNode): string[] {
@@ -102,6 +117,17 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
     causeOfJank: string;
   };
 
+  private references?: {
+    // Values from `EVENT_LATENCY_TRACK.tableName[id=this.id]`:
+    scrollUpdateId: bigint;
+    parent: undefined | {kind: 'EventLatency' | 'stage'; id: number};
+
+    // References to the corresponding slices in `SCROLL_TIMELINE_TRACK` and
+    // `SCROLL_TIMELINE_V4_TRACK`.
+    scrollUpdatePluginSliceId: number | undefined;
+    presentedInFramePluginSliceId: number | undefined;
+  };
+
   // Whether this stage has caused jank. This is also true for top level
   // EventLatency slices where a descendant is a cause of jank.
   private isJankStage = false;
@@ -148,6 +174,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
 
     await this.loadSlice();
     await this.loadJankSlice();
+    await this.loadReferences();
     await this.loadRelevantThreads();
     await this.loadEventLatencyBreakdown();
   }
@@ -192,6 +219,45 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
         causeOfJank: it.causeOfJank,
       };
     }
+  }
+
+  private async loadReferences() {
+    assertTrue(this.references === undefined);
+    const queryResult = await this.trace.engine.query(`
+      SELECT
+        model.scroll_update_id,
+        model.parent_id,
+        parent_model.parent_id AS grandparent_id,
+        ${SCROLL_TIMELINE_TRACK.eventIdSqlSubqueryForEventLatency(
+          'model.scroll_update_id',
+        )} AS scroll_update_plugin_slice_id,
+        ${SCROLL_TIMELINE_V4_TRACK.eventIdSqlSubqueryForEventLatency(
+          'model.scroll_update_id',
+        )} AS presented_in_frame_plugin_slice_id
+      FROM ${EVENT_LATENCY_TRACK.tableName} AS model
+      LEFT JOIN ${EVENT_LATENCY_TRACK.tableName} AS parent_model
+        ON model.parent_id = parent_model.id
+      WHERE model.id = ${this.id}`);
+    const row = queryResult.firstRow({
+      scroll_update_id: LONG,
+      parent_id: NUM_NULL,
+      grandparent_id: NUM_NULL,
+      scroll_update_plugin_slice_id: NUM_NULL,
+      presented_in_frame_plugin_slice_id: NUM_NULL,
+    });
+    this.references = {
+      scrollUpdateId: row.scroll_update_id,
+      parent:
+        row.parent_id === null
+          ? undefined
+          : {
+              kind: row.grandparent_id === null ? 'EventLatency' : 'stage',
+              id: row.parent_id,
+            },
+      scrollUpdatePluginSliceId: row.scroll_update_plugin_slice_id ?? undefined,
+      presentedInFramePluginSliceId:
+        row.presented_in_frame_plugin_slice_id ?? undefined,
+    };
   }
 
   async loadRelevantThreads() {
@@ -379,33 +445,153 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
     return eventLatencyId;
   }
 
-  private getLinksSection(): m.Child {
-    return m(
-      Section,
-      {title: 'Quick links'},
-      m(
-        Tree,
+  private getReferences(): m.Child {
+    if (this.sliceDetails === undefined || this.references === undefined) {
+      return undefined;
+    }
+    const isEventLatency = this.references.parent === undefined;
+    const children: m.Children = [];
+    if (this.jankySlice !== undefined) {
+      children.push(
         m(TreeNode, {
-          left: this.sliceDetails
-            ? sliceRef(
-                this.trace,
-                this.sliceDetails,
-                'EventLatency in context of other Input events',
-              )
-            : 'EventLatency in context of other Input events',
-          right: this.sliceDetails ? '' : 'N/A',
+          left: 'Jank reason',
+          right: renderSliceRef({
+            trace: this.trace,
+            id: this.jankySlice.id,
+            trackUri: JANKS_TRACK_URI,
+            title: this.jankySlice.causeOfJank,
+          }),
         }),
-        this.jankySlice &&
+      );
+    }
+    children.push(
+      isEventLatency
+        ? this.getEventLatencyReferences()
+        : this.getStageReferences(),
+      m(
+        TreeNode,
+        {
+          left: 'Self',
+          startsCollapsed: true,
+        },
+        [
           m(TreeNode, {
-            left: renderSliceRef({
+            left: [
+              `This ${isEventLatency ? 'EventLatency' : 'stage'} `,
+              infoTooltip(
+                `Slice on the "${EVENT_LATENCY_TRACK.name}" track created by ` +
+                  'the plugin. It represents ' +
+                  `${isEventLatency ? 'a' : 'a stage of a'} scroll update.`,
+              ),
+            ],
+            right: renderSqlRef({
               trace: this.trace,
-              id: this.jankySlice.id,
-              trackUri: JANKS_TRACK_URI,
-              title: this.jankySlice.causeOfJank,
+              tableName: EVENT_LATENCY_TRACK.tableName,
+              tableDefinition: EVENT_LATENCY_TABLE_DEFINITION,
+              id: this.id,
             }),
           }),
+          m(TreeNode, {
+            left: [
+              m(TrackEventRef, {
+                trace: this.trace,
+                table: 'slice',
+                id: this.sliceDetails.id,
+                name: 'Original slice in context of other input events',
+              }),
+              infoTooltip(
+                'The original slice which Chrome emitted in the trace, from ' +
+                  'which the plugin derived this slice.',
+              ),
+            ],
+            right: renderSqlRef({
+              trace: this.trace,
+              tableName: 'slice',
+              tableDefinition: SLICE_TABLE,
+              id: this.sliceDetails.id,
+            }),
+          }),
+        ],
       ),
     );
+    return m(Section, {title: 'References'}, m(Tree, children));
+  }
+
+  private getEventLatencyReferences(): m.Children {
+    assertTrue(this.references!.parent === undefined);
+    return [this.renderRelatedTrackReferences(), this.renderStdlibReferences()];
+  }
+
+  private renderRelatedTrackReferences(): m.Child {
+    const references = assertExists(this.references);
+    const children: m.Children = [];
+    if (references.scrollUpdatePluginSliceId !== undefined) {
+      children.push(
+        trackEventRefTreeNode({
+          trace: this.trace,
+          table: SCROLL_TIMELINE_TRACK.tableName,
+          id: references.scrollUpdatePluginSliceId,
+          name: 'Corresponding scroll update',
+        }),
+      );
+    }
+    if (references.presentedInFramePluginSliceId !== undefined) {
+      children.push(
+        trackEventRefTreeNode({
+          trace: this.trace,
+          table: SCROLL_TIMELINE_V4_TRACK.tableName,
+          id: references.presentedInFramePluginSliceId,
+          name: 'Frame where this was the first presented EventLatency',
+        }),
+      );
+    }
+    if (children.length === 0) {
+      return undefined;
+    }
+    return m(
+      TreeNode,
+      {left: 'Related tracks', startsCollapsed: false},
+      children,
+    );
+  }
+
+  private renderStdlibReferences(): m.Child {
+    const references = assertExists(this.references);
+    return m(
+      TreeNode,
+      {
+        left: 'Standard library tables',
+        startsCollapsed: false,
+      },
+      [
+        m(TreeNode, {
+          right: stdlibRef({
+            trace: this.trace,
+            table: 'chrome_event_latencies',
+            idColumnName: 'scroll_update_id',
+            id: references.scrollUpdateId,
+          }),
+        }),
+        m(TreeNode, {
+          right: stdlibRef({
+            trace: this.trace,
+            table: 'chrome_gesture_scroll_updates',
+            idColumnName: 'scroll_update_id',
+            id: references.scrollUpdateId,
+          }),
+        }),
+      ],
+    );
+  }
+
+  private getStageReferences(): m.Child {
+    const parent = assertExists(this.references!.parent);
+    return trackEventRefTreeNode({
+      trace: this.trace,
+      table: EVENT_LATENCY_TRACK.tableName,
+      id: parent.id,
+      name: `Parent ${parent.kind}`,
+    });
   }
 
   private getBreakdownSection(): m.Child {
@@ -482,6 +668,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
       const slice = this.sliceDetails;
 
       const rightSideWidgets: m.Child[] = [];
+      rightSideWidgets.push(this.getReferences());
       rightSideWidgets.push(
         m(
           Section,
@@ -495,7 +682,6 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
       if (stageWidget) {
         rightSideWidgets.push(stageWidget);
       }
-      rightSideWidgets.push(this.getLinksSection());
       rightSideWidgets.push(this.getBreakdownSection());
 
       return m(

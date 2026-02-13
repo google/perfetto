@@ -176,7 +176,7 @@ CREATE PERFETTO VIEW thread (
   -- Boolean indicating if this thread is a kernel idle thread.
   is_idle BOOL,
   -- Machine identifier
-  machine_id LONG,
+  machine_id JOINID(machine.id),
   -- Extra args for this thread.
   arg_set_id ARGSETID
 ) AS
@@ -220,7 +220,7 @@ CREATE PERFETTO VIEW process (
   -- Extra args for this process.
   arg_set_id ARGSETID,
   -- Machine identifier
-  machine_id LONG
+  machine_id JOINID(machine.id)
 ) AS
 SELECT
   id AS upid,

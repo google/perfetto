@@ -74,7 +74,7 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
    --full-sort                        Forces full trace sorting
 
  text                                 Converts to human-readable text format
-   (no additional options)
+   --skip-unknown                     Skip unknown fields when converting to text
 
  profile                              Converts profile data to pprof format
                                       (default: auto-detect profile type)
@@ -162,6 +162,7 @@ int Main(int argc, char** argv) {
   std::vector<std::string> symbol_paths;
   bool no_auto_symbol_paths = false;
   bool verbose = false;
+  bool skip_unknown_fields = false;
   std::string output_dir;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
@@ -213,6 +214,8 @@ int Main(int argc, char** argv) {
         return Usage(argv[0]);
       }
       output_dir = argv[i];
+    } else if (strcmp(argv[i], "--skip-unknown") == 0) {
+      skip_unknown_fields = true;
     } else {
       positional_args.push_back(argv[i]);
     }
@@ -309,7 +312,9 @@ int Main(int argc, char** argv) {
   }
 
   if (format == "text") {
-    return TraceToText(input_stream, output_stream) ? 0 : 1;
+    trace_to_text::TraceToTextOptions options;
+    options.skip_unknown_fields = skip_unknown_fields;
+    return TraceToText(input_stream, output_stream, options) ? 0 : 1;
   }
 
   if (format == "profile") {

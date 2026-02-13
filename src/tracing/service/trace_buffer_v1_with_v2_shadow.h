@@ -87,6 +87,7 @@ class TraceBufferV1WithV2Shadow : public TraceBuffer {
   const WriterStats& writer_stats() const override;
   size_t size() const override;
   size_t used_size() const override;
+  size_t GetMemoryUsageBytes() const override;
   OverwritePolicy overwrite_policy() const override;
   bool has_data() const override;
   BufType buf_type() const override { return kV1WithV2Shadow; }

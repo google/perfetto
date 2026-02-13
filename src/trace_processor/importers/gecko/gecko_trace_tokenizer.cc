@@ -338,7 +338,7 @@ base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
   }
 
   context_->clock_tracker->SetTraceTimeClock(
-      protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
 
   for (const auto& t : *threads_or) {
     if (t.is_preprocessed) {
@@ -461,7 +461,8 @@ void GeckoTraceTokenizer::ProcessLegacyThread(const GeckoThread& t) {
       added_metadata = true;
     }
     std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts);
+        ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
+        ts);
     if (converted) {
       stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
                                     t.tid, callsites[*stack_val].id}});
@@ -559,7 +560,8 @@ void GeckoTraceTokenizer::ProcessPreprocessedThread(const GeckoThread& t) {
       added_metadata = true;
     }
     std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts);
+        ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
+        ts);
     if (converted) {
       stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
                                     t.tid, callsites[stack_idx].id}});

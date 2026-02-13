@@ -273,7 +273,8 @@ base::Status AndroidLogReader::SendToSorter(std::chrono::nanoseconds event_ts,
   int64_t ts =
       event_ts.count() - context_->clock_tracker->timezone_offset().value_or(0);
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-      protos::pbzero::ClockSnapshot::Clock::REALTIME, ts);
+      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::REALTIME),
+      ts);
   if (trace_ts) {
     stream_->Push(*trace_ts, event);
   }

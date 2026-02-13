@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode, QueryNodeState} from '../query_node';
+import {QueryNode, QueryNodeState, NodeType} from '../query_node';
 import {SqlModules} from '../../../plugins/dev.perfetto.SqlModules/sql_modules';
+import {Trace} from '../../../public/trace';
 
 // The context provided to the preCreate hook.
 export interface PreCreateContext {
@@ -71,17 +72,55 @@ export interface NodeDescriptor {
    * @default true for source nodes
    */
   showOnLandingPage?: boolean;
+
+  // The NodeType enum value for this node (used for serialization lookup).
+  nodeType: NodeType;
+
+  // Create a node instance from serialized JSON state.
+  deserialize: (
+    state: object,
+    trace: Trace,
+    sqlModules: SqlModules,
+  ) => QueryNode;
+
+  // Restore secondary/backward connections after all nodes are created.
+  // Primary input is restored automatically based on hasPrimaryInput.
+  deserializeConnections?: (
+    node: QueryNode,
+    state: object,
+    allNodes: Map<string, QueryNode>,
+  ) => void;
+
+  // Post-deserialization hook (phase 1). Called after all connections are
+  // restored. Used for resolving internal references (e.g. column resolution).
+  postDeserialize?: (node: QueryNode) => void;
+
+  // Post-deserialization hook (phase 2). Called after all postDeserialize hooks
+  // have run. Used for updating derived state that depends on other nodes being
+  // fully resolved (e.g. onPrevNodesUpdated).
+  postDeserializeLate?: (node: QueryNode) => void;
+
+  // Whether this node has a primary input (vertical connection from above).
+  // If true, primaryInputId from serialized state will be auto-restored.
+  // Default: true for 'modification' nodes, false for 'source'/'multisource'.
+  hasPrimaryInput?: boolean;
 }
 
 export class NodeRegistry {
   private nodes: Map<string, NodeDescriptor> = new Map();
+  private byNodeType: Map<NodeType, NodeDescriptor> = new Map();
 
   register(id: string, descriptor: NodeDescriptor) {
     this.nodes.set(id, descriptor);
+    this.byNodeType.set(descriptor.nodeType, descriptor);
   }
 
   get(id: string): NodeDescriptor | undefined {
     return this.nodes.get(id);
+  }
+
+  getByNodeType(type: NodeType): NodeDescriptor | undefined {
+    return this.byNodeType.get(type);
   }
 
   list(): [string, NodeDescriptor][] {

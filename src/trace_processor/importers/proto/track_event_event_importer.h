@@ -1141,7 +1141,8 @@ class TrackEventEventImporter {
       auto process_name_id =
           storage_->InternString(base::StringView(process_name));
       // Don't override system-provided names.
-      procs->SetProcessNameIfUnset(*upid_, process_name_id);
+      procs->UpdateProcessName(*upid_, process_name_id,
+                               ProcessNamePriority::kTrackDescriptor);
       return base::OkStatus();
     }
     // Other metadata events are proxied via the raw table for JSON export.

@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 CREATE PERFETTO TABLE _input_message_sent AS
@@ -77,66 +79,134 @@ WHERE
   name GLOB 'UnwantedInteractionBlocker::notifyMotion*';
 
 CREATE PERFETTO TABLE _event_seq_to_input_event_id AS
+WITH
+  _send_message_events AS (
+    SELECT
+      send_message_slice.name,
+      enqueue_slice.name AS enqueue_name,
+      thread_slice.utid,
+      thread_slice.thread_name,
+      str_split(str_split(send_message_slice.name, '=', 1), ',', 0) AS event_channel
+    FROM slice AS send_message_slice
+    JOIN slice AS publish_slice
+      ON send_message_slice.parent_id = publish_slice.id
+    JOIN slice AS start_dispatch_slice
+      ON publish_slice.parent_id = start_dispatch_slice.id
+    JOIN slice AS enqueue_slice
+      ON start_dispatch_slice.parent_id = enqueue_slice.id
+    JOIN thread_slice
+      ON send_message_slice.id = thread_slice.id
+    WHERE
+      send_message_slice.name GLOB 'sendMessage(*'
+      AND thread_slice.thread_name = 'InputDispatcher'
+  )
 SELECT
-  str_split(str_split(send_message_slice.name, '=', 2), ',', 0) AS event_seq,
-  str_split(str_split(send_message_slice.name, '=', 1), ',', 0) AS event_channel,
-  str_split(str_split(enqeue_slice.name, '=', 2), ')', 0) AS input_event_id,
-  thread_slice.thread_name
-FROM slice AS send_message_slice
-JOIN slice AS publish_slice
-  ON send_message_slice.parent_id = publish_slice.id
-JOIN slice AS start_dispatch_slice
-  ON publish_slice.parent_id = start_dispatch_slice.id
-JOIN slice AS enqeue_slice
-  ON start_dispatch_slice.parent_id = enqeue_slice.id
-JOIN thread_slice
-  ON send_message_slice.id = thread_slice.id
+  str_split(str_split(name, '=', 2), ',', 0) AS event_seq,
+  event_channel,
+  str_split(str_split(event_channel, ' ', 1), '/', 0) AS process_name,
+  str_split(str_split(enqueue_name, '=', 2), ')', 0) AS input_event_id,
+  utid,
+  thread_name
+FROM _send_message_events;
+
+CREATE PERFETTO TABLE _clean_android_frames AS
+SELECT
+  do_frame_id AS id,
+  ts,
+  dur,
+  cast_int!(ui_thread_utid) AS utid,
+  frame_id
+FROM android_frames;
+
+CREATE PERFETTO TABLE _clean_deliver_events AS
+SELECT
+  s.id,
+  s.ts,
+  s.dur,
+  cast_int!(t.utid) AS utid,
+  t.process_name,
+  str_split(s.name, '=', 3) AS extracted_input_event_id,
+  str_split(str_split(parent.name, '_', 1), ' ', 0) AS event_action,
+  parent.ts AS consume_time,
+  parent.ts + parent.dur AS finish_time
+FROM slice AS s
+JOIN thread_slice AS t
+  USING (id)
+JOIN slice AS parent
+  ON s.parent_id = parent.id
 WHERE
-  send_message_slice.name GLOB 'sendMessage(*'
-  AND thread_slice.thread_name = 'InputDispatcher';
+  s.name GLOB 'deliverInputEvent src=*';
+
+CREATE PERFETTO TABLE _input_event_frame_intersections AS
+SELECT
+  ii.id_0 AS frame_id_key,
+  ii.id_1 AS event_id_key,
+  0 AS is_speculative_match
+FROM _interval_intersect!(
+  (_clean_android_frames, _clean_deliver_events),
+  (utid)
+) AS ii;
+
+CREATE PERFETTO TABLE _input_events_pending_frame_match AS
+SELECT
+  *
+FROM _clean_deliver_events
+WHERE
+  NOT id IN (
+    SELECT
+      event_id_key
+    FROM _input_event_frame_intersections
+  );
+
+-- Speculative Match: Find the immediate next frame for non-vsync-aligned events
+CREATE PERFETTO TABLE _input_event_frame_speculative_matches AS
+WITH
+  _ordered_future_frames AS (
+    SELECT
+      e.id AS event_id_key,
+      f.id AS frame_id_key,
+      row_number() OVER (PARTITION BY e.id ORDER BY f.ts ASC) AS rn
+    FROM _input_events_pending_frame_match AS e
+    JOIN _clean_android_frames AS f
+      ON e.utid = f.utid AND f.ts >= e.ts
+  )
+SELECT
+  frame_id_key,
+  event_id_key,
+  1 AS is_speculative_match
+FROM _ordered_future_frames
+WHERE
+  rn = 1;
+
+CREATE PERFETTO TABLE _input_event_frame_association AS
+SELECT
+  *
+FROM _input_event_frame_intersections
+UNION ALL
+SELECT
+  *
+FROM _input_event_frame_speculative_matches;
 
 CREATE PERFETTO TABLE _input_event_id_to_android_frame AS
 SELECT
-  str_split(deliver_input_slice.name, '=', 3) AS input_event_id,
-  str_split(str_split(dispatch_input_slice.name, '_', 1), ' ', 0) AS event_action,
-  dispatch_input_slice.ts AS consume_time,
-  dispatch_input_slice.ts + dispatch_input_slice.dur AS finish_time,
-  thread_slice.utid,
-  thread_slice.process_name AS process_name,
-  (
-    SELECT
-      android_frames.frame_id
-    FROM android_frames
-    WHERE
-      android_frames.ts > dispatch_input_slice.ts
-    LIMIT 1
-  ) AS frame_id,
-  (
-    SELECT
-      android_frames.ts
-    FROM android_frames
-    WHERE
-      android_frames.ts > dispatch_input_slice.ts
-    LIMIT 1
-  ) AS ts,
-  (
-    SELECT
-      _input_message_received.event_channel
-    FROM _input_message_received
-    WHERE
-      _input_message_received.ts < deliver_input_slice.ts
-      AND _input_message_received.track_id = deliver_input_slice.track_id
-    ORDER BY
-      _input_message_received.ts DESC
-    LIMIT 1
-  ) AS event_channel
-FROM slice AS deliver_input_slice
-JOIN slice AS dispatch_input_slice
-  ON deliver_input_slice.parent_id = dispatch_input_slice.id
-JOIN thread_slice
-  ON deliver_input_slice.id = thread_slice.id
-WHERE
-  deliver_input_slice.name GLOB 'deliverInputEvent src=*';
+  dev.extracted_input_event_id AS input_event_id,
+  dev.event_action,
+  dev.consume_time,
+  dev.finish_time,
+  dev.utid,
+  dev.process_name,
+  af.frame_id,
+  af.ts AS frame_ts,
+  map.event_channel,
+  CAST(assoc.is_speculative_match AS BOOL) AS is_speculative_match
+FROM _input_event_frame_association AS assoc
+JOIN _clean_android_frames AS af
+  ON assoc.frame_id_key = af.id
+JOIN _clean_deliver_events AS dev
+  ON assoc.event_id_key = dev.id
+JOIN _event_seq_to_input_event_id AS map
+  ON dev.extracted_input_event_id = map.input_event_id
+  AND map.process_name = dev.process_name;
 
 CREATE PERFETTO TABLE _app_frame_to_surface_flinger_frame AS
 SELECT
@@ -162,7 +232,7 @@ SELECT
       surface_flinger_ts + surface_flinger_dur
     FROM _app_frame_to_surface_flinger_frame AS sf_frames
     WHERE
-      sf_frames.app_ts >= _input_event_id_to_android_frame.ts
+      sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
     LIMIT 1
   ) AS present_time,
   (
@@ -170,11 +240,12 @@ SELECT
       app_surface_frame_token
     FROM _app_frame_to_surface_flinger_frame AS sf_frames
     WHERE
-      sf_frames.app_ts >= _input_event_id_to_android_frame.ts
+      sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
     LIMIT 1
   ) AS frame_id,
   event_seq,
-  event_action
+  event_action,
+  _input_event_id_to_android_frame.is_speculative_match
 FROM _input_event_id_to_android_frame
 RIGHT JOIN _event_seq_to_input_event_id
   ON _input_event_id_to_android_frame.input_event_id = _event_seq_to_input_event_id.input_event_id
@@ -235,7 +306,9 @@ CREATE PERFETTO TABLE android_input_events (
   -- Duration of input event receipt.
   receive_dur DURATION,
   -- Vsync Id associated with the input. Null if an input event has no associated frame event.
-  frame_id LONG
+  frame_id LONG,
+  -- Indicates if the frame association was speculative rather than exact based on id match.
+  is_speculative_frame BOOL
 ) AS
 WITH
   dispatch AS (
@@ -303,7 +376,8 @@ SELECT
   receive.ts AS receive_ts,
   receive.dur AS receive_dur,
   receive.track_id AS receive_track_id,
-  frame.frame_id
+  frame.frame_id,
+  frame.is_speculative_match AS is_speculative_frame
 FROM dispatch
 JOIN receive
   ON receive.dispatch_event_channel = dispatch.event_channel
@@ -422,7 +496,7 @@ SELECT
   track_id,
   ts,
   dur,
-  CAST(str_split(name, ' ', 1) AS INTEGER) AS frame_id
+  cast_int!(str_split(name, ' ', 1)) AS frame_id
 FROM slice
 WHERE
   name GLOB 'Choreographer#doFrame*';
@@ -467,7 +541,8 @@ RETURNS TABLE (
   -- Choreographer Frame Stage
   id_frame LONG,
   track_frame LONG,
-  dur_frame LONG
+  dur_frame LONG,
+  is_speculative_frame BOOL
 ) AS
 SELECT
   e.input_event_id AS input_id,
@@ -492,7 +567,8 @@ SELECT
   s_cons.dur AS dur_consume,
   s_frame.id AS id_frame,
   s_frame.track_id AS track_frame,
-  s_frame.dur AS dur_frame
+  s_frame.dur AS dur_frame,
+  e.is_speculative_frame
 FROM android_input_events AS e
 LEFT JOIN slice AS s_read
   ON s_read.ts = e.read_time AND s_read.track_id != 0

@@ -33,9 +33,6 @@ test('sched_tracks', async () => {
 
 test('ftrace_events', async () => {
   // Tests CPU number and machine labels of ftrace tracks.
-  await page
-    .locator('.pf-middle-ellipsis-left')
-    .getByText('Ftrace Events')
-    .click();
+  await page.locator('.pf-track__title').getByText('Ftrace Events').click();
   await pth.waitForIdleAndScreenshot('ftrace_events.png');
 });

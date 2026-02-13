@@ -40,7 +40,6 @@ source_set("engine") {
     "../../../base",
     "../../containers",
     "../../core/dataframe",
-    "../../perfetto_sql/intrinsics/functions:interface",
     "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",
     "../../types",
