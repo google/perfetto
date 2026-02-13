@@ -30,7 +30,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly dependencies = [RelatedEventsPlugin];
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    trace.engine.query('INCLUDE PERFETTO MODULE android.input');
+    await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
     const overlay = new GenericRelatedEventsOverlay(trace);
     trace.tracks.registerOverlay(overlay);
