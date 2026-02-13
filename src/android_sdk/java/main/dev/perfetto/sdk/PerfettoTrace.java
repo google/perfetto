@@ -327,10 +327,16 @@ public final class PerfettoTrace {
         StackTraceElement element = stackTrace[i];
 
         builder = builder.beginNested(FIELD_CALLSTACK_FRAMES)
-            .addField(FIELD_FRAME_FUNCTION_NAME, element.getClassName() + "." + element.getMethodName())
-            .addField(FIELD_FRAME_SOURCE_FILE, element.getFileName() != null ? element.getFileName() : "Unknown")
-            .addField(FIELD_FRAME_LINE_NUMBER, (long) Math.max(0, element.getLineNumber()))
-            .endNested();
+            .addField(FIELD_FRAME_FUNCTION_NAME, element.getClassName() + "." + element.getMethodName());
+
+        if (element.getFileName() != null) {
+            builder = builder.addField(FIELD_FRAME_SOURCE_FILE, element.getFileName());
+        }
+        if (element.getLineNumber() >= 0) {
+            builder = builder.addField(FIELD_FRAME_LINE_NUMBER, element.getLineNumber());
+        }
+
+        builder = builder.endNested();
     }
 
     builder.endNested() // End FIELD_TRACK_EVENT_CALLSTACK
