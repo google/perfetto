@@ -32,31 +32,81 @@ import {macroSchema} from '../../core/command_manager';
 //
 // =============================================================================
 
+// Auth schemas for each server type. These are discriminated unions so that
+// secret fields (like PAT) only exist in variants that need them.
+// Fields containing secrets should use .meta({secret: true}) so that any
+// future settings export feature can identify and strip them.
+const githubAuthSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('none')}),
+  z.object({
+    type: z.literal('github_pat'),
+    pat: z.string().meta({secret: true}).default(''),
+  }),
+]);
+
+const httpsAuthSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('none')}),
+]);
+
 // Extension server configuration (persisted via Settings).
-// Both installation-provided and user-added servers use this schema.
-export const extensionServerSchema = z.object({
-  url: z.string(),
-  enabledModules: z.array(z.string()),
-  enabled: z.boolean(),
-});
+// Discriminated union: GitHub servers store repo+ref, HTTPS servers store a URL.
+// Auth is constrained per server type via nested discriminated unions.
+export const extensionServerSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('github'),
+    repo: z.string(), // "owner/repo"
+    ref: z.string(), // branch or tag, e.g. "main"
+    path: z.string().default('/'), // subdirectory within the repo
+    enabledModules: z.array(z.string()),
+    enabled: z.boolean(),
+    auth: githubAuthSchema.default({type: 'none'}),
+  }),
+  z.object({
+    type: z.literal('https'),
+    url: z.string(),
+    enabledModules: z.array(z.string()),
+    enabled: z.boolean(),
+    auth: httpsAuthSchema.default({type: 'none'}),
+  }),
+]);
 
 // Array of extension servers.
 // This is the schema used for the Settings registration.
 export const extensionServersSchema = z.array(extensionServerSchema);
 
+// The minimal set of fields needed to fetch from an extension server.
+// ExtensionServer is structurally compatible with this (has extra fields like
+// enabledModules/enabled which are ignored).
+export type UserInput =
+  | {
+      type: 'github';
+      repo: string;
+      ref: string;
+      path: string;
+      auth: {type: 'none'} | {type: 'github_pat'; pat: string};
+    }
+  | {type: 'https'; url: string; auth: {type: 'none'}};
+
 // Manifest format from {base_url}/manifest
 // Provides server metadata, features, and available modules.
 //
-// The `modules` array specifies a set of modules. For each enabled module,
-// the client fetches:
-//   - {base_url}/modules/{module}/macros       → using MacrosSchema
-//   - {base_url}/modules/{module}/sql_modules  → using SqlModulesSchema
-//   - {base_url}/modules/{module}/proto_descriptors → using ProtoDescriptorsSchema
+// For each enabled module, the client fetches:
+//   - {base_url}/modules/{name}/macros             → using MacrosSchema
+//   - {base_url}/modules/{name}/sql_modules        → using SqlModulesSchema
+//   - {base_url}/modules/{name}/proto_descriptors  → using ProtoDescriptorsSchema
+export const manifestFeatureSchema = z.object({
+  name: z.string(),
+});
+
+export const manifestModuleSchema = z.object({
+  name: z.string(),
+});
+
 export const manifestSchema = z.object({
   name: z.string(),
   namespace: z.string(),
-  features: z.array(z.string()),
-  modules: z.array(z.string()),
+  features: z.array(manifestFeatureSchema),
+  modules: z.array(manifestModuleSchema),
 });
 
 // Macros format from {base_url}/modules/{module}/macros
@@ -91,5 +141,7 @@ export const protoDescriptorsSchema = z.object({
 
 export type ExtensionServer = z.infer<typeof extensionServerSchema>;
 export type Manifest = z.infer<typeof manifestSchema>;
+export type ManifestFeature = z.infer<typeof manifestFeatureSchema>;
+export type ManifestModule = z.infer<typeof manifestModuleSchema>;
 export type SqlModule = z.infer<typeof sqlModuleSchema>;
 export type ProtoDescriptor = z.infer<typeof protoDescriptorSchema>;

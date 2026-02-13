@@ -71,6 +71,7 @@
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/pprof/pprof_trace_reader.h"
+#include "src/trace_processor/importers/primes/primes_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
@@ -558,6 +559,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           kSimpleperfProtoTraceType);
   context()->reader_registry->RegisterTraceReader<TarTraceReader>(
       kTarTraceType);
+  context()->reader_registry->RegisterTraceReader<primes::PrimesTraceTokenizer>(
+      kPrimesTraceType);
 
   // Force initialization of heap graph tracker.
   //

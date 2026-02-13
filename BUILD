@@ -233,6 +233,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protovm_cpp",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_cpp",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_cpp",
@@ -309,6 +311,7 @@ perfetto_cc_binary(
         ":protos_perfetto_config_process_stats_cpp",
         ":protos_perfetto_config_profiling_cpp",
         ":protos_perfetto_config_protovm_cpp",
+        ":protos_perfetto_config_qnx_cpp",
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
@@ -389,6 +392,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_pprof_pprof",
+        ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -491,6 +495,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_process_stats_zero",
                ":protos_perfetto_config_profiling_zero",
                ":protos_perfetto_config_protovm_zero",
+               ":protos_perfetto_config_qnx_zero",
                ":protos_perfetto_config_statsd_zero",
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_system_info_zero",
@@ -526,6 +531,8 @@ perfetto_cc_library(
                ":protos_perfetto_trace_translation_zero",
                ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
+               ":protos_third_party_primes_cpp",
+               ":protos_third_party_primes_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
                ":src_base_base",
@@ -598,6 +605,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_pprof_pprof",
+        ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -707,6 +715,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_process_stats_zero",
                ":protos_perfetto_config_profiling_zero",
                ":protos_perfetto_config_protovm_zero",
+               ":protos_perfetto_config_qnx_zero",
                ":protos_perfetto_config_statsd_zero",
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_system_info_zero",
@@ -742,6 +751,8 @@ perfetto_cc_library(
                ":protos_perfetto_trace_translation_zero",
                ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
+               ":protos_third_party_primes_cpp",
+               ":protos_third_party_primes_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
                ":src_base_base",
@@ -808,6 +819,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_process_stats_zero",
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
@@ -882,6 +894,8 @@ perfetto_cc_binary(
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protovm_cpp",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_cpp",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_cpp",
@@ -1018,6 +1032,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protovm_cpp",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_cpp",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_cpp",
@@ -1116,6 +1132,8 @@ perfetto_filegroup(
         "include/perfetto/ext/base/getopt.h",
         "include/perfetto/ext/base/getopt_compat.h",
         "include/perfetto/ext/base/hash.h",
+        "include/perfetto/ext/base/intrusive_list.h",
+        "include/perfetto/ext/base/intrusive_tree.h",
         "include/perfetto/ext/base/lock_free_task_runner.h",
         "include/perfetto/ext/base/metatrace.h",
         "include/perfetto/ext/base/metatrace_events.h",
@@ -1597,9 +1615,7 @@ perfetto_cc_library(
         "src/base/file_utils.cc",
         "src/base/getopt_compat.cc",
         "src/base/intrusive_list.cc",
-        "src/base/intrusive_list.h",
         "src/base/intrusive_tree.cc",
-        "src/base/intrusive_tree.h",
         "src/base/lock_free_task_runner.cc",
         "src/base/log_ring_buffer.h",
         "src/base/logging.cc",
@@ -2570,6 +2586,17 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/pprof/pprof_trace_reader.cc",
         "src/trace_processor/importers/pprof/pprof_trace_reader.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/primes:primes
+perfetto_filegroup(
+    name = "src_trace_processor_importers_primes_primes",
+    srcs = [
+        "src/trace_processor/importers/primes/primes_trace_parser.cc",
+        "src/trace_processor/importers/primes/primes_trace_parser.h",
+        "src/trace_processor/importers/primes/primes_trace_tokenizer.cc",
+        "src/trace_processor/importers/primes/primes_trace_tokenizer.h",
     ],
 )
 
@@ -3874,6 +3901,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/cpu_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/gpu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/l3.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/mt6897_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_1d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_1.sql",
@@ -5326,6 +5354,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_profiling_protos",
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_protovm_protos",
+        ":protos_perfetto_config_qnx_protos",
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
@@ -5407,6 +5436,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_profiling_protos",
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_protovm_protos",
+        ":protos_perfetto_config_qnx_protos",
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
@@ -5894,6 +5924,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_process_stats_zero_h",
         ":protos_perfetto_config_profiling_zero_h",
         ":protos_perfetto_config_protovm_zero_h",
+        ":protos_perfetto_config_qnx_zero_h",
         ":protos_perfetto_config_statsd_zero_h",
         ":protos_perfetto_config_sys_stats_zero_h",
         ":protos_perfetto_config_system_info_zero_h",
@@ -5936,6 +5967,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_process_stats_zero",
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
@@ -6120,6 +6152,7 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_config_profiling_cpp",
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_protovm_cpp",
+        ":protos_perfetto_config_qnx_cpp",
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
@@ -6408,6 +6441,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_process_stats_protos",
         ":protos_perfetto_config_profiling_protos",
         ":protos_perfetto_config_protovm_protos",
+        ":protos_perfetto_config_qnx_protos",
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
@@ -6440,6 +6474,41 @@ perfetto_cc_protozero_library(
     name = "protos_perfetto_config_protovm_zero",
     deps = [
         ":protos_perfetto_config_protovm_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/config/qnx:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_perfetto_config_qnx_cpp",
+    deps = [
+        ":protos_perfetto_common_cpp",
+        ":protos_perfetto_config_qnx_protos",
+        ":protos_perfetto_protovm_cpp",
+    ],
+)
+
+# GN target: //protos/perfetto/config/qnx:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_config_qnx_protos",
+    srcs = [
+        "protos/perfetto/config/qnx/qnx_config.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_common_protos",
+        ":protos_perfetto_protovm_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/config/qnx:zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_config_qnx_zero",
+    deps = [
+        ":protos_perfetto_common_zero",
+        ":protos_perfetto_config_qnx_protos",
+        ":protos_perfetto_protovm_zero",
     ],
 )
 
@@ -6577,6 +6646,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
@@ -6602,6 +6672,7 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_config_process_stats_cpp",
         ":protos_perfetto_config_profiling_cpp",
         ":protos_perfetto_config_protovm_cpp",
+        ":protos_perfetto_config_qnx_cpp",
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
@@ -6628,6 +6699,7 @@ perfetto_cc_ipc_library(
         ":protos_perfetto_config_process_stats_cpp",
         ":protos_perfetto_config_profiling_cpp",
         ":protos_perfetto_config_protovm_cpp",
+        ":protos_perfetto_config_qnx_cpp",
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
@@ -6663,6 +6735,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_profiling_protos",
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_protovm_protos",
+        ":protos_perfetto_config_qnx_protos",
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
@@ -7463,6 +7536,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_profiling_protos",
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_protovm_protos",
+        ":protos_perfetto_config_qnx_protos",
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
@@ -7487,6 +7561,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_config_process_stats_zero",
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
@@ -7529,6 +7604,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_profiling_protos",
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_protovm_protos",
+        ":protos_perfetto_config_qnx_protos",
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
@@ -7576,6 +7652,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_config_process_stats_zero",
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
@@ -7755,6 +7832,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_profiling_protos",
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_protovm_protos",
+        ":protos_perfetto_config_qnx_protos",
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
@@ -8058,6 +8136,35 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/third_party/primes:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_third_party_primes_cpp",
+    deps = [
+        ":protos_third_party_primes_protos",
+    ],
+)
+
+# GN target: //protos/third_party/primes:source_set
+perfetto_proto_library(
+    name = "protos_third_party_primes_protos",
+    srcs = [
+        "protos/third_party/primes/primes_tracing.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+)
+
+# GN target: //protos/third_party/primes:zero
+perfetto_cc_protozero_library(
+    name = "protos_third_party_primes_zero",
+    deps = [
+        ":protos_third_party_primes_protos",
+    ],
+)
+
 # GN target: //protos/third_party/simpleperf:source_set
 perfetto_proto_library(
     name = "protos_third_party_simpleperf_protos",
@@ -8189,6 +8296,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protovm_cpp",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_cpp",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_cpp",
@@ -8294,6 +8403,8 @@ perfetto_cc_binary(
         ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_protovm_cpp",
         ":protos_perfetto_config_protovm_zero",
+        ":protos_perfetto_config_qnx_cpp",
+        ":protos_perfetto_config_qnx_zero",
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_cpp",
@@ -8383,6 +8494,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_pprof_pprof",
+        ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -8485,6 +8597,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_process_stats_zero",
                ":protos_perfetto_config_profiling_zero",
                ":protos_perfetto_config_protovm_zero",
+               ":protos_perfetto_config_qnx_zero",
                ":protos_perfetto_config_statsd_zero",
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_system_info_zero",
@@ -8520,6 +8633,8 @@ perfetto_cc_library(
                ":protos_perfetto_trace_translation_zero",
                ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
+               ":protos_third_party_primes_cpp",
+               ":protos_third_party_primes_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
                ":src_base_base",
@@ -8621,6 +8736,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_perf_text_perf_text_event",
         ":src_trace_processor_importers_perf_text_perf_text_sample_line_parser",
         ":src_trace_processor_importers_pprof_pprof",
+        ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -8716,6 +8832,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_process_stats_zero",
                ":protos_perfetto_config_profiling_zero",
                ":protos_perfetto_config_protovm_zero",
+               ":protos_perfetto_config_qnx_zero",
                ":protos_perfetto_config_statsd_zero",
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_system_info_zero",
@@ -8751,6 +8868,8 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_translation_zero",
                ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
+               ":protos_third_party_primes_cpp",
+               ":protos_third_party_primes_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
                ":src_base_base",
