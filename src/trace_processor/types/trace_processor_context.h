@@ -30,11 +30,9 @@
 
 namespace perfetto::trace_processor {
 
-class ClockSynchronizerListenerImpl;
 class ArgsTranslationTable;
 class ClockConverter;
-template <typename T>
-class ClockSynchronizer;
+class ClockTracker;
 class CpuTracker;
 class DescriptorPool;
 class EventTracker;
@@ -62,11 +60,11 @@ class TraceStorage;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
+struct TraceTimeState;
 struct TrackCompressorGroupIdxState;
 
 using MachineId = tables::MachineTable::Id;
 using TraceId = tables::TraceFileTable::Id;
-using ClockTracker = ClockSynchronizer<ClockSynchronizerListenerImpl>;
 
 class TraceProcessorContext {
  public:
@@ -144,6 +142,7 @@ class TraceProcessorContext {
   GlobalPtr<DescriptorPool> descriptor_pool_;
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
+  GlobalPtr<TraceTimeState> trace_time_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker

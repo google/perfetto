@@ -17336,6 +17336,9 @@ filegroup {
 // GN: //src/trace_processor/util:clock
 filegroup {
     name: "perfetto_src_trace_processor_util_clock",
+    srcs: [
+        "src/trace_processor/util/clock_synchronizer.cc",
+    ],
 }
 
 // GN: //src/trace_processor/util/deobfuscation:deobfuscator

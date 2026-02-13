@@ -52,6 +52,8 @@
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
+
 namespace perfetto::trace_processor {
 namespace {
 
@@ -85,10 +87,8 @@ void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
   context->symbol_tracker = Ptr<SymbolTracker>::MakeRoot(context);
   context->machine_tracker = Ptr<MachineTracker>::MakeRoot(context, machine_id);
   context->process_tracker = Ptr<ProcessTracker>::MakeRoot(context);
-  std::unique_ptr<ClockSynchronizerListenerImpl> clock_tracker_listener =
-      std::make_unique<ClockSynchronizerListenerImpl>(context);
-  context->clock_tracker =
-      Ptr<ClockTracker>::MakeRoot(std::move(clock_tracker_listener));
+  context->clock_tracker = Ptr<ClockTracker>::MakeRoot(
+      context, std::make_unique<ClockSynchronizerListenerImpl>(context));
   context->mapping_tracker = Ptr<MappingTracker>::MakeRoot(context);
   context->cpu_tracker = Ptr<CpuTracker>::MakeRoot(context);
 }
@@ -157,6 +157,9 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->forked_context_state =
       Ptr<TraceProcessorContext::ForkedContextState>::MakeRoot();
   context->clock_converter = Ptr<ClockConverter>::MakeRoot(context);
+  context->trace_time_state = Ptr<TraceTimeState>::MakeRoot(TraceTimeState{
+      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+      /*used_for_conversion=*/false});
   context->track_group_idx_state =
       Ptr<TrackCompressorGroupIdxState>::MakeRoot();
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
@@ -183,6 +186,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->descriptor_pool_ = source->descriptor_pool_.Fork();
   dest->forked_context_state = source->forked_context_state.Fork();
   dest->clock_converter = source->clock_converter.Fork();
+  dest->trace_time_state = source->trace_time_state.Fork();
   dest->track_group_idx_state = source->track_group_idx_state.Fork();
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;
