@@ -63,7 +63,12 @@ class ProtoTraceReaderTest : public ::testing::Test {
         std::make_unique<GlobalArgsTracker>(host_context_.storage.get());
     host_context_.import_logs_tracker =
         std::make_unique<ImportLogsTracker>(&host_context_, TraceId(1));
+    host_context_.trace_time_state =
+        std::make_unique<TraceTimeState>(TraceTimeState{
+            ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+            false});
     host_context_.clock_tracker = std::make_unique<ClockTracker>(
+        &host_context_,
         std::make_unique<ClockSynchronizerListenerImpl>(&host_context_));
     host_context_.sorter = std::make_unique<TraceSorter>(
         &host_context_, TraceSorter::SortingMode::kDefault);
