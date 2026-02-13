@@ -631,7 +631,8 @@ message AndroidProcessStateChangedEvent {
   // Reason for the process state change.
   optional OomChangeReasonEnum reason = 9;
 
-  // Sequence id to identify all changes in one event.
+  // Sequence id to identify all process state changes in
+  // one oom_adjuster event.
   optional int64 seq_id = 10;
 }
 
