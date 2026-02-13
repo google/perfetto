@@ -727,8 +727,12 @@ def gen_cc_tp_tables(target: GnParser.Target):
 def _populate_android_library_or_binary_deps(target: GnParser.Target,
                                              label: BazelLabel):
   for dep in sorted(target.non_proto_or_source_set_deps()):
-    if dep.name in external_java_android_sdk_deps:
-      list_of_deps = external_java_android_sdk_deps[dep.name]
+    dep_name = dep.name
+    if dep_name == '//src/android_sdk/java/main:gen_perfetto_categories':
+      label.srcs += [':' + get_bazel_label_name(dep_name)]
+      continue
+    if dep_name in external_java_android_sdk_deps:
+      list_of_deps = external_java_android_sdk_deps[dep_name]
       assert (isinstance(list_of_deps, list))
       label.external_deps += list_of_deps
     else:
@@ -737,7 +741,7 @@ def _populate_android_library_or_binary_deps(target: GnParser.Target,
         assert (isinstance(list_of_deps, list))
         label.deps += list_of_deps
 
-      label.deps += [':' + get_bazel_label_name(dep.name)]
+      label.deps += [':' + get_bazel_label_name(dep_name)]
 
 
 def gen_perfetto_android_library(target: GnParser.Target):
@@ -909,7 +913,8 @@ def gen_target_helper(gn_target: GnParser.Target,
 
       # tp_tables produces a filegroup not a cc_library so should end up srcs
       # not deps.
-      if dep.custom_action_type == 'tp_tables':
+      # gen_perfetto_categories produces a .java file that should be in srcs.
+      if dep.custom_action_type == 'tp_tables' or dep_name == '//src/android_sdk/java/main:gen_perfetto_categories':
         label_name = ':' + get_bazel_label_name(dep_name)
         win_target_names = [
             target.name for target in win_target.non_proto_or_source_set_deps()
