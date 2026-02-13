@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "src/proto_text_utils/pb_to_txt.h"
+#include "src/proto_utils/pb_to_txt.h"
 
 #include <string>
 
-#include "src/proto_text_utils/config.descriptor.h"
-#include "src/proto_text_utils/trace_summary.descriptor.h"
+#include "src/proto_utils/config.descriptor.h"
+#include "src/proto_utils/trace_summary.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 

@@ -22,8 +22,8 @@
 #include <string>
 
 #include "perfetto/ext/base/string_utils.h"
-#include "src/proto_text_utils/pb_to_txt.h"
-#include "src/proto_text_utils/txt_to_pb.h"
+#include "src/proto_utils/pb_to_txt.h"
+#include "src/proto_utils/txt_to_pb.h"
 
 namespace {
 // The buffer used to exchange input and output arguments. We assume 16MB
@@ -34,14 +34,14 @@ char wasm_buf[16 * 1024 * 1024];
 extern "C" {
 
 // Returns the pointer to the buffer.
-void* EMSCRIPTEN_KEEPALIVE proto_text_utils_buf();
-void* proto_text_utils_buf() {
+void* EMSCRIPTEN_KEEPALIVE proto_utils_buf();
+void* proto_utils_buf() {
   return &wasm_buf;
 }
 
 // Returns the size of the buffer.
-uint32_t EMSCRIPTEN_KEEPALIVE proto_text_utils_buf_size();
-uint32_t proto_text_utils_buf_size() {
+uint32_t EMSCRIPTEN_KEEPALIVE proto_utils_buf_size();
+uint32_t proto_utils_buf_size() {
   return static_cast<uint32_t>(sizeof(wasm_buf));
 }
 

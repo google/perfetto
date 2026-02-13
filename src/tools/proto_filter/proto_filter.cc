@@ -30,7 +30,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
 #include "protos/perfetto/config/trace_config.gen.h"
-#include "src/proto_text_utils/txt_to_pb.h"
+#include "src/proto_utils/txt_to_pb.h"
 #include "src/protozero/filtering/filter_util.h"
 #include "src/protozero/filtering/message_filter.h"
 #include "src/protozero/filtering/string_filter.h"

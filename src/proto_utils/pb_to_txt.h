@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROTO_TEXT_UTILS_TXT_TO_PB_H_
-#define SRC_PROTO_TEXT_UTILS_TXT_TO_PB_H_
+#ifndef SRC_PROTO_UTILS_PB_TO_TXT_H_
+#define SRC_PROTO_UTILS_PB_TO_TXT_H_
 
-#include "perfetto/ext/base/status_or.h"
-
-#include <stdint.h>
-
+#include <stddef.h>
 #include <string>
-#include <vector>
 
 namespace perfetto {
 
-base::StatusOr<std::vector<uint8_t>> TraceConfigTxtToPb(
-    const std::string& input,
-    const std::string& file_name = "-");
+std::string TraceConfigPbToTxt(const void* data, size_t size);
+std::string TraceSummarySpecPbToTxt(const void* data, size_t size);
+std::string TraceMetricV2SpecPbToTxt(const void* data, size_t size);
 
 }  // namespace perfetto
-
-#endif  // SRC_PROTO_TEXT_UTILS_TXT_TO_PB_H_
+#endif  // SRC_PROTO_UTILS_PB_TO_TXT_H_

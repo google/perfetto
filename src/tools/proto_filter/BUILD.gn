@@ -22,7 +22,7 @@ perfetto_host_executable("proto_filter") {
     "../../../protos/perfetto/config:cpp",
     "../../base",
     "../../base:version",
-    "../../proto_text_utils:txt_to_pb",
+    "../../proto_utils:txt_to_pb",
     "../../protozero",
     "../../protozero/filtering:bytecode_generator",
     "../../protozero/filtering:filter_util",

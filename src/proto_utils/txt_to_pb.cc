@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/proto_text_utils/txt_to_pb.h"
+#include "src/proto_utils/txt_to_pb.h"
 
 #include <cstdint>
 #include <string>
@@ -22,7 +22,7 @@
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
-#include "src/proto_text_utils/config.descriptor.h"
+#include "src/proto_utils/config.descriptor.h"
 
 namespace perfetto {
 namespace {

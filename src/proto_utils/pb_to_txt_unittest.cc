@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/proto_text_utils/pb_to_txt.h"
+#include "src/proto_utils/pb_to_txt.h"
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/config/trace_config.gen.h"

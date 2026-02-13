@@ -67,7 +67,7 @@ perfetto_cc_proto_descriptor("gen_cc_trace_summary_descriptor") {
   descriptor_target = "../../protos/perfetto/trace_summary:descriptor"
 }
 
-executable("proto_text_utils") {
+executable("proto_utils") {
   testonly = true
   deps = [
     ":main",
@@ -76,8 +76,8 @@ executable("proto_text_utils") {
 }
 
 if (enable_perfetto_ui) {
-  wasm_lib("proto_text_utils_wasm") {
-    name = "proto_text_utils"
+  wasm_lib("proto_utils_wasm") {
+    name = "proto_utils"
     sources = [ "wasm.cc" ]
     deps = [
       ":pb_to_txt",

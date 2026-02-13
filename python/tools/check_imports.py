@@ -91,11 +91,11 @@ DEPS_ALLOWLIST = [
         ['/core/*', '/frontend/*', '/common/actions'],
     ),
 
-    # The record plugin needs access to the wasm .d.ts for proto_text_utils.
-    ('/plugins/dev.perfetto.RecordTraceV2/*', '/gen/proto_text_utils'),
+    # The record plugin needs access to the wasm .d.ts for proto_utils.
+    ('/plugins/dev.perfetto.RecordTraceV2/*', '/gen/proto_utils'),
 
     # Misc legitimate deps.
-    ('/base/proto_text_utils_wasm', '/gen/proto_text_utils'),
+    ('/base/proto_utils_wasm', '/gen/proto_utils'),
     ('/frontend/index', ['/gen/*']),
     ('/traceconv/index', '/gen/traceconv'),
     ('/engine/wasm_bridge', '/gen/trace_processor_memory*'),

@@ -285,7 +285,7 @@ perfetto_cc_binary(
         ":include_perfetto_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
-        ":src_proto_text_utils_txt_to_pb",
+        ":src_proto_utils_txt_to_pb",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_generator",
         ":src_protozero_filtering_bytecode_parser",
@@ -321,7 +321,7 @@ perfetto_cc_binary(
         ":protozero",
         ":src_base_base",
         ":src_base_version",
-        ":src_proto_text_utils_gen_cc_config_descriptor",
+        ":src_proto_utils_gen_cc_config_descriptor",
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
@@ -1811,23 +1811,23 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/proto_text_utils:gen_cc_config_descriptor
+# GN target: //src/proto_utils:gen_cc_config_descriptor
 perfetto_cc_proto_descriptor(
-    name = "src_proto_text_utils_gen_cc_config_descriptor",
+    name = "src_proto_utils_gen_cc_config_descriptor",
     deps = [
         ":protos_perfetto_config_descriptor",
     ],
     outs = [
-        "src/proto_text_utils/config.descriptor.h",
+        "src/proto_utils/config.descriptor.h",
     ],
 )
 
-# GN target: //src/proto_text_utils:txt_to_pb
+# GN target: //src/proto_utils:txt_to_pb
 perfetto_filegroup(
-    name = "src_proto_text_utils_txt_to_pb",
+    name = "src_proto_utils_txt_to_pb",
     srcs = [
-        "src/proto_text_utils/txt_to_pb.cc",
-        "src/proto_text_utils/txt_to_pb.h",
+        "src/proto_utils/txt_to_pb.cc",
+        "src/proto_utils/txt_to_pb.h",
     ],
 )
 
@@ -8363,7 +8363,7 @@ perfetto_cc_binary(
         ":src_perfetto_cmd_bugreport_path",
         ":src_perfetto_cmd_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",
-        ":src_proto_text_utils_txt_to_pb",
+        ":src_proto_utils_txt_to_pb",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_tracing_common",
         ":src_tracing_core_core",
@@ -8444,7 +8444,7 @@ perfetto_cc_binary(
         ":src_base_base",
         ":src_base_version",
         ":src_perfetto_cmd_protos_cpp",
-        ":src_proto_text_utils_gen_cc_config_descriptor",
+        ":src_proto_utils_gen_cc_config_descriptor",
     ],
 )
 
