@@ -46,7 +46,7 @@
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/etw/file_io_tracker.h"
-#include "src/trace_processor/importers/proto/forged_packet_writer.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -165,7 +165,7 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
       Ptr<TrackCompressorGroupIdxState>::MakeRoot();
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
   context->deobfuscation_tracker = nullptr;
-  context->forged_packet_writer = Ptr<ForgedTracePacketWriter>::MakeRoot();
+  context->blob_packet_writer = Ptr<BlobPacketWriter>::MakeRoot();
   context->register_additional_proto_modules = nullptr;
 
   // Per-Trace State (Miscategorized).
@@ -198,7 +198,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->uuid_state = source->uuid_state.Fork();
   dest->heap_graph_tracker = source->heap_graph_tracker.Fork();
   dest->deobfuscation_tracker = source->deobfuscation_tracker.Fork();
-  dest->forged_packet_writer = source->forged_packet_writer.Fork();
+  dest->blob_packet_writer = source->blob_packet_writer.Fork();
   dest->stack_profile_tracker = source->stack_profile_tracker.Fork();
 }
 

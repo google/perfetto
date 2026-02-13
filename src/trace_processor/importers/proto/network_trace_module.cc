@@ -32,7 +32,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/tracks.h"
-#include "src/trace_processor/importers/proto/forged_packet_writer.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -121,7 +121,7 @@ ModuleResult NetworkTraceModule::TokenizePacket(
   if (evt.has_total_length()) {
     // Forward the bundle with (possibly de-interned) context.
     TraceBlobView tbv =
-        context_->forged_packet_writer->WritePacket([&](auto* pkt) {
+        context_->blob_packet_writer->WritePacket([&](auto* pkt) {
           pkt->set_timestamp(static_cast<uint64_t>(ts));
           auto* event = pkt->set_network_packet_bundle();
           event->set_ctx()->AppendRawProtoBytes(context.data, context.size);
@@ -143,7 +143,7 @@ ModuleResult NetworkTraceModule::TokenizePacket(
     for (; timestamp_iter && length_iter; ++timestamp_iter, ++length_iter) {
       int64_t real_ts = ts + static_cast<int64_t>(*timestamp_iter);
       TraceBlobView tbv =
-          context_->forged_packet_writer->WritePacket([&](auto* pkt) {
+          context_->blob_packet_writer->WritePacket([&](auto* pkt) {
             pkt->set_timestamp(static_cast<uint64_t>(real_ts));
             auto* event = pkt->set_network_packet();
             event->AppendRawProtoBytes(context.data, context.size);

@@ -38,7 +38,7 @@ class DescriptorPool;
 class EventTracker;
 class FileIoTracker;
 class FlowTracker;
-class ForgedTracePacketWriter;
+class BlobPacketWriter;
 class GlobalArgsTracker;
 class GlobalMetadataTracker;
 class ImportLogsTracker;
@@ -147,7 +147,7 @@ class TraceProcessorContext {
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
-  GlobalPtr<ForgedTracePacketWriter> forged_packet_writer;
+  GlobalPtr<BlobPacketWriter> blob_packet_writer;
 
   // The registration function for additional proto modules.
   // This is populated by TraceProcessorImpl to allow for late registration of

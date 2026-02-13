@@ -32,7 +32,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/tracks.h"
-#include "src/trace_processor/importers/proto/forged_packet_writer.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -94,7 +94,7 @@ ModuleResult AppWakelockModule::TokenizePacket(
     }
 
     TraceBlobView tbv =
-        context_->forged_packet_writer->WritePacket([&](auto* pkt) {
+        context_->blob_packet_writer->WritePacket([&](auto* pkt) {
           pkt->set_timestamp(static_cast<uint64_t>(real_ts));
           auto* event = pkt->set_app_wakelock_bundle();
           auto length =

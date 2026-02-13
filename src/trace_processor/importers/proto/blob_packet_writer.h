@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FORGED_PACKET_WRITER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FORGED_PACKET_WRITER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_BLOB_PACKET_WRITER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_BLOB_PACKET_WRITER_H_
 
 #include <cstddef>
 #include <cstdint>
-#include <vector>
+#include <forward_list>
+#include <list>
 
 #include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/root_message.h"
@@ -49,16 +50,15 @@ namespace perfetto::trace_processor {
 //     pkt->set_timestamp(42);
 //     pkt->set_power_rails()->...;
 //   });
-class ForgedTracePacketWriter
-    : private protozero::ScatteredStreamWriter::Delegate {
+class BlobPacketWriter : private protozero::ScatteredStreamWriter::Delegate {
  public:
-  ForgedTracePacketWriter();
-  ~ForgedTracePacketWriter() override;
+  BlobPacketWriter();
+  ~BlobPacketWriter() override;
 
-  ForgedTracePacketWriter(const ForgedTracePacketWriter&) = delete;
-  ForgedTracePacketWriter& operator=(const ForgedTracePacketWriter&) = delete;
-  ForgedTracePacketWriter(ForgedTracePacketWriter&&) = delete;
-  ForgedTracePacketWriter& operator=(ForgedTracePacketWriter&&) = delete;
+  BlobPacketWriter(const BlobPacketWriter&) = delete;
+  BlobPacketWriter& operator=(const BlobPacketWriter&) = delete;
+  BlobPacketWriter(BlobPacketWriter&&) = delete;
+  BlobPacketWriter& operator=(BlobPacketWriter&&) = delete;
 
   // Writes a complete TracePacket. |fn| receives a TracePacket* to populate.
   // Returns the serialized bytes as a TraceBlobView.
@@ -96,15 +96,15 @@ class ForgedTracePacketWriter
   uint8_t* packet_start_ptr_ = nullptr;
 
   // Overflow slabs allocated when a packet spans the current slab boundary.
-  // Empty in the common case. The last element is always the current write
+  // Empty in the common case. The front element is always the current write
   // slab when non-empty; slab_ is the slab where the packet started.
-  std::vector<RefPtr<TraceBlob>> overflow_slabs_;
+  std::forward_list<RefPtr<TraceBlob>> overflow_slabs_;
 
   // Slices of the current packet. Used to stitch packets that span slab
   // boundaries.
-  std::vector<protozero::ContiguousMemoryRange> slices_;
+  std::list<protozero::ContiguousMemoryRange> slices_;
 };
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FORGED_PACKET_WRITER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_BLOB_PACKET_WRITER_H_

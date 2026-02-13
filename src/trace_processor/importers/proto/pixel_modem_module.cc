@@ -24,7 +24,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/proto/forged_packet_writer.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/pixel_modem_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -92,7 +92,7 @@ ModuleResult PixelModemModule::TokenizePacket(
     }
 
     TraceBlobView tbv =
-        context_->forged_packet_writer->WritePacket([&](auto* data_packet) {
+        context_->blob_packet_writer->WritePacket([&](auto* data_packet) {
           // Keep the original timestamp to later extract as an arg; the sorter
           // does not read this.
           data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));

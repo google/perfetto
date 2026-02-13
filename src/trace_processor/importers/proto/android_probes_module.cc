@@ -33,7 +33,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
-#include "src/trace_processor/importers/proto/forged_packet_writer.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -139,7 +139,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
       }
 
       TraceBlobView tbv =
-          context_->forged_packet_writer->WritePacket([&](auto* data_packet) {
+          context_->blob_packet_writer->WritePacket([&](auto* data_packet) {
             // Keep the original timestamp to later extract as an arg; the
             // sorter does not read this.
             data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
@@ -176,7 +176,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
       int64_t actual_ts = *trace_ts;
 
       TraceBlobView tbv =
-          context_->forged_packet_writer->WritePacket([&](auto* data_packet) {
+          context_->blob_packet_writer->WritePacket([&](auto* data_packet) {
             data_packet->set_timestamp(static_cast<uint64_t>(actual_ts));
 
             auto* log_pkt = data_packet->set_android_log();

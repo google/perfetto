@@ -22,6 +22,8 @@ source_set("minimal") {
     "app_wakelock_module.h",
     "args_parser.cc",
     "args_parser.h",
+    "blob_packet_writer.cc",
+    "blob_packet_writer.h",
     "chrome_string_lookup.cc",
     "chrome_string_lookup.h",
     "chrome_system_probes_module.cc",
@@ -30,8 +32,6 @@ source_set("minimal") {
     "chrome_system_probes_parser.h",
     "default_modules.cc",
     "default_modules.h",
-    "forged_packet_writer.cc",
-    "forged_packet_writer.h",
     "memory_tracker_snapshot_module.cc",
     "memory_tracker_snapshot_module.h",
     "memory_tracker_snapshot_parser.cc",
@@ -300,8 +300,8 @@ source_set("unittests") {
   testonly = true
   sources = [
     "active_chrome_processes_tracker_unittest.cc",
+    "blob_packet_writer_unittest.cc",
     "chrome_string_lookup_unittest.cc",
-    "forged_packet_writer_unittest.cc",
     "heap_graph_tracker_unittest.cc",
     "jit_tracker_unittest.cc",
     "network_trace_module_unittest.cc",

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/forged_packet_writer.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 
 #include <cstdint>
 
@@ -25,8 +25,8 @@
 namespace perfetto::trace_processor {
 namespace {
 
-TEST(ForgedPacketWriterTest, SinglePacketRoundTrip) {
-  ForgedTracePacketWriter writer;
+TEST(BlobPacketWriterTest, SinglePacketRoundTrip) {
+  BlobPacketWriter writer;
 
   TraceBlobView tbv =
       writer.WritePacket([](auto* pkt) { pkt->set_timestamp(42); });
@@ -37,8 +37,8 @@ TEST(ForgedPacketWriterTest, SinglePacketRoundTrip) {
   EXPECT_EQ(decoded.timestamp(), 42u);
 }
 
-TEST(ForgedPacketWriterTest, MultiplePacketsShareBlob) {
-  ForgedTracePacketWriter writer;
+TEST(BlobPacketWriterTest, MultiplePacketsShareBlob) {
+  BlobPacketWriter writer;
 
   // Write two packets and verify they share the same underlying blob.
   TraceBlobView tbv1 =
@@ -59,8 +59,8 @@ TEST(ForgedPacketWriterTest, MultiplePacketsShareBlob) {
   EXPECT_EQ(tbv2.data(), tbv1.data() + tbv1.length());
 }
 
-TEST(ForgedPacketWriterTest, NestedMessage) {
-  ForgedTracePacketWriter writer;
+TEST(BlobPacketWriterTest, NestedMessage) {
+  BlobPacketWriter writer;
 
   TraceBlobView tbv = writer.WritePacket([](auto* pkt) {
     pkt->set_timestamp(99);
@@ -74,8 +74,8 @@ TEST(ForgedPacketWriterTest, NestedMessage) {
   EXPECT_EQ(decoded.trusted_uid(), 42);
 }
 
-TEST(ForgedPacketWriterTest, BeginEndApi) {
-  ForgedTracePacketWriter writer;
+TEST(BlobPacketWriterTest, BeginEndApi) {
+  BlobPacketWriter writer;
 
   auto* pkt = writer.BeginPacket();
   pkt->set_timestamp(77);

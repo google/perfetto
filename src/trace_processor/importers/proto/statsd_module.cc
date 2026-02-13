@@ -40,7 +40,7 @@
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/atoms.descriptor.h"
-#include "src/trace_processor/importers/proto/forged_packet_writer.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -147,7 +147,7 @@ ModuleResult StatsdModule::TokenizePacket(
     }
 
     TraceBlobView tbv =
-        context_->forged_packet_writer->WritePacket([&](auto* forged) {
+        context_->blob_packet_writer->WritePacket([&](auto* forged) {
           forged->set_timestamp(static_cast<uint64_t>(atom_timestamp));
 
           auto* statsd = forged->set_statsd_atom();
