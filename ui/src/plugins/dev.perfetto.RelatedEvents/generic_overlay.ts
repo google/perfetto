@@ -19,21 +19,27 @@ import {Overlay, TrackBounds} from '../../public/track';
 import {drawRelatedEvents} from './arrow_visualiser';
 import {RelatedEventData} from './interface';
 
+// A ready-to-use overlay for rendering related event arrows on the timeline.
+// Update the overlay with RelatedEventData using the `update` method.
 export class GenericRelatedEventsOverlay implements Overlay {
   private data: RelatedEventData = {events: [], relations: []};
 
   constructor(public trace: Trace) {}
 
+  // Call this method to provide the event and relationship data to be visualized.
   update(data: RelatedEventData) {
     this.data = data;
   }
 
+  // Called by the rendering engine to draw the overlay.
   render(
     ctx: CanvasRenderingContext2D,
     ts: TimeScale,
     _size: Size2D,
     tracks: ReadonlyArray<TrackBounds>,
   ): void {
+    // Uses the drawRelatedEvents utility to render arrows based on
+    // the `overlayEvents` and `overlayRelations` from the provided data.
     const overlayData: RelatedEventData = {
       events: this.data.overlayEvents || [],
       relations: this.data.overlayRelations || [],
