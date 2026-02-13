@@ -18,6 +18,7 @@ import {Button} from '../../widgets/button';
 import {showModal} from '../../widgets/modal';
 import {TextInput} from '../../widgets/text_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {Select} from '../../widgets/select';
 import {Form, FormLabel, FormSection} from '../../widgets/form';
 import {MultiSelect, MultiSelectDiff} from '../../widgets/multiselect';
 import {ExtensionServer, UserInput} from './types';
@@ -74,6 +75,7 @@ class AddExtensionServerModal {
 
   canSave(): boolean {
     return (
+      !this.isEmptyInput() &&
       this.loadedState?.type === 'ok' &&
       this.loadedState.enabledModules.size > 0
     );
@@ -195,15 +197,22 @@ class AddExtensionServerModal {
           ),
         ),
       ]),
-      m(SegmentedButtons, {
-        options: [{label: 'None'}, {label: 'PAT'}],
-        selectedOption: input.auth.type === 'github_pat' ? 1 : 0,
-        onOptionSelected: (idx: number) => {
-          input.auth =
-            idx === 1 ? {type: 'github_pat', pat: ''} : {type: 'none'};
-          this.debouncedFetch();
+      m(
+        Select,
+        {
+          value: input.auth.type,
+          onchange: (e: Event) => {
+            const value = (e.target as HTMLSelectElement).value;
+            input.auth =
+              value === 'github_pat'
+                ? {type: 'github_pat', pat: ''}
+                : {type: 'none'};
+            this.debouncedFetch();
+          },
         },
-      }),
+        m('option', {value: 'none'}, 'None'),
+        m('option', {value: 'github_pat'}, 'Personal Access Token'),
+      ),
       input.auth.type === 'github_pat' &&
         m(TextInput, {
           placeholder: 'github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
@@ -233,33 +242,55 @@ class AddExtensionServerModal {
   }
 
   private renderHttpsAuth(input: HttpsUserInput): m.Children {
-    const authIdx =
-      input.auth.type === 'https_basic'
-        ? 1
-        : input.auth.type === 'https_apikey'
-          ? 2
-          : 0;
     return [
-      m(FormLabel, 'Authentication'),
-      m(SegmentedButtons, {
-        options: [{label: 'None'}, {label: 'Basic'}, {label: 'API Key'}],
-        selectedOption: authIdx,
-        onOptionSelected: (idx: number) => {
-          if (idx === 1) {
-            input.auth = {type: 'https_basic', username: '', password: ''};
-          } else if (idx === 2) {
-            input.auth = {
-              type: 'https_apikey',
-              keyType: 'bearer',
-              key: '',
-              customHeaderName: '',
-            };
-          } else {
-            input.auth = {type: 'none'};
-          }
-          this.debouncedFetch();
+      m(FormLabel, [
+        'Authentication ',
+        m(
+          Popup,
+          {
+            trigger: m(Icon, {icon: 'help_outline'}),
+            closeOnOutsideClick: true,
+          },
+          m(
+            'span',
+            m('strong', 'None'),
+            ': no authentication headers are sent.',
+            m('br'),
+            m('strong', 'Basic'),
+            ': sends a Base64-encoded username:password via the ',
+            m('code', 'Authorization'),
+            ' header.',
+            m('br'),
+            m('strong', 'API Key'),
+            ': sends a token via a configurable HTTP header.',
+          ),
+        ),
+      ]),
+      m(
+        Select,
+        {
+          value: input.auth.type,
+          onchange: (e: Event) => {
+            const value = (e.target as HTMLSelectElement).value;
+            if (value === 'https_basic') {
+              input.auth = {type: 'https_basic', username: '', password: ''};
+            } else if (value === 'https_apikey') {
+              input.auth = {
+                type: 'https_apikey',
+                keyType: 'bearer',
+                key: '',
+                customHeaderName: '',
+              };
+            } else {
+              input.auth = {type: 'none'};
+            }
+            this.debouncedFetch();
+          },
         },
-      }),
+        m('option', {value: 'none'}, 'None'),
+        m('option', {value: 'https_basic'}, 'Basic'),
+        m('option', {value: 'https_apikey'}, 'API Key'),
+      ),
       input.auth.type === 'https_basic' && this.renderBasicAuthFields(input),
       input.auth.type === 'https_apikey' && this.renderApiKeyFields(input),
     ];
@@ -292,19 +323,53 @@ class AddExtensionServerModal {
   private renderApiKeyFields(input: HttpsUserInput): m.Children {
     if (input.auth.type !== 'https_apikey') return null;
     const auth = input.auth;
-    const keyTypeIdx =
-      auth.keyType === 'x_api_key' ? 1 : auth.keyType === 'custom' ? 2 : 0;
     return [
-      m(SegmentedButtons, {
-        options: [{label: 'Bearer'}, {label: 'X-API-Key'}, {label: 'Custom'}],
-        selectedOption: keyTypeIdx,
-        onOptionSelected: (idx: number) => {
-          const keyType =
-            idx === 1 ? 'x_api_key' : idx === 2 ? 'custom' : 'bearer';
-          input.auth = {...auth, keyType, customHeaderName: ''} as typeof auth;
-          this.debouncedFetch();
+      m(FormLabel, [
+        'Header Format ',
+        m(
+          Popup,
+          {
+            trigger: m(Icon, {icon: 'help_outline'}),
+            closeOnOutsideClick: true,
+          },
+          m(
+            'span',
+            m('strong', 'Bearer'),
+            ': sends ',
+            m('code', 'Authorization: Bearer <key>'),
+            '.',
+            m('br'),
+            m('strong', 'X-API-Key'),
+            ': sends ',
+            m('code', 'X-API-Key: <key>'),
+            '.',
+            m('br'),
+            m('strong', 'Custom'),
+            ': sends the key via a custom header name you specify.',
+          ),
+        ),
+      ]),
+      m(
+        Select,
+        {
+          value: auth.keyType,
+          onchange: (e: Event) => {
+            const keyType = (e.target as HTMLSelectElement).value as
+              | 'bearer'
+              | 'x_api_key'
+              | 'custom';
+            input.auth = {
+              ...auth,
+              keyType,
+              customHeaderName: '',
+            } as typeof auth;
+            this.debouncedFetch();
+          },
         },
-      }),
+        m('option', {value: 'bearer'}, 'Bearer'),
+        m('option', {value: 'x_api_key'}, 'X-API-Key'),
+        m('option', {value: 'custom'}, 'Custom'),
+      ),
       auth.keyType === 'custom' &&
         m(TextInput, {
           placeholder: 'Header name',
@@ -328,7 +393,8 @@ class AddExtensionServerModal {
 
   private renderModuleSection(): m.Children {
     const showRefresh =
-      this.loadedState?.type === 'ok' || this.loadedState?.type === 'error';
+      !this.isEmptyInput() &&
+      (this.loadedState?.type === 'ok' || this.loadedState?.type === 'error');
     return m(
       FormSection,
       {label: 'Modules'},
