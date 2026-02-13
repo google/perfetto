@@ -163,22 +163,6 @@ export default class MemoryViz implements PerfettoPlugin {
     trackName: string,
     bucket: string,
   ): Promise<TrackNode> {
-    const uri = `${MemoryViz.id}.${trackName}.${bucket}.${uuidv4()}`;
-    const sqlSource = this.getSqlSource(window, [
-      `bucket = '${bucket}'`,
-      `track_name = '${trackName}'`,
-    ]);
-    const bucketNode = await this.createTrack(
-      ctx,
-      uri,
-      sqlSource,
-      bucket,
-      `Sum of ${trackName} memory across all processes while in the '${
-        bucket
-      }' OOM bucket (0 otherwise).`,
-      true,
-    );
-
     const processes = await ctx.engine.query(`
       SELECT upid, pid, process_name, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.zygote_adjusted_value, 0)) as max_value FROM interval_self_intersect!((
         SELECT
@@ -195,6 +179,27 @@ export default class MemoryViz implements PerfettoPlugin {
       HAVING max_value > 0
       ORDER BY max_value DESC
       `);
+
+    const numProcesses = processes.numRows();
+    const plural = numProcesses === 1 ? '' : 'es';
+    const name = `${bucket} (${numProcesses} process${plural})`;
+
+    const uri = `${MemoryViz.id}.${trackName}.${bucket}.${uuidv4()}`;
+    const sqlSource = this.getSqlSource(window, [
+      `bucket = '${bucket}'`,
+      `track_name = '${trackName}'`,
+    ]);
+    const bucketNode = await this.createTrack(
+      ctx,
+      uri,
+      sqlSource,
+      name,
+      `Sum of ${trackName} memory across all processes while in the '${
+        bucket
+      }' OOM bucket (0 otherwise).`,
+      true,
+    );
+
     for (
       const procIter = processes.iter({});
       procIter.valid();
