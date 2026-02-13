@@ -40,7 +40,7 @@ const githubAuthSchema = z.discriminatedUnion('type', [
   z.object({type: z.literal('none')}),
   z.object({
     type: z.literal('github_pat'),
-    pat: z.string().meta({secret: true}),
+    pat: z.string().meta({secret: true}).default(''),
   }),
 ]);
 
@@ -90,16 +90,23 @@ export type UserInput =
 // Manifest format from {base_url}/manifest
 // Provides server metadata, features, and available modules.
 //
-// The `modules` array specifies a set of modules. For each enabled module,
-// the client fetches:
-//   - {base_url}/modules/{module}/macros       → using MacrosSchema
-//   - {base_url}/modules/{module}/sql_modules  → using SqlModulesSchema
-//   - {base_url}/modules/{module}/proto_descriptors → using ProtoDescriptorsSchema
+// For each enabled module, the client fetches:
+//   - {base_url}/modules/{name}/macros             → using MacrosSchema
+//   - {base_url}/modules/{name}/sql_modules        → using SqlModulesSchema
+//   - {base_url}/modules/{name}/proto_descriptors  → using ProtoDescriptorsSchema
+export const manifestFeatureSchema = z.object({
+  name: z.string(),
+});
+
+export const manifestModuleSchema = z.object({
+  name: z.string(),
+});
+
 export const manifestSchema = z.object({
   name: z.string(),
   namespace: z.string(),
-  features: z.array(z.string()),
-  modules: z.array(z.string()),
+  features: z.array(manifestFeatureSchema),
+  modules: z.array(manifestModuleSchema),
 });
 
 // Macros format from {base_url}/modules/{module}/macros
@@ -134,5 +141,7 @@ export const protoDescriptorsSchema = z.object({
 
 export type ExtensionServer = z.infer<typeof extensionServerSchema>;
 export type Manifest = z.infer<typeof manifestSchema>;
+export type ManifestFeature = z.infer<typeof manifestFeatureSchema>;
+export type ManifestModule = z.infer<typeof manifestModuleSchema>;
 export type SqlModule = z.infer<typeof sqlModuleSchema>;
 export type ProtoDescriptor = z.infer<typeof protoDescriptorSchema>;
