@@ -306,6 +306,9 @@ public final class PerfettoTrace {
    * or low-frequency diagnostic events. Do not use in production hot paths.
    */
   public static void emitExpensiveDebugCallStack(Category category, String eventName) {
+    if (!category.isEnabled()) {
+        return;
+    }
     final long FIELD_TRACK_EVENT_CALLSTACK = 55L;
     final long FIELD_CALLSTACK_FRAMES = 1L;
     final long FIELD_FRAME_FUNCTION_NAME = 1L;
