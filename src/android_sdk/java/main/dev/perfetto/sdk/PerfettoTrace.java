@@ -304,7 +304,7 @@ public final class PerfettoTrace {
    * A stack can be captured with Thread.getStackTrace() but note that it is expensive
    * and should only be used for local debugging or low-frequency diagnostic events.
    */
-  public static void emitDebugCallStack(Category category, String eventName,
+  public static void emitExpensiveDebugCallStack(Category category, String eventName,
     StackTraceElement[] stackTrace) {
     if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
       return;
