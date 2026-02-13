@@ -1,4 +1,4 @@
-# Copyright (C) 2021 The Android Open Source Project
+# Copyright (C) 2026 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,25 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("lib") {
-  deps = [
-    "../../gn:default_deps",
-    "../base",
-    "../base:unix_socket",
-    "../base/http",
-    "../tools/http_additional_cors_origins",
-    "../tracing/ipc:default_socket",
-  ]
-  sources = [
-    "websocket_bridge.cc",
-    "websocket_bridge.h",
-  ]
+declare_args() {
+  # Comma-separated list of additional CORS origins to allow in trace_processor
+  # and websocket_bridge.
+  perfetto_http_additional_cors_origins = ""
 }
 
-executable("websocket_bridge") {
+source_set("http_additional_cors_origins") {
   deps = [
-    ":lib",
-    "../../gn:default_deps",
+    "../../../gn:default_deps",
+    "../../base",
   ]
-  sources = [ "websocket_bridge_main.cc" ]
+
+  defines = [ "PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS=\"${perfetto_http_additional_cors_origins}\"" ]
+
+  sources = [
+    "http_additional_cors_origins.cc",
+    "http_additional_cors_origins.h",
+  ]
 }

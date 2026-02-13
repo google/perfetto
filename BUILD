@@ -566,6 +566,7 @@ perfetto_cc_library(
         ":src_kernel_utils_syscall_table",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
+        ":src_tools_http_additional_cors_origins_http_additional_cors_origins",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_interpreter_interpreter",
@@ -1984,6 +1985,15 @@ perfetto_filegroup(
         "src/shared_lib/stream_writer.h",
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
+    ],
+)
+
+# GN target: //src/tools/http_additional_cors_origins:http_additional_cors_origins
+perfetto_filegroup(
+    name = "src_tools_http_additional_cors_origins_http_additional_cors_origins",
+    srcs = [
+        "src/tools/http_additional_cors_origins/http_additional_cors_origins.cc",
+        "src/tools/http_additional_cors_origins/http_additional_cors_origins.h",
     ],
 )
 
