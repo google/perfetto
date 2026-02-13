@@ -21,6 +21,9 @@ export const durationSchema = z.custom<duration>(
   (val) => typeof val === 'bigint',
 );
 export const timeSchema = z.custom<time>((val) => typeof val === 'bigint');
+
+// Represents a navigation target, typically an event on a track
+// used for jumping to a specific time range and track.
 export interface NavTarget {
   id: number;
   trackUri: string;
@@ -37,34 +40,43 @@ export const NavTargetSchema = z.object({
   depth: z.number(),
 }) satisfies z.ZodType<NavTarget>;
 
+// Represents a single event in a relationship chain.
 export interface RelatedEvent {
   id: number; // Unique ID for this event within the dataset
   ts: time;
   dur: duration;
-  trackUri: string;
+  trackUri: string; // URI of the track this event belongs to.
   type: string; // Type of event
   depth?: number; // Optional depth within the track
   customArgs?: Record<string, unknown>; // Support for additional custom arguments
 }
 
+// Defines a directed relationship between two RelatedEvents.
 export interface Relation {
   sourceId: number; // ID of the source RelatedEvent
   targetId: number; // ID of the target RelatedEvent
   type: string; // e.g., 'parent_child', 'flow', 'dependency', etc.
-  customArgs?: Record<string, unknown>; // Args specific to this relation
+  customArgs?: Record<string, unknown>; // Args specific to this relation (e.g., color)
 }
 
+// Container for events and their relationships.
+// This is the primary data structure used by the visualization components.
 export interface RelatedEventData {
-  events: RelatedEvent[];
-  relations: Relation[];
+  events: RelatedEvent[]; // All events involved in the relationships.
+  relations: Relation[]; // The relationships between the events.
+  // Optional events and relations specifically for the overlay arrows.
   overlayEvents?: RelatedEvent[];
   overlayRelations?: Relation[];
 }
 
+// Interface to be implemented by data providers.
+// This allows different parts of the UI to supply RelatedEventData
+// based on a selected event ID.
 export interface EventSource {
   getRelatedEventData(eventId: number): Promise<RelatedEventData>;
 }
 
+// Defines a column for displaying RelatedEvent properties in a table (e.g., in a tab).
 export interface ColumnDefinition {
   key: string;
   title: m.Children;
@@ -73,8 +85,9 @@ export interface ColumnDefinition {
   render: (event: RelatedEvent, trace: Trace) => m.Children;
 }
 
+// Configuration for a tab that displays details about related events.
 export interface RelatedEventsTabConfig {
   tabTitle: string;
-  columns: ColumnDefinition[];
-  getChainName?: (chain: RelatedEvent[]) => string;
+  columns: ColumnDefinition[]; // Columns to display in the tab table.
+  getChainName?: (chain: RelatedEvent[]) => string; // Function to name a chain of events.
 }

@@ -165,7 +165,6 @@ export class AndroidInputLifecycleTab implements Tab {
       this.pinningManager.applyPinning(this.trace);
     } finally {
       this.isLoading = false;
-      m.redraw();
     }
   }
 
