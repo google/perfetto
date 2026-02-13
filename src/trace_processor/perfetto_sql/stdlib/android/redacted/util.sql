@@ -13,30 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Returns all slices that match the provided glob pattern
-CREATE PERFETTO FUNCTION android_find_slices(
-    -- GLOB pattern to find slices
-    pattern STRING
-)
-RETURNS TABLE (
-  -- slice name
-  name STRING,
-  -- slice timestamp
-  ts LONG,
-  -- slice duration in nanoseconds
-  dur LONG
-) AS
-SELECT
-  name,
-  ts,
-  dur
-FROM slice
-WHERE
-  name GLOB $pattern;
-
 -- Returns an artificially generated slice for each pair of (matched(startSlicePattern), matched(endSlicePattern))
 -- Caveat: If multiple slices match endSlicePattern it will only return one per start slice and it will be closest slice in the timeline.
-CREATE PERFETTO FUNCTION android_generate_start_to_end_slices(
+CREATE PERFETTO FUNCTION _android_generate_start_to_end_slices(
     -- GLOB pattern to find the start slices
     start_pattern STRING,
     -- GLOB pattern to find the matching end slice for each slice matched by startSlicePattern

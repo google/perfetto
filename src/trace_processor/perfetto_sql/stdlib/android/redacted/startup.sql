@@ -39,14 +39,14 @@ WITH
       'app_startup_ttff' AS name,
       dur,
       'TTFF' AS startup_checkpoint
-    FROM android_generate_start_to_end_slices('bindApplication', 'Choreographer#doFrame [0-9]*', TRUE)
+    FROM _android_generate_start_to_end_slices('bindApplication', 'Choreographer#doFrame [0-9]*', TRUE)
     UNION ALL
     SELECT
       ts,
       'app_startup_tti' AS name,
       dur,
       'TTI' AS startup_checkpoint
-    FROM android_generate_start_to_end_slices('bindApplication', 'reportFullyDrawn*', TRUE)
+    FROM _android_generate_start_to_end_slices('bindApplication', 'reportFullyDrawn*', TRUE)
   )
 SELECT
   *
