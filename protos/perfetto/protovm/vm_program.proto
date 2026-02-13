@@ -30,6 +30,7 @@ message VmInstruction {
     VmOpMerge merge = 3;
     VmOpSet set = 4;
     VmOpDel del = 5;
+    VmOpInsert insert = 8;
   }
 
   enum AbortLevel {
@@ -56,12 +57,14 @@ message VmOpSelect {
   optional bool create_if_not_exist = 3;
 
   // A path component is either: (1) a field id to descend into (common case);
-  // (2) an array index (for repeated fields); (3) a map lookup operation (for
-  // repeated fields, where we snoop a sub-field as a map key)
+  // (2) an hardcoded array index (for repeated fields); (3) an array index in a
+  // register (for repeated fields) (4) a map lookup operation (for repeated
+  // fields, where we snoop a sub-field as a map key)
   message PathComponent {
     oneof field {
       uint32 field_id = 1;
       uint32 array_index = 2;
+      uint32 array_index_register = 4;
 
       // The ID of the field in the repeated submessage that we
       // use as a key (e.g. LayerState.layer_id). When setting this
@@ -117,8 +120,15 @@ message VmOpMerge {}
 // pre-existing field.
 message VmOpSet {}
 
-// Delete the field or message pointed by DST.
+// Deletes the field or message pointed by DST.
+// If DST points to an array element (repeated field), subsequent elements are
+// shifted left by one position.
 message VmOpDel {}
+
+// Inserts SRC into DST. If DST points to an array element, the pointed element
+// (and the subsequent ones) are shited right by one position. In other cases,
+// the operation is semantically equivalent to VmOpSet.
+message VmOpInsert {}
 
 enum VmCursorEnum {
   VM_CURSOR_UNSPECIFIED = 0;
