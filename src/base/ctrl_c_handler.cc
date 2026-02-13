@@ -51,7 +51,7 @@ void InstallCtrlCHandler(CtrlCHandlerFunction handler) {
   g_handler = handler;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  ::SetConsoleCtrlHandler(Trampoline, TRUE);
+  ::SetConsoleCtrlHandler(Trampoline, true);
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
