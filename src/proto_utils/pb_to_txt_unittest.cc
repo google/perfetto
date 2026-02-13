@@ -21,15 +21,12 @@
 #include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
 #include "protos/perfetto/trace_summary/file.gen.h"
 #include "protos/perfetto/trace_summary/file.pbzero.h"
-#include "protos/perfetto/trace_summary/v2_metric.gen.h"
-#include "protos/perfetto/trace_summary/v2_metric.pbzero.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {
 
 using protos::gen::TraceConfig;
-using protos::gen::TraceMetricV2Spec;
 using protos::gen::TraceSummarySpec;
 
 TEST(PbToTxtTest, EmptyTraceConfig) {
@@ -68,11 +65,6 @@ TEST(PbToTxtTest, EmptyTraceSummarySpec) {
   EXPECT_EQ(txt, "");
 }
 
-TEST(PbToTxtTest, EmptyTraceMetricV2Spec) {
-  std::string txt = TraceMetricV2SpecPbToTxt(nullptr, 0);
-  EXPECT_EQ(txt, "");
-}
-
 TEST(PbToTxtTest, TraceSummarySpecWithQuery) {
   // Build the proto using pbzero and HeapBuffered (like other tests do)
   protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
@@ -87,30 +79,6 @@ TEST(PbToTxtTest, TraceSummarySpecWithQuery) {
   id: "test_query"
   sql {
     sql: "SELECT * FROM slice"
-  }
-})");
-}
-
-TEST(PbToTxtTest, TraceMetricV2SpecWithQuery) {
-  // Build the proto using pbzero and HeapBuffered (like other tests do)
-  protozero::HeapBuffered<protos::pbzero::TraceMetricV2Spec> metric;
-  metric->set_id("test_metric");
-  metric->add_dimensions("process_name");
-  metric->set_value("count");
-  auto* mq = metric->set_query();
-  mq->set_id("inner_query");
-  auto* sql = mq->set_sql();
-  sql->set_sql("SELECT count(*) as count FROM slice GROUP BY name");
-
-  std::vector<uint8_t> data = metric.SerializeAsArray();
-  std::string txt = TraceMetricV2SpecPbToTxt(data.data(), data.size());
-  EXPECT_EQ(txt, R"(id: "test_metric"
-dimensions: "process_name"
-value: "count"
-query {
-  id: "inner_query"
-  sql {
-    sql: "SELECT count(*) as count FROM slice GROUP BY name"
   }
 })");
 }

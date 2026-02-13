@@ -84,11 +84,6 @@ uint32_t trace_summary_spec_to_text(uint32_t size) {
   return pb_to_txt(perfetto::TraceSummarySpecPbToTxt, size);
 }
 
-uint32_t EMSCRIPTEN_KEEPALIVE trace_metric_v2_spec_to_text(uint32_t size);
-uint32_t trace_metric_v2_spec_to_text(uint32_t size) {
-  return pb_to_txt(perfetto::TraceMetricV2SpecPbToTxt, size);
-}
-
 }  // extern "C"
 
 // This is unused but is needed to keep emscripten happy.

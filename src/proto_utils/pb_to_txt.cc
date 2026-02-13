@@ -50,11 +50,4 @@ std::string TraceSummarySpecPbToTxt(const void* data, size_t size) {
                  ".perfetto.protos.TraceSummarySpec", data, size);
 }
 
-std::string TraceMetricV2SpecPbToTxt(const void* data, size_t size) {
-  // TraceMetricV2Spec is in v2_metric.proto which is imported by file.proto.
-  // The trace_summary descriptor includes both files, so we can reuse it here.
-  return PbToTxt(kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
-                 ".perfetto.protos.TraceMetricV2Spec", data, size);
-}
-
 }  // namespace perfetto

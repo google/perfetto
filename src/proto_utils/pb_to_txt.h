@@ -24,7 +24,6 @@ namespace perfetto {
 
 std::string TraceConfigPbToTxt(const void* data, size_t size);
 std::string TraceSummarySpecPbToTxt(const void* data, size_t size);
-std::string TraceMetricV2SpecPbToTxt(const void* data, size_t size);
 
 }  // namespace perfetto
 #endif  // SRC_PROTO_UTILS_PB_TO_TXT_H_
