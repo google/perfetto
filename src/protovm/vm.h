@@ -101,15 +101,55 @@ namespace protovm {
 //                  fields.
 class Vm {
  public:
-  Vm(protozero::ConstBytes instructions, size_t memory_limit_bytes);
+  Vm(protozero::ConstBytes program,
+     size_t memory_limit_bytes,
+     protozero::ConstBytes initial_incremental_state = {nullptr, 0});
   StatusOr<void> ApplyPatch(protozero::ConstBytes packet);
   std::string SerializeIncrementalState() const;
+  std::string SerializeProgram() const;
+  std::unique_ptr<Vm> CloneReadOnly() const;
+  uint64_t GetMemoryUsageBytes() const;
 
  private:
-  Executor executor_;
-  Parser parser_;
-  Allocator allocator_;
-  RwProto incremental_state_;
+  struct ReadWriteState {
+    ReadWriteState(std::string& program,
+                   size_t memory_limit_bytes,
+                   protozero::ConstBytes initial_incremental_state)
+        : executor{},
+          parser{protozero::ConstBytes{
+                     reinterpret_cast<const uint8_t*>(program.data()),
+                     program.size()},
+                 &executor},
+          allocator{memory_limit_bytes},
+          incremental_state{&allocator} {
+      if (initial_incremental_state.data) {
+        incremental_state.GetRoot().SetBytes(initial_incremental_state);
+      }
+    }
+
+    Executor executor;
+    Parser parser;
+    Allocator allocator;
+    RwProto incremental_state;
+  };
+
+  struct ReadOnlyState {
+    explicit ReadOnlyState(std::string incremental_state)
+        : serialized_incremental_state(std::move(incremental_state)) {}
+
+    std::string serialized_incremental_state;
+  };
+
+  // Constructor used to produce read-only copies of the ProtoVm.
+  // Private to avoid unintended copies. It should be used only for
+  // CloneReadOnly().
+  Vm(const Vm&);
+
+  // Constructor used only for cloning
+  explicit Vm(std::string incremental_state);
+
+  std::string owned_program_;
+  std::variant<ReadWriteState, ReadOnlyState> state_;
 };
 
 }  // namespace protovm

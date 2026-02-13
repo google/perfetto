@@ -74,43 +74,19 @@
 // Add/Edit Extension Server modal
 .pf-add-extension-server-modal {
   width: 350px;
-  height: 450px;
-  display: flex;
-  flex-direction: column;
+  min-height: 450px;
 
-  .pf-section {
-    margin-bottom: 12px;
+  // Last form section (Modules) fills remaining space
+  .pf-form__section:last-child {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
 
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      background: var(--pf-minimal-background);
-      border-bottom: 1px solid var(--pf-color-border-secondary);
-      font-size: var(--pf-font-size-s);
-      font-weight: 600;
-    }
-
-    article {
-      padding: 12px;
-    }
-
-    // Last section (Modules) fills remaining space
-    &:last-child {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-
-      article {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        overflow-y: auto;
-        min-height: 0;
-      }
-    }
+  &__refresh {
+    display: flex;
+    justify-content: flex-end;
   }
 
   .pf-empty-state {

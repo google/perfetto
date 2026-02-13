@@ -49,4 +49,17 @@ message TestEvent {
     repeated DebugAnnotation debug_annotations = 7;
   }
   optional TestPayload payload = 5;
+
+  // Simple ProtoVm patch and incremental state formats used for integration
+  // testing
+  message ProtoVmPatch {
+    optional string string_to_merge = 1;
+    optional int32 int_to_merge = 2;
+  }
+  message ProtoVmIncrementalState {
+    optional string string_merged = 1;
+    optional int32 int_merged = 2;
+  }
+  optional ProtoVmPatch protovm_patch = 6;
+  optional ProtoVmIncrementalState protovm_incremental_state = 7;
 }
