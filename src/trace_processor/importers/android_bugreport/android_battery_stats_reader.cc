@@ -153,7 +153,8 @@ base::Status AndroidBatteryStatsReader::SendToSorter(
     std::chrono::nanoseconds event_ts,
     AndroidDumpstateEvent event) {
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-      protos::pbzero::ClockSnapshot::Clock::REALTIME, event_ts.count());
+      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::REALTIME),
+      event_ts.count());
   if (trace_ts) {
     stream_->Push(*trace_ts, std::move(event));
   }

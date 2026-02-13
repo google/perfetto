@@ -168,6 +168,119 @@ message TrackEventDescriptor {
 
 // End of protos/perfetto/common/track_event_descriptor.proto
 
+// Begin of protos/perfetto/protovm/vm_program.proto
+
+message VmProgram {
+  optional uint32 version = 1;
+  repeated VmInstruction instructions = 2;
+}
+
+message VmInstruction {
+  oneof operation {
+    VmOpSelect select = 1;
+    VmOpRegLoad reg_load = 2;
+    VmOpMerge merge = 3;
+    VmOpSet set = 4;
+    VmOpDel del = 5;
+  }
+
+  enum AbortLevel {
+    // Skip current instruction but execute following ones
+    SKIP_CURRENT_INSTRUCTION = 1;
+    // Skip current instruction as well as following ones (default)
+    SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER = 2;
+    // Abort whole program
+    ABORT = 3;
+  };
+  optional AbortLevel abort_level = 6;
+
+  // Sub-instructions executed if the current instruction succeeds
+  repeated VmInstruction nested_instructions = 7;
+}
+
+message VmOpSelect {
+  // Enum SRC|DST|BOTH. Default=SRC.
+  optional VmCursorEnum cursor = 1;
+  repeated PathComponent relative_path = 2;
+
+  // Creates the submessage if doesn't exist in the DST cursor
+  // (think of mkdir -p). Only valid when cursor=DST|BOTH.
+  optional bool create_if_not_exist = 3;
+
+  // A path component is either: (1) a field id to descend into (common case);
+  // (2) an array index (for repeated fields); (3) a map lookup operation (for
+  // repeated fields, where we snoop a sub-field as a map key)
+  message PathComponent {
+    oneof field {
+      uint32 field_id = 1;
+      uint32 array_index = 2;
+
+      // The ID of the field in the repeated submessage that we
+      // use as a key (e.g. LayerState.layer_id). When setting this
+      // register_to_match must also be set, to tell what's the
+      // expected value of the key we are looking up.
+      uint32 map_key_field_id = 3;
+    }
+
+    // When we are selecting a leaf field, tell what's the field type
+    // to disambiguate integer types. Using uint64 by default will likely
+    // do the right thing in 99% cases (so probably we don't need to impl
+    // this until much later if somebody does a map with a fixed64 key)
+    // enum ProtoFieldType field_type = 4;  // bool | int32 | fixed32 | ...
+
+    // Only valid when using field_id. This makes select have foreach
+    // semantics. This means that the body of nested_instructions is
+    // executed several times, once per each repeated submessage.
+    optional bool is_repeated = 5;
+
+    // Only valid when using map_key_field_id. This defines which
+    // register (R1..R32) should be used to match the key of the dict
+    // in a map lookup operation.
+    // In other words:
+    // foreach msg in repeated message {
+    //   if msg[map_key_field_id] == R[register_to_match] {
+    //      break;  // Lookup succeeded, PathComponent resolves here.
+    //   }
+    // }
+    optional uint32 register_to_match = 6;
+
+    // Only valid when using field_id and is_repeated=true. When iterating
+    // over repeated fields, stores the current iteration index into the
+    // the register R1..R32 defined below. This can be used to do complex
+    // operations like "find the entry in the array that has width==100,
+    // remember its offset in the SRC array and overwrite the matching
+    // i-th element in the DST array. We will probably never implement
+    // this but it's here for completeness.
+    optional uint32 store_foreach_index_into_register = 7;
+  }
+}
+
+message VmOpRegLoad {
+  // SRC(default) | DST.
+  optional VmCursorEnum cursor = 1;
+  // 1=R1, 2=R2... 32=R32
+  optional uint32 dst_register = 2;
+}
+
+// Merges SRC into DST. Both need to point to a message (not a field).
+message VmOpMerge {}
+
+// Copies SRC into DST. If a message, replaces the DST node, discarding any
+// pre-existing field.
+message VmOpSet {}
+
+// Delete the field or message pointed by DST.
+message VmOpDel {}
+
+enum VmCursorEnum {
+  VM_CURSOR_UNSPECIFIED = 0;
+  VM_CURSOR_SRC = 1;
+  VM_CURSOR_DST = 2;
+  VM_CURSOR_BOTH = 3;
+}
+
+// End of protos/perfetto/protovm/vm_program.proto
+
 // Begin of protos/perfetto/common/data_source_descriptor.proto
 
 // This message is sent from Producer(s) to the tracing Service when registering
@@ -207,6 +320,13 @@ message DataSourceDescriptor {
   // scraping.
   // Introduced in v39 / Android V.
   optional bool no_flush = 9;
+
+  // If present, the tracing service executes this program within a ProtoVM to
+  // process overwritten packets (patches). The service computes a hash of the
+  // program to detect and disambiguate between different versions; if multiple
+  // versions (from different producers) are specified for the same data source,
+  // the service instantiates a dedicated ProtoVM for each.
+  optional VmProgram protovm_program = 10;
 
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
@@ -2381,6 +2501,48 @@ message PerfEventConfig {
 
 // End of protos/perfetto/config/profiling/perf_event_config.proto
 
+// Begin of protos/perfetto/config/protovm/protovm_config.proto
+
+message ProtoVmConfig {
+  optional uint32 memory_limit_kb = 1;
+}
+
+// End of protos/perfetto/config/protovm/protovm_config.proto
+
+// Begin of protos/perfetto/config/qnx/qnx_config.proto
+
+// QnxConfig is used with trace_qnx_probes build from
+// https://github.com/qnx-ports/perfetto
+message QnxConfig {
+  // The number of buffers that tracelog will init for the QNX trace.
+  optional uint32 qnx_kernel_buffers = 1;
+
+  // The number of kernel buffers that tracelog will init for the QNX trace.
+  optional uint32 qnx_kernel_kbuffers = 2;
+
+  // Flag indicating whether the QNX kernel tracing should produce wide
+  // events which contain additional data or fast events which are most
+  // concise. In fast mode we lose the priority information
+  optional bool qnx_kernel_wide_events = 3;
+
+  // The number of pages initialized by default the parser's page cache.
+  optional uint32 qnx_cache_pages = 4;
+
+  // The max pages the page cache should allocate (must be at least as big)
+  // as the qnx_cache_pages value. Using -1 will allow the cache to grow
+  // unbounded. The cache will prefer to re-use existing pages so growth will
+  // only happen when needed (when parser is not keeping up).
+  optional int32 qnx_cache_max_pages = 5;
+
+  // The initial size of the the buffer used to hold the trace header values
+  // this dynamic buffer will grow as needed but reallocs can be avoided by
+  // selecting an initial size large enough to hold all the initial header
+  // data.
+  optional uint32 qnx_trace_buffer_init_bytes = 6;
+}
+
+// End of protos/perfetto/config/qnx/qnx_config.proto
+
 // Begin of protos/perfetto/config/statsd/atom_ids.proto
 
 // This enum is obtained by post-processing
@@ -4139,6 +4301,20 @@ message DataSourceConfig {
 
   optional PriorityBoostConfig priority_boost = 10;
 
+  // If specified, the data source requires the tracing service to process
+  // overwritten packets (patches) using a ProtoVM instance with this config.
+  // The ProtoVM program is specified at data source registration time through
+  // the descriptor.
+
+  // TODO(primiano): today when we enable a protovm_config, we actually accept
+  // that if N producers advertise M different versions of the same program we
+  // will create M instances of that program.
+  // To overcome this, we could move the program to the TraceConfig. But doing
+  // so would bloat the trace config size too big and create problems to statsd.
+  // Once the config store (b/482305876) exists we should move protovm programs
+  // onto that.
+  optional ProtoVmConfig protovm_config = 12;
+
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
@@ -4269,6 +4445,9 @@ message DataSourceConfig {
 
   // Data source name: android.inputmethod
   optional InputMethodConfig inputmethod_config = 139 [lazy = true];
+
+  // Data source name: qnx.kernel
+  optional QnxConfig qnx_config = 150 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that

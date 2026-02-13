@@ -358,7 +358,13 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.trace = attrs.trace;
     this.uri = attrs.uri;
     this.rootTableName = attrs.rootTableName;
-    this.rowCount = attrs.initialMaxDepth ?? 1;
+    if (attrs.initialMaxDepth !== undefined) {
+      // Row count is max depth + 1
+      this.rowCount = attrs.initialMaxDepth + 1;
+    } else {
+      // Assume at least one row
+      this.rowCount = 1;
+    }
     this.instantWidthPx = attrs.instantStyle?.width ?? CHEVRON_WIDTH_PX;
 
     const sliceLayout = attrs.sliceLayout ?? {};
@@ -514,9 +520,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         const clampedRight = Math.min(xPx + wPx, pxEnd);
         const clampedW = clampedRight - clampedLeft;
         const rectXCenter = clampedLeft + clampedW / 2;
-        const yDiv = subTitle ? 3 : 2;
-        const titleY = Math.floor(y + sliceHeight / yDiv) + 0.5;
-        const subTitleY = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
+        const yCenter = sliceHeight / 2;
+        const titleOffset = subTitle ? -4 : 1; // Move title up if there's a subtitle
+        const titleY = Math.floor(y + yCenter) + titleOffset;
+        const subTitleY = Math.floor(y + yCenter) + 6;
 
         textLabels.push({
           title: cropText(title, charWidth.title, clampedW),
@@ -538,8 +545,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         colors,
         count,
         patterns,
-        minWidth: 1,
-        screenEnd: pxEnd,
       },
       dataTransform,
     );
@@ -554,7 +559,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         ctx.fillText(label.title, label.rectXCenter, label.titleY);
       }
       if (label.subTitle) {
-        ctx.globalAlpha = 0.8; // Slightly fade subtitles for visual hierarchy
+        ctx.globalAlpha = 0.6; // Slightly fade subtitles for visual hierarchy
         ctx.font = this.getSubtitleFont();
         ctx.fillText(label.subTitle, label.rectXCenter, label.subTitleY);
         ctx.globalAlpha = 1;

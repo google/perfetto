@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/base/intrusive_list.h"
-
+#include "perfetto/ext/base/intrusive_list.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

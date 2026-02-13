@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,10 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
+syntax = "proto2";
 
-#include "perfetto/base/status.h"
+package perfetto.protos;
 
-namespace perfetto::trace_processor {
-
-base::Status LegacySqlFunction::VerifyPostConditions(Context*) {
-  return base::OkStatus();
+message ProtoVmConfig {
+  optional uint32 memory_limit_kb = 1;
 }
-
-void LegacySqlFunction::Cleanup(Context*) {}
-
-}  // namespace perfetto::trace_processor
