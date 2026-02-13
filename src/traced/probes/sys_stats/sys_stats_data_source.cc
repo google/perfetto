@@ -204,6 +204,10 @@ SysStatsDataSource::SysStatsDataSource(
   thermal_ticks_ = ticks[8];
   cpuidle_ticks_ = ticks[9];
   gpufreq_ticks_ = ticks[10];
+
+  if (gpufreq_ticks_) {
+    OpenGpuFreqFiles(open_fn);
+  }
 }
 
 void SysStatsDataSource::Start() {
@@ -305,12 +309,17 @@ std::optional<uint64_t> SysStatsDataSource::ReadFileToUInt64(
   if (!fd) {
     return std::nullopt;
   }
-  size_t rsize = ReadFile(&fd, path.c_str());
+  return ReadFileToUInt64(&fd, path.c_str());
+}
+
+std::optional<uint64_t> SysStatsDataSource::ReadFileToUInt64(
+    base::ScopedFile* fd,
+    const char* path) {
+  size_t rsize = ReadFile(fd, path);
   if (!rsize)
     return std::nullopt;
 
-  return static_cast<uint64_t>(
-      strtoll(static_cast<char*>(read_buf_.Get()), nullptr, 10));
+  return base::CStringToUInt64(static_cast<char*>(read_buf_.Get()));
 }
 
 void SysStatsDataSource::ReadThermalZones(protos::pbzero::SysStats* sys_stats) {
@@ -397,13 +406,18 @@ void SysStatsDataSource::ReadCpuIdleStates(
   }
 }
 
-std::optional<uint64_t> SysStatsDataSource::ReadAMDGpuFreq() {
-  std::optional<std::string> amd_gpu_freq =
-      ReadFileToString("/sys/class/drm/card0/device/pp_dpm_sclk");
-  if (!amd_gpu_freq) {
+std::optional<uint64_t> SysStatsDataSource::ReadAmdGpuFreq() {
+  if (!amd_gpufreq_fd_) {
     return std::nullopt;
   }
-  for (base::StringSplitter lines(*amd_gpu_freq, '\n'); lines.Next();) {
+  size_t rsize =
+      ReadFile(&amd_gpufreq_fd_, "/sys/class/drm/card0/device/pp_dpm_sclk");
+  if (!rsize) {
+    return std::nullopt;
+  }
+
+  char* buf = static_cast<char*>(read_buf_.Get());
+  for (base::StringSplitter lines(buf, '\n'); lines.Next();) {
     base::StringView line(lines.cur_token(), lines.cur_token_size());
     // Current frequency indicated with asterisk.
     if (line.EndsWith("*")) {
@@ -422,25 +436,47 @@ std::optional<uint64_t> SysStatsDataSource::ReadAMDGpuFreq() {
 }
 
 void SysStatsDataSource::ReadGpuFrequency(protos::pbzero::SysStats* sys_stats) {
-  // For Adreno GPUs.
-  auto freq = ReadFileToUInt64("/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq");
-  if (freq) {
+  if (adreno_gpufreq_fd_) {
+    auto freq = ReadFileToUInt64(&adreno_gpufreq_fd_,
+                                 "/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq");
     sys_stats->add_gpufreq_mhz((*freq) / 1'000'000);
-    return;
   }
-
-  // For Intel GPUs.
-  freq = ReadFileToUInt64("/sys/class/drm/card0/gt_act_freq_mhz");
-  if (freq) {
-    sys_stats->add_gpufreq_mhz(*freq);
-    return;
+  for (auto& [fd, path] : intel_gpufreq_fds_) {
+    auto freq = ReadFileToUInt64(&fd, path.c_str());
+    if (freq) {
+      sys_stats->add_gpufreq_mhz((*freq));
+    }
   }
-
-  // For AMD GPUs.
-  freq = ReadAMDGpuFreq();
+  auto freq = ReadAmdGpuFreq();
   if (freq) {
     sys_stats->add_gpufreq_mhz(*freq);
   }
+}
+
+void SysStatsDataSource::OpenGpuFreqFiles(OpenFunction open_fn) {
+  for (size_t tile = 0;; ++tile) {
+    bool found = false;
+    for (size_t gt = 0;; ++gt) {
+      base::StackString<256> freq_path(
+          "/sys/class/drm/card0/device/tile%zu/gt%zu/freq0/act_freq", tile, gt);
+      if (base::ScopedFile fd = open_fn(freq_path.c_str())) {
+        intel_gpufreq_fds_.emplace_back(std::move(fd), freq_path.ToStdString());
+        found = true;
+      } else {
+        break;
+      }
+    }
+    if (!found) {
+      break;
+    }
+  }
+
+  static const char kI915Frequency[] = "/sys/class/drm/card0/gt_act_freq_mhz";
+  if (base::ScopedFile fd = open_fn(kI915Frequency)) {
+    intel_gpufreq_fds_.emplace_back(std::move(fd), kI915Frequency);
+  }
+  amd_gpufreq_fd_ = open_fn("/sys/class/drm/card0/device/pp_dpm_sclk");
+  adreno_gpufreq_fd_ = open_fn("/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq");
 }
 
 void SysStatsDataSource::ReadDiskStat(protos::pbzero::SysStats* sys_stats) {
