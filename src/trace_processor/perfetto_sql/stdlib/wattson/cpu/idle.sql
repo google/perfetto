@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE counters.intervals;
-
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
 -- Get the corresponding deep idle time offset based on device and CPU.
@@ -59,21 +57,16 @@ WITH
   ),
   idle_prev AS (
     SELECT
-      ts,
-      lag(ts, 1, trace_start()) OVER (PARTITION BY cpu ORDER BY ts) AS prev_ts,
-      value AS idle,
-      cli.value - cli.delta_value AS idle_prev,
+      c.ts,
+      lag(c.ts, 1, trace_start()) OVER (PARTITION BY c.track_id ORDER BY c.ts, c.id) AS prev_ts,
+      cast_int!(c.value) AS idle,
+      cast_int!(lag(c.value) OVER (PARTITION BY c.track_id ORDER BY c.ts, c.id)) AS idle_prev,
       cct.cpu
-    -- Same as cpu_idle_counters, but extracts some additional info that isn't
-    -- nominally present in cpu_idle_counters, such that the already calculated
-    -- lag values are reused instead of recomputed
-    FROM counter_leading_intervals!((
-      SELECT c.*
-      FROM counter c
-      JOIN cpu_counter_track cct ON cct.id = c.track_id AND cct.name = 'cpuidle'
-    )) AS cli
+    FROM counter AS c
     JOIN cpu_counter_track AS cct
-      ON cli.track_id = cct.id
+      ON cct.id = c.track_id
+    WHERE
+      cct.name = 'cpuidle'
   ),
   swapper_events AS (
     -- Transition to idle (using swapper as idle)
