@@ -15,7 +15,12 @@
 import m from 'mithril';
 import {duration, time} from '../../base/time';
 import {Trace} from '../../public/trace';
+import z from 'zod';
 
+export const durationSchema = z.custom<duration>(
+  (val) => typeof val === 'bigint',
+);
+export const timeSchema = z.custom<time>((val) => typeof val === 'bigint');
 export interface NavTarget {
   id: number;
   trackUri: string;
@@ -23,6 +28,14 @@ export interface NavTarget {
   dur: duration;
   depth: number;
 }
+
+export const NavTargetSchema = z.object({
+  id: z.number(),
+  trackUri: z.string(),
+  ts: timeSchema,
+  dur: durationSchema,
+  depth: z.number(),
+}) satisfies z.ZodType<NavTarget>;
 
 export interface RelatedEvent {
   id: number; // Unique ID for this event within the dataset

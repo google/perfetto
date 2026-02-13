@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import z from 'zod';
 import {GridColumn, GridHeaderCell, Grid, GridCell} from '../../widgets/grid';
 import {Spinner} from '../../widgets/spinner';
 import {AndroidInputEventSource} from './android_input_event_source';
@@ -20,6 +21,8 @@ import {
   getTrackUriForTrackId,
   TrackPinningManager,
   NavTarget,
+  durationSchema,
+  NavTargetSchema,
 } from '../dev.perfetto.RelatedEvents';
 import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
@@ -31,30 +34,33 @@ import {Checkbox} from '../../widgets/checkbox';
 import {DetailsShell} from '../../widgets/details_shell';
 import {EmptyState} from '../../widgets/empty_state';
 
+// --- Zod Schemas ---
+
+const StageSchema = z
+  .object({
+    delta: durationSchema.nullable(),
+    dur: durationSchema,
+    nav: NavTargetSchema,
+  })
+  .nullable();
+
+const InputLifecycleArgsSchema = z.object({
+  channel: z.string(),
+  totalLatency: durationSchema.nullable(),
+  reader: z
+    .object({
+      dur: durationSchema,
+      nav: NavTargetSchema,
+    })
+    .nullable(),
+  dispatcher: StageSchema,
+  receiver: StageSchema,
+  consumer: StageSchema,
+  frame: StageSchema,
+  allTrackIds: z.array(z.number()),
+});
+
 // --- Interfaces ---
-
-interface InputLifecycleArgs {
-  channel: string;
-  totalLatency: duration | null;
-  reader: {dur: duration; nav: NavTarget} | null;
-  dispatcher: {delta: duration | null; dur: duration; nav: NavTarget} | null;
-  receiver: {delta: duration | null; dur: duration; nav: NavTarget} | null;
-  consumer: {delta: duration | null; dur: duration; nav: NavTarget} | null;
-  frame: {delta: duration | null; dur: duration; nav: NavTarget} | null;
-  allTrackIds: number[];
-}
-
-function isInputLifecycleArgs(args: unknown): args is InputLifecycleArgs {
-  if (typeof args !== 'object' || args === null) return false;
-  const obj = args as Record<string, unknown>;
-  return (
-    typeof obj.channel === 'string' &&
-    typeof obj.allTrackIds === 'object' &&
-    Array.isArray(obj.allTrackIds)
-    // We can add more checks here for reader, dispatcher, etc. if needed
-    // to ensure they have the expected structure.
-  );
-}
 
 interface InputChainRow {
   uiRowId: string;
@@ -120,8 +126,11 @@ export class AndroidInputLifecycleTab implements Tab {
       let index = 0;
       for (const event of data.events) {
         if (event.type === 'InputLifecycle') {
-          const args = event.customArgs;
-          if (isInputLifecycleArgs(args)) {
+          const parsedArgs = InputLifecycleArgsSchema.safeParse(
+            event.customArgs,
+          );
+          if (parsedArgs.success) {
+            const args = parsedArgs.data;
             const uniqueId = `row-${index++}`;
             const allTrackIds = args.allTrackIds;
             const allTrackUris = allTrackIds.map((id: number) =>
@@ -146,7 +155,10 @@ export class AndroidInputLifecycleTab implements Tab {
             });
             this.visibleRowIds.add(uniqueId);
           } else {
-            console.error('Invalid customArgs for InputLifecycle event', args);
+            console.error(
+              'Invalid customArgs for InputLifecycle event',
+              parsedArgs.error,
+            );
           }
         }
       }
