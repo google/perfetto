@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.redacted.util;
+INCLUDE PERFETTO MODULE android.profiling_manager.util;
 
 -- Redacted traces contain a subset of slices compare to a regular perfetto trace as they contain information only about the process
 -- starting its own profiling, thus, queries in this section may omit process information as its assumed that slices belong

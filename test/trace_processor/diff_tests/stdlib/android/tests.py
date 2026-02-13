@@ -1911,7 +1911,7 @@ class AndroidStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('redacted-startup.pb'),
         query="""
-        INCLUDE PERFETTO MODULE android.redacted.startup;
+        INCLUDE PERFETTO MODULE android.profiling_manager.startup;
         SELECT * FROM android_cold_startup;
       """,
         out=Csv("""

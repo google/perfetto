@@ -14,7 +14,7 @@
 
 import("../../../../../../gn/perfetto_sql.gni")
 
-perfetto_sql_source_set("redacted") {
+perfetto_sql_source_set("profiling_manager") {
   sources = [
     "startup.sql",
     "util.sql",
