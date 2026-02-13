@@ -15,12 +15,11 @@
 
 INCLUDE PERFETTO MODULE android.profiling_manager.util;
 
--- Redacted traces contain a subset of slices compare to a regular perfetto trace as they contain information only about the process
+-- Provides cold startups for redacted traces
+-- Note: Redacted traces contain a subset of slices compare to a regular perfetto trace as they contain information only about the process
 -- starting its own profiling, thus, queries in this section may omit process information as its assumed that slices belong
 -- to the single profiled process.
-
--- Provides cold startups for redacted traces
-CREATE PERFETTO TABLE android_cold_startup (
+CREATE PERFETTO TABLE android_profiling_manager_cold_startup (
   -- Initial timestamp for startup from apps perspective
   ts TIMESTAMP,
   -- slice name to identify the startup

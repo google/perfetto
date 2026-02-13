@@ -1912,7 +1912,7 @@ class AndroidStdlib(TestSuite):
         trace=DataPath('redacted-startup.pb'),
         query="""
         INCLUDE PERFETTO MODULE android.profiling_manager.startup;
-        SELECT * FROM android_cold_startup;
+        SELECT * FROM android_profiling_manager_cold_startup;
       """,
         out=Csv("""
         "ts","name","dur","startup_checkpoint"
