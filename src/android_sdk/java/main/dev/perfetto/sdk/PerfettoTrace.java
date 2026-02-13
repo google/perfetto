@@ -305,7 +305,7 @@ public final class PerfettoTrace {
    * a full stack walk and symbol resolution. Use this ONLY for local debugging
    * or low-frequency diagnostic events. Do not use in production hot paths.
    */
-  public static void emitExpensiveDebugCallStack(Category category) {
+  public static void emitExpensiveDebugCallStack(Category category, String eventName) {
     final long FIELD_TRACK_EVENT_CALLSTACK = 55L;
     final long FIELD_CALLSTACK_FRAMES = 1L;
     final long FIELD_FRAME_FUNCTION_NAME = 1L;
@@ -316,7 +316,7 @@ public final class PerfettoTrace {
     StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
 
     // Using "Callstack" as the category and name for clarity in the UI
-    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, "callstack")
+    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
         .beginProto().beginNested(FIELD_TRACK_EVENT_CALLSTACK);
 
     // Iterate from the bottom of the stack (main) up to the caller
