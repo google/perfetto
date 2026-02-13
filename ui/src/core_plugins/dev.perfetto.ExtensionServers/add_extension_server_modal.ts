@@ -228,6 +228,101 @@ class AddExtensionServerModal {
           this.debouncedFetch();
         },
       }),
+      this.renderHttpsAuth(input),
+    ];
+  }
+
+  private renderHttpsAuth(input: HttpsUserInput): m.Children {
+    const authIdx =
+      input.auth.type === 'https_basic'
+        ? 1
+        : input.auth.type === 'https_apikey'
+          ? 2
+          : 0;
+    return [
+      m(FormLabel, 'Authentication'),
+      m(SegmentedButtons, {
+        options: [{label: 'None'}, {label: 'Basic'}, {label: 'API Key'}],
+        selectedOption: authIdx,
+        onOptionSelected: (idx: number) => {
+          if (idx === 1) {
+            input.auth = {type: 'https_basic', username: '', password: ''};
+          } else if (idx === 2) {
+            input.auth = {
+              type: 'https_apikey',
+              keyType: 'bearer',
+              key: '',
+              customHeaderName: '',
+            };
+          } else {
+            input.auth = {type: 'none'};
+          }
+          this.debouncedFetch();
+        },
+      }),
+      input.auth.type === 'https_basic' && this.renderBasicAuthFields(input),
+      input.auth.type === 'https_apikey' && this.renderApiKeyFields(input),
+    ];
+  }
+
+  private renderBasicAuthFields(input: HttpsUserInput): m.Children {
+    if (input.auth.type !== 'https_basic') return null;
+    const auth = input.auth;
+    return [
+      m(TextInput, {
+        placeholder: 'Username',
+        value: auth.username,
+        onInput: (value: string) => {
+          input.auth = {...auth, username: value};
+          this.debouncedFetch();
+        },
+      }),
+      m(TextInput, {
+        placeholder: 'Password',
+        type: 'password',
+        value: auth.password,
+        onInput: (value: string) => {
+          input.auth = {...auth, password: value};
+          this.debouncedFetch();
+        },
+      }),
+    ];
+  }
+
+  private renderApiKeyFields(input: HttpsUserInput): m.Children {
+    if (input.auth.type !== 'https_apikey') return null;
+    const auth = input.auth;
+    const keyTypeIdx =
+      auth.keyType === 'x_api_key' ? 1 : auth.keyType === 'custom' ? 2 : 0;
+    return [
+      m(SegmentedButtons, {
+        options: [{label: 'Bearer'}, {label: 'X-API-Key'}, {label: 'Custom'}],
+        selectedOption: keyTypeIdx,
+        onOptionSelected: (idx: number) => {
+          const keyType =
+            idx === 1 ? 'x_api_key' : idx === 2 ? 'custom' : 'bearer';
+          input.auth = {...auth, keyType, customHeaderName: ''} as typeof auth;
+          this.debouncedFetch();
+        },
+      }),
+      auth.keyType === 'custom' &&
+        m(TextInput, {
+          placeholder: 'Header name',
+          value: auth.customHeaderName,
+          onInput: (value: string) => {
+            input.auth = {...auth, customHeaderName: value};
+            this.debouncedFetch();
+          },
+        }),
+      m(TextInput, {
+        placeholder: 'API key',
+        type: 'password',
+        value: auth.key,
+        onInput: (value: string) => {
+          input.auth = {...auth, key: value};
+          this.debouncedFetch();
+        },
+      }),
     ];
   }
 
@@ -384,7 +479,23 @@ class AddExtensionServerModal {
       }
       return false;
     }
-    return this.userInput.url.trim() === '';
+    if (this.userInput.url.trim() === '') return true;
+    const auth = this.userInput.auth;
+    // Basic auth requires both username and password.
+    if (
+      auth.type === 'https_basic' &&
+      (!auth.username.trim() || !auth.password.trim())
+    ) {
+      return true;
+    }
+    // API key auth requires a non-empty key (and header name for custom).
+    if (auth.type === 'https_apikey') {
+      if (!auth.key.trim()) return true;
+      if (auth.keyType === 'custom' && !auth.customHeaderName.trim()) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 

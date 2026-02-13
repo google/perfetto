@@ -26,6 +26,7 @@ import {
 import {showModal} from '../../widgets/modal';
 import {errResult, okResult, Result} from '../../base/result';
 import {AppImpl} from '../../core/app_impl';
+import {base64Encode, utf8Encode} from '../../base/string_utils';
 import {joinPath} from './url_utils';
 
 // =============================================================================
@@ -67,7 +68,21 @@ export function buildFetchRequest(
     baseUrl = `https://${baseUrl}`;
   }
   const url = `${baseUrl.replace(/\/+$/, '')}/${path}`;
-  return {url, init: {method: 'GET'}};
+  const headers: Record<string, string> = {};
+  if (server.auth.type === 'https_basic') {
+    const credentials = `${server.auth.username}:${server.auth.password}`;
+    headers['Authorization'] = `Basic ${base64Encode(utf8Encode(credentials))}`;
+  } else if (server.auth.type === 'https_apikey') {
+    const {keyType, key} = server.auth;
+    if (keyType === 'bearer') {
+      headers['Authorization'] = `Bearer ${key}`;
+    } else if (keyType === 'x_api_key') {
+      headers['X-API-Key'] = key;
+    } else {
+      headers[server.auth.customHeaderName] = key;
+    }
+  }
+  return {url, init: {method: 'GET', headers}};
 }
 
 async function fetchJson<T extends z.ZodTypeAny>(

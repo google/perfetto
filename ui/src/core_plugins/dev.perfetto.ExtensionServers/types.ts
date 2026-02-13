@@ -46,6 +46,20 @@ const githubAuthSchema = z.discriminatedUnion('type', [
 
 const httpsAuthSchema = z.discriminatedUnion('type', [
   z.object({type: z.literal('none')}),
+  z.object({
+    type: z.literal('https_basic'),
+    username: z.string().meta({secret: true}).default(''),
+    password: z.string().meta({secret: true}).default(''),
+  }),
+  z.object({
+    type: z.literal('https_apikey'),
+    // 'bearer'     → Authorization: Bearer <key>
+    // 'x_api_key'  → X-API-Key: <key>
+    // 'custom'     → <customHeaderName>: <key>
+    keyType: z.enum(['bearer', 'x_api_key', 'custom']).default('bearer'),
+    key: z.string().meta({secret: true}).default(''),
+    customHeaderName: z.string().default(''),
+  }),
 ]);
 
 // Extension server configuration (persisted via Settings).
@@ -85,7 +99,19 @@ export type UserInput =
       path: string;
       auth: {type: 'none'} | {type: 'github_pat'; pat: string};
     }
-  | {type: 'https'; url: string; auth: {type: 'none'}};
+  | {
+      type: 'https';
+      url: string;
+      auth:
+        | {type: 'none'}
+        | {type: 'https_basic'; username: string; password: string}
+        | {
+            type: 'https_apikey';
+            keyType: 'bearer' | 'x_api_key' | 'custom';
+            key: string;
+            customHeaderName: string;
+          };
+    };
 
 // Manifest format from {base_url}/manifest
 // Provides server metadata, features, and available modules.
