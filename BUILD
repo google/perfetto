@@ -2810,6 +2810,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/chrome_system_probes_parser.h",
         "src/trace_processor/importers/proto/default_modules.cc",
         "src/trace_processor/importers/proto/default_modules.h",
+        "src/trace_processor/importers/proto/forged_packet_writer.cc",
+        "src/trace_processor/importers/proto/forged_packet_writer.h",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",

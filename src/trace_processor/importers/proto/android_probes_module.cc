@@ -26,15 +26,14 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
+#include "src/trace_processor/importers/proto/forged_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -139,20 +138,20 @@ ModuleResult AndroidProbesModule::TokenizePacket(
         actual_ts = packet_timestamp;
       }
 
-      protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
-      // Keep the original timestamp to later extract as an arg; the sorter does
-      // not read this.
-      data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
+      TraceBlobView tbv =
+          context_->forged_packet_writer->WritePacket([&](auto* data_packet) {
+            // Keep the original timestamp to later extract as an arg; the
+            // sorter does not read this.
+            data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
 
-      auto* power_rails_proto = data_packet->set_power_rails();
-      power_rails_proto->set_session_uuid(evt.session_uuid());
-      auto* energy = power_rails_proto->add_energy_data();
-      energy->set_energy(data.energy());
-      energy->set_index(data.index());
-      energy->set_timestamp_ms(static_cast<uint64_t>(actual_ts / 1000000));
-
-      auto [vec, size] = data_packet.SerializeAsUniquePtr();
-      TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+            auto* power_rails_proto = data_packet->set_power_rails();
+            power_rails_proto->set_session_uuid(evt.session_uuid());
+            auto* energy = power_rails_proto->add_energy_data();
+            energy->set_energy(data.energy());
+            energy->set_index(data.index());
+            energy->set_timestamp_ms(
+                static_cast<uint64_t>(actual_ts / 1000000));
+          });
       module_context_->trace_packet_stream->Push(
           actual_ts, TracePacketData{std::move(tbv), state});
     }
@@ -176,36 +175,36 @@ ModuleResult AndroidProbesModule::TokenizePacket(
       }
       int64_t actual_ts = *trace_ts;
 
-      protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
-      data_packet->set_timestamp(static_cast<uint64_t>(actual_ts));
+      TraceBlobView tbv =
+          context_->forged_packet_writer->WritePacket([&](auto* data_packet) {
+            data_packet->set_timestamp(static_cast<uint64_t>(actual_ts));
 
-      auto* log_pkt = data_packet->set_android_log();
-      auto* log_evt = log_pkt->add_events();
-      log_evt->set_log_id(
-          static_cast<protos::pbzero::AndroidLogId>(evt.log_id()));
-      log_evt->set_pid(evt.pid());
-      log_evt->set_tid(evt.tid());
-      log_evt->set_uid(evt.uid());
-      log_evt->set_timestamp(evt.timestamp());
-      log_evt->set_tag(evt.tag());
-      log_evt->set_prio(
-          static_cast<protos::pbzero::AndroidLogPriority>(evt.prio()));
-      log_evt->set_message(evt.message());
-      for (auto arg_it = evt.args(); arg_it; ++arg_it) {
-        protos::pbzero::AndroidLogPacket::LogEvent::Arg::Decoder arg(*arg_it);
-        auto* new_arg = log_evt->add_args();
-        new_arg->set_name(arg.name());
-        if (arg.has_int_value()) {
-          new_arg->set_int_value(arg.int_value());
-        } else if (arg.has_float_value()) {
-          new_arg->set_float_value(arg.float_value());
-        } else if (arg.has_string_value()) {
-          new_arg->set_string_value(arg.string_value());
-        }
-      }
-
-      auto [vec, size] = data_packet.SerializeAsUniquePtr();
-      TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+            auto* log_pkt = data_packet->set_android_log();
+            auto* log_evt = log_pkt->add_events();
+            log_evt->set_log_id(
+                static_cast<protos::pbzero::AndroidLogId>(evt.log_id()));
+            log_evt->set_pid(evt.pid());
+            log_evt->set_tid(evt.tid());
+            log_evt->set_uid(evt.uid());
+            log_evt->set_timestamp(evt.timestamp());
+            log_evt->set_tag(evt.tag());
+            log_evt->set_prio(
+                static_cast<protos::pbzero::AndroidLogPriority>(evt.prio()));
+            log_evt->set_message(evt.message());
+            for (auto arg_it = evt.args(); arg_it; ++arg_it) {
+              protos::pbzero::AndroidLogPacket::LogEvent::Arg::Decoder arg(
+                  *arg_it);
+              auto* new_arg = log_evt->add_args();
+              new_arg->set_name(arg.name());
+              if (arg.has_int_value()) {
+                new_arg->set_int_value(arg.int_value());
+              } else if (arg.has_float_value()) {
+                new_arg->set_float_value(arg.float_value());
+              } else if (arg.has_string_value()) {
+                new_arg->set_string_value(arg.string_value());
+              }
+            }
+          });
       module_context_->trace_packet_stream->Push(
           actual_ts, TracePacketData{std::move(tbv), state});
     }

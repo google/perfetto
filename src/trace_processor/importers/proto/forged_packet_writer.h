@@ -1,0 +1,97 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FORGED_PACKET_WRITER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FORGED_PACKET_WRITER_H_
+
+#include <cstddef>
+#include <vector>
+
+#include "perfetto/protozero/contiguous_memory_range.h"
+#include "perfetto/protozero/root_message.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
+namespace perfetto::trace_processor {
+
+// A zero-copy writer for synthesized ("forged") TracePackets.
+//
+// Several importer modules create synthetic TracePackets to decompress or
+// de-intern bundled data. The previous approach using
+// protozero::HeapBuffered<TracePacket> required 2 allocations + 1 memcpy per
+// packet. This class reduces that to amortized 0 allocations + 0 copies by
+// writing multiple packets into a single shared 4MB TraceBlob and returning
+// TraceBlobViews that point into it via RefPtr.
+//
+// With a 4MB blob, tens of thousands of typical ~100-byte forged packets share
+// a single allocation. When a slab is exhausted, a new one is allocated
+// and packets that span slab boundaries are stitched (rare fallback).
+//
+// Usage:
+//   TraceBlobView tbv = writer.WritePacket([&](auto* pkt) {
+//     pkt->set_timestamp(42);
+//     pkt->set_power_rails()->...;
+//   });
+class ForgedTracePacketWriter
+    : private protozero::ScatteredStreamWriter::Delegate {
+ public:
+  ForgedTracePacketWriter();
+  ~ForgedTracePacketWriter() override;
+
+  ForgedTracePacketWriter(const ForgedTracePacketWriter&) = delete;
+  ForgedTracePacketWriter& operator=(const ForgedTracePacketWriter&) = delete;
+  ForgedTracePacketWriter(ForgedTracePacketWriter&&) = delete;
+  ForgedTracePacketWriter& operator=(ForgedTracePacketWriter&&) = delete;
+
+  // Writes a complete TracePacket. |fn| receives a TracePacket* to populate.
+  // Returns the serialized bytes as a TraceBlobView.
+  // Common path (packet fits in current slab): zero copies, zero allocations.
+  template <typename Fn>
+  TraceBlobView WritePacket(Fn&& fn) {
+    BeginPacket();
+    fn(&msg_);
+    return EndPacket();
+  }
+
+ private:
+  static constexpr size_t kSlabSize = size_t{4} * 1024 * 1024;  // 4MB
+
+  void BeginPacket();
+  TraceBlobView EndPacket();
+  TraceBlobView StitchOverflow();
+
+  protozero::ContiguousMemoryRange GetNewBuffer() override;
+
+  protozero::ScatteredStreamWriter writer_;
+  protozero::RootMessage<protos::pbzero::TracePacket> msg_;
+
+  RefPtr<TraceBlob> slab_;
+  size_t cur_offset_ = 0;  // Write position within slab_.
+  size_t pkt_start_ = 0;   // Packet start position within slab_ (or first
+                           // overflow slab if overflow occurred).
+
+  // Overflow slabs allocated when a packet spans the current slab boundary.
+  // Empty in the common case. The last element is always the current write
+  // slab when non-empty; slab_ is the slab where the packet started.
+  std::vector<RefPtr<TraceBlob>> overflow_slabs_;
+};
+
+}  // namespace perfetto::trace_processor
+
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FORGED_PACKET_WRITER_H_
