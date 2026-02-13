@@ -18,10 +18,8 @@ import {
   BarChartData,
   aggregateBarChartData,
 } from '../../../components/widgets/charts/bar_chart';
-import {
-  AggregationType,
-  isIntegerAggregation,
-} from '../../../components/widgets/charts/chart_utils';
+import {AggregateFunction} from '../../../components/widgets/datagrid/model';
+import {isIntegerAggregation} from '../../../components/widgets/charts/chart_utils';
 import {
   SQLBarChartLoader,
   BarChartLoaderConfig,
@@ -173,7 +171,7 @@ export function renderCharts(app: App): m.Children {
           logScale: opts.logScale,
           enableBrush: opts.enableBrush,
           horizontal: opts.horizontal,
-          aggregation: opts.aggregation as AggregationType,
+          aggregation: opts.aggregation as AggregateFunction,
         });
       },
       initialOpts: {
@@ -186,7 +184,6 @@ export function renderCharts(app: App): m.Children {
           'AVG',
           'MIN',
           'MAX',
-          'COUNT',
           'COUNT_DISTINCT',
         ] as const),
       },
@@ -273,7 +270,7 @@ function renderSQLDemos(app: App): m.Children[] {
           enableBrush: opts.enableBrush,
           logScale: opts.logScale,
           horizontal: opts.horizontal,
-          aggregation: opts.aggregation as AggregationType,
+          aggregation: opts.aggregation as AggregateFunction,
         });
       },
       initialOpts: {
@@ -286,7 +283,6 @@ function renderSQLDemos(app: App): m.Children[] {
           'AVG',
           'MIN',
           'MAX',
-          'COUNT',
           'COUNT_DISTINCT',
         ] as const),
       },
@@ -319,7 +315,7 @@ function renderSQLDemos(app: App): m.Children[] {
           height: opts.height,
           showLegend: opts.showLegend,
           donut: opts.donut,
-          aggregation: opts.aggregation as AggregationType,
+          aggregation: opts.aggregation as AggregateFunction,
           limit: opts.limit,
         });
       },
@@ -332,7 +328,6 @@ function renderSQLDemos(app: App): m.Children[] {
           'AVG',
           'MIN',
           'MAX',
-          'COUNT',
           'COUNT_DISTINCT',
         ] as const),
         limit: 8,
@@ -465,7 +460,7 @@ function BarChartDemo(): m.Component<{
   logScale: boolean;
   enableBrush: boolean;
   horizontal: boolean;
-  aggregation: AggregationType;
+  aggregation: AggregateFunction;
 }> {
   let brushedLabels: Array<string | number> | undefined;
 
@@ -487,12 +482,12 @@ function BarChartDemo(): m.Component<{
         };
       }
 
-      const measureLabels: Record<AggregationType, string> = {
+      const measureLabels: Record<AggregateFunction, string> = {
+        ANY: 'Any Duration',
         SUM: 'Total Duration',
         AVG: 'Avg Duration',
         MIN: 'Min Duration',
         MAX: 'Max Duration',
-        COUNT: 'Slice Count',
         COUNT_DISTINCT: 'Distinct Durations',
       };
 
@@ -548,7 +543,7 @@ function SQLBarChartDemo(): m.Component<{
   enableBrush: boolean;
   logScale: boolean;
   horizontal: boolean;
-  aggregation: AggregationType;
+  aggregation: AggregateFunction;
 }> {
   let loader: SQLBarChartLoader | undefined;
   let brushedLabels: Array<string | number> | undefined;
@@ -572,12 +567,12 @@ function SQLBarChartDemo(): m.Component<{
       };
       const {data, isPending} = loader.use(config);
 
-      const measureLabels: Record<AggregationType, string> = {
+      const measureLabels: Record<AggregateFunction, string> = {
+        ANY: 'Any Duration',
         SUM: 'Total Duration',
         AVG: 'Avg Duration',
         MIN: 'Min Duration',
         MAX: 'Max Duration',
-        COUNT: 'Slice Count',
         COUNT_DISTINCT: 'Distinct Durations',
       };
 
@@ -797,7 +792,7 @@ function SQLPieChartDemo(): m.Component<{
   height: number;
   showLegend: boolean;
   donut: boolean;
-  aggregation: AggregationType;
+  aggregation: AggregateFunction;
   limit: number;
 }> {
   let loader: SQLPieChartLoader | undefined;

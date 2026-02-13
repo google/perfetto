@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM, STR_NULL} from '../../../trace_processor/query_result';
 import {
-  AggregationType,
-  sqlAggExpression,
-  sqlInClause,
-  validateColumnName,
-} from './chart_utils';
+  NUM,
+  STR_NULL,
+  QueryResult,
+} from '../../../trace_processor/query_result';
+import {
+  ChartSource,
+  SQLChartLoader,
+  QueryConfig,
+  ChartLoaderResult,
+  inFilter,
+} from './chart_sql_source';
+import {AggregateFunction} from '../datagrid/model';
 import {TreemapData, TreemapNode} from './treemap';
 
 /**
@@ -54,7 +59,7 @@ export interface SQLTreemapLoaderOpts {
  */
 export interface TreemapLoaderConfig {
   /** Aggregation function to apply to the size column. Defaults to 'SUM'. */
-  readonly aggregation?: AggregationType;
+  readonly aggregation?: AggregateFunction;
 
   /**
    * Maximum number of leaf nodes to return per group.
@@ -62,27 +67,15 @@ export interface TreemapLoaderConfig {
    */
   readonly limit?: number;
 
-  /**
-   * Filter to only include specific labels.
-   */
+  /** Filter to only include specific labels. */
   readonly labelFilter?: ReadonlyArray<string | number>;
 
-  /**
-   * Filter to only include specific groups.
-   */
+  /** Filter to only include specific groups. */
   readonly groupFilter?: ReadonlyArray<string | number>;
 }
 
-/**
- * Result returned by the treemap loader.
- */
-export interface TreemapLoaderResult {
-  /** The computed treemap data, or undefined if loading. */
-  readonly data: TreemapData | undefined;
-
-  /** Whether a query is currently pending. */
-  readonly isPending: boolean;
-}
+/** Result returned by the treemap loader. */
+export type TreemapLoaderResult = ChartLoaderResult<TreemapData>;
 
 /**
  * SQL-based treemap loader with async loading and caching.
@@ -91,172 +84,102 @@ export interface TreemapLoaderResult {
  * provided, creates parent nodes for each group with children for labels.
  * Uses QuerySlot for caching and request deduplication.
  */
-export class SQLTreemapLoader {
-  private readonly engine: Engine;
-  private readonly baseQuery: string;
+export class SQLTreemapLoader extends SQLChartLoader<
+  TreemapLoaderConfig,
+  TreemapData
+> {
   private readonly labelColumn: string;
   private readonly sizeColumn: string;
   private readonly groupColumn: string | undefined;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<TreemapData>(this.taskQueue);
 
   constructor(opts: SQLTreemapLoaderOpts) {
-    validateColumnName(opts.labelColumn);
-    validateColumnName(opts.sizeColumn);
-    if (opts.groupColumn !== undefined) validateColumnName(opts.groupColumn);
-    this.engine = opts.engine;
-    this.baseQuery = opts.query;
+    const schema: Record<string, 'text' | 'real'> = {
+      [opts.labelColumn]: 'text',
+      [opts.sizeColumn]: 'real',
+    };
+    if (opts.groupColumn !== undefined) {
+      schema[opts.groupColumn] = 'text';
+    }
+    super(opts.engine, new ChartSource({query: opts.query, schema}));
     this.labelColumn = opts.labelColumn;
     this.sizeColumn = opts.sizeColumn;
     this.groupColumn = opts.groupColumn;
   }
 
-  use(config: TreemapLoaderConfig): TreemapLoaderResult {
+  protected buildQueryConfig(config: TreemapLoaderConfig): QueryConfig {
     const aggregation = config.aggregation ?? 'SUM';
+    const dimensions =
+      this.groupColumn !== undefined
+        ? [
+            {column: this.groupColumn, alias: '_group'},
+            {column: this.labelColumn, alias: '_label'},
+          ]
+        : [{column: this.labelColumn, alias: '_label'}];
 
-    const result = this.querySlot.use({
-      key: {
-        baseQuery: this.baseQuery,
-        labelColumn: this.labelColumn,
-        sizeColumn: this.sizeColumn,
-        groupColumn: this.groupColumn,
-        aggregation,
-        limit: config.limit,
-        labelFilter: config.labelFilter,
-        groupFilter: config.groupFilter,
-      },
-      queryFn: async () => {
-        const label = this.labelColumn;
-        const size = this.sizeColumn;
-        const aggExpr = sqlAggExpression(size, aggregation);
-
-        const filterClauses: string[] = [];
-        if (config.labelFilter !== undefined) {
-          const clause = sqlInClause(label, config.labelFilter);
-          if (clause !== '') filterClauses.push(clause);
-        }
-        if (
-          config.groupFilter !== undefined &&
-          this.groupColumn !== undefined
-        ) {
-          const clause = sqlInClause(this.groupColumn, config.groupFilter);
-          if (clause !== '') filterClauses.push(clause);
-        }
-        const whereClause =
-          filterClauses.length > 0
-            ? `WHERE ${filterClauses.join(' AND ')}`
-            : '';
-
-        let sql: string;
-
-        if (this.groupColumn !== undefined) {
-          // Two-level hierarchy: group -> label
-          const group = this.groupColumn;
-
-          // Use window function to rank within each group
-          sql = `
-            WITH _agg AS (
-              SELECT
-                CAST(${group} AS TEXT) AS _group,
-                CAST(${label} AS TEXT) AS _label,
-                ${aggExpr} AS _value
-              FROM (${this.baseQuery})
-              ${whereClause}
-              GROUP BY ${group}, ${label}
-            ),
-            _ranked AS (
-              SELECT
-                _group,
-                _label,
-                _value,
-                ROW_NUMBER() OVER (PARTITION BY _group ORDER BY _value DESC) AS _rank
-              FROM _agg
-            )
-            SELECT _group, _label, _value
-            FROM _ranked
-            ${config.limit !== undefined ? `WHERE _rank <= ${config.limit}` : ''}
-            ORDER BY _group, _value DESC
-          `;
-        } else {
-          // Single-level: just labels
-          const limitClause =
-            config.limit !== undefined ? `LIMIT ${config.limit}` : '';
-
-          sql = `
-            SELECT
-              NULL AS _group,
-              CAST(${label} AS TEXT) AS _label,
-              ${aggExpr} AS _value
-            FROM (${this.baseQuery})
-            ${whereClause}
-            GROUP BY ${label}
-            ORDER BY _value DESC
-            ${limitClause}
-          `;
-        }
-
-        const queryResult = await this.engine.query(sql);
-
-        // Build hierarchical structure
-        const groupMap = new Map<string | null, TreemapNode[]>();
-
-        const iter = queryResult.iter({
-          _group: STR_NULL,
-          _label: STR_NULL,
-          _value: NUM,
-        });
-
-        for (; iter.valid(); iter.next()) {
-          const groupName = iter._group;
-          const labelName = iter._label ?? '(null)';
-          const value = iter._value;
-
-          let children = groupMap.get(groupName);
-          if (children === undefined) {
-            children = [];
-            groupMap.set(groupName, children);
-          }
-
-          children.push({
-            name: labelName,
-            value,
-            category: groupName ?? undefined,
-          });
-        }
-
-        // Convert to nodes
-        const nodes: TreemapNode[] = [];
-
-        if (this.groupColumn !== undefined) {
-          // Two-level: create parent nodes for each group
-          for (const [groupName, children] of groupMap) {
-            const name = groupName ?? '(uncategorized)';
-            nodes.push({
-              name,
-              value: children.reduce((sum, c) => sum + c.value, 0),
-              category: name,
-              children,
-            });
-          }
-        } else {
-          // Single-level: flat list of nodes
-          const flatNodes = groupMap.get(null);
-          if (flatNodes !== undefined) {
-            nodes.push(...flatNodes);
-          }
-        }
-
-        return {nodes};
-      },
-    });
+    const filters = [
+      ...inFilter(this.labelColumn, config.labelFilter),
+      ...(this.groupColumn !== undefined
+        ? inFilter(this.groupColumn, config.groupFilter)
+        : []),
+    ];
 
     return {
-      data: result.data,
-      isPending: result.isPending,
+      type: 'aggregated',
+      dimensions,
+      measures: [{column: this.sizeColumn, aggregation}],
+      filters,
+      limitPerGroup: this.groupColumn !== undefined ? config.limit : undefined,
+      limit: this.groupColumn === undefined ? config.limit : undefined,
+      orderDirection: 'desc',
     };
   }
 
-  dispose(): void {
-    this.querySlot.dispose();
+  protected parseResult(queryResult: QueryResult): TreemapData {
+    if (this.groupColumn !== undefined) {
+      return this.parseGrouped(queryResult);
+    }
+    return this.parseFlat(queryResult);
+  }
+
+  private parseGrouped(queryResult: QueryResult): TreemapData {
+    const groupMap = new Map<string, TreemapNode[]>();
+    const iter = queryResult.iter({
+      _group: STR_NULL,
+      _label: STR_NULL,
+      _value: NUM,
+    });
+
+    for (; iter.valid(); iter.next()) {
+      const groupName = iter._group ?? '(uncategorized)';
+      const labelName = iter._label ?? '(null)';
+
+      let children = groupMap.get(groupName);
+      if (children === undefined) {
+        children = [];
+        groupMap.set(groupName, children);
+      }
+      children.push({name: labelName, value: iter._value, category: groupName});
+    }
+
+    const nodes: TreemapNode[] = [];
+    for (const [groupName, children] of groupMap) {
+      nodes.push({
+        name: groupName,
+        value: children.reduce((sum, c) => sum + c.value, 0),
+        category: groupName,
+        children,
+      });
+    }
+    return {nodes};
+  }
+
+  private parseFlat(queryResult: QueryResult): TreemapData {
+    const nodes: TreemapNode[] = [];
+    const iter = queryResult.iter({_label: STR_NULL, _value: NUM});
+
+    for (; iter.valid(); iter.next()) {
+      nodes.push({name: iter._label ?? '(null)', value: iter._value});
+    }
+    return {nodes};
   }
 }

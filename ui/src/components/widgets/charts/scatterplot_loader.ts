@@ -12,10 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM, NUM_NULL, STR_NULL} from '../../../trace_processor/query_result';
-import {sqlRangeClause, validateColumnName} from './chart_utils';
+import {
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+  QueryResult,
+} from '../../../trace_processor/query_result';
+import {
+  ChartSource,
+  SQLChartLoader,
+  QueryConfig,
+  ChartLoaderResult,
+  PointColumnSpec,
+  rangeFilters,
+} from './chart_sql_source';
 import {
   ScatterChartData,
   ScatterChartPoint,
@@ -31,7 +42,7 @@ export interface SQLScatterChartLoaderOpts {
 
   /**
    * SQL query that provides the raw data.
-   * Must include x and y columns (and optionally size, color, series columns).
+   * Must include x and y columns (and optionally size, label, series columns).
    */
   readonly query: string;
 
@@ -58,33 +69,21 @@ export interface SQLScatterChartLoaderOpts {
  * Per-use configuration for the scatter chart loader.
  */
 export interface ScatterChartLoaderConfig {
-  /**
-   * Filter to only include points within this X range.
-   */
+  /** Filter to only include points within this X range. */
   readonly xRange?: {readonly min: number; readonly max: number};
 
-  /**
-   * Filter to only include points within this Y range.
-   */
+  /** Filter to only include points within this Y range. */
   readonly yRange?: {readonly min: number; readonly max: number};
 
   /**
-   * Maximum number of points per series. When exceeded, random sampling
-   * is applied. Defaults to no limit.
+   * Maximum number of points per series. When exceeded, stride-based
+   * sampling is applied. Defaults to no limit.
    */
   readonly maxPoints?: number;
 }
 
-/**
- * Result returned by the scatter chart loader.
- */
-export interface ScatterChartLoaderResult {
-  /** The computed scatter chart data, or undefined if loading. */
-  readonly data: ScatterChartData | undefined;
-
-  /** Whether a query is currently pending. */
-  readonly isPending: boolean;
-}
+/** Result returned by the scatter chart loader. */
+export type ScatterChartLoaderResult = ChartLoaderResult<ScatterChartData>;
 
 /**
  * SQL-based scatter chart loader with async loading and caching.
@@ -92,25 +91,25 @@ export interface ScatterChartLoaderResult {
  * Fetches (x, y) points with optional size and series grouping from SQL.
  * Uses QuerySlot for caching and request deduplication.
  */
-export class SQLScatterChartLoader {
-  private readonly engine: Engine;
-  private readonly baseQuery: string;
+export class SQLScatterChartLoader extends SQLChartLoader<
+  ScatterChartLoaderConfig,
+  ScatterChartData
+> {
   private readonly xColumn: string;
   private readonly yColumn: string;
   private readonly sizeColumn: string | undefined;
   private readonly labelColumn: string | undefined;
   private readonly seriesColumn: string | undefined;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<ScatterChartData>(this.taskQueue);
 
   constructor(opts: SQLScatterChartLoaderOpts) {
-    validateColumnName(opts.xColumn);
-    validateColumnName(opts.yColumn);
-    if (opts.sizeColumn !== undefined) validateColumnName(opts.sizeColumn);
-    if (opts.labelColumn !== undefined) validateColumnName(opts.labelColumn);
-    if (opts.seriesColumn !== undefined) validateColumnName(opts.seriesColumn);
-    this.engine = opts.engine;
-    this.baseQuery = opts.query;
+    const schema: Record<string, 'text' | 'real'> = {
+      [opts.xColumn]: 'real',
+      [opts.yColumn]: 'real',
+    };
+    if (opts.sizeColumn !== undefined) schema[opts.sizeColumn] = 'real';
+    if (opts.labelColumn !== undefined) schema[opts.labelColumn] = 'text';
+    if (opts.seriesColumn !== undefined) schema[opts.seriesColumn] = 'text';
+    super(opts.engine, new ChartSource({query: opts.query, schema}));
     this.xColumn = opts.xColumn;
     this.yColumn = opts.yColumn;
     this.sizeColumn = opts.sizeColumn;
@@ -118,135 +117,70 @@ export class SQLScatterChartLoader {
     this.seriesColumn = opts.seriesColumn;
   }
 
-  use(config: ScatterChartLoaderConfig): ScatterChartLoaderResult {
-    const result = this.querySlot.use({
-      key: {
-        baseQuery: this.baseQuery,
-        xColumn: this.xColumn,
-        yColumn: this.yColumn,
-        sizeColumn: this.sizeColumn,
-        labelColumn: this.labelColumn,
-        seriesColumn: this.seriesColumn,
-        xRange: config.xRange,
-        yRange: config.yRange,
-        maxPoints: config.maxPoints,
-      },
-      queryFn: async () => {
-        const xCol = this.xColumn;
-        const yCol = this.yColumn;
-
-        const filterClauses: string[] = [];
-        if (config.xRange !== undefined) {
-          filterClauses.push(sqlRangeClause(xCol, config.xRange));
-        }
-        if (config.yRange !== undefined) {
-          filterClauses.push(sqlRangeClause(yCol, config.yRange));
-        }
-        const whereClause =
-          filterClauses.length > 0
-            ? `WHERE ${filterClauses.join(' AND ')}`
-            : '';
-
-        const sizeExpr =
-          this.sizeColumn !== undefined
-            ? `CAST(${this.sizeColumn} AS REAL)`
-            : 'NULL';
-        const labelExpr =
-          this.labelColumn !== undefined
-            ? `CAST(${this.labelColumn} AS TEXT)`
-            : 'NULL';
-        const seriesExpr =
-          this.seriesColumn !== undefined
-            ? `CAST(${this.seriesColumn} AS TEXT)`
-            : 'NULL';
-
-        // Build the inner query with optional per-series stride sampling.
-        // When maxPoints is set, window functions stride-sample each series
-        // down to at most maxPoints rows in SQL rather than loading all rows
-        // into JS and discarding most of them.
-        const maxPoints = config.maxPoints;
-        const orderBy =
-          this.seriesColumn !== undefined ? 'ORDER BY _series' : '';
-
-        let sql: string;
-        if (maxPoints !== undefined) {
-          sql = `
-            SELECT _x, _y, _size, _label, _series
-            FROM (
-              SELECT
-                CAST(${xCol} AS REAL) AS _x,
-                CAST(${yCol} AS REAL) AS _y,
-                ${sizeExpr} AS _size,
-                ${labelExpr} AS _label,
-                ${seriesExpr} AS _series,
-                ROW_NUMBER() OVER (PARTITION BY ${seriesExpr}) AS _rn,
-                COUNT(*) OVER (PARTITION BY ${seriesExpr}) AS _cnt
-              FROM (${this.baseQuery})
-              ${whereClause}
-            )
-            WHERE _rn % MAX(1, (_cnt + ${maxPoints} - 1) / ${maxPoints}) = 0
-            ${orderBy}
-          `;
-        } else {
-          sql = `
-            SELECT
-              CAST(${xCol} AS REAL) AS _x,
-              CAST(${yCol} AS REAL) AS _y,
-              ${sizeExpr} AS _size,
-              ${labelExpr} AS _label,
-              ${seriesExpr} AS _series
-            FROM (${this.baseQuery})
-            ${whereClause}
-            ${orderBy}
-          `;
-        }
-
-        const queryResult = await this.engine.query(sql);
-
-        // Group points by series
-        const seriesMap = new Map<string, ScatterChartPoint[]>();
-        const defaultName = this.seriesColumn !== undefined ? '' : 'Points';
-
-        const iter = queryResult.iter({
-          _x: NUM,
-          _y: NUM,
-          _size: NUM_NULL,
-          _label: STR_NULL,
-          _series: STR_NULL,
-        });
-
-        for (; iter.valid(); iter.next()) {
-          const name = iter._series ?? defaultName;
-          let points = seriesMap.get(name);
-          if (points === undefined) {
-            points = [];
-            seriesMap.set(name, points);
-          }
-          const point: ScatterChartPoint = {
-            x: iter._x,
-            y: iter._y,
-            ...(iter._size !== null && {size: iter._size}),
-            ...(iter._label !== null && {label: iter._label}),
-          };
-          points.push(point);
-        }
-
-        const series: ScatterChartSeries[] = [];
-        for (const [name, points] of seriesMap) {
-          series.push({name, points});
-        }
-
-        return {series};
-      },
-    });
+  protected buildQueryConfig(config: ScatterChartLoaderConfig): QueryConfig {
+    // Always include _size and _label columns (NULL when not configured)
+    // so that parseResult can use a single iter spec.
+    const columns: PointColumnSpec[] = [
+      {column: this.xColumn, alias: '_x', cast: 'real'},
+      {column: this.yColumn, alias: '_y', cast: 'real'},
+      this.sizeColumn !== undefined
+        ? {column: this.sizeColumn, alias: '_size', cast: 'real'}
+        : {alias: '_size', cast: 'real'},
+      this.labelColumn !== undefined
+        ? {column: this.labelColumn, alias: '_label', cast: 'text'}
+        : {alias: '_label', cast: 'text'},
+    ];
+    // When no breakdown column, add NULL AS _series so parseResult's
+    // iter spec always finds the column.
+    if (this.seriesColumn === undefined) {
+      columns.push({alias: '_series', cast: 'text'});
+    }
 
     return {
-      data: result.data,
-      isPending: result.isPending,
+      type: 'points',
+      columns,
+      breakdown: this.seriesColumn,
+      filters: rangeFilters(this.xColumn, config.xRange).concat(
+        rangeFilters(this.yColumn, config.yRange),
+      ),
+      orderBy:
+        this.seriesColumn !== undefined ? [{column: '_series'}] : undefined,
+      maxPointsPerSeries: config.maxPoints,
     };
   }
 
-  dispose(): void {
-    this.querySlot.dispose();
+  protected parseResult(queryResult: QueryResult): ScatterChartData {
+    const seriesMap = new Map<string, ScatterChartPoint[]>();
+    const defaultName = this.seriesColumn !== undefined ? '' : 'Points';
+
+    const iter = queryResult.iter({
+      _x: NUM,
+      _y: NUM,
+      _size: NUM_NULL,
+      _label: STR_NULL,
+      _series: STR_NULL,
+    });
+
+    for (; iter.valid(); iter.next()) {
+      const name = iter._series ?? defaultName;
+      let points = seriesMap.get(name);
+      if (points === undefined) {
+        points = [];
+        seriesMap.set(name, points);
+      }
+      const point: ScatterChartPoint = {
+        x: iter._x,
+        y: iter._y,
+        ...(iter._size !== null && {size: iter._size}),
+        ...(iter._label !== null && {label: iter._label}),
+      };
+      points.push(point);
+    }
+
+    const series: ScatterChartSeries[] = [];
+    for (const [name, points] of seriesMap) {
+      series.push({name, points});
+    }
+    return {series};
   }
 }
