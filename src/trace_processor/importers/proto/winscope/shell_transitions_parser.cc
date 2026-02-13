@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/shell_transition.pbzero.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
@@ -42,14 +43,16 @@ ShellTransitionsParser::ShellTransitionsParser(
 
 void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   protos::pbzero::ShellTransition::Decoder transition(blob);
+  auto transition_id = transition.id();
 
   auto* storage = context_->trace_processor_context_->storage.get();
+  auto* string_pool = storage->mutable_string_pool();
 
   // Store the raw proto and its ID in a separate table to handle
   // transitions received over multiple packets for Winscope trace search.
   tables::WindowManagerShellTransitionProtosTable::Row row;
-  row.transition_id = transition.id();
-  row.base64_proto_id = storage->mutable_string_pool()
+  row.transition_id = transition_id;
+  row.base64_proto_id = string_pool
                             ->InternString(base::StringView(
                                 base::Base64Encode(blob.data, blob.size)))
                             .raw_id();
@@ -58,8 +61,8 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   // Track transition args as the come in through different packets
   winscope::ShellTransitionsTracker& transition_tracker =
       context_->shell_transitions_tracker_;
-  auto inserter = transition_tracker.AddArgsTo(transition.id());
-  ArgsParser writer(/*timestamp=*/0, inserter, *storage);
+  auto inserter = transition_tracker.AddArgsTo(transition_id);
+  ArgsParser writer(/*packet_timestamp=*/0, inserter, *storage);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
@@ -71,64 +74,52 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   }
 
   if (transition.has_type()) {
-    transition_tracker.SetTransitionType(transition.id(), transition.type());
-  }
-
-  if (transition.has_dispatch_time_ns()) {
-    transition_tracker.SetDispatchTime(transition.id(),
-                                       transition.dispatch_time_ns());
-    transition_tracker.SetTimestamp(transition.id(),
-                                    transition.dispatch_time_ns());
+    transition_tracker.SetTransitionType(transition_id, transition.type());
   }
 
   if (transition.has_send_time_ns()) {
-    transition_tracker.SetSendTime(transition.id(), transition.send_time_ns());
-    transition_tracker.SetTimestampIfEmpty(transition.id(),
-                                           transition.send_time_ns());
+    transition_tracker.SetSendTime(transition_id, transition.send_time_ns());
+    transition_tracker.SetTimestamp(transition_id, transition.send_time_ns());
+  }
+
+  if (transition.has_dispatch_time_ns()) {
+    transition_tracker.SetDispatchTime(transition_id,
+                                       transition.dispatch_time_ns());
+    transition_tracker.SetTimestampIfEmpty(transition_id,
+                                           transition.dispatch_time_ns());
   }
 
   if (transition.has_shell_abort_time_ns()) {
-    transition_tracker.SetShellAbortTime(transition.id(),
+    transition_tracker.SetShellAbortTime(transition_id,
                                          transition.shell_abort_time_ns());
+  }
+
+  if (transition.has_wm_abort_time_ns()) {
+    transition_tracker.SetWmAbortTime(transition_id,
+                                      transition.wm_abort_time_ns());
   }
 
   if (transition.has_finish_time_ns()) {
     auto finish_time = transition.finish_time_ns();
-    transition_tracker.SetFinishTime(transition.id(), finish_time);
-
-    if (finish_time > 0) {
-      transition_tracker.SetStatus(
-          transition.id(),
-          storage->mutable_string_pool()->InternString("played"));
-    }
+    transition_tracker.SetFinishTime(transition_id, finish_time);
   }
 
   if (transition.has_handler()) {
-    transition_tracker.SetHandler(transition.id(), transition.handler());
+    transition_tracker.SetHandler(transition_id, transition.handler());
   }
 
-  auto shell_aborted = transition.has_shell_abort_time_ns() &&
-                       transition.shell_abort_time_ns() > 0;
-  auto wm_aborted =
-      transition.has_wm_abort_time_ns() && transition.wm_abort_time_ns() > 0;
-
-  if (shell_aborted || wm_aborted) {
-    transition_tracker.SetStatus(
-        transition.id(),
-        storage->mutable_string_pool()->InternString("aborted"));
+  if (transition.has_merge_time_ns()) {
+    transition_tracker.SetMergeTime(transition_id, transition.merge_time_ns());
   }
 
-  auto merged =
-      transition.has_merge_time_ns() && transition.merge_time_ns() > 0;
-  if (merged) {
-    transition_tracker.SetStatus(
-        transition.id(),
-        storage->mutable_string_pool()->InternString("merged"));
+  if (transition.has_create_time_ns()) {
+    transition_tracker.SetCreateTime(transition_id,
+                                     transition.create_time_ns());
   }
 
   // set flags id and flags
   if (transition.has_flags()) {
-    transition_tracker.SetFlags(transition.id(), transition.flags());
+    transition_tracker.SetFlags(transition_id, transition.flags());
   }
 
   // update participants
@@ -138,7 +129,7 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
     for (auto it = transition.targets(); it; ++it) {
       tables::WindowManagerShellTransitionParticipantsTable::Row
           participant_row;
-      participant_row.transition_id = transition.id();
+      participant_row.transition_id = transition_id;
       protos::pbzero::ShellTransition::Target::Decoder target(*it);
       if (target.has_layer_id()) {
         participant_row.layer_id = target.layer_id();
@@ -151,13 +142,13 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   }
 
   if (transition.has_start_transaction_id()) {
-    transition_tracker.SetStartTransactionId(transition.id(),
+    transition_tracker.SetStartTransactionId(transition_id,
                                              transition.start_transaction_id());
   }
 
   if (transition.has_finish_transaction_id()) {
     transition_tracker.SetFinishTransactionId(
-        transition.id(), transition.finish_transaction_id());
+        transition_id, transition.finish_transaction_id());
   }
 }
 

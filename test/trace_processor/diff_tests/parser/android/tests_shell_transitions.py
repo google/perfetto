@@ -22,6 +22,15 @@ from python.generators.diff_tests.testing import TestSuite
 class ShellTransitions(TestSuite):
 
   def test_has_expected_transition_rows(self):
+    # 7: no status - dispatched but no finish time
+    # 8: merged - merge time present
+    # 9: no status - aborted then dispatched but no finish time
+    # 10: played - dispatched and finished
+    # 11: aborted - from shell side
+    # 12: merged - merge time and finish time present
+    # 13: aborted - from WM side
+    # 14: no status - created and finished without dispatch
+    # 15: no status - sent and finished without dispatch
     return DiffTestBlueprint(
         trace=Path('shell_transitions.textproto'),
         query="""
@@ -35,6 +44,9 @@ class ShellTransitions(TestSuite):
           duration_ns,
           finish_time_ns,
           shell_abort_time_ns,
+          wm_abort_time_ns,
+          merge_time_ns,
+          create_time_ns,
           handler,
           status,
           flags,
@@ -45,13 +57,16 @@ class ShellTransitions(TestSuite):
         ORDER BY id;
         """,
         out=Csv("""
-        "id","ts","transition_id","transition_type","send_time_ns","dispatch_time_ns","duration_ns","finish_time_ns","shell_abort_time_ns","handler","status","flags","start_transaction_id","finish_transaction_id"
-        0,76879063147,7,"[NULL]",76875395422,76879063147,"[NULL]","[NULL]","[NULL]",2,"[NULL]","[NULL]",5604932321952,5604932321954
-        1,77899001013,10,"[NULL]",77894307328,77899001013,727303101,78621610429,"[NULL]",4,"played","[NULL]",5604932322158,5604932322159
-        2,82536817137,11,"[NULL]",82535513345,82536817137,"[NULL]","[NULL]",82536817537,2,"aborted","[NULL]",5604932322346,5604932322347
-        3,77320527177,8,"[NULL]",77277756832,77320527177,"[NULL]","[NULL]","[NULL]",3,"merged","[NULL]",5604932322028,5604932322029
-        4,77876414832,9,"[NULL]",77843436723,77876414832,30498739,77873935462,"[NULL]",3,"played","[NULL]",5604932322137,5604932322138
-        5,0,12,1,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","merged","[NULL]","[NULL]","[NULL]"
+        "id","ts","transition_id","transition_type","send_time_ns","dispatch_time_ns","duration_ns","finish_time_ns","shell_abort_time_ns","wm_abort_time_ns","merge_time_ns","create_time_ns","handler","status","flags","start_transaction_id","finish_transaction_id"
+        0,76875395422,7,"[NULL]",76875395422,76879063147,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",76799049027,2,"[NULL]","[NULL]",5604932321952,5604932321954
+        1,77894307328,10,"[NULL]",77894307328,77899001013,722609416,78621610429,"[NULL]","[NULL]","[NULL]",77854865352,4,"played","[NULL]",5604932322158,5604932322159
+        2,82535513345,11,"[NULL]",82535513345,"[NULL]","[NULL]","[NULL]",82536817537,"[NULL]","[NULL]",82498121051,2,"aborted","[NULL]",5604932322346,5604932322347
+        3,77277756832,8,"[NULL]",77277756832,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",77278725500,76955664017,3,"merged","[NULL]",5604932322028,5604932322029
+        4,77843436723,9,"[NULL]",77843436723,77876414832,"[NULL]","[NULL]","[NULL]",77876414732,"[NULL]",77825423417,3,"[NULL]","[NULL]",5604932322137,5604932322138
+        5,77876454832,12,1,"[NULL]",77876454832,"[NULL]",82697061749,"[NULL]","[NULL]",82697060749,"[NULL]","[NULL]","merged","[NULL]","[NULL]","[NULL]"
+        6,82535513845,13,"[NULL]",82535513845,"[NULL]","[NULL]","[NULL]","[NULL]",82536819537,"[NULL]",82498127051,"[NULL]","aborted","[NULL]","[NULL]","[NULL]"
+        7,0,14,"[NULL]","[NULL]","[NULL]","[NULL]",82536819537,"[NULL]","[NULL]","[NULL]",82498127051,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]"
+        8,82498127051,15,"[NULL]",82498127051,"[NULL]","[NULL]",82536819537,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]"
         """))
 
   def test_has_expected_transition_args(self):
@@ -97,7 +112,7 @@ class ShellTransitions(TestSuite):
         """,
         out=Csv("""
         "COUNT(*)"
-        15
+        18
         """))
 
   def test_has_shell_handlers(self):
