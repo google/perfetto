@@ -22,41 +22,42 @@
 #include <string>
 
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_config_utils/pb_to_txt.h"
-#include "src/trace_config_utils/txt_to_pb.h"
+#include "src/proto_utils/pb_to_txt.h"
+#include "src/proto_utils/txt_to_pb.h"
 
 namespace {
 // The buffer used to exchange input and output arguments. We assume 16MB
-// is enough to handle trace configs.
+// is enough to handle trace configs and proto specs.
 char wasm_buf[16 * 1024 * 1024];
 }  // namespace
 
 extern "C" {
 
 // Returns the pointer to the buffer.
-void* EMSCRIPTEN_KEEPALIVE trace_config_utils_buf();
-void* trace_config_utils_buf() {
+void* EMSCRIPTEN_KEEPALIVE proto_utils_buf();
+void* proto_utils_buf() {
   return &wasm_buf;
 }
 
-// Returns the size of the buffer, so trace_config_utils_wasm.ts doesn't have
-// to hardcode the 16MB.
-uint32_t EMSCRIPTEN_KEEPALIVE trace_config_utils_buf_size();
-uint32_t trace_config_utils_buf_size() {
+// Returns the size of the buffer.
+uint32_t EMSCRIPTEN_KEEPALIVE proto_utils_buf_size();
+uint32_t proto_utils_buf_size() {
   return static_cast<uint32_t>(sizeof(wasm_buf));
 }
 
-// Converts a proto-encoded protos.TraceConfig to text.
-// The caller must memcpy the bytes into the wasm_buf and pass the size of the
-// copied data into `size`. The returned pbtxt will be written in wasm_buf and
-// its size returned here.
-uint32_t EMSCRIPTEN_KEEPALIVE trace_config_pb_to_txt(uint32_t size);
-
-uint32_t trace_config_pb_to_txt(uint32_t size) {
-  std::string txt = perfetto::TraceConfigPbToTxt(wasm_buf, size);
+// Helper: converts proto bytes in wasm_buf to text using the given converter,
+// writes result back to wasm_buf, returns the text size.
+uint32_t pb_to_txt(std::string (*converter)(const void*, size_t),
+                   uint32_t size) {
+  std::string txt = converter(wasm_buf, size);
   size_t wsize = perfetto::base::SprintfTrunc(wasm_buf, sizeof(wasm_buf), "%s",
                                               txt.c_str());
   return static_cast<uint32_t>(wsize);
+}
+
+uint32_t EMSCRIPTEN_KEEPALIVE trace_config_pb_to_txt(uint32_t size);
+uint32_t trace_config_pb_to_txt(uint32_t size) {
+  return pb_to_txt(perfetto::TraceConfigPbToTxt, size);
 }
 
 // Like the above, but converts a pbtxt into proto-encoded bytes.
@@ -77,6 +78,12 @@ uint32_t trace_config_txt_to_pb(uint32_t size) {
   memcpy(&wasm_buf[1], res->data(), resp_size);
   return static_cast<uint32_t>(resp_size);
 }
+
+uint32_t EMSCRIPTEN_KEEPALIVE trace_summary_spec_to_text(uint32_t size);
+uint32_t trace_summary_spec_to_text(uint32_t size) {
+  return pb_to_txt(perfetto::TraceSummarySpecPbToTxt, size);
+}
+
 }  // extern "C"
 
 // This is unused but is needed to keep emscripten happy.

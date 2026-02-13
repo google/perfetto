@@ -13,25 +13,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "src/trace_config_utils/pb_to_txt.h"
+#include "src/proto_utils/pb_to_txt.h"
 
 #include <string>
 
-#include "src/trace_config_utils/config.descriptor.h"
+#include "src/proto_utils/config.descriptor.h"
+#include "src/proto_utils/trace_summary.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 
 namespace perfetto {
+namespace {
 
-std::string TraceConfigPbToTxt(const void* data, size_t size) {
+std::string PbToTxt(const uint8_t* desc_data,
+                    size_t desc_size,
+                    const char* msg_type,
+                    const void* data,
+                    size_t size) {
   trace_processor::DescriptorPool pool;
-  pool.AddFromFileDescriptorSet(kConfigDescriptor.data(),
-                                kConfigDescriptor.size());
-
+  pool.AddFromFileDescriptorSet(desc_data, desc_size);
   return trace_processor::protozero_to_text::ProtozeroToText(
-      pool, ".perfetto.protos.TraceConfig",
+      pool, msg_type,
       protozero::ConstBytes{static_cast<const uint8_t*>(data), size},
       trace_processor::protozero_to_text::kIncludeNewLines);
+}
+
+}  // namespace
+
+std::string TraceConfigPbToTxt(const void* data, size_t size) {
+  return PbToTxt(kConfigDescriptor.data(), kConfigDescriptor.size(),
+                 ".perfetto.protos.TraceConfig", data, size);
+}
+
+std::string TraceSummarySpecPbToTxt(const void* data, size_t size) {
+  return PbToTxt(kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
+                 ".perfetto.protos.TraceSummarySpec", data, size);
 }
 
 }  // namespace perfetto

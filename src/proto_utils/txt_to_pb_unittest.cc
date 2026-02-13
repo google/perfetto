@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_config_utils/txt_to_pb.h"
+#include "src/proto_utils/txt_to_pb.h"
 
 #include <memory>
 #include <string>

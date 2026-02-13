@@ -59,7 +59,7 @@ if (enable_perfetto_trace_processor) {
 if (enable_perfetto_traceconv) {
   all_targets += [
     "src/traceconv",
-    "src/trace_config_utils",
+    "src/proto_utils",
   ]
   if (is_cross_compiling) {
     # In many cross-compilation scenarios (typically Android) developers expect
@@ -71,7 +71,7 @@ if (enable_perfetto_traceconv) {
     # out/xxx/gcc_like_host/traceconv NOT just out/xxx/traceconv.
     all_targets += [
       "src/traceconv($host_toolchain)",
-      "src/trace_config_utils($host_toolchain)",
+      "src/proto_utils($host_toolchain)",
     ]
   }
 }

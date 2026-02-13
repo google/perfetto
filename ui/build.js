@@ -220,7 +220,7 @@ async function main() {
     cfg.crossOriginIsolation = true;
   }
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
-  cfg.wasmModules = ['traceconv', 'trace_config_utils', 'trace_processor_memory64'];
+  cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
   }
