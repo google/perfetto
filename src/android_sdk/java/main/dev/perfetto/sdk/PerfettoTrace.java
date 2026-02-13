@@ -298,4 +298,52 @@ public final class PerfettoTrace {
     sIsDebug = true;
     register(isBackendInProcess);
   }
+
+  /**
+   * Captures and emits the current thread's call stack to the Perfetto trace.
+   * * WARNING: This is an expensive operation. Thread.getStackTrace() requires
+   * a full stack walk and symbol resolution. Use this ONLY for local debugging
+   * or low-frequency diagnostic events. Do not use in production hot paths.
+   */
+  public static void emitExpensiveDebugCallStack(Category category, String eventName) {
+    if (!category.isEnabled()) {
+        return;
+    }
+    final long FIELD_TRACK_EVENT_CALLSTACK = 55L;
+    final long FIELD_CALLSTACK_FRAMES = 1L;
+    final long FIELD_FRAME_FUNCTION_NAME = 1L;
+    final long FIELD_FRAME_SOURCE_FILE = 2L;
+    final long FIELD_FRAME_LINE_NUMBER = 3L;
+
+    // Capture the stack trace immediately
+    StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+
+    // Using "Callstack" as the category and name for clarity in the UI
+    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
+        .beginProto().beginNested(FIELD_TRACK_EVENT_CALLSTACK);
+
+    // Iterate from the bottom of the stack (main) up to the caller
+    // stackTrace[0] is getStackTrace()
+    // stackTrace[1] is emitStackInPerfetto()
+    // We start at the end and stop before reaching these internal methods
+    for (int i = stackTrace.length - 1; i >= 2; i--) {
+        StackTraceElement element = stackTrace[i];
+
+        builder = builder.beginNested(FIELD_CALLSTACK_FRAMES)
+            .addField(FIELD_FRAME_FUNCTION_NAME, element.getClassName() + "." + element.getMethodName());
+
+        if (element.getFileName() != null) {
+            builder = builder.addField(FIELD_FRAME_SOURCE_FILE, element.getFileName());
+        }
+        if (element.getLineNumber() >= 0) {
+            builder = builder.addField(FIELD_FRAME_LINE_NUMBER, element.getLineNumber());
+        }
+
+        builder = builder.endNested();
+    }
+
+    builder.endNested() // End FIELD_TRACK_EVENT_CALLSTACK
+        .endProto()
+        .emit();
+  }
 }
