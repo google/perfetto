@@ -305,7 +305,7 @@ public final class PerfettoTrace {
    * a full stack walk and symbol resolution. Use this ONLY for local debugging
    * or low-frequency diagnostic events. Do not use in production hot paths.
    */
-  public static void emitDebugCallStack(Category category) {
+  public static void emitExpensiveDebugCallStack(Category category) {
     final long FIELD_TRACK_EVENT_CALLSTACK = 55L;
     final long FIELD_CALLSTACK_FRAMES = 1L;
     final long FIELD_FRAME_FUNCTION_NAME = 1L;
