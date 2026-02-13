@@ -36,12 +36,11 @@ WHERE
 
 -- Returns an artificially generated slice for each pair of (matched(startSlicePattern), matched(endSlicePattern))
 -- Caveat: If multiple slices match endSlicePattern it will only return one per start slice and it will be closest slice in the timeline.
--- Note: Uses GLOB patterns.
 CREATE PERFETTO FUNCTION android_generate_start_to_end_slices(
     -- GLOB pattern to find the start slices
-    startslicepattern STRING,
+    start_pattern STRING,
     -- GLOB pattern to find the matching end slice for each slice matched by startSlicePattern
-    endslicepattern STRING,
+    end_pattern STRING,
     -- Whether the generated slice should include the duration of the end slice or not
     inclusive BOOL
 )
@@ -54,19 +53,24 @@ RETURNS TABLE (
   dur LONG
 ) AS
 SELECT
-  name,
-  ts,
-  min(starttoenddur) AS dur
-FROM (
-  SELECT
-    s.name AS name,
-    s.ts AS ts,
-    e.ts + iif($inclusive, e.dur, 0) - s.ts AS starttoenddur
-  FROM android_find_slices($startslicepattern) AS s
-  CROSS JOIN android_find_slices($endslicepattern) AS e
-  WHERE
-    starttoenddur > 0
-)
-GROUP BY
-  name,
-  ts;
+  s.name,
+  s.ts,
+  -- Calculate duration by looking ahead for the nearest end slice
+  (
+    SELECT
+      e.ts + iif($inclusive, e.dur, 0)
+    FROM slice AS e
+    WHERE
+      e.name GLOB $end_pattern
+      -- Ensure the end slice occurs after the start slice
+      -- Ensure the end slice occurs after the start slice
+      AND e.ts > s.ts
+    ORDER BY
+      e.ts ASC
+    LIMIT 1
+  ) - s.ts AS dur
+FROM slice AS s
+WHERE
+  s.name GLOB $start_pattern
+  -- Filter out start slices that did not find a matching end slice (where dur becomes NULL)
+  AND dur IS NOT NULL;
