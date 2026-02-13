@@ -18,15 +18,14 @@ import {TracingProtocol} from '../tracing_protocol/tracing_protocol';
 import {errResult, okResult, Result} from '../../../base/result';
 import {exists} from '../../../base/utils';
 import {ConsumerIpcTracingSession} from '../tracing_protocol/consumer_ipc_tracing_session';
-
-export const CONSUMER_SOCKET = '/dev/socket/traced_consumer';
+import settings from '../settings';
 
 export async function createAdbTracingSession(
   adbDevice: AdbDevice,
   traceConfig: protos.ITraceConfig,
 ): Promise<Result<ConsumerIpcTracingSession>> {
   const streamStatus = await adbDevice.createStream(
-    `localfilesystem:${CONSUMER_SOCKET}`,
+    settings.getTracedConsumerSocketAddressForAdb(),
   );
   if (!streamStatus.ok) return streamStatus;
   const stream = streamStatus.value;
@@ -38,10 +37,13 @@ export async function createAdbTracingSession(
 export async function getAdbTracingServiceState(
   adbDevice: AdbDevice,
 ): Promise<Result<protos.ITracingServiceState>> {
-  const sock = CONSUMER_SOCKET;
-  const status = await adbDevice.createStream(`localfilesystem:${sock}`);
+  const status = await adbDevice.createStream(
+    settings.getTracedConsumerSocketAddressForAdb(),
+  );
   if (!status.ok) {
-    return errResult(`Failed to connect to ${sock}: ${status.error}`);
+    return errResult(
+      `Failed to connect to ${settings.getTracedConsumerSocketAddress()}: ${status.error}`,
+    );
   }
   const stream = status.value;
   using consumerPort = await TracingProtocol.create(stream);
