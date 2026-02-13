@@ -24,9 +24,9 @@ import {AndroidInputLifecycleTab} from './tab';
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
   static readonly description = `
-  Visualise connected input events in the lifecycle from touch to frame, with latencies for the various input stages. 
-  Activate by running the command 'Android: View Input Lifecycle'
-  `;
+    Visualise connected input events in the lifecycle from touch to frame, with latencies for the various input stages. 
+    Activate by running the command 'Android: View Input Lifecycle'
+    `;
   static readonly dependencies = [RelatedEventsPlugin];
 
   async onTraceLoad(trace: Trace): Promise<void> {
