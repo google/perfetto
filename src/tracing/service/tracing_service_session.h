@@ -156,6 +156,9 @@ struct TracingSession {
   // Whether we emitted clock offsets for relay clients yet.
   bool did_emit_remote_clock_sync_ = false;
 
+  // Whether we emitted the ProtoVM instances.
+  bool did_emit_protovm_instances_ = false;
+
   // Whether we should compress TracePackets after reading them.
   bool compress_deflate = false;
 

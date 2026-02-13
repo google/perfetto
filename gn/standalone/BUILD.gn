@@ -467,6 +467,9 @@ config("release") {
     cflags = [ "-O2" ]
   } else if (is_fuzzer) {
     cflags = [ "-O1" ]
+  } else if (is_qnx && current_cpu == "x64") {
+    # -02 on x64 causes on QNX8.0 x86_64 -Wno-error=alloc-size-larger-than
+    cflags = [ "-O1" ]
   } else {
     cflags = [ "-O3" ]
   }

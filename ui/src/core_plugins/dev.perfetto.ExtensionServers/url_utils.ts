@@ -12,45 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Resolves extension server URLs from shorthand aliases to canonical HTTPS URLs.
-//
-// Supports:
-// - github://owner/repo/ref -> https://raw.githubusercontent.com/owner/repo/ref
-// - https://... -> unchanged (already canonical)
-//
-// Note: http:// URLs are rejected. Use https:// instead.
-export function resolveServerUrl(input: string): string {
-  const trimmed = input.trim();
+import {UserInput} from './types';
 
-  // GitHub alias: github://owner/repo/ref
-  if (trimmed.startsWith('github://')) {
-    const path = trimmed.substring('github://'.length);
-    if (!path) {
-      throw new Error('Invalid GitHub URL: missing owner/repo/ref');
-    }
-    // Path format: owner/repo/ref
-    return `https://raw.githubusercontent.com/${path}`;
+// Returns true if two servers point to the same location (ignoring auth,
+// enabledModules, and enabled state).
+export function sameServerLocation(a: UserInput, b: UserInput): boolean {
+  if (a.type !== b.type) return false;
+  if (a.type === 'github' && b.type === 'github') {
+    return a.repo === b.repo && a.ref === b.ref && a.path === b.path;
   }
-
-  // HTTPS URLs pass through unchanged
-  if (trimmed.startsWith('https://')) {
-    return trimmed;
+  if (a.type === 'https' && b.type === 'https') {
+    return a.url === b.url;
   }
-
-  // HTTP URLs are rejected - browsers don't allow mixed-content fetch,
-  // and silently upgrading can hide bugs if server behaves differently.
-  if (trimmed.startsWith('http://')) {
-    throw new Error(
-      'Invalid server URL: http:// is not supported, use https:// instead',
-    );
-  }
-
-  // Unknown format
-  throw new Error('Invalid server URL: must start with https:// or github://');
+  return false;
 }
 
-// Converts a canonical URL into a display-friendly format by removing
-// the protocol prefix.
-export function makeDisplayUrl(url: string) {
-  return url.replace(/^github:\/\//, '').replace(/^https?:\/\//, '');
+// Converts a server location into a display-friendly string.
+export function makeDisplayUrl(server: UserInput): string {
+  if (server.type === 'github') {
+    const path = server.path !== '/' ? `:${server.path}` : '';
+    return `${server.repo}${path} @ ${server.ref}`;
+  }
+  return server.url.replace(/^https?:\/\//, '');
+}
+
+// Joins a base path (e.g. "/" or "/subdir") with a resource path, stripping
+// redundant slashes.
+export function joinPath(base: string, resource: string): string {
+  const trimmed = base.replace(/^\/+|\/+$/g, '');
+  return trimmed ? `${trimmed}/${resource}` : resource;
+}
+
+// Auto-add https:// if no protocol specified.
+export function normalizeHttpsUrl(input: string): string {
+  const url = input.trim();
+  if (!url.includes('://')) {
+    return `https://${url}`;
+  }
+  return url;
 }

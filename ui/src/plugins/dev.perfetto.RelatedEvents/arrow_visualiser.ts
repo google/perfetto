@@ -42,12 +42,15 @@ export interface ArrowConnection {
   color?: string;
 }
 
+// Class responsible for the core logic of drawing bezier arrows between tracks.
+// It calculates screen coordinates based on event times, track bounds, and depths.
 export class ArrowVisualiser {
   private static readonly DEFAULT_LINE_COLOR = `hsla(0, 100%, 60%, 1.00)`;
   private static readonly LINE_WIDTH = 2;
 
   constructor(private trace: Trace) {}
 
+  // Draws a set of arrows defined by ArrowConnection objects.
   draw(
     canvasCtx: CanvasRenderingContext2D,
     timescale: TimeScale,
@@ -56,6 +59,7 @@ export class ArrowVisualiser {
   ): void {
     canvasCtx.lineWidth = ArrowVisualiser.LINE_WIDTH;
 
+    // Create a map for quick lookup of track bounds by URI.
     const trackBoundsMap = new Map<string, TrackBounds>();
     for (const track of renderedTracks) {
       if (track.node.uri) {
@@ -72,11 +76,13 @@ export class ArrowVisualiser {
         canvasCtx.strokeStyle =
           connection.color || ArrowVisualiser.DEFAULT_LINE_COLOR;
 
+        // Convert timestamps to pixel coordinates.
         const arrowStartX = timescale.timeToPx(
           Time.fromRaw(connection.start.ts),
         );
         const arrowEndX = timescale.timeToPx(Time.fromRaw(connection.end.ts));
 
+        // Calculate the Y coordinates for the start and end points.
         const arrowStartY = this.getYCoordinate(
           leftTrackBounds,
           connection.start.trackUri,
@@ -88,6 +94,7 @@ export class ArrowVisualiser {
           connection.end.depth,
         );
 
+        // Draw the bezier arrow.
         drawBezierArrow(
           canvasCtx,
           {x: arrowStartX, y: arrowStartY},
@@ -128,14 +135,16 @@ export class ArrowVisualiser {
   }
 }
 
+// Determines the color of the arrow based on the relation type or custom arguments.
 function getColorForRelation(relation: Relation): string | undefined {
-  if (relation.type === 'lifecycle_step') return 'hsla(210, 100%, 70%, 1.00)';
   const customArgs = relation.customArgs as {color?: string} | undefined;
   if (customArgs?.color) return customArgs.color;
   return undefined; // Default color
 }
 
-// Wrapper function to use ArrowVisualiser with RelatedEvents
+// Main function to draw arrows based on RelatedEventData.
+// This function converts RelatedEvents and Relations into ArrowConnections
+// and uses an ArrowVisualiser instance to draw them.
 export function drawRelatedEvents(
   canvasCtx: CanvasRenderingContext2D,
   trace: Trace,
@@ -147,6 +156,7 @@ export function drawRelatedEvents(
   const eventMap = new Map(data.events.map((e) => [e.id, e]));
   const connections: ArrowConnection[] = [];
 
+  // Create ArrowConnection objects from the relations.
   for (const relation of data.relations) {
     const sourceEvent = eventMap.get(relation.sourceId);
     const targetEvent = eventMap.get(relation.targetId);
@@ -155,12 +165,12 @@ export function drawRelatedEvents(
       connections.push({
         start: {
           trackUri: sourceEvent.trackUri,
-          ts: Time.add(sourceEvent.ts, sourceEvent.dur),
+          ts: Time.add(sourceEvent.ts, sourceEvent.dur), // Arrow starts at the end of the source event
           depth: sourceEvent.depth,
         },
         end: {
           trackUri: targetEvent.trackUri,
-          ts: targetEvent.ts,
+          ts: targetEvent.ts, // Arrow ends at the start of the target event
           depth: targetEvent.depth,
         },
         color: getColorForRelation(relation),
@@ -168,5 +178,6 @@ export function drawRelatedEvents(
     }
   }
 
+  // Draw the connections.
   visualiser.draw(canvasCtx, timescale, renderedTracks, connections);
 }

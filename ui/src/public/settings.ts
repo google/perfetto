@@ -37,6 +37,12 @@ export interface SettingDescriptor<T> {
   readonly description: string;
   // The Zod schema used for validating the setting's value, and defining the
   // structure and type of this setting.
+  //
+  // Secret fields: If a schema field contains sensitive data (e.g. API tokens,
+  // passwords), annotate it with `.meta({secret: true})`. This allows any
+  // future settings export feature to identify and strip these fields
+  // automatically. Example:
+  //   z.object({ token: z.string().meta({secret: true}) })
   readonly schema: z.ZodType<T>;
   // The default value of the setting if the setting is absent from the
   // underlying storage.
