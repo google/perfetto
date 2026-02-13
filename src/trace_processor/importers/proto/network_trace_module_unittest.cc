@@ -45,6 +45,7 @@
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
@@ -100,6 +101,7 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
     context_.track_group_idx_state =
         std::make_unique<TrackCompressorGroupIdxState>();
+    context_.blob_packet_writer = std::make_unique<BlobPacketWriter>();
   }
 
   base::Status TokenizeAndParse() {
