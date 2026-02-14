@@ -452,7 +452,7 @@ describe('extension_server', () => {
       ).toBe('token ghp_test123');
     });
 
-    test('builds GitHub API URL with subdir path', () => {
+    test('builds raw.githubusercontent.com URL without auth', () => {
       const server: UserInput = {
         type: 'github',
         repo: 'owner/repo',
@@ -462,7 +462,7 @@ describe('extension_server', () => {
       };
       const req = buildFetchRequest(server, 'manifest');
       expect(req.url).toBe(
-        'https://api.github.com/repos/owner/repo/contents/extensions/manifest?ref=v2',
+        'https://raw.githubusercontent.com/owner/repo/v2/extensions/manifest',
       );
     });
 
