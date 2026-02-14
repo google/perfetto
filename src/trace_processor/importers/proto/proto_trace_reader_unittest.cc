@@ -30,8 +30,10 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -74,6 +76,10 @@ class ProtoTraceReaderTest : public ::testing::Test {
         &host_context_,
         std::make_unique<ClockSynchronizerListenerImpl>(&host_context_),
         primary_sync_.get());
+    host_context_.global_metadata_tracker =
+        std::make_unique<GlobalMetadataTracker>(host_context_.storage.get());
+    host_context_.metadata_tracker =
+        std::make_unique<MetadataTracker>(&host_context_);
     host_context_.sorter = std::make_unique<TraceSorter>(
         &host_context_, TraceSorter::SortingMode::kDefault);
     host_context_.descriptor_pool_ = std::make_unique<DescriptorPool>();

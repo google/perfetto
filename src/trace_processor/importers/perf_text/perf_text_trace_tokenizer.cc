@@ -75,7 +75,8 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
   // perfetto at the time of writing.
   // Therefore, approximate all clocks as MONOTONIC.
   context_->clock_tracker->SetTraceTimeClock(
-      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
+      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
+      ClockAuthority::kDefinitive);
 
   reader_.PushBack(std::move(blob));
   std::vector<FrameId> frames;

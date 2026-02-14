@@ -164,7 +164,7 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
       Ptr<TraceProcessorContext::ForkedContextState>::MakeRoot();
   context->clock_converter = Ptr<ClockConverter>::MakeRoot(context);
   context->trace_time_state = Ptr<TraceTimeState>::MakeRoot(TraceTimeState{
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_TRACE_FILE),
       /*used_for_conversion=*/false});
   context->track_group_idx_state =
       Ptr<TrackCompressorGroupIdxState>::MakeRoot();

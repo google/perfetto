@@ -2644,12 +2644,13 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   base::StringView tags = metadata::kNames[metadata::benchmark_story_tags];
 
   context_.sorter->ExtractEventsForced();
-  EXPECT_EQ(storage_->metadata_table().row_count(), 3u);
 
   std::vector<std::pair<base::StringView, base::StringView>> meta_entries;
   for (auto it = storage_->metadata_table().IterateRows(); it; ++it) {
-    meta_entries.emplace_back(storage_->GetString(it.name()),
-                              storage_->GetString(*it.str_value()));
+    base::StringView name = storage_->GetString(it.name());
+    if (name == metadata::kNames[metadata::trace_time_clock_id])
+      continue;
+    meta_entries.emplace_back(name, storage_->GetString(*it.str_value()));
   }
   EXPECT_THAT(meta_entries,
               UnorderedElementsAreArray({make_pair(benchmark, kName),
@@ -2688,17 +2689,18 @@ TEST_F(ProtoTraceParserTest, LoadChromeMetadata) {
 
   const auto& metadata = storage_->metadata_table();
 
-  EXPECT_STREQ(storage_->GetString(metadata[0].name()).c_str(), "cr-str_name");
-  EXPECT_STREQ(storage_->GetString(*metadata[0].str_value()).c_str(), "foostr");
+  // Index 0 is trace_time_clock_id (set by ProtoTraceReader constructor).
+  EXPECT_STREQ(storage_->GetString(metadata[1].name()).c_str(), "cr-str_name");
+  EXPECT_STREQ(storage_->GetString(*metadata[1].str_value()).c_str(), "foostr");
 
-  EXPECT_STREQ(storage_->GetString(metadata[1].name()).c_str(), "cr-int_name");
-  EXPECT_EQ(metadata[1].int_value(), 42);
+  EXPECT_STREQ(storage_->GetString(metadata[2].name()).c_str(), "cr-int_name");
+  EXPECT_EQ(metadata[2].int_value(), 42);
 
-  EXPECT_STREQ(storage_->GetString(metadata[2].name()).c_str(), "cr-bool_name");
-  EXPECT_EQ(metadata[2].int_value(), 1);
+  EXPECT_STREQ(storage_->GetString(metadata[3].name()).c_str(), "cr-bool_name");
+  EXPECT_EQ(metadata[3].int_value(), 1);
 
-  EXPECT_STREQ(storage_->GetString(metadata[3].name()).c_str(), "cr-json_name");
-  EXPECT_STREQ(storage_->GetString(*metadata[3].str_value()).c_str(),
+  EXPECT_STREQ(storage_->GetString(metadata[4].name()).c_str(), "cr-json_name");
+  EXPECT_STREQ(storage_->GetString(*metadata[4].str_value()).c_str(),
                "{key: value}");
 }
 

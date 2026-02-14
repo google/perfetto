@@ -18,8 +18,11 @@
 
 #include <cstdint>
 
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/primes/primes_trace_parser.h"
+
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 
 #include "protos/third_party/primes/primes_tracing.pbzero.h"
 
@@ -29,8 +32,14 @@ namespace perfetto::trace_processor::primes {
 
 PrimesTraceTokenizer::PrimesTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
+      trace_file_clock_(
+          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_TRACE_FILE,
+                                0,
+                                ctx->trace_id().value)),
       stream_(
           ctx->sorter->CreateStream(std::make_unique<PrimesTraceParser>(ctx))) {
+  ctx->clock_tracker->SetTraceTimeClock(trace_file_clock_,
+                                        ClockAuthority::kSpeculative);
 }
 
 PrimesTraceTokenizer::~PrimesTraceTokenizer() = default;
@@ -89,7 +98,11 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
     // Create a TraceBlobView for the edge data.
     TraceBlobView edge_slice = slice->slice_off(
         static_cast<size_t>((*edge).data - slice->data()), (*edge).size);
-    stream_->Push(edge_timestamp, std::move(edge_slice));
+    auto trace_ts =
+        context_->clock_tracker->ToTraceTime(trace_file_clock_, edge_timestamp);
+    if (trace_ts) {
+      stream_->Push(*trace_ts, std::move(edge_slice));
+    }
   }
   return base::OkStatus();
 }

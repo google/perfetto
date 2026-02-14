@@ -35,11 +35,11 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -153,15 +153,13 @@ class InstrumentsXmlTokenizer::Impl {
         has_data_(false),
         stream_(context->sorter->CreateStream(
             std::make_unique<RowParser>(context, data_))) {
-    static constexpr std::string_view kSubsystem =
-        "dev.perfetto.instruments_clock";
-    clock_ = ClockTracker::ClockId(
-        static_cast<uint32_t>(base::MurmurHashValue(kSubsystem) | 0x80000000),
-        0, context->trace_id().value);
+    clock_ = ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_TRACE_FILE, 0,
+                                   context->trace_id().value);
 
     // Use the above clock if we can, in case there is no other trace and
     // no clock sync events.
-    context_->clock_tracker->SetTraceTimeClock(clock_);
+    context_->clock_tracker->SetTraceTimeClock(clock_,
+                                               ClockAuthority::kSpeculative);
   }
   ~Impl() {
     if (parser_) {

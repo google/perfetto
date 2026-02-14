@@ -181,6 +181,12 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
   if (context_->register_additional_proto_modules) {
     context_->register_additional_proto_modules(&module_context_, context_);
   }
+
+  // Proto traces default to BOOTTIME as the trace time clock. This can be
+  // overridden later by a ClockSnapshot with primary_trace_clock set.
+  context_->clock_tracker->SetTraceTimeClock(
+      ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+      ClockAuthority::kDefinitive);
 }
 
 ProtoTraceReader::~ProtoTraceReader() = default;
@@ -540,7 +546,8 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   if (evt.primary_trace_clock()) {
     context_->clock_tracker->SetTraceTimeClock(
-        ClockId(static_cast<uint32_t>(evt.primary_trace_clock())));
+        ClockId(static_cast<uint32_t>(evt.primary_trace_clock())),
+        ClockAuthority::kDefinitive);
   }
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);

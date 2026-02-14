@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
@@ -320,7 +321,11 @@ base::StatusOr<std::vector<GeckoThread>> ParseGeckoProfile(
 GeckoTraceTokenizer::GeckoTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       stream_(
-          ctx->sorter->CreateStream(std::make_unique<GeckoTraceParser>(ctx))) {}
+          ctx->sorter->CreateStream(std::make_unique<GeckoTraceParser>(ctx))),
+      trace_file_clock_(
+          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_TRACE_FILE,
+                                0,
+                                ctx->trace_id().value)) {}
 GeckoTraceTokenizer::~GeckoTraceTokenizer() = default;
 
 base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {
@@ -337,8 +342,8 @@ base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
         threads_or.status().message().c_str());
   }
 
-  context_->clock_tracker->SetTraceTimeClock(
-      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
+  context_->clock_tracker->SetTraceTimeClock(trace_file_clock_,
+                                             ClockAuthority::kSpeculative);
 
   for (const auto& t : *threads_or) {
     if (t.is_preprocessed) {
@@ -453,20 +458,21 @@ void GeckoTraceTokenizer::ProcessLegacyThread(const GeckoThread& t) {
     }
 
     auto ts = static_cast<int64_t>(time_val * 1000 * 1000);
+    std::optional<int64_t> converted =
+        context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+    if (!converted) {
+      continue;
+    }
     if (!added_metadata) {
       stream_->Push(
-          ts, GeckoEvent{GeckoEvent::ThreadMetadata{
-                  t.tid, t.pid,
-                  context_->storage->InternString(base::StringView(t.name))}});
+          *converted,
+          GeckoEvent{GeckoEvent::ThreadMetadata{
+              t.tid, t.pid,
+              context_->storage->InternString(base::StringView(t.name))}});
       added_metadata = true;
     }
-    std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
-        ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
-        ts);
-    if (converted) {
-      stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
-                                    t.tid, callsites[*stack_val].id}});
-    }
+    stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
+                                  t.tid, callsites[*stack_val].id}});
   }
 }
 
@@ -552,20 +558,21 @@ void GeckoTraceTokenizer::ProcessPreprocessedThread(const GeckoThread& t) {
     }
 
     auto ts = static_cast<int64_t>(t.sample_times[i] * 1000 * 1000);
+    std::optional<int64_t> converted =
+        context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+    if (!converted) {
+      continue;
+    }
     if (!added_metadata) {
       stream_->Push(
-          ts, GeckoEvent{GeckoEvent::ThreadMetadata{
-                  t.tid, t.pid,
-                  context_->storage->InternString(base::StringView(t.name))}});
+          *converted,
+          GeckoEvent{GeckoEvent::ThreadMetadata{
+              t.tid, t.pid,
+              context_->storage->InternString(base::StringView(t.name))}});
       added_metadata = true;
     }
-    std::optional<int64_t> converted = context_->clock_tracker->ToTraceTime(
-        ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
-        ts);
-    if (converted) {
-      stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
-                                    t.tid, callsites[stack_idx].id}});
-    }
+    stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
+                                  t.tid, callsites[stack_idx].id}});
   }
 }
 
