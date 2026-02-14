@@ -82,6 +82,7 @@ perfetto_proto_library("non_minimal_@TYPE@") {
   deps = [
     ":minimal_@TYPE@",
     "../config:@TYPE@",
+    "../protovm:@TYPE@",
     "android:@TYPE@",
     "chrome:@TYPE@",
     "etw:@TYPE@",

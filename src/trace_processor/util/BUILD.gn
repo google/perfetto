@@ -76,7 +76,10 @@ source_set("blob") {
 }
 
 source_set("clock") {
-  sources = [ "clock_synchronizer.h" ]
+  sources = [
+    "clock_synchronizer.cc",
+    "clock_synchronizer.h",
+  ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",

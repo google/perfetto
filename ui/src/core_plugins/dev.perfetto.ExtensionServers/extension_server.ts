@@ -20,12 +20,13 @@ import {
   Manifest,
   manifestSchema,
   protoDescriptorsSchema,
+  UserInput,
   sqlModulesSchema,
 } from './types';
-import {resolveServerUrl} from './url_utils';
 import {showModal} from '../../widgets/modal';
 import {errResult, okResult, Result} from '../../base/result';
 import {AppImpl} from '../../core/app_impl';
+import {joinPath} from './url_utils';
 
 // =============================================================================
 // Helpers
@@ -33,28 +34,68 @@ import {AppImpl} from '../../core/app_impl';
 
 const FETCH_TIMEOUT_MS = 10000; // 10 seconds
 
+interface FetchRequest {
+  url: string;
+  init: RequestInit;
+}
+
+// Builds the final fetch URL and RequestInit from a server location and a
+// resource path. All URL construction and auth-specific header/credential
+// additions happen here. Exported for testing.
+export function buildFetchRequest(
+  server: UserInput,
+  path: string,
+): FetchRequest {
+  if (server.type === 'github') {
+    const fullPath = joinPath(server.path, path);
+    const url =
+      `https://api.github.com/repos/${server.repo}` +
+      `/contents/${fullPath.split('/').map(encodeURIComponent).join('/')}` +
+      `?ref=${encodeURIComponent(server.ref)}`;
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github.raw+json',
+    };
+    if (server.auth.type === 'github_pat') {
+      headers['Authorization'] = `token ${server.auth.pat}`;
+    }
+    return {url, init: {method: 'GET', headers}};
+  }
+
+  // HTTPS servers — normalize URL in case https:// is missing.
+  let baseUrl = server.url.trim();
+  if (!baseUrl.includes('://')) {
+    baseUrl = `https://${baseUrl}`;
+  }
+  const url = `${baseUrl.replace(/\/+$/, '')}/${path}`;
+  return {url, init: {method: 'GET'}};
+}
+
 async function fetchJson<T extends z.ZodTypeAny>(
-  url: string,
+  server: UserInput,
+  path: string,
   schema: T,
 ): Promise<Result<z.infer<T>>> {
+  const req = buildFetchRequest(server, path);
   let response: Response;
   try {
-    response = await fetchWithTimeout(url, {method: 'GET'}, FETCH_TIMEOUT_MS);
+    response = await fetchWithTimeout(req.url, req.init, FETCH_TIMEOUT_MS);
   } catch (e) {
-    return errResult(`Failed to fetch ${url}: ${e}`);
+    return errResult(`Failed to fetch ${req.url}: ${e}`);
   }
   if (!response.ok) {
-    return errResult(`Fetch failed: ${url} returned ${response.status}`);
+    return errResult(`Fetch failed: ${req.url} returned ${response.status}`);
   }
   let json: unknown;
   try {
     json = await response.json();
   } catch (e) {
-    return errResult(`Failed to parse JSON from ${url}: ${e}`);
+    return errResult(`Failed to parse JSON from ${req.url}: ${e}`);
   }
   const result = schema.safeParse(json);
   if (!result.success) {
-    return errResult(`Invalid response from ${url}: ${result.error.message}`);
+    return errResult(
+      `Invalid response from ${req.url}: ${result.error.message}`,
+    );
   }
   return okResult(result.data);
 }
@@ -64,32 +105,36 @@ async function fetchJson<T extends z.ZodTypeAny>(
 // =============================================================================
 
 export async function loadManifest(
-  serverUrl: string,
+  server: UserInput,
 ): Promise<Result<Manifest>> {
-  return fetchJson(serverUrl + '/manifest', manifestSchema);
+  return fetchJson(server, 'manifest', manifestSchema);
+}
+
+function modulePath(module: string, manifest: Manifest): string | undefined {
+  const entry = manifest.modules.find((m) => m.name === module);
+  if (entry === undefined) return undefined;
+  return `modules/${module}`;
 }
 
 async function loadMacros(
   manifestResult: Result<Manifest>,
-  canonicalUrl: string,
+  server: UserInput,
   module: string,
 ) {
   if (!manifestResult.ok) {
     return errResult(manifestResult.error);
   }
   const manifest = manifestResult.value;
-  if (!manifest.modules.includes(module)) {
-    return errResult(`Module '${module}' not found on server ${canonicalUrl}`);
+  const modPath = modulePath(module, manifest);
+  if (modPath === undefined) {
+    return errResult(`Module '${module}' not found on server`);
   }
   // Check if macros are supported.
-  if (!manifest.features.find((f) => f === 'macros')) {
+  if (!manifest.features.find((f) => f.name === 'macros')) {
     // Not supported, return empty list.
     return okResult([]);
   }
-  const wrapper = await fetchJson(
-    `${canonicalUrl}/modules/${module}/macros`,
-    macrosSchema,
-  );
+  const wrapper = await fetchJson(server, `${modPath}/macros`, macrosSchema);
   if (!wrapper.ok) {
     return errResult(wrapper.error);
   }
@@ -108,23 +153,25 @@ async function loadMacros(
 
 async function loadSqlPackage(
   manifestResult: Result<Manifest>,
-  canonicalUrl: string,
+  server: UserInput,
   module: string,
 ) {
   if (!manifestResult.ok) {
     return errResult(manifestResult.error);
   }
   const manifest = manifestResult.value;
-  if (!manifest.modules.includes(module)) {
-    return errResult(`Module '${module}' not found on server ${canonicalUrl}`);
+  const modPath = modulePath(module, manifest);
+  if (modPath === undefined) {
+    return errResult(`Module '${module}' not found on server`);
   }
   // Check if sql_modules are supported.
-  if (!manifest.features.find((f) => f === 'sql_modules')) {
+  if (!manifest.features.find((f) => f.name === 'sql_modules')) {
     // Not supported, return empty list.
     return okResult([]);
   }
   const wrapper = await fetchJson(
-    `${canonicalUrl}/modules/${module}/sql_modules`,
+    server,
+    `${modPath}/sql_modules`,
     sqlModulesSchema,
   );
   if (!wrapper.ok) {
@@ -147,23 +194,25 @@ async function loadSqlPackage(
 
 async function loadProtoDescriptors(
   manifestResult: Result<Manifest>,
-  canonicalUrl: string,
+  server: UserInput,
   module: string,
 ) {
   if (!manifestResult.ok) {
     return errResult(manifestResult.error);
   }
   const manifest = manifestResult.value;
-  if (!manifest.modules.includes(module)) {
-    return errResult(`Module '${module}' not found on server ${canonicalUrl}`);
+  const modPath = modulePath(module, manifest);
+  if (modPath === undefined) {
+    return errResult(`Module '${module}' not found on server`);
   }
   // Check if proto_descriptors are supported.
-  if (!manifest.features.find((f) => f === 'proto_descriptors')) {
+  if (!manifest.features.find((f) => f.name === 'proto_descriptors')) {
     // Not supported, return empty list.
     return okResult([]);
   }
   const wrapper = await fetchJson(
-    `${canonicalUrl}/modules/${module}/proto_descriptors`,
+    server,
+    `${modPath}/proto_descriptors`,
     protoDescriptorsSchema,
   );
   if (!wrapper.ok) {
@@ -184,16 +233,15 @@ export function initializeExtensions(
   servers: ReadonlyArray<ExtensionServer>,
 ) {
   const results = [];
-  for (const {url: rawUrl, enabledModules, enabled} of servers) {
-    if (!enabled) {
+  for (const server of servers) {
+    if (!server.enabled) {
       continue;
     }
-    const url = resolveServerUrl(rawUrl);
-    const manifest = loadManifest(url);
-    for (const mod of enabledModules) {
-      const macros = manifest.then((r) => loadMacros(r, url, mod));
-      const sqlPackage = manifest.then((r) => loadSqlPackage(r, url, mod));
-      const descs = manifest.then((r) => loadProtoDescriptors(r, url, mod));
+    const manifest = loadManifest(server);
+    for (const mod of server.enabledModules) {
+      const macros = manifest.then((r) => loadMacros(r, server, mod));
+      const sqlPackage = manifest.then((r) => loadSqlPackage(r, server, mod));
+      const descs = manifest.then((r) => loadProtoDescriptors(r, server, mod));
       results.push(macros, sqlPackage, descs);
       ctx.addMacros(macros.then((r) => (r.ok ? r.value : [])));
       ctx.addSqlPackages(sqlPackage.then((r) => (r.ok ? r.value : [])));

@@ -52,6 +52,7 @@ export function createScrollTimelineTrack(trace: Trace) {
   return SliceTrack.create({
     trace,
     uri: SCROLL_TIMELINE_TRACK.uri,
+    rootTableName: SCROLL_TIMELINE_TRACK.tableName,
     dataset: new SourceDataset({
       src: SCROLL_TIMELINE_TRACK.tableName,
       schema: {

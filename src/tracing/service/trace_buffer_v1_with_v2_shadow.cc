@@ -211,6 +211,10 @@ size_t TraceBufferV1WithV2Shadow::used_size() const {
   return v1_->used_size();
 }
 
+size_t TraceBufferV1WithV2Shadow::GetMemoryUsageBytes() const {
+  return v1_->GetMemoryUsageBytes() + v2_->GetMemoryUsageBytes();
+}
+
 TraceBuffer::OverwritePolicy TraceBufferV1WithV2Shadow::overwrite_policy()
     const {
   return v1_->overwrite_policy();

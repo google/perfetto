@@ -298,4 +298,47 @@ public final class PerfettoTrace {
     sIsDebug = true;
     register(isBackendInProcess);
   }
+
+  /**
+   * Writes a provided call stack to the Perfetto trace.
+   * A stack can be captured with Thread.getStackTrace() but note that it is expensive
+   * and should only be used for local debugging or low-frequency diagnostic events.
+   */
+  public static PerfettoTrackEventBuilder expensiveDebugCallStack(Category category,
+    String eventName, StackTraceElement[] stackTrace) {
+    if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
+        return PerfettoTrace.instant(category, eventName);
+    }
+
+    final long FIELD_TRACK_EVENT_CALLSTACK = 55L;
+    final long FIELD_CALLSTACK_FRAMES = 1L;
+    final long FIELD_FRAME_FUNCTION_NAME = 1L;
+    final long FIELD_FRAME_SOURCE_FILE = 2L;
+    final long FIELD_FRAME_LINE_NUMBER = 3L;
+
+    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
+        .beginProto().beginNested(FIELD_TRACK_EVENT_CALLSTACK);
+
+    // Iterate from the bottom of the stack (main) up to the caller
+    // stackTrace[0] is getStackTrace()
+    // stackTrace[1] is emitStackInPerfetto()
+    // We start at the end and stop before reaching these internal methods
+    for (int i = stackTrace.length - 1; i >= 2; i--) {
+        StackTraceElement element = stackTrace[i];
+
+        builder = builder.beginNested(FIELD_CALLSTACK_FRAMES)
+            .addField(FIELD_FRAME_FUNCTION_NAME, element.getClassName() + "." + element.getMethodName());
+
+        if (element.getFileName() != null) {
+            builder = builder.addField(FIELD_FRAME_SOURCE_FILE, element.getFileName());
+        }
+        if (element.getLineNumber() >= 0) {
+            builder = builder.addField(FIELD_FRAME_LINE_NUMBER, element.getLineNumber());
+        }
+
+        builder = builder.endNested();
+    }
+
+    return builder.endNested().endProto();
+  }
 }

@@ -216,9 +216,430 @@ message AndroidSurfaceFlingerWorkload {
   optional Summary summary = 4;
 }
 
+enum ReceiverType {
+  UNKNOWN = 0;
+  RUNTIME = 1;
+  MANIFEST = 2;
+}
+
+enum ProcessStartType {
+  PROCESS_START_TYPE_UNKNOWN = 0;
+  PROCESS_START_TYPE_WARM = 1;
+  PROCESS_START_TYPE_HOT = 2;
+  PROCESS_START_TYPE_COLD = 3;
+}
+
+enum PackageStoppedState {
+  PACKAGE_STATE_UNKNOWN = 0;
+  PACKAGE_STATE_NORMAL = 1;
+  PACKAGE_STATE_STOPPED = 2;
+}
+
+enum BroadcastDeliveryGroupPolicy {
+  BROADCAST_DELIVERY_GROUP_POLICY_ALL = 0;
+  BROADCAST_DELIVERY_GROUP_POLICY_MOST_RECENT = 1;
+  BROADCAST_DELIVERY_GROUP_POLICY_MERGED = 2;
+}
+
+enum ProcessStateEnum {
+  PROCESS_STATE_UNSPECIFIED = 0;
+  PROCESS_STATE_UNKNOWN_TO_PROTO = 998;
+  PROCESS_STATE_UNKNOWN = 999;
+  PROCESS_STATE_PERSISTENT = 1000;
+  PROCESS_STATE_PERSISTENT_UI = 1001;
+  PROCESS_STATE_TOP = 1002;
+  PROCESS_STATE_BOUND_TOP = 1020;
+  PROCESS_STATE_FOREGROUND_SERVICE = 1003;
+  PROCESS_STATE_BOUND_FOREGROUND_SERVICE = 1004;
+  PROCESS_STATE_IMPORTANT_FOREGROUND = 1005;
+  PROCESS_STATE_IMPORTANT_BACKGROUND = 1006;
+  PROCESS_STATE_TRANSIENT_BACKGROUND = 1007;
+  PROCESS_STATE_BACKUP = 1008;
+  PROCESS_STATE_SERVICE = 1009;
+  PROCESS_STATE_RECEIVER = 1010;
+  PROCESS_STATE_TOP_SLEEPING = 1011;
+  PROCESS_STATE_HEAVY_WEIGHT = 1012;
+  PROCESS_STATE_HOME = 1013;
+  PROCESS_STATE_LAST_ACTIVITY = 1014;
+  PROCESS_STATE_CACHED_ACTIVITY = 1015;
+  PROCESS_STATE_CACHED_ACTIVITY_CLIENT = 1016;
+  PROCESS_STATE_CACHED_RECENT = 1017;
+  PROCESS_STATE_CACHED_EMPTY = 1018;
+  PROCESS_STATE_NONEXISTENT = 1019;
+}
+
+enum ProcessCapabilityEnum {
+  PROCESS_CAPABILITY_UNKNOWN = 0;
+  PROCESS_CAPABILITY_FOREGROUND_LOCATION = 1;
+  PROCESS_CAPABILITY_FOREGROUND_CAMERA = 2;
+  PROCESS_CAPABILITY_FOREGROUND_MICROPHONE = 3;
+  PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK = 4;
+  PROCESS_CAPABILITY_BFSL = 5;
+  PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK = 6;
+  PROCESS_CAPABILITY_FOREGROUND_AUDIO_CONTROL = 7;
+  PROCESS_CAPABILITY_CPU_TIME = 8;
+  PROCESS_CAPABILITY_IMPLICIT_CPU_TIME = 9;
+}
+
+enum AppExitReasonCode {
+  REASON_UNKNOWN = 0;
+  REASON_EXIT_SELF = 1;
+  REASON_SIGNALED = 2;
+  REASON_LOW_MEMORY = 3;
+  REASON_CRASH = 4;
+  REASON_CRASH_NATIVE = 5;
+  REASON_ANR = 6;
+  REASON_INITIALIZATION_FAILURE = 7;
+  REASON_PERMISSION_CHANGE = 8;
+  REASON_EXCESSIVE_RESOURCE_USAGE = 9;
+  REASON_USER_REQUESTED = 10;
+  REASON_USER_STOPPED = 11;
+  REASON_DEPENDENCY_DIED = 12;
+  REASON_OTHER = 13;
+  REASON_FREEZER = 14;
+  REASON_PACKAGE_STATE_CHANGE = 15;
+  REASON_PACKAGE_UPDATED = 16;
+}
+
+enum AppExitSubReasonCode {
+  SUBREASON_UNKNOWN = 0;
+  SUBREASON_WAIT_FOR_DEBUGGER = 1;
+  SUBREASON_TOO_MANY_CACHED = 2;
+  SUBREASON_TOO_MANY_EMPTY = 3;
+  SUBREASON_TRIM_EMPTY = 4;
+  SUBREASON_LARGE_CACHED = 5;
+  SUBREASON_MEMORY_PRESSURE = 6;
+  SUBREASON_EXCESSIVE_CPU = 7;
+  SUBREASON_SYSTEM_UPDATE_DONE = 8;
+  SUBREASON_KILL_ALL_FG = 9;
+  SUBREASON_KILL_ALL_BG_EXCEPT = 10;
+  SUBREASON_KILL_UID = 11;
+  SUBREASON_KILL_PID = 12;
+  SUBREASON_INVALID_START = 13;
+  SUBREASON_INVALID_STATE = 14;
+  SUBREASON_IMPERCEPTIBLE = 15;
+  SUBREASON_REMOVE_LRU = 16;
+  SUBREASON_ISOLATED_NOT_NEEDED = 17;
+  SUBREASON_CACHED_IDLE_FORCED_APP_STANDBY = 18;
+  SUBREASON_FREEZER_BINDER_IOCTL = 19;
+  SUBREASON_FREEZER_BINDER_TRANSACTION = 20;
+  SUBREASON_FORCE_STOP = 21;
+  SUBREASON_REMOVE_TASK = 22;
+  SUBREASON_STOP_APP = 23;
+  SUBREASON_KILL_BACKGROUND = 24;
+  SUBREASON_PACKAGE_UPDATE = 25;
+  SUBREASON_UNDELIVERED_BROADCAST = 26;
+  SUBREASON_SDK_SANDBOX_DIED = 27;
+  SUBREASON_SDK_SANDBOX_NOT_NEEDED = 28;
+  SUBREASON_EXCESSIVE_BINDER_OBJECTS = 29;
+  SUBREASON_OOM_KILL = 30;
+  SUBREASON_FREEZER_BINDER_ASYNC_FULL = 31;
+  SUBREASON_EXCESSIVE_OUTGOING_BROADCASTS_WHILE_CACHED = 32;
+  SUBREASON_ANR_TYPE_APP_TRIGGERED = 33;
+  SUBREASON_ANR_TYPE_BIND_APPLICATION = 34;
+  SUBREASON_ANR_TYPE_BROADCAST_OF_INTENT = 35;
+  SUBREASON_ANR_TYPE_CONTENT_PROVIDER_NOT_RESPONDING = 36;
+  SUBREASON_ANR_TYPE_EXECUTING_SERVICE = 37;
+  SUBREASON_ANR_TYPE_FOREGROUND_SHORT_SERVICE_TIMEOUT = 39;
+  SUBREASON_ANR_TYPE_INPUT_DISPATCHING_TIMEOUT = 41;
+  SUBREASON_ANR_TYPE_INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW = 42;
+  SUBREASON_ANR_TYPE_JOB_SERVICE_START = 45;
+  SUBREASON_ANR_TYPE_START_FOREGROUND_SERVICE = 47;
+  SUBREASON_EXCESSIVE_ENQUEUED_BROADCASTS_COUNT = 49;
+}
+
+enum Importance {
+  option allow_alias = true;
+
+  IMPORTANCE_FOREGROUND = 100;
+  IMPORTANCE_FOREGROUND_SERVICE = 125;
+  IMPORTANCE_TOP_SLEEPING_PRE_28 = 150;
+  IMPORTANCE_VISIBLE = 200;
+  IMPORTANCE_PERCEPTIBLE_PRE_26 = 130;
+  IMPORTANCE_PERCEPTIBLE = 230;
+  IMPORTANCE_CANT_SAVE_STATE_PRE_26 = 170;
+  IMPORTANCE_SERVICE = 300;
+  IMPORTANCE_TOP_SLEEPING = 325;
+  IMPORTANCE_CANT_SAVE_STATE = 350;
+  IMPORTANCE_CACHED = 400;
+  IMPORTANCE_BACKGROUND = 400;
+  IMPORTANCE_EMPTY = 500;
+  IMPORTANCE_GONE = 1000;
+}
+
+enum BroadcastType {
+  BROADCAST_TYPE_NONE = 0;
+  BROADCAST_TYPE_BACKGROUND = 1;
+  BROADCAST_TYPE_FOREGROUND = 2;
+  BROADCAST_TYPE_ALARM = 4;
+  BROADCAST_TYPE_INTERACTIVE = 8;
+  BROADCAST_TYPE_ORDERED = 16;
+  BROADCAST_TYPE_PRIORITIZED = 32;
+  BROADCAST_TYPE_RESULT_TO = 64;
+  BROADCAST_TYPE_DEFERRABLE_UNTIL_ACTIVE = 128;
+  BROADCAST_TYPE_PUSH_MESSAGE = 256;
+  BROADCAST_TYPE_PUSH_MESSAGE_OVER_QUOTA = 512;
+  BROADCAST_TYPE_STICKY = 1024;
+  BROADCAST_TYPE_INITIAL_STICKY = 2048;
+}
+
+enum HostingTypeId {
+  HOSTING_TYPE_UNKNOWN = 0;
+  HOSTING_TYPE_ACTIVITY = 1;
+  HOSTING_TYPE_ADDED_APPLICATION = 2;
+  HOSTING_TYPE_BACKUP = 3;
+  HOSTING_TYPE_BROADCAST = 4;
+  HOSTING_TYPE_CONTENT_PROVIDER = 5;
+  HOSTING_TYPE_LINK_FAIL = 6;
+  HOSTING_TYPE_ON_HOLD = 7;
+  HOSTING_TYPE_NEXT_ACTIVITY = 8;
+  HOSTING_TYPE_NEXT_TOP_ACTIVITY = 9;
+  HOSTING_TYPE_RESTART = 10;
+  HOSTING_TYPE_SERVICE = 11;
+  HOSTING_TYPE_SYSTEM = 12;
+  HOSTING_TYPE_TOP_ACTIVITY = 13;
+  HOSTING_TYPE_EMPTY = 14;
+}
+
+enum UnfreezeReason {
+  UFR_NONE = 0;
+  UFR_ACTIVITY = 1;
+  UFR_FINISH_RECEIVER = 2;
+  UFR_START_RECEIVER = 3;
+  UFR_BIND_SERVICE = 4;
+  UFR_UNBIND_SERVICE = 5;
+  UFR_START_SERVICE = 6;
+  UFR_GET_PROVIDER = 7;
+  UFR_REMOVE_PROVIDER = 8;
+  UFR_UI_VISIBILITY = 9;
+  UFR_ALLOWLIST = 10;
+  UFR_PROCESS_BEGIN = 11;
+  UFR_PROCESS_END = 12;
+  UFR_TRIM_MEMORY = 13;
+  UFR_PING = 15;
+  UFR_FILE_LOCKS = 16;
+  UFR_FILE_LOCK_CHECK_FAILURE = 17;
+  UFR_BINDER_TXNS = 18;
+  UFR_FEATURE_FLAGS = 19;
+  UFR_SHORT_FGS_TIMEOUT = 20;
+  UFR_SYSTEM_INIT = 21;
+  UFR_BACKUP = 22;
+  UFR_SHELL = 23;
+  UFR_REMOVE_TASK = 24;
+  UFR_UID_IDLE = 25;
+  UFR_STOP_SERVICE = 26;
+  UFR_EXECUTING_SERVICE = 27;
+  UFR_RESTRICTION_CHANGE = 28;
+  UFR_COMPONENT_DISABLED = 29;
+  UFR_OOM_ADJ_FOLLOW_UP = 30;
+  UFR_OOM_ADJ_RECONFIGURATION = 31;
+  UFR_OOM_ADJ_REASON_SERVICE_BINDER_CALL = 32;
+  UFR_OOM_ADJ_REASON_BATCH_UPDATE_REQUEST = 33;
+}
+
+enum TriggerType {
+  TRIGGER_TYPE_UNKNOWN = 0;
+  TRIGGER_TYPE_ALARM = 1;
+  TRIGGER_TYPE_PUSH_MESSAGE = 2;
+  TRIGGER_TYPE_PUSH_MESSAGE_OVER_QUOTA = 3;
+  TRIGGER_TYPE_JOB = 4;
+}
+
+enum OomChangeReasonEnum {
+  OOM_ADJ_REASON_UNKNOWN_TO_PROTO = -1;
+  OOM_ADJ_REASON_NONE = 0;
+  OOM_ADJ_REASON_ACTIVITY = 1;
+  OOM_ADJ_REASON_FINISH_RECEIVER = 2;
+  OOM_ADJ_REASON_START_RECEIVER = 3;
+  OOM_ADJ_REASON_BIND_SERVICE = 4;
+  OOM_ADJ_REASON_UNBIND_SERVICE = 5;
+  OOM_ADJ_REASON_START_SERVICE = 6;
+  OOM_ADJ_REASON_GET_PROVIDER = 7;
+  OOM_ADJ_REASON_REMOVE_PROVIDER = 8;
+  OOM_ADJ_REASON_UI_VISIBILITY = 9;
+  OOM_ADJ_REASON_ALLOWLIST = 10;
+  OOM_ADJ_REASON_PROCESS_BEGIN = 11;
+  OOM_ADJ_REASON_PROCESS_END = 12;
+  OOM_ADJ_REASON_SHORT_FGS_TIMEOUT = 13;
+  OOM_ADJ_REASON_SYSTEM_INIT = 14;
+  OOM_ADJ_REASON_BACKUP = 15;
+  OOM_ADJ_REASON_SHELL = 16;
+  OOM_ADJ_REASON_REMOVE_TASK = 17;
+  OOM_ADJ_REASON_UID_IDLE = 18;
+  OOM_ADJ_REASON_STOP_SERVICE = 19;
+  OOM_ADJ_REASON_EXECUTING_SERVICE = 20;
+  OOM_ADJ_REASON_RESTRICTION_CHANGE = 21;
+  OOM_ADJ_REASON_COMPONENT_DISABLED = 22;
+  OOM_ADJ_REASON_FOLLOW_UP = 23;
+  OOM_ADJ_REASON_RECONFIGURATION = 24;
+  OOM_ADJ_REASON_SERVICE_BINDER_CALL = 25;
+  OOM_ADJ_REASON_BATCH_UPDATE_REQUEST = 26;
+}
+
+message AndroidBroadcastEvent {
+  // The package uid of the broadcast receiver.
+  optional int32 receiver_uid = 1;
+
+  // The pid of the broadcast receiver.
+  optional int32 receiver_pid = 2;
+
+  // The package uid of the broadcast sender.
+  optional int32 sender_uid = 3;
+
+  // The pid of the broadcast sender.
+  optional int32 sender_pid = 4;
+
+  // The action name of the broadcast.
+  optional string action_name = 5;
+
+  // The type of the current broadcast receiver.
+  optional ReceiverType receiver_type = 6;
+
+  // The start type of the host process.
+  optional ProcessStartType proc_start_type = 7;
+
+  // The delay in ms from enqueue to dispatch of this intent to the set of
+  // receivers.
+  optional int64 dispatch_delay_ms = 8;
+
+  // The delay in ms from beginning of dispatch to this specific receiver.
+  optional int64 receive_delay_ms = 9;
+
+  // The delay in ms from dispatch to finish the handling of this intent.
+  optional int64 finish_delay_ms = 10;
+
+  // The stopped state (if any) the package was in before the broadcast was
+  // delivered.
+  optional PackageStoppedState package_stopped_state = 11;
+
+  // The type of the broadcast.
+  optional BroadcastType broadcast_type = 12;
+
+  // Delivery group policy set for the broadcast.
+  optional BroadcastDeliveryGroupPolicy delivery_group_policy = 13;
+
+  // Flags set in the broadcast intent.
+  optional int32 intent_flags = 14;
+
+  // The intent filter priority of the broadcast receiver.
+  optional int32 filter_priority = 15;
+
+  // The procstate of the broadcast sender.
+  optional ProcessStateEnum sender_process_state = 16;
+
+  // The procstate of the broadcast receiver before receiving this broadcast.
+  optional ProcessStateEnum receiver_process_state = 17;
+
+  // Whether this is the first launch of the app since install
+  optional uint32 first_launch = 18;
+}
+
+message AndroidFreezerEvent {
+  // The uid of the process being frozen or unfrozen.
+  optional int32 uid = 1;
+
+  // The pid of the process being frozen or unfrozen.
+  optional int32 pid = 2;
+
+  // Time since last unfrozen.
+  optional int64 unfrozen_dur_ms = 3;
+
+  // Time since last frozen.
+  optional int64 frozen_dur_ms = 4;
+
+  // Unfreeze reason.
+  optional UnfreezeReason unfreeze_reason = 5;
+}
+
+message AndroidProcessStartEvent {
+  // The uid of the ProcessRecord.
+  optional int32 uid = 1;
+
+  // The process pid.
+  optional int32 pid = 2;
+
+  // The process name.
+  optional string process_name = 3;
+
+  // Number of milliseconds it takes to reach bind application.
+  optional int64 bind_application_delay_ms = 4;
+
+  // Number of milliseconds it takes to finish start of the process.
+  optional int64 process_start_delay_ms = 5;
+
+  // hostingNameStr field in ProcessRecord.
+  optional string hosting_name = 6;
+
+  // The hosting type of the process.
+  optional HostingTypeId hosting_type = 7;
+
+  // The trigger type for the process start.
+  optional TriggerType trigger_type = 8;
+}
+
+message AndroidProcessDiedEvent {
+  // Uid of the package of the dying process.
+  optional int32 uid = 1;
+
+  // Pid of the dying process.
+  optional int32 pid = 2;
+
+  // The process name.
+  optional string process_name = 3;
+
+  // The reason code of why the process dies.
+  optional AppExitReasonCode reason = 4;
+
+  // The supplemental reason code of why the process dies.
+  optional AppExitSubReasonCode sub_reason = 5;
+
+  // The importance of the process when it dies.
+  optional Importance importance = 6;
+
+  // The last known RSS (in kB) of the process before it dies, could be 0.
+  optional int32 rss_kb = 7;
+
+  // Whether or not this process is hosting one or more foreground services.
+  optional int32 has_foreground_services = 8;
+}
+
+message AndroidProcessStateChangedEvent {
+  // Uid of the package of the process changing state.
+  optional int32 uid = 1;
+
+  // Pid of the process changing state.
+  optional int32 pid = 2;
+
+  // Previous proc state.
+  optional ProcessStateEnum prev_proc_state = 3;
+
+  // Current proc state.
+  optional ProcessStateEnum cur_proc_state = 4;
+
+  // Previous capability flags.
+  optional ProcessCapabilityEnum prev_capability_flags = 5;
+
+  // Current capability flags.
+  optional ProcessCapabilityEnum cur_capability_flags = 6;
+
+  // Previous oom score.
+  optional int32 prev_oom_score = 7;
+
+  // Current oom score.
+  optional int32 cur_oom_score = 8;
+
+  // Reason for the process state change.
+  optional OomChangeReasonEnum reason = 9;
+
+  // Sequence id to identify all process state changes in
+  // one oom_adjuster event. See:
+  // https://cs.android.com/android/platform/superproject/+/android-latest-release:frameworks/base/services/core/java/com/android/server/am/OomAdjuster.java;l=286;drc=9f59f0d6214008c9c7825102e64edb46ddb06297
+  optional int64 seq_id = 10;
+}
+
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2008
+  // Next id: 2013
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -235,5 +656,15 @@ message AndroidTrackEvent {
     optional AndroidJobSchedulerJob job_scheduler_job = 2006;
     // SurfaceFlinger workload.
     optional AndroidSurfaceFlingerWorkload surfaceflinger_workload = 2007;
+    // Broadcasts delivered.
+    optional AndroidBroadcastEvent broadcast_event = 2008;
+    // Freezer event.
+    optional AndroidFreezerEvent freezer_event = 2009;
+    // Process start event.
+    optional AndroidProcessStartEvent process_start_event = 2010;
+    // Process died event.
+    optional AndroidProcessDiedEvent process_died_event = 2011;
+    // Process state changed event.
+    optional AndroidProcessStateChangedEvent process_state_changed_event = 2012;
   }
 }
