@@ -143,6 +143,7 @@ source_set("storage_minimal") {
     "tables",
     "types",
     "util:blob",
+    "util:clock",
     "util:descriptors",
     "util:gzip",
     "util:proto_to_args_parser",
