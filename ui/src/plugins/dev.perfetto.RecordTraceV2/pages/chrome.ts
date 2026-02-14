@@ -26,9 +26,12 @@ import {
   MultiSelect,
   MultiSelectDiff,
   MultiSelectOption,
+  PopupMultiSelect,
 } from '../../../widgets/multiselect';
+import {Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
-import {Result} from '../../../base/result';
+import {Icon} from '../../../widgets/icon';
+import {PopupPosition} from '../../../widgets/popup';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
 import {TargetPlatformId} from '../interfaces/target_platform';
@@ -56,43 +59,40 @@ function chromeProbe(
   chromeCategoryGetter: ChromeCatFunction,
   platformGetter: PlatformGetter,
 ): RecordProbe {
-  const groupToggles = Object.fromEntries(
-    Object.entries(GROUPS).map(([groupName, categories]) => [
-      groupName,
-      new Toggle({
-        title: `${groupName} (${categories.length} categories)`,
-      }),
-    ]),
+  const privacyToggle = new Toggle({
+    title: 'Remove untyped and sensitive data like URLs from the trace',
+    descr:
+      'Not recommended unless you intend to share the trace' +
+      ' with third-parties.',
+  });
+
+  const categories = new ChromeCategoriesWidget(
+    chromeCategoryGetter,
+    platformGetter,
+    privacyToggle,
   );
-  const settings = {
-    ...groupToggles,
-    privacy: new Toggle({
-      title: 'Remove untyped and sensitive data like URLs from the trace',
-      descr:
-        'Not recommended unless you intend to share the trace' +
-        ' with third-parties.',
-    }),
-    categories: new ChromeCategoriesWidget(
-      chromeCategoryGetter,
-      platformGetter,
-      groupToggles,
-    ),
-  };
+
+  const settings = {categories};
+
   return {
     id: 'chrome_tracing',
     title: 'Chrome browser tracing',
     settings,
-    genConfig: function (tc: TraceConfigBuilder) {
-      const cats = settings.categories.getIncludedCategories();
-      const memoryInfra = cats.has('disabled-by-default-memory-infra');
+    genConfig(tc: TraceConfigBuilder) {
+      const allIncludedCats = settings.categories.getAllIncludedCategories();
+      const hasMemoryInfra = allIncludedCats.has(
+        'disabled-by-default-memory-infra',
+      );
+      // Disable all by default => only explicitly enable categories.
+      const DISABLE_ALL_CATEGORIES = '*';
       const jsonStruct = {
         record_mode:
           tc.mode === 'STOP_WHEN_FULL'
             ? 'record-until-full'
             : 'record-continuously',
-        included_categories: [...cats],
-        excluded_categories: ['*'], // Only include categories explicitly
-        memory_dump_config: memoryInfra
+        included_categories: [...allIncludedCats],
+        excluded_categories: [DISABLE_ALL_CATEGORIES],
+        memory_dump_config: hasMemoryInfra
           ? {
               allowed_dump_modes: ['background', 'light', 'detailed'],
               triggers: [
@@ -105,7 +105,7 @@ function chromeProbe(
             }
           : undefined,
       };
-      const privacyFilteringEnabled = settings.privacy.enabled;
+      const privacyFilteringEnabled = privacyToggle.enabled;
       const chromeConfig = {
         privacyFilteringEnabled,
         traceConfig: JSON.stringify(jsonStruct),
@@ -113,10 +113,22 @@ function chromeProbe(
 
       const trackEvent = tc.addDataSource('track_event');
       const trackEvtCfg = (trackEvent.trackEventConfig ??= {});
-      trackEvtCfg.disabledCategories ??= ['*'];
+      trackEvtCfg.disabledCategories ??= [DISABLE_ALL_CATEGORIES];
       trackEvtCfg.enabledCategories ??= [];
-      trackEvtCfg.enabledCategories.push(...cats);
+      trackEvtCfg.enabledCategories.push(
+        ...settings.categories.getEnabledCategories(),
+      );
       trackEvtCfg.enabledCategories.push('__metadata');
+      const enabledTags = settings.categories.getEnabledTags();
+      if (enabledTags.length > 0) {
+        trackEvtCfg.enabledTags ??= [];
+        trackEvtCfg.enabledTags.push(...enabledTags);
+      }
+      const disabledTags = settings.categories.getDisabledTags();
+      if (disabledTags.length > 0) {
+        trackEvtCfg.enabledTags ??= [];
+        trackEvtCfg.enabledTags.push(...disabledTags);
+      }
       trackEvtCfg.enableThreadTimeSampling = true;
       trackEvtCfg.timestampUnitMultiplier = 1000;
       trackEvtCfg.filterDynamicEventNames = privacyFilteringEnabled;
@@ -128,7 +140,7 @@ function chromeProbe(
         'metadata',
       ).chromeConfig = {privacyFilteringEnabled};
 
-      if (memoryInfra) {
+      if (hasMemoryInfra) {
         tc.addDataSource('org.chromium.memory_instrumentation').chromeConfig =
           chromeConfig;
         tc.addDataSource('org.chromium.native_heap_profiler').chromeConfig =
@@ -136,17 +148,17 @@ function chromeProbe(
       }
 
       if (
-        cats.has('disabled-by-default-cpu_profiler') ||
-        cats.has('disabled-by-default-cpu_profiler.debug')
+        allIncludedCats.has('disabled-by-default-cpu_profiler') ||
+        allIncludedCats.has('disabled-by-default-cpu_profiler.debug')
       ) {
         tc.addDataSource('org.chromium.sampler_profiler').chromeConfig = {
           privacyFilteringEnabled,
         };
       }
-      if (cats.has('disabled-by-default-system_metrics')) {
+      if (allIncludedCats.has('disabled-by-default-system_metrics')) {
         tc.addDataSource('org.chromium.system_metrics');
       }
-      if (cats.has('disabled-by-default-histogram_samples')) {
+      if (allIncludedCats.has('disabled-by-default-histogram_samples')) {
         const histogram = tc.addDataSource('org.chromium.histogram_sample');
         const histogramCfg = (histogram.chromiumHistogramSamples ??= {});
         histogramCfg.filterHistogramNames = privacyFilteringEnabled;
@@ -156,16 +168,27 @@ function chromeProbe(
 }
 
 const DISABLED_PREFIX = 'disabled-by-default-';
+const TRACING_EXTENSION_URL = 'https://g.co/chrome/tracing-extension';
+
+interface SelectOption {
+  id: string;
+  name?: string;
+}
 
 export class ChromeCategoriesWidget implements ProbeSetting {
   private options = new Array<MultiSelectOption>();
+  private tagsMap = new Map<string, MultiSelectOption[]>();
+  private enabledTags = new Set<string>();
+  private disabledTags = new Set<string>();
+  private enabledPresets = new Set<string>();
+
   private fetchedRuntimeCategories = false;
   private hasActiveExtension = false;
 
   constructor(
     private chromeCategoryGetter: ChromeCatFunction,
     private platformGetter: PlatformGetter,
-    private groupToggles: Record<string, Toggle>,
+    private privacyToggle: Toggle,
   ) {
     // Initialize first with the static list of builtin categories (in case
     // something goes wrong with the extension).
@@ -176,12 +199,58 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     );
   }
 
-  public getIncludedCategories(): Set<string> {
+  // Explicit list of all enabled categories.
+  public getAllIncludedCategories(): Set<string> {
     const cats = new Set<string>();
     this.getEnabledCategories().forEach((c) => cats.add(c));
+    this.getEnabledTagCategories().forEach((c) => cats.add(c));
+    this.getDisabledTagCategories().forEach((c) => cats.delete(c));
+    return cats;
+  }
+
+  public getEnabledTags(): string[] {
+    return Array.from(this.enabledTags);
+  }
+
+  public getDisabledTags(): string[] {
+    return Array.from(this.disabledTags);
+  }
+
+  public getEnabledCategories(): string[] {
+    const cats = new Set<string>();
+    this.getManuallyEnabledCategories().forEach((c) => cats.add(c));
+    this.getPresetCategories().forEach((c) => cats.add(c));
+    return Array.from(cats);
+  }
+
+  private getManuallyEnabledCategories(): string[] {
+    return this.options.filter((o) => o.checked).map((o) => o.id);
+  }
+
+  private getEnabledTagCategories(): Set<string> {
+    return this.getTagCategories(this.enabledTags);
+  }
+
+  private getDisabledTagCategories(): Set<string> {
+    return this.getTagCategories(this.disabledTags);
+  }
+
+  private getTagCategories(tags: Set<string>): Set<string> {
+    const cats = new Set<string>();
+    for (const tag of tags) {
+      const options = this.tagsMap.get(tag);
+      if (options) {
+        options.forEach((o) => cats.add(o.id));
+      }
+    }
+    return cats;
+  }
+
+  private getPresetCategories(): string[] {
+    const cats = [];
     for (const [group, groupCats] of Object.entries(GROUPS)) {
-      if ((this.groupToggles[group] as Toggle).enabled) {
-        groupCats.forEach((c) => cats.add(c));
+      if (this.enabledPresets.has(group)) {
+        cats.push(...groupCats);
       }
     }
     return cats;
@@ -189,57 +258,134 @@ export class ChromeCategoriesWidget implements ProbeSetting {
 
   private async fetchRuntimeCategoriesIfNeeded() {
     if (this.fetchedRuntimeCategories) return;
-    const runtimeCategories = await this.chromeCategoryGetter();
-    this.hasActiveExtension = runtimeCategories.ok;
-    if (this.hasActiveExtension && runtimeCategories.value) {
-      this.initializeCategories(runtimeCategories.value);
+    try {
+      const runtimeCategories = unwrapResult(await this.chromeCategoryGetter());
+      this.hasActiveExtension = true;
+      this.initializeCategories(runtimeCategories);
+    } catch (e) {
+      console.error(e);
     }
     this.fetchedRuntimeCategories = true;
+    m.redraw();
   }
 
   private initializeCategories(descriptor: protos.TrackEventDescriptor) {
-    this.options = descriptor.availableCategories
-      .filter(
-        (
-          cat,
-        ): cat is protos.ITrackEventCategory & {
-          name: string;
-        } => cat.name != null,
-      )
-      .map((cat) => ({
-        id: cat.name,
-        name: cat.name.replace(DISABLED_PREFIX, ''),
-        checked: this.options.find((o) => o.id === cat.name)?.checked ?? false,
-      }))
-      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+    const newOptions = [];
+    const currentOptionsMap = new Map<string, MultiSelectOption>();
+    this.options.forEach((o) => currentOptionsMap.set(o.id, o));
+    for (const cat of descriptor.availableCategories) {
+      const name = cat.name;
+      if (typeof name !== 'string' || !name) continue;
+      const option: MultiSelectOption = {
+        id: name,
+        name: name.replace(DISABLED_PREFIX, ''),
+        checked: currentOptionsMap.get(name)?.checked ?? false,
+      };
+      newOptions.push(option);
+      for (const tag of new Set(cat.tags ?? [])) {
+        if (this.tagsMap.has(tag)) {
+          this.tagsMap.get(tag)?.push(option);
+        } else {
+          this.tagsMap.set(tag, [option]);
+        }
+      }
+    }
+    newOptions.sort((a, b) =>
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+    );
+    this.options = newOptions;
   }
 
-  getEnabledCategories(): string[] {
-    return this.options.filter((o) => o.checked).map((o) => o.id);
-  }
-
-  setEnabled(cat: string, enabled: boolean) {
+  private enableCategory(cat: string, enabled: boolean) {
     for (const option of this.options) {
       if (option.id !== cat) continue;
       option.checked = enabled;
     }
   }
 
+  private getEnabledPresets(): string[] {
+    return Array.from(this.enabledPresets);
+  }
+
+  private setPresets(presets: string[]) {
+    this.enabledPresets = new Set(presets);
+  }
+
   serialize() {
-    return this.options.filter((o) => o.checked).map((o) => o.id);
+    return {
+      categories: this.getManuallyEnabledCategories(),
+      presets: this.getEnabledPresets(),
+      enabledTags: this.getEnabledTags(),
+      disabledTags: this.getDisabledTags(),
+      privacy: this.privacyToggle.serialize(),
+    };
   }
 
   deserialize(state: unknown): void {
-    if (Array.isArray(state) && state.every((x) => typeof x === 'string')) {
-      this.options.forEach((o) => (o.checked = false));
-      for (const key of state) {
-        const opt = this.options.find((o) => o.id === key);
-        if (opt !== undefined) opt.checked = true;
+    if (Array.isArray(state)) {
+      // Backward compatibility for when state was just a list of categories.
+      this.maybeDeserializeCategories(state);
+      return;
+    }
+
+    if (typeof state === 'object' && state !== null) {
+      const {categories, presets, enabledTags, disabledTags, privacy} =
+        state as {
+          categories?: string[];
+          presets?: string[];
+          enabledTags?: string[];
+          disabledTags?: string[];
+          privacy?: boolean;
+        };
+
+      this.maybeDeserializeCategories(categories);
+      this.maybeDeserializePresets(presets);
+      this.maybeDeserializeTags(enabledTags, this.enabledTags);
+      this.maybeDeserializeTags(disabledTags, this.disabledTags);
+      // Ensure that enabled and disabled tags are fully disjoint.
+      for (const tag of this.enabledTags) {
+        this.disabledTags.delete(tag);
+      }
+
+      if (typeof privacy === 'boolean') {
+        this.privacyToggle.deserialize(privacy);
       }
     }
   }
 
+  private maybeDeserializeCategories(categories: unknown) {
+    if (!Array.isArray(categories)) return;
+    if (!categories.every((x) => typeof x === 'string')) return;
+
+    const optionsMap = new Map<string, MultiSelectOption>();
+    this.options.forEach((o) => {
+      o.checked = false;
+      optionsMap.set(o.id, o);
+    });
+    for (const key of categories) {
+      const maybeOption = optionsMap.get(key);
+      if (maybeOption) maybeOption.checked = true;
+    }
+    return true;
+  }
+
+  private maybeDeserializePresets(presets: unknown) {
+    if (!Array.isArray(presets)) return;
+    if (!presets.every((x) => typeof x === 'string')) return;
+    this.setPresets(presets);
+  }
+
+  private maybeDeserializeTags(tags: unknown, state: Set<string>) {
+    if (!Array.isArray(tags)) return;
+    if (!tags.every((x) => typeof x === 'string')) return;
+    state.clear();
+    tags.forEach((tag) => state.add(tag));
+  }
+
   render() {
+    const warnMissingTracingExtension =
+      !this.hasActiveExtension && this.platformGetter() === 'CHROME';
+
     const categoriesOptions: MultiSelectOption[] = [];
     const slowCategoriesOptions: MultiSelectOption[] = [];
     let includedCategoriesCount = 0;
@@ -254,12 +400,29 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       }
     }
 
-    const activeCategories = Array.from(this.getIncludedCategories()).sort();
-    const warnMissingTracingExtension =
-      !this.hasActiveExtension && this.platformGetter() === 'CHROME';
-    const TRACING_EXTENSION_URL = 'https://g.co/chrome/tracing-extension';
+    const activeCategories = Array.from(this.getAllIncludedCategories()).sort();
+    const allTags = Array.from(this.tagsMap.keys()).sort();
+    const hasAnyTags = allTags.length > 0;
+    const enabledTagOptions: SelectOption[] = allTags
+      .filter((tag) => !this.disabledTags.has(tag))
+      .map((tag) => {
+        return {id: tag};
+      });
+    const disabledTagOptions: SelectOption[] = allTags
+      .filter((tag) => !this.enabledTags.has(tag))
+      .map((tag) => {
+        return {id: tag};
+      });
+    const presetOptions: SelectOption[] = Object.entries(GROUPS).map(
+      ([groupName, categories]) => {
+        return {
+          id: groupName,
+          name: `${groupName} (${categories.length} categories)`,
+        };
+      },
+    );
     return m(
-      'div.chrome-probe',
+      'div.chrome-probe-settings',
       {
         // This shouldn't be necessary in most cases. It's only needed:
         // 1. The first time the user installs the extension.
@@ -285,42 +448,123 @@ export class ChromeCategoriesWidget implements ProbeSetting {
             TRACING_EXTENSION_URL,
           ),
         ),
+      hasAnyTags &&
+        this.renderMultiSelectWithChips(
+          'Enabled Tags',
+          enabledTagOptions,
+          this.enabledTags,
+        ),
+      hasAnyTags &&
+        this.renderMultiSelectWithChips(
+          'Disabled Tags',
+          disabledTagOptions,
+          this.disabledTags,
+        ),
+      this.renderMultiSelectWithChips(
+        'Presets',
+        presetOptions,
+        this.enabledPresets,
+      ),
+      m('div.chrome-privacy-setting', this.privacyToggle.render()),
+      m('h2', m(Icon, {icon: 'list'}), ' Manual Category Selection'),
       m(
         'div.chrome-categories',
         m(
           Section,
-          {title: `Additional Categories (${includedCategoriesCount})`},
+          {
+            title: m(
+              'h1',
+              m(Icon, {icon: 'category'}),
+              ` Categories (${includedCategoriesCount})`,
+            ),
+          },
           m(MultiSelect, {
             options: categoriesOptions,
             repeatCheckedItemsAtTop: false,
             fixedSize: false,
             onChange: (diffs: MultiSelectDiff[]) => {
-              diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
+              diffs.forEach(({id, checked}) =>
+                this.enableCategory(id, checked),
+              );
             },
           }),
         ),
         m(
           Section,
-          {title: `High Overhead Categories (${includedSlowCategoriesCount})`},
+          {
+            title: m(
+              'h1',
+              m(Icon, {icon: 'stethoscope'}),
+              ` High Overhead Categories (${includedSlowCategoriesCount})`,
+            ),
+          },
           m(MultiSelect, {
             options: slowCategoriesOptions,
             repeatCheckedItemsAtTop: false,
             fixedSize: false,
             onChange: (diffs: MultiSelectDiff[]) => {
-              diffs.forEach(({id, checked}) => this.setEnabled(id, checked));
+              diffs.forEach(({id, checked}) =>
+                this.enableCategory(id, checked),
+              );
             },
           }),
         ),
       ),
       m(
-        Section,
-        {title: `All Active Categories (${activeCategories.length})`},
+        'details',
+        m('summary', `All Active Categories (${activeCategories.length})`),
         m(
-          'details',
-          m('summary', 'Show all included categories'),
-          m(
-            'div',
-            activeCategories.map((cat) => m(Chip, {label: cat})),
+          'div.chrome-tags-panel-chips',
+          activeCategories.map((cat) => m(Chip, {label: cat})),
+        ),
+      ),
+    );
+  }
+
+  private renderMultiSelectWithChips(
+    label: string,
+    options: SelectOption[],
+    optionsState: Set<string>,
+  ) {
+    const multiSelectOptions = Array.from(options).map((selectOption) => {
+      return {
+        id: selectOption.id,
+        name: selectOption.name ?? selectOption.id,
+        checked: optionsState.has(selectOption.id),
+      };
+    });
+
+    return m(
+      'div.chrome-categories-presets',
+      m(
+        'div.chrome-tags-panel',
+        m(PopupMultiSelect, {
+          label: label,
+          intent: optionsState.size > 0 ? Intent.Primary : undefined,
+          icon: Icons.LibraryAddCheck,
+          options: multiSelectOptions,
+          showNumSelected: true,
+          position: PopupPosition.Bottom,
+          onChange: (diffs: MultiSelectDiff[]) => {
+            diffs.forEach(({id, checked}) => {
+              if (checked) {
+                optionsState.add(id);
+              } else {
+                optionsState.delete(id);
+              }
+            });
+          },
+        }),
+        m(
+          'div.chrome-tags-panel-chips',
+          Array.from(optionsState).map((tag) =>
+            m(Chip, {
+              label: tag,
+              removable: true,
+              onRemove: () => {
+                optionsState.delete(tag);
+              },
+            }),
           ),
         ),
       ),
