@@ -23,6 +23,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
@@ -62,6 +63,7 @@ class SystraceTraceParser : public ChunkedTraceReader {
   SystraceLineTokenizer line_tokenizer_;
   SystraceLineParser line_parser_;
   TraceProcessorContext* ctx_;
+  ClockTracker::ClockId trace_file_clock_{0};
 
   std::unique_ptr<TraceSorter::Stream<SystraceLine>> stream_;
 };

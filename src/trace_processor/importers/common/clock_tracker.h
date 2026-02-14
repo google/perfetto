@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -36,6 +35,11 @@ namespace perfetto::trace_processor {
 class ClockTrackerTest;
 
 class ClockSynchronizerListenerImpl;
+
+// Whether a trace time clock is definitively known (e.g. BOOTTIME from a proto
+// trace) or speculative (e.g. a JSON trace's local timestamps that we assume
+// are identity-mapped to trace time unless a snapshot says otherwise).
+enum class ClockAuthority : uint8_t { kDefinitive, kSpeculative };
 
 // ClockTracker wraps ClockSynchronizer (the pure conversion engine) and adds
 // trace-time semantics: which clock domain is the "trace time", applying
@@ -69,6 +73,12 @@ class ClockTracker {
     if (PERFETTO_UNLIKELY(!state->used_for_conversion)) {
       OnFirstTraceTimeUse();
     }
+    if (PERFETTO_UNLIKELY(speculative_clock_ == clock_id)) {
+      // Inject an identity snapshot (offset=0) so Convert() can find a path.
+      // One-shot: clear so we don't re-inject on every call.
+      active_sync_->AddSnapshot({{clock_id, 0}, {state->clock_id, 0}});
+      speculative_clock_ = std::nullopt;
+    }
     ++num_conversions_;
     auto ts = active_sync_->Convert(clock_id, timestamp, state->clock_id,
                                     byte_offset);
@@ -100,7 +110,9 @@ class ClockTracker {
   base::StatusOr<uint32_t> AddSnapshot(
       const std::vector<ClockTimestamp>& clock_timestamps);
 
-  base::Status SetTraceTimeClock(ClockId clock_id);
+  base::Status SetTraceTimeClock(
+      ClockId clock_id,
+      ClockAuthority authority = ClockAuthority::kDefinitive);
 
   std::optional<int64_t> ToTraceTimeFromSnapshot(
       const std::vector<ClockTimestamp>& snapshot);
@@ -146,6 +158,11 @@ class ClockTracker {
   // to its own sync, this value indicates how many conversions used the
   // primary trace's clocks.
   uint32_t num_conversions_ = 0;
+  // Clock registered as speculative via SetTraceTimeClock(..., kSpeculative).
+  // On first ToTraceTime call for this clock, an identity edge (offset=0) to
+  // trace time is injected and this is cleared. Cleared early by AddSnapshot
+  // if an explicit snapshot already connects this clock to trace time.
+  std::optional<ClockId> speculative_clock_;
 };
 
 class ClockSynchronizerListenerImpl : public ClockSynchronizerListener {

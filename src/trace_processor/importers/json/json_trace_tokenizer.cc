@@ -50,6 +50,8 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/simple_json_parser.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
+
 namespace perfetto::trace_processor {
 namespace {
 
@@ -488,7 +490,14 @@ JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
       systrace_stream_(context_->sorter->CreateStream(
           std::make_unique<SystraceSink>(&parser_))),
       v8_stream_(context_->sorter->CreateStream(
-          std::make_unique<V8Sink>(v8_tracker_.get()))) {}
+          std::make_unique<V8Sink>(v8_tracker_.get()))),
+      trace_file_clock_(
+          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_TRACE_FILE,
+                                0,
+                                ctx->trace_id().value)) {
+  context_->clock_tracker->SetTraceTimeClock(trace_file_clock_,
+                                             ClockAuthority::kSpeculative);
+}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
 
 base::Status JsonTraceTokenizer::Parse(TraceBlobView blob) {
@@ -799,7 +808,10 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     }
     return true;
   }
-  json_stream_->Push(ts, std::move(event));
+  auto trace_ts = context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+  if (trace_ts) {
+    json_stream_->Push(*trace_ts, std::move(event));
+  }
   return true;
 }
 
@@ -855,8 +867,12 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {
     ASSIGN_OR_RETURN(int64_t ts,
                      v8_tracker_->AddDeltaAndGetTs(
                          id, event.pid, profile.time_deltas[i] * 1000));
-    v8_stream_->Push(ts, LegacyV8CpuProfileEvent{id, event.pid, event.tid,
-                                                 profile.samples[i]});
+    auto trace_ts = context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+    if (trace_ts) {
+      v8_stream_->Push(*trace_ts,
+                       LegacyV8CpuProfileEvent{id, event.pid, event.tid,
+                                               profile.samples[i]});
+    }
   }
   return base::OkStatus();
 }
@@ -970,7 +986,11 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
 
     SystraceLine line;
     RETURN_IF_ERROR(systrace_line_tokenizer_.Tokenize(raw_line, &line));
-    systrace_stream_->Push(line.ts, std::move(line));
+    auto trace_ts =
+        context_->clock_tracker->ToTraceTime(trace_file_clock_, line.ts);
+    if (trace_ts) {
+      systrace_stream_->Push(*trace_ts, std::move(line));
+    }
   }
   return SetOutAndReturn(next, out);
 }

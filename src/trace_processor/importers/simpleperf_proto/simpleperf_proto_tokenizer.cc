@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_parser.h"
@@ -35,6 +36,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/third_party/simpleperf/cmd_report_sample.pbzero.h"
 
 namespace perfetto::trace_processor::simpleperf_proto_importer {
@@ -50,7 +52,11 @@ SimpleperfProtoTokenizer::SimpleperfProtoTokenizer(
     TraceProcessorContext* context)
     : context_(context),
       stream_(context->sorter->CreateStream(
-          std::make_unique<SimpleperfProtoParser>(context, &tracker_))) {}
+          std::make_unique<SimpleperfProtoParser>(context, &tracker_))) {
+  context_->clock_tracker->SetTraceTimeClock(
+      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      ClockAuthority::kDefinitive);
+}
 
 SimpleperfProtoTokenizer::~SimpleperfProtoTokenizer() = default;
 
@@ -227,10 +233,14 @@ base::Status SimpleperfProtoTokenizer::ParseRecord() {
   }
 
   // Create event with the record data and push to sorter
-  SimpleperfProtoEvent event;
-  event.ts = ts;
-  event.record_data = std::move(*record_data);
-  stream_->Push(ts, std::move(event));
+  auto trace_ts = context_->clock_tracker->ToTraceTime(
+      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), ts);
+  if (trace_ts) {
+    SimpleperfProtoEvent event;
+    event.ts = *trace_ts;
+    event.record_data = std::move(*record_data);
+    stream_->Push(*trace_ts, std::move(event));
+  }
 
   reader_.PopFrontUntil(iter.file_offset());
   state_ = State::kExpectingRecordSize;

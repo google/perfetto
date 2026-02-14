@@ -210,7 +210,8 @@ PerfDataTokenizer::ParseHeader() {
   feature_headers_section_ = {header_.data.end(),
                               feature_ids_.size() * sizeof(PerfFile::Section)};
   context_->clock_tracker->SetTraceTimeClock(
-      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
+      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
+      ClockAuthority::kDefinitive);
 
   PERFETTO_CHECK(buffer_.PopFrontUntil(sizeof(PerfFile::Header)));
   parsing_state_ = ParsingState::kParseAttrs;
@@ -251,7 +252,8 @@ PerfDataTokenizer::ParseAttrs() {
   ASSIGN_OR_RETURN(perf_invocation_, builder.Build());
   if (perf_invocation_->HasPerfClock()) {
     context_->clock_tracker->SetTraceTimeClock(
-        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_PERF));
+        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_PERF),
+        ClockAuthority::kDefinitive);
   }
   parsing_state_ = ParsingState::kSeekRecords;
   return ParsingResult::kSuccess;

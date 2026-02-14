@@ -637,5 +637,67 @@ TEST_F(ClockTrackerTest, PrimaryTraceAlwaysUsesSharedSync) {
   EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
 }
 
+// --- ClockAuthority tests ---
+
+TEST_F(ClockTrackerTest, DefinitiveBehaviorUnchanged) {
+  ct_->SetTraceTimeClock(BOOTTIME, ClockAuthority::kDefinitive);
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+}
+
+TEST_F(ClockTrackerTest, SpeculativeInjectsIdentityEdge) {
+  // Set trace time to BOOTTIME (default in test fixture).
+  // Register a speculative clock with no snapshot path.
+  constexpr ClockTracker::ClockId TRACE_FILE(
+      protos::pbzero::BUILTIN_CLOCK_TRACE_FILE);
+  ct_->SetTraceTimeClock(TRACE_FILE, ClockAuthority::kSpeculative);
+
+  // No snapshot exists for TRACE_FILE, so first ToTraceTime should inject
+  // an identity edge and return the timestamp unchanged.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 42), 42);
+
+  // Second call should also work (the identity edge was injected once).
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 100), 100);
+}
+
+TEST_F(ClockTrackerTest, SpeculativeClockEqualsTraceTimeClock) {
+  // If the speculative clock IS the trace time clock, no edge needed.
+  ct_->SetTraceTimeClock(BOOTTIME, ClockAuthority::kSpeculative);
+  // BOOTTIME is the default trace time clock, so ToTraceTime should
+  // already work through the identity path.
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 42), 42);
+}
+
+TEST_F(ClockTrackerTest, SpeculativeWithExplicitSnapshot) {
+  constexpr ClockTracker::ClockId TRACE_FILE(
+      protos::pbzero::BUILTIN_CLOCK_TRACE_FILE);
+  ct_->SetTraceTimeClock(TRACE_FILE, ClockAuthority::kSpeculative);
+
+  // Provide an explicit snapshot with a non-identity offset.
+  ct_->AddSnapshot({{TRACE_FILE, 0}, {BOOTTIME, 1000}});
+
+  // Should use the explicit snapshot, not identity.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 10), 1010);
+}
+
+TEST_F(ClockTrackerTest, MixedDefinitiveAndSpeculative) {
+  // Definitive sets the actual trace time clock.
+  ct_->SetTraceTimeClock(BOOTTIME, ClockAuthority::kDefinitive);
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+
+  // Speculative clock for a secondary trace format.
+  constexpr ClockTracker::ClockId TRACE_FILE(
+      protos::pbzero::BUILTIN_CLOCK_TRACE_FILE);
+  ct_->SetTraceTimeClock(TRACE_FILE, ClockAuthority::kSpeculative);
+
+  // Definitive clock conversion works as before.
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+
+  // Speculative clock gets identity edge to BOOTTIME.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 42), 42);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

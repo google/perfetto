@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/common/clock_tracker.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -27,7 +26,6 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -59,6 +57,20 @@ ClockTracker::ClockTracker(
 
 base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
     const std::vector<ClockTimestamp>& clock_timestamps) {
+  // If this snapshot explicitly maps the speculative clock to trace time,
+  // clear it — the snapshot provides a real conversion path, so we don't
+  // need to inject an identity edge later.
+  if (speculative_clock_) {
+    auto* state = context_->trace_time_state.get();
+    bool has_spec = false, has_tt = false;
+    for (const auto& ct : clock_timestamps) {
+      has_spec = has_spec || (ct.clock.id == *speculative_clock_);
+      has_tt = has_tt || (ct.clock.id == state->clock_id);
+    }
+    if (has_spec && has_tt) {
+      speculative_clock_ = std::nullopt;
+    }
+  }
   if (PERFETTO_LIKELY(is_primary_)) {
     return primary_sync_->AddSnapshot(clock_timestamps);
   }
@@ -79,9 +91,21 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
   return active_sync_->AddSnapshot(clock_timestamps);
 }
 
-base::Status ClockTracker::SetTraceTimeClock(ClockId clock_id) {
+base::Status ClockTracker::SetTraceTimeClock(ClockId clock_id,
+                                             ClockAuthority authority) {
   PERFETTO_DCHECK(!ClockSynchronizer::IsSequenceClock(clock_id.clock_id));
   auto* state = context_->trace_time_state.get();
+
+  if (authority == ClockAuthority::kSpeculative) {
+    // If this clock is already the trace time clock, it's already identity.
+    if (state->clock_id == clock_id) {
+      return base::OkStatus();
+    }
+    speculative_clock_ = clock_id;
+    return base::OkStatus();
+  }
+
+  // kDefinitive: existing behavior.
   if (state->used_for_conversion && state->clock_id != clock_id) {
     return base::ErrStatus(
         "Not updating trace time clock from %s to %s"

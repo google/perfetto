@@ -54,7 +54,8 @@ base::Status AndroidDumpstateReader::ParseLine(
     BufferingAndroidLogReader* const log_reader,
     base::StringView line) {
   context_->clock_tracker->SetTraceTimeClock(
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_REALTIME));
+      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_REALTIME),
+      ClockAuthority::kDefinitive);
 
   // Dumpstate is organized in a two level hierarchy, beautifully flattened into
   // one text file with load bearing ----- markers:

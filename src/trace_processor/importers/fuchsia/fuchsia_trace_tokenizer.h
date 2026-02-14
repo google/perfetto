@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
@@ -81,6 +82,7 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
   void RegisterProvider(uint32_t, std::string);
 
   TraceProcessorContext* const context_;
+  ClockTracker::ClockId trace_file_clock_{0};
   std::unique_ptr<TraceSorter::Stream<FuchsiaRecord>> stream_;
   FuchsiaTraceParser* parser_;
   std::vector<uint8_t> leftover_bytes_;
