@@ -21,12 +21,15 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -43,13 +46,37 @@ namespace perfetto::trace_processor {
 
 ClockTracker::ClockTracker(
     TraceProcessorContext* context,
-    std::unique_ptr<ClockSynchronizerListenerImpl> listener)
+    std::unique_ptr<ClockSynchronizerListenerImpl> listener,
+    ClockSynchronizer* primary_sync,
+    bool is_primary)
     : context_(context),
-      sync_(context->trace_time_state.get(), std::move(listener)) {}
+      sync_(context->trace_time_state.get(), std::move(listener)),
+      active_sync_(primary_sync),
+      primary_sync_(primary_sync),
+      is_primary_(is_primary) {
+  PERFETTO_CHECK(primary_sync);
+}
 
 base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
     const std::vector<ClockTimestamp>& clock_timestamps) {
-  return sync_.AddSnapshot(clock_timestamps);
+  if (PERFETTO_LIKELY(is_primary_)) {
+    return primary_sync_->AddSnapshot(clock_timestamps);
+  }
+  // Non-primary trace: if we were using the primary's pool and already
+  // converted timestamps, those conversions may have used different clock
+  // data than our own.
+  if (PERFETTO_UNLIKELY(active_sync_ != &sync_ && num_conversions_ > 0)) {
+    context_->import_logs_tracker->RecordAnalysisError(
+        stats::clock_sync_mixed_clock_sources,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          StringId key =
+              context_->storage->InternString("num_conversions_using_primary");
+          inserter.AddArg(key, Variadic::UnsignedInteger(num_conversions_));
+        });
+  }
+  // Switch to our own sync and add the snapshot there.
+  active_sync_ = &sync_;
+  return active_sync_->AddSnapshot(clock_timestamps);
 }
 
 base::Status ClockTracker::SetTraceTimeClock(ClockId clock_id) {
@@ -81,15 +108,15 @@ std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
 }
 
 void ClockTracker::SetRemoteClockOffset(ClockId clock_id, int64_t offset) {
-  remote_clock_offsets_[clock_id] = offset;
+  context_->trace_time_state->remote_clock_offsets[clock_id] = offset;
 }
 
 std::optional<int64_t> ClockTracker::timezone_offset() const {
-  return timezone_offset_;
+  return context_->trace_time_state->timezone_offset;
 }
 
 void ClockTracker::set_timezone_offset(int64_t offset) {
-  timezone_offset_ = offset;
+  context_->trace_time_state->timezone_offset = offset;
 }
 
 // --- ClockTracker: private slow paths ---
@@ -105,16 +132,16 @@ void ClockTracker::OnFirstTraceTimeUse() {
 // --- ClockTracker: testing ---
 
 void ClockTracker::set_cache_lookups_disabled_for_testing(bool v) {
-  sync_.set_cache_lookups_disabled_for_testing(v);
+  active_sync_->set_cache_lookups_disabled_for_testing(v);
 }
 
 const base::FlatHashMap<ClockId, int64_t>&
 ClockTracker::remote_clock_offsets_for_testing() {
-  return remote_clock_offsets_;
+  return context_->trace_time_state->remote_clock_offsets;
 }
 
 uint32_t ClockTracker::cache_hits_for_testing() const {
-  return sync_.cache_hits_for_testing();
+  return active_sync_->cache_hits_for_testing();
 }
 
 // --- ClockSynchronizerListenerImpl ---

@@ -83,8 +83,12 @@ class NetworkTraceModuleTest : public testing::Test {
         std::make_unique<ImportLogsTracker>(&context_, TraceId(1));
     context_.trace_time_state = std::make_unique<TraceTimeState>(TraceTimeState{
         ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), false});
+    primary_sync_ = std::make_unique<ClockSynchronizer>(
+        context_.trace_time_state.get(),
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+        primary_sync_.get());
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.global_args_tracker =
@@ -146,6 +150,7 @@ class NetworkTraceModuleTest : public testing::Test {
  protected:
   protozero::HeapBuffered<protos::pbzero::Trace> trace_;
   TraceProcessorContext context_;
+  std::unique_ptr<ClockSynchronizer> primary_sync_;
   TraceStorage* storage_;
 };
 

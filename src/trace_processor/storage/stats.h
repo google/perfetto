@@ -296,6 +296,11 @@ namespace perfetto::trace_processor::stats {
       "time clock. Both clocks exist in snapshots, but never together or "     \
       "via a common intermediate clock. Ensure ClockSnapshots link all used "  \
       "clocks to the trace time clock."),                                      \
+  F(clock_sync_mixed_clock_sources,         kSingle,  kError,    kAnalysis,      \
+      "A non-primary trace file used both the primary trace's clock "          \
+      "snapshots and its own for timestamp conversion. Timestamps "            \
+      "converted before the first own clock snapshot used the primary "        \
+      "trace's clocks which may differ."),                                     \
   F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, ""), \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis,      \
