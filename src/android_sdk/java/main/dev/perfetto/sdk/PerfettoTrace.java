@@ -300,14 +300,14 @@ public final class PerfettoTrace {
   }
 
   /**
-   * Emits a provided call stack to the Perfetto trace.
+   * Writes a provided call stack to the Perfetto trace.
    * A stack can be captured with Thread.getStackTrace() but note that it is expensive
    * and should only be used for local debugging or low-frequency diagnostic events.
    */
-  public static void emitExpensiveDebugCallStack(Category category, String eventName,
-    StackTraceElement[] stackTrace) {
+  public static PerfettoTrackEventBuilder expensiveDebugCallStack(Category category,
+    String eventName, StackTraceElement[] stackTrace) {
     if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
-      return;
+        return PerfettoTrace.instant(category, eventName);
     }
 
     final long FIELD_TRACK_EVENT_CALLSTACK = 55L;
@@ -339,8 +339,6 @@ public final class PerfettoTrace {
         builder = builder.endNested();
     }
 
-    builder.endNested() // End FIELD_TRACK_EVENT_CALLSTACK
-        .endProto()
-        .emit();
+    return builder.endNested().endProto();
   }
 }
