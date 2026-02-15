@@ -9194,6 +9194,19 @@ message DpuDispVblankIrqEnableFtraceEvent {
   optional int32 output_id = 2;
   optional int32 enable = 3;
 }
+message DpuDispFrameDoneTimeoutFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
+  optional uint32 during_disable = 5;
+}
+message DpuDispFrameStartTimeoutFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
+}
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
 
@@ -13381,6 +13394,8 @@ message FtraceEvent {
     FwtpPerfettoSliceFtraceEvent fwtp_perfetto_slice = 600;
     GpuPowerStateFtraceEvent gpu_power_state = 601;
     GramCollisionFtraceEvent gram_collision = 602;
+    DpuDispFrameDoneTimeoutFtraceEvent dpu_disp_frame_done_timeout = 603;
+    DpuDispFrameStartTimeoutFtraceEvent dpu_disp_frame_start_timeout = 604;
   }
 }
 
