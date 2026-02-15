@@ -39,6 +39,7 @@ import {
   TrackSearchModel,
 } from '../../core/track_search_manager';
 import {TrackNode} from '../../public/workspace';
+import {maybeUndefined} from '../../base/utils';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -143,7 +144,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           newModel,
         );
         this.currentSearchMatchIndex = 0;
-        const firstMatch = this.trackSearchMatches[0];
+        const firstMatch = maybeUndefined(this.trackSearchMatches[0]);
         if (firstMatch) {
           firstMatch.node.reveal();
           trace.tracks.scrollToTrackNodeId = firstMatch.node.id;
@@ -167,7 +168,9 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         if (count > 0) {
           this.currentSearchMatchIndex =
             (this.currentSearchMatchIndex + 1) % count;
-          const match = this.trackSearchMatches[this.currentSearchMatchIndex];
+          const match = maybeUndefined(
+            this.trackSearchMatches[this.currentSearchMatchIndex],
+          );
           if (match) {
             match.node.reveal();
             trace.tracks.scrollToTrackNodeId = match.node.id;
@@ -184,7 +187,9 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         if (count > 0) {
           this.currentSearchMatchIndex =
             (this.currentSearchMatchIndex - 1 + count) % count;
-          const match = this.trackSearchMatches[this.currentSearchMatchIndex];
+          const match = maybeUndefined(
+            this.trackSearchMatches[this.currentSearchMatchIndex],
+          );
           if (match) {
             match.node.reveal();
             trace.tracks.scrollToTrackNodeId = match.node.id;
