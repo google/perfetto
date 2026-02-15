@@ -52,7 +52,7 @@ cc_test {
   data: [
         ":CtsPerfettoReporterApp"
   ],
-  stl: "libc++_static",
+  stl: "libc++",
   defaults: [
     "perfetto_defaults",
   ],
