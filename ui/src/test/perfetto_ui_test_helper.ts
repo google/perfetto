@@ -128,6 +128,29 @@ export class PerfettoTestHelper {
     return (trackGroup ?? this.page).locator(`.pf-track[ref="${name}"]`);
   }
 
+  /**
+   * Scrolls to a track by name, bringing it into view even with virtual
+   * scrolling enabled. Returns a locator for the track.
+   *
+   * Use this instead of locateTrack() when the track might be outside the
+   * viewport (and thus not rendered in the DOM with virtual scrolling).
+   */
+  async scrollToTrack(name: string): Promise<Locator> {
+    await this.page.evaluate((trackName) => {
+      const trace = (self.app as AppImpl).trace;
+      if (!trace) return;
+      const node = trace.defaultWorkspace.flatTracks.find(
+        (t) => t.name === trackName,
+      );
+      if (node) {
+        trace.tracks.scrollToTrackNodeId = node.id;
+        self.app.raf.scheduleFullRedraw();
+      }
+    }, name);
+    await this.waitForPerfettoIdle();
+    return this.locateTrack(name);
+  }
+
   async pinTrackUsingShellBtn(track: Locator) {
     await track.locator('.pf-track__shell').hover();
     await track.locator('button[title="Pin to top"]').click();

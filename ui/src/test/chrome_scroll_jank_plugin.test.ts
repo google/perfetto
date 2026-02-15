@@ -52,14 +52,14 @@ async function selectScrollTimelineV4Slice(id: number): Promise<void> {
 }
 
 test('scroll_jank_track_group', async () => {
-  const grp = pth.locateTrack('Chrome Scroll Jank');
-  await grp.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('Chrome Scroll Jank');
   await pth.waitForIdleAndScreenshot('scroll_jank_track_group.png');
 });
 
 test('scroll_timeline_v4_track', async () => {
-  const trk = pth.locateTrack('Chrome Scroll Jank/Chrome Scroll Timeline v4');
-  await trk.scrollIntoViewIfNeeded();
+  const trk = await pth.scrollToTrack(
+    'Chrome Scroll Jank/Chrome Scroll Timeline v4',
+  );
   await pth.waitForIdleAndScreenshot('scroll_timeline_v4_track.png');
 
   // Select the 'Real scroll update input generation' stage within the second
