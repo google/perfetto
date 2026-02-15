@@ -2233,10 +2233,14 @@ message PerfEvents {
   // struct. Primarily for local use-cases, since the event availability and
   // encoding is hardware-specific.
   message RawEvent {
+    // Either |type| or |perf_device| can be set.
     optional uint32 type = 1;
     optional uint64 config = 2;
     optional uint64 config1 = 3;
     optional uint64 config2 = 4;
+    // The name of a PMU under /sys/bus/event_source/devices
+    // (e.g. "armv8_pmuv3").
+    optional string perf_device = 5;
   }
 
   // Subset of clocks that is supported by perf timestamping.

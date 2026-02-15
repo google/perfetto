@@ -105,7 +105,8 @@ struct PerfCounter {
                               uint32_t type,
                               uint64_t config,
                               uint64_t config1,
-                              uint64_t config2);
+                              uint64_t config2,
+                              std::string perf_device);
 };
 
 // Describes a single profiling configuration. Bridges the gap between the data
