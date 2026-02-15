@@ -157,9 +157,15 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         };
       },
       onStepForward: () => {
-        if (matchCount > 0) {
+        // Recalculate matches to pick up any state changes (e.g., expanded groups)
+        this.trackSearchMatches = searchTracks(
+          trace.currentWorkspace,
+          this.trackSearchModel,
+        );
+        const count = this.trackSearchMatches.length;
+        if (count > 0) {
           this.currentSearchMatchIndex =
-            (this.currentSearchMatchIndex + 1) % matchCount;
+            (this.currentSearchMatchIndex + 1) % count;
           const match = this.trackSearchMatches[this.currentSearchMatchIndex];
           if (match) {
             match.node.reveal();
@@ -168,9 +174,15 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         }
       },
       onStepBackwards: () => {
-        if (matchCount > 0) {
+        // Recalculate matches to pick up any state changes (e.g., expanded groups)
+        this.trackSearchMatches = searchTracks(
+          trace.currentWorkspace,
+          this.trackSearchModel,
+        );
+        const count = this.trackSearchMatches.length;
+        if (count > 0) {
           this.currentSearchMatchIndex =
-            (this.currentSearchMatchIndex - 1 + matchCount) % matchCount;
+            (this.currentSearchMatchIndex - 1 + count) % count;
           const match = this.trackSearchMatches[this.currentSearchMatchIndex];
           if (match) {
             match.node.reveal();
