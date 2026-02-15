@@ -111,14 +111,16 @@ FROM _send_message_events;
 
 CREATE PERFETTO TABLE _clean_android_frames AS
 SELECT
-  do_frame_id AS id,
-  ts,
-  dur,
+  f.ts,
+  f.dur,
+  do_frame_slice.id AS do_frame_id,
+  do_frame_slice.ts AS do_frame_ts,
+  do_frame_slice.dur AS do_frame_dur,
   cast_int!(ui_thread_utid) AS utid,
   frame_id
-FROM android_frames
-WHERE
-  dur > 0;
+FROM android_frames AS f
+JOIN slice AS do_frame_slice
+  ON f.do_frame_id = do_frame_slice.id;
 
 CREATE PERFETTO TABLE _clean_deliver_events AS
 SELECT
@@ -137,15 +139,32 @@ JOIN thread_slice AS t
 JOIN slice AS parent
   ON s.parent_id = parent.id
 WHERE
-  s.name GLOB 'deliverInputEvent src=*' AND s.dur > 0;
+  s.name GLOB 'deliverInputEvent src=*';
 
+-- Exact Match: Find the Choreographer#doFrame that directly interval intersects
+-- with the deliver event if it exists.
 CREATE PERFETTO TABLE _input_event_frame_intersections AS
 SELECT
-  ii.id_0 AS frame_id_key,
+  ii.id_0 AS do_frame_id_key,
   ii.id_1 AS event_id_key,
   0 AS is_speculative_match
 FROM _interval_intersect!(
-  (_clean_android_frames, _clean_deliver_events),
+  (
+    (
+      SELECT 
+        do_frame_id AS id, 
+        do_frame_ts AS ts, 
+        do_frame_dur AS dur,
+        *
+      FROM _clean_android_frames 
+      WHERE do_frame_dur > 0
+    ), 
+    (SELECT 
+      * 
+      FROM _clean_deliver_events 
+      WHERE dur > 0
+    )
+  ),
   (utid)
 ) AS ii;
 
@@ -161,19 +180,20 @@ WHERE
   );
 
 -- Speculative Match: Find the immediate next frame for non-vsync-aligned events
+-- (e.g. unbatched events)
 CREATE PERFETTO TABLE _input_event_frame_speculative_matches AS
 WITH
   _ordered_future_frames AS (
     SELECT
       e.id AS event_id_key,
-      f.id AS frame_id_key,
-      row_number() OVER (PARTITION BY e.id ORDER BY f.ts ASC) AS rn
+      f.do_frame_id AS do_frame_id_key,
+      row_number() OVER (PARTITION BY e.id ORDER BY f.do_frame_ts ASC) AS rn
     FROM _input_events_pending_frame_match AS e
     JOIN _clean_android_frames AS f
-      ON e.utid = f.utid AND f.ts >= e.ts
+      ON e.utid = f.utid AND f.do_frame_ts >= e.ts
   )
 SELECT
-  frame_id_key,
+  do_frame_id_key,
   event_id_key,
   1 AS is_speculative_match
 FROM _ordered_future_frames
@@ -203,7 +223,7 @@ SELECT
   CAST(assoc.is_speculative_match AS BOOL) AS is_speculative_match
 FROM _input_event_frame_association AS assoc
 JOIN _clean_android_frames AS af
-  ON assoc.frame_id_key = af.id
+  ON assoc.do_frame_id_key = af.do_frame_id
 JOIN _clean_deliver_events AS dev
   ON assoc.event_id_key = dev.id
 JOIN _event_seq_to_input_event_id AS map
