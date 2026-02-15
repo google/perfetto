@@ -90,7 +90,7 @@ const WEBGL_RENDERING = featureFlags.register({
   name: 'WebGL rendering',
   description: `Use WebGL for rendering track rectangles. Falls back to
     Canvas 2D when disabled or unavailable.`,
-  defaultValue: false,
+  defaultValue: true,
 });
 
 // Snap-to-boundaries feature constants
