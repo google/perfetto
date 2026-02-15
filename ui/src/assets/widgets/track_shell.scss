@@ -192,6 +192,25 @@
       background: var(--pf-color-background);
       color: var(--pf-color-text);
     }
+
+    &--current-match {
+      font-weight: 500;
+
+      .pf-track__search-highlight {
+        color: var(--pf-color-text-on-accent);
+        background-color: var(--pf-color-accent);
+      }
+    }
+  }
+
+  &__search-highlight {
+    color: var(--pf-color-text-on-accent);
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-accent) 50%,
+      transparent
+    );
+    border-radius: 2px;
   }
 
   &__chips {

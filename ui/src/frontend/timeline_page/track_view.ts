@@ -34,6 +34,7 @@ import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {TrackWrapper} from '../../core/track_manager';
+import {TrackSearchMatch} from '../../core/track_search_manager';
 import {TrackRenderer, Track} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
@@ -54,7 +55,7 @@ export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
 export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
 export const MINIMUM_TRACK_MIN_HEIGHT_PX = DEFAULT_TRACK_MIN_HEIGHT_PX;
 
-function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
+export function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
   // Headless tracks have an effective height of 0.
   if (node.headless) return 0;
 
@@ -78,13 +79,24 @@ function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
 
 export interface TrackViewAttrs {
   // Render a lighter version of this track view (for when tracks are offscreen).
-  readonly lite: boolean;
+  readonly lite?: boolean;
   readonly scrollToOnCreate?: boolean;
   readonly reorderable?: boolean;
   readonly removable?: boolean;
   readonly depth: number;
   readonly stickyTop: number;
   readonly collapsible: boolean;
+  // If set, the track is rendered with absolute positioning at this top value.
+  // Used for virtual scrolling where we skip rendering offscreen tracks.
+  readonly absoluteTop?: number;
+  // If set, the children container will have this fixed height.
+  // Used for virtual scrolling where offscreen children aren't rendered but
+  // the container maintains the scroll height.
+  readonly childrenHeight?: number;
+  // Track search matches for highlighting.
+  readonly trackSearchMatches?: readonly TrackSearchMatch[];
+  // The current search match node (for highlighting the current match).
+  readonly currentSearchMatch?: TrackNode;
   onTrackMouseOver(): void;
   onTrackMouseOut(): void;
 }
@@ -124,16 +136,20 @@ export class TrackView {
 
   renderDOM(attrs: TrackViewAttrs, children: m.Children) {
     const {
+      lite = false,
       scrollToOnCreate,
       reorderable = false,
       collapsible,
       removable,
+      trackSearchMatches,
+      currentSearchMatch,
+      childrenHeight,
     } = attrs;
     const {node, renderer, height} = this;
 
     const description = renderer?.desc.description;
 
-    const buttons = attrs.lite
+    const buttons = lite
       ? []
       : [
           // Hover-only buttons first
@@ -170,6 +186,13 @@ export class TrackView {
       });
     }
 
+    // Get search highlight info
+    const searchMatch = trackSearchMatches?.find((m) => m.node === node);
+    const highlightMatch = searchMatch
+      ? {start: searchMatch.matchStart, length: searchMatch.matchLength}
+      : undefined;
+    const isCurrentSearchMatch = currentSearchMatch === node;
+
     return m(
       TrackShell,
       {
@@ -181,16 +204,21 @@ export class TrackView {
         error: renderer?.getError(),
         chips: renderer?.desc.chips,
         buttons,
-        scrollToOnCreate: scrollToOnCreate || scrollIntoView,
+        scrollToOnCreate: scrollToOnCreate,
+        scrollTo: scrollIntoView,
         collapsible: collapsible && node.hasChildren,
         collapsed: collapsible && node.collapsed,
         highlight: this.isHighlighted(),
+        highlightMatch,
+        isCurrentSearchMatch,
         summary: node.isSummary,
         reorderable,
         depth: attrs.depth,
         stickyTop: attrs.stickyTop,
+        absoluteTop: attrs.absoluteTop,
+        childrenHeight,
+        lite,
         pluginId: renderer?.desc.pluginId,
-        lite: attrs.lite,
         onCollapsedChanged: () => {
           node.hasChildren && node.toggleCollapsed();
         },

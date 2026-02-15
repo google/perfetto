@@ -45,6 +45,7 @@ import {
 } from '../../base/zoned_interaction_handler';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {TraceImpl} from '../../core/trace_impl';
+import {TrackSearchMatch} from '../../core/track_search_manager';
 import {TrackNode} from '../../public/workspace';
 import {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -66,7 +67,7 @@ import {
   shiftDragPanInteraction,
   wheelNavigationInteraction,
 } from './timeline_interactions';
-import {TrackView} from './track_view';
+import {getTrackHeight, TrackView} from './track_view';
 import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
 import {EmptyState} from '../../widgets/empty_state';
@@ -76,14 +77,6 @@ import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import {CanvasColors} from '../../public/canvas_colors';
 import {Icons} from '../../base/semantic_icons';
 import {Renderer} from '../../base/renderer';
-
-const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
-  id: 'virtualTrackScrolling',
-  name: 'Virtual track scrolling',
-  description: `[Experimental] Use virtual scrolling in the timeline view to
-    improve performance on large traces.`,
-  defaultValue: true,
-});
 
 const WEBGL_RENDERING = featureFlags.register({
   id: 'webglRendering',
@@ -120,6 +113,10 @@ function cssColorToRgba(cssColor: string): number {
   return packed;
 }
 
+export interface TrackTreeViewApi {
+  scrollToTrack(trackId: string): void;
+}
+
 export interface TrackTreeViewAttrs {
   // Access to the trace, for accessing the track registry / selection manager.
   readonly trace: TraceImpl;
@@ -149,9 +146,24 @@ export interface TrackTreeViewAttrs {
   readonly trackFilter?: (track: TrackNode) => boolean;
 
   readonly filtersApplied?: boolean;
+
+  // Track search matches for highlighting.
+  readonly trackSearchMatches?: readonly TrackSearchMatch[];
+
+  // The current search match node (for highlighting the current match).
+  readonly currentSearchMatch?: TrackNode;
+
+  // Whether virtual scrolling is enabled. When true, offscreen tracks are not
+  // rendered at all. When false, offscreen tracks render in "lite" mode.
+  // Default: true
+  readonly virtualScrollingEnabled?: boolean;
+
+  // Callback to receive the API for imperative operations.
+  onReady?(api: TrackTreeViewApi): void;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
+const SCROLL_CONTAINER_REF = 'scroll-container';
 
 export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private readonly trace: TraceImpl;
@@ -170,8 +182,95 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
 
+  // Reference to the scroll container element
+  private scrollContainer?: HTMLElement;
+
+  // Store rendered tracks for scroll-to-track functionality
+  private renderedTracks: TrackView[] = [];
+
+  // Store attrs needed for position calculation outside of view()
+  private rootNode?: TrackNode;
+  private trackFilter?: (track: TrackNode) => boolean;
+  private filtersApplied = false;
+
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
+  }
+
+  // Calculate the height of a track (without rendering)
+  private getNodeHeight(node: TrackNode): number {
+    const renderer = node.uri
+      ? this.trace.tracks.getWrappedTrack(node.uri)
+      : undefined;
+    return getTrackHeight(node, renderer?.track);
+  }
+
+  // Check if a node matches the filter
+  private filterMatches(node: TrackNode): boolean {
+    if (!this.trackFilter) return true;
+    if (this.trackFilter(node)) return true;
+    if (node.children?.some((c) => this.filterMatches(c))) return true;
+    return false;
+  }
+
+  // Calculate subtree height for a node
+  private getSubtreeHeightForNode(node: TrackNode): number {
+    if (!this.filterMatches(node)) return 0;
+    if (node.headless) {
+      let height = 0;
+      for (const child of node.children) {
+        height += this.getSubtreeHeightForNode(child);
+      }
+      return height;
+    }
+    const trackHeight = this.getNodeHeight(node);
+    let childrenHeight = 0;
+    if ((node.expanded || this.filtersApplied) && node.hasChildren) {
+      for (const child of node.children) {
+        childrenHeight += this.getSubtreeHeightForNode(child);
+      }
+    }
+    return trackHeight + childrenHeight;
+  }
+
+  // Find the absolute position of a track by walking the tree
+  private findTrackPosition(
+    targetId: string,
+    node: TrackNode,
+    currentTop: number,
+  ): {top: number; height: number} | undefined {
+    if (!this.filterMatches(node)) return undefined;
+
+    if (node.headless) {
+      // Headless nodes: search children without adding height
+      for (const child of node.children) {
+        const result = this.findTrackPosition(targetId, child, currentTop);
+        if (result) return result;
+        currentTop += this.getSubtreeHeightForNode(child);
+      }
+      return undefined;
+    }
+
+    const trackHeight = this.getNodeHeight(node);
+
+    // Check if this is the target
+    if (node.id === targetId) {
+      return {top: currentTop, height: trackHeight};
+    }
+
+    // Move past this track's header
+    currentTop += trackHeight;
+
+    // Search children if expanded
+    if ((node.expanded || this.filtersApplied) && node.hasChildren) {
+      for (const child of node.children) {
+        const result = this.findTrackPosition(targetId, child, currentTop);
+        if (result) return result;
+        currentTop += this.getSubtreeHeightForNode(child);
+      }
+    }
+
+    return undefined;
   }
 
   private hoveredTrackNode?: TrackNode;
@@ -186,7 +285,16 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       rootNode,
       trackFilter,
       filtersApplied,
+      trackSearchMatches,
+      currentSearchMatch,
+      virtualScrollingEnabled = true,
     } = attrs;
+
+    // Store for use in scrollToTrack
+    this.rootNode = rootNode;
+    this.trackFilter = trackFilter;
+    this.filtersApplied = filtersApplied ?? false;
+
     const renderedTracks = new Array<TrackView>();
     let top = 0;
 
@@ -202,26 +310,82 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       return false;
     }
 
+    const useVirtualScrolling =
+      virtualScrollingEnabled && this.canvasRect !== undefined;
+
+    // Check if a region overlaps with the visible canvas
+    const isOnScreen = (top: number, bottom: number): boolean => {
+      if (!this.canvasRect) return true;
+      return this.canvasRect.overlaps({left: 0, right: 1, top, bottom});
+    };
+
+    // Helper to calculate subtree height without rendering.
+    // This is fast because it doesn't create TrackViews or vnodes.
+    const getSubtreeHeight = (node: TrackNode): number => {
+      if (!filterMatches(node)) return 0;
+      if (node.headless) {
+        let height = 0;
+        for (const child of node.children) {
+          height += getSubtreeHeight(child);
+        }
+        return height;
+      }
+      // Get this track's height
+      const renderer = node.uri
+        ? trace.tracks.getWrappedTrack(node.uri)
+        : undefined;
+      const trackHeight = getTrackHeight(node, renderer?.track);
+
+      // Add children heights if expanded
+      let childrenHeight = 0;
+      if ((node.expanded || filtersApplied) && node.hasChildren) {
+        for (const child of node.children) {
+          childrenHeight += getSubtreeHeight(child);
+        }
+      }
+      return trackHeight + childrenHeight;
+    };
+
+    // Recursively render tracks, maintaining hierarchy for sticky headers.
+    // Returns {vnodes, subtreeHeight, isVisible} where subtreeHeight is the
+    // total height of this track and all its children.
+    // When virtual scrolling is enabled:
+    //   - Each track uses absolute positioning within its parent container
+    //   - Offscreen tracks are not rendered (container height maintains scroll)
+    // When virtual scrolling is disabled:
+    //   - All tracks are rendered, but offscreen tracks use lite mode
     const renderTrack = (
       node: TrackNode,
-      depth = 0,
-      stickyTop = 0,
-    ): {vnodes: m.Children; isVisible: boolean} => {
+      depth: number,
+      stickyTop: number,
+      childrenContainerTop: number, // Top position of the parent's children container
+    ): {vnodes: m.Children; subtreeHeight: number; isVisible: boolean} => {
       // Skip nodes that don't match the filter and have no matching children.
-      if (!filterMatches(node)) return {vnodes: false, isVisible: false};
+      if (!filterMatches(node)) {
+        return {vnodes: false, subtreeHeight: 0, isVisible: false};
+      }
 
       if (node.headless) {
         // Headless nodes are invisible, just render children.
         const childNodes: m.Children = [];
+        let totalChildHeight = 0;
         let atLeastOneChildVisible = false;
         for (const child of node.children) {
-          const {vnodes, isVisible} = renderTrack(child, depth, stickyTop);
-          childNodes.push(vnodes);
-          if (isVisible) {
-            atLeastOneChildVisible = true;
-          }
+          const result = renderTrack(
+            child,
+            depth,
+            stickyTop,
+            childrenContainerTop,
+          );
+          childNodes.push(result.vnodes);
+          totalChildHeight += result.subtreeHeight;
+          if (result.isVisible) atLeastOneChildVisible = true;
         }
-        return {vnodes: childNodes, isVisible: atLeastOneChildVisible};
+        return {
+          vnodes: childNodes,
+          subtreeHeight: totalChildHeight,
+          isVisible: atLeastOneChildVisible,
+        };
       }
 
       const trackView = new TrackView(trace, node, top);
@@ -230,47 +394,98 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Advance the global top position.
       top += trackView.height;
 
-      // Advance the sticky top position for our children, if we are sticky.
+      // Calculate this track's absolute top position (global)
+      const trackAbsoluteTop = trackView.verticalBounds.top;
+
+      // Calculate relative position within the parent's children container
+      const relativeTop = trackAbsoluteTop - childrenContainerTop;
+
+      // The children container for this track starts at the bottom of this track
+      const myChildrenContainerTop = trackView.verticalBounds.bottom;
+
+      // Advance the sticky top position for children, if we are sticky.
       const childStickyTop = node.isSummary
         ? stickyTop + trackView.height
         : stickyTop;
 
+      // Calculate total children height and render only visible children
       const childNodes: m.Children = [];
+      let childrenHeight = 0;
       let atLeastOneChildVisible = false;
+
       if ((node.expanded || filtersApplied) && node.hasChildren) {
+        // For virtual scrolling, calculate positions first and only render visible
+        let childTop = myChildrenContainerTop;
         for (const child of node.children) {
-          const {vnodes, isVisible} = renderTrack(
-            child,
-            depth + 1,
-            childStickyTop,
-          );
-          childNodes.push(vnodes);
-          if (isVisible) {
-            atLeastOneChildVisible = true;
+          const childSubtreeHeight = getSubtreeHeight(child);
+          const childBottom = childTop + childSubtreeHeight;
+
+          // Check if this child's subtree is on screen
+          const childOnScreen =
+            !useVirtualScrolling || isOnScreen(childTop, childBottom);
+
+          if (childOnScreen) {
+            // This child (or part of its subtree) is visible, render it
+            const result = renderTrack(
+              child,
+              depth + 1,
+              childStickyTop,
+              myChildrenContainerTop,
+            );
+            if (result.isVisible) {
+              atLeastOneChildVisible = true;
+            }
+            if (result.vnodes !== false) {
+              childNodes.push(result.vnodes);
+            }
+          } else {
+            // Child is completely offscreen, just advance the global top position
+            // without rendering (for canvas drawing consistency)
+            top += childSubtreeHeight;
           }
+
+          childrenHeight += childSubtreeHeight;
+          childTop = childBottom;
         }
       }
 
-      const isTrackOnScreen = VIRTUAL_TRACK_SCROLLING.get()
-        ? this.canvasRect?.overlaps({
-            left: 0,
-            right: 1,
-            top: trackView.verticalBounds.top,
-            bottom: trackView.verticalBounds.bottom,
-          })
-        : true;
+      const subtreeHeight = trackView.height + childrenHeight;
+      const trackOnScreen = isOnScreen(
+        trackAbsoluteTop,
+        trackAbsoluteTop + trackView.height,
+      );
 
-      const isVisible = isTrackOnScreen || atLeastOneChildVisible;
+      // Track is visible if it's on screen or has visible children
+      const isVisible = trackOnScreen || atLeastOneChildVisible;
 
+      // When virtual scrolling is enabled, skip rendering if this track itself
+      // is offscreen AND has no visible children
+      if (useVirtualScrolling && !trackOnScreen && !atLeastOneChildVisible) {
+        return {vnodes: false, subtreeHeight, isVisible: false};
+      }
+
+      // Render this track with its children nested inside
       const vnodes = trackView.renderDOM(
         {
-          lite: !Boolean(isVisible),
+          // When virtual scrolling is disabled, use lite mode for offscreen tracks
+          lite: !useVirtualScrolling && !isVisible,
           scrollToOnCreate: scrollToNewTracks,
           reorderable: canReorderNodes,
           removable: canRemoveNodes,
           stickyTop,
           depth,
           collapsible: !filtersApplied,
+          // Use absolute positioning when virtual scrolling is enabled
+          absoluteTop: useVirtualScrolling ? relativeTop : undefined,
+          // Pass children height for the container
+          childrenHeight: useVirtualScrolling ? childrenHeight : undefined,
+          // Only enable track search when virtual scrolling is enabled
+          trackSearchMatches: virtualScrollingEnabled
+            ? trackSearchMatches
+            : undefined,
+          currentSearchMatch: virtualScrollingEnabled
+            ? currentSearchMatch
+            : undefined,
           onTrackMouseOver: () => {
             this.hoveredTrackNode = node;
           },
@@ -281,15 +496,24 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         childNodes,
       );
 
-      return {vnodes, isVisible};
+      return {vnodes, subtreeHeight, isVisible};
     };
 
-    const trackVnodes = rootNode.children
-      .map((track) => renderTrack(track))
-      .map(({vnodes}) => vnodes);
+    // Render all root-level tracks
+    const trackVnodes: m.Children = [];
+    let totalHeight = 0;
 
-    // If there are no truthy vnode values, show "empty state" placeholder.
-    if (trackVnodes.every((x) => !Boolean(x))) {
+    for (const track of rootNode.children) {
+      const result = renderTrack(track, 0, 0, 0); // Root level tracks, container starts at 0
+      trackVnodes.push(result.vnodes);
+      totalHeight += result.subtreeHeight;
+    }
+
+    // Store for scroll-to-track in onupdate
+    this.renderedTracks = renderedTracks;
+
+    // If there are no rendered tracks, show "empty state" placeholder.
+    if (renderedTracks.length === 0) {
       if (filtersApplied) {
         // If we are filtering, show 'no matching tracks' empty state widget.
         return m(
@@ -319,6 +543,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     return m(
       VirtualOverlayCanvas,
       {
+        ref: SCROLL_CONTAINER_REF,
         onMount: (redrawCanvas) =>
           attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
         disableCanvasRedrawOnMithrilUpdates: true,
@@ -336,7 +561,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             renderer,
           );
 
-          if (VIRTUAL_TRACK_SCROLLING.get()) {
+          if (virtualScrollingEnabled) {
             // The VOC can ask us to redraw the canvas for any number of
             // reasons, we're interested in the case where the canvas rect has
             // moved (which indicates that the user has scrolled enough to
@@ -353,7 +578,16 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           }
         },
       },
-      m('', {ref: TRACK_CONTAINER_REF}, trackVnodes),
+      m(
+        '',
+        {
+          ref: TRACK_CONTAINER_REF,
+          style: useVirtualScrolling
+            ? {position: 'relative', height: `${totalHeight}px`}
+            : undefined,
+        },
+        trackVnodes,
+      ),
       this.hoveredTrackNode && this.renderPopup(this.hoveredTrackNode),
     );
   }
@@ -388,6 +622,11 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       }),
     );
 
+    // Expose the API for imperative operations
+    vnode.attrs.onReady?.({
+      scrollToTrack: (trackId: string) => this.scrollToTrack(trackId),
+    });
+
     this.onupdate(vnode);
   }
 
@@ -408,6 +647,53 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           toHTMLElement(interactionTarget),
         );
       }
+    }
+
+    // Cache scroll container reference
+    const scrollContainerEl = findRef(dom, SCROLL_CONTAINER_REF);
+    if (scrollContainerEl) {
+      this.scrollContainer = toHTMLElement(scrollContainerEl);
+    }
+
+    // Handle pending scroll-to-track requests. With virtual scrolling, the
+    // target track may be rendered as a spacer, so we scroll the container
+    // to the track's known vertical position instead of relying on DOM.
+    const scrollToId = this.trace.tracks.scrollToTrackNodeId;
+    if (scrollToId !== undefined) {
+      this.scrollToTrack(scrollToId);
+      this.trace.tracks.scrollToTrackNodeId = undefined;
+    }
+  }
+
+  private scrollToTrack(trackId: string): void {
+    if (!this.scrollContainer) return;
+
+    // First, try to find in rendered tracks (fast path)
+    const trackView = this.renderedTracks.find((tv) => tv.node.id === trackId);
+    if (trackView) {
+      const targetTop = trackView.verticalBounds.top;
+      const trackHeight = trackView.height;
+      const viewportHeight = this.scrollContainer.clientHeight;
+      const scrollTop = targetTop - (viewportHeight - trackHeight) / 2;
+      this.scrollContainer.scrollTop = Math.max(0, scrollTop);
+      return;
+    }
+
+    // Track not rendered (virtual scrolling) - calculate position by walking tree
+    if (!this.rootNode) return;
+
+    let position: {top: number; height: number} | undefined;
+    let currentTop = 0;
+    for (const child of this.rootNode.children) {
+      position = this.findTrackPosition(trackId, child, currentTop);
+      if (position) break;
+      currentTop += this.getSubtreeHeightForNode(child);
+    }
+
+    if (position) {
+      const viewportHeight = this.scrollContainer.clientHeight;
+      const scrollTop = position.top - (viewportHeight - position.height) / 2;
+      this.scrollContainer.scrollTop = Math.max(0, scrollTop);
     }
   }
 
