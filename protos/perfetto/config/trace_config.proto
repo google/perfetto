@@ -28,7 +28,7 @@ import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 45.
+// Next id: 47.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -938,4 +938,13 @@ message TraceConfig {
   //
   // Introduced in: perfetto v54.
   optional bool trace_all_machines = 43;
+
+  // Allow key, value pairs to save arbitrary data about trace.
+  message Note {
+    // Required.
+    optional string key = 1;
+    // Required.
+    optional string value = 2;
+  }
+  repeated Note notes = 46;
 }

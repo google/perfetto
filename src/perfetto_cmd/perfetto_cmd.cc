@@ -174,6 +174,8 @@ Usage: %s
                              extend past 80 chars.
   --query-raw              : Like --query, but prints raw proto-encoded bytes
                              of tracing_service_state.proto.
+  --add-note key[=value]   : Add user notes to trace. If "=value" is omitted,
+                             the value is the empty string.
   --help           -h
 
 Light configuration flags: (only when NOT using -c/--config)
@@ -240,6 +242,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_VERSION,
     OPT_NOTIFY_FD,
     OPT_NO_CLOBBER,
+    OPT_NOTE,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
@@ -270,6 +273,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"query", no_argument, nullptr, OPT_QUERY},
       {"long", no_argument, nullptr, OPT_LONG},
       {"query-raw", no_argument, nullptr, OPT_QUERY_RAW},
+      {"add-note", required_argument, nullptr, OPT_NOTE},
       {"version", no_argument, nullptr, OPT_VERSION},
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
@@ -285,6 +289,8 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
   ConfigOptions config_options;
   bool has_config_options = false;
+
+  std::vector<std::pair<std::string, std::string>> notes;
 
   if (argc <= 1) {
     PrintUsage(argv[0]);
@@ -499,6 +505,29 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     if (option == OPT_QUERY_RAW) {
       query_service_ = true;
       query_service_output_raw_ = true;
+      continue;
+    }
+
+    if (option == OPT_NOTE) {
+      std::string arg(optarg ? optarg : "");
+      if (arg.empty()) {
+        PERFETTO_ELOG("add-note: key must be non-empty");
+        return 1;
+      }
+
+      const size_t eq = arg.find('=');
+      if (eq == std::string::npos) {
+        notes.emplace_back(std::move(arg), std::string());
+        continue;
+      }
+
+      if (eq == 0) {
+        PERFETTO_ELOG("add-note: key must be non-empty");
+        return 1;
+      }
+
+      // Split on the first '=' so values can contain '=' (e.g. 'k=a=b=c').
+      notes.emplace_back(arg.substr(0, eq), arg.substr(eq + 1));
       continue;
     }
 
@@ -753,6 +782,12 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   trace_config_->set_statsd_logging(statsd_logging_
                                         ? TraceConfig::STATSD_LOGGING_ENABLED
                                         : TraceConfig::STATSD_LOGGING_DISABLED);
+
+  for (const auto& note : notes) {
+    auto n = trace_config_->add_notes();
+    n->set_key(note.first);
+    n->set_value(note.second);
+  }
 
   // Set up the output file. Either --out or --upload are expected, with the
   // only exception of --attach. In this case the output file is passed when
