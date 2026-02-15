@@ -45,8 +45,10 @@ source_set("shared_lib") {
   ]
   defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
 
-  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
+  # Abseil is only used in Perfetto via:
+  # - the gRPC/libprotobuf
+  # - re2
+  if (!enable_perfetto_re2 && is_perfetto_build_generator) {
     assert_no_deps = [ "../../buildtools:abseil_cpp" ]
   }
 }

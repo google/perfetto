@@ -58,6 +58,8 @@ LIBRARY_IGNORE_LIST = set([
     'otel_plugin_test',
     # Use the shared utf8_range from buildtools/BUILD.gn
     'utf8_range_lib',
+    # Use the shared re2 from buildtools/BUILD.gn
+    're2',
 ])
 
 TARGET_ALLOW_LIST = set([
@@ -120,6 +122,9 @@ def bazel_label_to_gn_dep(dep: str) -> str:
   # Use the shared abseil library from buildtools/BUILD.gn
   if dep.startswith('absl/'):
     return '..:abseil_cpp'
+  # Use the shared re2 library from buildtools/BUILD.gn
+  if dep == 're2':
+    return '..:re2'
   # Use the shared utf8_range from buildtools/BUILD.gn
   if dep == 'utf8_range_lib':
     return '..:utf8_range'

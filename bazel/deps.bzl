@@ -24,7 +24,7 @@ This file must be kept in sync with:
 - bazel/perfetto_deps.bzl (for bzlmod compatibility)
 """
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # To generate shallow_since fields for git repos, use:
@@ -94,6 +94,22 @@ def perfetto_deps():
         remote = "https://chromium.googlesource.com/chromium/src/third_party/zlib.git",
         commit = "6f9b4e61924021237d474569027cfb8ac7933ee6",
         build_file = "//bazel:zlib.BUILD",
+    )
+
+    _add_repo_if_not_existing(
+        new_git_repository,
+        name = "perfetto_dep_re2",
+        remote = "https://chromium.googlesource.com/external/github.com/google/re2.git",
+        commit = "927f5d53caf8111721e734cf24724686bb745f55",
+        build_file = "//bazel:re2.BUILD",
+    )
+
+    # Abseil is required by RE2.
+    _add_repo_if_not_existing(
+        git_repository,
+        name = "com_google_absl",
+        remote = "https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git",
+        commit = "76bb24329e8bf5f39704eb10d21b9a80befa7c81",
     )
 
     _add_repo_if_not_existing(
