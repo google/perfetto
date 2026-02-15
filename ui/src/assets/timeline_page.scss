@@ -82,6 +82,12 @@
   }
 }
 
+.pf-track-tree {
+  // Enable smooth scrolling when controlling scroll position programmatically.
+  // Note: Doesn't affect user-initiated scrolling.
+  scroll-behavior: smooth;
+}
+
 .pf-timeline-toolbar {
   width: var(--track-shell-width);
   border-right: solid 1px transparent;

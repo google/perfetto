@@ -112,11 +112,26 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
         '.pf-track-search-help',
         m(
           'p',
-          "Virtual scrolling is active to improve performance, but it prevents the browser's find feature from seeing all tracks. Use this search bar instead, which supports regex and searching inside collapsed groups.",
+          "Browser find can't see off-screen tracks (they're not rendered for performance reasons).",
         ),
         m(
           'p',
-          'Alternatively, ',
+          'This search finds all tracks, supports regex, and can search within collapsed groups.',
+        ),
+        m(
+          'p',
+          'Prefer ',
+          m(HotkeyGlyphs, {hotkey: 'Mod+F'}),
+          '? ',
+          m(
+            Anchor,
+            {
+              href: '#!/settings/alternativeSearchHotkey',
+              onclick: onClose,
+            },
+            'Rebind this to Shift+F',
+          ),
+          ', or ',
           m(
             Anchor,
             {
@@ -125,18 +140,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             },
             'disable virtual scrolling',
           ),
-          ' (may decrease performance) or ',
-          m(
-            Anchor,
-            {
-              href: '#!/settings/alternativeSearchHotkey',
-              onclick: onClose,
-            },
-            'use Shift+F',
-          ),
-          ' for track search to keep ',
-          m(HotkeyGlyphs, {hotkey: 'Mod+F'}),
-          ' for the browser.',
+          ' (can drastically hurt performance).',
         ),
       ),
     );
@@ -186,7 +190,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             },
           }),
         },
-        'Search in collapsed groups',
+        'Search within collapsed groups',
       ),
       m(
         Tooltip,

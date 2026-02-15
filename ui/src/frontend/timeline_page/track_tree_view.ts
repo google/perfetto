@@ -157,9 +157,6 @@ export interface TrackTreeViewAttrs {
   // rendered at all. When false, offscreen tracks render in "lite" mode.
   // Default: true
   readonly virtualScrollingEnabled?: boolean;
-
-  // Callback to receive the API for imperative operations.
-  onReady?(api: TrackTreeViewApi): void;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -622,11 +619,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       }),
     );
 
-    // Expose the API for imperative operations
-    vnode.attrs.onReady?.({
-      scrollToTrack: (trackId: string) => this.scrollToTrack(trackId),
-    });
-
     this.onupdate(vnode);
   }
 
@@ -660,13 +652,18 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     // to the track's known vertical position instead of relying on DOM.
     const scrollToId = this.trace.tracks.scrollToTrackNodeId;
     if (scrollToId !== undefined) {
-      this.scrollToTrack(scrollToId);
-      this.trace.tracks.scrollToTrackNodeId = undefined;
+      // Only clear the scroll request if we found the track in this tree.
+      // This allows other TrackTreeView instances (e.g., pinned vs main) to
+      // handle the scroll if the track isn't in this tree.
+      if (this.scrollToTrack(scrollToId)) {
+        this.trace.tracks.scrollToTrackNodeId = undefined;
+      }
     }
   }
 
-  private scrollToTrack(trackId: string): void {
-    if (!this.scrollContainer) return;
+  // Returns true if the track was found and scrolled to, false otherwise.
+  private scrollToTrack(trackId: string): boolean {
+    if (!this.scrollContainer) return false;
 
     // First, try to find in rendered tracks (fast path)
     const trackView = this.renderedTracks.find((tv) => tv.node.id === trackId);
@@ -676,11 +673,11 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       const viewportHeight = this.scrollContainer.clientHeight;
       const scrollTop = targetTop - (viewportHeight - trackHeight) / 2;
       this.scrollContainer.scrollTop = Math.max(0, scrollTop);
-      return;
+      return true;
     }
 
     // Track not rendered (virtual scrolling) - calculate position by walking tree
-    if (!this.rootNode) return;
+    if (!this.rootNode) return false;
 
     let position: {top: number; height: number} | undefined;
     let currentTop = 0;
@@ -694,7 +691,10 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       const viewportHeight = this.scrollContainer.clientHeight;
       const scrollTop = position.top - (viewportHeight - position.height) / 2;
       this.scrollContainer.scrollTop = Math.max(0, scrollTop);
+      return true;
     }
+
+    return false;
   }
 
   onremove() {
