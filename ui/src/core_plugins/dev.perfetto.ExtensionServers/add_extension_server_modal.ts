@@ -18,6 +18,7 @@ import {Button} from '../../widgets/button';
 import {showModal} from '../../widgets/modal';
 import {TextInput} from '../../widgets/text_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {Select} from '../../widgets/select';
 import {Form, FormLabel, FormSection} from '../../widgets/form';
 import {MultiSelect, MultiSelectDiff} from '../../widgets/multiselect';
 import {ExtensionServer, UserInput} from './types';
@@ -74,6 +75,7 @@ class AddExtensionServerModal {
 
   canSave(): boolean {
     return (
+      !this.isEmptyInput() &&
       this.loadedState?.type === 'ok' &&
       this.loadedState.enabledModules.size > 0
     );
@@ -195,15 +197,22 @@ class AddExtensionServerModal {
           ),
         ),
       ]),
-      m(SegmentedButtons, {
-        options: [{label: 'None'}, {label: 'PAT'}],
-        selectedOption: input.auth.type === 'github_pat' ? 1 : 0,
-        onOptionSelected: (idx: number) => {
-          input.auth =
-            idx === 1 ? {type: 'github_pat', pat: ''} : {type: 'none'};
-          this.debouncedFetch();
+      m(
+        Select,
+        {
+          value: input.auth.type,
+          onchange: (e: Event) => {
+            const value = (e.target as HTMLSelectElement).value;
+            input.auth =
+              value === 'github_pat'
+                ? {type: 'github_pat', pat: ''}
+                : {type: 'none'};
+            this.debouncedFetch();
+          },
         },
-      }),
+        m('option', {value: 'none'}, 'None'),
+        m('option', {value: 'github_pat'}, 'Personal Access Token'),
+      ),
       input.auth.type === 'github_pat' &&
         m(TextInput, {
           placeholder: 'github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
@@ -228,12 +237,164 @@ class AddExtensionServerModal {
           this.debouncedFetch();
         },
       }),
+      this.renderHttpsAuth(input),
+    ];
+  }
+
+  private renderHttpsAuth(input: HttpsUserInput): m.Children {
+    return [
+      m(FormLabel, [
+        'Authentication ',
+        m(
+          Popup,
+          {
+            trigger: m(Icon, {icon: 'help_outline'}),
+            closeOnOutsideClick: true,
+          },
+          m(
+            'span',
+            m('strong', 'None'),
+            ': no authentication headers are sent.',
+            m('br'),
+            m('strong', 'Basic'),
+            ': sends a Base64-encoded username:password via the ',
+            m('code', 'Authorization'),
+            ' header.',
+            m('br'),
+            m('strong', 'API Key'),
+            ': sends a token via a configurable HTTP header.',
+          ),
+        ),
+      ]),
+      m(
+        Select,
+        {
+          value: input.auth.type,
+          onchange: (e: Event) => {
+            const value = (e.target as HTMLSelectElement).value;
+            if (value === 'https_basic') {
+              input.auth = {type: 'https_basic', username: '', password: ''};
+            } else if (value === 'https_apikey') {
+              input.auth = {
+                type: 'https_apikey',
+                keyType: 'bearer',
+                key: '',
+                customHeaderName: '',
+              };
+            } else {
+              input.auth = {type: 'none'};
+            }
+            this.debouncedFetch();
+          },
+        },
+        m('option', {value: 'none'}, 'None'),
+        m('option', {value: 'https_basic'}, 'Basic'),
+        m('option', {value: 'https_apikey'}, 'API Key'),
+      ),
+      input.auth.type === 'https_basic' && this.renderBasicAuthFields(input),
+      input.auth.type === 'https_apikey' && this.renderApiKeyFields(input),
+    ];
+  }
+
+  private renderBasicAuthFields(input: HttpsUserInput): m.Children {
+    if (input.auth.type !== 'https_basic') return null;
+    const auth = input.auth;
+    return [
+      m(TextInput, {
+        placeholder: 'Username',
+        value: auth.username,
+        onInput: (value: string) => {
+          input.auth = {...auth, username: value};
+          this.debouncedFetch();
+        },
+      }),
+      m(TextInput, {
+        placeholder: 'Password',
+        type: 'password',
+        value: auth.password,
+        onInput: (value: string) => {
+          input.auth = {...auth, password: value};
+          this.debouncedFetch();
+        },
+      }),
+    ];
+  }
+
+  private renderApiKeyFields(input: HttpsUserInput): m.Children {
+    if (input.auth.type !== 'https_apikey') return null;
+    const auth = input.auth;
+    return [
+      m(FormLabel, [
+        'Header Format ',
+        m(
+          Popup,
+          {
+            trigger: m(Icon, {icon: 'help_outline'}),
+            closeOnOutsideClick: true,
+          },
+          m(
+            'span',
+            m('strong', 'Bearer'),
+            ': sends ',
+            m('code', 'Authorization: Bearer <key>'),
+            '.',
+            m('br'),
+            m('strong', 'X-API-Key'),
+            ': sends ',
+            m('code', 'X-API-Key: <key>'),
+            '.',
+            m('br'),
+            m('strong', 'Custom'),
+            ': sends the key via a custom header name you specify.',
+          ),
+        ),
+      ]),
+      m(
+        Select,
+        {
+          value: auth.keyType,
+          onchange: (e: Event) => {
+            const keyType = (e.target as HTMLSelectElement).value as
+              | 'bearer'
+              | 'x_api_key'
+              | 'custom';
+            input.auth = {
+              ...auth,
+              keyType,
+              customHeaderName: '',
+            } as typeof auth;
+            this.debouncedFetch();
+          },
+        },
+        m('option', {value: 'bearer'}, 'Bearer'),
+        m('option', {value: 'x_api_key'}, 'X-API-Key'),
+        m('option', {value: 'custom'}, 'Custom'),
+      ),
+      auth.keyType === 'custom' &&
+        m(TextInput, {
+          placeholder: 'Header name',
+          value: auth.customHeaderName,
+          onInput: (value: string) => {
+            input.auth = {...auth, customHeaderName: value};
+            this.debouncedFetch();
+          },
+        }),
+      m(TextInput, {
+        placeholder: 'API key',
+        type: 'password',
+        value: auth.key,
+        onInput: (value: string) => {
+          input.auth = {...auth, key: value};
+          this.debouncedFetch();
+        },
+      }),
     ];
   }
 
   private renderModuleSection(): m.Children {
     const showRefresh =
-      this.loadedState?.type === 'ok' || this.loadedState?.type === 'error';
+      !this.isEmptyInput() &&
+      (this.loadedState?.type === 'ok' || this.loadedState?.type === 'error');
     return m(
       FormSection,
       {label: 'Modules'},
@@ -384,7 +545,23 @@ class AddExtensionServerModal {
       }
       return false;
     }
-    return this.userInput.url.trim() === '';
+    if (this.userInput.url.trim() === '') return true;
+    const auth = this.userInput.auth;
+    // Basic auth requires both username and password.
+    if (
+      auth.type === 'https_basic' &&
+      (!auth.username.trim() || !auth.password.trim())
+    ) {
+      return true;
+    }
+    // API key auth requires a non-empty key (and header name for custom).
+    if (auth.type === 'https_apikey') {
+      if (!auth.key.trim()) return true;
+      if (auth.keyType === 'custom' && !auth.customHeaderName.trim()) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 
