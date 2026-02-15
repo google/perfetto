@@ -33,9 +33,9 @@ bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
       // Proto traces should always parsed first as they might contains clock
       // sync data needed to correctly parse other traces.
       return 0;
-    if (type == TraceType::kGzipTraceType)
-      return 1;  // Middle priority
-    return 2;    // Default for other trace types
+    if (IsContainerTraceType(type))
+      return 1;
+    return 2;
   };
 
   // Compare first by trace type priority, then by name,
