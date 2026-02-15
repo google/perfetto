@@ -31,7 +31,9 @@ namespace perfetto {
 
 namespace {
 
-constexpr size_t kMaxHashes = 32768;
+// Stop processing hashes after these many packets. After this point we lose
+// stats accuracy for the sake of keeping memory bounded.
+constexpr size_t kMaxPacketHashes = 1000000;
 
 uint64_t ComputePacketHash(
     const TracePacket& packet,
@@ -44,6 +46,10 @@ uint64_t ComputePacketHash(
   hasher.Combine(seq_props.producer_id_trusted);
   hasher.Combine(seq_props.writer_id);
   return hasher.digest();
+}
+
+void IncrementWithSaturation(uint16_t* v) {
+  *v += *v < UINT16_MAX ? 1 : 0;
 }
 
 }  // namespace
@@ -109,13 +115,12 @@ bool TraceBufferV1WithV2Shadow::TryPatchChunkContents(
 void TraceBufferV1WithV2Shadow::BeginRead() {
   v1_->BeginRead();
 
+  if (packets_seen_ > kMaxPacketHashes)
+    return;
+
   // Read all V2 packets eagerly and store their hashes.
   v2_->BeginRead();
 
-  // Keep the hashes capped to avoid unlimited memory bloat.
-  for (int i = 0; i < 10000 && packet_hashes_.size() > kMaxHashes; ++i) {
-    packet_hashes_.Erase(packet_hashes_.GetIterator().key());
-  }
   for (;;) {
     TracePacket packet;
     PacketSequenceProperties seq_props{};
@@ -123,7 +128,7 @@ void TraceBufferV1WithV2Shadow::BeginRead() {
     if (!v2_->ReadNextTracePacket(&packet, &seq_props, &prev_dropped))
       break;
     auto hash = ComputePacketHash(packet, seq_props);
-    packet_hashes_[hash] |= kSeenInV2;
+    IncrementWithSaturation(&packet_hashes_[hash].seen_in_v2);
   }
 }
 
@@ -133,9 +138,9 @@ bool TraceBufferV1WithV2Shadow::ReadNextTracePacket(
     bool* previous_packet_on_sequence_dropped) {
   bool result = v1_->ReadNextTracePacket(packet, sequence_properties,
                                          previous_packet_on_sequence_dropped);
-  if (result) {
+  if (result && packets_seen_ < kMaxPacketHashes) {
     auto hash = ComputePacketHash(*packet, *sequence_properties);
-    packet_hashes_[hash] |= kSeenInV1;
+    IncrementWithSaturation(&packet_hashes_[hash].seen_in_v1);
     ++packets_seen_;
   }
   return result;
@@ -167,23 +172,24 @@ void TraceBufferV1WithV2Shadow::UpdateShadowStats() const {
   // Copy V1's stats as the base.
   stats_ = v1_->stats();
 
-  // Count packets based on bit flags.
+  // Count packets.
   uint64_t packets_in_both = 0;
   uint64_t packets_only_v1 = 0;
   uint64_t packets_only_v2 = 0;
   for (auto it = packet_hashes_.GetIterator(); it; ++it) {
-    uint8_t flags = it.value();
-    if ((flags & kSeenInV1) && (flags & kSeenInV2)) {
-      packets_in_both++;
-    } else if (flags & kSeenInV1) {
-      packets_only_v1++;
+    HashPacketCounts& counts = it.value();
+    if (counts.seen_in_v1 <= counts.seen_in_v2) {
+      packets_in_both += counts.seen_in_v1;
+      packets_only_v2 += counts.seen_in_v2 - counts.seen_in_v1;
     } else {
-      packets_only_v2++;
+      packets_in_both += counts.seen_in_v2;
+      packets_only_v1 += counts.seen_in_v1 - counts.seen_in_v2;
     }
   }
 
   // Populate shadow buffer stats.
   auto* shadow_stats = stats_.mutable_shadow_buffer_stats();
+  shadow_stats->set_stats_version(2);
   shadow_stats->set_packets_seen(packets_seen_);
   shadow_stats->set_packets_in_both(packets_in_both);
   shadow_stats->set_packets_only_v1(packets_only_v1);
