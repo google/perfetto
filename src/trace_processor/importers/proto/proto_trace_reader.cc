@@ -332,6 +332,23 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     ParseTraceConfig(decoder.trace_config());
   }
 
+  if (decoder.has_trace_provenance()) {
+    protovm_incremental_tracing_.ProcessTraceProvenancePacket(
+        decoder.trace_provenance());
+  }
+
+  if (decoder.has_protovms()) {
+    protovm_incremental_tracing_.InstantiateProtoVms(decoder.protovms());
+  }
+
+  auto inflated_state = protovm_incremental_tracing_.TryProcessPatch(packet);
+  if (inflated_state.IsOk()) {
+    packet = TraceBlobView(std::move(*inflated_state));
+  } else if (inflated_state.IsAbort()) {
+    context_->storage->IncrementStats(stats::protovm_abort);
+    return base::OkStatus();
+  }
+
   return TimestampTokenizeAndPushToSorter(std::move(packet));
 }
 
