@@ -110,6 +110,12 @@ export async function loadManifest(
   return fetchJson(server, 'manifest', manifestSchema);
 }
 
+function modulePath(module: string, manifest: Manifest): string | undefined {
+  const entry = manifest.modules.find((m) => m.name === module);
+  if (entry === undefined) return undefined;
+  return `modules/${module}`;
+}
+
 async function loadMacros(
   manifestResult: Result<Manifest>,
   server: UserInput,
@@ -119,19 +125,16 @@ async function loadMacros(
     return errResult(manifestResult.error);
   }
   const manifest = manifestResult.value;
-  if (!manifest.modules.includes(module)) {
+  const modPath = modulePath(module, manifest);
+  if (modPath === undefined) {
     return errResult(`Module '${module}' not found on server`);
   }
   // Check if macros are supported.
-  if (!manifest.features.find((f) => f === 'macros')) {
+  if (!manifest.features.find((f) => f.name === 'macros')) {
     // Not supported, return empty list.
     return okResult([]);
   }
-  const wrapper = await fetchJson(
-    server,
-    `modules/${module}/macros`,
-    macrosSchema,
-  );
+  const wrapper = await fetchJson(server, `${modPath}/macros`, macrosSchema);
   if (!wrapper.ok) {
     return errResult(wrapper.error);
   }
@@ -157,17 +160,18 @@ async function loadSqlPackage(
     return errResult(manifestResult.error);
   }
   const manifest = manifestResult.value;
-  if (!manifest.modules.includes(module)) {
+  const modPath = modulePath(module, manifest);
+  if (modPath === undefined) {
     return errResult(`Module '${module}' not found on server`);
   }
   // Check if sql_modules are supported.
-  if (!manifest.features.find((f) => f === 'sql_modules')) {
+  if (!manifest.features.find((f) => f.name === 'sql_modules')) {
     // Not supported, return empty list.
     return okResult([]);
   }
   const wrapper = await fetchJson(
     server,
-    `modules/${module}/sql_modules`,
+    `${modPath}/sql_modules`,
     sqlModulesSchema,
   );
   if (!wrapper.ok) {
@@ -197,17 +201,18 @@ async function loadProtoDescriptors(
     return errResult(manifestResult.error);
   }
   const manifest = manifestResult.value;
-  if (!manifest.modules.includes(module)) {
+  const modPath = modulePath(module, manifest);
+  if (modPath === undefined) {
     return errResult(`Module '${module}' not found on server`);
   }
   // Check if proto_descriptors are supported.
-  if (!manifest.features.find((f) => f === 'proto_descriptors')) {
+  if (!manifest.features.find((f) => f.name === 'proto_descriptors')) {
     // Not supported, return empty list.
     return okResult([]);
   }
   const wrapper = await fetchJson(
     server,
-    `modules/${module}/proto_descriptors`,
+    `${modPath}/proto_descriptors`,
     protoDescriptorsSchema,
   );
   if (!wrapper.ok) {

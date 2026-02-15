@@ -51,6 +51,7 @@ source_set("full") {
     ":systrace_parser",
     "../..:storage_minimal",
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/common:zero",
     "../../containers",
     "../../sorter",
     "../../storage",

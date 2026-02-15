@@ -126,6 +126,7 @@ source_set("storage_minimal") {
   ]
   deps = [
     "../../gn:default_deps",
+    "../../protos/perfetto/common:zero",
     "../base",
     "../protozero",
     "containers",
@@ -190,6 +191,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/perf",
       "importers/perf_text",
       "importers/pprof",
+      "importers/primes",
       "importers/proto:full",
       "importers/proto:minimal",
       "importers/simpleperf_proto",

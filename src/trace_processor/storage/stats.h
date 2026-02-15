@@ -812,8 +812,21 @@ namespace perfetto::trace_processor::stats {
       "incomplete. Some objects and references may be missing from the heap "  \
       "graph. This typically occurs when the profiled process crashes or is "  \
       "killed before completing the profile. To get complete profiles, ensure "\
-      "the process finishes cleanly or increase the profiling timeout.")
-// clang-format on
+      "the process finishes cleanly or increase the profiling timeout."),      \
+  F(primes_unknown_edge_type, kSingle, kDataLoss, kAnalysis,                   \
+    "A Primes TraceEdge was received which did not contain a known slice type "\
+    "(Begin, End, Mark)."),                                                    \
+  F(primes_executor_not_found, kSingle, kDataLoss, kAnalysis,                  \
+    "A valid executor_id was not found for the given edge's parent_id, so the "\
+    "slice was dropped."),                                                     \
+  F(primes_end_without_matching_begin, kSingle, kInfo, kAnalysis,              \
+    "A SliceEnd event was seen without its corresponding SliceBegin."),        \
+  F(primes_missing_entity_details, kSingle, kInfo, kAnalysis,                  \
+    "The entity_details field was missing from an edge that requires it."),    \
+  F(primes_missing_parent_id, kSingle, kInfo, kAnalysis,                       \
+    "The parent_id field was missing from an edge that requires it."),         \
+  F(primes_malformed_timestamp, kSingle, kDataLoss, kAnalysis,                 \
+    "The timestamp for an edge or trace was not able to be parsed")  // clang-format on
 
 enum Type {
   kSingle,  // Single-value property, one value per key.

@@ -12,10 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-type TrackSpec = {
+export type TrackSpec = {
+  /**
+   * Name of the table that contains events of a particular track. The primary
+   * key of the table must be named 'id'.
+   */
   tableName: string;
+
+  /** The URI of the track in the Perfetto UI. */
   uri: string;
+
+  /** Human-readable name of the track displayed in the Perfetto UI. */
   name: string;
+
+  /**
+   * Function which returns a correlated subquery which, given a column of an
+   * outer SQL query which contains the ID of a scroll update event (aka
+   * LatencyInfo.ID), returns the ID of the corresponding event on this track
+   * (if available). This is to facilitate adding UI links between events on
+   * this plugin's tracks.
+   */
+  eventIdSqlSubqueryForEventLatency: (eventLatencyIdColumn: string) => string;
 };
 
 /**
@@ -37,6 +54,13 @@ export const EVENT_LATENCY_TRACK: TrackSpec = {
   tableName: `org_chromium_ChromeScrollJank_event_latency`,
   uri: 'org.chromium.ChromeScrollJank#eventLatency',
   name: 'Chrome Scroll Input Latencies',
+  eventIdSqlSubqueryForEventLatency: (eventLatencyIdColumn: string) => `(
+    SELECT ${EVENT_LATENCY_TRACK.tableName}.id
+    FROM ${EVENT_LATENCY_TRACK.tableName}
+    WHERE ${EVENT_LATENCY_TRACK.tableName}.scroll_update_id
+        = ${eventLatencyIdColumn}
+      AND ${EVENT_LATENCY_TRACK.tableName}.parent_id IS NULL
+  )`,
 };
 
 /**
@@ -66,6 +90,13 @@ export const SCROLL_TIMELINE_TRACK: TrackSpec = {
   tableName: 'org_chromium_ChromeScrollJank_scroll_timeline',
   uri: 'org.chromium.ChromeScrollJank#scrollTimeline',
   name: 'Chrome Scroll Timeline',
+  eventIdSqlSubqueryForEventLatency: (eventLatencyIdColumn: string) => `(
+    SELECT ${SCROLL_TIMELINE_TRACK.tableName}.id
+    FROM ${SCROLL_TIMELINE_TRACK.tableName}
+    WHERE ${SCROLL_TIMELINE_TRACK.tableName}.scroll_update_id
+        = ${eventLatencyIdColumn}
+      AND ${SCROLL_TIMELINE_TRACK.tableName}.parent_id IS NULL
+  )`,
 };
 
 /**
@@ -96,4 +127,14 @@ export const SCROLL_TIMELINE_V4_TRACK: TrackSpec = {
   tableName: 'org_chromium_ChromeScrollJank_scroll_timeline_v4',
   uri: 'org.chromium.ChromeScrollJank#scrollTimelineV4',
   name: 'Chrome Scroll Timeline v4',
+  eventIdSqlSubqueryForEventLatency: (eventLatencyIdColumn: string) => `(
+    SELECT ${SCROLL_TIMELINE_V4_TRACK.tableName}.id
+    FROM ${SCROLL_TIMELINE_V4_TRACK.tableName}
+    JOIN chrome_scroll_jank_v4_results
+      ON ${SCROLL_TIMELINE_V4_TRACK.tableName}.original_slice_id
+        = chrome_scroll_jank_v4_results.id
+    WHERE chrome_scroll_jank_v4_results.first_event_latency_id
+        = ${eventLatencyIdColumn}
+      AND ${SCROLL_TIMELINE_V4_TRACK.tableName}.parent_id IS NULL
+  )`,
 };

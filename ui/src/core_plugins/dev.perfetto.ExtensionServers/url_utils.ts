@@ -14,6 +14,19 @@
 
 import {UserInput} from './types';
 
+// Returns true if two servers point to the same location (ignoring auth,
+// enabledModules, and enabled state).
+export function sameServerLocation(a: UserInput, b: UserInput): boolean {
+  if (a.type !== b.type) return false;
+  if (a.type === 'github' && b.type === 'github') {
+    return a.repo === b.repo && a.ref === b.ref && a.path === b.path;
+  }
+  if (a.type === 'https' && b.type === 'https') {
+    return a.url === b.url;
+  }
+  return false;
+}
+
 // Converts a server location into a display-friendly string.
 export function makeDisplayUrl(server: UserInput): string {
   if (server.type === 'github') {

@@ -14,15 +14,20 @@
  * limitations under the License.
  */
 
-#include "src/trace_config_utils/pb_to_txt.h"
+#include "src/proto_utils/pb_to_txt.h"
 
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/config/trace_config.gen.h"
+#include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
+#include "protos/perfetto/trace_summary/file.gen.h"
+#include "protos/perfetto/trace_summary/file.pbzero.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {
 
 using protos::gen::TraceConfig;
+using protos::gen::TraceSummarySpec;
 
 TEST(PbToTxtTest, EmptyTraceConfig) {
   TraceConfig tc;
@@ -51,6 +56,31 @@ duration_ms: 1234
 write_into_file: true
 trace_uuid_msb: 1234567890124
 trace_uuid_lsb: 9223372036854775807)");
+}
+
+TEST(PbToTxtTest, EmptyTraceSummarySpec) {
+  TraceSummarySpec spec;
+  std::vector<uint8_t> data = spec.SerializeAsArray();
+  std::string txt = TraceSummarySpecPbToTxt(data.data(), data.size());
+  EXPECT_EQ(txt, "");
+}
+
+TEST(PbToTxtTest, TraceSummarySpecWithQuery) {
+  // Build the proto using pbzero and HeapBuffered (like other tests do)
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  auto* query = spec->add_query();
+  query->set_id("test_query");
+  auto* sql = query->set_sql();
+  sql->set_sql("SELECT * FROM slice");
+
+  std::vector<uint8_t> data = spec.SerializeAsArray();
+  std::string txt = TraceSummarySpecPbToTxt(data.data(), data.size());
+  EXPECT_EQ(txt, R"(query {
+  id: "test_query"
+  sql {
+    sql: "SELECT * FROM slice"
+  }
+})");
 }
 
 }  // namespace
