@@ -475,7 +475,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const columnsAreMutable = !columns || !!attrs.onColumnsChanged;
 
     // Filters are mutable if in uncontrolled mode, or controlled with callback
-    const filtersAreMutable = !filters || !!attrs.onFiltersChanged;
+    const filtersAreMutable =
+      !filters || !!attrs.onFiltersChanged || !!attrs.onFilterAdd;
 
     // Determine if we're in pivot mode (has groupBy columns and not drilling down)
     const isPivotMode =
@@ -1443,11 +1444,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       // Build menu items
       const columnType = colInfo?.columnType;
       const menuItems: m.Children[] = [
-        columnsAreMutable &&
-          renderSortMenuItems(sort, (direction) =>
-            this.updateSort(field, direction, attrs),
-          ),
-        columnsAreMutable && m(MenuDivider),
+        renderSortMenuItems(sort, (direction) =>
+          this.updateSort(field, direction, attrs),
+        ),
+        m(MenuDivider),
         filtersAreMutable &&
           m(FilterMenu, {
             datasource,
@@ -1549,11 +1549,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         header: m(
           GridHeaderCell,
           {
-            sort: columnsAreMutable ? sort : undefined,
+            sort,
             hintSortDirection: currentSortDirection,
-            onSort: columnsAreMutable
-              ? (direction) => this.updateSort(colId, direction, attrs)
-              : undefined,
+            onSort: (direction) => this.updateSort(colId, direction, attrs),
             menuItems,
             subContent,
           },
