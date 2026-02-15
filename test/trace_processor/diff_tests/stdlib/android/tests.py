@@ -1906,3 +1906,16 @@ class AndroidStdlib(TestSuite):
         100000000000,8000000000,"awake",0
         100000000000,8000000000,"awake",1
         """))
+
+  def test_android_redacted_startup_has_cold_startup_data(self):
+    return DiffTestBlueprint(
+        trace=DataPath('redacted-startup.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE android.profiling_manager.startup;
+        SELECT * FROM android_profiling_manager_cold_startup;
+      """,
+        out=Csv("""
+        "ts","name","dur","startup_checkpoint"
+        1883713423201,"app_startup_ttff",57720540,"TTFF"
+        1883713423201,"app_startup_tti",39962036,"TTI"
+      """))
