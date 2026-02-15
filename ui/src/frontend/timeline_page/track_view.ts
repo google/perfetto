@@ -171,13 +171,6 @@ export class TrackView {
           this.renderAreaSelectionCheckbox(),
         ];
 
-    let scrollIntoView = false;
-    const tracks = this.trace.tracks;
-    if (tracks.scrollToTrackNodeId === node.id) {
-      tracks.scrollToTrackNodeId = undefined;
-      scrollIntoView = true;
-    }
-
     function showTrackMoveErrorModal(msg: string) {
       showModal({
         title: 'Error',
@@ -205,7 +198,6 @@ export class TrackView {
         chips: renderer?.desc.chips,
         buttons,
         scrollToOnCreate: scrollToOnCreate,
-        scrollTo: scrollIntoView,
         collapsible: collapsible && node.hasChildren,
         collapsed: collapsible && node.collapsed,
         highlight: this.isHighlighted(),
