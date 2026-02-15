@@ -39,6 +39,7 @@ perfetto_component("base") {
     "ctrl_c_handler.cc",
     "event_fd.cc",
     "file_utils.cc",
+    "fixed_string_writer.cc",
     "getopt_compat.cc",
     "intrusive_list.cc",
     "intrusive_tree.cc",

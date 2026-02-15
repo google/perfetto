@@ -19,10 +19,12 @@
 
 #include <string.h>
 
-#include <cinttypes>
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
+#include <type_traits>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -93,15 +95,51 @@ class FixedStringWriter {
     AppendPaddedInt<padchar, padding>(value, false);
   }
 
+  template <typename IntType>
+  void AppendPaddedHexInt(IntType value, char padchar, uint64_t padding) {
+    using UnsignedType = std::make_unsigned_t<IntType>;
+    constexpr size_t kMaxHexDigits = sizeof(IntType) * 2;
+    // 32 bytes is more than enough for any integer type (max 16 hex digits for
+    // 64-bit)
+    constexpr size_t kBufferSize = 32;
+    auto size_needed =
+        kMaxHexDigits > padding ? kMaxHexDigits : static_cast<size_t>(padding);
+    PERFETTO_DCHECK(size_needed <= kBufferSize);
+    PERFETTO_DCHECK(pos_ + size_needed <= size_);
+
+    std::array<char, kBufferSize> data;
+    constexpr char hex_asc[] = "0123456789abcdef";
+
+    size_t idx = size_needed - 1;
+    auto uvalue = static_cast<UnsignedType>(value);
+    do {
+      data[idx--] = hex_asc[uvalue & 0xF];
+      uvalue >>= 4;
+    } while (uvalue != 0);
+
+    if (padding > 0) {
+      const auto num_digits = static_cast<uint64_t>(size_needed - 1 - idx);
+      // std::max() needed to work around GCC not being able to tell that
+      // padding > 0.
+      for (auto i = num_digits; i < std::max(uint64_t{1u}, padding); i++) {
+        data[idx--] = padchar;
+      }
+    }
+    AppendString(&data[idx + 1], size_needed - idx - 1);
+  }
+
   // Appends a hex integer to the buffer.
   template <typename IntType>
   void AppendHexInt(IntType value) {
-    // TODO(lalitm): trying to optimize this is premature given we almost never
-    // print hex ints. Reevaluate this in the future if we do print them more.
-    size_t res =
-        base::SprintfTrunc(buffer_ + pos_, size_ - pos_, "%" PRIx64, value);
-    PERFETTO_DCHECK(pos_ + res <= size_);
-    pos_ += res;
+    AppendPaddedHexInt(value, '0', 0);
+  }
+
+  // Appends a hex string to the buffer.
+  void AppendHexString(const uint8_t* data, size_t size, char separator);
+
+  void AppendHexString(StringView data, char separator) {
+    AppendHexString(reinterpret_cast<const uint8_t*>(data.data()), data.size(),
+                    separator);
   }
 
   // Appends a double to the buffer.
