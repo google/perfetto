@@ -97,6 +97,9 @@ base::Status ParseGenericEvent(const protozero::ConstBytes& cb,
         delegate.AddDouble(key, f.as_double());
         break;
       }
+      case protozero::proto_utils::ProtoWireType::kSGroup:
+      case protozero::proto_utils::ProtoWireType::kEGroup:
+        return base::ErrStatus("Unexpected proto groups");
     }
   }
   return base::OkStatus();

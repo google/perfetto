@@ -18549,6 +18549,22 @@ filegroup {
     ],
 }
 
+// GN: //src/tracing/v2:unittests
+filegroup {
+    name: "perfetto_src_tracing_v2_unittests",
+    srcs: [
+        "src/tracing/v2/shared_ring_buffer_unittest.cc",
+    ],
+}
+
+// GN: //src/tracing/v2:v2
+filegroup {
+    name: "perfetto_src_tracing_v2_v2",
+    srcs: [
+        "src/tracing/v2/shared_ring_buffer.cc",
+    ],
+}
+
 // GN: //test:integrationtest_initializer
 filegroup {
     name: "perfetto_test_integrationtest_initializer",
@@ -19582,6 +19598,8 @@ cc_test {
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_unittests",
+        ":perfetto_src_tracing_v2_unittests",
+        ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_sanitizers_unittests",
     ],
     shared_libs: [
