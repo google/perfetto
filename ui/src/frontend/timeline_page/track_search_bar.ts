@@ -93,7 +93,9 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
     if (onReady) {
       onReady({
         focus: () => {
-          dom.querySelector('input')?.focus();
+          const input = dom.querySelector('input');
+          input?.focus();
+          input?.select();
         },
       });
     }
