@@ -138,7 +138,7 @@ def update_manifest(git_revision, tool_name, archs):
 def main():
   usage = '%s v20.0 | 0a1b2c3d\n\n' % __file__
   usage += 'To list available revisions run\n'
-  usage += 'gsutil ls gs://perfetto-luci-artifacts/\n'
+  usage += 'gcloud storage ls gs://perfetto-luci-artifacts/\n'
   usage += 'or visit https://chrome-infra-packages.appspot.com/p/perfetto\n'
   parser = argparse.ArgumentParser(usage=usage)
   parser.add_argument('version')

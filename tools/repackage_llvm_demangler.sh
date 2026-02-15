@@ -23,7 +23,7 @@ set -eu
 # Usage example:
 #   sh tools/repackage_llvm_demangler.sh 3b4c59c156919902c785ce3cbae0eee2ee53064d
 #
-# Then upload the tar with "gsutil cp -n -a public-read ... gs://perfetto/...",
+# Then upload the tar with "gcloud storage cp --no-clobber --predefined-acl=publicRead ... gs://perfetto/...",
 # and update install-build-deps.
 
 GIT_REF=$1
