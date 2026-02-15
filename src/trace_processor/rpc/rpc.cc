@@ -478,6 +478,43 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_PROTO_CONTENT: {
+      Response resp(tx_seq_id_++, req_type);
+      protozero::ConstBytes args = req.proto_content_args();
+      protos::pbzero::ProtoContentArgs::Decoder decoder(args.data, args.size);
+
+      // Determine which proto type was provided and get its bytes
+      std::string proto_type;
+      protozero::ConstBytes proto_bytes;
+
+      if (decoder.has_trace_summary_spec()) {
+        proto_type = ".perfetto.protos.TraceSummarySpec";
+        proto_bytes = decoder.trace_summary_spec();
+      } else if (decoder.has_structured_query()) {
+        proto_type = ".perfetto.protos.PerfettoSqlStructuredQuery";
+        proto_bytes = decoder.structured_query();
+      } else if (decoder.has_metric_spec()) {
+        proto_type = ".perfetto.protos.TraceMetricV2Spec";
+        proto_bytes = decoder.metric_spec();
+      } else {
+        auto* result = resp->set_proto_content_result();
+        result->set_error("No proto provided in ProtoContentArgs");
+        resp.Send(rpc_response_fn_);
+        break;
+      }
+
+      auto* result = resp->set_proto_content_result();
+      std::string textproto;
+      base::Status status = trace_processor_->ProtoToText(
+          proto_type, proto_bytes.data, proto_bytes.size, &textproto);
+      if (!status.ok()) {
+        result->set_error(status.message());
+      } else {
+        result->set_textproto(textproto);
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unknown request" response, so the client can do feature

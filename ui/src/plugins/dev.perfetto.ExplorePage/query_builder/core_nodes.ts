@@ -72,6 +72,11 @@ import {
   CounterToIntervalsNode,
   CounterToIntervalsNodeState,
 } from './nodes/counter_to_intervals_node';
+import {
+  MetricsNode,
+  MetricsNodeState,
+  MetricsSerializedState,
+} from './nodes/metrics_node';
 import {Icons} from '../../../base/semantic_icons';
 import {NodeType} from '../query_node';
 
@@ -555,5 +560,21 @@ export function registerCoreNodes() {
         ),
         sqlModules,
       }),
+  });
+
+  nodeRegistry.register('metrics', {
+    name: 'Metrics',
+    description:
+      'Define a trace-based metric with value column and dimensions.',
+    icon: 'analytics',
+    type: 'modification',
+    nodeType: NodeType.kMetrics,
+    factory: (state) => new MetricsNode(state as MetricsNodeState),
+    deserialize: (state, _trace, sqlModules) =>
+      new MetricsNode({
+        ...MetricsNode.deserializeState(state as MetricsSerializedState),
+        sqlModules,
+      }),
+    postDeserializeLate: (node) => (node as MetricsNode).onPrevNodesUpdated(),
   });
 }

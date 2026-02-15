@@ -250,6 +250,16 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // materialization of structured queries. On success, |out| is populated with
   // the new instance and ownership is transferred to the caller.
   virtual base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) = 0;
+
+  // EXPERIMENTAL: Converts a proto from binary format to textproto format.
+  // `proto_type` is the fully qualified proto type name (e.g.,
+  // ".perfetto.protos.TraceSummarySpec").
+  // `proto_bytes` contains the binary proto data.
+  // The result is written to `output`.
+  virtual base::Status ProtoToText(const std::string& proto_type,
+                                   const uint8_t* proto_bytes,
+                                   size_t proto_size,
+                                   std::string* output) = 0;
 };
 
 }  // namespace perfetto::trace_processor
