@@ -602,6 +602,16 @@ int PERFETTO_EXPORT_ENTRYPOINT RelayServiceMain(int argc, char** argv) {
     svc->Start(listen_socket, GetRelaySocket());
   }
 
+  // If the TRACED_RELAY_NOTIFY_FD env var is set, write 1 and close the FD.
+  // This is so tools can synchronize with the point where the IPC socket
+  // has been opened, without having to poll.
+  const char* env_notif = getenv("TRACED_RELAY_NOTIFY_FD");
+  if (env_notif) {
+    int notif_fd = atoi(env_notif);
+    PERFETTO_CHECK(base::WriteAll(notif_fd, "1", 1) == 1);
+    PERFETTO_CHECK(base::CloseFile(notif_fd) == 0);
+  }
+
   // Set the CPU limit and start the watchdog running. The memory limit will
   // be set inside the service code as it relies on the size of buffers.
   // The CPU limit is the generic one defined in watchdog.h.
