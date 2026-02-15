@@ -155,6 +155,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           ...this.trackSearchModel,
           searchTerm: '',
         };
+        this.trackSearchMatches = [];
       },
       onStepForward: () => {
         // Recalculate matches to pick up any state changes (e.g., expanded groups)
