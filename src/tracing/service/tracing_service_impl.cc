@@ -4363,9 +4363,8 @@ void TracingServiceImpl::MaybeEmitProtoVmInstances(
       vm_instance->AppendString(
           protos::pbzero::TracePacket::ProtoVms::Instance::kProgramFieldNumber,
           vm.instance->SerializeProgram());
-      vm_instance->AppendString(
-          protos::pbzero::TracePacket::ProtoVms::Instance::kStateFieldNumber,
-          vm.instance->SerializeIncrementalState());
+      auto* state = vm_instance->set_state();
+      vm.instance->SerializeIncrementalState(state);
       vm_instance->set_memory_limit_kb(vm.memory_limit_kb);
       for (ProducerID producer_id : vm.producers) {
         vm_instance->add_producer_id(producer_id);

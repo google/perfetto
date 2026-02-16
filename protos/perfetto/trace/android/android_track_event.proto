@@ -512,8 +512,8 @@ message AndroidBroadcastEvent {
   // delivered.
   optional PackageStoppedState package_stopped_state = 11;
 
-  // The type of the broadcast.
-  optional BroadcastType broadcast_type = 12;
+  // The type of the broadcast. It's a mask of BroadcastType.
+  optional int32 broadcast_type = 12;
 
   // Delivery group policy set for the broadcast.
   optional BroadcastDeliveryGroupPolicy delivery_group_policy = 13;
@@ -577,6 +577,8 @@ message AndroidProcessStartEvent {
   optional TriggerType trigger_type = 8;
 }
 
+// This can be delayed for up to 15s in some cases. It should typically
+// be paired with AndroidBinderDiedEvent which has less latency.
 message AndroidProcessDiedEvent {
   // Uid of the package of the dying process.
   optional int32 uid = 1;
@@ -584,7 +586,7 @@ message AndroidProcessDiedEvent {
   // Pid of the dying process.
   optional int32 pid = 2;
 
-  // The process name.
+  // The process name of the dying process.
   optional string process_name = 3;
 
   // The reason code of why the process dies.
@@ -601,6 +603,19 @@ message AndroidProcessDiedEvent {
 
   // Whether or not this process is hosting one or more foreground services.
   optional int32 has_foreground_services = 8;
+}
+
+// This is expected to come earlier than AndroidProcessDiedEvent.
+// For death reasons, see AndroidProcessDiedEvent.
+message AndroidBinderDiedEvent {
+  // Uid of the package of the dying process.
+  optional int32 uid = 1;
+
+  // Pid of the dying process.
+  optional int32 pid = 2;
+
+  // The process name of the dying process.
+  optional string process_name = 3;
 }
 
 message AndroidProcessStateChangedEvent {
@@ -639,7 +654,7 @@ message AndroidProcessStateChangedEvent {
 
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2013
+  // Next id: 2014
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -666,5 +681,7 @@ message AndroidTrackEvent {
     optional AndroidProcessDiedEvent process_died_event = 2011;
     // Process state changed event.
     optional AndroidProcessStateChangedEvent process_state_changed_event = 2012;
+    // Binder died event.
+    optional AndroidBinderDiedEvent binder_died_event = 2013;
   }
 }
