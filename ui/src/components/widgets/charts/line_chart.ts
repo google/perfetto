@@ -155,6 +155,17 @@ export interface LineChartAttrs {
    * Note: When stacked, all series must be aligned to the same X values.
    */
   readonly stacked?: boolean;
+
+  /**
+   * Position of the legend. Defaults to 'right' when multiple series,
+   * 'top' otherwise.
+   */
+  readonly legendPosition?: 'top' | 'right';
+
+  /**
+   * Callback when a series is clicked. Called with the series name.
+   */
+  readonly onSeriesClick?: (seriesName: string) => void;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
@@ -197,17 +208,21 @@ function buildLineOption(
     lineWidth = 2,
     gridLines,
     stacked = false,
+    legendPosition,
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
 
   const displayLegend = showLegend ?? data.series.length > 1;
+  const legendPos =
+    legendPosition ?? (data.series.length > 1 ? 'right' : 'top');
 
   const series = buildLineSeries(data, stacked, lineWidth, showPoints);
 
   const option = buildChartOption({
     grid: {
-      top: displayLegend ? 30 : 10,
+      top: legendPos === 'top' && displayLegend ? 30 : 10,
+      right: legendPos === 'right' && displayLegend ? 150 : undefined,
       bottom: xAxisLabel ? 40 : 25,
     },
     xAxis: {
@@ -255,7 +270,7 @@ function buildLineOption(
       },
     },
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
-    legend: displayLegend ? buildLegendOption() : {show: false},
+    legend: displayLegend ? buildLegendOption(legendPos) : {show: false},
   });
 
   (option as Record<string, unknown>).series = series;
@@ -266,18 +281,16 @@ function buildLineEventHandlers(
   attrs: LineChartAttrs,
   data: LineChartData | undefined,
 ): ReadonlyArray<EChartEventHandler> {
-  if (
-    !attrs.onBrush ||
-    data === undefined ||
-    data.series.length === 0 ||
-    data.series.every((s) => s.points.length === 0)
-  ) {
-    return [];
-  }
-  const onBrush = attrs.onBrush;
+  const handlers: EChartEventHandler[] = [];
 
-  return [
-    {
+  if (
+    attrs.onBrush &&
+    data !== undefined &&
+    data.series.length > 0 &&
+    data.series.some((s) => s.points.length > 0)
+  ) {
+    const onBrush = attrs.onBrush;
+    handlers.push({
       eventName: 'brushEnd',
       handler: (params) => {
         const range = extractBrushRange(params);
@@ -286,8 +299,23 @@ function buildLineEventHandlers(
           onBrush({start, end});
         }
       },
-    },
-  ];
+    });
+  }
+
+  if (attrs.onSeriesClick) {
+    const onSeriesClick = attrs.onSeriesClick;
+    handlers.push({
+      eventName: 'click',
+      handler: (params) => {
+        const p = params as {seriesName?: string};
+        if (p.seriesName !== undefined) {
+          onSeriesClick(p.seriesName);
+        }
+      },
+    });
+  }
+
+  return handlers;
 }
 
 /**

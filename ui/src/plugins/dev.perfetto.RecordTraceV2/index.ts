@@ -28,6 +28,7 @@ import {instructionsPage} from './pages/instructions_page';
 import {memoryRecordSection} from './pages/memory';
 import {powerRecordSection} from './pages/power';
 import {RecordPageV2} from './pages/record_page';
+import {snapshotPage} from './pages/snapshot_page';
 import {stackSamplingRecordSection} from './pages/stack_sampling';
 import {networkRecordSection} from './pages/network';
 import {targetSelectionPage} from './pages/target_selection_page';
@@ -35,6 +36,7 @@ import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
 import m from 'mithril';
+
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
   private static recordingMgr?: RecordingManager;
@@ -87,6 +89,7 @@ export default class implements PerfettoPlugin {
         targetSelectionPage(recMgr),
         bufferConfigPage(recMgr),
         instructionsPage(recMgr),
+        snapshotPage(recMgr),
 
         chromeRecordSection(
           () => chromeProvider.getTrackEventDescriptor(),
