@@ -22,13 +22,14 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
@@ -52,47 +53,76 @@ ClockTracker::ClockTracker(
     : context_(context),
       sync_(context->trace_time_state.get(), std::move(listener)),
       active_sync_(primary_sync),
-      primary_sync_(primary_sync),
       is_primary_(is_primary) {
   PERFETTO_CHECK(primary_sync);
 }
 
 base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
     const std::vector<ClockTimestamp>& clock_timestamps) {
-  if (PERFETTO_LIKELY(is_primary_)) {
-    return primary_sync_->AddSnapshot(clock_timestamps);
+  // TODO: add commentary
+  if (std::holds_alternative<AddIdentityPathToTraceTime>(fallback_clock_)) {
+    auto& add_identity =
+        base::unchecked_get<AddIdentityPathToTraceTime>(fallback_clock_);
+    auto* state = context_->trace_time_state.get();
+    bool has_pending = false;
+    bool has_tt = false;
+    for (const auto& ct : clock_timestamps) {
+      has_pending = has_pending || (ct.clock.id == add_identity.clock_id);
+      has_tt = has_tt || (ct.clock.id == state->clock_id);
+      if (has_pending && has_tt) {
+        // TODO: add commentary.
+        fallback_clock_ = NoSpecialHandling{};
+        break;
+      }
+    }
   }
-  // Non-primary trace: if we were using the primary's pool and already
-  // converted timestamps, those conversions may have used different clock
-  // data than our own.
-  if (PERFETTO_UNLIKELY(active_sync_ != &sync_ && num_conversions_ > 0)) {
-    context_->import_logs_tracker->RecordAnalysisError(
-        stats::clock_sync_mixed_clock_sources,
-        [&](ArgsTracker::BoundInserter& inserter) {
-          StringId key =
-              context_->storage->InternString("num_conversions_using_primary");
-          inserter.AddArg(key, Variadic::UnsignedInteger(num_conversions_));
-        });
+  if (PERFETTO_UNLIKELY(!is_primary_)) {
+    // Non-primary trace: if we were using the primary's pool and already
+    // converted timestamps, those conversions may have used different clock
+    // data than our own.
+    if (PERFETTO_UNLIKELY(active_sync_ != &sync_ && num_conversions_ > 0)) {
+      context_->import_logs_tracker->RecordAnalysisError(
+          stats::clock_sync_mixed_clock_sources,
+          [&](ArgsTracker::BoundInserter& inserter) {
+            StringId key = context_->storage->InternString(
+                "num_conversions_using_primary");
+            inserter.AddArg(key, Variadic::UnsignedInteger(num_conversions_));
+          });
+    }
+    // Switch to our own sync and add the snapshot there.
+    active_sync_ = &sync_;
   }
-  // Switch to our own sync and add the snapshot there.
-  active_sync_ = &sync_;
   return active_sync_->AddSnapshot(clock_timestamps);
 }
 
-base::Status ClockTracker::SetTraceTimeClock(ClockId clock_id) {
-  PERFETTO_DCHECK(!ClockSynchronizer::IsSequenceClock(clock_id.clock_id));
-  auto* state = context_->trace_time_state.get();
-  if (state->used_for_conversion && state->clock_id != clock_id) {
+base::Status ClockTracker::SetDefiniteTraceTimeClock(ClockId clock_id) {
+  PERFETTO_DCHECK(!clock_id.IsSequenceClock());
+
+  // Reset fallback clock, as we're definitively setting the trace time clock.
+  fallback_clock_ = NoSpecialHandling{};
+
+  if (num_conversions_ > 0) {
+    auto* state = context_->trace_time_state.get();
     return base::ErrStatus(
         "Not updating trace time clock from %s to %s"
         " because the old clock was already used for timestamp "
         "conversion - ClockSnapshot too late in trace?",
         state->clock_id.ToString().c_str(), clock_id.ToString().c_str());
   }
-  state->clock_id = clock_id;
-  context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
-                                          Variadic::Integer(clock_id.clock_id));
+  MaybeSetTraceClock(clock_id);
   return base::OkStatus();
+}
+
+void ClockTracker::SetAddIdentityPathToTraceTimeFallback(ClockId clock_id) {
+  PERFETTO_DCHECK(!clock_id.IsSequenceClock());
+  PERFETTO_CHECK(num_conversions_ == 0);
+  fallback_clock_ = AddIdentityPathToTraceTime{clock_id};
+}
+
+void ClockTracker::SetSwitchTraceTimeToClock(ClockId clock_id) {
+  PERFETTO_DCHECK(!clock_id.IsSequenceClock());
+  PERFETTO_CHECK(num_conversions_ == 0);
+  fallback_clock_ = SwitchTraceTimeToClock{clock_id};
 }
 
 std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
@@ -102,8 +132,9 @@ std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
                          [state](const ClockTimestamp& clock_timestamp) {
                            return clock_timestamp.clock.id == state->clock_id;
                          });
-  if (it == snapshot.end())
+  if (it == snapshot.end()) {
     return std::nullopt;
+  }
   return it->timestamp;
 }
 
@@ -119,14 +150,56 @@ void ClockTracker::set_timezone_offset(int64_t offset) {
   context_->trace_time_state->timezone_offset = offset;
 }
 
-// --- ClockTracker: private slow paths ---
+// --- ClockTracker: private slow path ---
 
-void ClockTracker::OnFirstTraceTimeUse() {
+void ClockTracker::HandlePendingFinalization() {
   auto* state = context_->trace_time_state.get();
-  context_->metadata_tracker->SetMetadata(
-      metadata::trace_time_clock_id,
-      Variadic::Integer(state->clock_id.clock_id));
-  state->used_for_conversion = true;
+  switch (fallback_clock_.index()) {
+    case base::variant_index<FallbackClockVariant, NoSpecialHandling>():
+      // No special handling, do nothing.
+      break;
+    case base::variant_index<FallbackClockVariant, SwitchTraceTimeToClock>(): {
+      auto& switch_clock =
+          base::unchecked_get<SwitchTraceTimeToClock>(fallback_clock_);
+      if (switch_clock.clock_id == state->clock_id) {
+        break;
+      }
+      active_sync_->AddSnapshot({
+          {switch_clock.clock_id, 0},
+          {state->clock_id, 0},
+      });
+      MaybeSetTraceClock(switch_clock.clock_id);
+      break;
+    }
+    case base::variant_index<FallbackClockVariant,
+                             AddIdentityPathToTraceTime>(): {
+      auto& add_identity =
+          base::unchecked_get<AddIdentityPathToTraceTime>(fallback_clock_);
+      if (add_identity.clock_id == state->clock_id) {
+        break;
+      }
+      active_sync_->AddSnapshot({
+          {add_identity.clock_id, 0},
+          {state->clock_id, 0},
+      });
+      break;
+    }
+  }
+}
+
+void ClockTracker::MaybeSetTraceClock(ClockId clock_id) {
+  auto* state = context_->trace_time_state.get();
+  uint32_t my_trace_id = context_->trace_id().value;
+
+  // Another trace file owns the clock. Don't override.
+  if (state->trace_time_clock_owner &&
+      *state->trace_time_clock_owner != my_trace_id) {
+    return;
+  }
+  state->trace_time_clock_owner = my_trace_id;
+  state->clock_id = clock_id;
+  context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
+                                          Variadic::Integer(clock_id.clock_id));
 }
 
 // --- ClockTracker: testing ---

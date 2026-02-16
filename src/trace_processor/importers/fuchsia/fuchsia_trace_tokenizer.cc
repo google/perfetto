@@ -26,14 +26,13 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
@@ -42,6 +41,9 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
+
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -76,12 +78,20 @@ constexpr uint32_t kZxObjTypeThread = 2;
 
 FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
     : context_(context),
+      trace_file_clock_(
+          ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME)),
       proto_trace_reader_(context),
       process_id_(context->storage->InternString("process")) {
   auto parser = std::make_unique<FuchsiaTraceParser>(context);
   parser_ = parser.get();
   stream_ = context->sorter->CreateStream(std::move(parser));
   RegisterProvider(0, "");
+
+  // TODO(lalitm): using BOOTTIME here is not correct but OTOH using
+  // anything else subtly breaks in the presence of proto traces embedded
+  // inside Fuchsia traces. At some point we should figure this out more
+  // properly but t's not important enough to spend too much time on.
+  context_->clock_tracker->SetDefiniteTraceTimeClock(trace_file_clock_);
 }
 
 FuchsiaTraceTokenizer::~FuchsiaTraceTokenizer() = default;
@@ -427,7 +437,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       if (!insert_args(n_args, cursor, record)) {
         return;
       }
-      stream_->Push(ts, std::move(record));
+      {
+        auto trace_ts =
+            context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+        if (trace_ts) {
+          stream_->Push(*trace_ts, std::move(record));
+        }
+      }
       break;
     }
     case kBlob: {
@@ -589,7 +605,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
                 incoming_thread_ref,
                 current_provider_->GetThread(incoming_thread_ref));
           }
-          stream_->Push(ts, std::move(record));
+          {
+            auto trace_ts =
+                context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+            if (trace_ts) {
+              stream_->Push(*trace_ts, std::move(record));
+            }
+          }
           break;
         }
         case kSchedulerEventContextSwitch: {
@@ -623,7 +645,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           if (!insert_args(n_args, cursor, record)) {
             return;
           }
-          stream_->Push(ts, std::move(record));
+          {
+            auto trace_ts =
+                context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+            if (trace_ts) {
+              stream_->Push(*trace_ts, std::move(record));
+            }
+          }
           break;
         }
         case kSchedulerEventThreadWakeup: {
@@ -651,7 +679,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           if (!insert_args(n_args, cursor, record)) {
             return;
           }
-          stream_->Push(ts, std::move(record));
+          {
+            auto trace_ts =
+                context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+            if (trace_ts) {
+              stream_->Push(*trace_ts, std::move(record));
+            }
+          }
           break;
         }
         default:

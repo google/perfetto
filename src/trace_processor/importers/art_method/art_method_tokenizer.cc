@@ -106,8 +106,8 @@ base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {
     uint32_t magic = ToInt(*smagic);
     sub_parser_ = magic == kTraceMagic ? SubParser{Streaming{this}}
                                        : SubParser{NonStreaming{this}};
-    context_->clock_tracker->SetTraceTimeClock(
-        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
+    context_->clock_tracker->SetDefiniteTraceTimeClock(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
   }
   if (sub_parser_.index() == base::variant_index<SubParser, Streaming>()) {
     return std::get<Streaming>(sub_parser_).Parse();
@@ -216,7 +216,7 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
       break;
   }
   std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
       (ts_ + ts_delta) * 1000);
   if (ts) {
     stream_->Push(*ts, evt);

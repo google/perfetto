@@ -35,7 +35,6 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
@@ -49,6 +48,7 @@
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #error \
@@ -153,15 +153,11 @@ class InstrumentsXmlTokenizer::Impl {
         has_data_(false),
         stream_(context->sorter->CreateStream(
             std::make_unique<RowParser>(context, data_))) {
-    static constexpr std::string_view kSubsystem =
-        "dev.perfetto.instruments_clock";
-    clock_ = ClockTracker::ClockId(
-        static_cast<uint32_t>(base::MurmurHashValue(kSubsystem) | 0x80000000),
-        0, context->trace_id().value);
+    clock_ = ClockId::TraceFile(context->trace_id().value);
 
     // Use the above clock if we can, in case there is no other trace and
     // no clock sync events.
-    context_->clock_tracker->SetTraceTimeClock(clock_);
+    context_->clock_tracker->SetAddIdentityPathToTraceTimeFallback(clock_);
   }
   ~Impl() {
     if (parser_) {
@@ -417,7 +413,7 @@ class InstrumentsXmlTokenizer::Impl {
             latest_clock_sync_timestamp_ = clock_sync_timestamp;
             auto status = context_->clock_tracker->AddSnapshot(
                 {{clock_, current_row_.timestamp_},
-                 {ClockTracker::ClockId(
+                 {ClockId::Machine(
                       protos::pbzero::ClockSnapshot::Clock::BOOTTIME),
                   static_cast<int64_t>(latest_clock_sync_timestamp_)}});
             if (!status.ok()) {

@@ -34,12 +34,14 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -109,8 +111,11 @@ bool IsCpusHeaderLine(const std::deque<uint8_t>& buf,
 SystraceTraceParser::SystraceTraceParser(TraceProcessorContext* ctx)
     : line_parser_(ctx),
       ctx_(ctx),
+      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)),
       stream_(ctx->sorter->CreateStream(
-          std::make_unique<SystraceLineSink>(&line_parser_))) {}
+          std::make_unique<SystraceLineSink>(&line_parser_))) {
+  ctx_->clock_tracker->SetAddIdentityPathToTraceTimeFallback(trace_file_clock_);
+}
 SystraceTraceParser::~SystraceTraceParser() = default;
 
 base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
@@ -183,7 +188,11 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
         SystraceLine line;
         base::Status status = line_tokenizer_.Tokenize(buffer, &line);
         if (status.ok()) {
-          stream_->Push(line.ts, std::move(line));
+          auto trace_ts =
+              ctx_->clock_tracker->ToTraceTime(trace_file_clock_, line.ts);
+          if (trace_ts) {
+            stream_->Push(*trace_ts, std::move(line));
+          }
         } else {
           ctx_->storage->IncrementStats(stats::systrace_parse_failure);
         }

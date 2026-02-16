@@ -181,6 +181,8 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
   if (context_->register_additional_proto_modules) {
     context_->register_additional_proto_modules(&module_context_, context_);
   }
+  context_->clock_tracker->SetSwitchTraceTimeToClock(
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
 }
 
 ProtoTraceReader::~ProtoTraceReader() = default;
@@ -366,15 +368,14 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       // TODO(eseckler): Set timestamp_clock_id and emit ClockSnapshots in
       // chrome and then remove this.
       auto trace_ts = context_->clock_tracker->ToTraceTime(
-          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-          timestamp);
+          ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), timestamp);
       if (trace_ts)
         timestamp = *trace_ts;
     } else if (timestamp_clock_id) {
       // If the TracePacket specifies a non-zero clock-id, translate the
       // timestamp into the trace-time clock domain.
-      ClockTracker::ClockId converted_clock_id(timestamp_clock_id);
-      if (ClockTracker::IsSequenceClock(timestamp_clock_id)) {
+      ClockTracker::ClockId converted_clock_id;
+      if (ClockId::IsSequenceClock(timestamp_clock_id)) {
         if (!seq_id) {
           return base::ErrStatus(
               "TracePacket specified a sequence-local clock id (%" PRIu32
@@ -382,8 +383,10 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
               "probably too old)",
               timestamp_clock_id);
         }
-        converted_clock_id = ClockTracker::SequenceToGlobalClock(
-            context_->trace_id().value, seq_id, timestamp_clock_id);
+        converted_clock_id = ClockId::Sequence(context_->trace_id().value,
+                                               seq_id, timestamp_clock_id);
+      } else {
+        converted_clock_id = ClockId::Machine(timestamp_clock_id);
       }
       auto trace_ts = context_->clock_tracker->ToTraceTime(
           converted_clock_id, timestamp, packet.offset());
@@ -539,21 +542,23 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   std::vector<ClockTracker::ClockTimestamp> clock_timestamps;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   if (evt.primary_trace_clock()) {
-    context_->clock_tracker->SetTraceTimeClock(
-        ClockId(static_cast<uint32_t>(evt.primary_trace_clock())));
+    context_->clock_tracker->SetDefiniteTraceTimeClock(
+        ClockId::Machine(static_cast<uint32_t>(evt.primary_trace_clock())));
   }
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
-    ClockTracker::ClockId clock_id(clk.clock_id());
-    if (ClockTracker::IsSequenceClock(clk.clock_id())) {
+    ClockTracker::ClockId clock_id;
+    if (ClockId::IsSequenceClock(clk.clock_id())) {
       if (!seq_id) {
         return base::ErrStatus(
             "ClockSnapshot packet is specifying a sequence-scoped clock id "
             "(%" PRIu32 ") but the TracePacket sequence_id is zero",
             clock_id.clock_id);
       }
-      clock_id = ClockTracker::SequenceToGlobalClock(context_->trace_id().value,
-                                                     seq_id, clk.clock_id());
+      clock_id =
+          ClockId::Sequence(context_->trace_id().value, seq_id, clk.clock_id());
+    } else {
+      clock_id = ClockId::Machine(clk.clock_id());
     }
     int64_t unit_multiplier_ns =
         clk.unit_multiplier_ns()
@@ -644,7 +649,7 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
       protos::pbzero::ClockSnapshot::ClockSnapshot::Clock::Decoder clock(
           *clock_it);
       sync_clocks[clock.clock_id()].second = clock.timestamp();
-      clock_timestamps.emplace_back(ClockTracker::ClockId(clock.clock_id()),
+      clock_timestamps.emplace_back(ClockId::Machine(clock.clock_id()),
                                     clock.timestamp(), 1, false);
     }
 
@@ -731,7 +736,7 @@ ProtoTraceReader::CalculateClockOffsets(
       int64_t avg_offset =
           std::accumulate(offsets.begin(), offsets.end(), 0LL) /
           static_cast<int64_t>(offsets.size());
-      clock_offsets[ClockId(clock_id)] = avg_offset;
+      clock_offsets[ClockId::Machine(clock_id)] = avg_offset;
     }
   }
 

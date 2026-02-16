@@ -38,6 +38,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_type.h"
 #include "src/trace_processor/util/zip_reader.h"
 
@@ -132,8 +133,8 @@ base::Status AndroidBugreportReader::Parse(std::vector<util::ZipFile> files) {
   // All logs in Android bugreports use wall time (which creates problems
   // in case of early boot events before NTP kicks in, which get emitted as
   // 1970), but that is the state of affairs.
-  context_->clock_tracker->SetTraceTimeClock(
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_REALTIME));
+  context_->clock_tracker->SetDefiniteTraceTimeClock(
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME));
 
   ASSIGN_OR_RETURN(std::vector<TimestampedAndroidLogEvent> logcat_events,
                    ParseDumpstateTxt(bug_report));

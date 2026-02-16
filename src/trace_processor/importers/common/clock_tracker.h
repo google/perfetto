@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -55,20 +56,20 @@ class ClockTracker {
   ClockTracker(TraceProcessorContext* context,
                std::unique_ptr<ClockSynchronizerListenerImpl> listener,
                ClockSynchronizer* primary_sync,
-               bool is_primary = true);
+               bool is_primary);
 
   // --- Hot-path APIs (inlined) ---
 
   // Converts a timestamp to the trace time domain. On the first call, also
-  // "locks" the trace time clock, preventing it from being changed later.
+  // finalizes the trace time clock, preventing it from being changed later.
   PERFETTO_ALWAYS_INLINE std::optional<int64_t> ToTraceTime(
       ClockId clock_id,
       int64_t timestamp,
       std::optional<size_t> byte_offset = std::nullopt) {
-    auto* state = context_->trace_time_state.get();
-    if (PERFETTO_UNLIKELY(!state->used_for_conversion)) {
-      OnFirstTraceTimeUse();
+    if (PERFETTO_UNLIKELY(num_conversions_ == 0)) {
+      HandlePendingFinalization();
     }
+    auto* state = context_->trace_time_state.get();
     ++num_conversions_;
     auto ts = active_sync_->Convert(clock_id, timestamp, state->clock_id,
                                     byte_offset);
@@ -85,22 +86,21 @@ class ClockTracker {
     return active_sync_->Convert(src, ts, target, byte_offset);
   }
 
-  static bool IsSequenceClock(uint32_t raw_clock_id) {
-    return ClockSynchronizer::IsSequenceClock(raw_clock_id);
-  }
-
-  static ClockId SequenceToGlobalClock(uint32_t tfi,
-                                       uint32_t seq,
-                                       uint32_t clk) {
-    return ClockSynchronizer::SequenceToGlobalClock(tfi, seq, clk);
-  }
-
   // --- Slow-path public APIs ---
 
   base::StatusOr<uint32_t> AddSnapshot(
       const std::vector<ClockTimestamp>& clock_timestamps);
 
-  base::Status SetTraceTimeClock(ClockId clock_id);
+  // Definitively sets the trace time clock. Supersedes any pending
+  // AssumeClockIsTraceTime. Returns an error if the clock has already been
+  // finalized with a different clock.
+  base::Status SetDefiniteTraceTimeClock(ClockId clock_id);
+
+  // TODO: add comment
+  void SetAddIdentityPathToTraceTimeFallback(ClockId clock_id);
+
+  // TODO: add comment
+  void SetSwitchTraceTimeToClock(ClockId clock_id);
 
   std::optional<int64_t> ToTraceTimeFromSnapshot(
       const std::vector<ClockTimestamp>& snapshot);
@@ -127,25 +127,42 @@ class ClockTracker {
     return timestamp - clock_offset;
   }
 
-  void OnFirstTraceTimeUse();
+  PERFETTO_NO_INLINE void HandlePendingFinalization();
+
+  PERFETTO_NO_INLINE void MaybeSetTraceClock(ClockId clock_id);
 
   TraceProcessorContext* context_;
+
+  // Private ClockSynchronizer used for non-primary traces. Primary traces use
+  // the externally provided |primary_sync_| directly and don't use this member.
   ClockSynchronizer sync_;
+
   // Points to the ClockSynchronizer used for conversions. Starts at
   // |primary_sync_| and switches to |sync_| for non-primary traces
   // on the first AddSnapshot call.
   ClockSynchronizer* active_sync_;
-  // The primary trace's ClockSynchronizer. All traces add snapshots here
-  // so that traces without their own snapshots can still convert timestamps.
-  // Null when no primary sync is configured (e.g. in tests).
-  ClockSynchronizer* primary_sync_ = nullptr;
-  // Whether this is the primary trace for its machine (or a test). Non-primary
+
+  // Whether this is the primary trace for its machine. Non-primary
   // traces start using primary_sync_ and switch to sync_ on first AddSnapshot.
   bool is_primary_ = true;
+
   // Total number of conversions performed. When a non-primary trace switches
   // to its own sync, this value indicates how many conversions used the
   // primary trace's clocks.
   uint32_t num_conversions_ = 0;
+
+  // TODO(lalitm): add detailed commentary here.
+  struct NoSpecialHandling {};
+  struct SwitchTraceTimeToClock {
+    ClockId clock_id;
+  };
+  struct AddIdentityPathToTraceTime {
+    ClockId clock_id;
+  };
+  using FallbackClockVariant = std::variant<NoSpecialHandling,
+                                            SwitchTraceTimeToClock,
+                                            AddIdentityPathToTraceTime>;
+  FallbackClockVariant fallback_clock_;
 };
 
 class ClockSynchronizerListenerImpl : public ClockSynchronizerListener {
