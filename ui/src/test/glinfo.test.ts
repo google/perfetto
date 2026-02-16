@@ -13,13 +13,15 @@
 // limitations under the License.
 
 import {test} from '@playwright/test';
-// import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
+/**
+ * This test simply dumps WebGL information to the console. It's not a real
+ * test, but it can be useful to quickly check the WebGL capabilities of the
+ * environment where tests are running. It's very quick to run as it doesn't
+ * load a trace or even load the Perfetto UI at all.
+ */
 test('Dump GL info', async ({browser}) => {
   const page = await browser.newPage();
-  // const pth = new PerfettoTestHelper(page);
-  // await pth.openTraceFile('api34_startup_cold.perfetto-trace');
-
   const info = await page.evaluate(() => {
     // Use separate canvases to accurately detect support for each WebGL version
     const canvas1 = document.createElement('canvas');
