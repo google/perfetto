@@ -586,7 +586,7 @@ message AndroidProcessDiedEvent {
   // Pid of the dying process.
   optional int32 pid = 2;
 
-  // The process name.
+  // The process name of the dying process.
   optional string process_name = 3;
 
   // The reason code of why the process dies.
@@ -614,7 +614,7 @@ message AndroidBinderDiedEvent {
   // Pid of the dying process.
   optional int32 pid = 2;
 
-  // The process name.
+  // The process name of the dying process.
   optional string process_name = 3;
 }
 
