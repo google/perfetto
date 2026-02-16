@@ -102,11 +102,7 @@
 #define ftruncate _chsize
 #else
 #include <dirent.h>
-#endif
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_LINENOISE) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <unistd.h>  // For getuid() in GetConfigPath().
+#include <unistd.h>
 #endif
 
 namespace perfetto::trace_processor {
@@ -211,56 +207,100 @@ ScopedLine GetLine(const char* prompt) {
 
 #endif  // PERFETTO_TP_LINENOISE
 
-base::Status PrintStats(TraceProcessor* trace_processor) {
-  auto it = trace_processor->ExecuteQuery(
-      "SELECT name, idx, source, value from stats "
-      "where severity IN ('error', 'data_loss') and value > 0");
+bool StderrSupportsColors() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+  static const bool use_colors = isatty(STDERR_FILENO);
+  return use_colors;
+#else
+  return false;
+#endif
+}
 
+base::Status PrintStatsSection(TraceProcessor* tp,
+                               const char* header,
+                               const char* color,
+                               const char* query) {
+  const bool colors = StderrSupportsColors();
+  auto it = tp->ExecuteQuery(query);
   bool first = true;
   while (it.Next()) {
     if (first) {
-      fprintf(stderr, "Error stats for this trace:\n");
-
-      for (uint32_t i = 0; i < it.ColumnCount(); i++)
-        fprintf(stderr, "%40s ", it.GetColumnName(i).c_str());
-      fprintf(stderr, "\n");
-
-      for (uint32_t i = 0; i < it.ColumnCount(); i++)
-        fprintf(stderr, "%40s ", "----------------------------------------");
-      fprintf(stderr, "\n");
-
+      base::StackString<256> line("  %s%s%s", colors ? color : "", header,
+                                  colors ? "\x1b[0m" : "");
+      fprintf(stderr, "%s\n", line.c_str());
       first = false;
     }
+    // Columns: name, idx, value, description.
+    const char* name = it.Get(0).string_value;
+    SqlValue idx = it.Get(1);
+    int64_t value = it.Get(2).long_value;
+    const char* description = it.Get(3).string_value;
 
-    for (uint32_t c = 0; c < it.ColumnCount(); c++) {
-      auto value = it.Get(c);
-      switch (value.type) {
-        case SqlValue::Type::kNull:
-          fprintf(stderr, "%-40.40s", "[NULL]");
-          break;
-        case SqlValue::Type::kDouble:
-          fprintf(stderr, "%40f", value.double_value);
-          break;
-        case SqlValue::Type::kLong:
-          fprintf(stderr, "%40" PRIi64, value.long_value);
-          break;
-        case SqlValue::Type::kString:
-          fprintf(stderr, "%-40.40s", value.string_value);
-          break;
-        case SqlValue::Type::kBytes:
-          printf("%-40.40s", "<raw bytes>");
-          break;
-      }
-      fprintf(stderr, " ");
+    if (idx.type == SqlValue::Type::kNull) {
+      base::StackString<512> line("    %s: %" PRIi64, name, value);
+      fprintf(stderr, "%s", line.c_str());
+    } else {
+      base::StackString<512> line("    %s[%" PRIi64 "]: %" PRIi64, name,
+                                  idx.long_value, value);
+      fprintf(stderr, "%s", line.c_str());
+    }
+    if (description && description[0] != '\0') {
+      base::StackString<512> desc(" | %s", description);
+      fprintf(stderr, "%s", desc.c_str());
     }
     fprintf(stderr, "\n");
   }
-
+  if (!first) {
+    fprintf(stderr, "\n");
+  }
   base::Status status = it.Status();
   if (!status.ok()) {
     return base::ErrStatus("Error while iterating stats (%s)",
                            status.c_message());
   }
+  return base::OkStatus();
+}
+
+base::Status PrintStats(TraceProcessor* tp) {
+  // Quick check: are there any issues at all?
+  auto check = tp->ExecuteQuery(
+      "SELECT 1 FROM stats "
+      "WHERE severity IN ('error', 'data_loss') AND value > 0 LIMIT 1");
+  bool has_issues = check.Next();
+  {
+    base::Status s = check.Status();
+    if (!s.ok())
+      return s;
+  }
+  if (!has_issues)
+    return base::OkStatus();
+
+  const bool colors = StderrSupportsColors();
+  base::StackString<64> title("\n%sTrace health issues:%s\n",
+                              colors ? "\x1b[1;33m" : "",
+                              colors ? "\x1b[0m" : "");
+  fprintf(stderr, "\n%s\n", title.c_str());
+
+  RETURN_IF_ERROR(PrintStatsSection(
+      tp, "Trace errors", "\x1b[1;31m",
+      "SELECT name, idx, value, description FROM stats "
+      "WHERE severity = 'error' AND source = 'trace' AND value > 0 "
+      "ORDER BY name, idx"));
+
+  RETURN_IF_ERROR(PrintStatsSection(
+      tp, "Import errors", "\x1b[1;31m",
+      "SELECT name, idx, value, description FROM stats "
+      "WHERE severity = 'error' AND source = 'analysis' AND value > 0 "
+      "ORDER BY name, idx"));
+
+  RETURN_IF_ERROR(
+      PrintStatsSection(tp, "Data losses", "\x1b[1;33m",
+                        "SELECT name, idx, value, description FROM stats "
+                        "WHERE severity = 'data_loss' AND value > 0 "
+                        "ORDER BY name, idx"));
+
   return base::OkStatus();
 }
 
