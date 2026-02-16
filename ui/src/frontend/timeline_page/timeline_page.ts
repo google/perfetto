@@ -142,6 +142,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         this.trackSearchMatches = searchTracks(
           trace.currentWorkspace,
           newModel,
+          (track) => trackMatchesFilter(trace, track),
         );
         this.currentSearchMatchIndex = 0;
         const firstMatch = maybeUndefined(this.trackSearchMatches[0]);
@@ -163,6 +164,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         this.trackSearchMatches = searchTracks(
           trace.currentWorkspace,
           this.trackSearchModel,
+          (track) => trackMatchesFilter(trace, track),
         );
         const count = this.trackSearchMatches.length;
         if (count > 0) {
@@ -182,6 +184,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         this.trackSearchMatches = searchTracks(
           trace.currentWorkspace,
           this.trackSearchModel,
+          (track) => trackMatchesFilter(trace, track),
         );
         const count = this.trackSearchMatches.length;
         if (count > 0) {

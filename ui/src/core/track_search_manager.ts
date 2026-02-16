@@ -33,10 +33,16 @@ export interface TrackSearchModel {
  * - Keeps all tracks visible
  * - Highlights matching parts of track names
  * - Allows navigation between matches with Enter/Shift+Enter
+ *
+ * @param workspace - The workspace to search in.
+ * @param model - The search model containing the search term and options.
+ * @param trackFilter - Optional filter function to limit which tracks are
+ *   searched. Only tracks that pass this filter will be included in results.
  */
 export function searchTracks(
   workspace: Workspace,
   model: TrackSearchModel,
+  trackFilter?: (node: TrackNode) => boolean,
 ): readonly TrackSearchMatch[] {
   const {searchTerm, useRegex, searchWithinCollapsedGroups} = model;
 
@@ -47,6 +53,7 @@ export function searchTracks(
   const tracksToSearch = getSearchableTracks(
     workspace,
     searchWithinCollapsedGroups,
+    trackFilter,
   );
   const matches: TrackSearchMatch[] = [];
 
@@ -93,12 +100,30 @@ export function searchTracks(
 function getSearchableTracks(
   workspace: Workspace,
   searchCollapsed: boolean,
+  trackFilter?: (node: TrackNode) => boolean,
 ): TrackNode[] {
   const result: TrackNode[] = [];
 
+  // Check if a node passes the filter (including if any children pass).
+  const nodePassesFilter = (node: TrackNode): boolean => {
+    if (!trackFilter) return true;
+    if (trackFilter(node)) return true;
+    // Also include if any children pass the filter.
+    return node.children.some(nodePassesFilter);
+  };
+
   const collectTracks = (node: TrackNode) => {
+    // Skip nodes that don't pass the filter.
+    if (!nodePassesFilter(node)) {
+      return;
+    }
+
     if (!node.headless) {
-      result.push(node);
+      // Only add to results if this specific node passes the filter (not just
+      // its children).
+      if (!trackFilter || trackFilter(node)) {
+        result.push(node);
+      }
     }
 
     if (searchCollapsed || node.headless || node.expanded) {
