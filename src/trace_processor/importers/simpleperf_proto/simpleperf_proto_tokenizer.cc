@@ -53,10 +53,7 @@ SimpleperfProtoTokenizer::SimpleperfProtoTokenizer(
     TraceProcessorContext* context)
     : context_(context),
       stream_(context->sorter->CreateStream(
-          std::make_unique<SimpleperfProtoParser>(context, &tracker_))) {
-  context_->clock_tracker->SetAddIdentityPathToTraceTimeFallback(
-      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
-}
+          std::make_unique<SimpleperfProtoParser>(context, &tracker_))) {}
 
 SimpleperfProtoTokenizer::~SimpleperfProtoTokenizer() = default;
 

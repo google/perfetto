@@ -82,7 +82,6 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
   void RegisterProvider(uint32_t, std::string);
 
   TraceProcessorContext* const context_;
-  ClockTracker::ClockId trace_file_clock_;
   std::unique_ptr<TraceSorter::Stream<FuchsiaRecord>> stream_;
   FuchsiaTraceParser* parser_;
   std::vector<uint8_t> leftover_bytes_;

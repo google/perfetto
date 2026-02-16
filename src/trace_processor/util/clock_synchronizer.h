@@ -159,7 +159,7 @@ struct ClockId {
     return H::Combine(std::move(h), c.clock_id, c.seq_id, c.trace_file_id);
   }
 
-  static bool IsSequenceClock(uint32_t clock_id) {
+  static constexpr bool IsSequenceClock(uint32_t clock_id) {
     return clock_id >= 64 && clock_id < 128;
   }
 

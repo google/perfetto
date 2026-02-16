@@ -36,7 +36,6 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -208,9 +207,6 @@ PerfDataTokenizer::ParseHeader() {
   feature_ids_ = ExtractFeatureIds(header_.flags, header_.flags1);
   feature_headers_section_ = {header_.data.end(),
                               feature_ids_.size() * sizeof(PerfFile::Section)};
-  context_->clock_tracker->SetDefiniteTraceTimeClock(
-      ClockId::Machine(protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
-
   PERFETTO_CHECK(buffer_.PopFrontUntil(sizeof(PerfFile::Header)));
   parsing_state_ = ParsingState::kParseAttrs;
   return ParsingResult::kSuccess;
@@ -249,7 +245,7 @@ PerfDataTokenizer::ParseAttrs() {
 
   ASSIGN_OR_RETURN(perf_invocation_, builder.Build());
   if (perf_invocation_->HasPerfClock()) {
-    context_->clock_tracker->SetDefiniteTraceTimeClock(
+    context_->clock_tracker->SetGlobalClock(
         ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_PERF));
   }
   parsing_state_ = ParsingState::kSeekRecords;

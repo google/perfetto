@@ -151,14 +151,9 @@ class InstrumentsXmlTokenizer::Impl {
       : context_(context),
         parser_(nullptr),
         has_data_(false),
+        clock_(ClockId::TraceFile(context->trace_id().value)),
         stream_(context->sorter->CreateStream(
-            std::make_unique<RowParser>(context, data_))) {
-    clock_ = ClockId::TraceFile(context->trace_id().value);
-
-    // Use the above clock if we can, in case there is no other trace and
-    // no clock sync events.
-    context_->clock_tracker->SetAddIdentityPathToTraceTimeFallback(clock_);
-  }
+            std::make_unique<RowParser>(context, data_))) {}
   ~Impl() {
     if (parser_) {
       XML_ParserFree(parser_);

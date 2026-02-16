@@ -41,7 +41,6 @@ PrimesTraceTokenizer::PrimesTraceTokenizer(TraceProcessorContext* ctx)
       trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)),
       stream_(
           ctx->sorter->CreateStream(std::make_unique<PrimesTraceParser>(ctx))) {
-  ctx->clock_tracker->SetAddIdentityPathToTraceTimeFallback(trace_file_clock_);
 }
 
 PrimesTraceTokenizer::~PrimesTraceTokenizer() = default;

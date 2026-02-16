@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -111,10 +112,8 @@ bool IsCpusHeaderLine(const std::deque<uint8_t>& buf,
 SystraceTraceParser::SystraceTraceParser(TraceProcessorContext* ctx)
     : line_parser_(ctx),
       ctx_(ctx),
-      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)),
       stream_(ctx->sorter->CreateStream(
           std::make_unique<SystraceLineSink>(&line_parser_))) {
-  ctx_->clock_tracker->SetAddIdentityPathToTraceTimeFallback(trace_file_clock_);
 }
 SystraceTraceParser::~SystraceTraceParser() = default;
 
@@ -188,8 +187,9 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
         SystraceLine line;
         base::Status status = line_tokenizer_.Tokenize(buffer, &line);
         if (status.ok()) {
-          auto trace_ts =
-              ctx_->clock_tracker->ToTraceTime(trace_file_clock_, line.ts);
+          auto trace_ts = ctx_->clock_tracker->ToTraceTime(
+              ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+              line.ts);
           if (trace_ts) {
             stream_->Push(*trace_ts, std::move(line));
           }

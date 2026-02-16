@@ -338,9 +338,6 @@ base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
         threads_or.status().message().c_str());
   }
 
-  context_->clock_tracker->SetAddIdentityPathToTraceTimeFallback(
-      trace_file_clock_);
-
   for (const auto& t : *threads_or) {
     if (t.is_preprocessed) {
       ProcessPreprocessedThread(t);

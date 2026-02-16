@@ -24,7 +24,6 @@
 #include <utility>
 #include <vector>
 
-#include <variant>
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -77,12 +76,8 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
   return active_sync_->AddSnapshot(clock_timestamps);
 }
 
-base::Status ClockTracker::SetDefiniteTraceTimeClock(ClockId clock_id) {
+base::Status ClockTracker::SetGlobalClock(ClockId clock_id) {
   PERFETTO_DCHECK(!clock_id.IsSequenceClock());
-
-  // Reset fallback clock, as we're definitively setting the trace time clock.
-  fallback_clock_ = NoSpecialHandling{};
-
   if (num_conversions_ > 0) {
     auto* state = context_->trace_time_state.get();
     return base::ErrStatus(
@@ -91,20 +86,35 @@ base::Status ClockTracker::SetDefiniteTraceTimeClock(ClockId clock_id) {
         "conversion - ClockSnapshot too late in trace?",
         state->clock_id.ToString().c_str(), clock_id.ToString().c_str());
   }
-  MaybeSetTraceClock(clock_id);
+  auto* state = context_->trace_time_state.get();
+  uint32_t my_trace_id = context_->trace_id().value;
+  // Another trace file owns the clock. Don't override.
+  if (state->trace_time_clock_owner &&
+      *state->trace_time_clock_owner != my_trace_id) {
+    return base::OkStatus();
+  }
+  state->trace_time_clock_owner = my_trace_id;
+  state->clock_id = clock_id;
+  context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
+                                          Variadic::Integer(clock_id.clock_id));
   return base::OkStatus();
 }
 
-void ClockTracker::SetAddIdentityPathToTraceTimeFallback(ClockId clock_id) {
-  PERFETTO_DCHECK(!clock_id.IsSequenceClock());
-  PERFETTO_CHECK(num_conversions_ == 0);
-  fallback_clock_ = AddIdentityPathToTraceTime{clock_id};
+void ClockTracker::SetTraceDefaultClock(ClockId clock_id) {
+  trace_default_clock_ = clock_id;
 }
 
-void ClockTracker::SetSwitchTraceTimeToClock(ClockId clock_id) {
-  PERFETTO_DCHECK(!clock_id.IsSequenceClock());
-  PERFETTO_CHECK(num_conversions_ == 0);
-  fallback_clock_ = SwitchTraceTimeToClock{clock_id};
+void ClockTracker::AddDeferredIdentitySync(ClockId clock_id) {
+  deferred_identity_clock_ = clock_id;
+}
+
+void ClockTracker::FlushDeferredIdentitySync() {
+  ClockId clock_id = *deferred_identity_clock_;
+  deferred_identity_clock_.reset();
+  auto* state = context_->trace_time_state.get();
+  if (clock_id != state->clock_id && !active_sync_->HasClock(clock_id)) {
+    active_sync_->AddSnapshot({{clock_id, 0}, {state->clock_id, 0}});
+  }
 }
 
 std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
@@ -130,73 +140,6 @@ std::optional<int64_t> ClockTracker::timezone_offset() const {
 
 void ClockTracker::set_timezone_offset(int64_t offset) {
   context_->trace_time_state->timezone_offset = offset;
-}
-
-// --- ClockTracker: private slow path ---
-
-// Called on the first ToTraceTime() call for this ClockTracker.
-//
-// Both SwitchTraceTimeToClock and AddIdentityPathToTraceTime work the same
-// way at a high level: they inject a zero-offset identity edge between their
-// clock_id and the current trace time clock, so that conversions succeed even
-// without explicit clock snapshots linking the two.
-//
-// The key difference is SwitchTraceTimeToClock *also* changes which clock is
-// the trace time clock (e.g. from TraceFile(0) to BOOTTIME for proto traces).
-//
-// Neither fallback fires if real snapshot data already exists for the trace
-// time clock. In that case the clock graph is assumed to have the information
-// needed to resolve conversions.
-void ClockTracker::HandlePendingFinalization(ClockId src_clock_id) {
-  auto* state = context_->trace_time_state.get();
-
-  // If the trace time clock already has real snapshot data, the clock graph
-  // can handle conversions — no fallback needed.
-  if (active_sync_->HasClock(state->clock_id)) {
-    return;
-  }
-
-  // Extract the fallback clock_id from whichever variant is active.
-  auto* sc = std::get_if<SwitchTraceTimeToClock>(&fallback_clock_);
-  auto* ai = std::get_if<AddIdentityPathToTraceTime>(&fallback_clock_);
-  if (!sc && !ai) {
-    return;
-  }
-  ClockId fallback_id = sc ? sc->clock_id : ai->clock_id;
-
-  // If the fallback clock is already the trace time clock, the identity edge
-  // is unnecessary.
-  if (fallback_id == state->clock_id) {
-    return;
-  }
-
-  // Inject a zero-offset edge so conversions through fallback_id work.
-  active_sync_->AddSnapshot({
-      {fallback_id, 0},
-      {state->clock_id, 0},
-  });
-
-  // For SwitchTraceTimeToClock, also change the trace time clock — but only
-  // if this conversion is from a clock other than the current trace time
-  // (an identity conversion shouldn't trigger a clock switch).
-  if (sc && src_clock_id != state->clock_id) {
-    MaybeSetTraceClock(fallback_id);
-  }
-}
-
-void ClockTracker::MaybeSetTraceClock(ClockId clock_id) {
-  auto* state = context_->trace_time_state.get();
-  uint32_t my_trace_id = context_->trace_id().value;
-
-  // Another trace file owns the clock. Don't override.
-  if (state->trace_time_clock_owner &&
-      *state->trace_time_clock_owner != my_trace_id) {
-    return;
-  }
-  state->trace_time_clock_owner = my_trace_id;
-  state->clock_id = clock_id;
-  context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
-                                          Variadic::Integer(clock_id.clock_id));
 }
 
 // --- ClockTracker: testing ---

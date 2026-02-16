@@ -491,10 +491,7 @@ JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
           std::make_unique<SystraceSink>(&parser_))),
       v8_stream_(context_->sorter->CreateStream(
           std::make_unique<V8Sink>(v8_tracker_.get()))),
-      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)) {
-  context_->clock_tracker->SetAddIdentityPathToTraceTimeFallback(
-      trace_file_clock_);
-}
+      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)) {}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
 
 base::Status JsonTraceTokenizer::Parse(TraceBlobView blob) {

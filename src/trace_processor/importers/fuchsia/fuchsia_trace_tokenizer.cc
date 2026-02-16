@@ -78,8 +78,6 @@ constexpr uint32_t kZxObjTypeThread = 2;
 
 FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
     : context_(context),
-      trace_file_clock_(
-          ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME)),
       proto_trace_reader_(context),
       process_id_(context->storage->InternString("process")) {
   auto parser = std::make_unique<FuchsiaTraceParser>(context);
@@ -87,11 +85,6 @@ FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
   stream_ = context->sorter->CreateStream(std::move(parser));
   RegisterProvider(0, "");
 
-  // TODO(lalitm): using BOOTTIME here is not correct but OTOH using
-  // anything else subtly breaks in the presence of proto traces embedded
-  // inside Fuchsia traces. At some point we should figure this out more
-  // properly but t's not important enough to spend too much time on.
-  context_->clock_tracker->SetDefiniteTraceTimeClock(trace_file_clock_);
 }
 
 FuchsiaTraceTokenizer::~FuchsiaTraceTokenizer() = default;
@@ -438,8 +431,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         return;
       }
       {
-        auto trace_ts =
-            context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+        auto trace_ts = context_->clock_tracker->ToTraceTime(
+            ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
         if (trace_ts) {
           stream_->Push(*trace_ts, std::move(record));
         }
@@ -607,7 +600,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           }
           {
             auto trace_ts =
-                context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+                context_->clock_tracker->ToTraceTime(ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
             if (trace_ts) {
               stream_->Push(*trace_ts, std::move(record));
             }
@@ -647,7 +640,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           }
           {
             auto trace_ts =
-                context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+                context_->clock_tracker->ToTraceTime(ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
             if (trace_ts) {
               stream_->Push(*trace_ts, std::move(record));
             }
@@ -681,7 +674,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           }
           {
             auto trace_ts =
-                context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+                context_->clock_tracker->ToTraceTime(ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
             if (trace_ts) {
               stream_->Push(*trace_ts, std::move(record));
             }

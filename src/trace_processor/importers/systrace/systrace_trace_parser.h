@@ -63,7 +63,6 @@ class SystraceTraceParser : public ChunkedTraceReader {
   SystraceLineTokenizer line_tokenizer_;
   SystraceLineParser line_parser_;
   TraceProcessorContext* ctx_;
-  ClockTracker::ClockId trace_file_clock_;
 
   std::unique_ptr<TraceSorter::Stream<SystraceLine>> stream_;
 };

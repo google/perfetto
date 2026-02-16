@@ -21,7 +21,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -66,8 +65,8 @@ class ClockTracker {
       ClockId clock_id,
       int64_t timestamp,
       std::optional<size_t> byte_offset = std::nullopt) {
-    if (PERFETTO_UNLIKELY(num_conversions_ == 0)) {
-      HandlePendingFinalization(clock_id);
+    if (PERFETTO_UNLIKELY(deferred_identity_clock_.has_value())) {
+      FlushDeferredIdentitySync();
     }
     auto* state = context_->trace_time_state.get();
     ++num_conversions_;
@@ -91,16 +90,27 @@ class ClockTracker {
   base::StatusOr<uint32_t> AddSnapshot(
       const std::vector<ClockTimestamp>& clock_timestamps);
 
-  // Definitively sets the trace time clock. Supersedes any pending
-  // AssumeClockIsTraceTime. Returns an error if the clock has already been
-  // finalized with a different clock.
-  base::Status SetDefiniteTraceTimeClock(ClockId clock_id);
+  // --- Low-level clock primitives. Do not call without understanding the
+  // --- consequences. Most callers should use the helpers below these.
 
-  // TODO: add comment
-  void SetAddIdentityPathToTraceTimeFallback(ClockId clock_id);
+  // Sets the global trace time clock (trace_time_state->clock_id).
+  // All TP timestamps will be converted to this clock domain.
+  // Returns error if called after conversions have already happened.
+  base::Status SetGlobalClock(ClockId clock_id);
 
-  // TODO: add comment
-  void SetSwitchTraceTimeToClock(ClockId clock_id);
+  // Sets the default clock for this trace file only (no global effect).
+  // Used as fallback when no timestamp_clock_id is specified.
+  void SetTraceDefaultClock(ClockId clock_id);
+
+  // Registers a deferred identity sync: on the first ToTraceTime call that
+  // fails, a zero-offset edge between |clock_id| and the global trace time
+  // clock will be injected and the conversion retried.
+  void AddDeferredIdentitySync(ClockId clock_id);
+
+  // Returns the trace default clock, if one has been set.
+  std::optional<ClockId> trace_default_clock() const {
+    return trace_default_clock_;
+  }
 
   std::optional<int64_t> ToTraceTimeFromSnapshot(
       const std::vector<ClockTimestamp>& snapshot);
@@ -127,9 +137,7 @@ class ClockTracker {
     return timestamp - clock_offset;
   }
 
-  PERFETTO_NO_INLINE void HandlePendingFinalization(ClockId src_clock_id);
-
-  PERFETTO_NO_INLINE void MaybeSetTraceClock(ClockId clock_id);
+  PERFETTO_NO_INLINE void FlushDeferredIdentitySync();
 
   TraceProcessorContext* context_;
 
@@ -151,18 +159,15 @@ class ClockTracker {
   // primary trace's clocks.
   uint32_t num_conversions_ = 0;
 
-  // TODO(lalitm): add detailed commentary here.
-  struct NoSpecialHandling {};
-  struct SwitchTraceTimeToClock {
-    ClockId clock_id;
-  };
-  struct AddIdentityPathToTraceTime {
-    ClockId clock_id;
-  };
-  using FallbackClockVariant = std::variant<NoSpecialHandling,
-                                            SwitchTraceTimeToClock,
-                                            AddIdentityPathToTraceTime>;
-  FallbackClockVariant fallback_clock_;
+  // The default clock for this trace file, set via SetTraceDefaultClock.
+  // Used by proto_trace_reader as a fallback when no timestamp_clock_id
+  // is specified.
+  std::optional<ClockId> trace_default_clock_;
+
+  // Clock registered via AddDeferredIdentitySync. Flushed (and cleared) on
+  // first ToTraceTime call: if the clock is not yet in the graph, a 0:0
+  // identity edge is injected.
+  std::optional<ClockId> deferred_identity_clock_;
 };
 
 class ClockSynchronizerListenerImpl : public ClockSynchronizerListener {
