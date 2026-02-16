@@ -53,8 +53,10 @@ class ClockTrackerTest : public ::testing::Test {
         new ImportLogsTracker(&context_, TraceId(1)));
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
+    context_.trace_time_state = std::make_unique<TraceTimeState>(TraceTimeState{
+        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), false});
     ct_ = std::make_unique<ClockTracker>(
-        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_));
   }
   std::optional<int64_t> Convert(ClockTracker::ClockId src_clock_id,
                                  int64_t src_timestamp,

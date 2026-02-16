@@ -617,6 +617,21 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
         C(
+            'wm_abort_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'merge_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'create_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
             'handler',
             CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
@@ -664,6 +679,12 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
                 'Transition finish time',
             'shell_abort_time_ns':
                 'Transition shell abort time',
+            'wm_abort_time_ns':
+                'Transition wm abort time',
+            'merge_time_ns':
+                'Transition merge time',
+            'create_time_ns':
+                'Transition create time',
             'handler':
                 'Handler id',
             'status':

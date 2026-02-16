@@ -406,6 +406,11 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   enum perfetto_protos_OomChangeReasonEnum,
                   reason,
                   9);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int64_t,
+                  seq_id,
+                  10);
 
 PERFETTO_PB_MSG(perfetto_protos_AndroidProcessDiedEvent);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,

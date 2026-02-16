@@ -126,6 +126,7 @@ source_set("storage_minimal") {
   ]
   deps = [
     "../../gn:default_deps",
+    "../../protos/perfetto/common:zero",
     "../base",
     "../protozero",
     "containers",

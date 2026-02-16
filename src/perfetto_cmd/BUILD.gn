@@ -58,8 +58,8 @@ source_set("perfetto_cmd") {
     "../android_stats",
     "../base",
     "../base:version",
+    "../proto_utils:txt_to_pb",
     "../protozero",
-    "../trace_config_utils:txt_to_pb",
     "../tracing/ipc/consumer",
   ]
   sources = [
