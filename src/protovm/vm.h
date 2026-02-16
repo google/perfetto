@@ -105,7 +105,7 @@ class Vm {
      size_t memory_limit_bytes,
      protozero::ConstBytes initial_incremental_state = {nullptr, 0});
   StatusOr<void> ApplyPatch(protozero::ConstBytes packet);
-  std::string SerializeIncrementalState() const;
+  void SerializeIncrementalState(protozero::Message*) const;
   std::string SerializeProgram() const;
   std::unique_ptr<Vm> CloneReadOnly() const;
   uint64_t GetMemoryUsageBytes() const;
@@ -147,6 +147,8 @@ class Vm {
 
   // Constructor used only for cloning
   explicit Vm(std::string incremental_state);
+
+  std::string SerializeIncrementalStateAsString() const;
 
   std::string owned_program_;
   std::variant<ReadWriteState, ReadOnlyState> state_;
