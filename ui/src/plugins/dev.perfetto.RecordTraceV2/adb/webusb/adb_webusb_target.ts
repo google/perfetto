@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import protos from '../../../../protos';
-import {RecordingTarget} from '../../interfaces/recording_target';
+import {
+  ProcessMemoryStats,
+  RecordingTarget,
+} from '../../interfaces/recording_target';
 import {PreflightCheck} from '../../interfaces/connection_check';
 import {AdbKeyManager} from './adb_key_manager';
 import {
@@ -26,6 +29,7 @@ import {errResult, okResult, Result} from '../../../../base/result';
 import {checkAndroidTarget} from '../adb_platform_checks';
 import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
 import {AsyncLazy} from '../../../../base/async_lazy';
+import {parseDumpsysMeminfo} from '../parse_dumpsys_meminfo';
 
 export class AdbWebusbTarget implements RecordingTarget {
   readonly kind = 'LIVE_RECORDING';
@@ -85,6 +89,14 @@ export class AdbWebusbTarget implements RecordingTarget {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
     return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
+  }
+
+  async pollMemoryStats(): Promise<ProcessMemoryStats[] | undefined> {
+    const dev = this.adbDevice.value;
+    if (dev === undefined) return undefined;
+    const result = await dev.shell('dumpsys meminfo');
+    if (!result.ok) return undefined;
+    return parseDumpsysMeminfo(result.value);
   }
 
   disconnect(): void {
