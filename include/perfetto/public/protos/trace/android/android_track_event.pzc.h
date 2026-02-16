@@ -360,6 +360,80 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_AndroidSurfaceFlingerWorkload, Source){
                                   FRAME_SIGNAL) = 1,
 };
 
+PERFETTO_PB_MSG(perfetto_protos_AndroidProviderBindingEvent);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
+                  VARINT,
+                  int32_t,
+                  uid,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
+                  VARINT,
+                  int32_t,
+                  pid,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
+                  VARINT,
+                  int32_t,
+                  target_uid,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
+                  VARINT,
+                  int32_t,
+                  target_pid,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
+                  STRING,
+                  const char*,
+                  component_name,
+                  5);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
+                  STRING,
+                  const char*,
+                  authority,
+                  6);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
+                  VARINT,
+                  int32_t,
+                  is_stable,
+                  7);
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidServiceBindingEvent);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
+                  VARINT,
+                  int32_t,
+                  uid,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
+                  VARINT,
+                  int32_t,
+                  pid,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
+                  VARINT,
+                  int32_t,
+                  target_uid,
+                  3);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
+                  VARINT,
+                  int32_t,
+                  target_pid,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
+                  STRING,
+                  const char*,
+                  component_name,
+                  5);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
+                  STRING,
+                  const char*,
+                  action,
+                  6);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
+                  VARINT,
+                  uint64_t,
+                  flags,
+                  7);
+
 PERFETTO_PB_MSG(perfetto_protos_AndroidProcessStateChangedEvent);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   VARINT,
@@ -988,4 +1062,16 @@ PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
                             perfetto_protos_AndroidBinderDiedEvent,
                             binder_died_event,
                             2013);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidServiceBindingEvent,
+                            service_binding_event,
+                            2014);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidProviderBindingEvent,
+                            provider_binding_event,
+                            2015);
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_ANDROID_ANDROID_TRACK_EVENT_PZC_H_

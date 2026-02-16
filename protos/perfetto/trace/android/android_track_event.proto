@@ -652,9 +652,29 @@ message AndroidProcessStateChangedEvent {
   optional int64 seq_id = 10;
 }
 
+message AndroidServiceBindingEvent {
+  optional int32 uid = 1;
+  optional int32 pid = 2;
+  optional int32 target_uid = 3;
+  optional int32 target_pid = 4;
+  optional string component_name = 5;
+  optional string action = 6;
+  optional uint64 flags = 7;
+}
+
+message AndroidProviderBindingEvent {
+  optional int32 uid = 1;
+  optional int32 pid = 2;
+  optional int32 target_uid = 3;
+  optional int32 target_pid = 4;
+  optional string component_name = 5;
+  optional string authority = 6;
+  optional int32 is_stable = 7;
+}
+
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2014
+  // Next id: 2016
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -683,5 +703,9 @@ message AndroidTrackEvent {
     optional AndroidProcessStateChangedEvent process_state_changed_event = 2012;
     // Binder died event.
     optional AndroidBinderDiedEvent binder_died_event = 2013;
+    // Service binding event.
+    optional AndroidServiceBindingEvent service_binding_event = 2014;
+    // ContentProvider binding event.
+    optional AndroidProviderBindingEvent provider_binding_event = 2015;
   }
 }
