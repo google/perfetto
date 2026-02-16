@@ -21,7 +21,7 @@
 $box-label-padding: 0.5em;
 
 // 'Switch' style checkbox properties
-$switch-border-width: 2px;
+$switch-border-width: 1px;
 $switch-height: 1em;
 $switch-slide-distance: 0.75em;
 
@@ -130,12 +130,23 @@ $switch-slide-distance: 0.75em;
       height: $switch-height;
       background: white;
       box-sizing: border-box;
-      border-radius: 50%;
+      border-radius: calc($switch-height / 2);
       transition:
         border $anim-timing,
-        left $anim-timing;
+        left $anim-timing,
+        width $anim-timing;
       border: solid $switch-border-width var(--pf-color-border);
     }
+  }
+
+  $expand-amount: 3px;
+
+  input:active + .pf-checkbox__box--switch:after {
+    width: calc($switch-height + $expand-amount);
+  }
+
+  input:active:checked + .pf-checkbox__box--switch:after {
+    left: calc($switch-slide-distance - $expand-amount);
   }
 
   input:checked + .pf-checkbox__box--switch:before {

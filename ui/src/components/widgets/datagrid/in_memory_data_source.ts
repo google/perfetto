@@ -21,8 +21,9 @@ import {
   DataSourceModel,
   DataSourceRows,
   FlatModel,
+  PivotModel,
 } from './data_source';
-import {Filter} from './model';
+import {AggregateFunction, Filter, GroupPath} from './model';
 
 // Column shape from FlatModel
 type FlatColumn = FlatModel['columns'][number];
@@ -34,10 +35,14 @@ export class InMemoryDataSource implements DataSource {
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
   private aggregateSummariesCache: Row = {};
 
-  // Cached state for diffing
+  // Cached state for diffing (flat mode)
   private oldColumns?: readonly FlatColumn[];
   private oldFilters: ReadonlyArray<Filter> = [];
   private oldSort?: FlatModel['sort'];
+
+  // Cached state for diffing (pivot mode)
+  private oldPivotModel?: string;
+  private pivotData: ReadonlyArray<Row> = [];
 
   constructor(data: ReadonlyArray<Row>) {
     this.data = data;
@@ -48,11 +53,15 @@ export class InMemoryDataSource implements DataSource {
    * Fetch rows for the current model state.
    */
   useRows(model: DataSourceModel): DataSourceRows {
-    // Only support flat mode
-    if (model.mode !== 'flat') {
-      return {isPending: false};
+    if (model.mode === 'flat') {
+      return this.useFlatRows(model);
+    } else if (model.mode === 'pivot') {
+      return this.usePivotRows(model);
     }
+    return {isPending: false};
+  }
 
+  private useFlatRows(model: FlatModel): DataSourceRows {
     const columns = model.columns;
     const filters = model.filters ?? [];
     const sort = model.sort;
@@ -89,6 +98,244 @@ export class InMemoryDataSource implements DataSource {
       totalRows: this.filteredSortedData.length,
       isPending: false,
     };
+  }
+
+  private usePivotRows(model: PivotModel): DataSourceRows {
+    // Use JSON serialization for change detection on the pivot model
+    const modelKey = stringifyJsonWithBigints(model);
+    if (modelKey !== this.oldPivotModel) {
+      this.oldPivotModel = modelKey;
+      this.aggregateSummariesCache = {};
+
+      const filters = model.filters ?? [];
+      const filtered = this.applyFilters(this.data, filters);
+
+      if (model.groupDisplay === 'tree') {
+        this.pivotData = this.buildPivotTree(filtered, model);
+      } else {
+        this.pivotData = this.buildPivotFlat(filtered, model);
+      }
+    }
+
+    return {
+      rowOffset: 0,
+      rows: this.pivotData,
+      totalRows: this.pivotData.length,
+      isPending: false,
+    };
+  }
+
+  /**
+   * Flat pivot: simple GROUP BY — one row per unique group combination.
+   */
+  private buildPivotFlat(
+    data: ReadonlyArray<Row>,
+    model: PivotModel,
+  ): ReadonlyArray<Row> {
+    const groups = groupRows(data, model.groupBy);
+    const rows: Row[] = [];
+
+    for (const [, groupRows_] of groups) {
+      const row: Row = {};
+      // Add group-by columns using alias
+      for (const col of model.groupBy) {
+        row[col.alias] = groupRows_[0][col.field];
+      }
+      // Add aggregates
+      for (const agg of model.aggregates) {
+        if (agg.function === 'COUNT') {
+          row[agg.alias] = groupRows_.length;
+        } else {
+          const values = groupRows_.map((r) => r[agg.field]);
+          row[agg.alias] = computeAggregate(agg.function, values);
+        }
+      }
+      rows.push(row);
+    }
+
+    // Apply sorting
+    if (model.sort) {
+      return this.applySorting(rows, model.sort.alias, model.sort.direction);
+    }
+    return rows;
+  }
+
+  /**
+   * Tree pivot: hierarchical rows with __depth, __id, __parent_id,
+   * __child_count, and __path_key metadata columns, matching the contract
+   * of the SQL rollup tree data source.
+   */
+  private buildPivotTree(
+    data: ReadonlyArray<Row>,
+    model: PivotModel,
+  ): ReadonlyArray<Row> {
+    const groupByCols = model.groupBy;
+    const aggregates = model.aggregates;
+
+    // Build all tree nodes: one per depth level per unique group path.
+    // Depth 0 = grand total, depth N = grouped by first N groupBy columns.
+    interface TreeNode {
+      depth: number;
+      pathKey: string;
+      parentPathKey: string;
+      groupValues: SqlValue[]; // values for group columns at this level
+      childRows: ReadonlyArray<Row>; // leaf rows under this node
+    }
+
+    const nodesByPathKey = new Map<string, TreeNode>();
+
+    // Depth 0: grand total
+    nodesByPathKey.set('', {
+      depth: 0,
+      pathKey: '',
+      parentPathKey: '',
+      groupValues: groupByCols.map(() => null),
+      childRows: data,
+    });
+
+    // Build nodes for each depth level
+    for (let depth = 1; depth <= groupByCols.length; depth++) {
+      const colsAtLevel = groupByCols.slice(0, depth);
+      const groups = groupRows(data, colsAtLevel);
+
+      for (const [key, rows] of groups) {
+        const values = colsAtLevel.map((c) => rows[0][c.field]);
+        // Parent path key is the key for depth-1
+        const parentValues = values.slice(0, depth - 1);
+        const parentPathKey =
+          depth === 1 ? '' : makeGroupKey(parentValues);
+
+        // Full group values array (null-pad remaining columns)
+        const groupValues = [
+          ...values,
+          ...Array(groupByCols.length - depth).fill(null),
+        ];
+
+        nodesByPathKey.set(key, {
+          depth,
+          pathKey: key,
+          parentPathKey,
+          groupValues,
+          childRows: rows,
+        });
+      }
+    }
+
+    // Assign stable IDs and compute parent IDs and child counts
+    const allNodes = Array.from(nodesByPathKey.values());
+    allNodes.sort((a, b) => {
+      if (a.depth !== b.depth) return a.depth - b.depth;
+      return a.pathKey.localeCompare(b.pathKey);
+    });
+
+    const idByPathKey = new Map<string, number>();
+    for (let i = 0; i < allNodes.length; i++) {
+      idByPathKey.set(allNodes[i].pathKey, i + 1);
+    }
+
+    const childCounts = new Map<number, number>();
+    for (const node of allNodes) {
+      if (node.depth > 0) {
+        const parentId = idByPathKey.get(node.parentPathKey)!;
+        childCounts.set(parentId, (childCounts.get(parentId) ?? 0) + 1);
+      }
+    }
+
+    // Determine which nodes are expanded using allowlist/denylist logic
+    const useDenylist = model.collapsedGroups !== undefined;
+    const expansionPaths = useDenylist
+      ? model.collapsedGroups!
+      : model.expandedGroups ?? [];
+
+    const isExpanded = (node: TreeNode): boolean => {
+      if (node.depth >= groupByCols.length) return false;
+      const nodePath = node.groupValues.slice(0, node.depth);
+      const matches = expansionPaths.some((p) => pathsEqual(p, nodePath));
+      return useDenylist ? !matches : matches;
+    };
+
+    // DFS traversal to produce visible rows in tree order
+    const result: Row[] = [];
+    const sortAlias = model.sort?.alias;
+    const sortDir = model.sort?.direction ?? 'DESC';
+
+    const visit = (node: TreeNode) => {
+      const nodeId = idByPathKey.get(node.pathKey)!;
+      const parentId =
+        node.depth === 0 ? null : idByPathKey.get(node.parentPathKey)!;
+
+      const row: Row = {};
+      // Group-by columns
+      for (let i = 0; i < groupByCols.length; i++) {
+        row[groupByCols[i].alias] = node.groupValues[i];
+      }
+      // Aggregates
+      for (const agg of aggregates) {
+        if (agg.function === 'COUNT') {
+          row[agg.alias] = node.childRows.length;
+        } else {
+          const values = node.childRows.map((r) => r[agg.field]);
+          row[agg.alias] = computeAggregate(agg.function, values);
+        }
+      }
+      // Metadata columns
+      row['__id'] = BigInt(nodeId);
+      row['__parent_id'] = parentId === null ? null : BigInt(parentId);
+      row['__depth'] = BigInt(node.depth);
+      row['__child_count'] = BigInt(childCounts.get(nodeId) ?? 0);
+      row['__path_key'] = node.pathKey;
+
+      result.push(row);
+
+      // Recurse into children if expanded
+      if (isExpanded(node)) {
+        let children = allNodes.filter(
+          (n) => n.depth === node.depth + 1 && n.parentPathKey === node.pathKey,
+        );
+
+        // Sort children
+        if (sortAlias) {
+          children = [...children];
+          children.sort((a, b) => {
+            const rowA = this.buildAggRow(a.childRows, aggregates, groupByCols, a.groupValues);
+            const rowB = this.buildAggRow(b.childRows, aggregates, groupByCols, b.groupValues);
+            return compareSqlValues(rowA[sortAlias], rowB[sortAlias], sortDir);
+          });
+        }
+
+        for (const child of children) {
+          visit(child);
+        }
+      }
+    };
+
+    // Start from depth 0 (grand total) — but the SQL version starts from
+    // minDepth which is typically 0. We include the root node.
+    const rootNode = nodesByPathKey.get('')!;
+    visit(rootNode);
+
+    return result;
+  }
+
+  private buildAggRow(
+    rows: ReadonlyArray<Row>,
+    aggregates: PivotModel['aggregates'],
+    groupByCols: PivotModel['groupBy'],
+    groupValues: SqlValue[],
+  ): Row {
+    const row: Row = {};
+    for (let i = 0; i < groupByCols.length; i++) {
+      row[groupByCols[i].alias] = groupValues[i];
+    }
+    for (const agg of aggregates) {
+      if (agg.function === 'COUNT') {
+        row[agg.alias] = rows.length;
+      } else {
+        const values = rows.map((r) => r[agg.field]);
+        row[agg.alias] = computeAggregate(agg.function, values);
+      }
+    }
+    return row;
   }
 
   /**
@@ -395,6 +642,123 @@ function valuesEqual(a: SqlValue, b: SqlValue): boolean {
   }
 
   return false;
+}
+
+/**
+ * Group rows by the given columns, returning a Map from group key to rows.
+ */
+function groupRows(
+  data: ReadonlyArray<Row>,
+  groupBy: readonly {readonly field: string; readonly alias: string}[],
+): Map<string, Row[]> {
+  const groups = new Map<string, Row[]>();
+  for (const row of data) {
+    const values = groupBy.map((col) => row[col.field]);
+    const key = makeGroupKey(values);
+    let group = groups.get(key);
+    if (!group) {
+      group = [];
+      groups.set(key, group);
+    }
+    group.push(row);
+  }
+  return groups;
+}
+
+/**
+ * Build a stable string key from an array of group column values.
+ */
+function makeGroupKey(values: SqlValue[]): string {
+  return values
+    .map((v) => {
+      if (v === null) return '\0NULL';
+      if (typeof v === 'bigint') return `\0BI:${v}`;
+      return String(v);
+    })
+    .join('\0SEP');
+}
+
+/**
+ * Compare two GroupPaths for equality.
+ */
+function pathsEqual(a: GroupPath, b: SqlValue[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (!valuesEqual(a[i], b[i])) return false;
+  }
+  return true;
+}
+
+/**
+ * Compute an aggregate function over an array of values.
+ */
+function computeAggregate(fn: AggregateFunction, values: SqlValue[]): SqlValue {
+  const nums = values.filter(isNumeric).map(Number);
+  switch (fn) {
+    case 'SUM':
+      return nums.length === 0 ? null : nums.reduce((a, b) => a + b, 0);
+    case 'AVG':
+      return nums.length === 0
+        ? null
+        : nums.reduce((a, b) => a + b, 0) / nums.length;
+    case 'MIN':
+      return nums.length === 0 ? null : Math.min(...nums);
+    case 'MAX':
+      return nums.length === 0 ? null : Math.max(...nums);
+    case 'ANY':
+      return values.length === 0 ? null : values[0];
+    case 'COUNT_DISTINCT': {
+      const unique = new Set(values.map((v) => (v === null ? '\0' : String(v))));
+      return unique.size;
+    }
+    case 'P25':
+      return percentile(nums, 25);
+    case 'P50':
+      return percentile(nums, 50);
+    case 'P75':
+      return percentile(nums, 75);
+    case 'P90':
+      return percentile(nums, 90);
+    case 'P95':
+      return percentile(nums, 95);
+    case 'P99':
+      return percentile(nums, 99);
+    default:
+      return null;
+  }
+}
+
+function percentile(sorted: number[], p: number): SqlValue {
+  if (sorted.length === 0) return null;
+  const s = [...sorted].sort((a, b) => a - b);
+  const idx = (p / 100) * (s.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return s[lo];
+  return s[lo] + (s[hi] - s[lo]) * (idx - lo);
+}
+
+/**
+ * Compare two SqlValues for sorting purposes.
+ */
+function compareSqlValues(
+  a: SqlValue,
+  b: SqlValue,
+  direction: 'ASC' | 'DESC',
+): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return direction === 'ASC' ? -1 : 1;
+  if (b === null) return direction === 'ASC' ? 1 : -1;
+
+  let cmp = 0;
+  if (typeof a === 'number' && typeof b === 'number') {
+    cmp = a - b;
+  } else if (typeof a === 'bigint' && typeof b === 'bigint') {
+    cmp = Number(a - b);
+  } else {
+    cmp = String(a).localeCompare(String(b));
+  }
+  return direction === 'ASC' ? cmp : -cmp;
 }
 
 function isNumeric(value: SqlValue): value is number | bigint {
