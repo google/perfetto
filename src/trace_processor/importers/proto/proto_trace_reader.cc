@@ -181,10 +181,6 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
   if (context_->register_additional_proto_modules) {
     context_->register_additional_proto_modules(&module_context_, context_);
   }
-  // TODO(lalitm): this is a hack. Properly fix by dealing with clock offsets
-  // correctly instead of relying on a deferred identity sync fallback.
-  context_->clock_tracker->AddDeferredIdentitySync(
-      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
 }
 
 ProtoTraceReader::~ProtoTraceReader() = default;
@@ -231,6 +227,8 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         if (parent_default) {
           machine_context->clock_tracker->SetTraceDefaultClock(*parent_default);
         }
+        machine_context->clock_tracker->AddDeferredIdentitySync(
+            ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
         // TODO(lalitm): this doesn't seem the right place for this but I cannot
         // think of a much better place either.
         machine_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
@@ -356,12 +354,19 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
   if (decoder.has_timestamp()) {
     timestamp = static_cast<int64_t>(decoder.timestamp());
 
-    // Use the packet's clock_id, falling back to sequence defaults.
-    // If neither is set, timestamp_clock_id stays 0 and no conversion
+    // Use the packet's clock_id, falling back to sequence defaults, then
+    // to the trace's default clock (e.g. BOOTTIME for proto traces).
+    // If none is set, timestamp_clock_id stays 0 and no conversion
     // happens — the timestamp is assumed to be in trace time already.
     uint32_t timestamp_clock_id = decoder.timestamp_clock_id();
     if (PERFETTO_UNLIKELY(!timestamp_clock_id && defaults)) {
       timestamp_clock_id = defaults->timestamp_clock_id();
+    }
+    if (PERFETTO_UNLIKELY(!timestamp_clock_id)) {
+      auto default_clock = context_->clock_tracker->trace_default_clock();
+      if (default_clock) {
+        timestamp_clock_id = default_clock->clock_id;
+      }
     }
 
     if ((decoder.has_chrome_events() || decoder.has_chrome_metadata()) &&
