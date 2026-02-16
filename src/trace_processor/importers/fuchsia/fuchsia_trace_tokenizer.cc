@@ -84,7 +84,6 @@ FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
   parser_ = parser.get();
   stream_ = context->sorter->CreateStream(std::move(parser));
   RegisterProvider(0, "");
-
 }
 
 FuchsiaTraceTokenizer::~FuchsiaTraceTokenizer() = default;
@@ -599,8 +598,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
                 current_provider_->GetThread(incoming_thread_ref));
           }
           {
-            auto trace_ts =
-                context_->clock_tracker->ToTraceTime(ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
+            auto trace_ts = context_->clock_tracker->ToTraceTime(
+                ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
             if (trace_ts) {
               stream_->Push(*trace_ts, std::move(record));
             }
@@ -639,8 +638,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
             return;
           }
           {
-            auto trace_ts =
-                context_->clock_tracker->ToTraceTime(ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
+            auto trace_ts = context_->clock_tracker->ToTraceTime(
+                ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
             if (trace_ts) {
               stream_->Push(*trace_ts, std::move(record));
             }
@@ -673,8 +672,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
             return;
           }
           {
-            auto trace_ts =
-                context_->clock_tracker->ToTraceTime(ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
+            auto trace_ts = context_->clock_tracker->ToTraceTime(
+                ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts);
             if (trace_ts) {
               stream_->Push(*trace_ts, std::move(record));
             }

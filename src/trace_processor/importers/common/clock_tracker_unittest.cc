@@ -690,7 +690,8 @@ TEST_F(ClockTrackerTest, AddDeferredIdentitySync_WithExplicitSnapshot) {
   EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 1100), 1100);
 }
 
-TEST_F(ClockTrackerTest, AddDeferredIdentitySync_DoesNotChangeGlobalTraceClock) {
+TEST_F(ClockTrackerTest,
+       AddDeferredIdentitySync_DoesNotChangeGlobalTraceClock) {
   // Trace time starts as BOOTTIME (test fixture default).
   constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
   ct_->AddDeferredIdentitySync(TRACE_FILE);

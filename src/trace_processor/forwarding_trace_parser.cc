@@ -163,8 +163,7 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   } else if (trace_type_ == kFuchsiaTraceType) {
     trace_context_->clock_tracker->SetGlobalClock(
         ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
-  } else if (trace_type_ == kGeckoTraceType ||
-             trace_type_ == kJsonTraceType ||
+  } else if (trace_type_ == kGeckoTraceType || trace_type_ == kJsonTraceType ||
              trace_type_ == kInstrumentsXmlTraceType) {
     trace_context_->clock_tracker->SetGlobalClock(
         ClockId::TraceFile(trace_context_->trace_id().value));

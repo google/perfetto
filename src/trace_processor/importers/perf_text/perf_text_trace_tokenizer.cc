@@ -64,8 +64,7 @@ std::string Slice(const std::string& str, size_t start, size_t end) {
 PerfTextTraceTokenizer::PerfTextTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       stream_(ctx->sorter->CreateStream(
-          std::make_unique<PerfTextTraceParser>(ctx))) {
-}
+          std::make_unique<PerfTextTraceParser>(ctx))) {}
 PerfTextTraceTokenizer::~PerfTextTraceTokenizer() = default;
 
 base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
