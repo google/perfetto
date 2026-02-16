@@ -23,9 +23,13 @@ import {
   UserInput,
   sqlModulesSchema,
 } from './types';
+import m from 'mithril';
 import {showModal} from '../../widgets/modal';
+import {Callout} from '../../widgets/callout';
+import {Intent} from '../../widgets/common';
 import {errResult, okResult, Result} from '../../base/result';
 import {AppImpl} from '../../core/app_impl';
+import {base64Encode, utf8Encode} from '../../base/string_utils';
 import {joinPath} from './url_utils';
 
 // =============================================================================
@@ -48,17 +52,25 @@ export function buildFetchRequest(
 ): FetchRequest {
   if (server.type === 'github') {
     const fullPath = joinPath(server.path, path);
-    const url =
-      `https://api.github.com/repos/${server.repo}` +
-      `/contents/${fullPath.split('/').map(encodeURIComponent).join('/')}` +
-      `?ref=${encodeURIComponent(server.ref)}`;
-    const headers: Record<string, string> = {
-      Accept: 'application/vnd.github.raw+json',
-    };
     if (server.auth.type === 'github_pat') {
-      headers['Authorization'] = `token ${server.auth.pat}`;
+      // Use the GitHub API for authenticated requests (supports private repos).
+      const url =
+        `https://api.github.com/repos/${server.repo}` +
+        `/contents/${fullPath.split('/').map(encodeURIComponent).join('/')}` +
+        `?ref=${encodeURIComponent(server.ref)}`;
+      const headers: Record<string, string> = {
+        Accept: 'application/vnd.github.raw+json',
+        Authorization: `token ${server.auth.pat}`,
+      };
+      return {url, init: {method: 'GET', headers}};
     }
-    return {url, init: {method: 'GET', headers}};
+    // Use raw.githubusercontent.com for unauthenticated requests to avoid
+    // GitHub API rate limits (403 errors).
+    const encodedPath = fullPath.split('/').map(encodeURIComponent).join('/');
+    const url =
+      `https://raw.githubusercontent.com/${server.repo}` +
+      `/${encodeURIComponent(server.ref)}/${encodedPath}`;
+    return {url, init: {method: 'GET'}};
   }
 
   // HTTPS servers — normalize URL in case https:// is missing.
@@ -67,7 +79,21 @@ export function buildFetchRequest(
     baseUrl = `https://${baseUrl}`;
   }
   const url = `${baseUrl.replace(/\/+$/, '')}/${path}`;
-  return {url, init: {method: 'GET'}};
+  const headers: Record<string, string> = {};
+  if (server.auth.type === 'https_basic') {
+    const credentials = `${server.auth.username}:${server.auth.password}`;
+    headers['Authorization'] = `Basic ${base64Encode(utf8Encode(credentials))}`;
+  } else if (server.auth.type === 'https_apikey') {
+    const {keyType, key} = server.auth;
+    if (keyType === 'bearer') {
+      headers['Authorization'] = `Bearer ${key}`;
+    } else if (keyType === 'x_api_key') {
+      headers['X-API-Key'] = key;
+    } else {
+      headers[server.auth.customHeaderName] = key;
+    }
+  }
+  return {url, init: {method: 'GET', headers}};
 }
 
 async function fetchJson<T extends z.ZodTypeAny>(
@@ -249,16 +275,34 @@ export function initializeExtensions(
     }
   }
   // When all the extension loading promises complete, show a modal if there
-  // were any errors.
+  // were any errors. Deduplicate errors since a manifest fetch failure
+  // propagates to all downstream loaders (macros, sql_modules, etc.).
   Promise.all(results).then((results) => {
-    const errors = results
-      .filter((r) => !r.ok)
-      .map((r) => r.error)
-      .join('\n');
-    if (errors.length > 0) {
+    const uniqueErrors = [
+      ...new Set(results.filter((r) => !r.ok).map((r) => r.error)),
+    ];
+    if (uniqueErrors.length > 0) {
       showModal({
         title: 'Error(s) while querying extension servers',
-        content: errors,
+        content: m(
+          'div',
+          {style: 'display: flex; flex-direction: column; gap: 8px'},
+          uniqueErrors.map((e) =>
+            m(Callout, {icon: 'error', intent: Intent.Danger}, e),
+          ),
+          m('p', [
+            'For more information see the ',
+            m(
+              'a',
+              {
+                href: 'https://perfetto.dev/docs/visualization/extensions',
+                target: '_blank',
+              },
+              'extension servers documentation',
+            ),
+            '.',
+          ]),
+        ),
         buttons: [{text: 'OK', primary: true}],
       });
     }

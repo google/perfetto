@@ -62,10 +62,8 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
 // Returns a copy of the server with secret fields (e.g. PAT) removed,
 // suitable for sharing via URL.
 function stripSecrets(server: ExtensionServer): ExtensionServer {
-  if (server.type === 'github' && server.auth.type === 'github_pat') {
-    return {...server, auth: {type: 'none'}};
-  }
-  return server;
+  if (server.auth.type === 'none') return server;
+  return {...server, auth: {type: 'none'}};
 }
 
 // Shows the add-server modal and appends the result to the setting.
@@ -101,6 +99,8 @@ async function editServer(
 
 function authLabel(server: ExtensionServer): string | undefined {
   if (server.auth.type === 'github_pat') return ' | Auth: PAT';
+  if (server.auth.type === 'https_basic') return ' | Auth: Basic';
+  if (server.auth.type === 'https_apikey') return ' | Auth: API Key';
   return undefined;
 }
 
