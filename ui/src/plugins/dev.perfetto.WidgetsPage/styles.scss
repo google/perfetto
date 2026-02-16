@@ -95,6 +95,7 @@
 
   &__menu {
     width: 200px;
+    background: var(--pf-color-background-secondary);
     border-right: 1px solid var(--pf-color-border);
     overflow-y: auto;
     padding: 8px;

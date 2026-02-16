@@ -36,6 +36,7 @@
   border-radius: $border-radius;
   box-shadow: 2px 2px 16px var(--pf-color-box-shadow);
   max-width: 350px; // Sensible default width for most popups
+  animation: pf-popup-fade-in 100ms ease-out;
 
   .pf-popup-content {
     // Ensures all content is rendered above the arrow
@@ -52,6 +53,15 @@
   &--match-width {
     // Width is handled in JS
     max-width: unset;
+  }
+}
+
+@keyframes pf-popup-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
