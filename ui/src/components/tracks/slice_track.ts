@@ -855,13 +855,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         if (task.shouldYield()) await task.yield();
       }
 
-      // Clone raw data out of the iterator
-      const row: Record<string, SqlValue> = {};
-      // eslint-disable-next-line guard-for-in
-      for (const k in dataset.schema) {
-        row[k] = it[k];
-      }
-
       const id = it.__id;
       const ts = it.__ts;
       const count = it.__count;
@@ -869,6 +862,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const title = this.getTitle(it);
       const subtitle = this.getSubtitle(it);
       const colorScheme = this.getColor(it, title);
+      const row = this.extractKeys(it, dataset.schema);
 
       xs[i] = ts;
       ys[i] = depth;
@@ -878,7 +872,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         subtitle,
         colorScheme,
         count,
-        row: row as T,
+        row,
       };
     }
 
@@ -966,13 +960,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         if (task.shouldYield()) await task.yield();
       }
 
-      // Clone raw data out of the iterator
-      const row: Record<string, SqlValue> = {};
-      // eslint-disable-next-line guard-for-in
-      for (const k in dataset.schema) {
-        row[k] = it[k];
-      }
-
       const count = it.__count;
       const id = it.__id;
       const ts = it.__ts;
@@ -982,6 +969,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const subtitle = this.getSubtitle(it);
       const colorScheme = this.getColor(it, title);
       const isIncomplete = it.__incomplete === 1;
+      const row = this.extractKeys(it, dataset.schema);
 
       xs[i] = ts;
       ys[i] = depth;
@@ -996,7 +984,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         colorScheme,
         count,
         fillRatio: this.attrs.fillRatio?.(it) ?? 1,
-        row: row as T,
+        row,
       };
     }
 
@@ -1008,6 +996,18 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       slices,
       count,
     };
+  }
+
+  // Efficiently copy a sebset of keys from a raw value based on some template.
+  // Note: Only the template's keys are used, the values are ignored (hence the
+  // unknown value types).
+  private extractKeys(from: T, template: Record<keyof T, unknown>): T {
+    const result = {} as T;
+    // eslint-disable-next-line guard-for-in
+    for (const k in template) {
+      result[k] = from[k];
+    }
+    return result;
   }
 
   private async deferChunkedTask() {
