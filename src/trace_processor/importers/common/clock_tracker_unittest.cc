@@ -62,7 +62,7 @@ class ClockTrackerTest : public ::testing::Test {
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     ct_ = std::make_unique<ClockTracker>(
         &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
-        primary_sync_.get());
+        primary_sync_.get(), true);
   }
   std::optional<int64_t> Convert(ClockTracker::ClockId src_clock_id,
                                  int64_t src_timestamp,
@@ -694,8 +694,160 @@ TEST_F(ClockTrackerTest, SetTraceTimeClockThenAssumeClockIsTraceTime) {
   // Definitive clock conversion works as before.
   EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
 
-  // Assumed clock gets identity edge to BOOTTIME.
+  // Real clock data exists (BOOTTIME in graph), so the identity fallback
+  // is not applied. TRACE_FILE has no path.
+  EXPECT_FALSE(ct_->ToTraceTime(TRACE_FILE, 42).has_value());
+}
+
+// --- SwitchTraceTimeToClock tests ---
+// These tests use TraceFile(0) as the initial trace time clock (matching
+// production) and call SetSwitchTraceTimeToClock(BOOTTIME) to mimic
+// ProtoTraceReader behavior.
+
+TEST_F(ClockTrackerTest, SwitchTraceTimeToClock_NoSnapshots) {
+  // Mimic production: trace time starts as TraceFile(0).
+  context_.trace_time_state->clock_id = ClockId::TraceFile(0);
+  ct_->SetSwitchTraceTimeToClock(BOOTTIME);
+
+  // No snapshots at all. First ToTraceTime from BOOTTIME should trigger
+  // the switch: trace time becomes BOOTTIME, identity edge injected.
+  EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 42), 42);
+
+  // Verify trace time was switched: converting from a clock linked to
+  // BOOTTIME should now work.
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+}
+
+TEST_F(ClockTrackerTest, SwitchTraceTimeToClock_SnapshotWithTraceTimeClock) {
+  // Mimic production: trace time starts as TraceFile(0).
+  context_.trace_time_state->clock_id = ClockId::TraceFile(0);
+  ct_->SetSwitchTraceTimeToClock(BOOTTIME);
+
+  // A snapshot that includes TraceFile(0) means real clock data exists for
+  // it — no switch should happen.
+  ct_->AddSnapshot({{ClockId::TraceFile(0), 0}, {BOOTTIME, 5000}});
+
+  // Trace time stays as TraceFile(0). Converting from BOOTTIME uses the
+  // explicit snapshot path.
+  EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 5000), 0);
+
+  // Converting from TraceFile(0) is identity (it IS the trace time clock).
+  EXPECT_EQ(*ct_->ToTraceTime(ClockId::TraceFile(0), 42), 42);
+}
+
+TEST_F(ClockTrackerTest, SwitchTraceTimeToClock_SnapshotWithoutTraceTimeClock) {
+  // Mimic production: trace time starts as TraceFile(0).
+  context_.trace_time_state->clock_id = ClockId::TraceFile(0);
+  ct_->SetSwitchTraceTimeToClock(BOOTTIME);
+
+  // Snapshots exist but none include TraceFile(0). The switch fires because
+  // the trace time clock has no real data in the graph.
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 42), 42);
+}
+
+TEST_F(ClockTrackerTest, SwitchTraceTimeToClock_SourceIsTraceTimeClock) {
+  // Mimic production: trace time starts as TraceFile(0).
+  context_.trace_time_state->clock_id = ClockId::TraceFile(0);
+  ct_->SetSwitchTraceTimeToClock(BOOTTIME);
+
+  // First conversion is from the trace time clock itself. The identity edge
+  // is injected but trace time is NOT switched (identity conversions don't
+  // trigger clock changes).
+  EXPECT_EQ(*ct_->ToTraceTime(ClockId::TraceFile(0), 42), 42);
+
+  // Subsequent conversion from BOOTTIME should work via the identity edge
+  // (BOOTTIME<->TraceFile(0) at offset 0). Trace time is still TraceFile(0).
+  EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 99), 99);
+}
+
+TEST_F(ClockTrackerTest, SwitchTraceTimeToClock_SetDefiniteOverrides) {
+  // Mimic production: trace time starts as TraceFile(0).
+  context_.trace_time_state->clock_id = ClockId::TraceFile(0);
+  ct_->SetSwitchTraceTimeToClock(BOOTTIME);
+
+  // SetDefiniteTraceTimeClock resets the pending switch entirely.
+  ct_->SetDefiniteTraceTimeClock(MONOTONIC);
+  ct_->AddSnapshot({{REALTIME, 10}, {MONOTONIC, 500}});
+
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 500);
+
+  // BOOTTIME has no path to MONOTONIC without an explicit snapshot.
+  EXPECT_FALSE(ct_->ToTraceTime(BOOTTIME, 42).has_value());
+}
+
+TEST_F(ClockTrackerTest, SwitchTraceTimeToClock_FallbackMatchesTraceTime) {
+  // If the switch target is already the trace time clock, no edge is needed.
+  ct_->SetSwitchTraceTimeToClock(BOOTTIME);
+
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 42), 42);
+}
+
+// --- AddIdentityPathToTraceTime tests ---
+
+TEST_F(ClockTrackerTest, AddIdentityFallback_NoSnapshots) {
+  // No snapshots exist at all. The identity edge should be injected so that
+  // conversions from the fallback clock succeed.
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
+  ct_->SetAddIdentityPathToTraceTimeFallback(TRACE_FILE);
+
   EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 42), 42);
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 100), 100);
+}
+
+TEST_F(ClockTrackerTest, AddIdentityFallback_SnapshotWithBothClocks) {
+  // If a snapshot links TRACE_FILE to BOOTTIME, the real mapping is used.
+  // HasClock(BOOTTIME) is true so the identity fallback is skipped.
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
+  ct_->SetAddIdentityPathToTraceTimeFallback(TRACE_FILE);
+
+  ct_->AddSnapshot({{TRACE_FILE, 0}, {BOOTTIME, 1000}});
+
+  // Uses the explicit snapshot offset, not identity.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 10), 1010);
+}
+
+TEST_F(ClockTrackerTest, AddIdentityFallback_SnapshotWithOnlyTraceTimeClock) {
+  // A snapshot includes BOOTTIME but NOT TRACE_FILE. Since the trace time
+  // clock has real data, the identity fallback is not applied.
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
+  ct_->SetAddIdentityPathToTraceTimeFallback(TRACE_FILE);
+
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+
+  // TRACE_FILE has no path — conversion fails.
+  EXPECT_FALSE(ct_->ToTraceTime(TRACE_FILE, 42).has_value());
+
+  // Other clocks use the snapshot normally.
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+}
+
+TEST_F(ClockTrackerTest, AddIdentityFallback_FallbackMatchesTraceTime) {
+  // If the fallback clock IS the trace time clock, no edge is needed.
+  ct_->SetAddIdentityPathToTraceTimeFallback(BOOTTIME);
+
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 42), 42);
+}
+
+TEST_F(ClockTrackerTest, AddIdentityFallback_SetDefiniteOverrides) {
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
+  ct_->SetAddIdentityPathToTraceTimeFallback(TRACE_FILE);
+
+  // SetDefiniteTraceTimeClock resets the fallback.
+  ct_->SetDefiniteTraceTimeClock(MONOTONIC);
+  ct_->AddSnapshot({{REALTIME, 10}, {MONOTONIC, 500}});
+
+  // TRACE_FILE has no path — conversion fails.
+  EXPECT_FALSE(ct_->ToTraceTime(TRACE_FILE, 42).has_value());
+
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 500);
 }
 
 }  // namespace

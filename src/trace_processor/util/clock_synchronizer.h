@@ -242,6 +242,12 @@ class ClockSynchronizer {
   ClockSynchronizer(TraceTimeState* trace_time_state,
                     std::unique_ptr<ClockSynchronizerListener> listener);
 
+  // Returns true if the clock synchronizer has seen the given clock in any
+  // snapshot.
+  bool HasClock(ClockId clock_id) const {
+    return clocks_.find(clock_id) != clocks_.end();
+  }
+
   // Appends a new snapshot for the given clock domains.
   // This is typically called by the code that reads the ClockSnapshot packet.
   // Returns the internal snapshot id of this set of clocks.

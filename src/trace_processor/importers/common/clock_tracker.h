@@ -67,7 +67,7 @@ class ClockTracker {
       int64_t timestamp,
       std::optional<size_t> byte_offset = std::nullopt) {
     if (PERFETTO_UNLIKELY(num_conversions_ == 0)) {
-      HandlePendingFinalization();
+      HandlePendingFinalization(clock_id);
     }
     auto* state = context_->trace_time_state.get();
     ++num_conversions_;
@@ -127,7 +127,7 @@ class ClockTracker {
     return timestamp - clock_offset;
   }
 
-  PERFETTO_NO_INLINE void HandlePendingFinalization();
+  PERFETTO_NO_INLINE void HandlePendingFinalization(ClockId src_clock_id);
 
   PERFETTO_NO_INLINE void MaybeSetTraceClock(ClockId clock_id);
 
