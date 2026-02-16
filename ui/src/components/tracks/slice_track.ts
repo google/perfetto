@@ -305,16 +305,14 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private readonly instantWidthPx: number;
   private readonly queue = new SerialTaskQueue();
   private readonly tablesSlot = new QuerySlot<Tables>(this.queue);
-  private readonly dataFrameSlot = new QuerySlot<
-    DataFrame<T & Required<RowSchema>>
-  >(this.queue);
+  private readonly dataFrameSlot = new QuerySlot<DataFrame<T>>(this.queue);
   private readonly bufferedBounds = new BufferedBounds();
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
-  private hoveredSlice?: SliceOrInstant<T & Required<RowSchema>>;
+  private hoveredSlice?: SliceOrInstant<T>;
   private charWidth = {title: -1, subtitle: -1};
   private computedTrackHeight = 0;
-  private currentDataFrame?: DataFrame<T & Required<RowSchema>>;
+  private currentDataFrame?: DataFrame<T>;
   private rowCount: number;
 
   /**
@@ -445,7 +443,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private renderSlices(
     trackCtx: TrackRenderContext,
-    sliceBuffers: SliceBuffers<T & Required<RowSchema>>,
+    sliceBuffers: SliceBuffers<T>,
     dataTransform: Transform2D,
     sliceHeight: number,
     pxEnd: number,
@@ -581,7 +579,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private renderInstants(
     trackCtx: TrackRenderContext,
-    instantBuffers: InstantBuffers<T & Required<RowSchema>>,
+    instantBuffers: InstantBuffers<T>,
     dataTransform: Transform2D,
     sliceHeight: number,
     pxPerNs: number,
@@ -738,9 +736,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return result.maybeFirstRow({rowCount: NUM})?.rowCount ?? 0;
   }
 
-  private useData(
-    trackCtx: TrackRenderContext,
-  ): DataFrame<T & Required<RowSchema>> | undefined {
+  private useData(trackCtx: TrackRenderContext): DataFrame<T> | undefined {
     const {resolution, visibleWindow} = trackCtx;
 
     const dataset = this.getDataset();
@@ -815,7 +811,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     resolution: duration,
     signal: CancellationSignal,
     dataset: SourceDataset<T>,
-  ): Promise<InstantBuffers<T & Required<RowSchema>>> {
+  ): Promise<InstantBuffers<T>> {
     const sqlSource = generateRenderQuery(dataset);
     const extraCols = Object.keys(dataset.schema)
       .map((c) => `s.${c} as ${c}`)
@@ -839,11 +835,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     if (signal.isCancelled) throw QUERY_CANCELLED;
     const task = await this.deferChunkedTask();
 
-    // Initialize buffers
+    // Initialize buffersx
     const count = queryResult.numRows();
     const xs = new Float32Array(count);
     const ys = new Float32Array(count);
-    const instants = new Array<Instant<T & Required<RowSchema>>>(count);
+    const instants = new Array<Instant<T>>(count);
 
     const it = queryResult.iter({
       __id: NUM,
@@ -882,7 +878,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         subtitle,
         colorScheme,
         count,
-        row: row as T & Required<RowSchema>,
+        row: row as T,
       };
     }
 
@@ -902,7 +898,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     resolution: duration,
     signal: CancellationSignal,
     dataset: SourceDataset<T>,
-  ): Promise<SliceBuffers<T & Required<RowSchema>>> {
+  ): Promise<SliceBuffers<T>> {
     const engine = this.trace.engine;
     const sqlSource = generateRenderQuery(dataset);
     const extraCols = Object.keys(dataset.schema)
@@ -952,7 +948,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const ys = new Float32Array(count);
     const ws = new Float32Array(count);
     const patterns = new Uint8Array(count);
-    const slices = new Array<Slice<T & Required<RowSchema>>>(count);
+    const slices = new Array<Slice<T>>(count);
 
     const it = sliceQueryRes.iter({
       __id: NUM,
@@ -1000,7 +996,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         colorScheme,
         count,
         fillRatio: this.attrs.fillRatio?.(it) ?? 1,
-        row: row as T & Required<RowSchema>,
+        row: row as T,
       };
     }
 
@@ -1135,7 +1131,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     x,
     y,
     timescale,
-  }: TrackMouseEvent): undefined | SliceOrInstant<T & Required<RowSchema>> {
+  }: TrackMouseEvent): undefined | SliceOrInstant<T> {
     if (!this.currentDataFrame) return undefined;
 
     const trackHeight = this.computedTrackHeight;
@@ -1343,7 +1339,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
 export function renderTooltip(
   trace: Trace,
-  slice: SliceOrInstant<{dur: bigint | null}>,
+  slice: SliceOrInstant<RowSchema>,
   opts: {readonly title?: string; readonly extras?: m.Children} = {},
 ): m.Children {
   const durationFormatted = formatDurationForTooltip(trace, slice.row.dur);
@@ -1357,12 +1353,12 @@ export function renderTooltip(
 
 function formatDurationForTooltip(
   trace: Trace,
-  dur: bigint | null,
+  dur: bigint | null | undefined,
 ): string | undefined {
   if (dur === -1n) {
     return '[Incomplete]';
   }
-  if (dur === null || dur === 0n) {
+  if (dur === null || dur === undefined || dur === 0n) {
     return undefined; // Instant event
   }
   return formatDuration(trace, BigInt(dur));
