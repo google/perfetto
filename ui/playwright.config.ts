@@ -66,7 +66,7 @@ export default defineConfig({
             '--headless',
             '--disable-accelerated-2d-canvas',
             '--disable-font-subpixel-positioning',
-            '--disable-gpu',
+            '--ignore-gpu-blocklist', // Allow llvmpipe software rendering
             '--disable-lcd-text',
             '--disable-spell-checking',
             '--font-render-hinting=none',
