@@ -17,11 +17,12 @@
 #include "src/trace_processor/importers/proto/protovm_incremental_tracing.h"
 
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/protovm/vm.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/storage/stats.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -46,7 +47,8 @@ void ProtoVmIncrementalTracing::ProcessTraceProvenancePacket(
 }
 
 void ProtoVmIncrementalTracing::ProcessProtoVmsPacket(
-    protozero::ConstBytes blob) {
+    protozero::ConstBytes blob,
+    const TraceBlobView& packet) {
   protos::pbzero::TracePacket::ProtoVms::Decoder decoder(blob);
   for (auto it = decoder.instance(); it; ++it) {
     protos::pbzero::TracePacket::ProtoVms::Instance::Decoder instance(*it);
@@ -60,7 +62,8 @@ void ProtoVmIncrementalTracing::ProcessProtoVmsPacket(
          ++producer_id) {
       auto* sequence_ids = producer_id_to_sequence_ids_.Find(*producer_id);
       if (!sequence_ids) {
-        context_->storage->IncrementStats(stats::protovm_registration_error);
+        context_->import_logs_tracker->RecordTokenizationError(
+            stats::protovm_registration_error, packet.offset());
         continue;
       }
       for (auto sequence_id : *sequence_ids) {
@@ -70,9 +73,9 @@ void ProtoVmIncrementalTracing::ProcessProtoVmsPacket(
   }
 }
 
-std::optional<TraceBlob> ProtoVmIncrementalTracing::TryProcessPatch(
-    const TraceBlobView& blob) {
-  protos::pbzero::TracePacket::Decoder patch(blob.data(), blob.size());
+std::optional<TraceBlobView> ProtoVmIncrementalTracing::TryProcessPatch(
+    const protos::pbzero::TracePacket::Decoder& patch,
+    const TraceBlobView& packet) {
   if (PERFETTO_UNLIKELY(!patch.has_trusted_packet_sequence_id())) {
     return std::nullopt;
   }
@@ -83,27 +86,29 @@ std::optional<TraceBlob> ProtoVmIncrementalTracing::TryProcessPatch(
   }
   for (auto* vm : *vms) {
     auto status =
-        vm->ApplyPatch(protozero::ConstBytes{blob.data(), blob.size()});
+        vm->ApplyPatch(protozero::ConstBytes{packet.data(), packet.size()});
     if (status.IsOk()) {
       return SerializeIncrementalState(*vm, patch);
     }
     if (status.IsAbort()) {
-      context_->storage->IncrementStats(stats::protovm_abort);
+      context_->import_logs_tracker->RecordTokenizationError(
+          stats::protovm_abort, packet.offset());
     }
   }
   return std::nullopt;
 }
 
-TraceBlob ProtoVmIncrementalTracing::SerializeIncrementalState(
+TraceBlobView ProtoVmIncrementalTracing::SerializeIncrementalState(
     const protovm::Vm& vm,
     const protos::pbzero::TracePacket::Decoder& patch) const {
-  protozero::HeapBuffered<protos::pbzero::TracePacket> proto;
-  vm.SerializeIncrementalState(proto.get());
-  proto->set_trusted_uid(patch.trusted_uid());
-  proto->set_trusted_pid(patch.trusted_pid());
-  proto->set_trusted_packet_sequence_id(patch.trusted_packet_sequence_id());
-  auto [data, size] = proto.SerializeAsUniquePtr();
-  return TraceBlob::TakeOwnership(std::move(data), size);
+  return context_->blob_packet_writer->WritePacket(
+      [&](protos::pbzero::TracePacket* proto) {
+        vm.SerializeIncrementalState(proto);
+        proto->set_trusted_uid(patch.trusted_uid());
+        proto->set_trusted_pid(patch.trusted_pid());
+        proto->set_trusted_packet_sequence_id(
+            patch.trusted_packet_sequence_id());
+      });
 }
 
 }  // namespace perfetto::trace_processor

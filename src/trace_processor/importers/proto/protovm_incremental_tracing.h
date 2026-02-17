@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -41,11 +40,14 @@ class ProtoVmIncrementalTracing {
   explicit ProtoVmIncrementalTracing(TraceProcessorContext*);
   ~ProtoVmIncrementalTracing();
   void ProcessTraceProvenancePacket(protozero::ConstBytes blob);
-  void ProcessProtoVmsPacket(protozero::ConstBytes blob);
-  std::optional<TraceBlob> TryProcessPatch(const TraceBlobView& packet);
+  void ProcessProtoVmsPacket(protozero::ConstBytes blob,
+                             const TraceBlobView& packet);
+  std::optional<TraceBlobView> TryProcessPatch(
+      const protos::pbzero::TracePacket::Decoder& patch,
+      const TraceBlobView& packet);
 
  private:
-  TraceBlob SerializeIncrementalState(
+  TraceBlobView SerializeIncrementalState(
       const protovm::Vm& vm,
       const protos::pbzero::TracePacket::Decoder& patch) const;
 
