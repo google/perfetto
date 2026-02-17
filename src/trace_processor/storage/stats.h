@@ -831,10 +831,6 @@ namespace perfetto::trace_processor::stats {
       "A ProtoVM instance aborted the execution while applying the patch. "    \
       "This might be due to inconsistencies between VM program logic and "     \
       "actual patch format."),                                                 \
-  F(protovm_incremental_state_without_timestamp, kSingle,  kError, kAnalysis,  \
-      "A ProtoVM instance generated an incremental state without timestamp. "  \
-      "Note that the ProtoVM's program is responsible for setting the "        \
-      "timestamp. Falling back to the patch's timestamp"),                     \
   F(protovm_registration_error, kSingle,  kError, kAnalysis,                   \
     "Failed to find the sequence IDs corresponding to a ProtoVM's producer "   \
     "ID. Such mapping should be provided by the TraceProvenance packet.")
