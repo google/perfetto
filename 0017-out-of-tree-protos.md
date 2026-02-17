@@ -89,72 +89,124 @@ changes suggested by this RFC:
 
 ## Proposed solution
 
+### Hierarchical extension range registry
+
+Extension field numbers in `TrackEvent` are managed via a hierarchical JSON
+registry, analogous to IP subnet delegation. Each level of the hierarchy
+delegates sub-ranges to child projects, which can further sub-delegate.
+
+In `track_event.proto`, a single consolidated range is declared:
+
+```proto
+// Extension range for typed events defined in external projects.
+// See track_event_extensions.json for the allocation registry.
+extensions 1000 to 10000;
+```
+
+The allocation details live in a companion JSON file,
+`track_event_extensions.json`, colocated with `track_event.proto`:
+
+```json
+{
+  "range": [1000, 10000],
+  "allocations": [
+    {
+      "name": "chromium",
+      "range": [1000, 1999],
+      "contact": "somebody@chromium.org",
+      "description": "Chrome browser and chromium-based projects",
+      "repo": "https://chromium.googlesource.com/chromium/src",
+      "proto": "base/tracing/protos/chrome_track_event.proto"
+    },
+    {
+      "name": "android",
+      "range": [2000, 2999],
+      "contact": "somebody@android.com",
+      "description": "Android OS platform",
+      "registry": "protos/perfetto/trace/android/track_event_extensions.json"
+    },
+    {
+      "name": "unallocated",
+      "range": [3000, 9899]
+    },
+    {
+      "name": "perfetto_tests",
+      "range": [9900, 10000],
+      "contact": "noreply@perfetto.dev",
+      "description": "Reserved for Perfetto unit and integration tests",
+      "proto": "protos/perfetto/trace/test_extensions.proto"
+    }
+  ]
+}
+```
+
+Each allocation entry has:
+- `name` — Short identifier for the range owner.
+- `range` — Inclusive `[start, end]` field number range.
+- `ranges` — Like range but supports scattered lists, e.g. `[[1,9], [20,29]]`. Required to handle migrations.
+- `contact` — (optional) Owner email or group.
+- `description` — (optional) What this range is for.
+- `repo` — (optional) Git repo URL. If omitted, paths are local to this repo.
+- Either `proto` (leaf: a `.proto` file defining extensions) or `registry`
+  (intermediate: another `.json` file with further sub-delegation).
+- `unallocated` entries have only `name` and `range`.
+
+Sub-registries follow the same format. For example, Android's registry might
+further delegate to `frameworks/base`, `frameworks/av`, etc., each owning a
+sub-range of `[2000, 2999]`.
+
 ### Source-of-truth protos live all over the Android tree
 
-I'm envisioning breaking down the current [`android_track_event.proto`][android_track_event.proto]
-into
+We break down the current [`android_track_event.proto`][android_track_event.proto]
+into per-repo extension files:
 
 `$ANDROID/frameworks/base/proto/src/tracing/android_frameworks_base.proto`
 `$ANDROID/frameworks/av/proto/src/tracing/android_frameworks_av.proto`
 
 and so on.
 
-Each .proto should look like this:
+Each .proto follows the protozero wrapper-message pattern:
 
 ```proto
-
 message AndroidTrackEvent {
-  // Usable range: [2001, 2999]
+  // Uses range [2000, 2099] per track_event_extensions.json.
   extend TrackEvent {
-    // The name of a binder service.
     optional string binder_service_name = 2001;
-    // The name of a binder interface.
     optional string binder_interface_name = 2002;
-    // The name of an apex.
     optional string apex_name = 2003;
     ...
   }
 }
 ```
 
-Inside our upstream (GitHub) track_event.proto we will need to reserve ranges
-as follows:
-
-```proto
-// Range for Android's frameworks/base
-extensions 2001 to 2999;
-
-// Range for Android's frameworks/av
-extensions 3000 to 3199;
-
-```
-
-The only thing that requires an upstream PR change is reserving the range for
-every new repo. But that happens so rarely. We can live with that.
-
-Likewise our project will be open to other companies or projects to register
-their extension range.
-
-Note that reserving a range is not even functionally mandatory. The only reason
-why we encourage that is to prevent two independent projects from clashing on the
-same IDs (unlikely across other companies, very likely across different Android
-git projects)
-
-### Generating a fused descriptor
-
-At the build-level, in Android, the following needs to happen: an Android.bp
-rule in a central place (could be //external/perfetto itself, TBD) must be aware
-of all the targets that define tracing protos (e.g.
-`frameworks_base_tracing_protos`, `frameworks_av_tracing_protos`).
-
-A gen rule has to take all these protos, generate a protobuf descriptor and make
-sure this descriptor ends up in the system image, e.g. under
-`/system/usr/share/tracing_protos.descriptor.gz`
-
-Realistically we will need something similar for /vendor.
+The only upstream (GitHub) change needed for a new top-level project is adding
+an entry to `track_event_extensions.json`. This happens rarely.
 
 [android_track_event.proto]: https://github.com/google/perfetto/blob/d18b5e4e8ab932c663c3c6b6410d712ba09eb948/protos/perfetto/trace/android/android_track_event.proto#L4
 
+### Generating a fused descriptor
+
+A C++ tool, `gen_proto_extensions`, reads the root JSON registry, recursively
+follows local `registry:` references, compiles all referenced `.proto` files
+using protoc_lib, validates that extension field numbers fall within their
+declared ranges, and outputs a merged `FileDescriptorSet` proto.
+
+```
+gen_proto_extensions \
+  --json protos/perfetto/trace/track_event/track_event_extensions.json \
+  -I . \
+  --out /tmp/extensions.descriptor \
+  [--gzip]
+```
+
+The output only includes the subset of descriptor fields defined in Perfetto's
+own `protos/perfetto/common/descriptor.proto` to minimize size.
+
+At the build-level, in Android, an Android.bp rule takes the output of this
+tool and makes sure this descriptor ends up in the system image, e.g. under
+`/system/usr/share/tracing_protos.descriptor.gz`
+
+Realistically we will need something similar for /vendor.
 
 ### Traced dumps the protos in the trace
 
