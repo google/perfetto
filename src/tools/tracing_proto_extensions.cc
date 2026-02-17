@@ -31,6 +31,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/message.h"
@@ -47,6 +48,7 @@ namespace pbzero = protos::pbzero;
 using trace_processor::json::FieldResult;
 using trace_processor::json::SimpleJsonParser;
 
+// TODO DNS use the new multifile thing i factored out in the last PR.
 class ErrorCollector
     : public google::protobuf::compiler::MultiFileErrorCollector {
  public:
@@ -296,14 +298,8 @@ base::Status CollectProtos(const std::string& json_path,
     return base::ErrStatus("Failed to read '%s'", json_path.c_str());
   }
 
-  auto reg_or = ParseRegistry(contents, json_path);
-  if (!reg_or.ok())
-    return reg_or.status();
-  const Registry& reg = *reg_or;
-
-  auto status = ValidateRegistry(reg);
-  if (!status.ok())
-    return status;
+  ASSIGN_OR_RETURN(auto reg, ParseRegistry(contents, json_path));
+  RETURN_IF_ERROR(ValidateRegistry(reg));
 
   for (const auto& alloc : reg.allocations) {
     if (!alloc.proto.empty() && alloc.repo.empty()) {
@@ -312,9 +308,7 @@ base::Status CollectProtos(const std::string& json_path,
     } else if (!alloc.registry.empty() && alloc.repo.empty()) {
       // Local sub-registry.
       std::string sub_path = root_dir + "/" + alloc.registry;
-      status = CollectProtos(sub_path, root_dir, out);
-      if (!status.ok())
-        return status;
+      RETURN_IF_ERROR(CollectProtos(sub_path, root_dir, out));
     }
     // Remote entries (repo is set) are skipped.
   }
@@ -329,14 +323,16 @@ base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
   reg.source_path = source_path;
 
   SimpleJsonParser parser(json_contents);
-  auto status = parser.Parse();
-  if (!status.ok())
-    return base::ErrStatus("Failed to parse JSON in '%s': %s",
-                           source_path.c_str(), status.message().c_str());
+  {
+    auto status = parser.Parse();
+    if (!status.ok())
+      return base::ErrStatus("Failed to parse JSON in '%s': %s",
+                             source_path.c_str(), status.message().c_str());
+  }
 
   bool has_range = false;
   bool has_ranges = false;
-  status = parser.ForEachField([&](std::string_view key) -> FieldResult {
+  RETURN_IF_ERROR(parser.ForEachField([&](std::string_view key) -> FieldResult {
     if (key == "scope") {
       auto v = parser.GetString();
       if (v)
@@ -351,14 +347,12 @@ base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
       if (!parser.IsArray())
         return base::ErrStatus("'range' must be an array in '%s'",
                                source_path.c_str());
-      auto arr = parser.CollectInt64Array();
-      if (!arr.ok())
-        return arr.status();
-      if (arr->size() != 2)
+      ASSIGN_OR_RETURN(auto arr, parser.CollectInt64Array());
+      if (arr.size() != 2)
         return base::ErrStatus("'range' must have exactly 2 elements in '%s'",
                                source_path.c_str());
       reg.ranges.push_back(
-          {static_cast<int32_t>((*arr)[0]), static_cast<int32_t>((*arr)[1])});
+          {static_cast<int32_t>(arr[0]), static_cast<int32_t>(arr[1])});
       return FieldResult::Handled{};
     }
     if (key == "ranges") {
@@ -369,39 +363,35 @@ base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
       if (!parser.IsArray())
         return base::ErrStatus("'ranges' must be an array in '%s'",
                                source_path.c_str());
-      auto s = parser.ForEachArrayElement([&]() -> base::Status {
+      RETURN_IF_ERROR(parser.ForEachArrayElement([&]() -> base::Status {
         if (!parser.IsArray())
           return base::ErrStatus(
               "Each element of 'ranges' must be an array in '%s'",
               source_path.c_str());
-        auto arr = parser.CollectInt64Array();
-        if (!arr.ok())
-          return arr.status();
-        if (arr->size() != 2)
+        ASSIGN_OR_RETURN(auto arr, parser.CollectInt64Array());
+        if (arr.size() != 2)
           return base::ErrStatus(
               "Each range in 'ranges' must have exactly 2 elements in '%s'",
               source_path.c_str());
         reg.ranges.push_back(
-            {static_cast<int32_t>((*arr)[0]), static_cast<int32_t>((*arr)[1])});
+            {static_cast<int32_t>(arr[0]), static_cast<int32_t>(arr[1])});
         return base::OkStatus();
-      });
-      if (!s.ok())
-        return s;
+      }));
       return FieldResult::Handled{};
     }
     if (key == "allocations") {
       if (!parser.IsArray())
         return base::ErrStatus("'allocations' must be an array in '%s'",
                                source_path.c_str());
-      auto s = parser.ForEachArrayElement([&]() -> base::Status {
+      RETURN_IF_ERROR(parser.ForEachArrayElement([&]() -> base::Status {
         if (!parser.IsObject())
           return base::ErrStatus("Each allocation must be an object in '%s'",
                                  source_path.c_str());
         Allocation alloc;
         bool alloc_has_range = false;
         bool alloc_has_ranges = false;
-        auto s2 = parser.ForEachField([&](std::string_view field)
-                                          -> FieldResult {
+        RETURN_IF_ERROR(parser.ForEachField([&](std::string_view field)
+                                                -> FieldResult {
           if (field == "name") {
             auto v = parser.GetString();
             if (v)
@@ -415,13 +405,11 @@ base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
             alloc_has_range = true;
             if (!parser.IsArray())
               return base::ErrStatus("allocation 'range' must be an array");
-            auto arr = parser.CollectInt64Array();
-            if (!arr.ok())
-              return arr.status();
-            if (arr->size() != 2)
+            ASSIGN_OR_RETURN(auto arr, parser.CollectInt64Array());
+            if (arr.size() != 2)
               return base::ErrStatus("allocation 'range' must have 2 elements");
-            alloc.ranges.push_back({static_cast<int32_t>((*arr)[0]),
-                                    static_cast<int32_t>((*arr)[1])});
+            alloc.ranges.push_back(
+                {static_cast<int32_t>(arr[0]), static_cast<int32_t>(arr[1])});
             return FieldResult::Handled{};
           }
           if (field == "ranges") {
@@ -431,24 +419,20 @@ base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
             alloc_has_ranges = true;
             if (!parser.IsArray())
               return base::ErrStatus("allocation 'ranges' must be an array");
-            auto rs = parser.ForEachArrayElement([&]() -> base::Status {
+            RETURN_IF_ERROR(parser.ForEachArrayElement([&]() -> base::Status {
               if (!parser.IsArray())
                 return base::ErrStatus(
                     "Each element of allocation 'ranges' must be an "
                     "array");
-              auto arr = parser.CollectInt64Array();
-              if (!arr.ok())
-                return arr.status();
-              if (arr->size() != 2)
+              ASSIGN_OR_RETURN(auto arr, parser.CollectInt64Array());
+              if (arr.size() != 2)
                 return base::ErrStatus(
                     "Each range in allocation 'ranges' must have 2 "
                     "elements");
-              alloc.ranges.push_back({static_cast<int32_t>((*arr)[0]),
-                                      static_cast<int32_t>((*arr)[1])});
+              alloc.ranges.push_back(
+                  {static_cast<int32_t>(arr[0]), static_cast<int32_t>(arr[1])});
               return base::OkStatus();
-            });
-            if (!rs.ok())
-              return rs;
+            }));
             return FieldResult::Handled{};
           }
           if (field == "contact") {
@@ -486,14 +470,10 @@ base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
           return base::ErrStatus("Unknown field '%.*s' in allocation in '%s'",
                                  static_cast<int>(field.size()), field.data(),
                                  source_path.c_str());
-        });
-        if (!s2.ok())
-          return s2;
+        }));
         reg.allocations.push_back(std::move(alloc));
         return base::OkStatus();
-      });
-      if (!s.ok())
-        return s;
+      }));
       return FieldResult::Handled{};
     }
     if (key == "comment")
@@ -501,9 +481,7 @@ base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
     return base::ErrStatus("Unknown field '%.*s' in '%s'",
                            static_cast<int>(key.size()), key.data(),
                            source_path.c_str());
-  });
-  if (!status.ok())
-    return status;
+  }));
 
   return std::move(reg);
 }
@@ -524,11 +502,8 @@ base::Status ValidateRegistry(const Registry& reg) {
 
   // Sort and validate registry ranges.
   std::vector<Range> reg_ranges = reg.ranges;
-  {
-    auto s = SortAndValidateRanges(reg_ranges, "registry", reg.source_path);
-    if (!s.ok())
-      return s;
-  }
+  RETURN_IF_ERROR(
+      SortAndValidateRanges(reg_ranges, "registry", reg.source_path));
 
   if (reg.allocations.empty()) {
     return base::ErrStatus("No allocations in '%s'", reg.source_path.c_str());
@@ -542,11 +517,8 @@ base::Status ValidateRegistry(const Registry& reg) {
                              alloc.name.c_str(), reg.source_path.c_str());
     }
     std::vector<Range> alloc_ranges = alloc.ranges;
-    {
-      auto s = SortAndValidateRanges(alloc_ranges, alloc.name, reg.source_path);
-      if (!s.ok())
-        return s;
-    }
+    RETURN_IF_ERROR(
+        SortAndValidateRanges(alloc_ranges, alloc.name, reg.source_path));
     all_alloc_ranges.insert(all_alloc_ranges.end(), alloc_ranges.begin(),
                             alloc_ranges.end());
   }
@@ -612,9 +584,7 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     const std::string& root_dir) {
   // 1. Recursively collect all local proto entries from the JSON hierarchy.
   std::vector<ProtoEntry> entries;
-  auto status = CollectProtos(root_json_path, root_dir, &entries);
-  if (!status.ok())
-    return status;
+  RETURN_IF_ERROR(CollectProtos(root_json_path, root_dir, &entries));
 
   if (entries.empty()) {
     PERFETTO_ILOG("No local proto files found in registry.");
@@ -655,9 +625,7 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     }
 
     // Validate field numbers.
-    status = ValidateFieldNumbers(file_desc, entry.scope, entry.ranges);
-    if (!status.ok())
-      return status;
+    RETURN_IF_ERROR(ValidateFieldNumbers(file_desc, entry.scope, entry.ranges));
 
     // Convert to our descriptor format. We include the extension file itself
     // and its transitive dependencies that are NOT core Perfetto protos
