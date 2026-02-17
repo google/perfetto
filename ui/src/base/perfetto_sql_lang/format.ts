@@ -270,14 +270,23 @@ function fmtTableRef(cursor: TreeCursor, ctx: FormatCtx): string {
   const nodeEnd = cursor.to;
   if (!cursor.firstChild()) return '';
   let source = '';
+  let sourceEnd = 0;
   let asEnd = -1;
   do {
-    if (cursor.name === 'TableSource') source = fmtTableSource(cursor, ctx);
+    if (cursor.name === 'TableSource') {
+      source = fmtTableSource(cursor, ctx);
+      sourceEnd = cursor.to;
+    }
     else if (cursor.name === 'AS') asEnd = cursor.to;
   } while (cursor.nextSibling());
   cursor.parent();
   if (asEnd >= 0) {
     return source + ' AS ' + ctx.sql.slice(asEnd, nodeEnd).trim();
+  }
+  // Bare alias (no AS keyword): normalize to include AS.
+  if (sourceEnd > 0 && sourceEnd < nodeEnd) {
+    const alias = ctx.sql.slice(sourceEnd, nodeEnd).trim();
+    if (alias) return source + ' AS ' + alias;
   }
   return source;
 }

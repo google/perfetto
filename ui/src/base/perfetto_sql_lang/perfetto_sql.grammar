@@ -98,7 +98,7 @@ FromClause {
 }
 
 TableRef {
-  TableSource (AS identifier)?
+  TableSource (AS identifier | identifier)?
 }
 
 TableSource {
@@ -283,7 +283,7 @@ unaryExpr {
 }
 
 postfixExpr {
-  atomExpr (Dot identifier)*
+  atomExpr (Dot (identifier | Star))*
 }
 
 atomExpr {

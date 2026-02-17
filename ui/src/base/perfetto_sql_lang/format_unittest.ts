@@ -179,6 +179,33 @@ GROUP BY name
 HAVING c > 5;`;
     expect(norm(formatSQL(input))).toBe(norm(expected));
   });
+
+  test('formats qualified star (r.*)', () => {
+    const input = `select r.* from results r;`;
+    const expected = `SELECT
+  r.*
+FROM results AS r;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats bare table alias (FROM t r)', () => {
+    const input = `select id from my_table t where t.id = 1;`;
+    const expected = `SELECT
+  id
+FROM my_table AS t
+WHERE t.id = 1;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats bare aliases in JOIN', () => {
+    const input = `select a.x, b.y from tbl1 a join tbl2 b on a.id = b.id;`;
+    const expected = `SELECT
+  a.x,
+  b.y
+FROM tbl1 AS a
+JOIN tbl2 AS b ON a.id = b.id;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
 });
 
 describe('Format: WITH statements', () => {
