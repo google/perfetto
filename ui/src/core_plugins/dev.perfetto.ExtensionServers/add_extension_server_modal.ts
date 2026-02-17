@@ -274,6 +274,9 @@ class AddExtensionServerModal {
             m('br'),
             m('strong', 'API Key'),
             ': sends a token via a configurable HTTP header.',
+            m('br'),
+            m('strong', 'SSO (Cookie)'),
+            ': uses browser cookies for authentication. On 403, refreshes cookies via an iframe redirect.',
           ),
         ),
       ]),
@@ -293,6 +296,8 @@ class AddExtensionServerModal {
                 key: '',
                 customHeaderName: '',
               };
+            } else if (value === 'https_sso') {
+              input.auth = {type: 'https_sso'};
             } else {
               input.auth = {type: 'none'};
             }
@@ -302,6 +307,7 @@ class AddExtensionServerModal {
         m('option', {value: 'none'}, 'None'),
         m('option', {value: 'https_basic'}, 'Basic'),
         m('option', {value: 'https_apikey'}, 'API Key'),
+        m('option', {value: 'https_sso'}, 'SSO (Cookie)'),
       ),
       input.auth.type === 'https_basic' && this.renderBasicAuthFields(input),
       input.auth.type === 'https_apikey' && this.renderApiKeyFields(input),

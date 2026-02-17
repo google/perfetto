@@ -92,8 +92,38 @@ export function buildFetchRequest(
     } else {
       headers[server.auth.customHeaderName] = key;
     }
+  } else if (server.auth.type === 'https_sso') {
+    return {url, init: {method: 'GET', headers, credentials: 'include'}};
   }
   return {url, init: {method: 'GET', headers}};
+}
+
+const SSO_IFRAME_TIMEOUT_MS = 10000; // 10 seconds
+
+// Refreshes SSO cookies by loading the server's base URL in a hidden iframe.
+// The iframe follows any SSO redirects; once the onload fires, the browser
+// should have fresh session cookies. Returns true on success, false on error
+// or timeout.
+function refreshSsoCookie(url: string): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = url;
+    const done = (ok: boolean) => {
+      iframe.remove();
+      resolve(ok);
+    };
+    const timer = setTimeout(() => done(false), SSO_IFRAME_TIMEOUT_MS);
+    iframe.onload = () => {
+      clearTimeout(timer);
+      done(true);
+    };
+    iframe.onerror = () => {
+      clearTimeout(timer);
+      done(false);
+    };
+    document.body.appendChild(iframe);
+  });
 }
 
 async function fetchJson<T extends z.ZodTypeAny>(
@@ -108,6 +138,28 @@ async function fetchJson<T extends z.ZodTypeAny>(
   } catch (e) {
     return errResult(`Failed to fetch ${req.url}: ${e}`);
   }
+
+  // For SSO auth, a 403 may mean the cookie expired. Try refreshing via
+  // an iframe and retry exactly once.
+  if (
+    response.status === 403 &&
+    server.type === 'https' &&
+    server.auth.type === 'https_sso'
+  ) {
+    let baseUrl = server.url.trim();
+    if (!baseUrl.includes('://')) {
+      baseUrl = `https://${baseUrl}`;
+    }
+    const refreshed = await refreshSsoCookie(baseUrl.replace(/\/+$/, ''));
+    if (refreshed) {
+      try {
+        response = await fetchWithTimeout(req.url, req.init, FETCH_TIMEOUT_MS);
+      } catch (e) {
+        return errResult(`Failed to fetch ${req.url} after SSO refresh: ${e}`);
+      }
+    }
+  }
+
   if (!response.ok) {
     return errResult(`Fetch failed: ${req.url} returned ${response.status}`);
   }

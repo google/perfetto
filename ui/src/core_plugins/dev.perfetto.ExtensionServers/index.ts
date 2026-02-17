@@ -113,6 +113,7 @@ function authLabel(server: ExtensionServer): string | undefined {
   if (server.auth.type === 'github_pat') return ' | Auth: PAT';
   if (server.auth.type === 'https_basic') return ' | Auth: Basic';
   if (server.auth.type === 'https_apikey') return ' | Auth: API Key';
+  if (server.auth.type === 'https_sso') return ' | Auth: SSO';
   return undefined;
 }
 
@@ -244,11 +245,13 @@ async function maybeAddEmbedderExtServer(
   ctx: AppImpl,
   setting: Setting<ExtensionServer[]>,
 ): Promise<Result<unknown>[]> {
-  const rawUrl = ctx.embedder.extensionServerUrl;
-  if (rawUrl === undefined) return [];
+  const extServer = ctx.embedder.extensionServer;
+  if (extServer === undefined) return [];
 
-  const url = normalizeHttpsUrl(rawUrl);
-  const location: UserInput = {type: 'https', url, auth: {type: 'none'}};
+  const url = normalizeHttpsUrl(extServer.url);
+  const auth: UserInput['auth'] =
+    extServer.authType === 'https_sso' ? {type: 'https_sso'} : {type: 'none'};
+  const location: UserInput = {type: 'https', url, auth};
 
   // Already configured by the user — it was initialized above.
   if (setting.get().some((s) => sameServerLocation(s, location))) return [];

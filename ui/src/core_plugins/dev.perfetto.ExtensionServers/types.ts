@@ -60,6 +60,7 @@ const httpsAuthSchema = z.discriminatedUnion('type', [
     key: z.string().meta({secret: true}).default(''),
     customHeaderName: z.string().default(''),
   }),
+  z.object({type: z.literal('https_sso')}),
 ]);
 
 // Extension server configuration (persisted via Settings).
@@ -112,7 +113,8 @@ export type UserInput =
             keyType: 'bearer' | 'x_api_key' | 'custom';
             key: string;
             customHeaderName: string;
-          };
+          }
+        | {type: 'https_sso'};
     };
 
 // Manifest format from {base_url}/manifest
