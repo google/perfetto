@@ -31,6 +31,22 @@ namespace perfetto {
 
 class PerfettoCmdlineUnitTest : public ::testing::Test {
  protected:
+  static std::optional<int> ParseCmdline(PerfettoCmd* cmd,
+                                         std::vector<std::string> args) {
+    std::vector<char*> argv;
+    argv.reserve(args.size());
+    for (auto& arg : args)
+      argv.push_back(arg.data());
+
+    std::optional<int> res = cmd->ParseCmdlineAndMaybeDaemonize(
+        static_cast<int>(argv.size()), argv.data());
+    return res;
+  }
+
+  static const TraceConfig* GetTraceConfig(const PerfettoCmd& cmd) {
+    return cmd.trace_config_.get();
+  }
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
       base::ScopedMmap mmapped_trace) {
@@ -41,6 +57,66 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
 };
 
 namespace {
+
+TEST_F(PerfettoCmdlineUnitTest, AddNoteParsesAndStoresNotes) {
+  base::TempFile out_file = base::TempFile::Create();
+  PerfettoCmd cmd;
+
+  std::optional<int> res = ParseCmdline(
+      &cmd, {"perfetto", "--out", out_file.path(), "--time", "1s", "--add-note",
+             "a=b", "--add-note", "k=foo=bar", "--add-note",
+             "empty=", "--add-note", "empty2=", "--add-note", "novalue"});
+  EXPECT_FALSE(res.has_value());
+
+  const TraceConfig* cfg = GetTraceConfig(cmd);
+  ASSERT_NE(cfg, nullptr);
+  ASSERT_EQ(cfg->notes_size(), 5);
+  EXPECT_EQ(cfg->notes()[0].key(), "a");
+  EXPECT_EQ(cfg->notes()[0].value(), "b");
+  EXPECT_EQ(cfg->notes()[1].key(), "k");
+  EXPECT_EQ(cfg->notes()[1].value(), "foo=bar");
+  EXPECT_EQ(cfg->notes()[2].key(), "empty");
+  EXPECT_EQ(cfg->notes()[2].value(), "");
+  EXPECT_EQ(cfg->notes()[3].key(), "empty2");
+  EXPECT_EQ(cfg->notes()[3].value(), "");
+  EXPECT_EQ(cfg->notes()[4].key(), "novalue");
+  EXPECT_EQ(cfg->notes()[4].value(), "");
+}
+
+TEST_F(PerfettoCmdlineUnitTest, AddNoteAllowsMissingEquals) {
+  base::TempFile out_file = base::TempFile::Create();
+  PerfettoCmd cmd;
+  std::optional<int> res =
+      ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
+                          "--add-note", "novalue"});
+  EXPECT_FALSE(res.has_value());
+
+  const TraceConfig* cfg = GetTraceConfig(cmd);
+  ASSERT_NE(cfg, nullptr);
+  ASSERT_EQ(cfg->notes_size(), 1);
+  EXPECT_EQ(cfg->notes()[0].key(), "novalue");
+  EXPECT_EQ(cfg->notes()[0].value(), "");
+}
+
+TEST_F(PerfettoCmdlineUnitTest, AddNoteRejectsEmptyKey) {
+  base::TempFile out_file = base::TempFile::Create();
+  PerfettoCmd cmd;
+  std::optional<int> res =
+      ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
+                          "--add-note", "=value"});
+  ASSERT_TRUE(res.has_value());
+  EXPECT_EQ(*res, 1);
+}
+
+TEST_F(PerfettoCmdlineUnitTest, AddNoteRejectsEmptyArgument) {
+  base::TempFile out_file = base::TempFile::Create();
+  PerfettoCmd cmd;
+  std::optional<int> res = ParseCmdline(
+      &cmd,
+      {"perfetto", "--out", out_file.path(), "--time", "1s", "--add-note", ""});
+  ASSERT_TRUE(res.has_value());
+  EXPECT_EQ(*res, 1);
+}
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
