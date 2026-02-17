@@ -35,6 +35,7 @@ import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {PrettyPrintedSource, PrettyPrinter} from './pretty_print_utils';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -109,23 +110,23 @@ const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
+  private readonly taskQueue = new SerialTaskQueue();
   private readonly slot = new QuerySlot<ScriptResult | undefined>(
-    new SerialTaskQueue(),
+    this.taskQueue,
+  );
+  private readonly formatSlot = new QuerySlot<PrettyPrintedSource | undefined>(
+    this.taskQueue,
   );
   private trace: Trace;
   private dataSource: SQLDataSource;
   private filters: readonly Filter[] = [];
   private functionsDataSource: SQLDataSource;
-  private functionsFilters: readonly Filter[] = [];
   private isReady = false;
 
   private selectedScriptId: number | undefined = undefined;
-  private selectedScriptSource: string = '';
 
   private showPrettyPrinted = false;
-  private isPrettyPrinting = false;
   private prettyPrinter: PrettyPrinter = new PrettyPrinter();
-  private prettyPrintedSource: PrettyPrintedSource | undefined = undefined;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -179,17 +180,6 @@ export class V8SourcesTab implements Tab {
       script_size: NUM,
     });
     if (!it.valid()) return undefined;
-    this.functionsFilters = [
-      {
-        field: 'v8_js_script_id',
-        op: '=',
-        value: id,
-      },
-    ];
-    this.selectedScriptSource = it.source;
-    this.prettyPrintedSource = undefined;
-    // Redo source formatting in case it was enabled before.
-    this._maybeFormatSources();
     return {
       source: it.source as string,
       details: {
@@ -215,49 +205,22 @@ export class V8SourcesTab implements Tab {
         },
       ];
     }
-    m.redraw();
   }
 
-  private async togglePrettyPrint() {
+  private togglePrettyPrint() {
     this.showPrettyPrinted = !this.showPrettyPrinted;
-    this._maybeFormatSources();
   }
 
-  async _maybeFormatSources() {
-    if (!this.showPrettyPrinted) return;
-    if (this.prettyPrintedSource) return;
+  private renderSourceTab(
+    source: string,
+    formattedSource?: string,
+    isFormatting?: boolean,
+  ) {
+    const text =
+      this.showPrettyPrinted && formattedSource !== undefined
+        ? formattedSource
+        : source;
 
-    this.isPrettyPrinting = true;
-    this.prettyPrintedSource = undefined;
-
-    if (!this.prettyPrinter.has(this.selectedScriptSource)) {
-      // HACK: wait two rAFs to make sure the UI was updated in the meantime
-      // and we get a working loading animation.
-      const updateDelay = new Promise<void>((resolve) => {
-        window.requestAnimationFrame(async () => {
-          window.requestAnimationFrame(async () => {
-            resolve();
-          });
-        });
-      });
-      m.redraw();
-      await updateDelay;
-    }
-
-    try {
-      this.prettyPrintedSource = await this.prettyPrinter.format(
-        this.selectedScriptSource,
-      );
-    } finally {
-      this.isPrettyPrinting = false;
-      m.redraw();
-    }
-  }
-
-  private renderSourceTab(source: string) {
-    if (this.showPrettyPrinted && this.prettyPrintedSource !== undefined) {
-      source = this.prettyPrintedSource.formatted;
-    }
     return m(
       '.pf-v8-source-container',
       {
@@ -267,7 +230,7 @@ export class V8SourcesTab implements Tab {
         },
       },
       m(Editor, {
-        text: source,
+        text,
         language: 'javascript',
         readonly: true,
         fillHeight: true,
@@ -288,7 +251,7 @@ export class V8SourcesTab implements Tab {
           variant: ButtonVariant.Filled,
           intent: this.showPrettyPrinted ? Intent.Primary : undefined,
           active: this.showPrettyPrinted,
-          loading: this.isPrettyPrinting,
+          loading: isFormatting,
           onclick: () => this.togglePrettyPrint(),
         }),
       ),
@@ -339,16 +302,19 @@ export class V8SourcesTab implements Tab {
         col: {title: 'Column'},
       },
     };
+    const filters: Filter[] = [
+      {
+        field: 'v8_js_script_id',
+        op: '=',
+        value: scriptDetails.v8_js_script_id,
+      },
+    ];
     return m(DataGrid, {
       data: this.functionsDataSource,
       schema: v8JsFunctionUiSchema,
       rootSchema: V8_JS_FUNCTION_SCHEMA_NAME,
       fillHeight: true,
-      initialFilters: this.functionsFilters,
-      onFiltersChanged: (filters: readonly Filter[]) => {
-        this.functionsFilters = filters;
-        m.redraw();
-      },
+      initialFilters: filters,
       initialColumns: [
         {field: 'v8_js_function_id', id: 'v8_js_function_id'},
         {field: 'name', id: 'name'},
@@ -366,6 +332,31 @@ export class V8SourcesTab implements Tab {
       retainOn: ['id'],
       queryFn: () => this.selectScript(selectedId),
     });
+
+    const {data: formattedResult, isPending: isFormatting} =
+      this.formatSlot.use({
+        key: {
+          id: selectedId,
+          prettyPrint: this.showPrettyPrinted,
+        },
+        enabled: !!scriptResult,
+        queryFn: async () => {
+          const source = scriptResult!.source;
+          await deferChunkedTask();
+          // if (!this.prettyPrinter.has(source)) {
+          //   // HACK: wait two rAFs to make sure the UI was updated in the meantime
+          //   // and we get a working loading animation.
+          //   await new Promise<void>((resolve) => {
+          //     window.requestAnimationFrame(() => {
+          //       window.requestAnimationFrame(() => {
+          //         resolve();
+          //       });
+          //     });
+          //   });
+          // }
+          return this.prettyPrinter.format(source);
+        },
+      });
 
     const v8JsScriptUiSchema: SchemaRegistry = {
       v8JsScript: {
@@ -434,7 +425,6 @@ export class V8SourcesTab implements Tab {
           filters: this.filters,
           onFiltersChanged: (filters: readonly Filter[]) => {
             this.filters = filters;
-            m.redraw();
           },
           initialColumns: [
             {field: 'v8_js_script_id', id: 'v8_js_script_id'},
@@ -461,7 +451,11 @@ export class V8SourcesTab implements Tab {
                   key: TAB_SOURCE,
                   title: 'Source',
                   leftIcon: 'code',
-                  content: this.renderSourceTab(scriptResult.source),
+                  content: this.renderSourceTab(
+                    scriptResult.source,
+                    formattedResult?.formatted,
+                    isFormatting,
+                  ),
                 },
                 {
                   key: TAB_FUNCTIONS,
@@ -479,7 +473,6 @@ export class V8SourcesTab implements Tab {
               activeTabKey: this.currentTab,
               onTabChange: (key) => {
                 this.currentTab = key;
-                m.redraw();
               },
             }),
       ),
