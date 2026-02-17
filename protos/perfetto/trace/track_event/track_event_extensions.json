@@ -1,6 +1,6 @@
 {
   "scope": "perfetto.protos.TrackEvent",
-  "range": [1000, 10000],
+  "range": [1000, 9999],
   "allocations": [
     {
       "name": "chromium",
@@ -17,19 +17,8 @@
       "proto": "base/tracing/protos/chrome_track_event.proto"
     },
     {
-      "name": "meepl",
-      "range": [2000, 2000],
-      "contact": "jannewger@google.com",
-      "comment": ["TODO(primiano): Cannot find the definition of the ",
-                  "extension proto anywhere. Contacted the owner on the ",
-                  "original bug on 2026-02-17."],
-      "description": "b/301227627",
-      "repo": "unknown",
-      "proto": "unknown"
-    },
-    {
       "name": "android_system",
-      "range": [2001, 2999],
+      "range": [2000, 2999],
       "contact": "perfetto-dev@googlegroups.com",
       "comment": ["TODO(primiano): moved these into the Android tree and ",
                   "create sub-registries there."],
@@ -38,11 +27,12 @@
     },
     {
       "name": "unallocated",
-      "range": [3000, 9899]
+      "comment": ["The next allocation goes here. Shrink and take from here."],
+      "range": [3000, 8999]
     },
     {
       "name": "perfetto_tests",
-      "range": [9900, 10000],
+      "range": [9000, 9999],
       "contact": "perfetto-dev@googlegroups.com",
       "description": "Reserved for Perfetto unit and integration tests",
       "proto": "protos/perfetto/trace/test_extensions.proto"
