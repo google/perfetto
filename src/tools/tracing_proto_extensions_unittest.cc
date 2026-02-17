@@ -18,7 +18,6 @@
 
 #include "perfetto/base/status.h"
 #include "src/base/test/tmp_dir_tree.h"
-#include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -382,9 +381,9 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsNoExtend) {
 TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithTestProto) {
   // This test uses the real test_extensions.proto from the repo.
   // It requires proto include paths to work.
-  std::string proto_path = base::GetTestDataPath(
-      "protos/perfetto/trace/track_event/track_event_extensions.json");
-  auto result = GenerateExtensionDescriptors(proto_path, {"."}, ".");
+  auto result = GenerateExtensionDescriptors(
+      "protos/perfetto/trace/track_event/track_event_extensions.json", {"."},
+      ".");
   // This should succeed for local protos (test_extensions.proto and
   // android_track_event.proto). Remote entries (chromium) are skipped.
   ASSERT_TRUE(result.ok()) << result.status().message();
