@@ -17,4 +17,5 @@ import {Embedder} from './embedder';
 /** Default embedder implementation for third-party embeddings. */
 export class DefaultEmbedder implements Embedder {
   readonly analyticsId = undefined;
+  readonly extensionServerUrl = undefined;
 }

@@ -14,7 +14,7 @@
 
 import {
   loadManifest,
-  initializeExtensions,
+  initializeServers,
   buildFetchRequest,
 } from './extension_server';
 import {AppImpl} from '../../core/app_impl';
@@ -85,6 +85,7 @@ function testExtServer(
     enabledModules: overrides.enabledModules ?? ['default'],
     enabled: overrides.enabled ?? true,
     auth: {type: 'none'},
+    locked: false,
   };
 }
 
@@ -135,7 +136,7 @@ describe('extension_server', () => {
   describe('initializeExtensions', () => {
     test('handles empty server list', () => {
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, []);
+      initializeServers(mockApp as unknown as AppImpl, []);
 
       expect(mockApp.addMacros).not.toHaveBeenCalled();
       expect(mockApp.addSqlPackages).not.toHaveBeenCalled();
@@ -152,7 +153,7 @@ describe('extension_server', () => {
       mockFetch.mockImplementation(() => mockJsonResponse(manifest));
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
+      initializeServers(mockApp as unknown as AppImpl, [
         testExtServer({enabled: false}),
       ]);
 
@@ -196,7 +197,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
+      initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       // Wait for all promises to settle
       await Promise.all([
@@ -231,7 +232,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
+      initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const macrosResult = await mockApp.getMacrosAdded()[0];
       expect(macrosResult).toEqual(macros);
@@ -253,7 +254,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
+      initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const [macros, sqlPackages, protos] = await Promise.all([
         mockApp.getMacrosAdded()[0],
@@ -282,7 +283,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
+      initializeServers(mockApp as unknown as AppImpl, [
         testExtServer(), // Requesting 'default' module which doesn't exist
       ]);
 
@@ -294,7 +295,7 @@ describe('extension_server', () => {
       mockFetch.mockImplementation(() => mockErrorResponse(500));
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
+      initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const [macros, sqlPackages, protos] = await Promise.all([
         mockApp.getMacrosAdded()[0],
@@ -333,7 +334,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [
+      initializeServers(mockApp as unknown as AppImpl, [
         testExtServer({enabledModules: ['default', 'android']}),
       ]);
 
@@ -367,7 +368,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
+      initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const sqlPackages = await mockApp.getSqlPackagesAdded()[0];
       expect(sqlPackages).toHaveLength(1);
@@ -397,7 +398,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
+      initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       // Should return empty array due to validation failure
       const macros = await mockApp.getMacrosAdded()[0];
@@ -426,7 +427,7 @@ describe('extension_server', () => {
       });
 
       const mockApp = createMockAppImpl();
-      initializeExtensions(mockApp as unknown as AppImpl, [testExtServer()]);
+      initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       // Should return empty array due to validation failure
       const sqlPackages = await mockApp.getSqlPackagesAdded()[0];

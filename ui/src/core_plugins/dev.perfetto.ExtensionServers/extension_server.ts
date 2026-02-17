@@ -251,60 +251,76 @@ async function loadProtoDescriptors(
 // Initialization
 // =============================================================================
 
-// Initializes extension servers by fetching manifests (synchronously) and
-// loading extensions (asynchronously). This function should be called early
-// in app initialization.
-export function initializeExtensions(
+// Loads a single server's enabled modules given an already in-flight manifest
+// promise. Returns the per-module result promises (for error aggregation).
+export function initializeServerFromManifest(
+  ctx: AppImpl,
+  server: ExtensionServer,
+  manifest: Promise<Result<Manifest>>,
+): Promise<Result<unknown>[]> {
+  const results: Promise<Result<unknown>>[] = [];
+  for (const mod of server.enabledModules) {
+    const macros = manifest.then((r) => loadMacros(r, server, mod));
+    const sqlPackage = manifest.then((r) => loadSqlPackage(r, server, mod));
+    const descs = manifest.then((r) => loadProtoDescriptors(r, server, mod));
+    results.push(macros, sqlPackage, descs);
+    ctx.addMacros(macros.then((r) => (r.ok ? r.value : [])));
+    ctx.addSqlPackages(sqlPackage.then((r) => (r.ok ? r.value : [])));
+    ctx.addProtoDescriptors(descs.then((r) => (r.ok ? r.value : [])));
+  }
+  return Promise.all(results);
+}
+
+// Initializes extension servers by fetching manifests and loading extensions
+// (asynchronously). Returns the result promises so the caller can aggregate
+// errors (e.g. with embedder server results) before showing a single modal.
+export async function initializeServers(
   ctx: AppImpl,
   servers: ReadonlyArray<ExtensionServer>,
-) {
-  const results = [];
+): Promise<Result<unknown>[]> {
+  const results: Promise<Result<unknown>[]>[] = [];
   for (const server of servers) {
     if (!server.enabled) {
       continue;
     }
-    const manifest = loadManifest(server);
-    for (const mod of server.enabledModules) {
-      const macros = manifest.then((r) => loadMacros(r, server, mod));
-      const sqlPackage = manifest.then((r) => loadSqlPackage(r, server, mod));
-      const descs = manifest.then((r) => loadProtoDescriptors(r, server, mod));
-      results.push(macros, sqlPackage, descs);
-      ctx.addMacros(macros.then((r) => (r.ok ? r.value : [])));
-      ctx.addSqlPackages(sqlPackage.then((r) => (r.ok ? r.value : [])));
-      ctx.addProtoDescriptors(descs.then((r) => (r.ok ? r.value : [])));
-    }
+    results.push(
+      initializeServerFromManifest(ctx, server, loadManifest(server)),
+    );
   }
-  // When all the extension loading promises complete, show a modal if there
-  // were any errors. Deduplicate errors since a manifest fetch failure
-  // propagates to all downstream loaders (macros, sql_modules, etc.).
-  Promise.all(results).then((results) => {
-    const uniqueErrors = [
-      ...new Set(results.filter((r) => !r.ok).map((r) => r.error)),
-    ];
-    if (uniqueErrors.length > 0) {
-      showModal({
-        title: 'Error(s) while querying extension servers',
-        content: m(
-          'div',
-          {style: 'display: flex; flex-direction: column; gap: 8px'},
-          uniqueErrors.map((e) =>
-            m(Callout, {icon: 'error', intent: Intent.Danger}, e),
-          ),
-          m('p', [
-            'For more information see the ',
-            m(
-              'a',
-              {
-                href: 'https://perfetto.dev/docs/visualization/extensions',
-                target: '_blank',
-              },
-              'extension servers documentation',
-            ),
-            '.',
-          ]),
+  const perServerResults = await Promise.all(results);
+  return perServerResults.flat();
+}
+
+// When all the extension loading promises complete, show a modal if there
+// were any errors. Deduplicate errors since a manifest fetch failure
+// propagates to all downstream loaders (macros, sql_modules, etc.).
+export function showErrorsOnCompletion(results: Result<unknown>[]): void {
+  const uniqueErrors = [
+    ...new Set(results.filter((r) => !r.ok).map((r) => r.error)),
+  ];
+  if (uniqueErrors.length > 0) {
+    showModal({
+      title: 'Error(s) while querying extension servers',
+      content: m(
+        'div',
+        {style: 'display: flex; flex-direction: column; gap: 8px'},
+        uniqueErrors.map((e) =>
+          m(Callout, {icon: 'error', intent: Intent.Danger}, e),
         ),
-        buttons: [{text: 'OK', primary: true}],
-      });
-    }
-  });
+        m('p', [
+          'For more information see the ',
+          m(
+            'a',
+            {
+              href: 'https://perfetto.dev/docs/visualization/extensions',
+              target: '_blank',
+            },
+            'extension servers documentation',
+          ),
+          '.',
+        ]),
+      ),
+      buttons: [{text: 'OK', primary: true}],
+    });
+  }
 }

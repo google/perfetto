@@ -17,4 +17,5 @@ import {Embedder} from './embedder';
 /** Embedder implementation for ui.perfetto.dev and localhost development. */
 export class PerfettoUiEmbedder implements Embedder {
   readonly analyticsId = 'G-BD89KT2P3C';
+  readonly extensionServerUrl = undefined;
 }

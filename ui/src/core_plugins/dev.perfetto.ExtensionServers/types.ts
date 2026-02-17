@@ -74,6 +74,7 @@ export const extensionServerSchema = z.discriminatedUnion('type', [
     enabledModules: z.array(z.string()),
     enabled: z.boolean(),
     auth: githubAuthSchema.default({type: 'none'}),
+    locked: z.boolean().default(false),
   }),
   z.object({
     type: z.literal('https'),
@@ -81,6 +82,7 @@ export const extensionServerSchema = z.discriminatedUnion('type', [
     enabledModules: z.array(z.string()),
     enabled: z.boolean(),
     auth: httpsAuthSchema.default({type: 'none'}),
+    locked: z.boolean().default(false),
   }),
 ]);
 
