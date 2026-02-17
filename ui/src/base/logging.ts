@@ -29,42 +29,50 @@ export interface ErrorDetails {
 export type ErrorHandler = (err: ErrorDetails) => void;
 const errorHandlers: ErrorHandler[] = [];
 
-export function assertExists<A>(
-  value: A | null | undefined,
-  optMsg?: string,
-): A {
+export function assertExists<A>(value: A | null | undefined, expr?: string): A {
   if (value === null || value === undefined) {
-    throw new Error(optMsg ?? "Value doesn't exist");
+    throw new Error(`\`${expr ?? '<expression>'}\` doesn't exist`);
   }
   return value;
 }
 
 // assertExists trips over NULLs, but in many contexts NULL is a valid SQL value we have to work with.
-export function assertDefined<T>(value: T | undefined): T {
-  if (value === undefined) throw new Error('Value is undefined');
+export function assertDefined<T>(value: T | undefined, expr?: string): T {
+  if (value === undefined) {
+    throw new Error(`\`${expr ?? '<expression>'}\` is undefined`);
+  }
   return value;
 }
 
-export function assertIsInstance<T>(
+export function assertIsInstanceOf<T>(
   value: unknown,
   clazz: Function,
-  optMsg?: string,
+  expr?: string,
 ): T {
-  assertTrue(
-    value instanceof clazz,
-    optMsg ?? `Value is not an instance of ${clazz.name}`,
-  );
+  if (!(value instanceof clazz)) {
+    throw new Error(
+      `\`${expr ?? '<expression>'}\` is not an instance of ${clazz.name}`,
+    );
+  }
   return value as T;
 }
 
-export function assertTrue(value: boolean, optMsg?: string) {
+export function assertTrue(value: boolean, expr?: string) {
   if (!value) {
-    throw new Error(optMsg ?? 'Failed assertion');
+    throw new Error(`\`${expr ?? '<expression>'}\` is falsy`);
   }
 }
 
-export function assertFalse(value: boolean, optMsg?: string) {
-  assertTrue(!value, optMsg);
+export function assertFalse(value: boolean, expr?: string) {
+  if (value) {
+    throw new Error(`\`${expr ?? '<expression>'}\` is truthy`);
+  }
+}
+
+// Unconditionally throws an error. Use for code paths that shouldn't be reached
+// but where TypeScript can't prove unreachability.
+export function fail(message: string): never {
+  throw new Error(message);
 }
 
 // This function serves two purposes.
@@ -74,9 +82,24 @@ export function assertFalse(value: boolean, optMsg?: string) {
 // 2) A compile time check where typescript asserts that the value passed can be
 // cast to the "never" type.
 // This is useful for ensuring we exhaustively check union types.
-export function assertUnreachable(value: never, optMsg?: string): never {
+export function assertUnreachable(value: never, expr?: string): never {
+  let valueStr: string;
+  try {
+    valueStr =
+      JSON.stringify(value, (_, v) => {
+        if (typeof v === 'bigint') return `${v}n`;
+        if (typeof v === 'symbol') return v.toString();
+        if (typeof v === 'function') {
+          return `[function ${(v.name as string) || 'anonymous'}]`;
+        }
+        return v;
+      }) ?? String(value);
+  } catch {
+    // Circular reference or other issue
+    valueStr = String(value);
+  }
   throw new Error(
-    optMsg ?? `This code should not be reachable ${value as unknown}`,
+    `Unreachable code reached when \`${expr ?? '<expression>'}\` = ${valueStr}`,
   );
 }
 
