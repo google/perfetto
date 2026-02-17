@@ -84,24 +84,11 @@ export default class AndroidInputEvents implements PerfettoPlugin {
   async visualizeOverlaps(ctx: Trace): Promise<void> {
     const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
 
-    const channels = await ctx.engine.query(`
-      SELECT
-        group_name AS event_channel
-      FROM intervals_overlap_count_by_group!(
-        (${this.getOverlappingEventsSubquery(window)}),
-        dispatch_ts,
-        total_latency_dur,
-        event_channel
-      )
-      GROUP BY event_channel
-      ORDER BY MAX(value) DESC
-    `);
-
     const parentUri = `com.android.InputEvents.event_overlaps_parent.${uuidv4()}`;
     const parentNode = await this.createTrack(
-      ctx,
-      parentUri,
-      `
+        ctx,
+        parentUri,
+        `
         SELECT *
         FROM intervals_overlap_count!(
           (${this.getOverlappingEventsSubquery(window)}),
@@ -109,25 +96,69 @@ export default class AndroidInputEvents implements PerfettoPlugin {
           total_latency_dur
         )
       `,
-      'Input Events',
-      'Number of concurrent input events (from input dispatch to input ACK received).',
+        'Input Events',
+        'Number of concurrent input events (from input dispatch to input ACK ' +
+            'received).',
     );
     ctx.defaultWorkspace.pinnedTracksNode.addChildLast(parentNode);
 
-    const channelTrackPromises: Promise<TrackNode>[] = [];
-    for (
-      const it = channels.iter({event_channel: STR});
-      it.valid();
-      it.next()
-    ) {
-      const channel = it.event_channel;
-      channelTrackPromises.push(this.createChannelTrack(ctx, window, channel));
-    }
+    const processes = await ctx.engine.query(`
+      WITH
+        process_peaks AS (
+          SELECT
+            group_name AS upid,
+            MAX(value) AS peak
+          FROM intervals_overlap_count_by_group!(
+            (${this.getOverlappingEventsSubquery(window)}),
+            dispatch_ts,
+            total_latency_dur,
+            upid
+          )
+          GROUP BY upid
+        )
+      SELECT
+        pp.upid,
+        p.name AS process_name
+      FROM process_peaks pp
+      JOIN process p USING (upid)
+      ORDER BY pp.peak DESC
+    `);
 
-    const channelTracks = await Promise.all(channelTrackPromises);
+    for (const it = processes.iter({upid: LONG, process_name: STR});
+         it.valid(); it.next()) {
+      const upid = Number(it.upid);
+      const processName = it.process_name;
 
-    for (const node of channelTracks) {
-      parentNode.addChildLast(node);
+      const processNode =
+          await this.createProcessTrack(ctx, window, upid, processName);
+      parentNode.addChildLast(processNode);
+
+      const channels = await ctx.engine.query(`
+        SELECT
+          group_name AS event_channel
+        FROM intervals_overlap_count_by_group!(
+          (${this.getOverlappingEventsSubquery(window, undefined, upid)}),
+          dispatch_ts,
+          total_latency_dur,
+          event_channel
+        )
+        GROUP BY event_channel
+        ORDER BY MAX(value) DESC
+      `);
+
+      const channelTrackPromises: Promise<TrackNode>[] = [];
+      for (const channelIt = channels.iter({event_channel: STR});
+           channelIt.valid(); channelIt.next()) {
+        const channel = channelIt.event_channel;
+        channelTrackPromises.push(
+            this.createChannelTrack(ctx, window, channel, upid));
+      }
+
+      const channelTracks = await Promise.all(channelTrackPromises);
+
+      for (const node of channelTracks) {
+        processNode.addChildLast(node);
+      }
     }
   }
 
@@ -135,15 +166,16 @@ export default class AndroidInputEvents implements PerfettoPlugin {
     ctx: Trace,
     window: TimeSpan,
     channel: string,
+    upid: number,
   ): Promise<TrackNode> {
-    const uri = `com.android.InputEvents.event_overlaps.${channel}.${uuidv4()}`;
+    const uri = `com.android.InputEvents.event_overlaps.proc_${upid}.${channel}.${uuidv4()}`;
     return this.createTrack(
       ctx,
       uri,
       `
         SELECT *
         FROM intervals_overlap_count_by_group!(
-          (${this.getOverlappingEventsSubquery(window, channel)}),
+          (${this.getOverlappingEventsSubquery(window, channel, upid)}),
           dispatch_ts,
           total_latency_dur,
           event_channel
@@ -151,6 +183,29 @@ export default class AndroidInputEvents implements PerfettoPlugin {
       `,
       `Channel: ${channel}`,
       `Number of concurrent input events on the ${channel} channel (from input dispatch to input ACK received).`,
+    );
+  }
+
+  private async createProcessTrack(
+    ctx: Trace,
+    window: TimeSpan,
+    upid: number,
+    processName: string,
+  ): Promise<TrackNode> {
+    const uri = `com.android.InputEvents.event_overlaps.proc_${upid}.${uuidv4()}`;
+    return this.createTrack(
+      ctx,
+      uri,
+      `
+        SELECT *
+        FROM intervals_overlap_count!(
+          (${this.getOverlappingEventsSubquery(window, undefined, upid)}),
+          dispatch_ts,
+          total_latency_dur
+        )
+      `,
+      `Process: ${processName} (${upid})`,
+      `Number of concurrent input events in ${processName} (from input dispatch to input ACK received).`,
     );
   }
 
@@ -190,10 +245,14 @@ export default class AndroidInputEvents implements PerfettoPlugin {
   private getOverlappingEventsSubquery(
     window: TimeSpan,
     channel?: string,
+    upid?: number,
   ): string {
     const channelConstraint = channel ? `AND event_channel = '${channel}'` : '';
+    const upidConstraint = upid !== undefined ? `AND upid = ${upid}` : '';
     return `
       SELECT
+        upid,
+        process_name,
         event_channel,
         MAX(dispatch_ts, ${window.start}) AS dispatch_ts,
         MIN(dispatch_ts + total_latency_dur, ${window.end}) - MAX(dispatch_ts, ${window.start}) AS total_latency_dur
@@ -202,6 +261,7 @@ export default class AndroidInputEvents implements PerfettoPlugin {
         total_latency_dur IS NOT NULL AND
         dispatch_ts < ${window.end} AND dispatch_ts + total_latency_dur > ${window.start}
         ${channelConstraint}
+        ${upidConstraint}
     `;
   }
 }
