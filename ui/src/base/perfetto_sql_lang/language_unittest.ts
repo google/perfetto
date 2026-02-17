@@ -12,30 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {language} from './language.js';
-import {TreeCursor} from '@lezer/common';
-
-// Helper function to pretty-print the CST
-function printCST(cursor: TreeCursor, source: string, indent = 0) {
-  const nodeName = cursor.name;
-  const nodeText = source.substring(cursor.from, cursor.to);
-
-  console.log(`${'  '.repeat(indent)}${nodeName}: "${nodeText}"`);
-
-  if (cursor.firstChild()) {
-    do {
-      printCST(cursor, source, indent + 1);
-    } while (cursor.nextSibling());
-    cursor.parent(); // Important: Move back up to the parent
-  }
-}
+import {language} from './language';
 
 describe('perfettoSqlLang', () => {
-  test('simple', () => {
+  test('parses simple SELECT statement', () => {
     const code = 'select * from slice limit 100';
     const tree = language.parser.parse(code);
     const cursor = tree.cursor();
-    const spec = ['Keyword', 'identifier', 'Keyword', 'identifier'];
-    console.log(printCST(cursor, code), spec);
+
+    // Walk to root node
+    expect(cursor.name).toBe('Program');
+    expect(cursor.firstChild()).toBe(true);
+    expect(cursor.name).toBe('Statement');
+    expect(cursor.firstChild()).toBe(true);
+    expect(cursor.name).toBe('SelectStatement');
+    expect(cursor.firstChild()).toBe(true);
+    expect(cursor.name).toBe('SelectBody');
+  });
+
+  test('parses CREATE PERFETTO TABLE', () => {
+    const code =
+      'create perfetto table my_table as select id from source';
+    const tree = language.parser.parse(code);
+    const cursor = tree.cursor();
+
+    expect(cursor.name).toBe('Program');
+    expect(cursor.firstChild()).toBe(true);
+    expect(cursor.name).toBe('Statement');
+    expect(cursor.firstChild()).toBe(true);
+    expect(cursor.name).toBe('CreatePerfettoTableStatement');
+  });
+
+  test('parses INCLUDE PERFETTO MODULE', () => {
+    const code = 'include perfetto module android.startup';
+    const tree = language.parser.parse(code);
+    const cursor = tree.cursor();
+
+    expect(cursor.name).toBe('Program');
+    expect(cursor.firstChild()).toBe(true);
+    expect(cursor.name).toBe('Statement');
+    expect(cursor.firstChild()).toBe(true);
+    expect(cursor.name).toBe('IncludeModuleStatement');
   });
 });

@@ -12,138 +12,449 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@top Program { expression* }
+// PerfettoSQL Grammar for Lezer — structured AST
+// Uses @extend so keywords can also appear as identifiers in non-keyword contexts.
+// IMPORTANT: In Lezer, only rules starting with uppercase produce named AST nodes.
+//
+// To build, run:
+// lezer-generator ui/src/base/perfetto_sql_lang/perfetto_sql.grammar -o ui/src/base/perfetto_sql_lang/perfetto_sql.grammar.js
 
-expression {
-  String |
-  Number |
-  Boolean |
-  Null |
-  Keyword |
-  Function |
+@top Program { Statement* }
+
+Statement {
+  SelectStatement Semi? |
+  CreatePerfettoTableStatement Semi? |
+  CreatePerfettoViewStatement Semi? |
+  CreatePerfettoFunctionStatement Semi? |
+  CreatePerfettoMacroStatement Semi? |
+  CreatePerfettoIndexStatement Semi? |
+  CreateVirtualTableStatement Semi? |
+  IncludeModuleStatement Semi? |
+  WithStatement Semi?
+}
+
+// ---------------------------------------------------------------------------
+// INCLUDE PERFETTO MODULE
+// ---------------------------------------------------------------------------
+IncludeModuleStatement {
+  INCLUDE PERFETTO MODULE ModulePath
+}
+
+ModulePath { identifier (Dot identifier)* }
+
+// ---------------------------------------------------------------------------
+// WITH ... SELECT (CTEs)
+// ---------------------------------------------------------------------------
+WithStatement {
+  WithClause SelectBody SetOperation*
+}
+
+WithClause {
+  WITH RECURSIVE? CommonTableExpression (Comma CommonTableExpression)*
+}
+
+CommonTableExpression {
+  identifier (ParenL ColumnNameList ParenR)? AS MATERIALIZED? ParenL QueryBody ParenR
+}
+
+QueryBody {
+  WithClause SelectBody SetOperation* |
+  SelectBody SetOperation*
+}
+
+// ---------------------------------------------------------------------------
+// SELECT
+// ---------------------------------------------------------------------------
+SelectStatement {
+  SelectBody SetOperation*
+}
+
+SelectBody {
+  SELECT DISTINCT? SelectColumns SelectClauses
+}
+
+SelectClauses {
+  (FromClause | WhereClause | GroupByClause | HavingClause | OrderByClause | LimitClause)*
+}
+
+SetOperation {
+  (UNION ALL? | INTERSECT | EXCEPT) SelectBody
+}
+
+SelectColumns {
+  SelectColumn (Comma SelectColumn)*
+}
+
+SelectColumn {
+  Star |
+  Expression (AS identifier)?
+}
+
+// ---------------------------------------------------------------------------
+// FROM clause
+// ---------------------------------------------------------------------------
+FromClause {
+  FROM TableRef JoinClause*
+}
+
+TableRef {
+  TableSource (AS identifier)?
+}
+
+TableSource {
+  ParenL QueryBody ParenR |
+  IdentifierPath (BangL | ParenL) ArgList? ParenR |
   MacroVariable |
-  Identifier
+  IdentifierPath
 }
 
-Keyword {
-  @specialize<Identifier,
-    "ALL" | "all" |
-    "AND" | "and" |
-    "AS" | "as" |
-    "ASC" | "asc" |
-    "BETWEEN" | "between" |
-    "BY" | "by" |
-    "CASE" | "case" |
-    "CAST" | "cast" |
-    "CREATE" | "create" |
-    "CROSS" | "cross" |
-    "DELETE" | "delete" |
-    "DESC" | "desc" |
-    "DISTINCT" | "distinct" |
-    "DROP" | "drop" |
-    "ELSE" | "else" |
-    "END" | "end" |
-    "EXCEPT" | "except" |
-    "FROM" | "from" |
-    "FUNCTION" | "function" |
-    "GLOB" | "glob" |
-    "GROUP" | "group" |
-    "HAVING" | "having" |
-    "IN" | "in" |
-    "INCLUDE" | "include" |
-    "INNER" | "inner" |
-    "INSERT" | "insert" |
-    "INTERSECT" | "intersect" |
-    "IS" | "is" |
-    "JOIN" | "join" |
-    "LEFT" | "left" |
-    "LIKE" | "like" |
-    "LIMIT" | "limit" |
-    "MACRO" | "macro" |
-    "MODULE" | "module" |
-    "NOT" | "not" |
-    "OFFSET" | "offset" |
-    "ON" | "on" |
-    "OR" | "or" |
-    "ORDER" | "order" |
-    "OUTER" | "outer" |
-    "OVER" | "over" |
-    "PARTITION" | "partition" |
-    "PERFETTO" | "perfetto" |
-    "REPLACE" | "replace" |
-    "RETURN" | "return" |
-    "RETURNS" | "returns" |
-    "RIGHT" | "right" |
-    "SELECT" | "select" |
-    "TABLE" | "table" |
-    "THEN" | "then" |
-    "UNION" | "union" |
-    "UPDATE" | "update" |
-    "USING" | "using" |
-    "VALUES" | "values" |
-    "VIEW" | "view" |
-    "WHEN" | "WHEN" |
-    "WHERE" | "where" |
-    "WITH" | "with"
-  >
+IdentifierPath { identifier (Dot identifier)* }
+
+JoinClause {
+  JoinType? JOIN TableRef JoinConstraint?
 }
 
-Function {
-  @specialize<Identifier,
-    "AVG" | "avg" |
-    "COUNT" | "count" |
-    "CUME_DIST" | "cume_dist" |
-    "DATETIME" | "datetime" |
-    "DENSE_RANK" | "dense_rank" |
-    "EXISTS" | "exists" |
-    "FIRST_VALUE" | "first_value" |
-    "FIRST" | "first" |
-    "GROUP_CONCAT" | "group_concat" |
-    "IFNULL" | "ifnull" |
-    "IIF" | "iif" |
-    "LAG" | "lag" |
-    "LAST_VALUE" | "last_value" |
-    "LAST" | "last" |
-    "LEAD" | "lead" |
-    "MAX" | "max" |
-    "MIN" | "min" |
-    "NTH_VALUE" | "nth_value" |
-    "NTILE" | "ntile" |
-    "PERCENT_RANK" | "percent_rank" |
-    "RANK" | "rank" |
-    "ROW_NUMBER" | "row_number" |
-    "SUM" | "sum" |
-    "TIME" | "time" |
-    "TOTAL" | "total"
-  >
+JoinType {
+  LEFT OUTER? |
+  RIGHT OUTER? |
+  INNER |
+  CROSS |
+  NATURAL
 }
 
+JoinConstraint {
+  ON Expression |
+  USING ParenL ColumnNameList ParenR
+}
+
+ColumnNameList {
+  identifier (Comma identifier)*
+}
+
+// ---------------------------------------------------------------------------
+// WHERE / GROUP BY / HAVING / ORDER BY / LIMIT
+// ---------------------------------------------------------------------------
+WhereClause { WHERE Expression }
+
+GroupByClause { GROUP BY ExpressionList }
+
+HavingClause { HAVING Expression }
+
+OrderByClause { ORDER BY OrderingTerm (Comma OrderingTerm)* }
+
+OrderingTerm { Expression (ASC | DESC)? }
+
+LimitClause { LIMIT Expression (OFFSET Expression | Comma Expression)? }
+
+// ---------------------------------------------------------------------------
+// CREATE PERFETTO TABLE
+// ---------------------------------------------------------------------------
+CreatePerfettoTableStatement {
+  CREATE PERFETTO TABLE identifier
+  ColumnDefList?
+  AS QueryBody
+}
+
+// ---------------------------------------------------------------------------
+// CREATE PERFETTO VIEW
+// ---------------------------------------------------------------------------
+CreatePerfettoViewStatement {
+  CREATE PERFETTO VIEW identifier
+  ColumnDefList?
+  AS QueryBody
+}
+
+// ---------------------------------------------------------------------------
+// Column definitions
+// ---------------------------------------------------------------------------
+ColumnDefList {
+  ParenL ColumnDef (Comma ColumnDef)* ParenR
+}
+
+ColumnDef {
+  identifier ColumnType
+}
+
+ColumnType {
+  identifier (ParenL IdentifierPath ParenR)?
+}
+
+// ---------------------------------------------------------------------------
+// CREATE PERFETTO FUNCTION
+// ---------------------------------------------------------------------------
+CreatePerfettoFunctionStatement {
+  CREATE PERFETTO FUNCTION identifier
+  ParenL FunctionParamList? ParenR
+  RETURNS (FunctionReturnType | TABLE ParenL FunctionParamList ParenR)
+  (AS QueryBody | DELEGATES TO identifier)
+}
+
+FunctionParamList {
+  FunctionParam (Comma FunctionParam)*
+}
+
+FunctionParam {
+  identifier ColumnType
+}
+
+FunctionReturnType { identifier }
+
+// ---------------------------------------------------------------------------
+// CREATE PERFETTO MACRO
+// ---------------------------------------------------------------------------
+CreatePerfettoMacroStatement {
+  CREATE PERFETTO MACRO identifier
+  ParenL MacroParamList? ParenR
+  RETURNS identifier
+  AS ParenL QueryBody ParenR
+}
+
+MacroParamList {
+  MacroParam (Comma MacroParam)*
+}
+
+MacroParam {
+  identifier identifier
+}
+
+// ---------------------------------------------------------------------------
+// CREATE PERFETTO INDEX
+// ---------------------------------------------------------------------------
+CreatePerfettoIndexStatement {
+  CREATE PERFETTO INDEX identifier
+  ON identifier ParenL ColumnNameList ParenR
+}
+
+// ---------------------------------------------------------------------------
+// CREATE VIRTUAL TABLE ... USING
+// ---------------------------------------------------------------------------
+CreateVirtualTableStatement {
+  CREATE VIRTUAL TABLE identifier
+  USING identifier ParenL VirtualTableArgList? ParenR
+}
+
+VirtualTableArgList {
+  VirtualTableArg (Comma VirtualTableArg)*
+}
+
+VirtualTableArg { identifier | String | Number }
+
+// ---------------------------------------------------------------------------
+// Expressions
+// ---------------------------------------------------------------------------
+ExpressionList { Expression (Comma Expression)* }
+
+Expression { orExpr }
+
+orExpr {
+  andExpr (OR andExpr)*
+}
+
+andExpr {
+  notExpr (AND notExpr)*
+}
+
+notExpr {
+  NOT notExpr | compareExpr
+}
+
+compareExpr {
+  addExpr (
+    compOp addExpr |
+    IS NOT? addExpr |
+    NOT? IN ParenL (ExpressionList | SelectBody) ParenR |
+    NOT? BETWEEN addExpr AND addExpr |
+    NOT? (LIKE | GLOB) addExpr
+  )?
+}
+
+compOp { OpEq | OpNeq | OpLt | OpGt | OpLte | OpGte }
+
+addExpr {
+  mulExpr ((OpPlus | OpMinus | OpConcat) mulExpr)*
+}
+
+mulExpr {
+  unaryExpr ((Star | OpSlash | OpMod) unaryExpr)*
+}
+
+unaryExpr {
+  (OpMinus | OpPlus) unaryExpr | postfixExpr
+}
+
+postfixExpr {
+  atomExpr (Dot identifier)*
+}
+
+atomExpr {
+  Number |
+  String |
+  Boolean |
+  NULL |
+  MacroVariable |
+  CaseExpr |
+  CastExpr |
+  ExistsExpr |
+  ParenExpr |
+  FunctionCall |
+  MacroInvocation |
+  identifier
+}
+
+FunctionCall {
+  identifier ParenL (DISTINCT? ArgList)? ParenR WindowOver?
+}
+
+MacroInvocation {
+  identifier BangL ArgList? ParenR
+}
+
+ArgList { Expression (Comma Expression)* }
+
+WindowOver {
+  OVER (identifier | ParenL WindowBody ParenR)
+}
+
+WindowBody {
+  (PARTITION BY ExpressionList)
+  (ORDER BY OrderingTerm (Comma OrderingTerm)*)? |
+  ORDER BY OrderingTerm (Comma OrderingTerm)*
+}
+
+ParenExpr {
+  ParenL QueryBody ParenR |
+  ParenL ExpressionList ParenR |
+  ParenL ParenR
+}
+
+CaseExpr {
+  CASE Expression?
+  (WHEN Expression THEN Expression)+
+  (ELSE Expression)?
+  END
+}
+
+CastExpr {
+  CAST ParenL Expression AS identifier ParenR
+}
+
+ExistsExpr {
+  EXISTS ParenL SelectBody ParenR
+}
+
+// ---------------------------------------------------------------------------
+// Case-insensitive keywords via @extend
+// ---------------------------------------------------------------------------
+SELECT   { @extend<identifier, "SELECT"  | "select">  }
+FROM     { @extend<identifier, "FROM"    | "from">    }
+WHERE    { @extend<identifier, "WHERE"   | "where">   }
+AS       { @extend<identifier, "AS"      | "as">      }
+ON       { @extend<identifier, "ON"      | "on">      }
+AND      { @extend<identifier, "AND"     | "and">     }
+OR       { @extend<identifier, "OR"      | "or">      }
+NOT      { @extend<identifier, "NOT"     | "not">     }
+IN       { @extend<identifier, "IN"      | "in">      }
+IS       { @extend<identifier, "IS"      | "is">      }
+NULL     { @extend<identifier, "NULL"    | "null">    }
+JOIN     { @extend<identifier, "JOIN"    | "join">    }
+LEFT     { @extend<identifier, "LEFT"    | "left">    }
+RIGHT    { @extend<identifier, "RIGHT"   | "right">   }
+INNER    { @extend<identifier, "INNER"   | "inner">   }
+OUTER    { @extend<identifier, "OUTER"   | "outer">   }
+CROSS    { @extend<identifier, "CROSS"   | "cross">   }
+NATURAL  { @extend<identifier, "NATURAL" | "natural"> }
+GROUP    { @extend<identifier, "GROUP"   | "group">   }
+BY       { @extend<identifier, "BY"      | "by">      }
+ORDER    { @extend<identifier, "ORDER"   | "order">   }
+HAVING   { @extend<identifier, "HAVING"  | "having">  }
+LIMIT    { @extend<identifier, "LIMIT"   | "limit">   }
+OFFSET   { @extend<identifier, "OFFSET"  | "offset">  }
+UNION    { @extend<identifier, "UNION"   | "union">   }
+ALL      { @extend<identifier, "ALL"     | "all">     }
+INTERSECT { @extend<identifier, "INTERSECT" | "intersect"> }
+EXCEPT   { @extend<identifier, "EXCEPT"  | "except">  }
+DISTINCT { @extend<identifier, "DISTINCT" | "distinct"> }
+ASC      { @extend<identifier, "ASC"     | "asc">     }
+DESC     { @extend<identifier, "DESC"    | "desc">    }
+WITH     { @extend<identifier, "WITH"    | "with">    }
+RECURSIVE { @extend<identifier, "RECURSIVE" | "recursive"> }
+MATERIALIZED { @extend<identifier, "MATERIALIZED" | "materialized"> }
+CREATE   { @extend<identifier, "CREATE"  | "create">  }
+PERFETTO { @extend<identifier, "PERFETTO" | "perfetto"> }
+TABLE    { @extend<identifier, "TABLE"   | "table">   }
+VIEW     { @extend<identifier, "VIEW"    | "view">    }
+FUNCTION { @extend<identifier, "FUNCTION" | "function"> }
+MACRO    { @extend<identifier, "MACRO"   | "macro">   }
+INDEX    { @extend<identifier, "INDEX"   | "index">   }
+VIRTUAL  { @extend<identifier, "VIRTUAL" | "virtual"> }
+USING    { @extend<identifier, "USING"   | "using">   }
+INCLUDE  { @extend<identifier, "INCLUDE" | "include"> }
+MODULE   { @extend<identifier, "MODULE"  | "module">  }
+RETURNS  { @extend<identifier, "RETURNS" | "returns"> }
+DELEGATES { @extend<identifier, "DELEGATES" | "delegates"> }
+TO       { @extend<identifier, "TO"      | "to">      }
+CASE     { @extend<identifier, "CASE"    | "case">    }
+WHEN     { @extend<identifier, "WHEN"    | "when">    }
+THEN     { @extend<identifier, "THEN"    | "then">    }
+ELSE     { @extend<identifier, "ELSE"    | "else">    }
+END      { @extend<identifier, "END"     | "end">     }
+CAST     { @extend<identifier, "CAST"    | "cast">    }
+EXISTS   { @extend<identifier, "EXISTS"  | "exists">  }
+OVER     { @extend<identifier, "OVER"    | "over">    }
+PARTITION { @extend<identifier, "PARTITION" | "partition"> }
+LIKE     { @extend<identifier, "LIKE"    | "like">    }
+GLOB     { @extend<identifier, "GLOB"    | "glob">    }
+BETWEEN  { @extend<identifier, "BETWEEN" | "between"> }
 Boolean {
-  @specialize<Identifier,
-    "TRUE" | "true" |
-    "FALSE" | "false"
-  >
+  @extend<identifier, "TRUE" | "true" | "FALSE" | "false">
 }
 
-Null {
-  @specialize<Identifier,
-    "NULL" | "null"
-  >
-}
-
+// ---------------------------------------------------------------------------
+// Tokens
+// ---------------------------------------------------------------------------
 @tokens {
   String { "'" (![\'\\] | "\\" _)* "'" }
-  Number { $[0-9]+ }
-  MacroVariable { "$" $[$0-9a-zA-Z_]* }
+
+  Number { $[0-9]+ ("." $[0-9]+)? }
+
+  MacroVariable { "$" $[a-zA-Z_] $[a-zA-Z0-9_]* }
+
   LineComment { "--" ![\n]* }
-  Identifier { $[a-zA-Z_] $[$0-9a-zA-Z_.]* }
+
+  identifier { $[a-zA-Z_] $[a-zA-Z0-9_]* }
+
   space { $[ \t\n\r]+ }
-  "(" ")"
+
+  Semi { ";" }
+  Dot { "." }
+  Comma { "," }
+  Star { "*" }
+  ParenL { "(" }
+  ParenR { ")" }
+  BangL { "!(" }
+
+  OpEq { "=" }
+  OpNeq { "!=" | "<>" }
+  OpLt { "<" }
+  OpGt { ">" }
+  OpLte { "<=" }
+  OpGte { ">=" }
+  OpPlus { "+" }
+  OpMinus { "-" }
+  OpSlash { "/" }
+  OpMod { "%" }
+  OpConcat { "||" }
+
+  @precedence { BangL, OpNeq }
+  @precedence { OpConcat, OpSlash }
+  @precedence { OpLte, OpLt }
+  @precedence { OpGte, OpGt }
+  @precedence { Number, Dot }
+  @precedence { LineComment, OpMinus }
+  @precedence { MacroVariable }
+  @precedence { space, identifier }
 }
 
 @skip { space | LineComment }
 
 @detectDelim
-
-//! To build, run:
-//! lezer-generator ui/src/base/perfetto_sql_lang/perfetto_sql.grammar -o ui/src/base/perfetto_sql_lang/perfetto_sql.grammar.js

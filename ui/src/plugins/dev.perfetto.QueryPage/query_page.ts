@@ -45,6 +45,7 @@ import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {TableList} from './table_list';
 import {Icon} from '../../widgets/icon';
+import {formatSQL} from '../../base/perfetto_sql_lang/format';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
@@ -254,6 +255,14 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
                 window.open('http://go/perfetto-sql-agent', '_blank');
               },
             }),
+          m(Button, {
+            icon: 'format_align_left',
+            tooltip: 'Format query',
+            onclick: () => {
+              const formatted = formatSQL(tab.editorText);
+              attrs.onEditorContentUpdate?.(tab.id, formatted);
+            },
+          }),
           m(CopyToClipboardButton, {
             textToCopy: tab.editorText,
             tooltip: 'Copy query to clipboard',

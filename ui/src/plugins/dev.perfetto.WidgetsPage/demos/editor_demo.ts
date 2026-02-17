@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {parseAndPrintTree} from '../../../base/perfetto_sql_lang/language';
 import {Editor} from '../../../widgets/editor';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {CodeSnippet} from '../../../widgets/code_snippet';
@@ -46,7 +45,6 @@ class EditorDemo implements m.ClassComponent {
             readonly,
             text: this.state.text,
             onUpdate: (text) => {
-              parseAndPrintTree(text);
               this.state.text = text;
             },
           }),
