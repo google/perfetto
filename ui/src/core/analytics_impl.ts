@@ -75,12 +75,7 @@ export function initAnalytics(
   // local storage.
   // Skip analytics if the user has disabled analytics.
   // Skip analytics if the embedder does not provide an analytics ID.
-  if (
-    analyticsId !== undefined &&
-    !testingMode &&
-    !embeddedMode &&
-    enable
-  ) {
+  if (analyticsId !== undefined && !testingMode && !embeddedMode && enable) {
     return new AnalyticsImpl(analyticsId);
   }
   return new NullAnalytics();
@@ -133,7 +128,8 @@ class AnalyticsImpl implements AnalyticsInternal {
     if (this.initialized_) return;
     this.initialized_ = true;
     const script = document.createElement('script');
-    script.src = 'https://www.googletagmanager.com/gtag/js?id=' + this.analyticsId;
+    script.src =
+      'https://www.googletagmanager.com/gtag/js?id=' + this.analyticsId;
     script.defer = true;
     document.head.appendChild(script);
     const route = window.location.href;
