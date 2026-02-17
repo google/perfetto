@@ -257,7 +257,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             }),
           m(Button, {
             icon: 'format_align_left',
-            tooltip: 'Format query',
+            tooltip: 'Format query (Shift+Alt+F)',
             onclick: () => {
               const formatted = formatSQL(tab.editorText);
               attrs.onEditorContentUpdate?.(tab.id, formatted);
@@ -335,6 +335,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         text: tab.editorText,
         onUpdate: (content) => attrs.onEditorContentUpdate?.(tab.id, content),
         onExecute: (query) => attrs.onExecute?.(tab.id, query),
+        onFormat: (text) => {
+          attrs.onEditorContentUpdate?.(tab.id, formatSQL(text));
+        },
       }),
     ]);
 

@@ -55,6 +55,9 @@ export interface EditorAttrs extends HTMLAttrs {
   // Callback for the Ctrl/Cmd + S key binding.
   onSave?: () => void;
 
+  // Callback for the Shift+Alt+F key binding (format).
+  onFormat?: (text: string) => void;
+
   // Callback for every change to the editor's content.
   onUpdate?: (text: string) => void;
 }
@@ -72,6 +75,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     const keymaps = [indentWithTab];
     const onExecute = attrs.onExecute;
     const onSave = attrs.onSave;
+    const onFormat = attrs.onFormat;
     const onUpdate = attrs.onUpdate;
 
     if (onExecute) {
@@ -102,6 +106,17 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
         key: 'Mod-s',
         run: (_view: EditorView) => {
           onSave();
+          m.redraw();
+          return true;
+        },
+      });
+    }
+
+    if (onFormat) {
+      keymaps.push({
+        key: 'Shift-Alt-f',
+        run: (view: EditorView) => {
+          onFormat(view.state.doc.toString());
           m.redraw();
           return true;
         },
