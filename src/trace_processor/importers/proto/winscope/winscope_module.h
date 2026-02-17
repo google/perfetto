@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/protovm_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/android_input_event_parser.h"
 #include "src/trace_processor/importers/proto/winscope/protolog_parser.h"
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h"
@@ -67,6 +68,7 @@ class WinscopeModule : public ProtoImporterModule {
                                    protozero::ConstBytes blob);
 
   winscope::WinscopeContext context_;
+  ProtoVmTracker* protovm_tracker_;
   util::ProtoToArgsParser args_parser_;
 
   winscope::SurfaceFlingerLayersParser surfaceflinger_layers_parser_;

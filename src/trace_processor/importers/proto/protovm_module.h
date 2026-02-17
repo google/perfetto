@@ -17,13 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTOVM_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTOVM_MODULE_H_
 
-#include <memory>
-#include <vector>
-
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/protovm/vm.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/protovm_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -44,22 +41,14 @@ class ProtoVmModule : public ProtoImporterModule {
 
  private:
   void ProcessTraceProvenancePacket(protozero::ConstBytes blob);
-  void ProcessProtoVmsPacket(protozero::ConstBytes blob);
-  ModuleResult TryProcessPatch(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state);
-  TraceBlob SerializeIncrementalState(
-      const protovm::Vm& vm,
-      const protos::pbzero::TracePacket::Decoder& patch) const;
-
-  base::FlatHashMap<int32_t, std::vector<uint32_t>>
-      producer_id_to_sequence_ids_;
-  base::FlatHashMap<uint32_t, std::vector<protovm::Vm*>> sequence_id_to_vms_;
-  std::vector<std::unique_ptr<protovm::Vm>> vms_;
+  void ProcessProtoVmsPacket(protozero::ConstBytes blob,
+                             const TraceBlobView& packet);
+  std::vector<int32_t> GetProducerIDs(
+      const protos::pbzero::TracePacket::ProtoVms::Instance::Decoder& instance)
+      const;
 
   TraceProcessorContext* trace_context_;
+  ProtoVmTracker* protovm_tracker_;
 };
 
 }  // namespace trace_processor

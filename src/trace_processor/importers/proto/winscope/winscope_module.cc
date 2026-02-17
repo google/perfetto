@@ -47,6 +47,8 @@ WinscopeModule::WinscopeModule(ProtoImporterModuleContext* module_context,
                                TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_{context},
+      protovm_tracker_{
+          ProtoVmTracker::GetOrCreate(context_.trace_processor_context_)},
       args_parser_{*context->descriptor_pool_},
       surfaceflinger_layers_parser_(&context_),
       surfaceflinger_transactions_parser_(context),
@@ -68,11 +70,22 @@ WinscopeModule::WinscopeModule(ProtoImporterModuleContext* module_context,
 
 ModuleResult WinscopeModule::TokenizePacket(
     const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView* /*packet*/,
+    TraceBlobView* packet,
     int64_t /*packet_timestamp*/,
-    RefPtr<PacketSequenceStateGeneration> /*state*/,
+    RefPtr<PacketSequenceStateGeneration> sequence_state,
     uint32_t field_id) {
   switch (field_id) {
+    case TracePacket::kSurfaceflingerTransactionsFieldNumber: {
+      std::optional<ProtoVmTracker::SerializedIncrementalState> state =
+          protovm_tracker_->TryProcessPatch(decoder, *packet,
+                                            std::move(sequence_state));
+      if (state) {
+        module_context_->trace_packet_stream->Push(state->timestamp,
+                                                   std::move(state->data));
+        return ModuleResult::Handled();
+      }
+      return ModuleResult::Ignored();
+    }
     case TracePacket::kProtologViewerConfigFieldNumber:
       protolog_parser_.ParseAndAddViewerConfigToMessageDecoder(
           decoder.protolog_viewer_config());

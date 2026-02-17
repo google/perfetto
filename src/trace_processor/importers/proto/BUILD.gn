@@ -58,6 +58,8 @@ source_set("minimal") {
     "proto_trace_tokenizer.h",
     "protovm_module.cc",
     "protovm_module.h",
+    "protovm_tracker.cc",
+    "protovm_tracker.h",
     "stack_profile_sequence_state.cc",
     "stack_profile_sequence_state.h",
     "track_event_event_importer.h",

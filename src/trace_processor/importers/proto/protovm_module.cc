@@ -19,12 +19,10 @@
 #include <memory>
 
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -32,11 +30,11 @@ namespace trace_processor {
 
 ProtoVmModule::ProtoVmModule(ProtoImporterModuleContext* context,
                              TraceProcessorContext* trace_context)
-    : ProtoImporterModule(context), trace_context_(trace_context) {
+    : ProtoImporterModule(context),
+      trace_context_(trace_context),
+      protovm_tracker_(ProtoVmTracker::GetOrCreate(trace_context_)) {
   RegisterForField(protos::pbzero::TracePacket::kTraceProvenanceFieldNumber);
   RegisterForField(protos::pbzero::TracePacket::kProtovmsFieldNumber);
-  RegisterForField(
-      protos::pbzero::TracePacket::kSurfaceflingerTransactionsFieldNumber);
 }
 
 ProtoVmModule::~ProtoVmModule() = default;
@@ -44,18 +42,18 @@ ProtoVmModule::~ProtoVmModule() = default;
 ModuleResult ProtoVmModule::TokenizePacket(
     const protos::pbzero::TracePacket::Decoder& decoder,
     TraceBlobView* packet,
-    int64_t packet_timestamp,
-    RefPtr<PacketSequenceStateGeneration> state,
+    int64_t /* packet_timestamp */,
+    RefPtr<PacketSequenceStateGeneration> /* state */,
     uint32_t field_id) {
   if (field_id == protos::pbzero::TracePacket::kTraceProvenanceFieldNumber) {
     ProcessTraceProvenancePacket(decoder.trace_provenance());
     return ModuleResult::Ignored();
   }
   if (field_id == protos::pbzero::TracePacket::kProtovmsFieldNumber) {
-    ProcessProtoVmsPacket(decoder.protovms());
+    ProcessProtoVmsPacket(decoder.protovms(), *packet);
     return ModuleResult::Ignored();
   }
-  return TryProcessPatch(decoder, packet, packet_timestamp, state);
+  return ModuleResult::Ignored();
 }
 
 void ProtoVmModule::ProcessTraceProvenancePacket(protozero::ConstBytes blob) {
@@ -64,83 +62,34 @@ void ProtoVmModule::ProcessTraceProvenancePacket(protozero::ConstBytes blob) {
     protos::pbzero::TraceProvenance::Buffer::Decoder buffer(*it_buf);
     for (auto it_seq = buffer.sequences(); it_seq; ++it_seq) {
       protos::pbzero::TraceProvenance::Sequence::Decoder sequence(*it_seq);
-      producer_id_to_sequence_ids_[sequence.producer_id()].push_back(
-          sequence.id());
+      protovm_tracker_->AddSequenceProducerMapping(
+          sequence.id(), static_cast<int32_t>(sequence.producer_id()));
     }
   }
 }
 
-void ProtoVmModule::ProcessProtoVmsPacket(protozero::ConstBytes blob) {
+void ProtoVmModule::ProcessProtoVmsPacket(protozero::ConstBytes blob,
+                                          const TraceBlobView& /*packet*/) {
   protos::pbzero::TracePacket::ProtoVms::Decoder decoder(blob);
   for (auto it = decoder.instance(); it; ++it) {
     protos::pbzero::TracePacket::ProtoVms::Instance::Decoder instance(*it);
     protozero::ConstBytes state = instance.has_state()
                                       ? instance.state()
                                       : protozero::ConstBytes{nullptr, 0};
-    vms_.push_back(std::make_unique<protovm::Vm>(
-        instance.program(), 1024 * instance.memory_limit_kb(), state));
-    protovm::Vm* vm = vms_.back().get();
-    for (auto producer_id = instance.producer_id(); producer_id;
-         ++producer_id) {
-      auto* sequence_ids = producer_id_to_sequence_ids_.Find(*producer_id);
-      PERFETTO_CHECK(sequence_ids);  // TODO: increment stats
-      for (auto sequence_id : *sequence_ids) {
-        sequence_id_to_vms_[sequence_id].push_back(vm);
-      }
-    }
+    auto vm = std::make_unique<protovm::Vm>(
+        instance.program(), 1024 * instance.memory_limit_kb(), state);
+    protovm_tracker_->AddProtoVm(std::move(vm), GetProducerIDs(instance));
   }
-  producer_id_to_sequence_ids_.Clear();
 }
 
-ModuleResult ProtoVmModule::TryProcessPatch(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t,
-    RefPtr<PacketSequenceStateGeneration> state) {
-  std::vector<protovm::Vm*>* vms =
-      sequence_id_to_vms_.Find(decoder.trusted_packet_sequence_id());
-  if (!vms) {
-    return ModuleResult::Ignored();
+std::vector<int32_t> ProtoVmModule::GetProducerIDs(
+    const protos::pbzero::TracePacket::ProtoVms::Instance::Decoder& instance)
+    const {
+  std::vector<int32_t> ids;
+  for (auto id = instance.producer_id(); id; ++id) {
+    ids.push_back(*id);
   }
-  for (auto* vm : *vms) {
-    auto status = vm->ApplyPatch({packet->data(), packet->size()});
-    if (status.IsOk()) {
-      protozero::HeapBuffered<protozero::Message> incremental_state;
-      TraceBlob serialized = SerializeIncrementalState(*vm, decoder);
-      // TODO(lalitm): I suspect there will be discussions about this. FYI here
-      // we read the timestamp from the serialized incremental state, so that a
-      // ProtoVM's program also has the power of setting timestamps. Primiano
-      // wanted this feature so you might want to chat directly with him. We can
-      // always make the implementation below more efficient avoiding to
-      // construct a full TracePacket::Decoder.
-      protos::pbzero::TracePacket::Decoder serialized_decoder(
-          protozero::ConstBytes{serialized.data(), serialized.size()});
-      auto serialized_timestamp = serialized_decoder.timestamp();
-      module_context_->trace_packet_stream->Push(
-          static_cast<int64_t>(serialized_timestamp),
-          TracePacketData{TraceBlobView{std::move(serialized)},
-                          std::move(state)});
-      return ModuleResult::Handled();
-    }
-    if (status.IsAbort()) {
-      trace_context_->import_logs_tracker->RecordTokenizationError(
-          stats::protovm_abort, packet->offset());
-      return ModuleResult::Handled();
-    }
-  }
-  return ModuleResult::Ignored();
-}
-
-TraceBlob ProtoVmModule::SerializeIncrementalState(
-    const protovm::Vm& vm,
-    const protos::pbzero::TracePacket::Decoder& patch) const {
-  protozero::HeapBuffered<protos::pbzero::TracePacket> proto;
-  vm.SerializeIncrementalState(proto.get());
-  proto->set_trusted_uid(patch.trusted_uid());
-  proto->set_trusted_pid(patch.trusted_pid());
-  proto->set_trusted_packet_sequence_id(patch.trusted_packet_sequence_id());
-  auto [data, size] = proto.SerializeAsUniquePtr();
-  return TraceBlob::TakeOwnership(std::move(data), size);
+  return ids;
 }
 
 }  // namespace trace_processor
