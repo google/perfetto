@@ -17,15 +17,14 @@
  *
  * THEME HANDLING:
  *
- * ECharts themes are registered at initialization time by reading CSS variables
- * from the theme provider (see chart_theme.ts). When the user switches themes:
+ * All theme-sensitive values (axis colors, series colors, tooltip colors) are
+ * embedded directly in the ECharts option object by reading CSS variables at
+ * option-build time (see chart_option_builder.ts and chart_theme.ts).
  *
- * 1. A MutationObserver detects the class change on .pf-theme-provider
- * 2. onThemeChange() re-registers ECharts themes with fresh CSS variable values
- * 3. The chart is disposed and re-initialized with the new theme
- * 4. m.redraw() triggers parent components to rebuild options with new colors
- *
- * This approach ensures charts respond to theme changes without page reload.
+ * When the user switches themes, Mithril redraws the parent component, which
+ * rebuilds the option with the latest CSS variable values. EChartView detects
+ * the option change and calls setOption() to update the chart — no dispose or
+ * re-initialization needed.
  */
 
 import m from 'mithril';
@@ -47,14 +46,11 @@ import {
 } from 'echarts/components';
 import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsType} from 'echarts/core';
+import {assertExists} from '../../../base/logging';
 import {classNames} from '../../../base/classnames';
 import {SimpleResizeObserver} from '../../../base/resize_observer';
 import {Spinner} from '../../../widgets/spinner';
-import {
-  isDarkTheme,
-  getChartThemeColors,
-  type ChartThemeColors,
-} from './chart_theme';
+import {type ChartThemeColors, getChartThemeColors} from './chart_theme';
 
 // Re-export for backward compatibility
 export {getChartThemeColors as getPerfettoThemeColors};
@@ -79,162 +75,6 @@ function ensureEChartsSetup(): void {
     ToolboxComponent,
     CanvasRenderer,
   ]);
-  registerPerfettoThemes();
-}
-
-/**
- * Returns the ECharts theme name based on current theme.
- */
-function getCurrentThemeName(): 'perfetto-light' | 'perfetto-dark' {
-  return isDarkTheme() ? 'perfetto-dark' : 'perfetto-light';
-}
-
-/**
- * Builds an ECharts theme object by reading CSS variables.
- */
-function buildEChartsTheme(): Record<string, unknown> {
-  const theme = getChartThemeColors();
-
-  return {
-    color: theme.chartColors,
-    backgroundColor: 'transparent',
-    textStyle: {
-      color: theme.textColor,
-      fontFamily: 'inherit',
-    },
-    title: {
-      textStyle: {
-        color: theme.textColor,
-      },
-    },
-    legend: {
-      textStyle: {
-        color: theme.textColor,
-      },
-    },
-    tooltip: {
-      backgroundColor: theme.backgroundColor,
-      borderColor: theme.borderColor,
-      textStyle: {
-        color: theme.textColor,
-      },
-    },
-    axisPointer: {
-      lineStyle: {
-        color: theme.borderColor,
-      },
-      crossStyle: {
-        color: theme.borderColor,
-      },
-    },
-    xAxis: {
-      axisLine: {
-        lineStyle: {
-          color: theme.borderColor,
-        },
-      },
-      axisTick: {
-        lineStyle: {
-          color: theme.borderColor,
-        },
-      },
-      axisLabel: {
-        color: theme.textColor,
-      },
-      splitLine: {
-        lineStyle: {
-          color: theme.borderColor,
-        },
-      },
-      nameTextStyle: {
-        color: theme.textColor,
-      },
-    },
-    yAxis: {
-      axisLine: {
-        lineStyle: {
-          color: theme.borderColor,
-        },
-      },
-      axisTick: {
-        lineStyle: {
-          color: theme.borderColor,
-        },
-      },
-      axisLabel: {
-        color: theme.textColor,
-      },
-      splitLine: {
-        lineStyle: {
-          color: theme.borderColor,
-        },
-      },
-      nameTextStyle: {
-        color: theme.textColor,
-      },
-    },
-  };
-}
-
-/**
- * Registers both light and dark Perfetto themes with ECharts.
- * Called once during ECharts initialization.
- */
-function registerPerfettoThemes(): void {
-  // Register themes with current CSS variable values.
-  // Note: Theme registration happens once at init time. For dynamic theme
-  // switching, we re-initialize the chart instance with the new theme name.
-  const theme = buildEChartsTheme();
-  echarts.registerTheme('perfetto-light', theme);
-  echarts.registerTheme('perfetto-dark', theme);
-}
-
-// Global set to track all mounted EChartView instances
-const mountedCharts = new Set<EChartView>();
-
-// Single MutationObserver for all charts
-let themeObserver: MutationObserver | undefined;
-
-/**
- * Starts observing theme provider class changes to detect theme switches.
- * Only creates the observer when the first chart mounts.
- */
-function startThemeObserver(): void {
-  if (themeObserver !== undefined) return;
-
-  const themeProvider = document.querySelector('.pf-theme-provider');
-  if (themeProvider === null) return;
-
-  themeObserver = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (
-        mutation.type === 'attributes' &&
-        mutation.attributeName === 'class'
-      ) {
-        const newTheme = getCurrentThemeName();
-        // Notify all mounted charts
-        for (const chart of mountedCharts) {
-          chart.onThemeChange(newTheme);
-        }
-        break;
-      }
-    }
-  });
-
-  themeObserver.observe(themeProvider, {
-    attributes: true,
-    attributeFilter: ['class'],
-  });
-}
-
-/**
- * Stops the theme observer when no charts are mounted.
- */
-function stopThemeObserver(): void {
-  if (themeObserver !== undefined && mountedCharts.size === 0) {
-    themeObserver.disconnect();
-    themeObserver = undefined;
-  }
 }
 
 /**
@@ -317,17 +157,13 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
   private resizeObs?: Disposable;
   private prevHandlers: ReadonlyArray<EChartEventHandler> = [];
   private prevOptionJson?: string;
-  private currentTheme: 'perfetto-light' | 'perfetto-dark' = 'perfetto-light';
 
   oncreate({dom, attrs}: m.CVnodeDOM<EChartViewAttrs>) {
     ensureEChartsSetup();
-    this.currentTheme = getCurrentThemeName();
 
-    const container = dom.querySelector(
-      '.pf-echart-view__canvas',
-    ) as HTMLElement | null;
-    if (container === null) return;
-    this.container = container;
+    this.container = assertExists(
+      dom.querySelector('.pf-echart-view__canvas') as HTMLElement | null,
+    );
 
     // Only init ECharts when we have an option to render (the canvas
     // is display:none during loading, so init would get 0×0 dimensions).
@@ -340,10 +176,6 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     this.resizeObs = new SimpleResizeObserver(dom, () => {
       requestAnimationFrame(() => this.chart?.resize());
     });
-
-    // Register for theme changes
-    mountedCharts.add(this);
-    startThemeObserver();
   }
 
   onupdate({attrs}: m.CVnodeDOM<EChartViewAttrs>) {
@@ -369,7 +201,7 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
 
   private initChart(attrs: EChartViewAttrs): void {
     if (this.container === undefined || attrs.option === undefined) return;
-    this.chart = echarts.init(this.container, this.currentTheme);
+    this.chart = echarts.init(this.container);
     this.chart.setOption(attrs.option);
     this.prevOptionJson = JSON.stringify(attrs.option);
     this.syncHandlers(attrs.eventHandlers ?? []);
@@ -389,9 +221,6 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
   }
 
   onremove() {
-    mountedCharts.delete(this);
-    stopThemeObserver();
-
     if (this.resizeObs) {
       this.resizeObs[Symbol.dispose]();
       this.resizeObs = undefined;
@@ -400,31 +229,6 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     if (this.chart) {
       this.chart.dispose();
       this.chart = undefined;
-    }
-  }
-
-  /**
-   * Called when the document theme changes.
-   * Re-registers ECharts themes with new CSS values and reinitializes charts.
-   */
-  onThemeChange(newTheme: 'perfetto-light' | 'perfetto-dark'): void {
-    if (this.currentTheme === newTheme) return;
-    this.currentTheme = newTheme;
-
-    // Re-register themes with updated CSS variable values
-    const theme = buildEChartsTheme();
-    echarts.registerTheme('perfetto-light', theme);
-    echarts.registerTheme('perfetto-dark', theme);
-
-    // Re-initialize chart with new theme
-    if (this.chart !== undefined && this.container !== undefined) {
-      const currentOption = this.chart.getOption();
-      this.chart.dispose();
-      this.chart = echarts.init(this.container, newTheme);
-      this.chart.setOption(currentOption, {notMerge: true});
-      this.syncHandlers(this.prevHandlers);
-      this.chart.resize();
-      m.redraw();
     }
   }
 
@@ -444,15 +248,13 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
         // instead of setting an explicit pixel height via inline style.
         style: attrs.fillParent ? undefined : {height: `${height}px`},
       },
-      [
-        m('.pf-echart-view__canvas', {
-          className: classNames(
-            (isLoading || isEmpty) && 'pf-echart-view__canvas--hidden',
-          ),
-        }),
-        isLoading && m('.pf-echart-view__loading', m(Spinner)),
-        isEmpty && m('.pf-echart-view__empty', 'No data to display'),
-      ],
+      m('.pf-echart-view__canvas', {
+        className: classNames(
+          (isLoading || isEmpty) && 'pf-echart-view__canvas--hidden',
+        ),
+      }),
+      isLoading && m('.pf-echart-view__loading', m(Spinner)),
+      isEmpty && m('.pf-echart-view__empty', 'No data to display'),
     );
   }
 

@@ -15,16 +15,14 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {AggregationType, extractBrushRange, formatNumber} from './chart_utils';
-import {
-  EChartView,
-  EChartEventHandler,
-  getPerfettoThemeColors,
-} from './echart_view';
+import {EChartView, EChartEventHandler} from './echart_view';
 import {
   buildAxisOption,
   buildGridOption,
   buildBrushOption,
+  buildTooltipOption,
 } from './chart_option_builder';
+import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single bar in the bar chart.
@@ -155,12 +153,7 @@ function buildBarOption(
   } = attrs;
   const fmtMeasure = formatMeasure ?? formatNumber;
 
-  // Only get theme for custom color overrides
-  const theme =
-    barColor === undefined || barHoverColor === undefined
-      ? getPerfettoThemeColors()
-      : undefined;
-
+  const theme = getChartThemeColors();
   const horizontal = orientation === 'horizontal';
   const labels = data.items.map((item) => String(item.label));
 
@@ -192,17 +185,18 @@ function buildBarOption(
 
   const option: Record<string, unknown> = {
     animation: false,
+    color: [...theme.chartColors],
     grid: buildGridOption({
       bottom: dimensionLabel && !horizontal ? 45 : 25,
     }),
-    tooltip: {
+    tooltip: buildTooltipOption({
       trigger: 'axis' as const,
       axisPointer: {type: 'shadow' as const},
       formatter: (params: Array<{name?: string; value?: number}>) => {
         const p = Array.isArray(params) ? params[0] : params;
         return `${p.name ?? ''}<br>${measureLabel}: ${fmtMeasure(p.value ?? 0)}`;
       },
-    },
+    }),
     xAxis: horizontal ? valueAxis : categoryAxis,
     yAxis: horizontal ? categoryAxis : valueAxis,
     series: [
@@ -210,12 +204,11 @@ function buildBarOption(
         type: 'bar',
         data: data.items.map((item) => item.value),
         itemStyle: barColor !== undefined ? {color: barColor} : undefined,
-        emphasis:
-          barHoverColor !== undefined
-            ? {itemStyle: {color: barHoverColor}}
-            : theme !== undefined
-              ? {itemStyle: {color: theme.accentColor}}
-              : undefined,
+        emphasis: {
+          itemStyle: {
+            color: barHoverColor ?? theme.accentColor,
+          },
+        },
       },
     ],
   };

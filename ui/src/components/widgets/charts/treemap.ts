@@ -15,12 +15,9 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
-import {
-  EChartView,
-  EChartEventHandler,
-  EChartClickParams,
-  getPerfettoThemeColors,
-} from './echart_view';
+import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
+import {buildTooltipOption} from './chart_option_builder';
+import {getChartThemeColors} from './chart_theme';
 
 /**
  * A node in the treemap hierarchy.
@@ -94,7 +91,7 @@ export interface TreemapChartAttrs {
   readonly enableDrillDown?: boolean;
 }
 
-export class TreemapChart implements m.ClassComponent<TreemapChartAttrs> {
+export class Treemap implements m.ClassComponent<TreemapChartAttrs> {
   view({attrs}: m.Vnode<TreemapChartAttrs>) {
     const {data, height, fillParent, className} = attrs;
 
@@ -126,7 +123,7 @@ function buildTreemapOption(
     enableDrillDown = false,
   } = attrs;
 
-  const theme = getPerfettoThemeColors();
+  const theme = getChartThemeColors();
 
   // Build category-to-color mapping
   const categoryColors = new Map<string, string>();
@@ -136,7 +133,7 @@ function buildTreemapOption(
 
   return {
     animation: false,
-    tooltip: {
+    tooltip: buildTooltipOption({
       trigger: 'item' as const,
       formatter: (params: {name?: string; value?: number}) => {
         const name = params.name ?? '';
@@ -144,7 +141,7 @@ function buildTreemapOption(
         const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
         return [name, `Value: ${formatValue(value)}`, `${pct}%`].join('<br>');
       },
-    },
+    }),
     series: [
       {
         type: 'treemap',

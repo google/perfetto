@@ -15,12 +15,9 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
-import {
-  EChartView,
-  EChartEventHandler,
-  getPerfettoThemeColors,
-} from './echart_view';
+import {EChartView, EChartEventHandler} from './echart_view';
 import {buildChartOption, buildLegendOption} from './chart_option_builder';
+import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single data point in a scatter chart.
@@ -140,7 +137,7 @@ export interface ScatterChartAttrs {
   readonly scaleAxes?: boolean;
 }
 
-export class ScatterChart implements m.ClassComponent<ScatterChartAttrs> {
+export class Scatterplot implements m.ClassComponent<ScatterChartAttrs> {
   view({attrs}: m.Vnode<ScatterChartAttrs>) {
     const {data, height, fillParent, className, onBrush} = attrs;
 
@@ -183,8 +180,7 @@ function buildScatterOption(
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
 
-  // Only get theme for emphasis border color (not themed by ECharts)
-  const theme = getPerfettoThemeColors();
+  const theme = getChartThemeColors();
   const displayLegend = showLegend ?? data.series.length > 1;
 
   // Compute size range for normalization if any points have sizes

@@ -15,13 +15,9 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
-import {
-  EChartView,
-  EChartEventHandler,
-  EChartClickParams,
-  getPerfettoThemeColors,
-} from './echart_view';
-import {buildLegendOption} from './chart_option_builder';
+import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
+import {buildLegendOption, buildTooltipOption} from './chart_option_builder';
+import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single slice in the pie chart.
@@ -123,8 +119,7 @@ function buildPieOption(
     innerRadiusRatio = 0,
   } = attrs;
 
-  // Only get theme for border color (not themed by ECharts)
-  const theme = getPerfettoThemeColors();
+  const theme = getChartThemeColors();
 
   const pieData = slices.map((s) => ({
     name: s.label,
@@ -138,7 +133,8 @@ function buildPieOption(
 
   return {
     animation: false,
-    tooltip: {
+    color: [...theme.chartColors],
+    tooltip: buildTooltipOption({
       trigger: 'item' as const,
       formatter: (params: {
         name?: string;
@@ -150,7 +146,7 @@ function buildPieOption(
         const pct = params.percent?.toFixed(1) ?? '0';
         return [name, `Value: ${formatValue(value)}`, `${pct}%`].join('<br>');
       },
-    },
+    }),
     legend: showLegend ? buildLegendOption('right') : {show: false},
     series: [
       {

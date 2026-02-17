@@ -21,7 +21,7 @@ import {
   sqlInClause,
   validateColumnName,
 } from './chart_utils';
-import {TreemapData, TreemapNode} from './treemap_chart';
+import {TreemapData, TreemapNode} from './treemap';
 
 /**
  * Configuration for SQLTreemapLoader.

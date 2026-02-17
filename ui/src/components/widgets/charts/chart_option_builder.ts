@@ -119,6 +119,23 @@ export function buildGridOption(opts?: {
 }
 
 /**
+ * Build a themed tooltip option.
+ * Explicitly includes theme colors so tooltips adapt when the theme changes.
+ * Extra options are merged in (e.g. trigger, formatter).
+ */
+export function buildTooltipOption(
+  extra?: Record<string, unknown>,
+): Record<string, unknown> {
+  const theme = getChartThemeColors();
+  return {
+    backgroundColor: theme.backgroundColor,
+    borderColor: theme.borderColor,
+    textStyle: {color: theme.textColor},
+    ...extra,
+  };
+}
+
+/**
  * Build a brush configuration.
  * Uses accent color from theme (ECharts doesn't theme brush colors).
  */
@@ -177,7 +194,10 @@ export function buildLegendOption(
 /**
  * Build a complete base chart option with grid, axes, and optional
  * tooltip/brush/legend. Charts add their own `series` on top.
- * Theme colors are applied by ECharts theme system.
+ *
+ * The `color` array (series colors) and tooltip theme colors are included
+ * so that charts update automatically when the Mithril component re-renders
+ * after a theme change — without needing to reinitialize the ECharts instance.
  */
 export function buildChartOption(config: {
   readonly grid?: Parameters<typeof buildGridOption>[0];
@@ -188,17 +208,17 @@ export function buildChartOption(config: {
   readonly legend?: Record<string, unknown>;
 }): EChartsCoreOption {
   const {grid, xAxis, yAxis, tooltip, brush, legend} = config;
+  const theme = getChartThemeColors();
 
   const option: Record<string, unknown> = {
     animation: false,
+    color: [...theme.chartColors],
     grid: buildGridOption(grid),
     xAxis: buildAxisOption(xAxis, true),
     yAxis: buildAxisOption(yAxis, false),
+    tooltip: buildTooltipOption(tooltip),
   };
 
-  if (tooltip !== undefined) {
-    option.tooltip = tooltip;
-  }
   if (brush !== undefined) {
     option.brush = buildBrushOption(brush);
     // Hide the default brush toolbox; we activate brush programmatically.

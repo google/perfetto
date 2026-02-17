@@ -20,7 +20,7 @@ import {
   ScatterChartData,
   ScatterChartPoint,
   ScatterChartSeries,
-} from './scatter_chart';
+} from './scatterplot';
 
 /**
  * Configuration for SQLScatterChartLoader.
@@ -160,20 +160,46 @@ export class SQLScatterChartLoader {
             ? `CAST(${this.seriesColumn} AS TEXT)`
             : 'NULL';
 
+        // Build the inner query with optional per-series stride sampling.
+        // When maxPoints is set, window functions stride-sample each series
+        // down to at most maxPoints rows in SQL rather than loading all rows
+        // into JS and discarding most of them.
+        const maxPoints = config.maxPoints;
         const orderBy =
           this.seriesColumn !== undefined ? 'ORDER BY _series' : '';
 
-        const sql = `
-          SELECT
-            CAST(${xCol} AS REAL) AS _x,
-            CAST(${yCol} AS REAL) AS _y,
-            ${sizeExpr} AS _size,
-            ${labelExpr} AS _label,
-            ${seriesExpr} AS _series
-          FROM (${this.baseQuery})
-          ${whereClause}
-          ${orderBy}
-        `;
+        let sql: string;
+        if (maxPoints !== undefined) {
+          sql = `
+            SELECT _x, _y, _size, _label, _series
+            FROM (
+              SELECT
+                CAST(${xCol} AS REAL) AS _x,
+                CAST(${yCol} AS REAL) AS _y,
+                ${sizeExpr} AS _size,
+                ${labelExpr} AS _label,
+                ${seriesExpr} AS _series,
+                ROW_NUMBER() OVER (PARTITION BY ${seriesExpr}) AS _rn,
+                COUNT(*) OVER (PARTITION BY ${seriesExpr}) AS _cnt
+              FROM (${this.baseQuery})
+              ${whereClause}
+            )
+            WHERE _rn % MAX(1, (_cnt + ${maxPoints} - 1) / ${maxPoints}) = 0
+            ${orderBy}
+          `;
+        } else {
+          sql = `
+            SELECT
+              CAST(${xCol} AS REAL) AS _x,
+              CAST(${yCol} AS REAL) AS _y,
+              ${sizeExpr} AS _size,
+              ${labelExpr} AS _label,
+              ${seriesExpr} AS _series
+            FROM (${this.baseQuery})
+            ${whereClause}
+            ${orderBy}
+          `;
+        }
 
         const queryResult = await this.engine.query(sql);
 
@@ -205,14 +231,9 @@ export class SQLScatterChartLoader {
           points.push(point);
         }
 
-        // Apply max points limit with sampling if needed
         const series: ScatterChartSeries[] = [];
         for (const [name, points] of seriesMap) {
-          const sampledPoints =
-            config.maxPoints !== undefined && points.length > config.maxPoints
-              ? samplePoints(points, config.maxPoints)
-              : points;
-          series.push({name, points: sampledPoints});
+          series.push({name, points});
         }
 
         return {series};
@@ -228,22 +249,4 @@ export class SQLScatterChartLoader {
   dispose(): void {
     this.querySlot.dispose();
   }
-}
-
-/**
- * Deterministically sample points to reduce to maxPoints.
- * Uses stride-based sampling for uniform distribution across the dataset.
- */
-function samplePoints(
-  points: ScatterChartPoint[],
-  maxPoints: number,
-): ScatterChartPoint[] {
-  if (points.length <= maxPoints) return points;
-
-  const step = points.length / maxPoints;
-  const result: ScatterChartPoint[] = [];
-  for (let i = 0; i < maxPoints; i++) {
-    result.push(points[Math.floor(i * step)]);
-  }
-  return result;
 }

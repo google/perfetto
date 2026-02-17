@@ -49,17 +49,14 @@ import {
   PieChartLoaderConfig,
 } from '../../../components/widgets/charts/pie_chart_loader';
 import {
-  ScatterChart,
+  Scatterplot,
   ScatterChartData,
-} from '../../../components/widgets/charts/scatter_chart';
+} from '../../../components/widgets/charts/scatterplot';
 import {
   SQLScatterChartLoader,
   ScatterChartLoaderConfig,
-} from '../../../components/widgets/charts/scatter_chart_loader';
-import {
-  TreemapChart,
-  TreemapData,
-} from '../../../components/widgets/charts/treemap_chart';
+} from '../../../components/widgets/charts/scatterplot_loader';
+import {Treemap, TreemapData} from '../../../components/widgets/charts/treemap';
 import {
   SQLTreemapLoader,
   TreemapLoaderConfig,
@@ -1146,7 +1143,7 @@ function ScatterChartDemo(): m.Component<{
     view: ({attrs}) => {
       const data = attrs.bubbleMode ? SCATTER_BUBBLE_DATA : SCATTER_SAMPLE_DATA;
       return m('div', [
-        m(ScatterChart, {
+        m(Scatterplot, {
           data,
           height: attrs.height,
           xAxisLabel: 'X Value',
@@ -1229,7 +1226,7 @@ function TreemapChartDemo(): m.Component<{
         ? TREEMAP_HIERARCHICAL_DATA
         : TREEMAP_FLAT_DATA;
       return m('div', [
-        m(TreemapChart, {
+        m(Treemap, {
           data,
           height: attrs.height,
           showLabels: attrs.showLabels,
@@ -1293,7 +1290,7 @@ function SQLScatterChartDemo(): m.Component<{
       const {data, isPending} = loader.use(config);
 
       return m('div', [
-        m(ScatterChart, {
+        m(Scatterplot, {
           data,
           height: attrs.height,
           xAxisLabel: 'Timestamp',
@@ -1356,7 +1353,7 @@ function SQLTreemapDemo(): m.Component<{
       const {data, isPending} = loader.use(config);
 
       return m('div', [
-        m(TreemapChart, {
+        m(Treemap, {
           data,
           height: attrs.height,
           showLabels: attrs.showLabels,
