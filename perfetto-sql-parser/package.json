@@ -1,0 +1,17 @@
+{
+  "name": "perfetto-sql-parser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:grammar": "lezer-generator src/perfetto_sql.grammar -o src/parser.js",
+    "build:terms": "lezer-generator src/perfetto_sql.grammar --names -o src/parser.terms.js",
+    "build": "npm run build:grammar && npm run build:terms",
+    "test": "node --test test/parser.test.js"
+  },
+  "devDependencies": {
+    "@lezer/generator": "^1.7.0",
+    "@lezer/lr": "^1.4.0",
+    "@lezer/highlight": "^1.2.0"
+  }
+}
