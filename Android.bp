@@ -1033,16 +1033,6 @@ cc_library {
                 "perfetto_flags_c_lib",
             ],
         },
-        windows: {
-            enabled: true,
-            cflags: [
-                "-Wno-shift-count-overflow",
-                "-Wno-unknown-pragmas",
-            ],
-            host_ldlibs: [
-                "-lws2_32",
-            ],
-        },
     },
 }
 

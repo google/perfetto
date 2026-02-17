@@ -31,19 +31,13 @@
 // MinGW has these. clang-cl and MSVC, which use just the Windows SDK, don't.
 using uid_t = int;
 using gid_t = int;
-
-#if defined(_WIN64)
-using pid_t = int64_t;
-#else
 using pid_t = int;
-#endif  // _WIN64
-
 #endif  // !GCC
 
 #if defined(_WIN64)
 using ssize_t = int64_t;
 #else
-using ssize_t = int;
+using ssize_t = long;
 #endif  // _WIN64
 
 #endif  // OS_WIN
