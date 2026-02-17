@@ -17,6 +17,8 @@ import {NUM_NULL, UNKNOWN} from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
+import {Checkbox} from '../../../widgets/checkbox';
+import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 import {statsSpec, StatsSectionRow} from '../utils';
 
 // Trace metadata row spec and type
@@ -149,7 +151,7 @@ export class StatsTab implements m.ClassComponent<StatsTabAttrs> {
         {
           title: 'Statistics',
           subtitle:
-            'Complete dump of all trace statistics including errors, data losses, and debugging info',
+            'All trace statistics including errors, data losses, and debugging info. Use the checkbox to hide zero values.',
         },
         m(StatsSection, {data: attrs.data.allStats}),
       ),
@@ -166,57 +168,37 @@ interface TraceMetadataAttrs {
 
 class TraceMetadata implements m.ClassComponent<TraceMetadataAttrs> {
   view({attrs}: m.CVnode<TraceMetadataAttrs>) {
-    const tableRows = attrs.data.map((row) => {
-      const columns = [];
-      if (attrs.isMultiTrace) {
-        columns.push(
-          m(
-            'td.pf-trace-info-page__stats-table-cell',
-            row.traceId === null ? '-' : row.traceId,
-          ),
-        );
-      }
-      if (attrs.isMultiMachine) {
-        columns.push(
-          m(
-            'td.pf-trace-info-page__stats-table-cell',
-            row.machineId === null ? '-' : row.machineId,
-          ),
-        );
-      }
-      columns.push(
-        m(
-          'td.pf-trace-info-page__stats-table-cell.pf-trace-info-page__stats-table-cell--name',
-          `${row.name}`,
-        ),
-      );
-      columns.push(
-        m('td.pf-trace-info-page__stats-table-cell', `${row.value}`),
-      );
-      return m('tr.pf-trace-info-page__stats-table-row', columns);
-    });
-
-    const headerCols = [];
+    const columns = [];
     if (attrs.isMultiTrace) {
-      headerCols.push(
-        m('td.pf-trace-info-page__stats-table-head-cell', 'Trace'),
-      );
+      columns.push({header: m(GridHeaderCell, 'Trace'), key: 'trace'});
     }
     if (attrs.isMultiMachine) {
-      headerCols.push(
-        m('td.pf-trace-info-page__stats-table-head-cell', 'Machine'),
-      );
+      columns.push({header: m(GridHeaderCell, 'Machine'), key: 'machine'});
     }
-    headerCols.push(m('td.pf-trace-info-page__stats-table-head-cell', 'Name'));
-    headerCols.push(m('td.pf-trace-info-page__stats-table-head-cell', 'Value'));
+    columns.push({header: m(GridHeaderCell, 'Name'), key: 'name'});
+    columns.push({header: m(GridHeaderCell, 'Value'), key: 'value'});
+
+    const rows = attrs.data.map((row) => {
+      const cells = [];
+      if (attrs.isMultiTrace) {
+        cells.push(m(GridCell, row.traceId === null ? '-' : `${row.traceId}`));
+      }
+      if (attrs.isMultiMachine) {
+        cells.push(
+          m(GridCell, row.machineId === null ? '-' : `${row.machineId}`),
+        );
+      }
+      cells.push(m(GridCell, `${row.name}`));
+      cells.push(m(GridCell, `${row.value}`));
+      return cells;
+    });
 
     return m(
       'section.pf-trace-info-page__stats-section',
-      m(
-        'table.pf-trace-info-page__stats-table',
-        m('thead', m('tr', headerCols)),
-        m('tbody', tableRows),
-      ),
+      m(Grid, {
+        columns,
+        rowData: rows,
+      }),
     );
   }
 }
@@ -227,13 +209,16 @@ interface StatsSectionAttrs {
 }
 
 class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
-  view({attrs}: m.CVnode<StatsSectionAttrs>) {
-    const data = attrs.data;
-    if (data === undefined || data.length === 0) {
-      return m('');
-    }
+  private hideZeros = true;
 
-    const tableRows = data.map((row) => {
+  view({attrs}: m.CVnode<StatsSectionAttrs>) {
+    const data = attrs.data ?? [];
+
+    const filteredData = this.hideZeros
+      ? data.filter((row) => row.value !== 0)
+      : data;
+
+    const rows = filteredData.map((row) => {
       const help = [];
       if (Boolean(row.description)) {
         help.push(
@@ -250,36 +235,34 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
         );
       }
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
-      return m(
-        'tr.pf-trace-info-page__stats-table-row',
-        m(
-          'td.pf-trace-info-page__stats-table-cell.pf-trace-info-page__stats-table-cell--name',
-          `${row.name}${idx}`,
-          help,
-        ),
-        m('td.pf-trace-info-page__stats-table-cell', `${row.value}`),
-        m(
-          'td.pf-trace-info-page__stats-table-cell',
-          `${row.severity} (${row.source})`,
-        ),
-      );
+      return {
+        name: m('span', `${row.name}${idx}`, help),
+        value: `${row.value}`,
+        type: `${row.severity} (${row.source})`,
+      };
     });
 
     return m(
       'section.pf-trace-info-page__stats-section',
-      m(
-        'table.pf-trace-info-page__stats-table',
-        m(
-          'thead',
-          m(
-            'tr',
-            m('td.pf-trace-info-page__stats-table-head-cell', 'Name'),
-            m('td.pf-trace-info-page__stats-table-head-cell', 'Value'),
-            m('td.pf-trace-info-page__stats-table-head-cell', 'Type'),
-          ),
-        ),
-        m('tbody', tableRows),
-      ),
+      m(Checkbox, {
+        label: 'Hide zero values',
+        checked: this.hideZeros,
+        onchange: () => {
+          this.hideZeros = !this.hideZeros;
+        },
+      }),
+      m(Grid, {
+        columns: [
+          {header: m(GridHeaderCell, 'Name'), key: 'name'},
+          {header: m(GridHeaderCell, 'Value'), key: 'value'},
+          {header: m(GridHeaderCell, 'Type'), key: 'type'},
+        ],
+        rowData: rows.map((row) => [
+          m(GridCell, row.name),
+          m(GridCell, row.value),
+          m(GridCell, row.type),
+        ]),
+      }),
     );
   }
 }
