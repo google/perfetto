@@ -221,7 +221,7 @@ int TablePointerModule::FindFunction(sqlite3_vtab*,
                                      void**) {
   if (base::CaseInsensitiveEqual(name, "__intrinsic_table_ptr_bind")) {
     *fn = [](sqlite3_context* ctx, int, sqlite3_value**) {
-      sqlite::result::Error(ctx, "Should not be called.");
+      sqlite::result::Long(ctx, 1);
       return;
     };
     return SQLITE_INDEX_CONSTRAINT_FUNCTION + 1;
