@@ -364,12 +364,12 @@ PERFETTO_PB_MSG(perfetto_protos_AndroidProviderBindingEvent);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
                   VARINT,
                   int32_t,
-                  uid,
+                  source_uid,
                   1);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
                   VARINT,
                   int32_t,
-                  pid,
+                  source_pid,
                   2);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProviderBindingEvent,
                   VARINT,
@@ -401,12 +401,12 @@ PERFETTO_PB_MSG(perfetto_protos_AndroidServiceBindingEvent);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
                   VARINT,
                   int32_t,
-                  uid,
+                  source_uid,
                   1);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
                   VARINT,
                   int32_t,
-                  pid,
+                  source_pid,
                   2);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidServiceBindingEvent,
                   VARINT,

@@ -653,22 +653,48 @@ message AndroidProcessStateChangedEvent {
 }
 
 message AndroidServiceBindingEvent {
-  optional int32 uid = 1;
-  optional int32 pid = 2;
+  // Uid of the package requesting the service binding.
+  optional int32 source_uid = 1;
+
+  // Pid of the process requesting the service binding.
+  optional int32 source_pid = 2;
+
+  // Uid of the package hosting the service.
   optional int32 target_uid = 3;
+
+  // Pid of the process hosting the service.
   optional int32 target_pid = 4;
+
+  // Component name of the service being bound.
   optional string component_name = 5;
+
+  // Intent action for the service binding.
   optional string action = 6;
+
+  // Binding flags.
   optional uint64 flags = 7;
 }
 
 message AndroidProviderBindingEvent {
-  optional int32 uid = 1;
-  optional int32 pid = 2;
+  // Uid of the package requesting the provider.
+  optional int32 source_uid = 1;
+
+  // Pid of the process requesting the provider.
+  optional int32 source_pid = 2;
+
+  // Uid of the package hosting the provider.
   optional int32 target_uid = 3;
+
+  // Pid of the process hosting the provider.
   optional int32 target_pid = 4;
+
+  // Component name of the content provider.
   optional string component_name = 5;
+
+  // Content provider authority.
   optional string authority = 6;
+
+  // Whether the provider binding is stable.
   optional int32 is_stable = 7;
 }
 
