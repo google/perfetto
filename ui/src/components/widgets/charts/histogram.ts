@@ -21,11 +21,7 @@ import {
   HistogramConfig,
   computeHistogram,
 } from './histogram_loader';
-import {
-  EChartView,
-  EChartEventHandler,
-  getPerfettoThemeColors,
-} from './echart_view';
+import {EChartView, EChartEventHandler} from './echart_view';
 import {buildChartOption} from './chart_option_builder';
 
 // Re-export data types for convenience
@@ -138,12 +134,6 @@ function buildOption(
     logScale = false,
   } = attrs;
   const fmtY = formatYValue ?? formatNumber;
-
-  // Only get theme for custom color overrides
-  const theme =
-    barColor === undefined || barHoverColor === undefined
-      ? getPerfettoThemeColors()
-      : undefined;
   const categories = data.buckets.map((b) => formatXValue(b.start));
 
   const option = buildChartOption({
@@ -197,9 +187,7 @@ function buildOption(
       emphasis:
         barHoverColor !== undefined
           ? {itemStyle: {color: barHoverColor}}
-          : theme !== undefined
-            ? {itemStyle: {color: theme.accentColor}}
-            : undefined,
+          : undefined,
     },
   ];
 

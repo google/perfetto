@@ -15,11 +15,7 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {AggregationType, extractBrushRange, formatNumber} from './chart_utils';
-import {
-  EChartView,
-  EChartEventHandler,
-  getPerfettoThemeColors,
-} from './echart_view';
+import {EChartView, EChartEventHandler} from './echart_view';
 import {
   buildAxisOption,
   buildGridOption,
@@ -154,13 +150,6 @@ function buildBarOption(
     orientation = 'vertical',
   } = attrs;
   const fmtMeasure = formatMeasure ?? formatNumber;
-
-  // Only get theme for custom color overrides
-  const theme =
-    barColor === undefined || barHoverColor === undefined
-      ? getPerfettoThemeColors()
-      : undefined;
-
   const horizontal = orientation === 'horizontal';
   const labels = data.items.map((item) => String(item.label));
 
@@ -213,9 +202,7 @@ function buildBarOption(
         emphasis:
           barHoverColor !== undefined
             ? {itemStyle: {color: barHoverColor}}
-            : theme !== undefined
-              ? {itemStyle: {color: theme.accentColor}}
-              : undefined,
+            : undefined,
       },
     ],
   };
@@ -230,7 +217,7 @@ function buildBarOption(
     option.toolbox = {show: false};
   }
 
-  return option as EChartsCoreOption;
+  return option;
 }
 
 function buildBarEventHandlers(

@@ -13,25 +13,7 @@
 // limitations under the License.
 
 /**
- * Chart theme utilities for reading Perfetto theme colors.
- *
- * DESIGN NOTES:
- *
- * 1. Colors are read from CSS variables defined in theme_provider.scss, NOT
- *    hardcoded. This ensures charts automatically adapt when theme colors
- *    are updated in SCSS.
- *
- * 2. We read from the `.pf-theme-provider` element (not document.documentElement)
- *    because that's where theme classes (.pf-theme-provider--light/--dark) are
- *    applied and where CSS variables are scoped.
- *
- * 3. ECharts doesn't automatically pick up CSS variable changes, so chart
- *    components must call getChartThemeColors() when building options and
- *    rebuild when the theme changes (see EChartView.onThemeChange).
- *
- * 4. Chart options that set sub-objects (like axisLabel: {fontSize: 10})
- *    override theme values entirely - ECharts doesn't deep merge. Therefore,
- *    chart_option_builder.ts explicitly includes theme colors in axis options.
+ * Chart theme utilities for reading Perfetto theme colors from CSS variables.
  */
 
 /**
@@ -46,23 +28,10 @@ export interface ChartThemeColors {
 }
 
 /**
- * Returns true if dark theme is currently active.
+ * Returns the current theme colors by reading CSS variables from the given element.
  */
-export function isDarkTheme(): boolean {
-  const themeProvider = document.querySelector('.pf-theme-provider');
-  return themeProvider?.classList.contains('pf-theme-provider--dark') ?? false;
-}
-
-/**
- * Returns the current theme colors by reading CSS variables from the
- * theme provider element. Colors are defined in theme_provider.scss.
- */
-export function getChartThemeColors(): ChartThemeColors {
-  const themeProvider = document.querySelector('.pf-theme-provider');
-  if (themeProvider === null) {
-    throw new Error('Theme provider element not found');
-  }
-  const style = getComputedStyle(themeProvider);
+export function getChartThemeColors(element: Element): ChartThemeColors {
+  const style = getComputedStyle(element);
 
   const chartColors: string[] = [];
   for (let i = 1; i <= 8; i++) {

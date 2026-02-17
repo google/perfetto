@@ -15,12 +15,7 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
-import {
-  EChartView,
-  EChartEventHandler,
-  EChartClickParams,
-  getPerfettoThemeColors,
-} from './echart_view';
+import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
 import {buildLegendOption} from './chart_option_builder';
 
 /**
@@ -123,9 +118,6 @@ function buildPieOption(
     innerRadiusRatio = 0,
   } = attrs;
 
-  // Only get theme for border color (not themed by ECharts)
-  const theme = getPerfettoThemeColors();
-
   const pieData = slices.map((s) => ({
     name: s.label,
     value: s.value,
@@ -165,10 +157,6 @@ function buildPieOption(
         },
         emphasis: {
           scaleSize: 5,
-        },
-        itemStyle: {
-          borderColor: theme.backgroundColor,
-          borderWidth: 2,
         },
       },
     ],

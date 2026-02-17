@@ -15,11 +15,7 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
-import {
-  EChartView,
-  EChartEventHandler,
-  getPerfettoThemeColors,
-} from './echart_view';
+import {EChartView, EChartEventHandler} from './echart_view';
 import {buildChartOption, buildLegendOption} from './chart_option_builder';
 
 /**
@@ -182,9 +178,6 @@ function buildScatterOption(
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
-
-  // Only get theme for emphasis border color (not themed by ECharts)
-  const theme = getPerfettoThemeColors();
   const displayLegend = showLegend ?? data.series.length > 1;
 
   // Compute size range for normalization if any points have sizes
@@ -238,7 +231,7 @@ function buildScatterOption(
         : symbolSize,
       itemStyle: s.color !== undefined ? {color: s.color} : undefined,
       emphasis: {
-        itemStyle: {borderWidth: 2, borderColor: theme.backgroundColor},
+        itemStyle: {borderWidth: 2},
       },
     };
   });
