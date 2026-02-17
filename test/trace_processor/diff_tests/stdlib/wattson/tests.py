@@ -273,12 +273,12 @@ class WattsonStdlib(TestSuite):
               ss.power_state = 'suspended' AS suspended
             FROM _interval_intersect!(
               (
-                _ii_subquery!(_stats_cpu0123),
+                _ii_subquery!(_stats_cpu01234567),
                 _ii_subquery!(android_suspend_state)
               ),
               ()
             ) AS ii
-            JOIN _stats_cpu0123 AS stats
+            JOIN _stats_cpu01234567 AS stats
               ON stats._auto_id = id_0
             JOIN android_suspend_state AS ss
               ON ss._auto_id = id_1
