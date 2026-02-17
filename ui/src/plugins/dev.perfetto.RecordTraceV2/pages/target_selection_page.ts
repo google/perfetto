@@ -27,13 +27,16 @@ import {DisposableStack} from '../../../base/disposable_stack';
 import {CurrentTracingSession, RecordingManager} from '../recording_manager';
 import {download} from '../../../base/download_utils';
 import {RecordSubpage} from '../config/config_interfaces';
-import {RecordPluginSchema} from '../serialization_schema';
+import {RecordPluginSchema, SavedSessionSchema} from '../serialization_schema';
 import {Checkbox} from '../../../widgets/checkbox';
 import {linkify} from '../../../widgets/anchor';
 import {getPresetsForPlatform} from '../presets';
 import {Icons} from '../../../base/semantic_icons';
 import {shareRecordConfig} from '../config/config_sharing';
 import {Card} from '../../../widgets/card';
+import {showModal} from '../../../widgets/modal';
+import {traceConfigToPb} from '../../../base/proto_utils_wasm';
+import protos from '../../../protos';
 
 type RecMgrAttrs = {recMgr: RecordingManager};
 
@@ -68,7 +71,7 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
       // Restore config
       const hasSavedProbes =
         state.lastSession !== undefined &&
-        state.lastSession.probes !== undefined &&
+        state.lastSession.kind === 'probes' &&
         Object.keys(state.lastSession.probes).length > 0;
 
       if (state.selectedConfigId || hasSavedProbes) {
@@ -185,6 +188,7 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
     const isEmptySelected =
       recMgr.selectedConfigId === undefined &&
       recMgr.isConfigModified === false &&
+      !recMgr.hasCustomTraceConfig &&
       !recMgr.recordConfig.hasActiveProbes();
 
     return [
@@ -225,62 +229,63 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
 
   private renderSavedConfigsSection(recMgr: RecordingManager) {
     const hasActiveProbes = recMgr.recordConfig.hasActiveProbes();
+    const hasUnsavedCustomConfig =
+      recMgr.hasCustomTraceConfig && recMgr.selectedConfigId === undefined;
     const shouldHighlightSave =
+      hasUnsavedCustomConfig ||
       (hasActiveProbes && recMgr.selectedConfigId === undefined) ||
       recMgr.isConfigModified === true;
-    const hasSavedConfigs = recMgr.savedConfigs.length > 0;
-    const showSection = hasSavedConfigs || shouldHighlightSave;
-    if (!showSection) {
-      return null;
-    }
     return [
       m('h3', 'User configs'),
       m('.pf-config-selector__grid', [
         // Saved configs
-        ...recMgr.savedConfigs.map((config) => {
+        ...recMgr.savedConfigs.map((saved) => {
           const isSelected =
-            recMgr.selectedConfigId === `saved:${config.name}` &&
+            recMgr.selectedConfigId === `saved:${saved.name}` &&
             recMgr.isConfigModified === false;
+          const config = saved.config;
+          const isCustom = config.kind === 'custom';
           return m(
             Card,
             {
               className:
                 'pf-preset-card' +
                 (isSelected ? ' pf-preset-card--selected' : ''),
-              onclick: () =>
-                recMgr.loadConfig({
-                  config: config.config,
-                  configId: `saved:${config.name}`,
-                  configName: config.name,
-                }),
+              onclick: () => this.loadSavedConfig(recMgr, saved),
               tabindex: 0,
             },
-            m(Icon, {icon: 'bookmark'}),
-            m('.pf-preset-card__title', config.name),
+            m(Icon, {icon: isCustom ? 'description' : 'bookmark'}),
+            m('.pf-preset-card__title', saved.name),
+            isCustom &&
+              m(
+                '.pf-preset-card__subtitle',
+                `Imported from ${config.customConfigFileName ?? 'textproto'}`,
+              ),
             m('.pf-preset-card__actions', [
-              m(Button, {
-                icon: 'save',
-                compact: true,
-                title: 'Overwrite with current settings',
-                onclick: (e: Event) => {
-                  e.stopPropagation();
-                  if (
-                    confirm(
-                      `Overwrite config "${config.name}" with current settings?`,
-                    )
-                  ) {
-                    recMgr.saveConfig(config.name, recMgr.serializeSession());
-                    recMgr.app.raf.scheduleFullRedraw();
-                  }
-                },
-              }),
+              !isCustom &&
+                m(Button, {
+                  icon: 'save',
+                  compact: true,
+                  title: 'Overwrite with current settings',
+                  onclick: (e: Event) => {
+                    e.stopPropagation();
+                    if (
+                      confirm(
+                        `Overwrite config "${saved.name}" with current settings?`,
+                      )
+                    ) {
+                      recMgr.saveConfig(saved.name);
+                      recMgr.app.raf.scheduleFullRedraw();
+                    }
+                  },
+                }),
               m(Button, {
                 icon: 'share',
                 compact: true,
                 title: 'Share configuration',
                 onclick: (e: Event) => {
                   e.stopPropagation();
-                  shareRecordConfig(config.config);
+                  shareRecordConfig(saved.config);
                 },
               }),
               m(Button, {
@@ -289,8 +294,8 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
                 title: 'Delete configuration',
                 onclick: (e: Event) => {
                   e.stopPropagation();
-                  if (confirm(`Delete "${config.name}"?`)) {
-                    recMgr.deleteConfig(config.name);
+                  if (confirm(`Delete "${saved.name}"?`)) {
+                    recMgr.deleteConfig(saved.name);
                     recMgr.app.raf.scheduleFullRedraw();
                   }
                 },
@@ -315,24 +320,68 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
                     );
                     return;
                   }
-                  const savedConfig = recMgr.serializeSession();
-                  recMgr.saveConfig(trimmedName, savedConfig);
-                  recMgr.loadConfig({
-                    config: savedConfig,
-                    configId: `saved:${trimmedName}`,
-                    configName: trimmedName,
-                  });
+                  const saved = recMgr.saveConfig(trimmedName);
+                  this.loadSavedConfig(recMgr, saved);
                   recMgr.app.raf.scheduleFullRedraw();
                 }
               },
               tabindex: 0,
             },
-            m(Icon, {icon: 'tune'}),
-            m('.pf-preset-card__title', 'Custom'),
+            m(Icon, {icon: hasUnsavedCustomConfig ? 'description' : 'tune'}),
+            m(
+              '.pf-preset-card__title',
+              hasUnsavedCustomConfig
+                ? recMgr.customConfigFileName ?? 'Imported config'
+                : 'Custom',
+            ),
             m('.pf-preset-card__subtitle', 'Click to save'),
           ),
+        this.renderImportCard(recMgr),
       ]),
     ];
+  }
+
+  private loadSavedConfig(recMgr: RecordingManager, saved: SavedSessionSchema) {
+    recMgr.loadConfig({
+      config: saved.config,
+      configId: `saved:${saved.name}`,
+      configName: saved.name,
+    });
+  }
+
+  private renderImportCard(recMgr: RecordingManager) {
+    return m(
+      Card,
+      {
+        className: 'pf-preset-card pf-preset-card--dashed',
+        onclick: () => this.openImportDialog(recMgr),
+        tabindex: 0,
+      },
+      m(Icon, {icon: 'upload_file'}),
+      m('.pf-preset-card__title', 'Import'),
+      m('.pf-preset-card__subtitle', 'Load textproto'),
+    );
+  }
+
+  private openImportDialog(recMgr: RecordingManager) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const res = await traceConfigToPb(text);
+      if (!res.ok) {
+        showModal({
+          title: 'Import error',
+          content: `Failed to parse config: ${res.error}`,
+        });
+        return;
+      }
+      const config = protos.TraceConfig.decode(res.value);
+      recMgr.setCustomTraceConfig(config, file.name);
+    };
+    input.click();
   }
 
   private renderCard(

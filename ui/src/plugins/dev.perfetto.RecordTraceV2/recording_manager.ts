@@ -21,6 +21,7 @@ import {ConfigManager} from './config/config_manager';
 import {RecordingTarget} from './interfaces/recording_target';
 import {RecordingTargetProvider} from './interfaces/recording_target_provider';
 import {
+  PROBES_SESSION_SCHEMA,
   RECORD_PLUGIN_SCHEMA,
   RECORD_SESSION_SCHEMA,
   RecordPluginSchema,
@@ -31,6 +32,7 @@ import {TargetPlatformId} from './interfaces/target_platform';
 import {TracingSession} from './interfaces/tracing_session';
 import {uuidv4} from '../../base/uuid';
 import {Time, Timecode} from '../../base/time';
+import {base64Decode, base64Encode} from '../../base/string_utils';
 
 import {getPresetsForPlatform} from './presets';
 
@@ -58,6 +60,8 @@ export class RecordingManager {
   private loadedConfigGeneration = 0;
   private initiallyConfigModified = false;
   autoOpenTraceWhenTracingEnds = true;
+  private _customTraceConfig?: protos.TraceConfig;
+  private _customConfigFileName?: string;
 
   constructor(readonly app: App) {}
 
@@ -138,7 +142,33 @@ export class RecordingManager {
   }
 
   genTraceConfig(): protos.TraceConfig {
+    if (this._customTraceConfig !== undefined) {
+      return this._customTraceConfig;
+    }
     return this.recordConfig.genTraceConfig(this.currentPlatform);
+  }
+
+  setCustomTraceConfig(config: protos.TraceConfig, fileName: string) {
+    this._customTraceConfig = config;
+    this._customConfigFileName = fileName;
+    this.selectedConfigId = undefined;
+    this.selectedConfigName = undefined;
+    this.app.raf.scheduleFullRedraw();
+  }
+
+  clearCustomTraceConfig() {
+    this._customTraceConfig = undefined;
+    this._customConfigFileName = undefined;
+    this.clearSelectedConfig();
+    this.app.raf.scheduleFullRedraw();
+  }
+
+  get hasCustomTraceConfig(): boolean {
+    return this._customTraceConfig !== undefined;
+  }
+
+  get customConfigFileName(): string | undefined {
+    return this._customConfigFileName;
   }
 
   async startTracing(): Promise<CurrentTracingSession> {
@@ -159,18 +189,26 @@ export class RecordingManager {
     );
   }
 
-  saveConfig(name: string, config: RecordSessionSchema) {
-    const existing = this.savedConfigs.find((c) => c.name === name);
-    if (existing) {
-      existing.config = config;
+  saveConfig(name: string): SavedSessionSchema {
+    const entry: SavedSessionSchema = {
+      name,
+      config: this.serializeSession(),
+    };
+    const idx = this.savedConfigs.findIndex((c) => c.name === name);
+    if (idx >= 0) {
+      this.savedConfigs[idx] = entry;
     } else {
-      this.savedConfigs.push({name, config});
+      this.savedConfigs.push(entry);
     }
     this.persistIntoLocalStorage();
+    return entry;
   }
 
   deleteConfig(name: string) {
     this.savedConfigs = this.savedConfigs.filter((c) => c.name !== name);
+    if (this.selectedConfigId === `saved:${name}`) {
+      this.clearSelectedConfig();
+    }
     this.persistIntoLocalStorage();
   }
 
@@ -225,8 +263,16 @@ export class RecordingManager {
   }
 
   serializeSession(): RecordSessionSchema {
+    if (this._customTraceConfig !== undefined) {
+      const encoded = protos.TraceConfig.encode(this._customTraceConfig);
+      return {
+        kind: 'custom' as const,
+        customTraceConfigBase64: base64Encode(encoded.finish()),
+        customConfigFileName: this._customConfigFileName,
+      };
+    }
     // Initialize with default values.
-    const state: RecordSessionSchema = RECORD_SESSION_SCHEMA.parse({});
+    const state = PROBES_SESSION_SCHEMA.parse({});
     for (const page of this.pages.values()) {
       if (page.kind === 'SESSION_PAGE') {
         page.serialize(state);
@@ -238,6 +284,16 @@ export class RecordingManager {
   }
 
   loadSession(state: RecordSessionSchema): void {
+    if (state.kind === 'custom') {
+      const bytes = base64Decode(state.customTraceConfigBase64);
+      this._customTraceConfig = protos.TraceConfig.decode(bytes);
+      this._customConfigFileName = state.customConfigFileName;
+      this.clearSelectedConfig();
+      return;
+    }
+    // Probes session — clear any custom config and restore probe settings.
+    this._customTraceConfig = undefined;
+    this._customConfigFileName = undefined;
     for (const page of this.pages.values()) {
       if (page.kind === 'SESSION_PAGE') {
         page.deserialize(state);
@@ -299,7 +355,8 @@ export class RecordingManager {
   }
 
   clearSession() {
-    const emptySession = RECORD_SESSION_SCHEMA.parse({});
+    this.clearCustomTraceConfig();
+    const emptySession = PROBES_SESSION_SCHEMA.parse({});
     return this.loadSession(emptySession);
   }
 }

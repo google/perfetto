@@ -187,6 +187,24 @@
   }
 } // pf-record-page__menu
 
+.pf-probes-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.pf-custom-config-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 4px 8px;
+  font-size: 0.95em;
+  font-weight: 500;
+  color: var(--pf-color-primary);
+  background: color-mix(in srgb, var(--pf-color-primary) 10%, transparent);
+  border-radius: 4px;
+}
+
 .pf-record-page__section {
   grid-area: section;
   transition: opacity 0.25s ease;
