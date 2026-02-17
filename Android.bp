@@ -14431,6 +14431,14 @@ filegroup {
     ],
 }
 
+// GN: //src/protozero:multifile_error_collector
+filegroup {
+    name: "perfetto_src_protozero_multifile_error_collector",
+    srcs: [
+        "src/protozero/multifile_error_collector.cc",
+    ],
+}
+
 // GN: //src/protozero:proto_ring_buffer
 filegroup {
     name: "perfetto_src_protozero_proto_ring_buffer",
@@ -19359,6 +19367,7 @@ cc_test {
         ":perfetto_src_protozero_filtering_message_filter",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_filtering_unittests",
+        ":perfetto_src_protozero_multifile_error_collector",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_testing_messages_cpp_gen",

@@ -21,6 +21,7 @@ perfetto_host_executable("proto_merger") {
     "../../../gn:protobuf_full",
     "../../base",
     "../../base:version",
+    "../../protozero:multifile_error_collector",
   ]
   sources = [
     "allowlist.cc",

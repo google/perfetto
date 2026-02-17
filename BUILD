@@ -292,6 +292,7 @@ perfetto_cc_binary(
         ":src_protozero_filtering_filter_util",
         ":src_protozero_filtering_message_filter",
         ":src_protozero_filtering_string_filter",
+        ":src_protozero_multifile_error_collector",
         ":src_protozero_text_to_proto_text_to_proto",
         "src/tools/proto_filter/proto_filter.cc",
     ],
@@ -329,6 +330,7 @@ perfetto_cc_binary(
 perfetto_cc_binary(
     name = "proto_merger",
     srcs = [
+        ":src_protozero_multifile_error_collector",
         "src/tools/proto_merger/allowlist.cc",
         "src/tools/proto_merger/allowlist.h",
         "src/tools/proto_merger/main.cc",
@@ -1945,6 +1947,15 @@ perfetto_filegroup(
     srcs = [
         "src/protozero/text_to_proto/text_to_proto.cc",
         "src/protozero/text_to_proto/text_to_proto.h",
+    ],
+)
+
+# GN target: //src/protozero:multifile_error_collector
+perfetto_filegroup(
+    name = "src_protozero_multifile_error_collector",
+    srcs = [
+        "src/protozero/multifile_error_collector.cc",
+        "src/protozero/multifile_error_collector.h",
     ],
 )
 
