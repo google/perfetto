@@ -77,6 +77,14 @@ FROM tbl AS a;`;
     expect(norm(formatSQL(input))).toBe(norm(expected));
   });
 
+  test('formats SELECT with double-quoted identifiers', () => {
+    const input = `select id as "foo" from slice;`;
+    const expected = `SELECT
+  id AS "foo"
+FROM slice;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
   test('formats SELECT with GROUP BY and ORDER BY', () => {
     const input = `select name, count() as cnt from items group by name order by cnt desc;`;
     const expected = `SELECT

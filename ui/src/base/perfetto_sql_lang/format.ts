@@ -63,11 +63,12 @@ function uppercaseKeywords(text: string): string {
   return text
     .replace(/\s+/g, ' ')
     .trim()
-    .replace(/\b([a-zA-Z_]+)\b/g, (match) => {
-      if (KEYWORDS.has(match.toLowerCase())) {
-        return match.toUpperCase();
+    .replace(/"[^"]*"|'[^']*'|\b([a-zA-Z_]+)\b/g, (match, word) => {
+      if (!word) return match; // Quoted string — return as-is
+      if (KEYWORDS.has(word.toLowerCase())) {
+        return word.toUpperCase();
       }
-      return match;
+      return word;
     });
 }
 
