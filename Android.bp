@@ -15037,6 +15037,22 @@ filegroup {
     ],
 }
 
+// GN: //src/tools:tracing_proto_extensions_lib
+filegroup {
+    name: "perfetto_src_tools_tracing_proto_extensions_lib",
+    srcs: [
+        "src/tools/tracing_proto_extensions.cc",
+    ],
+}
+
+// GN: //src/tools:tracing_proto_extensions_unittests
+filegroup {
+    name: "perfetto_src_tools_tracing_proto_extensions_unittests",
+    srcs: [
+        "src/tools/tracing_proto_extensions_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/containers:containers
 filegroup {
     name: "perfetto_src_trace_processor_containers_containers",
@@ -19377,6 +19393,8 @@ cc_test {
         ":perfetto_src_shared_lib_track_event_intern_map",
         ":perfetto_src_shared_lib_track_event_track_event",
         ":perfetto_src_shared_lib_track_event_unittests",
+        ":perfetto_src_tools_tracing_proto_extensions_lib",
+        ":perfetto_src_tools_tracing_proto_extensions_unittests",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_containers_unittests",
         ":perfetto_src_trace_processor_core_common_common",
