@@ -23,6 +23,8 @@ export interface HotkeyConfig {
 }
 
 export interface HotkeyContextAttrs {
+  // Optional ref string to identify the context.
+  readonly ref?: string;
   // An array of hotkeys to listen for.
   readonly hotkeys: readonly HotkeyConfig[];
 
@@ -58,6 +60,7 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
     return m(
       '.pf-hotkey-context',
       {
+        ref: vnode.attrs.ref,
         // The tabindex is necessary to make the context focusable.
         // This is needed to capture key events.
         // The -1 value means it won't be focusable by tabbing, but can be

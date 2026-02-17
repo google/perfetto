@@ -290,7 +290,12 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
       ),
     );
 
-    const parent = assertExists(vnode.dom.parentElement);
+    // Find the nearest parent with a visual box (skip display: contents).
+    let parent = vnode.dom.parentElement;
+    while (parent && getComputedStyle(parent).display === 'contents') {
+      parent = parent.parentElement;
+    }
+    parent = assertExists(parent);
     this.fullscreenHeight = parent.clientHeight;
     const resizeObs = new ResizeObserver(() => {
       this.fullscreenHeight = parent.clientHeight;

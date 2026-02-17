@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {DisposableStack} from '../../base/disposable_stack';
-import {toHTMLElement} from '../../base/dom_utils';
+import {findRef, toHTMLElement} from '../../base/dom_utils';
 import {Rect2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {AppImpl} from '../../core/app_impl';
@@ -40,6 +40,7 @@ import {
 } from '../../core/track_search_manager';
 import {TrackNode} from '../../public/workspace';
 import {maybeUndefined} from '../../base/utils';
+import {GateDetector} from '../../base/mithril_utils';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -103,28 +104,47 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
     const useAlternativeHotkey = USE_ALTERNATIVE_SEARCH_HOTKEY.get();
 
     return m(
-      HotkeyContext,
-      {
-        hotkeys: virtualScrollingEnabled
-          ? [
-              {
-                hotkey: useAlternativeHotkey ? 'Shift+F' : '!Mod+F',
-                callback: () => {
-                  this.trackSearchBarVisible = true;
-                  this.trackSearchBarApi?.focus();
-                },
-              },
-            ]
-          : [],
-        focusable: false, // Global hotkey, works without element focus
-        fillHeight: true,
-      },
+      TabPanel,
+      {trace},
+      this.renderMinimap(trace),
       m(
-        TabPanel,
-        {trace},
-        this.renderMinimap(trace),
-        this.trackSearchBarVisible && this.renderTrackSearchPanel(trace),
-        this.renderTimeline(trace),
+        HotkeyContext,
+        {
+          ref: 'context',
+          hotkeys: virtualScrollingEnabled
+            ? [
+                {
+                  hotkey: useAlternativeHotkey ? 'Shift+F' : '!Mod+F',
+                  callback: () => {
+                    this.trackSearchBarVisible = true;
+                    this.trackSearchBarApi?.focus();
+                  },
+                },
+              ]
+            : [],
+          focusable: true,
+          fillHeight: true,
+          showFocusRing: true,
+        },
+        m(
+          GateDetector,
+          {
+            onVisibilityChanged: (visible: boolean, dom: Element) => {
+              if (visible) {
+                // Focus the search input as soon as it becomes visible.
+                const input = findRef(
+                  dom,
+                  'context',
+                ) as HTMLInputElement | null;
+                if (input) {
+                  input.focus();
+                }
+              }
+            },
+          },
+          this.trackSearchBarVisible && this.renderTrackSearchPanel(trace),
+          this.renderTimeline(trace),
+        ),
       ),
     );
   }
