@@ -259,7 +259,7 @@ async function maybeAddEmbedderExtServer(
   const manifest = await loadManifest(location);
   if (!manifest.ok) return [];
 
-  const hasDefault = manifest.value.modules.some((m) => m.name === 'default');
+  const hasDefault = manifest.value.modules.some((m) => m.id === 'default');
   const server: ExtensionServer = {
     ...location,
     enabledModules: hasDefault ? ['default'] : [],

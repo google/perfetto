@@ -100,7 +100,7 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'test',
         features: [{name: 'macros'}, {name: 'sql_modules'}],
-        modules: [{name: 'default'}],
+        modules: [{id: 'default', name: 'Default'}],
       };
       mockFetch.mockImplementation(() => mockJsonResponse(manifest));
 
@@ -126,7 +126,7 @@ describe('extension_server', () => {
     test('returns error for missing required fields', async () => {
       // Missing namespace and features
       mockFetch.mockImplementation(() =>
-        mockJsonResponse({name: 'Test', modules: [{name: 'test'}]}),
+        mockJsonResponse({name: 'Test', modules: [{id: 'test', name: 'Test'}]}),
       );
       const result = await loadManifest(TEST_SERVER);
       expect(result.ok).toBe(false);
@@ -148,7 +148,7 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'test',
         features: [{name: 'macros'}],
-        modules: [{name: 'default'}],
+        modules: [{id: 'default', name: 'Default'}],
       };
       mockFetch.mockImplementation(() => mockJsonResponse(manifest));
 
@@ -171,7 +171,10 @@ describe('extension_server', () => {
           {name: 'sql_modules'},
           {name: 'proto_descriptors'},
         ],
-        modules: [{name: 'default'}, {name: 'android'}],
+        modules: [
+          {id: 'default', name: 'Default'},
+          {id: 'android', name: 'Android'},
+        ],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -216,7 +219,7 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'myext',
         features: [{name: 'macros'}],
-        modules: [{name: 'default'}],
+        modules: [{id: 'default', name: 'Default'}],
       };
       // Macro IDs must start with namespace
       const macros = [{id: 'myext.macro1', name: 'My Macro', run: []}];
@@ -235,7 +238,7 @@ describe('extension_server', () => {
       initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const macrosResult = await mockApp.getMacrosAdded()[0];
-      expect(macrosResult).toEqual(macros);
+      expect(macrosResult).toEqual(macros.map((m) => ({...m, source: 'Test'})));
     });
 
     test('returns empty array when feature is not supported', async () => {
@@ -243,7 +246,7 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'test',
         features: [], // No features supported
-        modules: [{name: 'default'}],
+        modules: [{id: 'default', name: 'Default'}],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -272,7 +275,7 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'test',
         features: [{name: 'macros'}],
-        modules: [{name: 'other'}], // 'default' is not available
+        modules: [{id: 'other', name: 'Other'}], // 'default' is not available
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -313,7 +316,10 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'test',
         features: [{name: 'macros'}],
-        modules: [{name: 'default'}, {name: 'android'}],
+        modules: [
+          {id: 'default', name: 'Default'},
+          {id: 'android', name: 'Android'},
+        ],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -349,7 +355,7 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'myext',
         features: [{name: 'sql_modules'}],
-        modules: [{name: 'default'}],
+        modules: [{id: 'default', name: 'Default'}],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -381,7 +387,7 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'myext',
         features: [{name: 'macros'}],
-        modules: [{name: 'default'}],
+        modules: [{id: 'default', name: 'Default'}],
       };
 
       mockFetch.mockImplementation((url: string) => {
@@ -410,7 +416,7 @@ describe('extension_server', () => {
         name: 'Test',
         namespace: 'myext',
         features: [{name: 'sql_modules'}],
-        modules: [{name: 'default'}],
+        modules: [{id: 'default', name: 'Default'}],
       };
 
       mockFetch.mockImplementation((url: string) => {

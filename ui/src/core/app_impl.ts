@@ -107,7 +107,9 @@ export class AppImpl implements App {
   >();
 
   // Command macros. Injected from extensions.
-  private _macrosPromises = new Array<Promise<ReadonlyArray<Macro>>>();
+  private _macrosPromises = new Array<
+    Promise<ReadonlyArray<Macro & {source?: string}>>
+  >();
 
   // Initializes the singleton instance - must be called only once and before
   // AppImpl.instance is used.
@@ -317,11 +319,15 @@ export class AppImpl implements App {
     );
   }
 
-  addMacros(args: ReadonlyArray<Macro> | Promise<ReadonlyArray<Macro>>) {
+  addMacros(
+    args:
+      | ReadonlyArray<Macro & {source?: string}>
+      | Promise<ReadonlyArray<Macro & {source?: string}>>,
+  ) {
     this._macrosPromises.push(Promise.resolve(args));
   }
 
-  async macros(): Promise<ReadonlyArray<Macro>> {
+  async macros(): Promise<ReadonlyArray<Macro & {source?: string}>> {
     const macrosArray = await Promise.all(this._macrosPromises);
     return macrosArray.flat();
   }

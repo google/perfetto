@@ -36,7 +36,7 @@ type HttpsUserInput = Extract<UserInput, {type: 'https'}>;
 
 interface OkLoadedState {
   type: 'ok';
-  availableModules: ReadonlyArray<string>;
+  availableModules: ReadonlyArray<{id: string; name: string}>;
   enabledModules: Set<string>;
 }
 
@@ -461,10 +461,10 @@ class AddExtensionServerModal {
     }
     const {enabledModules, availableModules} = this.loadedState;
     return m(MultiSelect, {
-      options: availableModules.map((name) => ({
-        id: name,
+      options: availableModules.map(({id, name}) => ({
+        id,
         name,
-        checked: enabledModules.has(name),
+        checked: enabledModules.has(id),
       })),
       onChange: (diffs: MultiSelectDiff[]) => {
         for (const diff of diffs) {
@@ -522,22 +522,21 @@ class AddExtensionServerModal {
     }
 
     const manifest = manifestResult.value;
-    const moduleNames = manifest.modules.map((m) => m.name);
     const enabledModules = preserveEnabledModules
       ? new Set(
           preserveEnabledModules.filter((m) =>
-            manifest.modules.some((mod) => mod.name === m),
+            manifest.modules.some((mod) => mod.id === m),
           ),
         )
       : new Set(
-          manifest.modules.some((mod) => mod.name === 'default')
+          manifest.modules.some((mod) => mod.id === 'default')
             ? ['default']
             : [],
         );
 
     this.loadedState = {
       type: 'ok',
-      availableModules: moduleNames,
+      availableModules: manifest.modules,
       enabledModules,
     };
     m.redraw();

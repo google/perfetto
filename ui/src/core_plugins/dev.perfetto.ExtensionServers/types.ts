@@ -121,14 +121,17 @@ export type UserInput =
 // Provides server metadata, features, and available modules.
 //
 // For each enabled module, the client fetches:
-//   - {base_url}/modules/{name}/macros             → using MacrosSchema
-//   - {base_url}/modules/{name}/sql_modules        → using SqlModulesSchema
-//   - {base_url}/modules/{name}/proto_descriptors  → using ProtoDescriptorsSchema
+//   - {base_url}/modules/{id}/macros             → using MacrosSchema
+//   - {base_url}/modules/{id}/sql_modules        → using SqlModulesSchema
+//   - {base_url}/modules/{id}/proto_descriptors  → using ProtoDescriptorsSchema
 export const manifestFeatureSchema = z.object({
   name: z.string(),
 });
 
 export const manifestModuleSchema = z.object({
+  // Unique identifier used in URL paths and enabledModules setting.
+  id: z.string(),
+  // Human-readable display name shown in the UI.
   name: z.string(),
 });
 

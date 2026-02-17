@@ -25,8 +25,8 @@ import {
 } from './types';
 import m from 'mithril';
 import {showModal} from '../../widgets/modal';
-import {Callout} from '../../widgets/callout';
-import {Intent} from '../../widgets/common';
+import {Anchor} from '../../widgets/anchor';
+import {CodeSnippet} from '../../widgets/code_snippet';
 import {errResult, okResult, Result} from '../../base/result';
 import {AppImpl} from '../../core/app_impl';
 import {base64Encode, utf8Encode} from '../../base/string_utils';
@@ -178,6 +178,19 @@ async function fetchJson<T extends z.ZodTypeAny>(
   return okResult(result.data);
 }
 
+// Returns the human-readable source label for a module. Used as the command
+// palette chip text. Format: "Server Name" for default, "Server: Module" for
+// non-default modules.
+function sourceLabel(
+  manifest: Result<Manifest>,
+  modId: string,
+): string | undefined {
+  if (!manifest.ok) return undefined;
+  if (modId === 'default') return manifest.value.name;
+  const entry = manifest.value.modules.find((m) => m.id === modId);
+  return `${manifest.value.name}: ${entry?.name ?? modId}`;
+}
+
 // =============================================================================
 // Loading
 // =============================================================================
@@ -189,7 +202,7 @@ export async function loadManifest(
 }
 
 function modulePath(module: string, manifest: Manifest): string | undefined {
-  const entry = manifest.modules.find((m) => m.name === module);
+  const entry = manifest.modules.find((m) => m.id === module);
   if (entry === undefined) return undefined;
   return `modules/${module}`;
 }
@@ -316,7 +329,14 @@ export function initializeServerFromManifest(
     const sqlPackage = manifest.then((r) => loadSqlPackage(r, server, mod));
     const descs = manifest.then((r) => loadProtoDescriptors(r, server, mod));
     results.push(macros, sqlPackage, descs);
-    ctx.addMacros(macros.then((r) => (r.ok ? r.value : [])));
+    ctx.addMacros(
+      manifest.then(async (r) => {
+        const macrosResult = await macros;
+        if (!macrosResult.ok) return [];
+        const source = sourceLabel(r, mod);
+        return macrosResult.value.map((m) => ({...m, source}));
+      }),
+    );
     ctx.addSqlPackages(sqlPackage.then((r) => (r.ok ? r.value : [])));
     ctx.addProtoDescriptors(descs.then((r) => (r.ok ? r.value : [])));
   }
@@ -351,18 +371,19 @@ export function showErrorsOnCompletion(results: Result<unknown>[]): void {
     ...new Set(results.filter((r) => !r.ok).map((r) => r.error)),
   ];
   if (uniqueErrors.length > 0) {
+    const n = uniqueErrors.length;
     showModal({
-      title: 'Error(s) while querying extension servers',
+      title: `${n} error${n === 1 ? '' : 's'} while querying extension servers`,
       content: m(
         'div',
-        {style: 'display: flex; flex-direction: column; gap: 8px'},
-        uniqueErrors.map((e) =>
-          m(Callout, {icon: 'error', intent: Intent.Danger}, e),
-        ),
+        m(CodeSnippet, {
+          text: uniqueErrors.map((e) => `• ${e}`).join('\n'),
+          class: 'pf-ext-server-errors',
+        }),
         m('p', [
           'For more information see the ',
           m(
-            'a',
+            Anchor,
             {
               href: 'https://perfetto.dev/docs/visualization/extensions',
               target: '_blank',
