@@ -38,6 +38,7 @@
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
+#include "src/protozero/multifile_error_collector.h"
 #include "src/trace_processor/util/simple_json_parser.h"
 
 namespace perfetto {
@@ -47,31 +48,6 @@ namespace {
 namespace pbzero = protos::pbzero;
 using trace_processor::json::FieldResult;
 using trace_processor::json::SimpleJsonParser;
-
-// TODO DNS use the new multifile thing i factored out in the last PR.
-class ErrorCollector
-    : public google::protobuf::compiler::MultiFileErrorCollector {
- public:
-  ~ErrorCollector() override;
-  void RecordError(std::string_view filename,
-                   int line,
-                   int column,
-                   std::string_view message) override {
-    PERFETTO_ELOG("Error %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
-                  filename.data(), line, column,
-                  static_cast<int>(message.size()), message.data());
-  }
-  void RecordWarning(std::string_view filename,
-                     int line,
-                     int column,
-                     std::string_view message) override {
-    PERFETTO_ELOG("Warning %.*s %d:%d: %.*s", static_cast<int>(filename.size()),
-                  filename.data(), line, column,
-                  static_cast<int>(message.size()), message.data());
-  }
-};
-
-ErrorCollector::~ErrorCollector() = default;
 
 // Sorts ranges by start and checks for validity (start <= end, no internal
 // overlaps).
@@ -594,7 +570,7 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
   }
 
   // 2. Set up protoc importer.
-  ErrorCollector error_collector;
+  protozero::MultiFileErrorCollectorImpl error_collector;
   google::protobuf::compiler::DiskSourceTree source_tree;
   for (const auto& path : proto_paths) {
     source_tree.MapPath("", path);

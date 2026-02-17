@@ -75,6 +75,7 @@ source_set("tracing_proto_extensions_lib") {
     "../../protos/perfetto/common:zero",
     "../base",
     "../protozero",
+    "../protozero:multifile_error_collector",
     "../trace_processor/util:simple_json_parser",
   ]
   sources = [
