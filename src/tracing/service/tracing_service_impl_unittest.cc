@@ -72,6 +72,7 @@
 
 #include "protos/perfetto/common/semantic_type.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
+#include "protos/perfetto/trace/extension_descriptor.gen.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
@@ -8373,6 +8374,66 @@ TEST_F(TracingServiceImplTest, MultiProtoVmRouting) {
   producer_multi_vm_1->WaitForDataSourceStop("ds_with_multi_vm");
   producer_multi_vm_2->WaitForDataSourceStop("ds_with_multi_vm");
   producer_no_vm->WaitForDataSourceStop("ds_no_vm");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ExtensionDescriptors) {
+  // Arbitrary blobs. The service just passes them through, no need for real
+  // FileDescriptorSet or gzip data.
+  const uint8_t kRawBlob[] = {0x0a, 0x04, 't', 'e', 's', 't'};
+  const uint8_t kGzBlob[] = {0x1f, 0x8b, 0x08, 0x00, 0xde, 0xad};
+
+  TracingService::InitOpts init_opts;
+  init_opts.extension_descriptors.push_back(
+      {"raw.descriptor", kRawBlob, sizeof(kRawBlob), /*gzipped=*/false});
+  init_opts.extension_descriptors.push_back(
+      {"gzipped.descriptor.gz", kGzBlob, sizeof(kGzBlob), /*gzipped=*/true});
+  InitializeSvcWithOpts(init_opts);
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  auto packets = consumer->ReadBuffers();
+
+  bool found_raw = false;
+  bool found_gz = false;
+  for (const auto& packet : packets) {
+    if (!packet.has_extension_descriptor())
+      continue;
+    const auto& ext = packet.extension_descriptor();
+    if (ext.file_name() == "raw.descriptor") {
+      found_raw = true;
+      EXPECT_TRUE(ext.has_extension_set());
+      EXPECT_FALSE(ext.has_extension_set_gzip());
+    } else if (ext.file_name() == "gzipped.descriptor.gz") {
+      found_gz = true;
+      EXPECT_FALSE(ext.has_extension_set());
+      EXPECT_TRUE(ext.has_extension_set_gzip());
+      EXPECT_EQ(
+          ext.extension_set_gzip(),
+          std::string(reinterpret_cast<const char*>(kGzBlob), sizeof(kGzBlob)));
+    }
+  }
+  EXPECT_TRUE(found_raw);
+  EXPECT_TRUE(found_gz);
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
 }
 
