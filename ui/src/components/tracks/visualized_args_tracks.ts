@@ -16,7 +16,7 @@ import {uuidv4} from '../../base/uuid';
 import {NUM} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SLICE_TABLE_TRACK} from '../../public/track_kinds';
 import {createVisualizedArgsTrack} from './visualized_args_track';
 
 const VISUALIZED_ARGS_SLICE_TRACK_URI_PREFIX = 'perfetto.VisualizedArgs';
@@ -56,7 +56,7 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
         const track = trace.tracks.getTrack(trackNode.uri);
         return (
           track &&
-          track.tags?.kinds?.includes(SLICE_TRACK_KIND) &&
+          track.tags?.kinds?.includes(SLICE_TABLE_TRACK) &&
           track.tags?.trackIds?.includes(trackId)
         );
       },

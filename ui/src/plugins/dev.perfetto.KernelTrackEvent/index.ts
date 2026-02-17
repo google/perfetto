@@ -15,7 +15,11 @@
 import {assertExists} from '../../base/logging';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  COUNTER_TRACK_KIND,
+  SLICE_TABLE_TRACK,
+  SLICE_TRACK,
+} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {
   LONG_NULL,
@@ -142,7 +146,7 @@ export default class implements PerfettoPlugin {
         ctx.tracks.registerTrack({
           uri,
           tags: {
-            kinds: [SLICE_TRACK_KIND],
+            kinds: [SLICE_TRACK, SLICE_TABLE_TRACK],
             trackIds: [trackId],
             upid: upid ?? undefined,
             utid: utid ?? undefined,

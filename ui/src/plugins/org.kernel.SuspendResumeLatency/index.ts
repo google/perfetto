@@ -17,7 +17,7 @@ import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrac
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {SLICE_TABLE_TRACK, SLICE_TRACK} from '../../public/track_kinds';
 import {SuspendResumeDetailsPanel} from './suspend_resume_details';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -66,7 +66,7 @@ export default class implements PerfettoPlugin {
       uri,
       tags: {
         trackIds,
-        kinds: [SLICE_TRACK_KIND],
+        kinds: [SLICE_TRACK, SLICE_TABLE_TRACK],
       },
       renderer: await createTraceProcessorSliceTrack({
         trace: ctx,

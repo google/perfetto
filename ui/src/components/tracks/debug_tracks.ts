@@ -32,6 +32,7 @@ import {
   SqlTableCounterTrack,
 } from './query_counter_track';
 import {getColorForSlice} from '../colorizer';
+import {SLICE_TRACK} from '../../public/track_kinds';
 
 export interface SqlDataSource {
   // SQL source selecting the necessary data.
@@ -232,6 +233,9 @@ async function addPivotedSliceTracks(
 
     trace.tracks.registerTrack({
       uri,
+      tags: {
+        kinds: [SLICE_TRACK],
+      },
       renderer: SliceTrack.create({
         trace,
         uri,
@@ -274,6 +278,9 @@ function addSingleSliceTrack(
 
   trace.tracks.registerTrack({
     uri,
+    tags: {
+      kinds: [SLICE_TRACK],
+    },
     renderer: SliceTrack.create({
       trace,
       uri,
