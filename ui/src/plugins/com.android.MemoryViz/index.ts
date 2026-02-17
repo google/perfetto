@@ -41,6 +41,7 @@ export default class MemoryViz implements PerfettoPlugin {
           ['mem.dmabuf_rss', 'DMA buffer RSS'],
           ['mem.heap', 'Heap Size'],
           ['mem.locked', 'Locked Memory'],
+          ['GPU Memory', 'GPU Memory'],
         ];
 
         const trackPromises: Promise<TrackNode | undefined>[] = [

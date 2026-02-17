@@ -28,7 +28,7 @@ WITH
       upid
     FROM process_counter_track
     WHERE
-      name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file', 'mem.rss.shmem', 'Heap size (KB)', 'mem.dmabuf_rss', 'mem.locked')
+      name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file', 'mem.rss.shmem', 'Heap size (KB)', 'mem.dmabuf_rss', 'mem.locked', 'GPU Memory')
   ),
   mem_counters AS (
     SELECT
