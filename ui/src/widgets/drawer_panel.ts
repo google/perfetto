@@ -161,6 +161,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   private handleElement?: HTMLElement;
   private dragStartY?: number;
   private heightWhenDragStarted = 0;
+  private pendingPointerId?: number;
   private resizeObserver?: ResizeObserver;
 
   constructor({attrs}: m.CVnode<DrawerPanelAttrs>) {
@@ -294,7 +295,10 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   private endDrag(pointerId: number) {
     if (this.dragStartY !== undefined) {
       this.dragStartY = undefined;
-      this.handleElement?.releasePointerCapture(pointerId);
+      this.pendingPointerId = undefined;
+      if (this.handleElement?.hasPointerCapture(pointerId)) {
+        this.handleElement.releasePointerCapture(pointerId);
+      }
     }
   }
 
@@ -303,7 +307,11 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
     this.dragStartY = e.clientY;
     this.resizableHeight = this.height;
     this.heightWhenDragStarted = this.height;
-    this.handleElement.setPointerCapture(e.pointerId);
+    // Defer setPointerCapture to the first pointermove. Capturing on
+    // pointerdown redirects pointerup (and the derived click event) to the
+    // handle element, which prevents onclick handlers on child elements (e.g.
+    // tabs) from firing.
+    this.pendingPointerId = e.pointerId;
     this.updatePanelVisibility(
       DrawerPanelVisibility.VISIBLE,
       attrs.onVisibilityChange,
@@ -314,6 +322,10 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   private onPointerMove(e: MithrilEvent<PointerEvent>) {
     e.redraw = false;
     if (this.dragStartY !== undefined) {
+      if (this.pendingPointerId !== undefined && this.handleElement) {
+        this.handleElement.setPointerCapture(this.pendingPointerId);
+        this.pendingPointerId = undefined;
+      }
       const deltaY = this.dragStartY - e.clientY;
       this.resizableHeight = this.heightWhenDragStarted + deltaY;
       m.redraw();
