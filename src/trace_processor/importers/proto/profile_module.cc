@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -37,6 +36,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -47,6 +47,7 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
@@ -151,8 +152,7 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   auto packet_ts =
       sequence_state->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-      packet_ts);
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), packet_ts);
   if (trace_ts)
     packet_ts = *trace_ts;
 
@@ -375,8 +375,7 @@ void ProfileModule::ParseProfilePacket(
 
     std::optional<int64_t> maybe_timestamp =
         context_->clock_tracker->ToTraceTime(
-            ClockTracker::ClockId(
-                protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE),
+            ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE),
             static_cast<int64_t>(entry.timestamp()));
     if (!maybe_timestamp)
       continue;

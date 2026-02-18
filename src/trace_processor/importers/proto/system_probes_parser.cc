@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -27,7 +26,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
@@ -56,6 +54,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/system_info.pbzero.h"
@@ -717,7 +716,7 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     // note: early kernel threads can have an age of zero (at tick resolution)
     if (proc.has_process_start_from_boot()) {
       std::optional<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
-          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+          ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
           static_cast<int64_t>(proc.process_start_from_boot()));
       if (start_ts) {
         context_->process_tracker->SetStartTsIfUnset(upid, *start_ts);
