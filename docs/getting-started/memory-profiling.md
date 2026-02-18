@@ -189,6 +189,7 @@ Open another terminal (or tab), start the process you want to profile,
 preloading the heapprofd's .so. Example:
 ```bash
 PERFETTO_HEAPPROFD_BLOCKING_INIT=1 \
+PERFETTO_HEAPPROFD_BLOCKING_EXIT=1 \
 LD_PRELOAD=out/lnx/libheapprofd_glibc_preload.so \
 trace_processor_shell /dev/null
 
@@ -202,6 +203,11 @@ these can be missed. To avoid this from happening, set the enironment variable
 `PERFETTO_HEAPPROFD_BLOCKING_INIT=1`; on the first malloc, your program will
 be blocked until heapprofd initializes fully but means every allocation will
 be correctly tracked.
+
+Similarly, short-lived processes may exit before heapprofd finishes reading and
+unwinding all pending stacks. Set `PERFETTO_HEAPPROFD_BLOCKING_EXIT=1` to
+register an atexit handler that waits for heapprofd to drain the shared ring
+buffer before the process exits.
 
 At this point:
 
