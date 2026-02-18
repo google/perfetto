@@ -361,6 +361,8 @@ function getNodeHue(node: QueryNode): number {
       return 14; // Deep Orange (#ffccbc)
     case NodeType.kCreateSlices:
       return 100; // Green (#c8e6c9)
+    case NodeType.kMetrics:
+      return 280; // Violet (#e1bee7)
     default:
       return 65; // Lime (#f0f4c3)
   }
