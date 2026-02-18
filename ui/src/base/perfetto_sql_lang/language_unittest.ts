@@ -31,8 +31,7 @@ describe('perfettoSqlLang', () => {
   });
 
   test('parses CREATE PERFETTO TABLE', () => {
-    const code =
-      'create perfetto table my_table as select id from source';
+    const code = 'create perfetto table my_table as select id from source';
     const tree = language.parser.parse(code);
     const cursor = tree.cursor();
 

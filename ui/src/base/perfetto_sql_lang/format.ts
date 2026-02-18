@@ -20,15 +20,68 @@ import {parser} from './perfetto_sql.grammar';
 const INDENT = '  ';
 
 const KEYWORDS = new Set([
-  'select', 'from', 'where', 'join', 'left', 'right', 'inner', 'outer',
-  'cross', 'natural', 'on', 'using', 'group', 'by', 'order', 'having',
-  'limit', 'offset', 'as', 'and', 'or', 'not', 'in', 'is', 'null',
-  'case', 'when', 'then', 'else', 'end', 'cast', 'exists', 'between',
-  'like', 'glob', 'union', 'all', 'intersect', 'except', 'distinct',
-  'asc', 'desc', 'with', 'recursive', 'materialized', 'create',
-  'perfetto', 'table', 'view', 'function', 'macro', 'index', 'virtual',
-  'include', 'module', 'returns', 'delegates', 'to', 'over', 'partition',
-  'true', 'false',
+  'select',
+  'from',
+  'where',
+  'join',
+  'left',
+  'right',
+  'inner',
+  'outer',
+  'cross',
+  'natural',
+  'on',
+  'using',
+  'group',
+  'by',
+  'order',
+  'having',
+  'limit',
+  'offset',
+  'as',
+  'and',
+  'or',
+  'not',
+  'in',
+  'is',
+  'null',
+  'case',
+  'when',
+  'then',
+  'else',
+  'end',
+  'cast',
+  'exists',
+  'between',
+  'like',
+  'glob',
+  'union',
+  'all',
+  'intersect',
+  'except',
+  'distinct',
+  'asc',
+  'desc',
+  'with',
+  'recursive',
+  'materialized',
+  'create',
+  'perfetto',
+  'table',
+  'view',
+  'function',
+  'macro',
+  'index',
+  'virtual',
+  'include',
+  'module',
+  'returns',
+  'delegates',
+  'to',
+  'over',
+  'partition',
+  'true',
+  'false',
 ]);
 
 interface FormatCtx {
@@ -64,7 +117,7 @@ function uppercaseKeywords(text: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/"[^"]*"|'[^']*'|\b([a-zA-Z_]+)\b/g, (match, word) => {
-      if (!word) return match; // Quoted string — return as-is
+      if (word === undefined) return match; // Quoted string — return as-is
       if (KEYWORDS.has(word.toLowerCase())) {
         return word.toUpperCase();
       }
@@ -74,53 +127,100 @@ function uppercaseKeywords(text: string): string {
 
 function formatNode(cursor: TreeCursor, ctx: FormatCtx): string {
   switch (cursor.name) {
-    case 'Program': return fmtProgram(cursor, ctx);
-    case 'Statement': return fmtStatement(cursor, ctx);
-    case 'SelectStatement': return fmtSelectStatement(cursor, ctx);
-    case 'SelectBody': return fmtSelectBody(cursor, ctx);
-    case 'SelectClauses': return fmtSelectClauses(cursor, ctx);
-    case 'SelectColumns': return fmtSelectColumns(cursor, ctx);
-    case 'SelectColumn': return fmtSelectColumn(cursor, ctx);
-    case 'SetOperation': return fmtSetOperation(cursor, ctx);
-    case 'FromClause': return fmtFromClause(cursor, ctx);
-    case 'TableRef': return fmtTableRef(cursor, ctx);
-    case 'TableSource': return fmtTableSource(cursor, ctx);
-    case 'IdentifierPath': return src(cursor, ctx);
-    case 'JoinClause': return fmtJoinClause(cursor, ctx);
-    case 'JoinType': return fmtJoinType(cursor, ctx);
-    case 'JoinConstraint': return fmtJoinConstraint(cursor, ctx);
-    case 'WhereClause': return fmtWhereClause(cursor, ctx);
-    case 'GroupByClause': return fmtGroupByClause(cursor, ctx);
-    case 'HavingClause': return fmtHavingClause(cursor, ctx);
-    case 'OrderByClause': return fmtOrderByClause(cursor, ctx);
-    case 'OrderingTerm': return fmtOrderingTerm(cursor, ctx);
-    case 'LimitClause': return fmtLimitClause(cursor, ctx);
-    case 'WithStatement': return fmtWithStatement(cursor, ctx);
-    case 'WithClause': return fmtWithClause(cursor, ctx);
-    case 'CommonTableExpression': return fmtCTE(cursor, ctx);
-    case 'QueryBody': return fmtQueryBody(cursor, ctx);
-    case 'CreatePerfettoTableStatement': return fmtCreateTable(cursor, ctx);
-    case 'CreatePerfettoViewStatement': return fmtCreateView(cursor, ctx);
-    case 'CreatePerfettoFunctionStatement': return fmtCreateFunction(cursor, ctx);
-    case 'CreatePerfettoMacroStatement': return fmtCreateMacro(cursor, ctx);
-    case 'CreatePerfettoIndexStatement': return fmtCreateIndex(cursor, ctx);
-    case 'CreateVirtualTableStatement': return fmtCreateVirtualTable(cursor, ctx);
-    case 'IncludeModuleStatement': return fmtIncludeModule(cursor, ctx);
-    case 'ColumnDefList': return fmtColumnDefList(cursor, ctx);
-    case 'ColumnDef': return fmtColumnDef(cursor, ctx);
-    case 'ColumnType': return fmtColumnType(cursor, ctx);
-    case 'ColumnNameList': return src(cursor, ctx).replace(/\s*,\s*/g, ', ');
-    case 'FunctionParamList': return fmtFunctionParamList(cursor, ctx);
-    case 'FunctionParam': return fmtFunctionParam(cursor, ctx);
-    case 'FunctionReturnType': return kw(src(cursor, ctx));
-    case 'MacroParamList': return fmtMacroParamList(cursor, ctx);
-    case 'MacroParam': return src(cursor, ctx);
-    case 'VirtualTableArgList': return fmtVirtualTableArgList(cursor, ctx);
-    case 'VirtualTableArg': return kw(src(cursor, ctx));
-    case 'ModulePath': return src(cursor, ctx);
-    case 'Expression': return uppercaseKeywords(src(cursor, ctx));
-    case 'ExpressionList': return fmtExpressionList(cursor, ctx);
-    case 'ArgList': return fmtExpressionList(cursor, ctx);
+    case 'Program':
+      return fmtProgram(cursor, ctx);
+    case 'Statement':
+      return fmtStatement(cursor, ctx);
+    case 'SelectStatement':
+      return fmtSelectStatement(cursor, ctx);
+    case 'SelectBody':
+      return fmtSelectBody(cursor, ctx);
+    case 'SelectClauses':
+      return fmtSelectClauses(cursor, ctx);
+    case 'SelectColumns':
+      return fmtSelectColumns(cursor, ctx);
+    case 'SelectColumn':
+      return fmtSelectColumn(cursor, ctx);
+    case 'SetOperation':
+      return fmtSetOperation(cursor, ctx);
+    case 'FromClause':
+      return fmtFromClause(cursor, ctx);
+    case 'TableRef':
+      return fmtTableRef(cursor, ctx);
+    case 'TableSource':
+      return fmtTableSource(cursor, ctx);
+    case 'IdentifierPath':
+      return src(cursor, ctx);
+    case 'JoinClause':
+      return fmtJoinClause(cursor, ctx);
+    case 'JoinType':
+      return fmtJoinType(cursor, ctx);
+    case 'JoinConstraint':
+      return fmtJoinConstraint(cursor, ctx);
+    case 'WhereClause':
+      return fmtWhereClause(cursor, ctx);
+    case 'GroupByClause':
+      return fmtGroupByClause(cursor, ctx);
+    case 'HavingClause':
+      return fmtHavingClause(cursor, ctx);
+    case 'OrderByClause':
+      return fmtOrderByClause(cursor, ctx);
+    case 'OrderingTerm':
+      return fmtOrderingTerm(cursor, ctx);
+    case 'LimitClause':
+      return fmtLimitClause(cursor, ctx);
+    case 'WithStatement':
+      return fmtWithStatement(cursor, ctx);
+    case 'WithClause':
+      return fmtWithClause(cursor, ctx);
+    case 'CommonTableExpression':
+      return fmtCTE(cursor, ctx);
+    case 'QueryBody':
+      return fmtQueryBody(cursor, ctx);
+    case 'CreatePerfettoTableStatement':
+      return fmtCreateTable(cursor, ctx);
+    case 'CreatePerfettoViewStatement':
+      return fmtCreateView(cursor, ctx);
+    case 'CreatePerfettoFunctionStatement':
+      return fmtCreateFunction(cursor, ctx);
+    case 'CreatePerfettoMacroStatement':
+      return fmtCreateMacro(cursor, ctx);
+    case 'CreatePerfettoIndexStatement':
+      return fmtCreateIndex(cursor, ctx);
+    case 'CreateVirtualTableStatement':
+      return fmtCreateVirtualTable(cursor, ctx);
+    case 'IncludeModuleStatement':
+      return fmtIncludeModule(cursor, ctx);
+    case 'ColumnDefList':
+      return fmtColumnDefList(cursor, ctx);
+    case 'ColumnDef':
+      return fmtColumnDef(cursor, ctx);
+    case 'ColumnType':
+      return fmtColumnType(cursor, ctx);
+    case 'ColumnNameList':
+      return src(cursor, ctx).replace(/\s*,\s*/g, ', ');
+    case 'FunctionParamList':
+      return fmtFunctionParamList(cursor, ctx);
+    case 'FunctionParam':
+      return fmtFunctionParam(cursor, ctx);
+    case 'FunctionReturnType':
+      return kw(src(cursor, ctx));
+    case 'MacroParamList':
+      return fmtMacroParamList(cursor, ctx);
+    case 'MacroParam':
+      return src(cursor, ctx);
+    case 'VirtualTableArgList':
+      return fmtVirtualTableArgList(cursor, ctx);
+    case 'VirtualTableArg':
+      return kw(src(cursor, ctx));
+    case 'ModulePath':
+      return src(cursor, ctx);
+    case 'Expression':
+      return uppercaseKeywords(src(cursor, ctx));
+    case 'ExpressionList':
+      return fmtExpressionList(cursor, ctx);
+    case 'ArgList':
+      return fmtExpressionList(cursor, ctx);
     case 'FunctionCall':
     case 'MacroInvocation':
     case 'WindowOver':
@@ -129,8 +229,10 @@ function formatNode(cursor: TreeCursor, ctx: FormatCtx): string {
     case 'CastExpr':
     case 'ExistsExpr':
       return uppercaseKeywords(src(cursor, ctx));
-    case 'ParenExpr': return fmtParenExpr(cursor, ctx);
-    default: return kw(src(cursor, ctx));
+    case 'ParenExpr':
+      return fmtParenExpr(cursor, ctx);
+    default:
+      return kw(src(cursor, ctx));
   }
 }
 
@@ -141,7 +243,9 @@ function formatNode(cursor: TreeCursor, ctx: FormatCtx): string {
 function fmtProgram(cursor: TreeCursor, ctx: FormatCtx): string {
   const parts: string[] = [];
   if (cursor.firstChild()) {
-    do { parts.push(formatNode(cursor, ctx)); } while (cursor.nextSibling());
+    do {
+      parts.push(formatNode(cursor, ctx));
+    } while (cursor.nextSibling());
     cursor.parent();
   }
   return parts.join('\n');
@@ -164,7 +268,9 @@ function fmtStatement(cursor: TreeCursor, ctx: FormatCtx): string {
 function fmtSelectStatement(cursor: TreeCursor, ctx: FormatCtx): string {
   const parts: string[] = [];
   if (cursor.firstChild()) {
-    do { parts.push(formatNode(cursor, ctx)); } while (cursor.nextSibling());
+    do {
+      parts.push(formatNode(cursor, ctx));
+    } while (cursor.nextSibling());
     cursor.parent();
   }
   return parts.join('\n');
@@ -178,11 +284,20 @@ function fmtSelectBody(cursor: TreeCursor, ctx: FormatCtx): string {
   let clauses = '';
   do {
     switch (cursor.name) {
-      case 'SELECT': selectKw = 'SELECT'; break;
-      case 'DISTINCT': distinct = true; break;
-      case 'SelectColumns': columns = fmtSelectColumns(cursor, ctx); break;
-      case 'SelectClauses': clauses = fmtSelectClauses(cursor, ctx); break;
-      default: break;
+      case 'SELECT':
+        selectKw = 'SELECT';
+        break;
+      case 'DISTINCT':
+        distinct = true;
+        break;
+      case 'SelectColumns':
+        columns = fmtSelectColumns(cursor, ctx);
+        break;
+      case 'SelectClauses':
+        clauses = fmtSelectClauses(cursor, ctx);
+        break;
+      default:
+        break;
     }
   } while (cursor.nextSibling());
   cursor.parent();
@@ -203,9 +318,13 @@ function fmtSelectColumns(cursor: TreeCursor, ctx: FormatCtx): string {
     cursor.parent();
   }
   const deeper = ctx.depth + 1;
-  return cols.map((c, i) =>
-    INDENT.repeat(deeper) + c + (i < cols.length - 1 ? ',' : '')
-  ).join('\n') + '\n';
+  return (
+    cols
+      .map(
+        (c, i) => INDENT.repeat(deeper) + c + (i < cols.length - 1 ? ',' : ''),
+      )
+      .join('\n') + '\n'
+  );
 }
 
 function fmtSelectColumn(cursor: TreeCursor, ctx: FormatCtx): string {
@@ -215,8 +334,9 @@ function fmtSelectColumn(cursor: TreeCursor, ctx: FormatCtx): string {
   let asEnd = -1;
   do {
     if (cursor.name === 'Star') expr = '*';
-    else if (cursor.name === 'Expression') expr = uppercaseKeywords(src(cursor, ctx));
-    else if (cursor.name === 'AS') asEnd = cursor.to;
+    else if (cursor.name === 'Expression') {
+      expr = uppercaseKeywords(src(cursor, ctx));
+    } else if (cursor.name === 'AS') asEnd = cursor.to;
   } while (cursor.nextSibling());
   cursor.parent();
   if (asEnd >= 0) {
@@ -229,7 +349,9 @@ function fmtSelectColumn(cursor: TreeCursor, ctx: FormatCtx): string {
 function fmtSelectClauses(cursor: TreeCursor, ctx: FormatCtx): string {
   const parts: string[] = [];
   if (cursor.firstChild()) {
-    do { parts.push(formatNode(cursor, ctx)); } while (cursor.nextSibling());
+    do {
+      parts.push(formatNode(cursor, ctx));
+    } while (cursor.nextSibling());
     cursor.parent();
   }
   if (parts.length > 0) return '\n' + parts.join('\n');
@@ -260,7 +382,9 @@ function fmtFromClause(cursor: TreeCursor, ctx: FormatCtx): string {
   do {
     if (cursor.name === 'FROM') continue;
     if (cursor.name === 'TableRef') result += ' ' + fmtTableRef(cursor, ctx);
-    else if (cursor.name === 'JoinClause') result += '\n' + fmtJoinClause(cursor, ctx);
+    else if (cursor.name === 'JoinClause') {
+      result += '\n' + fmtJoinClause(cursor, ctx);
+    }
   } while (cursor.nextSibling());
   cursor.parent();
   return result;
@@ -276,8 +400,7 @@ function fmtTableRef(cursor: TreeCursor, ctx: FormatCtx): string {
     if (cursor.name === 'TableSource') {
       source = fmtTableSource(cursor, ctx);
       sourceEnd = cursor.to;
-    }
-    else if (cursor.name === 'AS') asEnd = cursor.to;
+    } else if (cursor.name === 'AS') asEnd = cursor.to;
   } while (cursor.nextSibling());
   cursor.parent();
   if (asEnd >= 0) {
@@ -317,13 +440,15 @@ function fmtTableSource(cursor: TreeCursor, ctx: FormatCtx): string {
     cursor.parent();
     return text;
   }
-  let path = src(cursor, ctx); // IdentifierPath
+  const path = src(cursor, ctx); // IdentifierPath
   let isMacro = false;
   let args = '';
   let hasParen = false;
   while (cursor.nextSibling()) {
-    if (cursor.name === 'BangL') { isMacro = true; hasParen = true; }
-    else if (cursor.name === 'ParenL') hasParen = true;
+    if (cursor.name === 'BangL') {
+      isMacro = true;
+      hasParen = true;
+    } else if (cursor.name === 'ParenL') hasParen = true;
     else if (cursor.name === 'ArgList') args = fmtExpressionList(cursor, ctx);
   }
   cursor.parent();
@@ -339,7 +464,9 @@ function fmtJoinClause(cursor: TreeCursor, ctx: FormatCtx): string {
   do {
     if (cursor.name === 'JoinType') joinType = fmtJoinType(cursor, ctx);
     else if (cursor.name === 'TableRef') tableRef = fmtTableRef(cursor, ctx);
-    else if (cursor.name === 'JoinConstraint') constraint = fmtJoinConstraint(cursor, ctx);
+    else if (cursor.name === 'JoinConstraint') {
+      constraint = fmtJoinConstraint(cursor, ctx);
+    }
   } while (cursor.nextSibling());
   cursor.parent();
   let result = ind(ctx) + (joinType ? joinType + ' ' : '') + 'JOIN ' + tableRef;
@@ -350,7 +477,9 @@ function fmtJoinClause(cursor: TreeCursor, ctx: FormatCtx): string {
 function fmtJoinType(cursor: TreeCursor, ctx: FormatCtx): string {
   const parts: string[] = [];
   if (cursor.firstChild()) {
-    do { parts.push(kw(src(cursor, ctx))); } while (cursor.nextSibling());
+    do {
+      parts.push(kw(src(cursor, ctx)));
+    } while (cursor.nextSibling());
     cursor.parent();
   }
   return parts.join(' ');
@@ -410,7 +539,9 @@ function fmtOrderByClause(cursor: TreeCursor, ctx: FormatCtx): string {
   if (!cursor.firstChild()) return '';
   const terms: string[] = [];
   do {
-    if (cursor.name === 'OrderingTerm') terms.push(fmtOrderingTerm(cursor, ctx));
+    if (cursor.name === 'OrderingTerm') {
+      terms.push(fmtOrderingTerm(cursor, ctx));
+    }
   } while (cursor.nextSibling());
   cursor.parent();
   return ind(ctx) + 'ORDER BY ' + terms.join(', ');
@@ -421,8 +552,11 @@ function fmtOrderingTerm(cursor: TreeCursor, ctx: FormatCtx): string {
   let expr = '';
   let dir = '';
   do {
-    if (cursor.name === 'Expression') expr = uppercaseKeywords(src(cursor, ctx));
-    else if (cursor.name === 'ASC' || cursor.name === 'DESC') dir = kw(src(cursor, ctx));
+    if (cursor.name === 'Expression') {
+      expr = uppercaseKeywords(src(cursor, ctx));
+    } else if (cursor.name === 'ASC' || cursor.name === 'DESC') {
+      dir = kw(src(cursor, ctx));
+    }
   } while (cursor.nextSibling());
   cursor.parent();
   return expr + (dir ? ' ' + dir : '');
@@ -434,8 +568,9 @@ function fmtLimitClause(cursor: TreeCursor, ctx: FormatCtx): string {
   do {
     if (cursor.name === 'LIMIT') parts.push('LIMIT');
     else if (cursor.name === 'OFFSET') parts.push('OFFSET');
-    else if (cursor.name === 'Expression') parts.push(uppercaseKeywords(src(cursor, ctx)));
-    else if (cursor.name === 'Comma') parts.push(',');
+    else if (cursor.name === 'Expression') {
+      parts.push(uppercaseKeywords(src(cursor, ctx)));
+    } else if (cursor.name === 'Comma') parts.push(',');
   } while (cursor.nextSibling());
   cursor.parent();
   return ind(ctx) + parts.join(' ');
@@ -448,7 +583,9 @@ function fmtLimitClause(cursor: TreeCursor, ctx: FormatCtx): string {
 function fmtWithStatement(cursor: TreeCursor, ctx: FormatCtx): string {
   const parts: string[] = [];
   if (cursor.firstChild()) {
-    do { parts.push(formatNode(cursor, ctx)); } while (cursor.nextSibling());
+    do {
+      parts.push(formatNode(cursor, ctx));
+    } while (cursor.nextSibling());
     cursor.parent();
   }
   return parts.join('\n');
@@ -497,7 +634,9 @@ function fmtCTE(cursor: TreeCursor, ctx: FormatCtx): string {
 function fmtQueryBody(cursor: TreeCursor, ctx: FormatCtx): string {
   const parts: string[] = [];
   if (cursor.firstChild()) {
-    do { parts.push(formatNode(cursor, ctx)); } while (cursor.nextSibling());
+    do {
+      parts.push(formatNode(cursor, ctx));
+    } while (cursor.nextSibling());
     cursor.parent();
   }
   return parts.join('\n') + '\n';
@@ -649,8 +788,17 @@ function fmtCreateIndex(cursor: TreeCursor, ctx: FormatCtx): string {
     }
   } while (cursor.nextSibling());
   cursor.parent();
-  return 'CREATE PERFETTO INDEX ' + name + '\n' +
-    INDENT + 'ON ' + tableName + '(' + cols + ')';
+  return (
+    'CREATE PERFETTO INDEX ' +
+    name +
+    '\n' +
+    INDENT +
+    'ON ' +
+    tableName +
+    '(' +
+    cols +
+    ')'
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -676,7 +824,9 @@ function fmtCreateVirtualTable(cursor: TreeCursor, ctx: FormatCtx): string {
     }
   } while (cursor.nextSibling());
   cursor.parent();
-  return 'CREATE VIRTUAL TABLE ' + name + ' USING ' + usingName + '(' + args + ')';
+  return (
+    'CREATE VIRTUAL TABLE ' + name + ' USING ' + usingName + '(' + args + ')'
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -734,7 +884,9 @@ function fmtColumnType(cursor: TreeCursor, ctx: FormatCtx): string {
     if (cursor.name === 'ParenL' && !typeName) {
       typeName = ctx.sql.slice(nodeFrom, cursor.from).trim().toUpperCase();
     } else if (cursor.name === 'IdentifierPath') {
-      if (!typeName) typeName = ctx.sql.slice(nodeFrom, cursor.from).trim().toUpperCase();
+      if (!typeName) {
+        typeName = ctx.sql.slice(nodeFrom, cursor.from).trim().toUpperCase();
+      }
       path = src(cursor, ctx);
     }
   } while (cursor.nextSibling());
@@ -752,7 +904,9 @@ function fmtFunctionParamList(cursor: TreeCursor, ctx: FormatCtx): string {
   const params: string[] = [];
   if (cursor.firstChild()) {
     do {
-      if (cursor.name === 'FunctionParam') params.push(fmtFunctionParam(cursor, ctx));
+      if (cursor.name === 'FunctionParam') {
+        params.push(fmtFunctionParam(cursor, ctx));
+      }
     } while (cursor.nextSibling());
     cursor.parent();
   }
