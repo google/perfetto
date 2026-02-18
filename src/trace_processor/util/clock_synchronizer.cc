@@ -127,8 +127,7 @@ base::StatusOr<uint32_t> ClockSynchronizer::AddSnapshot(
     // Clock ids in the range [64, 128) are sequence-scoped and must be
     // translated to global ids via SequenceToGlobalClock() before calling
     // this function.
-    PERFETTO_DCHECK(!IsSequenceClock(clock_id.clock_id) ||
-                    clock_id.seq_id != 0);
+    PERFETTO_DCHECK(!clock_id.IsSequenceClock() || clock_id.seq_id != 0);
 
     // Snapshot IDs must be always monotonic.
     PERFETTO_DCHECK(vect.snapshot_ids.empty() ||
@@ -204,9 +203,8 @@ std::optional<int64_t> ClockSynchronizer::ConvertSlowpath(
     std::optional<int64_t> src_ts_ns,
     ClockId target_clock_id,
     std::optional<size_t> byte_offset) {
-  PERFETTO_DCHECK(!IsSequenceClock(src_clock_id.clock_id) ||
-                  src_clock_id.seq_id != 0);
-  PERFETTO_DCHECK(!IsSequenceClock(target_clock_id.clock_id) ||
+  PERFETTO_DCHECK(!src_clock_id.IsSequenceClock() || src_clock_id.seq_id != 0);
+  PERFETTO_DCHECK(!target_clock_id.IsSequenceClock() ||
                   target_clock_id.seq_id != 0);
   clock_event_listener_->OnClockSyncCacheMiss();
 

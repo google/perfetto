@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -36,6 +37,7 @@
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -112,27 +114,25 @@ size_t GetSampleIdSize(const perf_event_attr& attr) {
 
 ClockTracker::ClockId ExtractClockId(const perf_event_attr& attr) {
   if (!attr.use_clockid) {
-    return ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_PERF);
+    return ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_PERF);
   }
   switch (attr.clockid) {
     // Linux perf uses the values in <time.h> not sure if these are portable
     // across platforms, so using the actual values here just in case.
     case 0:  // CLOCK_REALTIME
-      return ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_REALTIME);
+      return ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME);
     case 1:  // CLOCK_MONOTONIC
-      return ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+      return ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
     case 4:  // CLOCK_MONOTONIC_RAW
-      return ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
+      return ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
     case 5:  // CLOCK_REALTIME_COARSE
-      return ClockTracker::ClockId(
-          protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE);
+      return ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE);
     case 6:  // CLOCK_MONOTONIC_COARSE
-      return ClockTracker::ClockId(
-          protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE);
+      return ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE);
     case 7:  // CLOCK_BOOTTIME
-      return ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+      return ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
     default:
-      return ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_UNKNOWN);
+      return ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_UNKNOWN);
   }
 }
 }  // namespace

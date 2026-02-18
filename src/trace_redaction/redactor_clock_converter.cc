@@ -53,9 +53,8 @@ void RedactorClockSynchronizerListenerImpl::RecordConversionError(
 }
 
 RedactorClockConverter::RedactorClockConverter()
-    : trace_time_state_{ClockId(protos::pbzero::BuiltinClock::
-                                    BUILTIN_CLOCK_BOOTTIME),
-                        /*used_for_conversion=*/false},
+    : trace_time_state_{ClockId::Machine(
+          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME)},
       clock_synchronizer_(
           &trace_time_state_,
           std::make_unique<RedactorClockSynchronizerListenerImpl>()) {}
@@ -63,8 +62,8 @@ RedactorClockConverter::RedactorClockConverter()
 base::StatusOr<ClockId> RedactorClockConverter::GetTraceClock() {
   if (!primary_trace_clock_.has_value()) {
     // Set the default clocks if none has been provided.
-    RETURN_IF_ERROR(SetTraceClock(
-        ClockId(protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME)));
+    RETURN_IF_ERROR(SetTraceClock(ClockId::Machine(
+        protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME)));
   }
   PERFETTO_DCHECK(primary_trace_clock_.has_value());
   return primary_trace_clock_.value();
@@ -98,7 +97,8 @@ base::StatusOr<ClockId> RedactorClockConverter::GetGlobalDefaultDataSourceClock(
     const DataSourceType& clock_type) const {
   switch (clock_type) {
     case DataSourceType::kPerfDataSource:
-      return ClockId(protos::pbzero::BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW);
+      return ClockId::Machine(
+          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW);
     case DataSourceType::kUnknown:
       // A default needs to be set for the data source if you get here.
       return base::ErrStatus(
