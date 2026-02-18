@@ -67,7 +67,7 @@ base::Status CollectClocks::ParseClockSnapshot(
     auto trace_clock =
         static_cast<uint32_t>(snapshot_decoder.primary_trace_clock());
     RETURN_IF_ERROR(
-        context->clock_converter.SetTraceClock(ClockId(trace_clock)));
+        context->clock_converter.SetTraceClock(ClockId::Machine(trace_clock)));
   }
   for (auto clock_it = snapshot_decoder.clocks(); clock_it; clock_it++) {
     ASSIGN_OR_RETURN(ClockTimestamp clock_ts, ParseClock(clock_it->as_bytes()));
@@ -97,7 +97,7 @@ base::Status CollectClocks::ParseTracePacketDefaults(
 
 base::StatusOr<ClockTimestamp> CollectClocks::ParseClock(
     protozero::ConstBytes clock_bytes) const {
-  ClockTimestamp clock_ts(ClockId(0), 0);
+  ClockTimestamp clock_ts(ClockId::Machine(0), 0);
   protos::pbzero::ClockSnapshot_Clock::Decoder clock_decoder(clock_bytes);
   if (!clock_decoder.has_clock_id()) {
     return base::ErrStatus("Could not find clock id in clock snapshot");
@@ -106,7 +106,7 @@ base::StatusOr<ClockTimestamp> CollectClocks::ParseClock(
   if (!clock_decoder.has_timestamp()) {
     return base::ErrStatus("Could not find clock timestamp in clock snapshot");
   }
-  return ClockTimestamp(ClockId(clock_decoder.clock_id()),
+  return ClockTimestamp(ClockId::Machine(clock_decoder.clock_id()),
                         static_cast<int64_t>(clock_decoder.timestamp()));
 }
 
@@ -127,7 +127,7 @@ base::Status CollectClocks::OnTracePacketDefaults(
     uint32_t perf_clock_id = trace_packet_defaults_decoder.timestamp_clock_id();
     context->clock_converter.SetDefaultDataSourceClock(
         RedactorClockConverter::DataSourceType::kPerfDataSource,
-        ClockId(perf_clock_id), trusted_sequence_id);
+        ClockId::Machine(perf_clock_id), trusted_sequence_id);
   }
 
   return base::OkStatus();

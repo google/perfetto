@@ -127,7 +127,7 @@ base::Status PrunePerfEvents::OnPerfSample(
                       static_cast<uint32_t>(trusted_packet_sequence_id.value()),
                       RedactorClockConverter::DataSourceType::kPerfDataSource));
   } else {
-    clock_id = ClockId(trace_packet_clock_id.value());
+    clock_id = ClockId::Machine(trace_packet_clock_id.value());
   }
 
   ASSIGN_OR_RETURN(trace_ts,

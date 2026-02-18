@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -106,8 +107,6 @@ base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {
     uint32_t magic = ToInt(*smagic);
     sub_parser_ = magic == kTraceMagic ? SubParser{Streaming{this}}
                                        : SubParser{NonStreaming{this}};
-    context_->clock_tracker->SetTraceTimeClock(
-        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
   }
   if (sub_parser_.index() == base::variant_index<SubParser, Streaming>()) {
     return std::get<Streaming>(sub_parser_).Parse();
@@ -216,7 +215,7 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
       break;
   }
   std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
       (ts_ + ts_delta) * 1000);
   if (ts) {
     stream_->Push(*ts, evt);

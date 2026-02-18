@@ -223,7 +223,12 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         auto* machine_context =
             context_->ForkContextForMachineInCurrentTrace(decoder.machine_id());
         *it = std::make_unique<ProtoTraceReader>(machine_context);
-
+        auto parent_default = context_->clock_tracker->trace_default_clock();
+        if (parent_default) {
+          machine_context->clock_tracker->SetTraceDefaultClock(*parent_default);
+        }
+        machine_context->clock_tracker->AddDeferredIdentitySync(
+            ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
         // TODO(lalitm): this doesn't seem the right place for this but I cannot
         // think of a much better place either.
         machine_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
@@ -349,12 +354,20 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
   if (decoder.has_timestamp()) {
     timestamp = static_cast<int64_t>(decoder.timestamp());
 
-    uint32_t timestamp_clock_id =
-        decoder.has_timestamp_clock_id()
-            ? decoder.timestamp_clock_id()
-            : (defaults ? defaults->timestamp_clock_id()
-                        : static_cast<uint32_t>(
-                              protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    // Use the packet's clock_id, falling back to sequence defaults, then
+    // to the trace's default clock (e.g. BOOTTIME for proto traces).
+    // If none is set, timestamp_clock_id stays 0 and no conversion
+    // happens — the timestamp is assumed to be in trace time already.
+    uint32_t timestamp_clock_id = decoder.timestamp_clock_id();
+    if (PERFETTO_UNLIKELY(!timestamp_clock_id && defaults)) {
+      timestamp_clock_id = defaults->timestamp_clock_id();
+    }
+    if (PERFETTO_UNLIKELY(!timestamp_clock_id)) {
+      auto default_clock = context_->clock_tracker->trace_default_clock();
+      if (default_clock) {
+        timestamp_clock_id = default_clock->clock_id;
+      }
+    }
 
     if ((decoder.has_chrome_events() || decoder.has_chrome_metadata()) &&
         (!timestamp_clock_id ||
@@ -366,15 +379,14 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       // TODO(eseckler): Set timestamp_clock_id and emit ClockSnapshots in
       // chrome and then remove this.
       auto trace_ts = context_->clock_tracker->ToTraceTime(
-          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-          timestamp);
+          ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), timestamp);
       if (trace_ts)
         timestamp = *trace_ts;
     } else if (timestamp_clock_id) {
       // If the TracePacket specifies a non-zero clock-id, translate the
       // timestamp into the trace-time clock domain.
-      ClockTracker::ClockId converted_clock_id(timestamp_clock_id);
-      if (ClockTracker::IsSequenceClock(timestamp_clock_id)) {
+      ClockTracker::ClockId converted_clock_id;
+      if (ClockId::IsSequenceClock(timestamp_clock_id)) {
         if (!seq_id) {
           return base::ErrStatus(
               "TracePacket specified a sequence-local clock id (%" PRIu32
@@ -382,8 +394,10 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
               "probably too old)",
               timestamp_clock_id);
         }
-        converted_clock_id = ClockTracker::SequenceToGlobalClock(
-            context_->trace_id().value, seq_id, timestamp_clock_id);
+        converted_clock_id = ClockId::Sequence(context_->trace_id().value,
+                                               seq_id, timestamp_clock_id);
+      } else {
+        converted_clock_id = ClockId::Machine(timestamp_clock_id);
       }
       auto trace_ts = context_->clock_tracker->ToTraceTime(
           converted_clock_id, timestamp, packet.offset());
@@ -538,22 +552,20 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
                                                   uint32_t seq_id) {
   std::vector<ClockTracker::ClockTimestamp> clock_timestamps;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
-  if (evt.primary_trace_clock()) {
-    context_->clock_tracker->SetTraceTimeClock(
-        ClockId(static_cast<uint32_t>(evt.primary_trace_clock())));
-  }
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
-    ClockTracker::ClockId clock_id(clk.clock_id());
-    if (ClockTracker::IsSequenceClock(clk.clock_id())) {
+    ClockTracker::ClockId clock_id;
+    if (ClockId::IsSequenceClock(clk.clock_id())) {
       if (!seq_id) {
         return base::ErrStatus(
             "ClockSnapshot packet is specifying a sequence-scoped clock id "
             "(%" PRIu32 ") but the TracePacket sequence_id is zero",
             clock_id.clock_id);
       }
-      clock_id = ClockTracker::SequenceToGlobalClock(context_->trace_id().value,
-                                                     seq_id, clk.clock_id());
+      clock_id =
+          ClockId::Sequence(context_->trace_id().value, seq_id, clk.clock_id());
+    } else {
+      clock_id = ClockId::Machine(clk.clock_id());
     }
     int64_t unit_multiplier_ns =
         clk.unit_multiplier_ns()
@@ -561,6 +573,33 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
             : 1;
     clock_timestamps.emplace_back(clock_id, clk.timestamp(), unit_multiplier_ns,
                                   clk.is_incremental());
+  }
+
+  if (evt.primary_trace_clock()) {
+    auto clock =
+        ClockId::Machine(static_cast<uint32_t>(evt.primary_trace_clock()));
+    context_->clock_tracker->SetTraceDefaultClock(clock);
+    context_->clock_tracker->SetGlobalClock(clock);
+  } else {
+    // For legacy proto traces without primary_trace_clock: if the snapshot
+    // contains BOOTTIME but not TRACE_FILE, infer BOOTTIME as the trace time
+    // clock. This matches the old behavior where BOOTTIME was hardcoded as
+    // the default for proto traces.
+    bool has_boottime = false;
+    bool has_trace_file = false;
+    for (const auto& ct : clock_timestamps) {
+      if (ct.clock.id.clock_id == protos::pbzero::BUILTIN_CLOCK_BOOTTIME) {
+        has_boottime = true;
+      }
+      if (ct.clock.id.clock_id == protos::pbzero::BUILTIN_CLOCK_TRACE_FILE) {
+        has_trace_file = true;
+      }
+    }
+    if (has_boottime && !has_trace_file) {
+      auto clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+      context_->clock_tracker->SetTraceDefaultClock(clock);
+      context_->clock_tracker->SetGlobalClock(clock);
+    }
   }
 
   base::StatusOr<uint32_t> snapshot_id =
@@ -644,7 +683,7 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
       protos::pbzero::ClockSnapshot::ClockSnapshot::Clock::Decoder clock(
           *clock_it);
       sync_clocks[clock.clock_id()].second = clock.timestamp();
-      clock_timestamps.emplace_back(ClockTracker::ClockId(clock.clock_id()),
+      clock_timestamps.emplace_back(ClockId::Machine(clock.clock_id()),
                                     clock.timestamp(), 1, false);
     }
 
@@ -731,7 +770,7 @@ ProtoTraceReader::CalculateClockOffsets(
       int64_t avg_offset =
           std::accumulate(offsets.begin(), offsets.end(), 0LL) /
           static_cast<int64_t>(offsets.size());
-      clock_offsets[ClockId(clock_id)] = avg_offset;
+      clock_offsets[ClockId::Machine(clock_id)] = avg_offset;
     }
   }
 

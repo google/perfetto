@@ -63,8 +63,8 @@ class CollectClocksTest : public testing::Test {
 TEST_F(CollectClocksTest, CollectsClocksAndConvertsPerfToTraceTs) {
   // We need a trusted sequence id that will be used to map the clock ids.
   constexpr uint32_t trusted_sequence_id = 7;
-  constexpr ClockId perf_clock_id(1);
-  constexpr ClockId trace_clock_id(4);
+  constexpr ClockId perf_clock_id = ClockId::Machine(1);
+  constexpr ClockId trace_clock_id = ClockId::Machine(4);
 
   protos::gen::TracePacket trace_defaults_packet;
   AddPerfTraceDefaultsToPacket(trace_defaults_packet, trusted_sequence_id,
@@ -123,11 +123,11 @@ TEST_F(CollectClocksTest, CollectsClocksAndConvertsPerfToTraceTs) {
 
 TEST_F(CollectClocksTest, CollectsClocksMultiSequence) {
   packets_.clear();
-  constexpr ClockId trace_clock_id(4);
+  constexpr ClockId trace_clock_id = ClockId::Machine(4);
 
   // Create defaults for first trusted sequence
   constexpr int trusted_sequence_id_1 = 1;
-  constexpr ClockId perf_clock_id_seq_1(5);
+  constexpr ClockId perf_clock_id_seq_1 = ClockId::Machine(5);
   protos::gen::TracePacket trace_defaults_packet_seq_1;
   AddPerfTraceDefaultsToPacket(trace_defaults_packet_seq_1,
                                trusted_sequence_id_1,
@@ -136,7 +136,7 @@ TEST_F(CollectClocksTest, CollectsClocksMultiSequence) {
 
   // Create defaults for second trusted sequence
   constexpr int trusted_sequence_id_2 = 2;
-  constexpr ClockId perf_clock_id_seq_2(6);
+  constexpr ClockId perf_clock_id_seq_2 = ClockId::Machine(6);
   protos::gen::TracePacket trace_defaults_packet_seq_2;
   AddPerfTraceDefaultsToPacket(trace_defaults_packet_seq_2,
                                trusted_sequence_id_2,
