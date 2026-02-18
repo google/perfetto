@@ -112,7 +112,7 @@ import {QueryNode, Query} from '../query_node';
 import {getPrimarySelectedNode} from '../selection_utils';
 import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodeExplorer} from './node_explorer';
-import {Graph} from './graph/graph';
+import {Graph, GraphCallbacks} from './graph/graph';
 import {DataExplorer} from './data_explorer';
 import {
   DrawerPanel,
@@ -143,6 +143,8 @@ export interface BuilderAttrs {
   readonly sqlModules: SqlModules;
   readonly queryExecutionService: QueryExecutionService;
 
+  // Graph data & callbacks (forwarded to Graph component).
+  readonly graphCallbacks: GraphCallbacks;
   readonly rootNodes: QueryNode[];
   readonly selectedNodes: ReadonlySet<string>;
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
@@ -154,52 +156,19 @@ export interface BuilderAttrs {
     text: string;
   }>;
   readonly loadGeneration?: number;
+
+  // Builder-specific callbacks.
   readonly isExplorerCollapsed?: boolean;
   readonly sidebarWidth?: number;
-
-  // Add nodes.
-  readonly onAddSourceNode: (id: string) => void;
-  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
-
   readonly onRootNodeCreated: (node: QueryNode) => void;
-  readonly onNodeSelected: (node?: QueryNode) => void;
-  readonly onNodeAddToSelection: (node: QueryNode) => void;
-  readonly onNodeRemoveFromSelection: (nodeId: string) => void;
-  readonly onDeselect: () => void;
-  readonly onNodeLayoutChange: (
-    nodeId: string,
-    layout: {x: number; y: number},
-  ) => void;
-  readonly onLabelsChange?: (
-    labels: Array<{
-      id: string;
-      x: number;
-      y: number;
-      width: number;
-      text: string;
-    }>,
-  ) => void;
   readonly onExplorerCollapsedChange?: (collapsed: boolean) => void;
   readonly onSidebarWidthChange?: (width: number) => void;
-
-  readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onClearAllNodes: () => void;
-  readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (
-    fromNode: QueryNode,
-    toNode: QueryNode,
-    isSecondaryInput: boolean,
-  ) => void;
   readonly onFilterAdd: (
     node: QueryNode,
     filter: UIFilter | UIFilter[],
     filterOperator?: 'AND' | 'OR',
   ) => void;
   readonly onColumnAdd?: (node: QueryNode, column: Column) => void;
-
-  // Import / Export JSON
-  readonly onImport: () => void;
-  readonly onExport: () => void;
 
   // Starting templates (when page is empty)
   readonly onLoadEmptyTemplate?: () => void;
@@ -274,7 +243,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
-    const {trace, rootNodes, onNodeSelected, onClearAllNodes} = attrs;
+    const {trace, rootNodes} = attrs;
     const selectedNode = getPrimarySelectedNode(attrs.selectedNodes, rootNodes);
 
     // Store selectedNode and rootNodes for keyboard shortcuts (executeSelectedNode)
@@ -417,7 +386,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             '.pf-unselected-explorer',
             m(NavigationSidePanel, {
               selectedNode,
-              onAddSourceNode: attrs.onAddSourceNode,
+              onAddSourceNode: attrs.graphCallbacks.onAddSourceNode,
               onLoadExampleByPath: attrs.onLoadExampleByPath,
               onLoadExploreTemplate: attrs.onLoadExploreTemplate,
               onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
@@ -486,26 +455,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         m(
           '.pf-qb-node-graph',
           m(Graph, {
+            ...attrs.graphCallbacks,
             rootNodes,
             selectedNodes: attrs.selectedNodes,
-            onNodeSelected,
-            onNodeAddToSelection: attrs.onNodeAddToSelection,
-            onNodeRemoveFromSelection: attrs.onNodeRemoveFromSelection,
             nodeLayouts: attrs.nodeLayouts,
             labels: attrs.labels,
             loadGeneration: attrs.loadGeneration,
-            onNodeLayoutChange: attrs.onNodeLayoutChange,
-            onLabelsChange: attrs.onLabelsChange,
-            onDeselect: attrs.onDeselect,
-            onAddSourceNode: attrs.onAddSourceNode,
-            onClearAllNodes,
-            onDuplicateNode: attrs.onDuplicateNode,
-            onAddOperationNode: (id, node) =>
-              attrs.onAddOperationNode(id, node),
-            onDeleteNode: attrs.onDeleteNode,
-            onConnectionRemove: attrs.onConnectionRemove,
-            onImport: attrs.onImport,
-            onExport: attrs.onExport,
           }),
           selectedNode &&
             m(
