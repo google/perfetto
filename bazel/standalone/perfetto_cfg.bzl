@@ -46,7 +46,6 @@ PERFETTO_CONFIG = struct(
 
         zlib = ["@perfetto_dep_zlib//:zlib"],
         expat = ["@perfetto_dep_expat//:expat"],
-        jsoncpp = ["@perfetto_dep_jsoncpp//:jsoncpp"],
         linenoise = ["@perfetto_dep_linenoise//:linenoise"],
         sqlite = ["@perfetto_dep_sqlite//:sqlite"],
         sqlite_ext_percentile = ["@perfetto_dep_sqlite_src//:percentile_ext"],
@@ -94,7 +93,6 @@ PERFETTO_CONFIG = struct(
     deps_copts = struct(
         zlib = [],
         expat = [],
-        jsoncpp = [],
         linenoise = [],
         sqlite = [],
         llvm_demangle = [],

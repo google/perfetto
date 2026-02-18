@@ -16,12 +16,11 @@
 
 #define CPPHTTPLIB_NO_EXCEPTIONS
 #define CPPHTTPLIB_OPENSSL_SUPPORT
+#include "src/bigtrace/worker/repository_policies/gcs_trace_processor_loader.h"
 #include <httplib.h>
-#include <json/json.h>
-
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "src/bigtrace/worker/repository_policies/gcs_trace_processor_loader.h"
+#include "src/trace_processor/util/json_value.h"
 
 namespace perfetto::bigtrace {
 
@@ -55,13 +54,11 @@ GcsTraceProcessorLoader::LoadTraceProcessor(const std::string& path) {
   }
 
   // Parse access token from response
-  Json::Value json_value;
-  Json::Reader json_reader;
-  bool parsed_successfully = json_reader.parse(json_string, json_value);
-  if (!parsed_successfully) {
+  auto json_result = trace_processor::json::Parse(json_string);
+  if (!json_result.ok()) {
     return base::ErrStatus("Failed to parse GCS access token");
   }
-  std::string access_token = json_value["access_token"].asString();
+  std::string access_token = (*json_result)["access_token"].AsString();
 
   // Download trace from GCS
   std::string gcs_path = kGcsBucketPath + path + kGcsParams;

@@ -399,17 +399,6 @@ if (enable_perfetto_trace_processor_mac_instruments) {
   }
 }
 
-if (enable_perfetto_trace_processor_json) {
-  group("jsoncpp") {
-    if (perfetto_root_path == "//") {
-      public_configs = [ "//buildtools:jsoncpp_config" ]
-      public_deps = [ "//buildtools:jsoncpp" ]
-    } else {
-      public_deps = [ "//third_party/jsoncpp:jsoncpp" ]
-    }
-  }
-}
-
 if (enable_perfetto_grpc) {
   group("grpc") {
     public_configs = [ "//buildtools:grpc_public_config" ]

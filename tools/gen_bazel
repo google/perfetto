@@ -181,7 +181,6 @@ external_deps = {
     '//gn:default_deps': [],
     '//gn:base_platform': ['PERFETTO_CONFIG.deps.base_platform'],
     '//gn:expat': ['PERFETTO_CONFIG.deps.expat'],
-    '//gn:jsoncpp': ['PERFETTO_CONFIG.deps.jsoncpp'],
     '//gn:linenoise': ['PERFETTO_CONFIG.deps.linenoise'],
     '//gn:open_csd': ['PERFETTO_CONFIG.deps.open_csd'],
     '//gn:protobuf_full': ['PERFETTO_CONFIG.deps.protobuf_full'],
