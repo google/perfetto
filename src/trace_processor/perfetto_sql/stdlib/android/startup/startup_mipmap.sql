@@ -92,6 +92,7 @@ SELECT
   slice.blocked_function,
   slice.irq_context,
   startup.startup_id,
+  startup.upid,
   startup.startup_type,
   startup.package,
   startup.dur AS startup_dur
@@ -164,6 +165,8 @@ CREATE PERFETTO TABLE _android_startup_mipmap_1ms (
   dur DURATION,
   -- unique startup id
   startup_id JOINID(android_startups.startup_id),
+  -- upid of the startup
+  upid LONG,
   -- package name
   package STRING,
   -- startup type
@@ -184,7 +187,8 @@ CREATE PERFETTO TABLE _android_startup_mipmap_1ms (
 SELECT
   mm.ts,
   mm.dur,
-  mm.startup_id,
+  s.startup_id,
+  s.upid,
   s.package,
   s.startup_type,
   s.startup_dur,
