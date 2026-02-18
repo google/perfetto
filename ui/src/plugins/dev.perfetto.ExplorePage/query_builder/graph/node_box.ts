@@ -19,6 +19,7 @@ import {PopupMenu, MenuDivider, MenuTitle} from '../../../../widgets/menu';
 import {QueryNode} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
 import {buildMenuItems} from './menu_utils';
+import {nodeRegistry} from '../node_registry';
 import {NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeDetailsContent} from '../node_styling_widgets';
 
@@ -42,25 +43,39 @@ export function renderWarningIcon(node: QueryNode): m.Child {
 export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   const {node, onAddOperationNode} = attrs;
 
-  const multisourceMenuItems = buildMenuItems('multisource', (id) =>
-    onAddOperationNode(id, node),
+  const allowedChildren = nodeRegistry.getAllowedChildrenFor(node.type);
+  if (allowedChildren.length === 0) {
+    return null;
+  }
+
+  const multisourceMenuItems = buildMenuItems(
+    'multisource',
+    (id) => onAddOperationNode(id, node),
+    allowedChildren,
   );
 
-  const modificationMenuItems = buildMenuItems('modification', (id) =>
-    onAddOperationNode(id, node),
+  const modificationMenuItems = buildMenuItems(
+    'modification',
+    (id) => onAddOperationNode(id, node),
+    allowedChildren,
   );
 
   if (modificationMenuItems.length === 0 && multisourceMenuItems.length === 0) {
     return null;
   }
 
-  const menuItems = [
-    m(MenuTitle, {label: 'Modification nodes'}),
-    ...modificationMenuItems,
-    m(MenuDivider),
-    m(MenuTitle, {label: 'Operations'}),
-    ...multisourceMenuItems,
-  ];
+  const menuItems: m.Children[] = [];
+  if (modificationMenuItems.length > 0) {
+    menuItems.push(m(MenuTitle, {label: 'Modification nodes'}));
+    menuItems.push(...modificationMenuItems);
+  }
+  if (modificationMenuItems.length > 0 && multisourceMenuItems.length > 0) {
+    menuItems.push(m(MenuDivider));
+  }
+  if (multisourceMenuItems.length > 0) {
+    menuItems.push(m(MenuTitle, {label: 'Operations'}));
+    menuItems.push(...multisourceMenuItems);
+  }
 
   return m(
     PopupMenu,

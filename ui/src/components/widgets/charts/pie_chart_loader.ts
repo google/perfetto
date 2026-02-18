@@ -15,7 +15,12 @@
 import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, STR_NULL} from '../../../trace_processor/query_result';
-import {AggregationType, sqlAggExpression, sqlInClause} from './chart_utils';
+import {
+  AggregationType,
+  sqlAggExpression,
+  sqlInClause,
+  validateColumnName,
+} from './chart_utils';
 import {PieChartData, PieChartSlice} from './pie_chart';
 
 /**
@@ -89,6 +94,8 @@ export class SQLPieChartLoader {
   private readonly querySlot = new QuerySlot<PieChartData>(this.taskQueue);
 
   constructor(opts: SQLPieChartLoaderOpts) {
+    validateColumnName(opts.dimensionColumn);
+    validateColumnName(opts.measureColumn);
     this.engine = opts.engine;
     this.baseQuery = opts.query;
     this.dimensionColumn = opts.dimensionColumn;

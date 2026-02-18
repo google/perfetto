@@ -21,12 +21,6 @@ executable("traced_relay") {
     ":lib",
     "../../gn:default_deps",
     "../../include/perfetto/ext/traced",
-    "../base",
-    "../base:clock_snapshots",
-    "../base:unix_socket",
-    "../base:version",
-    "../ipc:perfetto_ipc",
-    "../tracing/ipc:default_socket",
   ]
   sources = [ "relay_service_main.cc" ]
 }
@@ -41,11 +35,15 @@ source_set("lib") {
   ]
   deps = [
     "../../gn:default_deps",
+    "../../include/perfetto/ext/traced",
     "../../protos/perfetto/ipc",
     "../../protos/perfetto/ipc:wire_protocol_cpp",
     "../base",
+    "../base:clock_snapshots",
+    "../base:unix_socket",
     "../base:version",
     "../ipc:perfetto_ipc",
+    "../tracing/ipc:default_socket",
     "../tracing/ipc/producer:relay",  # For relay_ipc_client.h
   ]
 }

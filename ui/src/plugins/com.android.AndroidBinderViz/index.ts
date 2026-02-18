@@ -62,7 +62,7 @@ export default class implements PerfettoPlugin {
         tableName: 'android_binder_txns',
       },
       slice: {
-        columns: ['aidl_name'],
+        columns: ['IFNULL(aidl_name, "unknown aidl")'],
         tableName: 'android_binder_txns',
         tsCol: `${oppositePerspective}_ts`,
         durCol: `${oppositePerspective}_dur`,

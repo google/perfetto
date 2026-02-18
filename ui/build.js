@@ -112,7 +112,7 @@ const cfg = {
   outExtDir: '',
   outBigtraceDistDir: '',
   outOpenPerfettoTraceDistDir: '',
-  outWatchLockFile: '',
+  lockFile: '',
 };
 
 const RULES = [
@@ -173,6 +173,9 @@ async function main() {
   const args = parser.parse_args();
   const clean = !args.no_build;
   cfg.outDir = path.resolve(ensureDir(args.out || cfg.outDir));
+  cfg.lockFile = pjoin(cfg.outDir, "watch.lock");
+  prepareLock();
+
   cfg.outUiDir = ensureDir(pjoin(cfg.outDir, 'ui'), clean);
   cfg.outUiTestArtifactsDir = ensureDir(pjoin(cfg.outDir, 'ui-test-artifacts'));
   cfg.outExtDir = ensureDir(pjoin(cfg.outUiDir, 'chrome_extension'));
@@ -182,12 +185,8 @@ async function main() {
   cfg.outDistDir = ensureDir(pjoin(cfg.outDistRootDir, cfg.version));
   cfg.outTscDir = ensureDir(pjoin(cfg.outUiDir, 'tsc'));
   cfg.outGenDir = ensureDir(pjoin(cfg.outUiDir, 'tsc/gen'));
-  cfg.outWatchLockFile = pjoin(cfg.outDir, "watch.lock");
   cfg.testFilter = args.test_filter || '';
   cfg.watch = !!args.watch;
-  if (cfg.watch) {
-    prepareWatchLock();
-  }
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
   cfg.bigtrace = !!args.bigtrace;
@@ -928,9 +927,9 @@ function mklink(src, dst) {
   fs.symlinkSync(src, dst);
 }
 
-function prepareWatchLock() {
-  if (fs.existsSync(cfg.outWatchLockFile)) {
-    const oldPid = fs.readFileSync(cfg.outWatchLockFile, 'utf8').trim();
+function prepareLock() {
+  if (fs.existsSync(cfg.lockFile)) {
+    const oldPid = fs.readFileSync(cfg.lockFile, 'utf8').trim();
     let running = true;
     try {
       // Check if oldPid exists.
@@ -939,22 +938,22 @@ function prepareWatchLock() {
       running = false;
     }
     if (running) {
-      console.error(`Error: a build.js with --watch instance is already running (${cfg.outWatchLockFile} PID=${oldPid}).`);
+      console.error(`Error: a build.js instance is already running (${cfg.lockFile} PID=${oldPid}).`);
       process.exit(1);
     } else {
       console.log(`Removing stale lock file for PID ${oldPid}`);
-      fs.unlinkSync(cfg.outWatchLockFile);
+      fs.unlinkSync(cfg.lockFile);
     }
   }
-  fs.writeFileSync(cfg.outWatchLockFile, process.pid.toString());
+  fs.writeFileSync(cfg.lockFile, process.pid.toString());
   process.on('exit', () => releaseWatchLock());
 }
 
 function releaseWatchLock() {
-  if (fs.existsSync(cfg.outWatchLockFile)) {
-    const pid = fs.readFileSync(cfg.outWatchLockFile, 'utf8').trim();
+  if (fs.existsSync(cfg.lockFile)) {
+    const pid = fs.readFileSync(cfg.lockFile, 'utf8').trim();
     if (pid === process.pid.toString()) {
-      fs.unlinkSync(cfg.outWatchLockFile);
+      fs.unlinkSync(cfg.lockFile);
     } else {
       console.warn(`Ignoring stale lock file PID ${pid}`)
     }
