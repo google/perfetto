@@ -1691,15 +1691,27 @@ base::StatusOr<std::string> StructuredQueryGenerator::GenerateById(
 base::StatusOr<std::string> StructuredQueryGenerator::AddQuery(
     const uint8_t* data,
     size_t size) {
-  protozero::ProtoDecoder decoder(data, size);
-  auto field = decoder.FindField(
-      protos::pbzero::PerfettoSqlStructuredQuery::kIdFieldNumber);
-  if (!field) {
+  StructuredQuery::Decoder decoder(data, size);
+  if (!decoder.has_id()) {
     return base::ErrStatus(
         "Unable to find id for shared query: all shared queries must have an "
         "id specified");
   }
-  std::string id = field.as_std_string();
+  std::string id = decoder.id().ToStdString();
+
+  // Extract module references so ComputeReferencedModules() returns them
+  // before Generate() is called. This ensures PrepareGenerator can include
+  // modules before materialization.
+  for (auto it = decoder.referenced_modules(); it; ++it) {
+    referenced_modules_.Insert(it->as_std_string(), nullptr);
+  }
+  if (decoder.has_table()) {
+    StructuredQuery::Table::Decoder table(decoder.table());
+    if (table.module_name().size > 0) {
+      referenced_modules_.Insert(table.module_name().ToStdString(), nullptr);
+    }
+  }
+
   auto ptr = std::make_unique<uint8_t[]>(size);
   memcpy(ptr.get(), data, size);
   auto [it, inserted] =

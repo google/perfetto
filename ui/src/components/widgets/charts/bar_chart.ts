@@ -14,7 +14,8 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {AggregationType, extractBrushRange, formatNumber} from './chart_utils';
+import {AggregateFunction} from '../datagrid/model';
+import {extractBrushRange, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {
   buildAxisOption,
@@ -276,7 +277,7 @@ export function aggregateBarChartData<T>(
   items: readonly T[],
   dimension: (item: T) => string | number,
   measure: (item: T) => number,
-  aggregation: AggregationType,
+  aggregation: AggregateFunction,
 ): BarChartData {
   const groups = new Map<string | number, number[]>();
   for (const item of items) {
@@ -298,18 +299,17 @@ export function aggregateBarChartData<T>(
   return {items: result};
 }
 
-function aggregate(values: number[], agg: AggregationType): number {
+function aggregate(values: number[], agg: AggregateFunction): number {
   switch (agg) {
+    case 'ANY':
+    case 'MIN':
+      return values.reduce((a, b) => Math.min(a, b), Infinity);
     case 'SUM':
       return values.reduce((a, b) => a + b, 0);
     case 'AVG':
       return values.reduce((a, b) => a + b, 0) / values.length;
-    case 'MIN':
-      return values.reduce((a, b) => Math.min(a, b), Infinity);
     case 'MAX':
       return values.reduce((a, b) => Math.max(a, b), -Infinity);
-    case 'COUNT':
-      return values.length;
     case 'COUNT_DISTINCT':
       return new Set(values).size;
   }

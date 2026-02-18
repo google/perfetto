@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {AggregateFunction} from '../datagrid/model';
+
 /**
  * Format a number for display on chart axes.
  */
@@ -30,21 +32,10 @@ export function formatNumber(value: number): string {
 }
 
 /**
- * Aggregation types supported by chart loaders.
- */
-export type AggregationType =
-  | 'SUM'
-  | 'AVG'
-  | 'MIN'
-  | 'MAX'
-  | 'COUNT'
-  | 'COUNT_DISTINCT';
-
-/**
  * Whether an aggregation always produces integer results.
  */
-export function isIntegerAggregation(agg: AggregationType): boolean {
-  return agg === 'COUNT' || agg === 'COUNT_DISTINCT';
+export function isIntegerAggregation(agg: AggregateFunction): boolean {
+  return agg === 'COUNT_DISTINCT';
 }
 
 // ---------------------------------------------------------------------------
@@ -62,51 +53,6 @@ export function validateColumnName(name: string): void {
   if (!VALID_COLUMN_RE.test(name)) {
     throw new Error(`Invalid SQL column name: '${name}'`);
   }
-}
-
-/**
- * Build the SQL aggregation expression for a column.
- */
-export function sqlAggExpression(column: string, agg: AggregationType): string {
-  switch (agg) {
-    case 'SUM':
-      return `SUM(${column})`;
-    case 'AVG':
-      return `AVG(${column})`;
-    case 'MIN':
-      return `MIN(${column})`;
-    case 'MAX':
-      return `MAX(${column})`;
-    case 'COUNT':
-      return `COUNT(${column})`;
-    case 'COUNT_DISTINCT':
-      return `COUNT(DISTINCT ${column})`;
-  }
-}
-
-/**
- * Build a SQL `column IN (...)` clause from a list of values.
- * String values are properly escaped. Returns empty string if values is empty.
- */
-export function sqlInClause(
-  column: string,
-  values: ReadonlyArray<string | number>,
-): string {
-  if (values.length === 0) return '';
-  const literals = values.map((v) =>
-    typeof v === 'string' ? `'${v.replace(/'/g, "''")}'` : `${v}`,
-  );
-  return `${column} IN (${literals.join(', ')})`;
-}
-
-/**
- * Build a SQL range filter clause: `column >= min AND column <= max`.
- */
-export function sqlRangeClause(
-  column: string,
-  range: {readonly min: number; readonly max: number},
-): string {
-  return `${column} >= ${range.min} AND ${column} <= ${range.max}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -252,16 +252,6 @@ BUILD_DEPS_HOST = [
         'all',
         'all'),
 
-    # JsonCpp for legacy json import. Used only by the trace processor in
-    # standalone builds.
-    # If updating the version, also update bazel/deps.bzl.
-    Dependency(
-        'buildtools/jsoncpp',
-        'https://chromium.googlesource.com/external/github.com/open-source-parsers/jsoncpp.git',
-        '6aba23f4a8628d599a9ef7fa4811c4ff6e4070e2',  # refs/tags/1.9.3.
-        'all',
-        'all'),
-
     # Libexpat for Instruments XML import.
     # If updating the version, also update bazel/deps.bzl.
     Dependency(
