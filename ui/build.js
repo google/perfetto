@@ -174,7 +174,13 @@ async function main() {
   const clean = !args.no_build;
   cfg.outDir = path.resolve(ensureDir(args.out || cfg.outDir));
   cfg.lockFile = pjoin(cfg.outDir, "watch.lock");
-  prepareLock();
+
+  // Only create the build lock if we are actually going to build If --no-build
+  // is passed, we can run simultaneoushy without worrying about the build lock,
+  // since we won't be writing to the output directories.
+  if (!args.no_build) {
+    prepareBuildLock();
+  }
 
   cfg.outUiDir = ensureDir(pjoin(cfg.outDir, 'ui'), clean);
   cfg.outUiTestArtifactsDir = ensureDir(pjoin(cfg.outDir, 'ui-test-artifacts'));
@@ -229,7 +235,7 @@ async function main() {
     for (const proc of subprocesses) {
       if (proc) proc.kill('SIGKILL');
     }
-    releaseWatchLock();
+    releaseBuildLock();
     process.kill(0, 'SIGKILL');  // Kill the whole process group.
     process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
   });
@@ -927,7 +933,7 @@ function mklink(src, dst) {
   fs.symlinkSync(src, dst);
 }
 
-function prepareLock() {
+function prepareBuildLock() {
   if (fs.existsSync(cfg.lockFile)) {
     const oldPid = fs.readFileSync(cfg.lockFile, 'utf8').trim();
     let running = true;
@@ -946,10 +952,10 @@ function prepareLock() {
     }
   }
   fs.writeFileSync(cfg.lockFile, process.pid.toString());
-  process.on('exit', () => releaseWatchLock());
+  process.on('exit', () => releaseBuildLock());
 }
 
-function releaseWatchLock() {
+function releaseBuildLock() {
   if (fs.existsSync(cfg.lockFile)) {
     const pid = fs.readFileSync(cfg.lockFile, 'utf8').trim();
     if (pid === process.pid.toString()) {
