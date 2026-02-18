@@ -19827,7 +19827,7 @@ cc_test {
         "bionic_libc_platform_headers",
     ],
     data: [
-        "protos/perfetto/trace/track_event/track_event_extensions.json",
+        "protos/perfetto/trace/**/*",
         "src/profiling/memory/test/data/**/*",
         "src/traced/probes/filesystem/testdata/**/*",
         "src/traced/probes/ftrace/test/data/**/*",
