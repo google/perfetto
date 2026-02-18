@@ -34,6 +34,7 @@
     "codemirror": "6.0.1",
     "color-convert": "^2.0.1",
     "d3": "^7.9.0",
+    "echarts": "^5.6.0",
     "devtools-protocol": "0.0.1561482",
     "esbuild": "^0.21.5",
     "events": "^3.3.0",

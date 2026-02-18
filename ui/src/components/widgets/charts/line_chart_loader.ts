@@ -15,7 +15,7 @@
 import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, STR_NULL} from '../../../trace_processor/query_result';
-import {sqlRangeClause} from './chart_utils';
+import {sqlRangeClause, validateColumnName} from './chart_utils';
 import {LineChartData, LineChartPoint, LineChartSeries} from './line_chart';
 
 /**
@@ -89,6 +89,9 @@ export class SQLLineChartLoader {
   private readonly querySlot = new QuerySlot<LineChartData>(this.taskQueue);
 
   constructor(opts: SQLLineChartLoaderOpts) {
+    validateColumnName(opts.xColumn);
+    validateColumnName(opts.yColumn);
+    if (opts.seriesColumn !== undefined) validateColumnName(opts.seriesColumn);
     this.engine = opts.engine;
     this.baseQuery = opts.query;
     this.xColumn = opts.xColumn;
