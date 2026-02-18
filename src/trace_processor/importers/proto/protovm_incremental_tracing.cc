@@ -108,6 +108,9 @@ TraceBlobView ProtoVmIncrementalTracing::SerializeIncrementalState(
         proto->set_trusted_pid(patch.trusted_pid());
         proto->set_trusted_packet_sequence_id(
             patch.trusted_packet_sequence_id());
+        if (patch.has_machine_id()) {
+          proto->set_machine_id(patch.machine_id());
+        }
       });
 }
 
