@@ -164,6 +164,8 @@ class Regex {
     base::ignore_result(s, replacement);
     if (s)
       PERFETTO_FATAL("Windows regex is not supported.");
+    // Return empty string to fix warnings of no return from non-void.
+    return "";
 #endif
   }
 
