@@ -12,44 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ChartSource} from './chart_sql_source';
+import {buildChartQuery, ColumnSchema, QueryConfig} from './chart_sql_source';
+
+const QUERY = 'SELECT name, dur, ts, cpu, size, category FROM slice';
+const SCHEMA: ColumnSchema = {
+  name: 'text',
+  dur: 'real',
+  ts: 'real',
+  cpu: 'text',
+  size: 'real',
+  category: 'text',
+};
 
 function normalizeWhitespace(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
-function source() {
-  return new ChartSource({
-    query: 'SELECT name, dur, ts, cpu, size, category FROM slice',
-    schema: {
-      name: 'text',
-      dur: 'real',
-      ts: 'real',
-      cpu: 'text',
-      size: 'real',
-      category: 'text',
-    },
-  });
+function build(config: QueryConfig): string {
+  return buildChartQuery(QUERY, SCHEMA, config);
 }
 
 // ---------------------------------------------------------------------------
-// Constructor validation
+// Validation
 // ---------------------------------------------------------------------------
 
-test('constructor validates column names', () => {
-  expect(
-    () =>
-      new ChartSource({
-        query: 'SELECT * FROM t',
-        schema: {'bad column': 'text'},
-      }),
+test('validates column names in schema', () => {
+  expect(() =>
+    buildChartQuery(
+      'SELECT * FROM t',
+      {'bad column': 'text'},
+      {
+        type: 'aggregated',
+        dimensions: [{column: 'bad column'}],
+        measures: [{column: 'bad column', aggregation: 'SUM'}],
+      },
+    ),
   ).toThrow('Invalid SQL column name');
 });
 
-test('buildQuery throws for unknown column', () => {
-  const s = source();
+test('buildChartQuery throws for unknown column', () => {
   expect(() =>
-    s.buildQuery({
+    build({
       type: 'aggregated',
       dimensions: [{column: 'nonexistent'}],
       measures: [{column: 'dur', aggregation: 'SUM'}],
@@ -62,7 +65,7 @@ test('buildQuery throws for unknown column', () => {
 // ---------------------------------------------------------------------------
 
 test('aggregated: simple bar chart query', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'dur', aggregation: 'SUM'}],
@@ -75,7 +78,7 @@ test('aggregated: simple bar chart query', () => {
 });
 
 test('aggregated: with limit', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'dur', aggregation: 'SUM'}],
@@ -85,7 +88,7 @@ test('aggregated: with limit', () => {
 });
 
 test('aggregated: ascending order', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'dur', aggregation: 'AVG'}],
@@ -97,7 +100,7 @@ test('aggregated: ascending order', () => {
 });
 
 test('aggregated: with IN filter', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'dur', aggregation: 'SUM'}],
@@ -108,7 +111,7 @@ test('aggregated: with IN filter', () => {
 });
 
 test('aggregated: with range filter', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'dur', aggregation: 'SUM'}],
@@ -122,7 +125,7 @@ test('aggregated: with range filter', () => {
 });
 
 test('aggregated: custom aliases', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name', alias: '_label'}],
     measures: [{column: 'dur', aggregation: 'SUM', alias: '_size'}],
@@ -134,7 +137,7 @@ test('aggregated: custom aliases', () => {
 });
 
 test('aggregated: multiple dimensions default aliases', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'category'}, {column: 'name'}],
     measures: [{column: 'dur', aggregation: 'SUM'}],
@@ -146,7 +149,7 @@ test('aggregated: multiple dimensions default aliases', () => {
 });
 
 test('aggregated: COUNT_DISTINCT aggregation', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'cpu', aggregation: 'COUNT_DISTINCT'}],
@@ -155,7 +158,7 @@ test('aggregated: COUNT_DISTINCT aggregation', () => {
 });
 
 test('aggregated: multiple measures default aliases', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [
@@ -174,7 +177,7 @@ test('aggregated: multiple measures default aliases', () => {
 // ---------------------------------------------------------------------------
 
 test('aggregated: top-N with Other bucket', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'dur', aggregation: 'SUM'}],
@@ -191,7 +194,7 @@ test('aggregated: top-N with Other bucket', () => {
 });
 
 test('aggregated: includeOther without limit is ignored', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'dur', aggregation: 'SUM'}],
@@ -209,7 +212,7 @@ test('aggregated: includeOther without limit is ignored', () => {
 // ---------------------------------------------------------------------------
 
 test('aggregated: hierarchical with limitPerGroup', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'category'}, {column: 'name'}],
     measures: [{column: 'size', aggregation: 'SUM'}],
@@ -224,7 +227,7 @@ test('aggregated: hierarchical with limitPerGroup', () => {
 });
 
 test('aggregated: hierarchical with custom aliases', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [
       {column: 'category', alias: '_group'},
@@ -241,7 +244,7 @@ test('aggregated: hierarchical with custom aliases', () => {
 });
 
 test('aggregated: hierarchical with filter', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'category'}, {column: 'name'}],
     measures: [{column: 'size', aggregation: 'SUM'}],
@@ -257,7 +260,7 @@ test('aggregated: hierarchical with filter', () => {
 // ---------------------------------------------------------------------------
 
 test('points: basic line chart query', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [
       {column: 'ts', alias: '_x', cast: 'real'},
@@ -272,7 +275,7 @@ test('points: basic line chart query', () => {
 });
 
 test('points: with breakdown (series)', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [
       {column: 'ts', alias: '_x', cast: 'real'},
@@ -287,7 +290,7 @@ test('points: with breakdown (series)', () => {
 });
 
 test('points: with range filters', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [
       {column: 'ts', alias: '_x', cast: 'real'},
@@ -303,7 +306,7 @@ test('points: with range filters', () => {
 });
 
 test('points: scatter with size and label', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [
       {column: 'ts', alias: '_x', cast: 'real'},
@@ -321,7 +324,7 @@ test('points: scatter with size and label', () => {
 });
 
 test('points: null column (column omitted)', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [
       {column: 'ts', alias: '_x', cast: 'real'},
@@ -334,7 +337,7 @@ test('points: null column (column omitted)', () => {
 });
 
 test('points: no order by', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [{column: 'ts', alias: '_x', cast: 'real'}],
   });
@@ -343,7 +346,7 @@ test('points: no order by', () => {
 
 test('points: throws for unknown column', () => {
   expect(() =>
-    source().buildQuery({
+    build({
       type: 'points',
       columns: [{column: 'nope', alias: '_x', cast: 'real'}],
     }),
@@ -352,7 +355,7 @@ test('points: throws for unknown column', () => {
 
 test('points: throws for unknown breakdown column', () => {
   expect(() =>
-    source().buildQuery({
+    build({
       type: 'points',
       columns: [{column: 'ts', alias: '_x', cast: 'real'}],
       breakdown: 'nope',
@@ -365,7 +368,7 @@ test('points: throws for unknown breakdown column', () => {
 // ---------------------------------------------------------------------------
 
 test('points: maxPointsPerSeries with breakdown', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [
       {column: 'ts', alias: '_x', cast: 'real'},
@@ -384,7 +387,7 @@ test('points: maxPointsPerSeries with breakdown', () => {
 });
 
 test('points: maxPointsPerSeries without breakdown', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [
       {column: 'ts', alias: '_x', cast: 'real'},
@@ -399,7 +402,7 @@ test('points: maxPointsPerSeries without breakdown', () => {
 });
 
 test('points: maxPointsPerSeries with filters', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [
       {column: 'ts', alias: '_x', cast: 'real'},
@@ -418,7 +421,7 @@ test('points: maxPointsPerSeries with filters', () => {
 });
 
 test('points: without maxPointsPerSeries produces no window functions', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'points',
     columns: [
       {column: 'ts', alias: '_x', cast: 'real'},
@@ -436,7 +439,7 @@ test('points: without maxPointsPerSeries produces no window functions', () => {
 // ---------------------------------------------------------------------------
 
 test('histogram: basic query', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'histogram',
     valueColumn: 'dur',
     bucketCount: 20,
@@ -458,7 +461,7 @@ test('histogram: basic query', () => {
 });
 
 test('histogram: with range filter', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'histogram',
     valueColumn: 'dur',
     bucketCount: 10,
@@ -473,7 +476,7 @@ test('histogram: with range filter', () => {
 
 test('histogram: throws for unknown column', () => {
   expect(() =>
-    source().buildQuery({
+    build({
       type: 'histogram',
       valueColumn: 'nope',
       bucketCount: 10,
@@ -486,7 +489,7 @@ test('histogram: throws for unknown column', () => {
 // ---------------------------------------------------------------------------
 
 test('aggregated: no filters produces no WHERE clause', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'dur', aggregation: 'SUM'}],
@@ -495,7 +498,7 @@ test('aggregated: no filters produces no WHERE clause', () => {
 });
 
 test('aggregated: empty filters array produces no WHERE clause', () => {
-  const sql = source().buildQuery({
+  const sql = build({
     type: 'aggregated',
     dimensions: [{column: 'name'}],
     measures: [{column: 'dur', aggregation: 'SUM'}],

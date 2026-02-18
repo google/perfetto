@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../../../base/logging';
-import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
+import {
+  QuerySlot,
+  SerialTaskQueue,
+  type QueryResult,
+} from '../../../base/query_slot';
 import type {Engine} from '../../../trace_processor/engine';
 import type {QueryResult as TPQueryResult} from '../../../trace_processor/query_result';
 import {AggregateFunction, Filter} from '../datagrid/model';
@@ -171,160 +175,135 @@ export type QueryConfig =
   | HistogramQueryConfig;
 
 // ---------------------------------------------------------------------------
-// ChartSource
+// buildChartQuery — standalone SQL query builder
 // ---------------------------------------------------------------------------
 
 /**
- * Configuration for creating a ChartSource.
+ * Build a SQL query string from the given configuration.
+ * Validates schema column names and that all referenced columns exist.
+ *
+ * @param query Base SQL query (used as a subquery).
+ * @param schema Column schema mapping column names to types.
+ * @param config Query configuration (aggregated, points, or histogram).
  */
-export interface ChartSourceConfig {
-  /** Base SQL query (used as a subquery). */
-  readonly query: string;
-
-  /** Column schema mapping column names to types. */
-  readonly schema: ColumnSchema;
+export function buildChartQuery(
+  query: string,
+  schema: ColumnSchema,
+  config: QueryConfig,
+): string {
+  for (const col of Object.keys(schema)) {
+    validateColumnName(col);
+  }
+  switch (config.type) {
+    case 'aggregated':
+      return buildAggregated(query, schema, config);
+    case 'points':
+      return buildPoints(query, schema, config);
+    case 'histogram':
+      return buildHistogram(query, schema, config);
+    default:
+      assertUnreachable(config);
+  }
 }
 
-/**
- * Unified SQL query builder for chart loaders.
- *
- * Wraps a base SQL query + typed column schema and generates well-formed
- * SQL for aggregated, points, and histogram queries. Reuses the datagrid's
- * `Filter` type and `filterToSql()` for WHERE clause generation.
- *
- * Usage:
- * ```typescript
- * const source = new ChartSource({
- *   query: 'SELECT process_name, dur FROM slice WHERE dur > 0',
- *   schema: {process_name: 'text', dur: 'real'},
- * });
- *
- * const sql = source.buildQuery({
- *   type: 'aggregated',
- *   dimensions: [{column: 'process_name'}],
- *   measures: [{column: 'dur', aggregation: 'SUM'}],
- *   limit: 10,
- * });
- * ```
- */
-export class ChartSource {
-  readonly query: string;
-  readonly schema: ColumnSchema;
+// ---------------------------------------------------------------------------
+// Aggregated queries
+// ---------------------------------------------------------------------------
 
-  constructor(config: ChartSourceConfig) {
-    for (const col of Object.keys(config.schema)) {
-      validateColumnName(col);
-    }
-    this.query = config.query;
-    this.schema = config.schema;
+function buildAggregated(
+  query: string,
+  schema: ColumnSchema,
+  config: AggregatedQueryConfig,
+): string {
+  for (const dim of config.dimensions) {
+    assertColumn(dim.column, schema);
+  }
+  for (const meas of config.measures) {
+    assertColumn(meas.column, schema);
   }
 
-  /**
-   * Build a SQL query string from the given configuration.
-   * Validates that all referenced columns exist in the schema.
-   */
-  buildQuery(config: QueryConfig): string {
-    switch (config.type) {
-      case 'aggregated':
-        return this.buildAggregated(config);
-      case 'points':
-        return this.buildPoints(config);
-      case 'histogram':
-        return this.buildHistogram(config);
-      default:
-        assertUnreachable(config);
-    }
+  // Decide which variant to use
+  if (config.includeOther && config.limit !== undefined) {
+    return buildTopNWithOther(query, config);
   }
-
-  // -------------------------------------------------------------------------
-  // Aggregated queries
-  // -------------------------------------------------------------------------
-
-  private buildAggregated(config: AggregatedQueryConfig): string {
-    for (const dim of config.dimensions) {
-      this.assertColumn(dim.column);
-    }
-    for (const meas of config.measures) {
-      this.assertColumn(meas.column);
-    }
-
-    // Decide which variant to use
-    if (config.includeOther && config.limit !== undefined) {
-      return this.buildTopNWithOther(config);
-    }
-    if (config.limitPerGroup !== undefined && config.dimensions.length >= 2) {
-      return this.buildHierarchical(config);
-    }
-    return this.buildSimpleAggregated(config);
+  if (config.limitPerGroup !== undefined && config.dimensions.length >= 2) {
+    return buildHierarchical(query, config);
   }
+  return buildSimpleAggregated(query, config);
+}
 
-  private buildSimpleAggregated(config: AggregatedQueryConfig): string {
-    const selectParts = [
-      ...this.dimSelectExprs(config.dimensions),
-      ...this.measureSelectExprs(config.measures),
-    ];
+function buildSimpleAggregated(
+  query: string,
+  config: AggregatedQueryConfig,
+): string {
+  const selectParts = [
+    ...dimSelectExprs(config.dimensions),
+    ...measureSelectExprs(config.measures),
+  ];
 
-    const whereClause = this.buildWhereClause(config.filters);
-    const groupByExprs = config.dimensions.map((d) => d.column);
-    const direction = config.orderDirection ?? 'desc';
-    const orderAlias = this.measureAlias(config.measures, 0);
-    const limitClause =
-      config.limit !== undefined ? `LIMIT ${config.limit}` : '';
+  const whereClause = buildWhereClause(config.filters);
+  const groupByExprs = config.dimensions.map((d) => d.column);
+  const direction = config.orderDirection ?? 'desc';
+  const orderAlias = measureAlias(config.measures, 0);
+  const limitClause = config.limit !== undefined ? `LIMIT ${config.limit}` : '';
 
-    return `
+  return `
 SELECT
   ${selectParts.join(',\n  ')}
-FROM (${this.query})
+FROM (${query})
 ${whereClause}
 GROUP BY ${groupByExprs.join(', ')}
 ORDER BY ${orderAlias} ${direction.toUpperCase()}
 ${limitClause}`.trim();
-  }
+}
 
-  private buildTopNWithOther(config: AggregatedQueryConfig): string {
-    const selectParts = [
-      ...this.dimSelectExprs(config.dimensions),
-      ...this.measureSelectExprs(config.measures),
-    ];
-    const whereClause = this.buildWhereClause(config.filters);
-    const groupByExprs = config.dimensions.map((d) => d.column);
-    const direction = config.orderDirection ?? 'desc';
-    const orderAlias = this.measureAlias(config.measures, 0);
-    // Caller guarantees config.limit is defined (checked in buildAggregated).
-    const limit = config.limit ?? 0;
+function buildTopNWithOther(
+  query: string,
+  config: AggregatedQueryConfig,
+): string {
+  const selectParts = [
+    ...dimSelectExprs(config.dimensions),
+    ...measureSelectExprs(config.measures),
+  ];
+  const whereClause = buildWhereClause(config.filters);
+  const groupByExprs = config.dimensions.map((d) => d.column);
+  const direction = config.orderDirection ?? 'desc';
+  const orderCol = measureAlias(config.measures, 0);
+  // Caller guarantees config.limit is defined (checked in buildAggregated).
+  const limit = config.limit ?? 0;
 
-    // Collect output column aliases
-    const dimAliases = config.dimensions.map((d, i) => this.dimAlias(d, i));
-    const measAliases = config.measures.map((_, i) =>
-      this.measureAlias(config.measures, i),
-    );
-    const allAliases = [...dimAliases, ...measAliases];
-    const aliasList = allAliases.join(', ');
+  // Collect output column aliases
+  const dimAliases = config.dimensions.map((d, i) => dimAlias(d, i));
+  const measAliases = config.measures.map((_, i) =>
+    measureAlias(config.measures, i),
+  );
+  const allAliases = [...dimAliases, ...measAliases];
+  const aliasList = allAliases.join(', ');
 
-    // First dim alias for the "Other" label
-    const firstDimAlias = dimAliases[0];
+  // First dim alias for the "Other" label
+  const firstDimAlias = dimAliases[0];
 
-    // Build "(Other)" select: first dim = '(Other)', rest of dims = NULL,
-    // each measure = SUM(measure_alias)
-    const otherDimExprs = dimAliases.map((alias, i) =>
-      i === 0 ? `'(Other)' AS ${alias}` : `NULL AS ${alias}`,
-    );
-    const otherMeasExprs = measAliases.map(
-      (alias) => `SUM(${alias}) AS ${alias}`,
-    );
-    const otherSelectParts = [...otherDimExprs, ...otherMeasExprs];
+  // Build "(Other)" select: first dim = '(Other)', rest of dims = NULL,
+  // each measure = SUM(measure_alias)
+  const otherDimExprs = dimAliases.map((alias, i) =>
+    i === 0 ? `'(Other)' AS ${alias}` : `NULL AS ${alias}`,
+  );
+  const otherMeasExprs = measAliases.map(
+    (alias) => `SUM(${alias}) AS ${alias}`,
+  );
+  const otherSelectParts = [...otherDimExprs, ...otherMeasExprs];
 
-    return `
+  return `
 WITH _agg AS (
   SELECT
     ${selectParts.join(',\n    ')}
-  FROM (${this.query})
+  FROM (${query})
   ${whereClause}
   GROUP BY ${groupByExprs.join(', ')}
-  ORDER BY ${orderAlias} ${direction.toUpperCase()}
+  ORDER BY ${orderCol} ${direction.toUpperCase()}
 ),
 _top AS (
-  SELECT ${aliasList} FROM _agg ORDER BY ${orderAlias} ${direction.toUpperCase()} LIMIT ${limit}
+  SELECT ${aliasList} FROM _agg ORDER BY ${orderCol} ${direction.toUpperCase()} LIMIT ${limit}
 ),
 _other AS (
   SELECT
@@ -335,156 +314,169 @@ _other AS (
 SELECT ${aliasList} FROM _top
 UNION ALL
 SELECT ${aliasList} FROM _other WHERE ${measAliases[0]} > 0`.trim();
-  }
+}
 
-  private buildHierarchical(config: AggregatedQueryConfig): string {
-    const selectParts = [
-      ...this.dimSelectExprs(config.dimensions),
-      ...this.measureSelectExprs(config.measures),
-    ];
-    const whereClause = this.buildWhereClause(config.filters);
-    const groupByExprs = config.dimensions.map((d) => d.column);
-    const direction = config.orderDirection ?? 'desc';
-    const firstDimAlias = this.dimAlias(config.dimensions[0], 0);
-    const orderAlias = this.measureAlias(config.measures, 0);
+function buildHierarchical(
+  query: string,
+  config: AggregatedQueryConfig,
+): string {
+  const selectParts = [
+    ...dimSelectExprs(config.dimensions),
+    ...measureSelectExprs(config.measures),
+  ];
+  const whereClause = buildWhereClause(config.filters);
+  const groupByExprs = config.dimensions.map((d) => d.column);
+  const direction = config.orderDirection ?? 'desc';
+  const firstDimCol = dimAlias(config.dimensions[0], 0);
+  const orderCol = measureAlias(config.measures, 0);
 
-    const dimAliases = config.dimensions.map((d, i) => this.dimAlias(d, i));
-    const measAliases = config.measures.map((_, i) =>
-      this.measureAlias(config.measures, i),
-    );
-    const allAliases = [...dimAliases, ...measAliases];
-    const aliasList = allAliases.join(', ');
-    // Caller guarantees config.limitPerGroup is defined (checked in
-    // buildAggregated).
-    const limitPerGroup = config.limitPerGroup ?? 0;
+  const dimAliases = config.dimensions.map((d, i) => dimAlias(d, i));
+  const measAliases = config.measures.map((_, i) =>
+    measureAlias(config.measures, i),
+  );
+  const allAliases = [...dimAliases, ...measAliases];
+  const aliasList = allAliases.join(', ');
+  // Caller guarantees config.limitPerGroup is defined (checked in
+  // buildAggregated).
+  const limitPerGroup = config.limitPerGroup ?? 0;
 
-    return `
+  return `
 WITH _agg AS (
   SELECT
     ${selectParts.join(',\n    ')}
-  FROM (${this.query})
+  FROM (${query})
   ${whereClause}
   GROUP BY ${groupByExprs.join(', ')}
 ),
 _ranked AS (
   SELECT
     ${aliasList},
-    ROW_NUMBER() OVER (PARTITION BY ${firstDimAlias} ORDER BY ${orderAlias} ${direction.toUpperCase()}) AS _rank
+    ROW_NUMBER() OVER (PARTITION BY ${firstDimCol} ORDER BY ${orderCol} ${direction.toUpperCase()}) AS _rank
   FROM _agg
 )
 SELECT ${aliasList}
 FROM _ranked
 WHERE _rank <= ${limitPerGroup}
-ORDER BY ${firstDimAlias}, ${orderAlias} ${direction.toUpperCase()}`.trim();
+ORDER BY ${firstDimCol}, ${orderCol} ${direction.toUpperCase()}`.trim();
+}
+
+// ---------------------------------------------------------------------------
+// Points queries
+// ---------------------------------------------------------------------------
+
+function buildPoints(
+  query: string,
+  schema: ColumnSchema,
+  config: PointsQueryConfig,
+): string {
+  for (const col of config.columns) {
+    if (col.column !== undefined) {
+      assertColumn(col.column, schema);
+    }
+    validateColumnName(col.alias);
+  }
+  if (config.breakdown !== undefined) {
+    assertColumn(config.breakdown, schema);
   }
 
-  // -------------------------------------------------------------------------
-  // Points queries
-  // -------------------------------------------------------------------------
+  const selectParts = config.columns.map((col) =>
+    col.column !== undefined
+      ? `CAST(${col.column} AS ${sqlCastType(col.cast)}) AS ${col.alias}`
+      : `NULL AS ${col.alias}`,
+  );
 
-  private buildPoints(config: PointsQueryConfig): string {
-    for (const col of config.columns) {
-      if (col.column !== undefined) {
-        this.assertColumn(col.column);
-      }
-      validateColumnName(col.alias);
-    }
-    if (config.breakdown !== undefined) {
-      this.assertColumn(config.breakdown);
-    }
+  if (config.breakdown !== undefined) {
+    selectParts.push(`CAST(${config.breakdown} AS TEXT) AS _series`);
+  }
 
-    const selectParts = config.columns.map((col) =>
-      col.column !== undefined
-        ? `CAST(${col.column} AS ${sqlCastType(col.cast)}) AS ${col.alias}`
-        : `NULL AS ${col.alias}`,
+  const whereClause = buildWhereClause(config.filters);
+
+  let orderByClause = '';
+  if (config.orderBy !== undefined && config.orderBy.length > 0) {
+    const orderParts = config.orderBy.map(
+      (o) => `${o.column} ${(o.direction ?? 'asc').toUpperCase()}`,
     );
+    orderByClause = `ORDER BY ${orderParts.join(', ')}`;
+  }
 
-    if (config.breakdown !== undefined) {
-      selectParts.push(`CAST(${config.breakdown} AS TEXT) AS _series`);
-    }
+  if (config.maxPointsPerSeries !== undefined) {
+    return buildStrideSampledPoints(
+      query,
+      selectParts,
+      whereClause,
+      orderByClause,
+      config,
+    );
+  }
 
-    const whereClause = this.buildWhereClause(config.filters);
-
-    let orderByClause = '';
-    if (config.orderBy !== undefined && config.orderBy.length > 0) {
-      const orderParts = config.orderBy.map(
-        (o) => `${o.column} ${(o.direction ?? 'asc').toUpperCase()}`,
-      );
-      orderByClause = `ORDER BY ${orderParts.join(', ')}`;
-    }
-
-    if (config.maxPointsPerSeries !== undefined) {
-      return this.buildStrideSampledPoints(
-        selectParts,
-        whereClause,
-        orderByClause,
-        config,
-      );
-    }
-
-    return `
+  return `
 SELECT
   ${selectParts.join(',\n  ')}
-FROM (${this.query})
+FROM (${query})
 ${whereClause}
 ${orderByClause}`.trim();
+}
+
+/**
+ * Wraps the base points query in a subquery that uses ROW_NUMBER() and
+ * COUNT() window functions to stride-sample each series down to at most
+ * `maxPointsPerSeries` rows. This keeps large datasets from being fully
+ * transferred into JS memory.
+ */
+function buildStrideSampledPoints(
+  query: string,
+  selectParts: string[],
+  whereClause: string,
+  orderByClause: string,
+  config: PointsQueryConfig,
+): string {
+  const maxPts = config.maxPointsPerSeries ?? 0;
+  const aliases = config.columns.map((col) => col.alias);
+  if (config.breakdown !== undefined) {
+    aliases.push('_series');
   }
+  const aliasList = aliases.join(', ');
 
-  /**
-   * Wraps the base points query in a subquery that uses ROW_NUMBER() and
-   * COUNT() window functions to stride-sample each series down to at most
-   * `maxPointsPerSeries` rows. This keeps large datasets from being fully
-   * transferred into JS memory.
-   */
-  private buildStrideSampledPoints(
-    selectParts: string[],
-    whereClause: string,
-    orderByClause: string,
-    config: PointsQueryConfig,
-  ): string {
-    const maxPts = config.maxPointsPerSeries ?? 0;
-    const aliases = config.columns.map((col) => col.alias);
-    if (config.breakdown !== undefined) {
-      aliases.push('_series');
-    }
-    const aliasList = aliases.join(', ');
+  // Use the full expression (not the alias) because SQLite cannot
+  // resolve column aliases inside OVER clauses of the same SELECT.
+  const partitionExpr =
+    config.breakdown !== undefined
+      ? `PARTITION BY CAST(${config.breakdown} AS TEXT)`
+      : 'PARTITION BY 1';
 
-    // Use the full expression (not the alias) because SQLite cannot
-    // resolve column aliases inside OVER clauses of the same SELECT.
-    const partitionExpr =
-      config.breakdown !== undefined
-        ? `PARTITION BY CAST(${config.breakdown} AS TEXT)`
-        : 'PARTITION BY 1';
-
-    return `
+  return `
 SELECT ${aliasList}
 FROM (
   SELECT
     ${selectParts.join(',\n    ')},
     ROW_NUMBER() OVER (${partitionExpr}) AS _rn,
     COUNT(*) OVER (${partitionExpr}) AS _cnt
-  FROM (${this.query})
+  FROM (${query})
   ${whereClause}
 )
 WHERE (_rn - 1) % MAX(1, (_cnt + ${maxPts} - 1) / ${maxPts}) = 0
 ${orderByClause}`.trim();
-  }
+}
 
-  // -------------------------------------------------------------------------
-  // Histogram queries
-  // -------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Histogram queries
+// ---------------------------------------------------------------------------
 
-  private buildHistogram(config: HistogramQueryConfig): string {
-    this.assertColumn(config.valueColumn);
+function buildHistogram(
+  query: string,
+  schema: ColumnSchema,
+  config: HistogramQueryConfig,
+): string {
+  assertColumn(config.valueColumn, schema);
 
-    const col = config.valueColumn;
-    const bucketCount = config.bucketCount;
-    const whereClause = this.buildWhereClause(config.filters);
+  const col = config.valueColumn;
+  const bucketCount = config.bucketCount;
+  const whereClause = buildWhereClause(config.filters);
 
-    return `
+  return `
 WITH _data AS (
   SELECT ${col} AS _value
-  FROM (${this.query})
+  FROM (${query})
   ${whereClause}
 )
 SELECT
@@ -503,59 +495,58 @@ SELECT
 FROM _data
 GROUP BY _bucket_idx
 ORDER BY _bucket_idx`.trim();
-  }
+}
 
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
 
-  private assertColumn(name: string): void {
-    if (!(name in this.schema)) {
-      throw new Error(
-        `Column '${name}' not found in schema. ` +
-          `Available: ${Object.keys(this.schema).join(', ')}`,
-      );
-    }
-  }
-
-  private buildWhereClause(filters: ReadonlyArray<Filter> | undefined): string {
-    if (filters === undefined || filters.length === 0) return '';
-    const conditions = filters.map((f) => `(${filterToSql(f, f.field)})`);
-    return `WHERE ${conditions.join(' AND ')}`;
-  }
-
-  private dimAlias(dim: DimensionSpec, index: number): string {
-    if (dim.alias !== undefined) {
-      validateColumnName(dim.alias);
-      return dim.alias;
-    }
-    return index === 0 ? '_dim' : `_dim_${index}`;
-  }
-
-  private measureAlias(
-    measures: ReadonlyArray<MeasureSpec>,
-    index: number,
-  ): string {
-    const meas = measures[index];
-    if (meas.alias !== undefined) {
-      validateColumnName(meas.alias);
-      return meas.alias;
-    }
-    return index === 0 ? '_value' : `_value_${index}`;
-  }
-
-  private dimSelectExprs(dims: ReadonlyArray<DimensionSpec>): string[] {
-    return dims.map(
-      (dim, i) => `CAST(${dim.column} AS TEXT) AS ${this.dimAlias(dim, i)}`,
+function assertColumn(name: string, schema: ColumnSchema): void {
+  if (!(name in schema)) {
+    throw new Error(
+      `Column '${name}' not found in schema. ` +
+        `Available: ${Object.keys(schema).join(', ')}`,
     );
   }
+}
 
-  private measureSelectExprs(measures: ReadonlyArray<MeasureSpec>): string[] {
-    return measures.map(
-      (meas, i) =>
-        `${sqlAggregateExpr(meas.aggregation, meas.column)} AS ${this.measureAlias(measures, i)}`,
-    );
+function buildWhereClause(filters: ReadonlyArray<Filter> | undefined): string {
+  if (filters === undefined || filters.length === 0) return '';
+  const conditions = filters.map((f) => `(${filterToSql(f, f.field)})`);
+  return `WHERE ${conditions.join(' AND ')}`;
+}
+
+function dimAlias(dim: DimensionSpec, index: number): string {
+  if (dim.alias !== undefined) {
+    validateColumnName(dim.alias);
+    return dim.alias;
   }
+  return index === 0 ? '_dim' : `_dim_${index}`;
+}
+
+function measureAlias(
+  measures: ReadonlyArray<MeasureSpec>,
+  index: number,
+): string {
+  const meas = measures[index];
+  if (meas.alias !== undefined) {
+    validateColumnName(meas.alias);
+    return meas.alias;
+  }
+  return index === 0 ? '_value' : `_value_${index}`;
+}
+
+function dimSelectExprs(dims: ReadonlyArray<DimensionSpec>): string[] {
+  return dims.map(
+    (dim, i) => `CAST(${dim.column} AS TEXT) AS ${dimAlias(dim, i)}`,
+  );
+}
+
+function measureSelectExprs(measures: ReadonlyArray<MeasureSpec>): string[] {
+  return measures.map(
+    (meas, i) =>
+      `${sqlAggregateExpr(meas.aggregation, meas.column)} AS ${measureAlias(measures, i)}`,
+  );
 }
 
 function sqlCastType(cast: 'real' | 'text'): string {
@@ -563,72 +554,81 @@ function sqlCastType(cast: 'real' | 'text'): string {
 }
 
 // ---------------------------------------------------------------------------
-// SQLChartLoader base class
+// createChartLoader — composition-based chart loader factory
 // ---------------------------------------------------------------------------
 
 /**
- * Result returned by SQL chart loaders.
+ * A chart loader with `use()` / `dispose()` lifecycle.
+ * Call `use()` every render cycle; call `dispose()` in `onremove`.
  */
-export interface ChartLoaderResult<TData> {
-  readonly data: TData | undefined;
-  readonly isPending: boolean;
+export interface ChartLoader<TConfig, TData> {
+  use(config: TConfig): QueryResult<TData>;
+  dispose(): void;
 }
 
 /**
- * Abstract base for SQL-backed chart loaders.
- *
- * Handles QuerySlot lifecycle, query execution via Engine, and caching.
- * Subclasses implement:
- * - `buildQueryConfig()` to turn per-use config into a QueryConfig
- * - `parseResult()` to turn query rows into chart-specific data
+ * Options for creating a chart loader.
  */
-export abstract class SQLChartLoader<TConfig, TData> {
-  private readonly engine: Engine;
-  protected readonly source: ChartSource;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<TData>(this.taskQueue);
+export interface ChartLoaderOpts<TConfig, TData> {
+  /** The trace processor engine to run queries against. */
+  readonly engine: Engine;
 
-  constructor(engine: Engine, source: ChartSource) {
-    this.engine = engine;
-    this.source = source;
-  }
+  /** Base SQL query (used as a subquery). */
+  readonly query: string;
 
-  use(config: TConfig): ChartLoaderResult<TData> {
-    const queryConfig = this.buildQueryConfig(config);
-    const sql = this.source.buildQuery(queryConfig);
-    const extra = this.extraCacheKey(config);
-    const result = this.querySlot.use({
-      key: {sql, ...extra},
-      queryFn: async () => {
-        const queryResult = await this.engine.query(sql);
-        return this.parseResult(queryResult, config);
-      },
-    });
-    return {data: result.data, isPending: result.isPending};
-  }
-
-  dispose(): void {
-    this.querySlot.dispose();
-  }
+  /** Column schema mapping column names to types. */
+  readonly schema: ColumnSchema;
 
   /** Build the QueryConfig from the per-use config. */
-  protected abstract buildQueryConfig(config: TConfig): QueryConfig;
+  readonly buildQueryConfig: (config: TConfig) => QueryConfig;
 
   /** Parse query result rows into chart-specific data. */
-  protected abstract parseResult(
-    queryResult: TPQueryResult,
-    config: TConfig,
-  ): TData;
+  readonly parseResult: (queryResult: TPQueryResult, config: TConfig) => TData;
 
   /**
-   * Override to add extra fields to the cache key for post-processing
-   * params that don't affect the SQL but do affect the output.
+   * Extra fields to add to the cache key for post-processing params
+   * that don't affect the SQL but do affect the output.
    */
-  protected extraCacheKey(
-    _config: TConfig,
-  ): Record<string, string | number | boolean | undefined> {
-    return {};
+  readonly extraCacheKey?: (
+    config: TConfig,
+  ) => Record<string, string | number | boolean | undefined>;
+}
+
+/**
+ * Create a SQL-backed chart loader using composition.
+ *
+ * Handles QuerySlot lifecycle, query execution via Engine, and caching.
+ * The caller provides `buildQueryConfig` and `parseResult` callbacks
+ * to customise SQL generation and result parsing.
+ */
+export function createChartLoader<TConfig, TData>(
+  opts: ChartLoaderOpts<TConfig, TData>,
+): ChartLoader<TConfig, TData> {
+  // Validate schema column names once at creation time.
+  for (const col of Object.keys(opts.schema)) {
+    validateColumnName(col);
   }
+
+  const taskQueue = new SerialTaskQueue();
+  const querySlot = new QuerySlot<TData>(taskQueue);
+
+  return {
+    use(config: TConfig): QueryResult<TData> {
+      const queryConfig = opts.buildQueryConfig(config);
+      const sql = buildChartQuery(opts.query, opts.schema, queryConfig);
+      const extra = opts.extraCacheKey?.(config) ?? {};
+      return querySlot.use({
+        key: {sql, ...extra},
+        queryFn: async () => {
+          const queryResult = await opts.engine.query(sql);
+          return opts.parseResult(queryResult, config);
+        },
+      });
+    },
+    dispose(): void {
+      querySlot.dispose();
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
