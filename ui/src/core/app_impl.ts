@@ -185,10 +185,12 @@ export class AppImpl implements App {
     return this._isInternalUser;
   }
 
-  set isInternalUser(value: boolean) {
-    localStorage.setItem('isInternalUser', value ? '1' : '0');
-    this._isInternalUser = value;
-    raf.scheduleFullRedraw();
+  setIsInternalUser(promise: Promise<boolean>) {
+    promise.then((value) => {
+      this._isInternalUser = value;
+      localStorage.setItem('isInternalUser', value ? '1' : '0');
+      raf.scheduleFullRedraw();
+    });
   }
 
   get trace(): TraceImpl | undefined {
