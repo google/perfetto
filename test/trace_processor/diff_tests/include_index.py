@@ -157,6 +157,7 @@ from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.package_lookup_tests import PackageLookup
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
+from diff_tests.stdlib.prelude.regexp_replace_simple import RegexpReplaceSimple
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
@@ -329,6 +330,7 @@ def fetch_all_diff_tests(
       PreludePprofFunctions,
       PreludeWindowFunctions,
       RegexpExtract,
+      RegexpReplaceSimple,
       Pkvm,
       PreludeSlices,
       StdlibSmoke,

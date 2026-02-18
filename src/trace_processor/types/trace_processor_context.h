@@ -32,6 +32,7 @@ namespace perfetto::trace_processor {
 
 class ArgsTranslationTable;
 class ClockConverter;
+class ClockSynchronizer;
 class ClockTracker;
 class CpuTracker;
 class DescriptorPool;
@@ -188,7 +189,10 @@ class TraceProcessorContext {
 
   PerMachinePtr<SymbolTracker> symbol_tracker;
   PerMachinePtr<ProcessTracker> process_tracker;
-  PerMachinePtr<ClockTracker> clock_tracker;
+  // The ClockSynchronizer for the primary trace (the first trace for a
+  // machine). Primary trace adds snapshots here; non-primary traces read from
+  // it until they receive their own clock snapshots.
+  PerMachinePtr<ClockSynchronizer> primary_clock_sync;
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
@@ -198,6 +202,7 @@ class TraceProcessorContext {
   //
   // This state is unique to each (machine, trace) pair.
 
+  PerTraceAndMachinePtr<ClockTracker> clock_tracker;
   PerTraceAndMachinePtr<ArgsTranslationTable> args_translation_table;
   PerTraceAndMachinePtr<ProcessTrackTranslationTable>
       process_track_translation_table;

@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {assertFalse} from '../../base/logging';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {extensions} from '../../components/extensions';
 import {time} from '../../base/time';
@@ -35,7 +34,6 @@ import {NUM} from '../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Icon} from '../../widgets/icon';
 import {Modal, showModal} from '../../widgets/modal';
 import {
   Flamegraph,
@@ -46,30 +44,7 @@ import {
 import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
-import {Tooltip} from '../../widgets/tooltip';
-
-export enum ProfileType {
-  HEAP_PROFILE = 'heap_profile',
-  MIXED_HEAP_PROFILE = 'heap_profile:com.android.art,libc.malloc',
-  NATIVE_HEAP_PROFILE = 'heap_profile:libc.malloc',
-  JAVA_HEAP_SAMPLES = 'heap_profile:com.android.art',
-  JAVA_HEAP_GRAPH = 'graph',
-  PERF_SAMPLE = 'perf',
-  INSTRUMENTS_SAMPLE = 'instruments',
-}
-
-export function profileType(s: string): ProfileType {
-  if (s === 'heap_profile:libc.malloc,com.android.art') {
-    s = 'heap_profile:com.android.art,libc.malloc';
-  }
-  if (Object.values(ProfileType).includes(s as ProfileType)) {
-    return s as ProfileType;
-  }
-  if (s.startsWith('heap_profile')) {
-    return ProfileType.HEAP_PROFILE;
-  }
-  throw new Error('Unknown type ${s}');
-}
+import {ProfileDescriptor, ProfileType} from './common';
 
 interface Props {
   ts: time;
@@ -99,16 +74,16 @@ export class HeapProfileFlamegraphDetailsPanel
     private readonly trace: Trace,
     private readonly heapGraphIncomplete: boolean,
     private readonly upid: number,
-    private readonly profileType: ProfileType,
+    private readonly profileDescriptor: ProfileDescriptor,
     private readonly ts: time,
     private state: FlamegraphState | undefined,
     private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
-    this.props = {ts, type: profileType};
+    this.props = {ts, type: profileDescriptor.type};
     this.flamegraph = new QueryFlamegraph(trace);
     this.metrics = flamegraphMetrics(
       this.trace,
-      this.profileType,
+      this.profileDescriptor,
       this.ts,
       this.upid,
     );
@@ -141,23 +116,7 @@ export class HeapProfileFlamegraphDetailsPanel
         DetailsShell,
         {
           fillHeight: true,
-          title: m(
-            'span',
-            getFlamegraphTitle(type),
-            type === ProfileType.MIXED_HEAP_PROFILE && [
-              ' ', // Some space between title and icon
-              m(
-                Tooltip,
-                {
-                  trigger: m(Icon, {icon: 'warning', intent: Intent.Warning}),
-                },
-                m(
-                  '',
-                  'This is a mixed java/native heap profile, free()s are not visualized. To visualize free()s, remove "all_heaps: true" from the config.',
-                ),
-              ),
-            ],
-          ),
+          title: m('span', this.profileDescriptor.label),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
             m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
             (type === ProfileType.NATIVE_HEAP_PROFILE ||
@@ -221,13 +180,13 @@ export class HeapProfileFlamegraphDetailsPanel
 
 function flamegraphMetrics(
   trace: Trace,
-  type: ProfileType,
+  descriptor: ProfileDescriptor,
   ts: time,
   upid: number,
 ): ReadonlyArray<QueryFlamegraphMetric> {
-  switch (type) {
+  switch (descriptor.type) {
     case ProfileType.NATIVE_HEAP_PROFILE:
-      return flamegraphMetricsForHeapProfile(ts, upid, [
+      return flamegraphMetricsForHeapProfile(ts, upid, descriptor.heapName!, [
         {
           name: 'Unreleased Malloc Size',
           unit: 'B',
@@ -249,8 +208,8 @@ function flamegraphMetrics(
           columnName: 'self_alloc_count',
         },
       ]);
-    case ProfileType.HEAP_PROFILE:
-      return flamegraphMetricsForHeapProfile(ts, upid, [
+    case ProfileType.GENERIC_HEAP_PROFILE:
+      return flamegraphMetricsForHeapProfile(ts, upid, descriptor.heapName!, [
         {
           name: 'Unreleased Size',
           unit: 'B',
@@ -273,7 +232,7 @@ function flamegraphMetrics(
         },
       ]);
     case ProfileType.JAVA_HEAP_SAMPLES:
-      return flamegraphMetricsForHeapProfile(ts, upid, [
+      return flamegraphMetricsForHeapProfile(ts, upid, descriptor.heapName!, [
         {
           name: 'Total Allocation Size',
           unit: 'B',
@@ -281,19 +240,6 @@ function flamegraphMetrics(
         },
         {
           name: 'Total Allocation Count',
-          unit: '',
-          columnName: 'self_count',
-        },
-      ]);
-    case ProfileType.MIXED_HEAP_PROFILE:
-      return flamegraphMetricsForHeapProfile(ts, upid, [
-        {
-          name: 'Allocation Size (malloc + java)',
-          unit: 'B',
-          columnName: 'self_size',
-        },
-        {
-          name: 'Allocation Count (malloc + java)',
           unit: '',
           columnName: 'self_count',
         },
@@ -443,16 +389,13 @@ function flamegraphMetrics(
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
       ];
-    case ProfileType.PERF_SAMPLE:
-      throw new Error('Perf sample not supported');
-    case ProfileType.INSTRUMENTS_SAMPLE:
-      throw new Error('Instruments sample not supported');
   }
 }
 
 function flamegraphMetricsForHeapProfile(
   ts: time,
   upid: number,
+  heapName: string,
   metrics: {name: string; unit: string; columnName: string}[],
 ) {
   return metricsFromTableOrSubquery({
@@ -476,7 +419,7 @@ function flamegraphMetricsForHeapProfile(
             max(size, 0) as alloc_size,
             max(count, 0) as alloc_count
           from heap_profile_allocation a
-          where a.ts <= ${ts} and a.upid = ${upid}
+          where a.ts <= ${ts} and a.upid = ${upid} and a.heap_name = '${heapName}'
         ))
       )
     `,
@@ -493,27 +436,6 @@ function flamegraphMetricsForHeapProfile(
     ],
     nameColumnLabel: 'Symbol',
   });
-}
-
-function getFlamegraphTitle(type: ProfileType) {
-  switch (type) {
-    case ProfileType.HEAP_PROFILE:
-      return 'Heap profile';
-    case ProfileType.JAVA_HEAP_GRAPH:
-      return 'Java heap graph';
-    case ProfileType.JAVA_HEAP_SAMPLES:
-      return 'Java heap samples';
-    case ProfileType.MIXED_HEAP_PROFILE:
-      return 'Mixed heap profile';
-    case ProfileType.NATIVE_HEAP_PROFILE:
-      return 'Native heap profile';
-    case ProfileType.PERF_SAMPLE:
-      assertFalse(false, 'Perf sample not supported');
-      return 'Impossible';
-    case ProfileType.INSTRUMENTS_SAMPLE:
-      assertFalse(false, 'Instruments sample not supported');
-      return 'Impossible';
-  }
 }
 
 async function downloadPprof(trace: Trace, upid: number, ts: time) {

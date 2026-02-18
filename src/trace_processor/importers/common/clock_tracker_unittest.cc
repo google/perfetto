@@ -55,8 +55,12 @@ class ClockTrackerTest : public ::testing::Test {
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.trace_time_state = std::make_unique<TraceTimeState>(TraceTimeState{
         ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), false});
+    primary_sync_ = std::make_unique<ClockSynchronizer>(
+        context_.trace_time_state.get(),
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     ct_ = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+        primary_sync_.get());
   }
   std::optional<int64_t> Convert(ClockTracker::ClockId src_clock_id,
                                  int64_t src_timestamp,
@@ -65,6 +69,7 @@ class ClockTrackerTest : public ::testing::Test {
   }
 
   TraceProcessorContext context_;
+  std::unique_ptr<ClockSynchronizer> primary_sync_;
   std::unique_ptr<ClockTracker> ct_;
 };
 
@@ -565,6 +570,71 @@ TEST_F(ClockTrackerTest, ThreeHopConversion) {
   // Another conversion within the same range.
   EXPECT_EQ(*Convert(REALTIME, 20, BOOTTIME), expected_ts + 10);
   EXPECT_EQ(ct_->cache_hits_for_testing(), hits + 2);
+}
+
+// Tests for multi-trace clock isolation (shared_sync fallback).
+TEST_F(ClockTrackerTest, NonPrimaryUsesSharedSnapshots) {
+  // Set up a shared ClockSynchronizer (simulating the per-machine shared sync).
+  ClockSynchronizer shared_sync(
+      context_.trace_time_state.get(),
+      std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+  // Add snapshots to the shared sync (primary trace's snapshots).
+  shared_sync.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  shared_sync.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+
+  // Create a non-primary ClockTracker that falls back to shared_sync.
+  auto non_primary = std::make_unique<ClockTracker>(
+      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+      &shared_sync, /*is_primary=*/false);
+
+  // Non-primary should be able to convert using the shared snapshots.
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 20), 10020);
+  EXPECT_EQ(*non_primary->ToTraceTime(MONOTONIC, 1000), 100000);
+}
+
+TEST_F(ClockTrackerTest, NonPrimarySwitchesToOwnOnAddSnapshot) {
+  ClockSynchronizer shared_sync(
+      context_.trace_time_state.get(),
+      std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+  shared_sync.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+
+  auto non_primary = std::make_unique<ClockTracker>(
+      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+      &shared_sync, /*is_primary=*/false);
+
+  // Before own snapshot: uses shared snapshots.
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
+
+  // Add own snapshot with different offset.
+  non_primary->AddSnapshot({{REALTIME, 100}, {BOOTTIME, 200100}});
+
+  // After own snapshot: uses own sync, not shared.
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 100), 200100);
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 110), 200110);
+}
+
+TEST_F(ClockTrackerTest, PrimaryTraceAlwaysUsesSharedSync) {
+  ClockSynchronizer shared_sync(
+      context_.trace_time_state.get(),
+      std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+
+  // Create primary trace ClockTracker pointing to shared_sync.
+  auto primary = std::make_unique<ClockTracker>(
+      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+      &shared_sync, /*is_primary=*/true);
+
+  // Primary adds snapshots — they should go to shared_sync.
+  primary->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+
+  // Primary converts using shared_sync.
+  EXPECT_EQ(*primary->ToTraceTime(REALTIME, 10), 10010);
+
+  // A non-primary trace should also see the primary's snapshots.
+  auto non_primary = std::make_unique<ClockTracker>(
+      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+      &shared_sync, /*is_primary=*/false);
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
 }
 
 }  // namespace

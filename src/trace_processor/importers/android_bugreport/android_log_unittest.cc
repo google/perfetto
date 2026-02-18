@@ -76,8 +76,12 @@ class AndroidLogReaderTest : public ::testing::Test {
     context_.metadata_tracker = std::make_unique<MetadataTracker>(&context_);
     context_.trace_time_state = std::make_unique<TraceTimeState>(TraceTimeState{
         ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), false});
+    primary_sync_ = std::make_unique<ClockSynchronizer>(
+        context_.trace_time_state.get(),
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+        primary_sync_.get());
     context_.clock_tracker->SetTraceTimeClock(
         ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::REALTIME));
     context_.sorter = std::make_unique<TraceSorter>(
@@ -92,6 +96,7 @@ class AndroidLogReaderTest : public ::testing::Test {
 
  private:
   TraceProcessorContext context_;
+  std::unique_ptr<ClockSynchronizer> primary_sync_;
 };
 
 TEST_F(AndroidLogReaderTest, PersistentLogFormat) {
