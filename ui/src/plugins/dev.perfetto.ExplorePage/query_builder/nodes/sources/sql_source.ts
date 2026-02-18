@@ -94,6 +94,7 @@ class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
           onUpdate: attrs.onUpdate,
           onExecute: attrs.onExecute,
           autofocus: true,
+          language: 'perfetto-sql',
         }),
         m(ResizeHandle, {
           onResize: (deltaPx: number) => {

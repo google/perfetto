@@ -54,8 +54,6 @@
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
-
 namespace perfetto::trace_processor {
 namespace {
 
@@ -163,9 +161,8 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->forked_context_state =
       Ptr<TraceProcessorContext::ForkedContextState>::MakeRoot();
   context->clock_converter = Ptr<ClockConverter>::MakeRoot(context);
-  context->trace_time_state = Ptr<TraceTimeState>::MakeRoot(TraceTimeState{
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
-      /*used_for_conversion=*/false});
+  context->trace_time_state =
+      Ptr<TraceTimeState>::MakeRoot(ClockId::TraceFile(0));
   context->track_group_idx_state =
       Ptr<TrackCompressorGroupIdxState>::MakeRoot();
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
