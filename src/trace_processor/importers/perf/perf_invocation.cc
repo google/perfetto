@@ -40,6 +40,7 @@
 #include "src/trace_processor/storage/trace_storage.h"  // IWYU pragma: keep
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 
 namespace perfetto::trace_processor::perf_importer {
 namespace {
@@ -203,7 +204,7 @@ void PerfInvocation::SetCmdline(const std::vector<std::string>& args) {
 bool PerfInvocation::HasPerfClock() const {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
     if (it.value()->clock_id() ==
-        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_PERF)) {
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_PERF)) {
       return true;
     }
   }

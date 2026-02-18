@@ -389,6 +389,11 @@ class PowerPowerRails(TestSuite):
           }
         }
         packet {
+          clock_snapshot {
+            primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+          }
+        }
+        packet {
           timestamp: 1000000
           power_rails {
             energy_data {

@@ -16,14 +16,27 @@
 
 #include "src/trace_processor/importers/proto/winscope/android_input_event_parser.h"
 
+#include <array>
+#include <cstdint>
+#include <optional>
+#include <string>
+
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/android/android_input_event.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/proto_to_args_parser.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor {
@@ -198,7 +211,7 @@ void AndroidInputEventParser::ConvertMonotonicTimestampField(
     const std::string& key_string,
     ArgsParser& writer) {
   auto boottime = context_.clock_tracker->ToTraceTime(
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
       monotonic_time);
   if (boottime.has_value()) {
     util::ProtoToArgsParser::Key key;

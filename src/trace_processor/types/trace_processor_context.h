@@ -189,9 +189,6 @@ class TraceProcessorContext {
 
   PerMachinePtr<SymbolTracker> symbol_tracker;
   PerMachinePtr<ProcessTracker> process_tracker;
-  // The ClockSynchronizer for the primary trace (the first trace for a
-  // machine). Primary trace adds snapshots here; non-primary traces read from
-  // it until they receive their own clock snapshots.
   PerMachinePtr<ClockSynchronizer> primary_clock_sync;
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
