@@ -143,8 +143,8 @@ export class TraceImpl implements Trace, Disposable {
         this.trash.use(disposable);
         return disposable;
       },
-      registerMacro: (macro) => {
-        const disposable = app.commands.registerMacro(macro);
+      registerMacro: (macro, source) => {
+        const disposable = app.commands.registerMacro(macro, source);
         this.trash.use(disposable);
         return disposable;
       },

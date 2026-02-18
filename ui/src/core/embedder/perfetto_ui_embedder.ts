@@ -17,4 +17,8 @@ import {Embedder} from './embedder';
 /** Embedder implementation for ui.perfetto.dev and localhost development. */
 export class PerfettoUiEmbedder implements Embedder {
   readonly analyticsId = 'G-BD89KT2P3C';
+  readonly extensionServer = {
+    url: 'https://perfetto-gae-internal.googleplex.com/',
+    authType: 'https_sso' as const,
+  };
 }

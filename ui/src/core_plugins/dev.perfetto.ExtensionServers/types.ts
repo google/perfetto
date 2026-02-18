@@ -60,6 +60,7 @@ const httpsAuthSchema = z.discriminatedUnion('type', [
     key: z.string().meta({secret: true}).default(''),
     customHeaderName: z.string().default(''),
   }),
+  z.object({type: z.literal('https_sso')}),
 ]);
 
 // Extension server configuration (persisted via Settings).
@@ -74,6 +75,7 @@ export const extensionServerSchema = z.discriminatedUnion('type', [
     enabledModules: z.array(z.string()),
     enabled: z.boolean(),
     auth: githubAuthSchema.default({type: 'none'}),
+    locked: z.boolean().default(false),
   }),
   z.object({
     type: z.literal('https'),
@@ -81,6 +83,7 @@ export const extensionServerSchema = z.discriminatedUnion('type', [
     enabledModules: z.array(z.string()),
     enabled: z.boolean(),
     auth: httpsAuthSchema.default({type: 'none'}),
+    locked: z.boolean().default(false),
   }),
 ]);
 
@@ -110,21 +113,25 @@ export type UserInput =
             keyType: 'bearer' | 'x_api_key' | 'custom';
             key: string;
             customHeaderName: string;
-          };
+          }
+        | {type: 'https_sso'};
     };
 
 // Manifest format from {base_url}/manifest
 // Provides server metadata, features, and available modules.
 //
 // For each enabled module, the client fetches:
-//   - {base_url}/modules/{name}/macros             → using MacrosSchema
-//   - {base_url}/modules/{name}/sql_modules        → using SqlModulesSchema
-//   - {base_url}/modules/{name}/proto_descriptors  → using ProtoDescriptorsSchema
+//   - {base_url}/modules/{id}/macros             → using MacrosSchema
+//   - {base_url}/modules/{id}/sql_modules        → using SqlModulesSchema
+//   - {base_url}/modules/{id}/proto_descriptors  → using ProtoDescriptorsSchema
 export const manifestFeatureSchema = z.object({
   name: z.string(),
 });
 
 export const manifestModuleSchema = z.object({
+  // Unique identifier used in URL paths and enabledModules setting.
+  id: z.string(),
+  // Human-readable display name shown in the UI.
   name: z.string(),
 });
 

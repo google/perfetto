@@ -105,3 +105,9 @@
     width: 100%;
   }
 }
+
+// Error modal for extension server loading failures
+.pf-ext-server-errors {
+  max-height: 200px;
+  overflow-y: auto;
+}

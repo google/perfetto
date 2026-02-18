@@ -13,6 +13,14 @@
 // limitations under the License.
 
 /**
+ * Configuration for an embedder-provided default extension server.
+ */
+export interface EmbedderExtensionServer {
+  readonly url: string;
+  readonly authType: 'none' | 'https_sso';
+}
+
+/**
  * Interface for embedder-specific behavior. Different implementations allow
  * the UI to adapt to the environment it's running in (e.g. ui.perfetto.dev
  * vs a third-party embedding).
@@ -21,4 +29,8 @@ export interface Embedder {
   // Returns the Google Analytics measurement ID, or undefined if analytics
   // should not be enabled for this embedder.
   readonly analyticsId: string | undefined;
+
+  // Returns the default extension server that should be added on startup if
+  // not already configured by the user. Undefined means no default.
+  readonly extensionServer: EmbedderExtensionServer | undefined;
 }

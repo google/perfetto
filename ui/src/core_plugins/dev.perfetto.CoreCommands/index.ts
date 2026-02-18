@@ -299,7 +299,7 @@ export default class CoreCommands implements PerfettoPlugin {
       // now we need the extras to be loaded.
       const macros = await app.macros();
       for (const macro of macros) {
-        ctx.commands.registerMacro(macro);
+        ctx.commands.registerMacro(macro, macro.source);
       }
     });
 
