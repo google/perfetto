@@ -41,6 +41,8 @@ import {SerializedAppState} from './state_serialization_schema';
 import {TraceImpl} from './trace_impl';
 import {TraceArrayBufferSource, TraceSource} from './trace_source';
 import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
+import {Embedder} from './embedder/embedder';
+import {createEmbedder} from './embedder/create_embedder';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -89,6 +91,7 @@ export class AppImpl implements App {
   readonly testingMode: boolean;
   readonly openTraceAsyncLimiter = new AsyncLimiter();
   readonly settings: SettingsManagerImpl;
+  readonly embedder: Embedder;
 
   // The current active trace (if any).
   private _activeTrace: TraceImpl | undefined;
@@ -147,10 +150,12 @@ export class AppImpl implements App {
       disabled: this.embeddedMode,
       hidden: this.initialRouteArgs.hideSidebar,
     });
+    this.embedder = createEmbedder();
     this.analytics = initAnalytics(
       this.testingMode,
       this.embeddedMode,
       initArgs.analyticsSetting.get(),
+      this.embedder.analyticsId,
     );
     this.pages = new PageManagerImpl(this.analytics);
   }

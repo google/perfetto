@@ -96,12 +96,9 @@ function shouldShowTopPort(node: QueryNode): boolean {
 // GRAPH ATTRIBUTES INTERFACE
 // ========================================
 
-export interface GraphAttrs {
-  readonly rootNodes: QueryNode[];
-  readonly selectedNodes: ReadonlySet<string>;
-  readonly nodeLayouts: LayoutMap;
-  readonly labels: ReadonlyArray<TextLabelData>;
-  readonly loadGeneration?: number;
+// Callbacks shared between BuilderAttrs and GraphAttrs.
+// Builder forwards these to Graph without transformation.
+export interface GraphCallbacks {
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onNodeAddToSelection: (node: QueryNode) => void;
   readonly onNodeRemoveFromSelection: (nodeId: string) => void;
@@ -120,6 +117,14 @@ export interface GraphAttrs {
   ) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
+}
+
+export interface GraphAttrs extends GraphCallbacks {
+  readonly rootNodes: QueryNode[];
+  readonly selectedNodes: ReadonlySet<string>;
+  readonly nodeLayouts: LayoutMap;
+  readonly labels: ReadonlyArray<TextLabelData>;
+  readonly loadGeneration?: number;
 }
 
 // ========================================
