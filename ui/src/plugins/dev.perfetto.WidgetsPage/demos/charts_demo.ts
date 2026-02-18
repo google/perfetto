@@ -48,6 +48,19 @@ import {
   SQLPieChartLoader,
   PieChartLoaderConfig,
 } from '../../../components/widgets/charts/pie_chart_loader';
+import {
+  Scatterplot,
+  ScatterChartData,
+} from '../../../components/widgets/charts/scatterplot';
+import {
+  SQLScatterChartLoader,
+  ScatterChartLoaderConfig,
+} from '../../../components/widgets/charts/scatterplot_loader';
+import {Treemap, TreemapData} from '../../../components/widgets/charts/treemap';
+import {
+  SQLTreemapLoader,
+  TreemapLoaderConfig,
+} from '../../../components/widgets/charts/treemap_loader';
 import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
@@ -106,8 +119,8 @@ export function renderCharts(app: App): m.Children {
       '.pf-widget-intro',
       m('h1', 'Charts'),
       m('p', [
-        'Pure SVG-based chart components for visualizing data. ',
-        'Includes BarChart, LineChart, PieChart, and Histogram.',
+        'ECharts-based chart components for visualizing data. ',
+        'Includes BarChart, LineChart, PieChart, Histogram, ScatterChart, and Treemap.',
       ]),
     ),
 
@@ -200,6 +213,42 @@ export function renderCharts(app: App): m.Children {
       },
     }),
 
+    // ScatterChart section
+    m('h2', {style: {marginTop: '32px'}}, 'ScatterChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(ScatterChartDemo, {
+          height: opts.height,
+          showLegend: opts.showLegend,
+          bubbleMode: opts.bubbleMode,
+          scaleAxes: opts.scaleAxes,
+        });
+      },
+      initialOpts: {
+        height: 250,
+        showLegend: true,
+        bubbleMode: false,
+        scaleAxes: false,
+      },
+    }),
+
+    // TreemapChart section
+    m('h2', {style: {marginTop: '32px'}}, 'TreemapChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(TreemapChartDemo, {
+          height: opts.height,
+          showLabels: opts.showLabels,
+          hierarchical: opts.hierarchical,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        showLabels: true,
+        hierarchical: true,
+      },
+    }),
+
     // SQL loader demos (only shown when a trace is loaded)
     ...renderSQLDemos(app),
     app.trace === undefined &&
@@ -251,6 +300,7 @@ function renderSQLDemos(app: App): m.Children[] {
           enableBrush: opts.enableBrush,
           showPoints: opts.showPoints,
           maxPoints: opts.maxPoints,
+          scaleAxes: opts.scaleAxes,
         });
       },
       initialOpts: {
@@ -258,6 +308,7 @@ function renderSQLDemos(app: App): m.Children[] {
         enableBrush: true,
         showPoints: true,
         maxPoints: 200,
+        scaleAxes: true,
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLPieChartLoader'),
@@ -303,6 +354,40 @@ function renderSQLDemos(app: App): m.Children[] {
         height: 250,
         enableBrush: true,
         logScale: false,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLScatterChartLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLScatterChartDemo, {
+          trace,
+          height: opts.height,
+          showLegend: opts.showLegend,
+          maxPoints: opts.maxPoints,
+          scaleAxes: opts.scaleAxes,
+        });
+      },
+      initialOpts: {
+        height: 250,
+        showLegend: true,
+        maxPoints: 500,
+        scaleAxes: true,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLTreemapLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLTreemapDemo, {
+          trace,
+          height: opts.height,
+          showLabels: opts.showLabels,
+          limit: opts.limit,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        showLabels: true,
+        limit: 10,
       },
     }),
   ];
@@ -633,6 +718,7 @@ function SQLLineChartDemo(): m.Component<{
   enableBrush: boolean;
   showPoints: boolean;
   maxPoints: number;
+  scaleAxes: boolean;
 }> {
   let loader: SQLLineChartLoader | undefined;
   let xRange: {min: number; max: number} | undefined;
@@ -661,6 +747,7 @@ function SQLLineChartDemo(): m.Component<{
           xAxisLabel: 'Timestamp',
           yAxisLabel: 'Value',
           showPoints: attrs.showPoints,
+          scaleAxes: attrs.scaleAxes,
           onBrush: attrs.enableBrush
             ? (range) => {
                 xRange = {min: range.start, max: range.end};
@@ -813,21 +900,76 @@ function LineChartDemo(): m.Component<{
 }> {
   let brushRange: {start: number; end: number} | undefined;
 
+  // Helper to interpolate Y value between two points at a given X
+  function interpolateY(
+    p1: {x: number; y: number},
+    p2: {x: number; y: number},
+    x: number,
+  ): number {
+    if (p1.x === p2.x) return p1.y;
+    const t = (x - p1.x) / (p2.x - p1.x);
+    return p1.y + t * (p2.y - p1.y);
+  }
+
+  // Filter points to range, with interpolation at boundaries for continuity
+  function filterPointsWithInterpolation(
+    points: ReadonlyArray<{x: number; y: number}>,
+    start: number,
+    end: number,
+  ): Array<{x: number; y: number}> {
+    if (points.length === 0) return [];
+
+    // Sort points by X (should already be sorted, but just in case)
+    const sorted = [...points].sort((a, b) => a.x - b.x);
+
+    const result: Array<{x: number; y: number}> = [];
+
+    // Find points within range and interpolate at boundaries
+    for (let i = 0; i < sorted.length; i++) {
+      const curr = sorted[i];
+      const prev = i > 0 ? sorted[i - 1] : undefined;
+
+      // Add interpolated start point if we're crossing into the range
+      if (prev !== undefined && prev.x < start && curr.x >= start) {
+        if (curr.x > start) {
+          result.push({x: start, y: interpolateY(prev, curr, start)});
+        }
+      }
+
+      // Add current point if within range
+      if (curr.x >= start && curr.x <= end) {
+        result.push({x: curr.x, y: curr.y});
+      }
+
+      // Add interpolated end point if we're leaving the range
+      const next = i < sorted.length - 1 ? sorted[i + 1] : undefined;
+      if (next !== undefined && curr.x <= end && next.x > end) {
+        if (curr.x < end) {
+          result.push({x: end, y: interpolateY(curr, next, end)});
+        }
+      }
+    }
+
+    return result;
+  }
+
   return {
     view: ({attrs}) => {
       const fullData = attrs.multiSeries
         ? LINE_CHART_MULTI_SERIES_DATA
         : LINE_CHART_SAMPLE_DATA;
 
-      // Filter data to the brushed X range
+      // Filter data to the brushed X range with interpolation at boundaries
       const range = brushRange;
       const data: LineChartData =
         range !== undefined
           ? {
               series: fullData.series.map((s) => ({
                 ...s,
-                points: s.points.filter(
-                  (p) => p.x >= range.start && p.x <= range.end,
+                points: filterPointsWithInterpolation(
+                  s.points,
+                  range.start,
+                  range.end,
                 ),
               })),
             }
@@ -841,9 +983,11 @@ function LineChartDemo(): m.Component<{
           yAxisLabel: 'Value',
           logScale: attrs.logScale,
           showPoints: attrs.showPoints,
+          xAxisMin: range?.start,
+          xAxisMax: range?.end,
           onBrush: attrs.enableBrush
-            ? (range) => {
-                brushRange = range;
+            ? (newRange) => {
+                brushRange = newRange;
               }
             : undefined,
         }),
@@ -937,6 +1081,321 @@ function PieChartDemo(): m.Component<{
             'Clear selection',
           ),
       ]);
+    },
+  };
+}
+
+// Simple seeded pseudo-random number generator for reproducible demo data.
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return s / 2147483647;
+  };
+}
+
+// Static sample data for ScatterChart demo
+const SCATTER_SAMPLE_DATA: ScatterChartData = (() => {
+  const rng = seededRandom(42);
+  return {
+    series: [
+      {
+        name: 'Group A',
+        points: Array.from({length: 30}, () => ({
+          x: rng() * 100,
+          y: rng() * 50 + 25,
+        })),
+      },
+      {
+        name: 'Group B',
+        points: Array.from({length: 25}, () => ({
+          x: rng() * 100,
+          y: rng() * 50 + 50,
+        })),
+      },
+    ],
+  };
+})();
+
+const SCATTER_BUBBLE_DATA: ScatterChartData = {
+  series: [
+    {
+      name: 'Processes',
+      points: [
+        {x: 10, y: 20, size: 100, label: 'Chrome'},
+        {x: 25, y: 45, size: 200, label: 'Firefox'},
+        {x: 40, y: 30, size: 150, label: 'Safari'},
+        {x: 55, y: 60, size: 80, label: 'Edge'},
+        {x: 70, y: 35, size: 300, label: 'System'},
+        {x: 85, y: 50, size: 120, label: 'Launcher'},
+      ],
+    },
+  ],
+};
+
+function ScatterChartDemo(): m.Component<{
+  height: number;
+  showLegend: boolean;
+  bubbleMode: boolean;
+  scaleAxes: boolean;
+}> {
+  return {
+    view: ({attrs}) => {
+      const data = attrs.bubbleMode ? SCATTER_BUBBLE_DATA : SCATTER_SAMPLE_DATA;
+      return m('div', [
+        m(Scatterplot, {
+          data,
+          height: attrs.height,
+          xAxisLabel: 'X Value',
+          yAxisLabel: 'Y Value',
+          showLegend: attrs.showLegend,
+          scaleAxes: attrs.scaleAxes,
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            attrs.bubbleMode
+              ? 'Bubble mode: size encodes a third dimension'
+              : 'Regular scatter plot with two series',
+            attrs.scaleAxes
+              ? '\nscaleAxes: true (axis range from data min/max)'
+              : '\nscaleAxes: false (axis range includes zero)',
+          ],
+        ),
+      ]);
+    },
+  };
+}
+
+// Static sample data for TreemapChart demo
+const TREEMAP_FLAT_DATA: TreemapData = {
+  nodes: [
+    {name: 'Chrome', value: 350},
+    {name: 'SurfaceFlinger', value: 150},
+    {name: 'SystemUI', value: 200},
+    {name: 'Launcher', value: 100},
+    {name: 'InputDispatcher', value: 75},
+    {name: 'AudioFlinger', value: 125},
+  ],
+};
+
+const TREEMAP_HIERARCHICAL_DATA: TreemapData = {
+  nodes: [
+    {
+      name: 'UI Processes',
+      value: 650, // Sum of children: 350 + 200 + 100
+      category: 'ui',
+      children: [
+        {name: 'Chrome', value: 350, category: 'ui'},
+        {name: 'SystemUI', value: 200, category: 'ui'},
+        {name: 'Launcher', value: 100, category: 'ui'},
+      ],
+    },
+    {
+      name: 'System Services',
+      value: 350, // Sum of children: 150 + 75 + 125
+      category: 'system',
+      children: [
+        {name: 'SurfaceFlinger', value: 150, category: 'system'},
+        {name: 'InputDispatcher', value: 75, category: 'system'},
+        {name: 'AudioFlinger', value: 125, category: 'system'},
+      ],
+    },
+  ],
+};
+
+function TreemapChartDemo(): m.Component<{
+  height: number;
+  showLabels: boolean;
+  hierarchical: boolean;
+}> {
+  let clickedNode: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      const data = attrs.hierarchical
+        ? TREEMAP_HIERARCHICAL_DATA
+        : TREEMAP_FLAT_DATA;
+      return m('div', [
+        m(Treemap, {
+          data,
+          height: attrs.height,
+          showLabels: attrs.showLabels,
+          onNodeClick: (node) => {
+            clickedNode = node.name;
+          },
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          clickedNode ? `Clicked: ${clickedNode}` : 'Click a node to select it',
+        ),
+        clickedNode &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                clickedNode = undefined;
+              },
+            },
+            'Clear selection',
+          ),
+      ]);
+    },
+  };
+}
+
+function SQLScatterChartDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  showLegend: boolean;
+  maxPoints: number;
+  scaleAxes: boolean;
+}> {
+  let loader: SQLScatterChartLoader | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLScatterChartLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT ts, dur, name FROM slice WHERE dur > 0 LIMIT 1000',
+          xColumn: 'ts',
+          yColumn: 'dur',
+          seriesColumn: 'name',
+        });
+      }
+
+      const config: ScatterChartLoaderConfig = {
+        maxPoints: attrs.maxPoints,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(Scatterplot, {
+          data,
+          height: attrs.height,
+          xAxisLabel: 'Timestamp',
+          yAxisLabel: 'Duration',
+          showLegend: attrs.showLegend,
+          scaleAxes: attrs.scaleAxes,
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT ts, dur, name FROM slice WHERE dur > 0 LIMIT 1000'\n`,
+            `xColumn: 'ts', yColumn: 'dur', seriesColumn: 'name'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+function SQLTreemapDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  showLabels: boolean;
+  limit: number;
+}> {
+  let loader: SQLTreemapLoader | undefined;
+  let clickedNode: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLTreemapLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT name, dur, category FROM slice WHERE dur > 0',
+          labelColumn: 'name',
+          sizeColumn: 'dur',
+          groupColumn: 'category',
+        });
+      }
+
+      const config: TreemapLoaderConfig = {
+        aggregation: 'SUM',
+        limit: attrs.limit,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(Treemap, {
+          data,
+          height: attrs.height,
+          showLabels: attrs.showLabels,
+          onNodeClick: (node) => {
+            clickedNode = node.name;
+          },
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT name, dur, category FROM slice WHERE dur > 0'\n`,
+            `labelColumn: 'name', sizeColumn: 'dur', groupColumn: 'category'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+            clickedNode ? `\nClicked: ${clickedNode}` : '',
+          ],
+        ),
+        clickedNode &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                clickedNode = undefined;
+              },
+            },
+            'Clear selection',
+          ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
     },
   };
 }

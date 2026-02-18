@@ -33,6 +33,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 
@@ -178,8 +179,16 @@ enum class ClockSyncErrorType {
 // that AddSnapshot can validate against the current trace-time clock
 // without a virtual call.
 struct TraceTimeState {
+  TraceTimeState() = default;
+  TraceTimeState(ClockId _clock_id, bool _used_for_conversion)
+      : clock_id(_clock_id), used_for_conversion(_used_for_conversion) {}
+
   ClockId clock_id;
   bool used_for_conversion = false;
+  std::optional<int64_t> timezone_offset;
+  // TODO(lalitm): remote_clock_offsets is a hack. We should have a proper
+  // definition for dealing with cross-machine clock synchronization.
+  base::FlatHashMap<ClockId, int64_t> remote_clock_offsets;
 };
 
 // Virtual interface for listening to clock synchronization events.
