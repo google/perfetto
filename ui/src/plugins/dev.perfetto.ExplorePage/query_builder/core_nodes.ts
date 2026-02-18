@@ -556,4 +556,29 @@ export function registerCoreNodes() {
         sqlModules,
       }),
   });
+
+  // Set the default allowed children for all nodes.
+  // This is the full set of modification + multisource nodes, matching the
+  // current behavior. Individual node registrations can override this by
+  // setting allowedChildren on their descriptor.
+  nodeRegistry.setDefaultAllowedChildren([
+    // Modification nodes
+    'add_columns',
+    'modify_columns',
+    'aggregation',
+    'filter_node',
+    'counter_to_intervals',
+    'sort_node',
+    'limit_and_offset_node',
+    // Multisource nodes
+    'filter_during',
+    'filter_in',
+    'interval_intersect',
+    'join',
+    'create_slices',
+    'union_node',
+  ]);
+
+  // Validate that all allowedChildren references point to registered nodes.
+  nodeRegistry.validateAllowedChildren();
 }

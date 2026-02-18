@@ -85,6 +85,7 @@ source_set("filter_util") {
   deps = [
     ":bytecode_generator",
     ":bytecode_parser",
+    "..:multifile_error_collector",
     "..:protozero",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",

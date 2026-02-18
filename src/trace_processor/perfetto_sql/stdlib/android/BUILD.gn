@@ -25,6 +25,7 @@ perfetto_sql_source_set("android") {
     "frames",
     "gpu",
     "memory",
+    "profiling_manager",
     "startup",
     "winscope",
   ]

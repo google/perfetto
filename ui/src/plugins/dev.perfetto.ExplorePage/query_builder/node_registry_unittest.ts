@@ -277,6 +277,257 @@ describe('NodeRegistry', () => {
     });
   });
 
+  describe('getAllowedChildrenFor', () => {
+    it('should return default allowed children when node has no override', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        factory: () => createMockNode('s'),
+      });
+      registry.register('filter', {
+        ...defaults,
+        nodeType: NodeType.kFilter,
+        name: 'Filter',
+        description: 'A filter',
+        icon: 'icon',
+        type: 'modification',
+        factory: () => createMockNode('f'),
+      });
+      registry.setDefaultAllowedChildren(['filter']);
+
+      const result = registry.getAllowedChildrenFor(NodeType.kTable);
+
+      expect(result).toEqual(['filter']);
+    });
+
+    it('should return per-node override when set', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        allowedChildren: ['filter'],
+        factory: () => createMockNode('s'),
+      });
+      registry.register('filter', {
+        ...defaults,
+        nodeType: NodeType.kFilter,
+        name: 'Filter',
+        description: 'A filter',
+        icon: 'icon',
+        type: 'modification',
+        factory: () => createMockNode('f'),
+      });
+      registry.setDefaultAllowedChildren(['filter', 'sort']);
+
+      const result = registry.getAllowedChildrenFor(NodeType.kTable);
+
+      expect(result).toEqual(['filter']);
+    });
+
+    it('should return empty array when override is empty', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        allowedChildren: [],
+        factory: () => createMockNode('s'),
+      });
+      registry.setDefaultAllowedChildren(['filter']);
+
+      const result = registry.getAllowedChildrenFor(NodeType.kTable);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('isConnectionAllowed', () => {
+    it('should allow connection when child type is in allowed list', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        factory: () => createMockNode('s'),
+      });
+      registry.register('filter', {
+        ...defaults,
+        nodeType: NodeType.kFilter,
+        name: 'Filter',
+        description: 'A filter',
+        icon: 'icon',
+        type: 'modification',
+        factory: () => createMockNode('f'),
+      });
+      registry.setDefaultAllowedChildren(['filter']);
+
+      expect(
+        registry.isConnectionAllowed(NodeType.kTable, NodeType.kFilter),
+      ).toBe(true);
+    });
+
+    it('should block connection when child type is not in allowed list', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        allowedChildren: ['filter'],
+        factory: () => createMockNode('s'),
+      });
+      registry.register('filter', {
+        ...defaults,
+        nodeType: NodeType.kFilter,
+        name: 'Filter',
+        description: 'A filter',
+        icon: 'icon',
+        type: 'modification',
+        factory: () => createMockNode('f'),
+      });
+      registry.register('sort', {
+        ...defaults,
+        nodeType: NodeType.kSort,
+        name: 'Sort',
+        description: 'A sort',
+        icon: 'icon',
+        type: 'modification',
+        factory: () => createMockNode('so'),
+      });
+
+      expect(
+        registry.isConnectionAllowed(NodeType.kTable, NodeType.kSort),
+      ).toBe(false);
+    });
+
+    it('should block all connections when allowed children is empty', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        allowedChildren: [],
+        factory: () => createMockNode('s'),
+      });
+      registry.register('filter', {
+        ...defaults,
+        nodeType: NodeType.kFilter,
+        name: 'Filter',
+        description: 'A filter',
+        icon: 'icon',
+        type: 'modification',
+        factory: () => createMockNode('f'),
+      });
+
+      expect(
+        registry.isConnectionAllowed(NodeType.kTable, NodeType.kFilter),
+      ).toBe(false);
+    });
+
+    it('should block connection for unregistered child type', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        factory: () => createMockNode('s'),
+      });
+      registry.setDefaultAllowedChildren(['filter']);
+
+      // kFilter is not registered, only listed as allowed
+      expect(
+        registry.isConnectionAllowed(NodeType.kTable, NodeType.kFilter),
+      ).toBe(false);
+    });
+  });
+
+  describe('validateAllowedChildren', () => {
+    it('should pass when all references are valid', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        allowedChildren: ['filter'],
+        factory: () => createMockNode('s'),
+      });
+      registry.register('filter', {
+        ...defaults,
+        nodeType: NodeType.kFilter,
+        name: 'Filter',
+        description: 'A filter',
+        icon: 'icon',
+        type: 'modification',
+        factory: () => createMockNode('f'),
+      });
+      registry.setDefaultAllowedChildren(['filter']);
+
+      expect(() => registry.validateAllowedChildren()).not.toThrow();
+    });
+
+    it('should throw when per-node allowedChildren references unregistered ID', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        allowedChildren: ['nonexistent_node'],
+        factory: () => createMockNode('s'),
+      });
+
+      expect(() => registry.validateAllowedChildren()).toThrow(
+        /Node 'source' allowedChildren references unregistered node ID: 'nonexistent_node'/,
+      );
+    });
+
+    it('should throw when default allowedChildren references unregistered ID', () => {
+      const registry = new NodeRegistry();
+      registry.register('source', {
+        ...defaults,
+        nodeType: NodeType.kTable,
+        name: 'Source',
+        description: 'A source',
+        icon: 'icon',
+        type: 'source',
+        factory: () => createMockNode('s'),
+      });
+      registry.setDefaultAllowedChildren(['ghost_node']);
+
+      expect(() => registry.validateAllowedChildren()).toThrow(
+        /Default allowedChildren references unregistered node ID: 'ghost_node'/,
+      );
+    });
+  });
+
   describe('integration tests', () => {
     it('should handle full lifecycle of node registration', () => {
       const registry = new NodeRegistry();

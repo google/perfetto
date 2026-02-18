@@ -16,7 +16,12 @@ import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, STR_NULL} from '../../../trace_processor/query_result';
 import {BarChartData, BarChartItem} from './bar_chart';
-import {AggregationType, sqlAggExpression, sqlInClause} from './chart_utils';
+import {
+  AggregationType,
+  sqlAggExpression,
+  sqlInClause,
+  validateColumnName,
+} from './chart_utils';
 
 /**
  * Configuration for SQLBarChartLoader.
@@ -113,6 +118,8 @@ export class SQLBarChartLoader {
   private readonly querySlot = new QuerySlot<BarChartData>(this.taskQueue);
 
   constructor(opts: SQLBarChartLoaderOpts) {
+    validateColumnName(opts.dimensionColumn);
+    validateColumnName(opts.measureColumn);
     this.engine = opts.engine;
     this.baseQuery = opts.query;
     this.dimensionColumn = opts.dimensionColumn;
