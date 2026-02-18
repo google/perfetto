@@ -617,12 +617,16 @@ export function createChartLoader<TConfig, TData>(
       const queryConfig = opts.buildQueryConfig(config);
       const sql = buildChartQuery(opts.query, opts.schema, queryConfig);
       const extra = opts.extraCacheKey?.(config) ?? {};
+      const key = {sql, ...extra};
       return querySlot.use({
-        key: {sql, ...extra},
+        key,
         queryFn: async () => {
           const queryResult = await opts.engine.query(sql);
           return opts.parseResult(queryResult, config);
         },
+        // Retain stale chart data while new queries are in flight (e.g., during
+        // brush/filter changes) to avoid flashing a loading spinner.
+        retainOn: Object.keys(key) as (keyof typeof key)[],
       });
     },
     dispose(): void {
