@@ -701,3 +701,100 @@
 .pf-callout-with-spacing {
   margin-bottom: 16px;
 }
+
+// Metrics header row with ID prefix and Export button
+.pf-metrics-header-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+
+  // OutlinedField should take most of the space
+  > .pf-outlined-field {
+    flex: 1;
+  }
+}
+
+// Metrics V2 Export button - styled to match OutlinedField height
+.pf-metrics-v2-export-button.pf-button {
+  // Match the OutlinedField dimensions
+  min-height: 44px; // Same as OutlinedField (legend height + input padding)
+  padding: 8px 16px;
+  justify-content: center;
+}
+
+// Metrics Export Modal - fixed size to prevent layout shifts.
+// The modal uses a flex column chain: modal → main → content div → result box
+// so the result box fills remaining space while the CodeSnippet keeps its
+// intrinsic size (with a max-height cap).
+.pf-modal-dialog.pf-metrics-export-modal {
+  width: 900px;
+  height: 700px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    gap: 16px;
+
+    // The content() wrapper div created by showModal.
+    > div {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      gap: 16px;
+    }
+  }
+
+  // Cap the textproto snippet so it doesn't push the result box off-screen.
+  .pf-code-snippet {
+    max-height: 200px;
+    overflow: auto;
+    flex-shrink: 0;
+  }
+}
+
+// Bordered box around the result table inside the export modal
+.pf-metrics-result-box {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; // Allow shrinking inside flex parent
+  border: 1px solid var(--pf-color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pf-metrics-result-header {
+  padding: 8px 12px;
+  font-weight: 500;
+  background: var(--pf-color-background-secondary);
+  border-bottom: 1px solid var(--pf-color-border);
+}
+
+.pf-metrics-result-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+
+  // DataGrid needs a definite height for virtual scrolling.
+  .pf-data-grid {
+    height: 100%;
+  }
+}
+
+// Error / loading states centered inside the result box
+.pf-metrics-error {
+  color: var(--md-sys-color-error);
+  padding: 16px;
+}
+
+.pf-metrics-result-content > .pf-spinner {
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
