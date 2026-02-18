@@ -54,6 +54,18 @@ source_set("proto_ring_buffer") {
   sources = [ "proto_ring_buffer.cc" ]
 }
 
+source_set("multifile_error_collector") {
+  sources = [
+    "multifile_error_collector.cc",
+    "multifile_error_collector.h",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../../gn:protobuf_full",
+    "../base",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [

@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../../../base/classnames';
-import {Spinner} from '../../../widgets/spinner';
-import {CHART_COLORS, formatNumber, truncateLabel} from './chart_utils';
+import type {EChartsCoreOption} from 'echarts/core';
+import {formatNumber} from './chart_utils';
+import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
+import {buildLegendOption, buildTooltipOption} from './chart_option_builder';
+import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single slice in the pie chart.
@@ -86,268 +88,105 @@ export interface PieChartAttrs {
   readonly onSliceClick?: (slice: PieChartSlice) => void;
 }
 
-const DEFAULT_HEIGHT = 200;
-const VIEWBOX_SIZE = 200;
-const CENTER = VIEWBOX_SIZE / 2;
-const LEGEND_WIDTH = 120;
-
 export class PieChart implements m.ClassComponent<PieChartAttrs> {
-  private hoveredSlice?: PieChartSlice;
-
   view({attrs}: m.Vnode<PieChartAttrs>) {
-    const {
-      data,
-      height = DEFAULT_HEIGHT,
+    const {data, height, fillParent, className} = attrs;
+
+    const validSlices = data?.slices.filter((s) => s.value > 0) ?? [];
+    const isEmpty = data !== undefined && validSlices.length === 0;
+    const option =
+      validSlices.length > 0 ? buildPieOption(attrs, validSlices) : undefined;
+
+    return m(EChartView, {
+      option,
+      height,
       fillParent,
       className,
-      formatValue = (v) => formatNumber(v),
-      showLegend = true,
-      showLabels = false,
-      innerRadiusRatio = 0,
-      onSliceClick,
-    } = attrs;
-
-    if (data === undefined) {
-      return m(
-        '.pf-pie-chart',
-        {
-          className: classNames(
-            fillParent && 'pf-pie-chart--fill-parent',
-            className,
-          ),
-          style: {height: `${height}px`},
-        },
-        m('.pf-pie-chart__loading', m(Spinner)),
-      );
-    }
-
-    const validSlices = data.slices.filter((s) => s.value > 0);
-    if (validSlices.length === 0) {
-      return m(
-        '.pf-pie-chart',
-        {
-          className: classNames(
-            fillParent && 'pf-pie-chart--fill-parent',
-            className,
-          ),
-          style: {height: `${height}px`},
-        },
-        m('.pf-pie-chart__empty', 'No data to display'),
-      );
-    }
-
-    const total = validSlices.reduce((sum, s) => sum + s.value, 0);
-    const outerRadius = Math.min(height, VIEWBOX_SIZE) / 2 - 10;
-    const innerRadius = outerRadius * innerRadiusRatio;
-
-    // Calculate viewBox width based on whether legend is shown
-    const viewBoxWidth = showLegend
-      ? VIEWBOX_SIZE + LEGEND_WIDTH
-      : VIEWBOX_SIZE;
-
-    // Build slice paths
-    let currentAngle = -Math.PI / 2; // Start at top
-    const sliceElements = validSlices.map((slice, idx) => {
-      const sliceAngle = (slice.value / total) * 2 * Math.PI;
-      const startAngle = currentAngle;
-      const endAngle = currentAngle + sliceAngle;
-      currentAngle = endAngle;
-
-      const color = slice.color ?? CHART_COLORS[idx % CHART_COLORS.length];
-      const isHovered = this.hoveredSlice === slice;
-
-      // Calculate arc path
-      const path = describeArc(
-        CENTER,
-        CENTER,
-        isHovered ? outerRadius + 5 : outerRadius,
-        innerRadius,
-        startAngle,
-        endAngle,
-      );
-
-      // Calculate label position (middle of slice)
-      const labelAngle = startAngle + sliceAngle / 2;
-      const labelRadius = (outerRadius + innerRadius) / 2;
-      const labelX = CENTER + Math.cos(labelAngle) * labelRadius;
-      const labelY = CENTER + Math.sin(labelAngle) * labelRadius;
-      const percentage = ((slice.value / total) * 100).toFixed(1);
-
-      return m('g.pf-pie-chart__slice-group', [
-        m('path.pf-pie-chart__slice', {
-          'd': path,
-          'fill': color,
-          'stroke': 'var(--pf-color-background)',
-          'stroke-width': 2,
-          'className': classNames(isHovered && 'pf-pie-chart__slice--hover'),
-          'onmouseenter': () => {
-            this.hoveredSlice = slice;
-          },
-          'onmouseleave': () => {
-            this.hoveredSlice = undefined;
-          },
-          'onclick': onSliceClick
-            ? () => {
-                onSliceClick(slice);
-              }
-            : undefined,
-          'style': {
-            cursor: onSliceClick ? 'pointer' : 'default',
-          },
-        }),
-        showLabels &&
-          sliceAngle > 0.3 && // Only show label if slice is large enough
-          m(
-            'text.pf-pie-chart__slice-label',
-            {
-              'x': labelX,
-              'y': labelY,
-              'text-anchor': 'middle',
-              'dominant-baseline': 'middle',
-              'pointer-events': 'none',
-            },
-            `${percentage}%`,
-          ),
-      ]);
+      empty: isEmpty,
+      eventHandlers: buildPieEventHandlers(attrs, validSlices),
     });
-
-    // Build legend
-    const legendElements = showLegend
-      ? validSlices.map((slice, idx) => {
-          const color = slice.color ?? CHART_COLORS[idx % CHART_COLORS.length];
-          const percentage = ((slice.value / total) * 100).toFixed(1);
-          const yOffset = idx * 18;
-          const isHovered = this.hoveredSlice === slice;
-          return m(
-            'g.pf-pie-chart__legend-item',
-            {
-              transform: `translate(${VIEWBOX_SIZE + 10}, ${20 + yOffset})`,
-              onmouseenter: () => {
-                this.hoveredSlice = slice;
-              },
-              onmouseleave: () => {
-                this.hoveredSlice = undefined;
-              },
-            },
-            [
-              m('rect', {
-                x: 0,
-                y: -6,
-                width: 12,
-                height: 12,
-                fill: color,
-                rx: 2,
-              }),
-              m(
-                'text.pf-pie-chart__legend-label',
-                {
-                  'x': 18,
-                  'y': 0,
-                  'dominant-baseline': 'middle',
-                  'className': classNames(
-                    isHovered && 'pf-pie-chart__legend-label--hover',
-                  ),
-                },
-                `${truncateLabel(slice.label, 12)} `,
-                m('tspan.pf-pie-chart__legend-value', `(${percentage}%)`),
-              ),
-            ],
-          );
-        })
-      : null;
-
-    const style: Record<string, string> = {height: `${height}px`};
-
-    return m(
-      '.pf-pie-chart',
-      {
-        className: classNames(
-          fillParent && 'pf-pie-chart--fill-parent',
-          className,
-        ),
-        style,
-      },
-      [
-        m(
-          'svg.pf-pie-chart__svg',
-          {
-            viewBox: `0 0 ${viewBoxWidth} ${VIEWBOX_SIZE}`,
-            preserveAspectRatio: 'xMidYMid meet',
-          },
-          [
-            // Slices
-            m('g.pf-pie-chart__slices', sliceElements),
-            // Legend
-            legendElements,
-          ],
-        ),
-        // Tooltip
-        this.hoveredSlice &&
-          m(
-            '.pf-pie-chart__tooltip',
-            m('.pf-pie-chart__tooltip-content', [
-              m('.pf-pie-chart__tooltip-row', this.hoveredSlice.label),
-              m(
-                '.pf-pie-chart__tooltip-row',
-                `Value: ${formatValue(this.hoveredSlice.value)}`,
-              ),
-              m(
-                '.pf-pie-chart__tooltip-row',
-                `${((this.hoveredSlice.value / total) * 100).toFixed(1)}%`,
-              ),
-            ]),
-          ),
-      ],
-    );
   }
 }
 
-/**
- * Generate an SVG arc path for a slice.
- */
-function describeArc(
-  cx: number,
-  cy: number,
-  outerRadius: number,
-  innerRadius: number,
-  startAngle: number,
-  endAngle: number,
-): string {
-  const startOuter = polarToCartesian(cx, cy, outerRadius, startAngle);
-  const endOuter = polarToCartesian(cx, cy, outerRadius, endAngle);
-  const startInner = polarToCartesian(cx, cy, innerRadius, startAngle);
-  const endInner = polarToCartesian(cx, cy, innerRadius, endAngle);
+function buildPieOption(
+  attrs: PieChartAttrs,
+  slices: readonly PieChartSlice[],
+): EChartsCoreOption {
+  const {
+    formatValue = (v: number) => formatNumber(v),
+    showLegend = true,
+    showLabels = false,
+    innerRadiusRatio = 0,
+  } = attrs;
 
-  const largeArcFlag = endAngle - startAngle > Math.PI ? 1 : 0;
+  const theme = getChartThemeColors();
 
-  if (innerRadius === 0) {
-    // Pie slice (no hole)
-    return [
-      `M ${cx} ${cy}`,
-      `L ${startOuter.x} ${startOuter.y}`,
-      `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${endOuter.x} ${endOuter.y}`,
-      'Z',
-    ].join(' ');
-  }
+  const pieData = slices.map((s) => ({
+    name: s.label,
+    value: s.value,
+    itemStyle: s.color !== undefined ? {color: s.color} : undefined,
+  }));
 
-  // Donut slice (with hole)
-  return [
-    `M ${startOuter.x} ${startOuter.y}`,
-    `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${endOuter.x} ${endOuter.y}`,
-    `L ${endInner.x} ${endInner.y}`,
-    `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${startInner.x} ${startInner.y}`,
-    'Z',
-  ].join(' ');
-}
+  const outerPct = showLegend ? 65 : 75;
+  const outerRadius = `${outerPct}%`;
+  const innerRadius = `${Math.round(outerPct * innerRadiusRatio)}%`;
 
-function polarToCartesian(
-  cx: number,
-  cy: number,
-  radius: number,
-  angle: number,
-): {x: number; y: number} {
   return {
-    x: cx + radius * Math.cos(angle),
-    y: cy + radius * Math.sin(angle),
+    animation: false,
+    color: [...theme.chartColors],
+    tooltip: buildTooltipOption({
+      trigger: 'item' as const,
+      formatter: (params: {
+        name?: string;
+        value?: number;
+        percent?: number;
+      }) => {
+        const name = params.name ?? '';
+        const value = params.value ?? 0;
+        const pct = params.percent?.toFixed(1) ?? '0';
+        return [name, `Value: ${formatValue(value)}`, `${pct}%`].join('<br>');
+      },
+    }),
+    legend: showLegend ? buildLegendOption('right') : {show: false},
+    series: [
+      {
+        type: 'pie',
+        radius: [innerRadius, outerRadius],
+        center: showLegend ? ['35%', '50%'] : ['50%', '50%'],
+        data: pieData,
+        label: {
+          show: showLabels,
+          formatter: '{d}%',
+          fontSize: 10,
+        },
+        emphasis: {
+          scaleSize: 5,
+        },
+        itemStyle: {
+          borderColor: theme.backgroundColor,
+          borderWidth: 2,
+        },
+      },
+    ],
   };
+}
+
+function buildPieEventHandlers(
+  attrs: PieChartAttrs,
+  slices: readonly PieChartSlice[],
+): ReadonlyArray<EChartEventHandler> {
+  if (!attrs.onSliceClick || slices.length === 0) return [];
+  const onSliceClick = attrs.onSliceClick;
+  return [
+    {
+      eventName: 'click',
+      handler: (params) => {
+        const p = params as EChartClickParams;
+        const idx = p.dataIndex;
+        if (idx !== undefined && idx >= 0 && idx < slices.length) {
+          onSliceClick(slices[idx]);
+        }
+      },
+    },
+  ];
 }

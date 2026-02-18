@@ -1033,16 +1033,6 @@ cc_library {
                 "perfetto_flags_c_lib",
             ],
         },
-        windows: {
-            enabled: true,
-            cflags: [
-                "-Wno-shift-count-overflow",
-                "-Wno-unknown-pragmas",
-            ],
-            host_ldlibs: [
-                "-lws2_32",
-            ],
-        },
     },
 }
 
@@ -14431,6 +14421,14 @@ filegroup {
     ],
 }
 
+// GN: //src/protozero:multifile_error_collector
+filegroup {
+    name: "perfetto_src_protozero_multifile_error_collector",
+    srcs: [
+        "src/protozero/multifile_error_collector.cc",
+    ],
+}
+
 // GN: //src/protozero:proto_ring_buffer
 filegroup {
     name: "perfetto_src_protozero_proto_ring_buffer",
@@ -16498,6 +16496,8 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/oom_adjuster.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/power_rails.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/process_metadata.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/profiling_manager/startup.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/profiling_manager/util.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/screen_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/screenshots.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/services.sql",
@@ -16572,6 +16572,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/tracks.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/views.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/tables.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/trace_bounds.sql",
@@ -19358,6 +19359,7 @@ cc_test {
         ":perfetto_src_protozero_filtering_message_filter",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_filtering_unittests",
+        ":perfetto_src_protozero_multifile_error_collector",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_testing_messages_cpp_gen",
