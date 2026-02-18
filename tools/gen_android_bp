@@ -333,6 +333,14 @@ additional_args = {
         ('min_sdk_version', '30'),
         ('export_include_dirs', {'include'}),
         ('cflags', {'-DPERFETTO_SHLIB_SDK_IMPLEMENTATION'}),
+        ('windows', {
+            'enabled': True,
+            'cflags': [
+                '-Wno-shift-count-overflow',
+                '-Wno-unknown-pragmas',
+            ],
+            'host_ldlibs': ['-lws2_32'],
+        }),
     ],
     'perfetto_trace_protos': [
         ('apex_available', {
@@ -570,16 +578,20 @@ class Target(object):
     self.static_libs = set()
     self.whole_static_libs = set()
     self.cflags = set()
+    self.host_ldlibs = set()
+    self.enabled = None
     self.dist = dict()
     self.strip = dict()
     self.stl = None
 
   def to_string(self, output):
     nested_out = []
+    self._output_field(nested_out, 'enabled')
     self._output_field(nested_out, 'shared_libs')
     self._output_field(nested_out, 'static_libs')
     self._output_field(nested_out, 'whole_static_libs')
     self._output_field(nested_out, 'cflags')
+    self._output_field(nested_out, 'host_ldlibs')
     self._output_field(nested_out, 'stl')
     self._output_field(nested_out, 'dist')
     self._output_field(nested_out, 'strip')
@@ -629,6 +641,7 @@ class Module(object):
     self.tool_files: Optional[List[str]] = None
     self.android = Target('android')
     self.host = Target('host')
+    self.windows = Target('windows')
     self.musl = Target('musl')
     self.lto: Optional[bool] = None
     self.stl = None
@@ -709,6 +722,7 @@ class Module(object):
     target_out = []
     self._output_field(target_out, 'android')
     self._output_field(target_out, 'host')
+    self._output_field(target_out, 'windows')
     self._output_field(target_out, 'musl')
     if target_out:
       output.append('    target: {')
