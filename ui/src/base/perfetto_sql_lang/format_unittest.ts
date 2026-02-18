@@ -362,6 +362,353 @@ describe('Format: CREATE VIRTUAL TABLE', () => {
   });
 });
 
+describe('Format: Complex queries', () => {
+  test('formats WITH RECURSIVE', () => {
+    const input = `with recursive tree as (select id, parent_id, 0 as depth from nodes where parent_id is null union all select n.id, n.parent_id, t.depth + 1 from nodes n join tree t on n.parent_id = t.id) select * from tree;`;
+    const expected = `WITH RECURSIVE
+  tree AS (
+    SELECT
+      id,
+      parent_id,
+      0 AS depth
+    FROM nodes
+    WHERE parent_id IS NULL
+    UNION ALL
+    SELECT
+      n.id,
+      n.parent_id,
+      t.depth + 1
+    FROM nodes AS n
+    JOIN tree AS t ON n.parent_id = t.id
+  )
+SELECT
+  *
+FROM tree;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats ROW_NUMBER window function', () => {
+    // Note: function names like row_number are not uppercased (only SQL keywords)
+    const input = `select id, row_number() over (partition by category order by ts desc) as rn from events;`;
+    const expected = `SELECT
+  id,
+  row_number() OVER (PARTITION BY category ORDER BY ts DESC) AS rn
+FROM events;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats LEAD/LAG window functions', () => {
+    const input = `select id, lead(ts) over (partition by utid order by id) - ts as next_dur from thread_state;`;
+    const expected = `SELECT
+  id,
+  lead(ts) OVER (PARTITION BY utid ORDER BY id) - ts AS next_dur
+FROM thread_state;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats multiple JOINs with USING', () => {
+    const input = `select s.name, t.name as thread_name, p.name as process_name from slice s join thread_track tt on s.track_id = tt.id join thread t using (utid) join process p using (upid);`;
+    const expected = `SELECT
+  s.name,
+  t.name AS thread_name,
+  p.name AS process_name
+FROM slice AS s
+JOIN thread_track AS tt ON s.track_id = tt.id
+JOIN thread AS t USING (utid)
+JOIN process AS p USING (upid);`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats COALESCE and IFNULL', () => {
+    const input = `select coalesce(name, 'unknown') as name, ifnull(dur, 0) as dur from slice;`;
+    const expected = `SELECT
+  coalesce(name, 'unknown') AS name,
+  ifnull(dur, 0) AS dur
+FROM slice;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats subquery in WHERE clause', () => {
+    // Note: subqueries in expressions are kept inline (not expanded)
+    const input = `select * from slice where track_id in (select id from track where name like 'binder%');`;
+    const expected = `SELECT
+  *
+FROM slice
+WHERE track_id IN (SELECT id FROM track WHERE name LIKE 'binder%');`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats complex CASE with multiple WHEN clauses', () => {
+    const input = `select id, case when state = 'R' then 'running' when state = 'S' then 'sleeping' when state = 'D' then 'blocked' else 'other' end as state_name from thread_state;`;
+    const expected = `SELECT
+  id,
+  CASE WHEN state = 'R' THEN 'running' WHEN state = 'S' THEN 'sleeping' WHEN state = 'D' THEN 'blocked' ELSE 'other' END AS state_name
+FROM thread_state;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats MAX/MIN in subquery', () => {
+    // Note: scalar subqueries in SELECT columns are kept inline
+    const input = `select (select max(id) + 1 from heap_graph_object) as new_id;`;
+    const expected = `SELECT
+  (SELECT max(id) + 1 FROM heap_graph_object) AS new_id;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats EXISTS subquery', () => {
+    // Note: EXISTS subqueries are kept inline
+    const input = `select * from slice where exists (select 1 from thread_track where thread_track.id = slice.track_id);`;
+    const expected = `SELECT
+  *
+FROM slice
+WHERE EXISTS (SELECT 1 FROM thread_track WHERE thread_track.id = slice.track_id);`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats PRINTF function', () => {
+    const input = `select printf('%010d', local_rank) as sort_key from nodes;`;
+    const expected = `SELECT
+  printf('%010d', local_rank) AS sort_key
+FROM nodes;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats GLOB pattern matching', () => {
+    const input = `select * from slice where name glob 'binder*';`;
+    const expected = `SELECT
+  *
+FROM slice
+WHERE name GLOB 'binder*';`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats EXCEPT with explicit alias', () => {
+    // Note: bare aliases conflict with EXCEPT/INTERSECT keywords after table names.
+    // Use explicit AS to avoid ambiguity.
+    const input = `select id from table_a as a except select id from table_b;`;
+    const expected = `SELECT
+  id
+FROM table_a AS a
+EXCEPT
+SELECT
+  id
+FROM table_b;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats INTERSECT with explicit alias', () => {
+    const input = `select id from table_a as a intersect select id from table_b;`;
+    const expected = `SELECT
+  id
+FROM table_a AS a
+INTERSECT
+SELECT
+  id
+FROM table_b;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats IIF function', () => {
+    const input = `select iif(name is null, 'unknown', name) as display_name from slice;`;
+    const expected = `SELECT
+  iif(name IS NULL, 'unknown', name) AS display_name
+FROM slice;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats BETWEEN in JOIN condition', () => {
+    const input = `select * from events e join ranges r on e.ts between r.start_ts and r.end_ts;`;
+    const expected = `SELECT
+  *
+FROM events AS e
+JOIN ranges AS r ON e.ts BETWEEN r.start_ts AND r.end_ts;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats string concatenation', () => {
+    const input = `select path || '/' || name as full_path from files;`;
+    const expected = `SELECT
+  path || '/' || name AS full_path
+FROM files;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats NOT IN', () => {
+    const input = `select * from slice where id not in (select parent_id from slice where parent_id is not null);`;
+    const expected = `SELECT
+  *
+FROM slice
+WHERE id NOT IN (SELECT parent_id FROM slice WHERE parent_id IS NOT NULL);`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats NOT LIKE', () => {
+    const input = `select * from slice where name not like '%internal%';`;
+    const expected = `SELECT
+  *
+FROM slice
+WHERE name NOT LIKE '%internal%';`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats NOT BETWEEN', () => {
+    const input = `select * from counter where value not between 0 and 100;`;
+    const expected = `SELECT
+  *
+FROM counter
+WHERE value NOT BETWEEN 0 AND 100;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats macro invocation', () => {
+    const input = `select * from _slice_following_flow!(my_table);`;
+    const expected = `SELECT
+  *
+FROM _slice_following_flow!(my_table);`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats complex arithmetic', () => {
+    const input = `select (a + b) * c / d - e % f as result from t;`;
+    const expected = `SELECT
+  (a + b) * c / d - e % f AS result
+FROM t;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats unary minus', () => {
+    const input = `select -value as neg, +value as pos from counter;`;
+    const expected = `SELECT
+  -value AS neg,
+  +value AS pos
+FROM counter;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats comparison operators', () => {
+    const input = `select * from t where a = 1 and b != 2 and c <> 3 and d < 4 and e > 5 and f <= 6 and g >= 7;`;
+    const expected = `SELECT
+  *
+FROM t
+WHERE a = 1 AND b != 2 AND c <> 3 AND d < 4 AND e > 5 AND f <= 6 AND g >= 7;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats multiple CTEs with complex bodies', () => {
+    const input = `with base as (select id, parent_id from slice where depth = 0), children as (select s.id from slice s join base b on s.parent_id = b.id) select * from children;`;
+    const expected = `WITH
+  base AS (
+    SELECT
+      id,
+      parent_id
+    FROM slice
+    WHERE depth = 0
+  ),
+  children AS (
+    SELECT
+      s.id
+    FROM slice AS s
+    JOIN base AS b ON s.parent_id = b.id
+  )
+SELECT
+  *
+FROM children;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats CTE with column list', () => {
+    const input = `with cte(x, y) as (select a, b from t) select * from cte;`;
+    const expected = `WITH
+  cte(x, y) AS (
+    SELECT
+      a,
+      b
+    FROM t
+  )
+SELECT
+  *
+FROM cte;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats LEFT JOIN with BETWEEN in ON', () => {
+    const input = `select * from events e left join ranges r on e.ts between r.start_ts and r.end_ts;`;
+    const expected = `SELECT
+  *
+FROM events AS e
+LEFT JOIN ranges AS r ON e.ts BETWEEN r.start_ts AND r.end_ts;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats COUNT DISTINCT', () => {
+    const input = `select count(distinct category) as unique_categories from slice;`;
+    const expected = `SELECT
+  count(DISTINCT category) AS unique_categories
+FROM slice;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats nested function calls', () => {
+    const input = `select coalesce(nullif(name, ''), 'unknown') as display_name from slice;`;
+    const expected = `SELECT
+  coalesce(nullif(name, ''), 'unknown') AS display_name
+FROM slice;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats MIN/MAX aggregate functions', () => {
+    const input = `select min(ts) as start_ts, max(ts + dur) as end_ts from slice group by track_id;`;
+    const expected = `SELECT
+  min(ts) AS start_ts,
+  max(ts + dur) AS end_ts
+FROM slice
+GROUP BY track_id;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats SUM and AVG', () => {
+    const input = `select sum(dur) as total_dur, avg(dur) as avg_dur from slice where name = 'test';`;
+    const expected = `SELECT
+  sum(dur) AS total_dur,
+  avg(dur) AS avg_dur
+FROM slice
+WHERE name = 'test';`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats multiple GROUP BY columns', () => {
+    const input = `select category, name, count(*) as cnt from slice group by category, name order by cnt desc;`;
+    const expected = `SELECT
+  category,
+  name,
+  count(*) AS cnt
+FROM slice
+GROUP BY category, name
+ORDER BY cnt DESC;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats CROSS JOIN', () => {
+    // Note: bare aliases conflict with CROSS/NATURAL keywords.
+    // Use explicit AS to avoid ambiguity.
+    const input = `select * from a as t1 cross join b;`;
+    const expected = `SELECT
+  *
+FROM a AS t1
+CROSS JOIN b;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+
+  test('formats NATURAL JOIN', () => {
+    const input = `select * from slice as s natural join track;`;
+    const expected = `SELECT
+  *
+FROM slice AS s
+NATURAL JOIN track;`;
+    expect(norm(formatSQL(input))).toBe(norm(expected));
+  });
+});
+
 describe('Format: Keyword uppercasing', () => {
   test('uppercases all SQL keywords', () => {
     const result = formatSQL(

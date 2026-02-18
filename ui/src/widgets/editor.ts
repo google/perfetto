@@ -22,6 +22,7 @@ import m from 'mithril';
 import {removeFalsyValues} from '../base/array_utils';
 import {assertUnreachable} from '../base/logging';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
+import {formatSQL} from '../base/perfetto_sql_lang/format';
 import {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
 
@@ -55,9 +56,6 @@ export interface EditorAttrs extends HTMLAttrs {
   // Callback for the Ctrl/Cmd + S key binding.
   onSave?: () => void;
 
-  // Callback for the Shift+Alt+F key binding (format).
-  onFormat?: (text: string) => void;
-
   // Callback for every change to the editor's content.
   onUpdate?: (text: string) => void;
 }
@@ -65,18 +63,38 @@ export interface EditorAttrs extends HTMLAttrs {
 export class Editor implements m.ClassComponent<EditorAttrs> {
   private editorView?: EditorView;
   private latestText?: string;
+  private language?: EditorLanguage;
+  private onUpdate?: (text: string) => void;
 
   focus() {
     this.editorView?.focus();
   }
 
+  // Format the editor content. Only works for perfetto-sql language.
+  format() {
+    if (this.language !== 'perfetto-sql' || !this.editorView) return;
+    const text = this.editorView.state.doc.toString();
+    const formatted = formatSQL(text);
+    if (formatted !== text) {
+      const state = this.editorView.state;
+      this.editorView.dispatch(
+        state.update({
+          changes: {from: 0, to: state.doc.length, insert: formatted},
+        }),
+      );
+      this.latestText = formatted;
+      this.onUpdate?.(formatted);
+      m.redraw();
+    }
+  }
+
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     this.latestText = attrs.text;
+    this.language = attrs.language;
+    this.onUpdate = attrs.onUpdate;
     const keymaps = [indentWithTab];
     const onExecute = attrs.onExecute;
     const onSave = attrs.onSave;
-    const onFormat = attrs.onFormat;
-    const onUpdate = attrs.onUpdate;
 
     if (onExecute) {
       keymaps.push({
@@ -112,12 +130,12 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       });
     }
 
-    if (onFormat) {
+    // For perfetto-sql, handle Shift+Alt+F formatting internally
+    if (attrs.language === 'perfetto-sql') {
       keymaps.push({
         key: 'Shift-Alt-f',
-        run: (view: EditorView) => {
-          onFormat(view.state.doc.toString());
-          m.redraw();
+        run: () => {
+          this.format();
           return true;
         },
       });
@@ -128,9 +146,9 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       const text = view.state.doc.toString();
       // Only fire onUpdate when text actually changes, not for cursor
       // movements, selection changes, or other non-text transactions.
-      if (onUpdate && text !== this.latestText) {
+      if (this.onUpdate && text !== this.latestText) {
         this.latestText = text;
-        onUpdate(text);
+        this.onUpdate(text);
         m.redraw();
       } else {
         this.latestText = text;

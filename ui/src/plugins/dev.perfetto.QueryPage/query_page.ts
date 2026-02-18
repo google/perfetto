@@ -335,9 +335,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         text: tab.editorText,
         onUpdate: (content) => attrs.onEditorContentUpdate?.(tab.id, content),
         onExecute: (query) => attrs.onExecute?.(tab.id, query),
-        onFormat: (text) => {
-          attrs.onEditorContentUpdate?.(tab.id, formatSQL(text));
-        },
       }),
     ]);
 
