@@ -121,11 +121,46 @@ export class PerfettoTestHelper {
 
   async toggleTrackGroup(locator: Locator) {
     await locator.locator('.pf-track__shell').first().click();
+    await this.scheduleFullRedraw();
     await this.waitForPerfettoIdle();
   }
 
-  locateTrack(name: string, trackGroup?: Locator): Locator {
-    return (trackGroup ?? this.page).locator(`.pf-track[ref="${name}"]`);
+  locateTrack(path: string | readonly string[]): Locator {
+    const ref = Array.isArray(path) ? path.join('/') : path;
+    return this.page.locator(`.pf-track[ref="${ref}"]`);
+  }
+
+  /**
+   * Scrolls to a track by path, bringing it into view even with virtual
+   * scrolling enabled. Returns a locator for the track.
+   *
+   * @param path - A slash-separated path string (e.g. 'GPU/GPU Frequency')
+   *
+   * Use this instead of locateTrack() when the track might be outside the
+   * viewport (and thus not rendered in the DOM with virtual scrolling).
+   */
+  async scrollToTrack(path: string): Promise<Locator> {
+    const pathArray = path.split('/');
+    await this.page.evaluate((targetPath) => {
+      const trace = (self.app as AppImpl).trace;
+      if (!trace) return;
+      const node = trace.defaultWorkspace.flatTracks.find((t) => {
+        const fullPath = t.fullPath;
+        if (t.headless) return false;
+        if (fullPath.length !== targetPath.length) return false;
+        return fullPath.every((segment, i) => segment === targetPath[i]);
+      });
+      if (node) {
+        trace.tracks.scrollToTrackNodeId = node.id;
+        self.app.raf.scheduleFullRedraw();
+      } else {
+        throw new Error(
+          `Could not find track with path ${targetPath.join('/')}`,
+        );
+      }
+    }, pathArray);
+    await this.waitForPerfettoIdle();
+    return this.locateTrack(path);
   }
 
   async pinTrackUsingShellBtn(track: Locator) {

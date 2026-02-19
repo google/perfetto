@@ -26,12 +26,8 @@ test.beforeAll(async ({browser}, _testInfo) => {
   pth = new PerfettoTestHelper(page);
 });
 
-async function getTrackHelpButton(
-  trackName: string,
-  groupTrack?: Locator,
-): Promise<Locator> {
-  const track = pth.locateTrack(trackName, groupTrack);
-  await track.scrollIntoViewIfNeeded();
+async function getTrackHelpButton(trackName: string): Promise<Locator> {
+  const track = await pth.scrollToTrack(trackName);
   // Hover on the track shell to make the help button visible.
   await track.locator('.pf-track__shell').hover();
   return track.locator('.pf-track__buttons button i.pf-icon:has-text("help")');
@@ -74,13 +70,11 @@ async function getTrackHelpButton(
 ].forEach((testCase) => {
   test(testCase.testName, async () => {
     await pth.openTraceFile(testCase.traceFile);
-    let groupTrack: Locator | undefined;
     if (testCase.groupName) {
-      groupTrack = pth.locateTrack(testCase.groupName);
-      await groupTrack.scrollIntoViewIfNeeded();
+      const groupTrack = await pth.scrollToTrack(testCase.groupName);
       await pth.toggleTrackGroup(groupTrack);
     }
-    const helpButton = await getTrackHelpButton(testCase.trackName, groupTrack);
+    const helpButton = await getTrackHelpButton(testCase.trackName);
     await expect(helpButton).toHaveCount(1);
     await helpButton.click();
     await pth.waitForIdleAndScreenshot(testCase.screenshotName);

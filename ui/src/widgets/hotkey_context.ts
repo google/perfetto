@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {checkHotkey, Hotkey} from '../base/hotkeys';
-import {toHTMLElement} from '../base/dom_utils';
+import {isElementVisible, toHTMLElement} from '../base/dom_utils';
 import {classNames} from '../base/classnames';
 
 export interface HotkeyConfig {
@@ -24,7 +24,7 @@ export interface HotkeyConfig {
 
 export interface HotkeyContextAttrs {
   // An array of hotkeys to listen for.
-  readonly hotkeys: HotkeyConfig[];
+  readonly hotkeys: readonly HotkeyConfig[];
 
   // If true, the context will fill the height of its parent container.
   // This is useful for contexts that are used as a full-screen overlay.
@@ -49,8 +49,9 @@ export interface HotkeyContextAttrs {
 }
 
 export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
-  private hotkeys?: HotkeyConfig[];
+  private hotkeys?: readonly HotkeyConfig[];
   private eventTarget?: EventTarget;
+  private dom?: Element;
 
   view(vnode: m.Vnode<HotkeyContextAttrs>): m.Children {
     const focusable = vnode.attrs.focusable ?? true;
@@ -76,6 +77,7 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
     const focusable = vnode.attrs.focusable ?? true;
     // If focusable is false, bind to document for global hotkeys.
     // Otherwise, bind to the element itself.
+    this.dom = vnode.dom;
     this.eventTarget = focusable ? vnode.dom : document;
     this.eventTarget.addEventListener('keydown', this.onKeyDown);
     this.hotkeys = vnode.attrs.hotkeys;
@@ -92,6 +94,7 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
     this.eventTarget?.removeEventListener('keydown', this.onKeyDown);
     this.eventTarget = undefined;
     this.hotkeys = undefined;
+    this.dom = undefined;
   }
 
   // Due to a bug in chrome, we get onKeyDown events fired where the payload is
@@ -101,6 +104,11 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
   private onKeyDown = (e: Event) => {
     // Find out whether the event has already been handled further up the chain.
     if (e.defaultPrevented) return;
+
+    // Skip if element is hidden (e.g., inside a Gate with display:none).
+    // This allows pages to use focusable=false without their hotkeys firing
+    // when the page is not visible.
+    if (this.dom instanceof HTMLElement && !isElementVisible(this.dom)) return;
 
     if (e instanceof KeyboardEvent) {
       this.hotkeys?.forEach(({callback, hotkey}) => {

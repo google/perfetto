@@ -31,24 +31,21 @@ test('load trace', async () => {
 });
 
 test('chronological order', async () => {
-  const chronologicalGrp = pth.locateTrack('Root Chronological');
-  await chronologicalGrp.scrollIntoViewIfNeeded();
+  const chronologicalGrp = await pth.scrollToTrack('Root Chronological');
   await pth.toggleTrackGroup(chronologicalGrp);
 
   await pth.waitForIdleAndScreenshot('chronological.png');
 });
 
 test('explicit order', async () => {
-  const explicitGrp = pth.locateTrack('Root Explicit');
-  await explicitGrp.scrollIntoViewIfNeeded();
+  const explicitGrp = await pth.scrollToTrack('Root Explicit');
   await pth.toggleTrackGroup(explicitGrp);
 
   await pth.waitForIdleAndScreenshot('explicit.png');
 });
 
 test('lexicographic tracks', async () => {
-  const lexicographicGrp = pth.locateTrack('Root Lexicographic');
-  await lexicographicGrp.scrollIntoViewIfNeeded();
+  const lexicographicGrp = await pth.scrollToTrack('Root Lexicographic');
   await pth.toggleTrackGroup(lexicographicGrp);
 
   await pth.waitForIdleAndScreenshot('lexicographic.png');
