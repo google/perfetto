@@ -112,7 +112,7 @@ multiple processes.
 | Light Green | ![](/docs/images/frametimeline/light-green.png) | High latency state. The framerate is smooth but frames are presented late, resulting in an increased input latency.|
 | Red | ![](/docs/images/frametimeline/red.png) | Janky frame. The process the slice belongs to, is the reason for the jank. |
 | Yellow | ![](/docs/images/frametimeline/yellow.png) | Used only by the apps. The frame is janky but app wasn't the reason, SurfaceFlinger caused the jank. |
-| Blue | ![](/docs/images/frametimeline/blue.png) | Dropped frame. Not related to jank. The frame was dropped by SurfaceFlinger, preferring an updated frame over this. |
+| Blue | ![](/docs/images/frametimeline/blue.png) | Dropped frame. In SurfaceFlinger, it means that we skipped a frame, preferring an updated frame over this. On the application side, it means that a state update from the UI thread was not pushed to RenderThread in time, and RenderThread drew the frame without the state update from the UI thread. |
 
 ## Janks explained
 
