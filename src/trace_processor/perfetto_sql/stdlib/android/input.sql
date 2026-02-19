@@ -255,6 +255,25 @@ RIGHT JOIN _event_seq_to_input_event_id
 JOIN _input_read_time
   ON _input_read_time.input_event_id = _event_seq_to_input_event_id.input_event_id;
 
+-- TODO: consider all cases
+CREATE PERFETTO FUNCTION _normalize_event_channel(
+    event_channel STRING
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    -- 'ccf6448 PopupWindow:b20fb4d' -> 'PopupWindow'
+    WHEN $event_channel GLOB '* *:*'
+    THEN trim(substr(str_split($event_channel, ':', 0), instr($event_channel, ' ') + 1))
+    -- 'b3407d8 com.android.settings/com.android.settings.Settings$UserAspectRatioAppActivity' -> 'com.android.settings/com.android.settings.Settings$UserAspectRatioAppActivity'
+    WHEN $event_channel GLOB '* *'
+    THEN trim(substr($event_channel, instr($event_channel, ' ') + 1))
+    -- 'PointerEventDispatcher23' -> 'PointerEventDispatcher'
+    WHEN $event_channel GLOB '*[0-9]'
+    THEN regexp_extract($event_channel, '^(.*[a-zA-Z])')
+    ELSE $event_channel
+  END;
+
 -- All input events with round trip latency breakdown. Input delivery is socket based and every
 -- input event sent from the OS needs to be ACK'ed by the app. This gives us 4 subevents to measure
 -- latencies between:
@@ -291,6 +310,8 @@ CREATE PERFETTO TABLE android_input_events (
   event_seq STRING,
   -- Input event channel name.
   event_channel STRING,
+  -- Normalized input event channel name.
+  normalized_event_channel STRING,
   -- Unique identifier for the input event.
   input_event_id STRING,
   -- Timestamp input event was read by InputReader.
@@ -370,6 +391,7 @@ SELECT
   frame.event_action,
   dispatch.event_seq,
   dispatch.event_channel,
+  _normalize_event_channel(dispatch.event_channel) AS normalized_event_channel,
   frame.input_event_id,
   frame.read_time,
   dispatch.track_id AS dispatch_track_id,
