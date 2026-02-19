@@ -37,4 +37,7 @@ export interface Command {
   // - '!Mod+Shift+P'
   // See hotkeys.ts for guidance on hotkey syntax.
   defaultHotkey?: Hotkey;
+  // A human-readable label shown as a left-side chip in the command palette,
+  // indicating where this command came from (e.g. extension module name).
+  source?: string;
 }

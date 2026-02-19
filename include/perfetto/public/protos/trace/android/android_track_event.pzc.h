@@ -383,12 +383,12 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   4);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   VARINT,
-                  enum perfetto_protos_ProcessCapabilityEnum,
+                  int32_t,
                   prev_capability_flags,
                   5);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   VARINT,
-                  enum perfetto_protos_ProcessCapabilityEnum,
+                  int32_t,
                   cur_capability_flags,
                   6);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
@@ -411,6 +411,16 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   int64_t,
                   seq_id,
                   10);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  cpu_time_reasons,
+                  11);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  implicit_cpu_time_reasons,
+                  12);
 
 PERFETTO_PB_MSG(perfetto_protos_AndroidBinderDiedEvent);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidBinderDiedEvent,

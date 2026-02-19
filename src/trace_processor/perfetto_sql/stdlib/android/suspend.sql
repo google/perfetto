@@ -107,6 +107,12 @@ WITH
         WHERE
           s.machine_id = m.id
       )
+      -- Only use the trace_bounds state for the primary machine: this is
+      -- because we know from the trace starting and ending at all that
+      -- the device was awake. However, for other machines, we don't actually
+      -- know the suspend state as it's very possible they were just asleep
+      -- throughout the trace.
+      AND m.id = 0
     UNION ALL
     -- For machines with suspend slices, create one slice from the trace start
     -- to the first suspend.

@@ -25,8 +25,8 @@ import {
 } from './types';
 import m from 'mithril';
 import {showModal} from '../../widgets/modal';
-import {Callout} from '../../widgets/callout';
-import {Intent} from '../../widgets/common';
+import {Anchor} from '../../widgets/anchor';
+import {CodeSnippet} from '../../widgets/code_snippet';
 import {errResult, okResult, Result} from '../../base/result';
 import {AppImpl} from '../../core/app_impl';
 import {base64Encode, utf8Encode} from '../../base/string_utils';
@@ -92,8 +92,38 @@ export function buildFetchRequest(
     } else {
       headers[server.auth.customHeaderName] = key;
     }
+  } else if (server.auth.type === 'https_sso') {
+    return {url, init: {method: 'GET', headers, credentials: 'include'}};
   }
   return {url, init: {method: 'GET', headers}};
+}
+
+const SSO_IFRAME_TIMEOUT_MS = 10000; // 10 seconds
+
+// Refreshes SSO cookies by loading the server's base URL in a hidden iframe.
+// The iframe follows any SSO redirects; once the onload fires, the browser
+// should have fresh session cookies. Returns true on success, false on error
+// or timeout.
+function refreshSsoCookie(url: string): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = url;
+    const done = (ok: boolean) => {
+      iframe.remove();
+      resolve(ok);
+    };
+    const timer = setTimeout(() => done(false), SSO_IFRAME_TIMEOUT_MS);
+    iframe.onload = () => {
+      clearTimeout(timer);
+      done(true);
+    };
+    iframe.onerror = () => {
+      clearTimeout(timer);
+      done(false);
+    };
+    document.body.appendChild(iframe);
+  });
 }
 
 async function fetchJson<T extends z.ZodTypeAny>(
@@ -108,6 +138,28 @@ async function fetchJson<T extends z.ZodTypeAny>(
   } catch (e) {
     return errResult(`Failed to fetch ${req.url}: ${e}`);
   }
+
+  // For SSO auth, a 403 may mean the cookie expired. Try refreshing via
+  // an iframe and retry exactly once.
+  if (
+    response.status === 403 &&
+    server.type === 'https' &&
+    server.auth.type === 'https_sso'
+  ) {
+    let baseUrl = server.url.trim();
+    if (!baseUrl.includes('://')) {
+      baseUrl = `https://${baseUrl}`;
+    }
+    const refreshed = await refreshSsoCookie(baseUrl.replace(/\/+$/, ''));
+    if (refreshed) {
+      try {
+        response = await fetchWithTimeout(req.url, req.init, FETCH_TIMEOUT_MS);
+      } catch (e) {
+        return errResult(`Failed to fetch ${req.url} after SSO refresh: ${e}`);
+      }
+    }
+  }
+
   if (!response.ok) {
     return errResult(`Fetch failed: ${req.url} returned ${response.status}`);
   }
@@ -126,6 +178,19 @@ async function fetchJson<T extends z.ZodTypeAny>(
   return okResult(result.data);
 }
 
+// Returns the human-readable source label for a module. Used as the command
+// palette chip text. Format: "Server Name" for default, "Server: Module" for
+// non-default modules.
+function sourceLabel(
+  manifest: Result<Manifest>,
+  modId: string,
+): string | undefined {
+  if (!manifest.ok) return undefined;
+  if (modId === 'default') return manifest.value.name;
+  const entry = manifest.value.modules.find((m) => m.id === modId);
+  return `${manifest.value.name}: ${entry?.name ?? modId}`;
+}
+
 // =============================================================================
 // Loading
 // =============================================================================
@@ -137,7 +202,7 @@ export async function loadManifest(
 }
 
 function modulePath(module: string, manifest: Manifest): string | undefined {
-  const entry = manifest.modules.find((m) => m.name === module);
+  const entry = manifest.modules.find((m) => m.id === module);
   if (entry === undefined) return undefined;
   return `modules/${module}`;
 }
@@ -251,60 +316,84 @@ async function loadProtoDescriptors(
 // Initialization
 // =============================================================================
 
-// Initializes extension servers by fetching manifests (synchronously) and
-// loading extensions (asynchronously). This function should be called early
-// in app initialization.
-export function initializeExtensions(
+// Loads a single server's enabled modules given an already in-flight manifest
+// promise. Returns the per-module result promises (for error aggregation).
+export function initializeServerFromManifest(
+  ctx: AppImpl,
+  server: ExtensionServer,
+  manifest: Promise<Result<Manifest>>,
+): Promise<Result<unknown>[]> {
+  const results: Promise<Result<unknown>>[] = [];
+  for (const mod of server.enabledModules) {
+    const macros = manifest.then((r) => loadMacros(r, server, mod));
+    const sqlPackage = manifest.then((r) => loadSqlPackage(r, server, mod));
+    const descs = manifest.then((r) => loadProtoDescriptors(r, server, mod));
+    results.push(macros, sqlPackage, descs);
+    ctx.addMacros(
+      manifest.then(async (r) => {
+        const macrosResult = await macros;
+        if (!macrosResult.ok) return [];
+        const source = sourceLabel(r, mod);
+        return macrosResult.value.map((m) => ({...m, source}));
+      }),
+    );
+    ctx.addSqlPackages(sqlPackage.then((r) => (r.ok ? r.value : [])));
+    ctx.addProtoDescriptors(descs.then((r) => (r.ok ? r.value : [])));
+  }
+  return Promise.all(results);
+}
+
+// Initializes extension servers by fetching manifests and loading extensions
+// (asynchronously). Returns the result promises so the caller can aggregate
+// errors (e.g. with embedder server results) before showing a single modal.
+export async function initializeServers(
   ctx: AppImpl,
   servers: ReadonlyArray<ExtensionServer>,
-) {
-  const results = [];
+): Promise<Result<unknown>[]> {
+  const results: Promise<Result<unknown>[]>[] = [];
   for (const server of servers) {
     if (!server.enabled) {
       continue;
     }
-    const manifest = loadManifest(server);
-    for (const mod of server.enabledModules) {
-      const macros = manifest.then((r) => loadMacros(r, server, mod));
-      const sqlPackage = manifest.then((r) => loadSqlPackage(r, server, mod));
-      const descs = manifest.then((r) => loadProtoDescriptors(r, server, mod));
-      results.push(macros, sqlPackage, descs);
-      ctx.addMacros(macros.then((r) => (r.ok ? r.value : [])));
-      ctx.addSqlPackages(sqlPackage.then((r) => (r.ok ? r.value : [])));
-      ctx.addProtoDescriptors(descs.then((r) => (r.ok ? r.value : [])));
-    }
+    results.push(
+      initializeServerFromManifest(ctx, server, loadManifest(server)),
+    );
   }
-  // When all the extension loading promises complete, show a modal if there
-  // were any errors. Deduplicate errors since a manifest fetch failure
-  // propagates to all downstream loaders (macros, sql_modules, etc.).
-  Promise.all(results).then((results) => {
-    const uniqueErrors = [
-      ...new Set(results.filter((r) => !r.ok).map((r) => r.error)),
-    ];
-    if (uniqueErrors.length > 0) {
-      showModal({
-        title: 'Error(s) while querying extension servers',
-        content: m(
-          'div',
-          {style: 'display: flex; flex-direction: column; gap: 8px'},
-          uniqueErrors.map((e) =>
-            m(Callout, {icon: 'error', intent: Intent.Danger}, e),
+  const perServerResults = await Promise.all(results);
+  return perServerResults.flat();
+}
+
+// When all the extension loading promises complete, show a modal if there
+// were any errors. Deduplicate errors since a manifest fetch failure
+// propagates to all downstream loaders (macros, sql_modules, etc.).
+export function showErrorsOnCompletion(results: Result<unknown>[]): void {
+  const uniqueErrors = [
+    ...new Set(results.filter((r) => !r.ok).map((r) => r.error)),
+  ];
+  if (uniqueErrors.length > 0) {
+    const n = uniqueErrors.length;
+    showModal({
+      title: `${n} error${n === 1 ? '' : 's'} while querying extension servers`,
+      content: m(
+        'div',
+        m(CodeSnippet, {
+          text: uniqueErrors.map((e) => `• ${e}`).join('\n'),
+          class: 'pf-ext-server-errors',
+        }),
+        m('p', [
+          'For more information see the ',
+          m(
+            Anchor,
+            {
+              href: 'https://perfetto.dev/docs/visualization/extensions',
+              target: '_blank',
+            },
+            'extension servers documentation',
           ),
-          m('p', [
-            'For more information see the ',
-            m(
-              'a',
-              {
-                href: 'https://perfetto.dev/docs/visualization/extensions',
-                target: '_blank',
-              },
-              'extension servers documentation',
-            ),
-            '.',
-          ]),
-        ),
-        buttons: [{text: 'OK', primary: true}],
-      });
-    }
-  });
+          '.',
+        ]),
+      ),
+      buttons: [{text: 'OK', primary: true}],
+    });
+  }
 }

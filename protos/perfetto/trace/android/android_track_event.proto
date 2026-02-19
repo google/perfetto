@@ -632,10 +632,10 @@ message AndroidProcessStateChangedEvent {
   optional ProcessStateEnum cur_proc_state = 4;
 
   // Previous capability flags.
-  optional ProcessCapabilityEnum prev_capability_flags = 5;
+  optional int32 prev_capability_flags = 5;
 
   // Current capability flags.
-  optional ProcessCapabilityEnum cur_capability_flags = 6;
+  optional int32 cur_capability_flags = 6;
 
   // Previous oom score.
   optional int32 prev_oom_score = 7;
@@ -650,6 +650,12 @@ message AndroidProcessStateChangedEvent {
   // one oom_adjuster event. See:
   // https://cs.android.com/android/platform/superproject/+/android-latest-release:frameworks/base/services/core/java/com/android/server/am/OomAdjuster.java;l=286;drc=9f59f0d6214008c9c7825102e64edb46ddb06297
   optional int64 seq_id = 10;
+
+  // Bitmask of reasons for granting PROCESS_CAPABILITY_CPU_TIME.
+  optional int32 cpu_time_reasons = 11;
+
+  // Bitmask of reasons for granting PROCESS_CAPABILITY_IMPLICIT_CPU_TIME.
+  optional int32 implicit_cpu_time_reasons = 12;
 }
 
 message AndroidTrackEvent {

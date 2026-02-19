@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
+import("../../gn/perfetto_host_executable.gni")
+import("../../gn/test.gni")
 
 # Prevent that this file is accidentally included in embedder builds.
 assert(enable_perfetto_tools)
@@ -22,6 +24,7 @@ group("tools") {
   testonly = true
   deps = [
     ":copy_protoc",
+    ":tracing_proto_extensions",
     "ftrace_proto_gen",
     "proto_filter",
     "proto_merger",
@@ -65,9 +68,51 @@ if (is_linux || is_android) {
   }
 }
 
+source_set("tracing_proto_extensions_lib") {
+  deps = [
+    "../../gn:default_deps",
+    "../../gn:protobuf_full",
+    "../../protos/perfetto/common:zero",
+    "../base",
+    "../protozero",
+    "../protozero:multifile_error_collector",
+    "../trace_processor/util:simple_json_parser",
+  ]
+  sources = [
+    "tracing_proto_extensions.cc",
+    "tracing_proto_extensions.h",
+  ]
+}
+
+perfetto_host_executable("tracing_proto_extensions") {
+  testonly = true
+  deps = [
+    ":tracing_proto_extensions_lib",
+    "../../gn:default_deps",
+    "../base",
+    "../base:version",
+  ]
+  if (enable_perfetto_zlib) {
+    deps += [ "../../gn:zlib" ]
+  }
+  sources = [ "tracing_proto_extensions_main.cc" ]
+}
+
+perfetto_unittest_source_set("tracing_proto_extensions_unittests") {
+  testonly = true
+  deps = [
+    ":tracing_proto_extensions_lib",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../base",
+    "../base:test_support",
+  ]
+  sources = [ "tracing_proto_extensions_unittest.cc" ]
+}
+
 group("unittests") {
   testonly = true
-  deps = []
+  deps = [ ":tracing_proto_extensions_unittests" ]
 
   if (current_toolchain == host_toolchain) {
     deps += [ "ftrace_proto_gen:unittests" ]

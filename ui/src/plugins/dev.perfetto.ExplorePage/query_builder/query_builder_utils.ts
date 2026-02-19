@@ -257,3 +257,212 @@ export function isAQuery(
     maybeQuery.sql !== undefined
   );
 }
+
+/**
+ * Builds a fully self-contained structured query tree from a flat list of
+ * queries. All `innerQueryId` references are resolved to `innerQuery`
+ * embeddings.
+ *
+ * Needed for the `summarizeTrace` API which materializes shared queries as
+ * standalone tables. Shared queries with nested `innerQueryId` sub-queries
+ * fail because the referenced queries aren't available as CTEs in the
+ * standalone context.
+ *
+ * @param queries Flat list in dependency order (from `getStructuredQueries`).
+ *   The last entry is the root.
+ * @returns A single self-contained query, or undefined if input is empty.
+ */
+export function buildEmbeddedQueryTree(
+  queries: protos.PerfettoSqlStructuredQuery[],
+): protos.PerfettoSqlStructuredQuery | undefined {
+  if (queries.length === 0) return undefined;
+
+  const queryMap = new Map<string, protos.PerfettoSqlStructuredQuery>();
+  for (const q of queries) {
+    if (q.id) {
+      queryMap.set(q.id, q);
+    }
+  }
+
+  const root = queries[queries.length - 1];
+  const rootObj = protos.PerfettoSqlStructuredQuery.toObject(root);
+  const resolved = inlineQueryRefs(rootObj, queryMap, new Set());
+  return protos.PerfettoSqlStructuredQuery.fromObject(resolved);
+}
+
+// Plain-object type returned by protobufjs toObject().
+// Field access returns `any` which is inherent to the toObject() API.
+type QueryPlainObj = ReturnType<
+  typeof protos.PerfettoSqlStructuredQuery.toObject
+>;
+
+/**
+ * Recursively resolves all `innerQueryId` references in a plain-object
+ * query to `innerQuery` embeddings. Uses plain objects (from toObject) to
+ * avoid protobufjs oneof field management issues — setting innerQuery on a
+ * Message instance may not reliably clear innerQueryId, causing the encoder
+ * to write both fields and the decoder to pick the wrong one.
+ */
+function inlineQueryRefs(
+  obj: QueryPlainObj,
+  queryMap: Map<string, protos.PerfettoSqlStructuredQuery>,
+  visited: Set<string>,
+): QueryPlainObj {
+  // Cycle guard: prevent infinite recursion on malformed graphs.
+  const id = obj.id as string | undefined;
+  if (id !== undefined) {
+    if (visited.has(id)) return obj;
+    visited.add(id);
+  }
+
+  // Resolve innerQueryId → embedded innerQuery.
+  const refId = obj.innerQueryId as string | undefined;
+  if (refId !== undefined) {
+    const referenced = queryMap.get(refId);
+    if (referenced !== undefined) {
+      const refObj = protos.PerfettoSqlStructuredQuery.toObject(referenced);
+      obj.innerQuery = inlineQueryRefs(refObj, queryMap, visited);
+      delete obj.innerQueryId;
+    }
+  } else if (obj.innerQuery !== undefined) {
+    obj.innerQuery = inlineQueryRefs(
+      obj.innerQuery as QueryPlainObj,
+      queryMap,
+      visited,
+    );
+  }
+
+  // Resolve sub-queries in multi-input operations.
+  inlineMultiInputRefs(obj, queryMap, visited);
+
+  // Note: Do NOT remove from visited set. Once a node is processed, it should
+  // remain marked as visited to prevent infinite recursion if referenced again
+  // through a different path in the query graph.
+  return obj;
+}
+
+// Helper to safely check if a field from a toObject() plain object is set.
+function has(val: unknown): val is Record<string, unknown> {
+  return val !== undefined && val !== null;
+}
+
+// Resolves sub-query references inside multi-input operations.
+// NOTE: This must be updated when new multi-input operation types are added
+// to PerfettoSqlStructuredQuery.
+function inlineMultiInputRefs(
+  obj: QueryPlainObj,
+  queryMap: Map<string, protos.PerfettoSqlStructuredQuery>,
+  visited: Set<string>,
+): void {
+  const ii = obj.intervalIntersect as QueryPlainObj | undefined;
+  if (has(ii)) {
+    if (has(ii.base)) {
+      ii.base = inlineQueryRefs(ii.base as QueryPlainObj, queryMap, visited);
+    }
+    // ii.intervalIntersect is the array of secondary interval queries
+    // (same field name as the outer operation).
+    if (Array.isArray(ii.intervalIntersect)) {
+      ii.intervalIntersect = ii.intervalIntersect.map((q: QueryPlainObj) =>
+        inlineQueryRefs(q, queryMap, visited),
+      );
+    }
+  }
+
+  const join = obj.experimentalJoin as QueryPlainObj | undefined;
+  if (has(join)) {
+    if (has(join.leftQuery)) {
+      join.leftQuery = inlineQueryRefs(
+        join.leftQuery as QueryPlainObj,
+        queryMap,
+        visited,
+      );
+    }
+    if (has(join.rightQuery)) {
+      join.rightQuery = inlineQueryRefs(
+        join.rightQuery as QueryPlainObj,
+        queryMap,
+        visited,
+      );
+    }
+  }
+
+  const union = obj.experimentalUnion as QueryPlainObj | undefined;
+  if (has(union) && Array.isArray(union.queries)) {
+    union.queries = union.queries.map((q: QueryPlainObj) =>
+      inlineQueryRefs(q, queryMap, visited),
+    );
+  }
+
+  const addCols = obj.experimentalAddColumns as QueryPlainObj | undefined;
+  if (has(addCols)) {
+    if (has(addCols.coreQuery)) {
+      addCols.coreQuery = inlineQueryRefs(
+        addCols.coreQuery as QueryPlainObj,
+        queryMap,
+        visited,
+      );
+    }
+    if (has(addCols.inputQuery)) {
+      addCols.inputQuery = inlineQueryRefs(
+        addCols.inputQuery as QueryPlainObj,
+        queryMap,
+        visited,
+      );
+    }
+  }
+
+  const fti = obj.experimentalFilterToIntervals as QueryPlainObj | undefined;
+  if (has(fti)) {
+    if (has(fti.base)) {
+      fti.base = inlineQueryRefs(fti.base as QueryPlainObj, queryMap, visited);
+    }
+    if (has(fti.intervals)) {
+      fti.intervals = inlineQueryRefs(
+        fti.intervals as QueryPlainObj,
+        queryMap,
+        visited,
+      );
+    }
+  }
+
+  const cs = obj.experimentalCreateSlices as QueryPlainObj | undefined;
+  if (has(cs)) {
+    if (has(cs.startsQuery)) {
+      cs.startsQuery = inlineQueryRefs(
+        cs.startsQuery as QueryPlainObj,
+        queryMap,
+        visited,
+      );
+    }
+    if (has(cs.endsQuery)) {
+      cs.endsQuery = inlineQueryRefs(
+        cs.endsQuery as QueryPlainObj,
+        queryMap,
+        visited,
+      );
+    }
+  }
+
+  const ci = obj.experimentalCounterIntervals as QueryPlainObj | undefined;
+  if (has(ci) && has(ci.inputQuery)) {
+    ci.inputQuery = inlineQueryRefs(
+      ci.inputQuery as QueryPlainObj,
+      queryMap,
+      visited,
+    );
+  }
+
+  // Resolve SQL dependency sub-queries.
+  const sql = obj.sql as QueryPlainObj | undefined;
+  if (has(sql) && Array.isArray(sql.dependencies)) {
+    for (const dep of sql.dependencies as QueryPlainObj[]) {
+      if (has(dep.query)) {
+        dep.query = inlineQueryRefs(
+          dep.query as QueryPlainObj,
+          queryMap,
+          visited,
+        );
+      }
+    }
+  }
+}

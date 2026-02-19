@@ -1033,6 +1033,16 @@ cc_library {
                 "perfetto_flags_c_lib",
             ],
         },
+        windows: {
+            enabled: true,
+            cflags: [
+                "-Wno-shift-count-overflow",
+                "-Wno-unknown-pragmas",
+            ],
+            host_ldlibs: [
+                "-lws2_32",
+            ],
+        },
     },
 }
 
@@ -15035,6 +15045,22 @@ filegroup {
     ],
 }
 
+// GN: //src/tools:tracing_proto_extensions_lib
+filegroup {
+    name: "perfetto_src_tools_tracing_proto_extensions_lib",
+    srcs: [
+        "src/tools/tracing_proto_extensions.cc",
+    ],
+}
+
+// GN: //src/tools:tracing_proto_extensions_unittests
+filegroup {
+    name: "perfetto_src_tools_tracing_proto_extensions_unittests",
+    srcs: [
+        "src/tools/tracing_proto_extensions_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/containers:containers
 filegroup {
     name: "perfetto_src_trace_processor_containers_containers",
@@ -19379,6 +19405,8 @@ cc_test {
         ":perfetto_src_shared_lib_track_event_intern_map",
         ":perfetto_src_shared_lib_track_event_track_event",
         ":perfetto_src_shared_lib_track_event_unittests",
+        ":perfetto_src_tools_tracing_proto_extensions_lib",
+        ":perfetto_src_tools_tracing_proto_extensions_unittests",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_containers_unittests",
         ":perfetto_src_trace_processor_core_common_common",
@@ -19809,6 +19837,7 @@ cc_test {
         "bionic_libc_platform_headers",
     ],
     data: [
+        "protos/perfetto/trace/**/*",
         "src/profiling/memory/test/data/**/*",
         "src/traced/probes/filesystem/testdata/**/*",
         "src/traced/probes/ftrace/test/data/**/*",
@@ -21901,7 +21930,7 @@ gensrcs {
         "perfetto.protos.ActivityInfoProto,perfetto.protos.ActivityRecordProto,perfetto.protos.AlphaAnimationSpecProto,perfetto.protos.AnimationAdapterProto,perfetto.protos.AnimationSpecProto,perfetto.protos.AppTransitionProto,perfetto.protos.BackNavigationProto,perfetto.protos.ConfigurationContainerProto,perfetto.protos.ConfigurationProto,perfetto.protos.DeviceConfigurationProto,perfetto.protos.DisplayAreaProto,perfetto.protos.DisplayContentProto,perfetto.protos.DisplayInfoProto,perfetto.protos.DisplayRotationProto,perfetto.protos.GlobalConfigurationProto,perfetto.protos.IdentifierProto,perfetto.protos.ImeInsetsSourceProviderProto,perfetto.protos.InsetsSourceProviderProto,perfetto.protos.KeyguardControllerProto,perfetto.protos.KeyguardPerDisplayProto,perfetto.protos.KeyguardServiceDelegateProto,perfetto.protos.LocalAnimationAdapterProto,perfetto.protos.LocaleProto,perfetto.protos.MoveAnimationSpecProto,perfetto.protos.PointProto,perfetto.protos.RemoteAnimationTargetProto,perfetto.protos.RemoteInsetsControlTargetProto,perfetto.protos.ResourcesConfigurationProto,perfetto.protos.RootWindowContainerProto,perfetto.protos.SurfaceAnimatorProto,perfetto.protos.TaskFragmentProto,perfetto.protos.TaskProto,perfetto.protos.WindowAnimationSpecProto,perfetto.protos.WindowConfigurationProto,perfetto.protos.WindowContainerChildProto,perfetto.protos.WindowContainerProto,perfetto.protos.WindowFramesProto,perfetto.protos.WindowManagerConfig,perfetto.protos.WindowManagerPolicyProto,perfetto.protos.WindowManagerServiceDumpProto,perfetto.protos.WindowManagerTraceFileProto,perfetto.protos.WindowOrientationListenerProto,perfetto.protos.WindowStateAnimatorProto,perfetto.protos.WindowStateProto,perfetto.protos.WindowSurfaceControllerProto,perfetto.protos.WindowTokenProto,perfetto.protos.InsetsStateControllerProto,perfetto.protos.DisplayPolicyProto,perfetto.protos.DecorInsetsProto,perfetto.protos.DecorInsetsInfoProto,perfetto.protos.AppearanceRegionProto,perfetto.protos.SystemBarVisibilityOverrideProto,perfetto.protos.InsetsPolicyProto,perfetto.protos.InsetsControlTargetProto,perfetto.protos.DisplayFramesProto," +
 
         // AndroidTrackEvent protos
-        "perfetto.protos.AndroidMessageQueue,perfetto.protos.AndroidJobSchedulerJob,perfetto.protos.AndroidBitmap,perfetto.protos.AndroidSurfaceFlingerWorkload,perfetto.protos.AndroidSurfaceFlingerWorkload.Source,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.SfCpu,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.Hwc,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.Re,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.Skia,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Stats,perfetto.protos.AndroidBroadcastEvent,perfetto.protos.AndroidFreezerEvent,perfetto.protos.AndroidProcessStartEvent,perfetto.protos.AndroidProcessDiedEvent,perfetto.protos.AndroidProcessStateChangedEvent,perfetto.protos.AndroidTrackEvent " +
+        "perfetto.protos.AndroidMessageQueue,perfetto.protos.AndroidJobSchedulerJob,perfetto.protos.AndroidBitmap,perfetto.protos.AndroidSurfaceFlingerWorkload,perfetto.protos.AndroidSurfaceFlingerWorkload.Source,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.SfCpu,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.Hwc,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.Re,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.Skia,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Stats,perfetto.protos.AndroidBroadcastEvent,perfetto.protos.AndroidFreezerEvent,perfetto.protos.AndroidProcessStartEvent,perfetto.protos.AndroidProcessDiedEvent,perfetto.protos.AndroidProcessStateChangedEvent,perfetto.protos.AndroidBinderDiedEvent,perfetto.protos.AndroidTrackEvent " +
 
         "--javastream_out=$(genDir)/$(in) " +
         "-Iexternal/protobuf/src " +

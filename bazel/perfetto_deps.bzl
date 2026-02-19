@@ -42,13 +42,6 @@ def _perfetto_deps_impl(module_ctx):
     )
 
     new_git_repository(
-        name = "perfetto_dep_jsoncpp",
-        remote = "https://github.com/open-source-parsers/jsoncpp",
-        commit = "6aba23f4a8628d599a9ef7fa4811c4ff6e4070e2",  # v1.9.3
-        build_file = "@perfetto//bazel:jsoncpp.BUILD",
-    )
-
-    new_git_repository(
         name = "perfetto_dep_expat",
         remote = "https://github.com/libexpat/libexpat",
         commit = "fa75b96546c069d17b8f80d91e0f4ef0cde3790d",  # R_2_6_2
@@ -83,7 +76,6 @@ def _perfetto_deps_impl(module_ctx):
             "perfetto_dep_sqlite",
             "perfetto_dep_sqlite_src",
             "perfetto_dep_linenoise",
-            "perfetto_dep_jsoncpp",
             "perfetto_dep_expat",
             "perfetto_dep_zlib",
             "perfetto_dep_llvm_demangle",

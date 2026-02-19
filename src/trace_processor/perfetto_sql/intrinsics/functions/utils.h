@@ -332,10 +332,8 @@ struct Regexp : public sqlite::Function<Regexp> {
       }
       return sqlite::result::Long(ctx, aux->Search(text));
     } else {
-      // Always-true branch to avoid spurious no-return warnings.
-      if (ctx) {
-        PERFETTO_FATAL("Regex not supported");
-      }
+      return sqlite::utils::SetError(
+          ctx, "regexp: regex is not supported on this platform");
     }
   }
 };
@@ -390,10 +388,8 @@ struct RegexpExtract : public sqlite::Function<RegexpExtract> {
       return sqlite::result::TransientString(
           ctx, result_sv.data(), static_cast<int>(result_sv.size()));
     } else {
-      // Always-true branch to avoid spurious no-return warnings.
-      if (ctx) {
-        PERFETTO_FATAL("Regex not supported");
-      }
+      return sqlite::utils::SetError(
+          ctx, "regexp_extract: regex is not supported on this platform");
     }
   }
 };
@@ -428,10 +424,9 @@ struct RegexpReplaceSimple : public sqlite::Function<RegexpReplaceSimple> {
       return sqlite::result::TransientString(ctx, result.data(),
                                              static_cast<int>(result.size()));
     } else {
-      // Always-true branch to avoid spurious no-return warnings.
-      if (ctx) {
-        PERFETTO_FATAL("Regex not supported");
-      }
+      return sqlite::utils::SetError(
+          ctx,
+          "regexp_replace_simple: regex is not supported on this platform");
     }
   }
 };
