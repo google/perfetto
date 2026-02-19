@@ -21,6 +21,18 @@ INCLUDE PERFETTO MODULE counters.intervals;
 -- Create a table containing intervals of memory counters values, adjusted to process lifetime.
 CREATE PERFETTO TABLE _memory_breakdown_mem_intervals_raw AS
 WITH
+  sched_bounds AS (
+    SELECT
+      min(ts) AS min_ts,
+      max(ts + dur) AS max_ts
+    FROM sched
+  ),
+  trace_limits AS (
+    SELECT
+      coalesce(sb.min_ts, trace_start()) AS start_ts,
+      coalesce(sb.max_ts, trace_end()) AS end_ts
+    FROM sched_bounds AS sb
+  ),
   mem_process_counter_tracks AS (
     SELECT
       id,
@@ -39,6 +51,16 @@ WITH
     FROM counter AS c
     JOIN mem_process_counter_tracks AS t
       ON c.track_id = t.id
+    WHERE
+      c.ts BETWEEN (
+        SELECT
+          start_ts
+        FROM trace_limits
+      ) AND (
+        SELECT
+          end_ts
+        FROM trace_limits
+      )
   ),
   mem_intervals AS (
     SELECT
