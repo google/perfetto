@@ -383,12 +383,12 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   4);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   VARINT,
-                  enum perfetto_protos_ProcessCapabilityEnum,
+                  int32_t,
                   prev_capability_flags,
                   5);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   VARINT,
-                  enum perfetto_protos_ProcessCapabilityEnum,
+                  int32_t,
                   cur_capability_flags,
                   6);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
@@ -411,6 +411,33 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   int64_t,
                   seq_id,
                   10);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  cpu_time_reasons,
+                  11);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  implicit_cpu_time_reasons,
+                  12);
+
+PERFETTO_PB_MSG(perfetto_protos_AndroidBinderDiedEvent);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBinderDiedEvent,
+                  VARINT,
+                  int32_t,
+                  uid,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBinderDiedEvent,
+                  VARINT,
+                  int32_t,
+                  pid,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidBinderDiedEvent,
+                  STRING,
+                  const char*,
+                  process_name,
+                  3);
 
 PERFETTO_PB_MSG(perfetto_protos_AndroidProcessDiedEvent);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessDiedEvent,
@@ -573,7 +600,7 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
                   11);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
                   VARINT,
-                  enum perfetto_protos_BroadcastType,
+                  int32_t,
                   broadcast_type,
                   12);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidBroadcastEvent,
@@ -965,4 +992,10 @@ PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
                             perfetto_protos_AndroidProcessStateChangedEvent,
                             process_state_changed_event,
                             2012);
+PERFETTO_PB_EXTENSION_FIELD(perfetto_protos_AndroidTrackEvent,
+                            perfetto_protos_TrackEvent,
+                            MSG,
+                            perfetto_protos_AndroidBinderDiedEvent,
+                            binder_died_event,
+                            2013);
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_ANDROID_ANDROID_TRACK_EVENT_PZC_H_

@@ -45,9 +45,9 @@ export function joinPath(base: string, resource: string): string {
 
 // Auto-add https:// if no protocol specified.
 export function normalizeHttpsUrl(input: string): string {
-  const url = input.trim();
+  let url = input.trim();
   if (!url.includes('://')) {
-    return `https://${url}`;
+    url = `https://${url}`;
   }
-  return url;
+  return url.replace(/\/+$/, '');
 }

@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM, STR_NULL} from '../../../trace_processor/query_result';
+import {
+  NUM,
+  STR_NULL,
+  QueryResult,
+} from '../../../trace_processor/query_result';
 import {BarChartData, BarChartItem} from './bar_chart';
-import {AggregationType, sqlAggExpression, sqlInClause} from './chart_utils';
+import {createChartLoader, ChartLoader, inFilter} from './chart_sql_source';
+import {AggregateFunction} from '../datagrid/model';
+import type {QueryResult as SlotResult} from '../../../base/query_slot';
 
 /**
  * Configuration for SQLBarChartLoader.
@@ -48,7 +53,7 @@ export interface SQLBarChartLoaderOpts {
  */
 export interface BarChartLoaderConfig {
   /** Aggregation function to apply to the measure column per group. */
-  readonly aggregation: AggregationType;
+  readonly aggregation: AggregateFunction;
 
   /**
    * Maximum number of bars to return. Groups are sorted by aggregated
@@ -62,119 +67,49 @@ export interface BarChartLoaderConfig {
   readonly filter?: ReadonlyArray<string | number>;
 }
 
-/**
- * Result returned by the bar chart loader.
- */
-export interface BarChartLoaderResult {
-  /** The computed bar chart data, or undefined if loading. */
-  readonly data: BarChartData | undefined;
-
-  /** Whether a query is currently pending. */
-  readonly isPending: boolean;
-}
+/** Result returned by the bar chart loader. */
+export type BarChartLoaderResult = SlotResult<BarChartData>;
 
 /**
  * SQL-based bar chart loader with async loading and caching.
  *
  * Performs grouping and aggregation directly in SQL for efficiency with
- * large datasets. Uses QuerySlot for caching and request deduplication.
- *
- * Usage:
- * ```typescript
- * class MyPanel {
- *   private loader: SQLBarChartLoader;
- *
- *   constructor(engine: Engine) {
- *     this.loader = new SQLBarChartLoader({
- *       engine,
- *       query: 'SELECT process_name, dur FROM slice WHERE dur > 0',
- *       dimensionColumn: 'process_name',
- *       measureColumn: 'dur',
- *     });
- *   }
- *
- *   view() {
- *     const {data} = this.loader.use({aggregation: 'SUM'});
- *     return m(BarChart, {data, dimensionLabel: 'Process', measureLabel: 'Total Duration'});
- *   }
- *
- *   onremove() {
- *     this.loader.dispose();
- *   }
- * }
- * ```
+ * large datasets.
  */
 export class SQLBarChartLoader {
-  private readonly engine: Engine;
-  private readonly baseQuery: string;
-  private readonly dimensionColumn: string;
-  private readonly measureColumn: string;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<BarChartData>(this.taskQueue);
+  private readonly loader: ChartLoader<BarChartLoaderConfig, BarChartData>;
 
   constructor(opts: SQLBarChartLoaderOpts) {
-    this.engine = opts.engine;
-    this.baseQuery = opts.query;
-    this.dimensionColumn = opts.dimensionColumn;
-    this.measureColumn = opts.measureColumn;
-  }
+    const dimCol = opts.dimensionColumn;
+    const measCol = opts.measureColumn;
 
-  use(config: BarChartLoaderConfig): BarChartLoaderResult {
-    const result = this.querySlot.use({
-      key: {
-        baseQuery: this.baseQuery,
-        dimensionColumn: this.dimensionColumn,
-        measureColumn: this.measureColumn,
-        aggregation: config.aggregation,
+    this.loader = createChartLoader({
+      engine: opts.engine,
+      query: opts.query,
+      schema: {[dimCol]: 'text', [measCol]: 'real'},
+      buildQueryConfig: (config) => ({
+        type: 'aggregated',
+        dimensions: [{column: dimCol}],
+        measures: [{column: measCol, aggregation: config.aggregation}],
+        filters: inFilter(dimCol, config.filter),
         limit: config.limit,
-        filter: config.filter,
-      },
-      queryFn: async () => {
-        const dim = this.dimensionColumn;
-        const meas = this.measureColumn;
-        const aggExpr = sqlAggExpression(meas, config.aggregation);
-
-        const inExpr =
-          config.filter !== undefined ? sqlInClause(dim, config.filter) : '';
-        const filterClause = inExpr !== '' ? `WHERE ${inExpr}` : '';
-
-        const limitClause =
-          config.limit !== undefined ? `LIMIT ${config.limit}` : '';
-
-        const sql = `
-          SELECT
-            CAST(${dim} AS TEXT) AS _dim,
-            ${aggExpr} AS _value
-          FROM (${this.baseQuery})
-          ${filterClause}
-          GROUP BY ${dim}
-          ORDER BY _value DESC
-          ${limitClause}
-        `;
-
-        const queryResult = await this.engine.query(sql);
-
+      }),
+      parseResult: (queryResult: QueryResult) => {
         const items: BarChartItem[] = [];
-        const iter = queryResult.iter({
-          _dim: STR_NULL,
-          _value: NUM,
-        });
+        const iter = queryResult.iter({_dim: STR_NULL, _value: NUM});
         for (; iter.valid(); iter.next()) {
-          const label = iter._dim ?? '(null)';
-          items.push({label, value: iter._value});
+          items.push({label: iter._dim ?? '(null)', value: iter._value});
         }
-
         return {items};
       },
     });
+  }
 
-    return {
-      data: result.data,
-      isPending: result.isPending,
-    };
+  use(config: BarChartLoaderConfig): BarChartLoaderResult {
+    return this.loader.use(config);
   }
 
   dispose(): void {
-    this.querySlot.dispose();
+    this.loader.dispose();
   }
 }

@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM, STR_NULL} from '../../../trace_processor/query_result';
-import {AggregationType, sqlAggExpression, sqlInClause} from './chart_utils';
+import {
+  NUM,
+  STR_NULL,
+  QueryResult,
+} from '../../../trace_processor/query_result';
+import {createChartLoader, ChartLoader, inFilter} from './chart_sql_source';
+import {AggregateFunction} from '../datagrid/model';
 import {PieChartData, PieChartSlice} from './pie_chart';
+import type {QueryResult as SlotResult} from '../../../base/query_slot';
 
 /**
  * Configuration for SQLPieChartLoader.
@@ -31,14 +36,10 @@ export interface SQLPieChartLoaderOpts {
    */
   readonly query: string;
 
-  /**
-   * Column name for the dimension (slice labels).
-   */
+  /** Column name for the dimension (slice labels). */
   readonly dimensionColumn: string;
 
-  /**
-   * Column name for the measure (numeric values to aggregate).
-   */
+  /** Column name for the measure (numeric values to aggregate). */
   readonly measureColumn: string;
 }
 
@@ -47,7 +48,7 @@ export interface SQLPieChartLoaderOpts {
  */
 export interface PieChartLoaderConfig {
   /** Aggregation function to apply to the measure column per group. */
-  readonly aggregation: AggregationType;
+  readonly aggregation: AggregateFunction;
 
   /**
    * Maximum number of slices to return. Groups are sorted by aggregated
@@ -56,124 +57,54 @@ export interface PieChartLoaderConfig {
    */
   readonly limit?: number;
 
-  /**
-   * Filter to only include specific dimension values.
-   */
+  /** Filter to only include specific dimension values. */
   readonly filter?: ReadonlyArray<string | number>;
 }
 
-/**
- * Result returned by the pie chart loader.
- */
-export interface PieChartLoaderResult {
-  /** The computed pie chart data, or undefined if loading. */
-  readonly data: PieChartData | undefined;
-
-  /** Whether a query is currently pending. */
-  readonly isPending: boolean;
-}
+/** Result returned by the pie chart loader. */
+export type PieChartLoaderResult = SlotResult<PieChartData>;
 
 /**
  * SQL-based pie chart loader with async loading and caching.
  *
  * Performs grouping and aggregation directly in SQL. When a limit is
  * set, groups beyond the top N are collapsed into an "(Other)" slice.
- * Uses QuerySlot for caching and request deduplication.
  */
 export class SQLPieChartLoader {
-  private readonly engine: Engine;
-  private readonly baseQuery: string;
-  private readonly dimensionColumn: string;
-  private readonly measureColumn: string;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<PieChartData>(this.taskQueue);
+  private readonly loader: ChartLoader<PieChartLoaderConfig, PieChartData>;
 
   constructor(opts: SQLPieChartLoaderOpts) {
-    this.engine = opts.engine;
-    this.baseQuery = opts.query;
-    this.dimensionColumn = opts.dimensionColumn;
-    this.measureColumn = opts.measureColumn;
-  }
+    const dimCol = opts.dimensionColumn;
+    const measCol = opts.measureColumn;
 
-  use(config: PieChartLoaderConfig): PieChartLoaderResult {
-    const result = this.querySlot.use({
-      key: {
-        baseQuery: this.baseQuery,
-        dimensionColumn: this.dimensionColumn,
-        measureColumn: this.measureColumn,
-        aggregation: config.aggregation,
+    this.loader = createChartLoader({
+      engine: opts.engine,
+      query: opts.query,
+      schema: {[dimCol]: 'text', [measCol]: 'real'},
+      buildQueryConfig: (config) => ({
+        type: 'aggregated',
+        dimensions: [{column: dimCol}],
+        measures: [{column: measCol, aggregation: config.aggregation}],
+        filters: inFilter(dimCol, config.filter),
         limit: config.limit,
-        filter: config.filter,
-      },
-      queryFn: async () => {
-        const dim = this.dimensionColumn;
-        const meas = this.measureColumn;
-        const aggExpr = sqlAggExpression(meas, config.aggregation);
-
-        const inExpr =
-          config.filter !== undefined ? sqlInClause(dim, config.filter) : '';
-        const filterClause = inExpr !== '' ? `WHERE ${inExpr}` : '';
-
-        let sql: string;
-        if (config.limit !== undefined) {
-          // Top-N with "(Other)" bucket
-          sql = `
-            WITH _agg AS (
-              SELECT
-                CAST(${dim} AS TEXT) AS _dim,
-                ${aggExpr} AS _value
-              FROM (${this.baseQuery})
-              ${filterClause}
-              GROUP BY ${dim}
-              ORDER BY _value DESC
-            ),
-            _top AS (
-              SELECT _dim, _value FROM _agg LIMIT ${config.limit}
-            ),
-            _other AS (
-              SELECT '(Other)' AS _dim, SUM(_value) AS _value
-              FROM _agg
-              WHERE _dim NOT IN (SELECT _dim FROM _top)
-            )
-            SELECT _dim, _value FROM _top
-            UNION ALL
-            SELECT _dim, _value FROM _other WHERE _value > 0
-          `;
-        } else {
-          sql = `
-            SELECT
-              CAST(${dim} AS TEXT) AS _dim,
-              ${aggExpr} AS _value
-            FROM (${this.baseQuery})
-            ${filterClause}
-            GROUP BY ${dim}
-            ORDER BY _value DESC
-          `;
-        }
-
-        const queryResult = await this.engine.query(sql);
-
+        includeOther: config.limit !== undefined,
+      }),
+      parseResult: (queryResult: QueryResult) => {
         const slices: PieChartSlice[] = [];
-        const iter = queryResult.iter({
-          _dim: STR_NULL,
-          _value: NUM,
-        });
+        const iter = queryResult.iter({_dim: STR_NULL, _value: NUM});
         for (; iter.valid(); iter.next()) {
-          const label = iter._dim ?? '(null)';
-          slices.push({label, value: iter._value});
+          slices.push({label: iter._dim ?? '(null)', value: iter._value});
         }
-
         return {slices};
       },
     });
+  }
 
-    return {
-      data: result.data,
-      isPending: result.isPending,
-    };
+  use(config: PieChartLoaderConfig): PieChartLoaderResult {
+    return this.loader.use(config);
   }
 
   dispose(): void {
-    this.querySlot.dispose();
+    this.loader.dispose();
   }
 }

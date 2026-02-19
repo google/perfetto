@@ -18,6 +18,7 @@ import {Button} from '../../widgets/button';
 import {showModal} from '../../widgets/modal';
 import {TextInput} from '../../widgets/text_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {Select} from '../../widgets/select';
 import {Form, FormLabel, FormSection} from '../../widgets/form';
 import {MultiSelect, MultiSelectDiff} from '../../widgets/multiselect';
 import {ExtensionServer, UserInput} from './types';
@@ -35,7 +36,7 @@ type HttpsUserInput = Extract<UserInput, {type: 'https'}>;
 
 interface OkLoadedState {
   type: 'ok';
-  availableModules: ReadonlyArray<string>;
+  availableModules: ReadonlyArray<{id: string; name: string}>;
   enabledModules: Set<string>;
 }
 
@@ -57,9 +58,11 @@ class AddExtensionServerModal {
   );
   private userInput: UserInput;
   private loadedState?: LoadedState;
+  private readonly locked: boolean;
 
   constructor(server?: ExtensionServer, prefill?: ExtensionServer) {
     this.userInput = createInitial(server ?? prefill);
+    this.locked = server?.locked ?? false;
     this.scheduleManifestFetch(
       server?.enabledModules ?? prefill?.enabledModules,
     );
@@ -74,6 +77,7 @@ class AddExtensionServerModal {
 
   canSave(): boolean {
     return (
+      !this.isEmptyInput() &&
       this.loadedState?.type === 'ok' &&
       this.loadedState.enabledModules.size > 0
     );
@@ -93,6 +97,7 @@ class AddExtensionServerModal {
         enabledModules,
         enabled: true,
         auth: this.userInput.auth,
+        locked: this.locked,
       };
     }
     return {
@@ -101,6 +106,7 @@ class AddExtensionServerModal {
       enabledModules,
       enabled: true,
       auth: this.userInput.auth,
+      locked: this.locked,
     };
   }
 
@@ -122,6 +128,7 @@ class AddExtensionServerModal {
         {label: 'HTTPS', icon: 'public'},
       ],
       selectedOption: this.userInput.type === 'github' ? 0 : 1,
+      disabled: this.locked,
       onOptionSelected: (idx: number) => {
         if (idx === 0 && this.userInput.type !== 'github') {
           this.userInput = {
@@ -146,6 +153,7 @@ class AddExtensionServerModal {
       m(TextInput, {
         placeholder: 'owner/repo (e.g., perfetto-dev/extension-server-test)',
         value: input.repo,
+        disabled: this.locked,
         onInput: (value: string) => {
           input.repo = value;
           this.debouncedFetch();
@@ -155,6 +163,7 @@ class AddExtensionServerModal {
       m(TextInput, {
         placeholder: 'e.g., main',
         value: input.ref,
+        disabled: this.locked,
         onInput: (value: string) => {
           input.ref = value;
           this.debouncedFetch();
@@ -164,6 +173,7 @@ class AddExtensionServerModal {
       m(TextInput, {
         placeholder: '(default: /)',
         value: input.path,
+        disabled: this.locked,
         onInput: (value: string) => {
           input.path = value;
           this.debouncedFetch();
@@ -195,20 +205,29 @@ class AddExtensionServerModal {
           ),
         ),
       ]),
-      m(SegmentedButtons, {
-        options: [{label: 'None'}, {label: 'PAT'}],
-        selectedOption: input.auth.type === 'github_pat' ? 1 : 0,
-        onOptionSelected: (idx: number) => {
-          input.auth =
-            idx === 1 ? {type: 'github_pat', pat: ''} : {type: 'none'};
-          this.debouncedFetch();
+      m(
+        Select,
+        {
+          value: input.auth.type,
+          disabled: this.locked,
+          onchange: (e: Event) => {
+            const value = (e.target as HTMLSelectElement).value;
+            input.auth =
+              value === 'github_pat'
+                ? {type: 'github_pat', pat: ''}
+                : {type: 'none'};
+            this.debouncedFetch();
+          },
         },
-      }),
+        m('option', {value: 'none'}, 'None'),
+        m('option', {value: 'github_pat'}, 'Personal Access Token'),
+      ),
       input.auth.type === 'github_pat' &&
         m(TextInput, {
           placeholder: 'github_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
           type: 'password',
           value: input.auth.pat,
+          disabled: this.locked,
           onInput: (value: string) => {
             input.auth = {type: 'github_pat', pat: value};
             this.debouncedFetch();
@@ -223,8 +242,172 @@ class AddExtensionServerModal {
       m(TextInput, {
         placeholder: 'https://example.com/path/to/extensions',
         value: input.url,
+        disabled: this.locked,
         onInput: (value: string) => {
           input.url = value;
+          this.debouncedFetch();
+        },
+      }),
+      this.renderHttpsAuth(input),
+    ];
+  }
+
+  private renderHttpsAuth(input: HttpsUserInput): m.Children {
+    return [
+      m(FormLabel, [
+        'Authentication ',
+        m(
+          Popup,
+          {
+            trigger: m(Icon, {icon: 'help_outline'}),
+            closeOnOutsideClick: true,
+          },
+          m(
+            'span',
+            m('strong', 'None'),
+            ': no authentication headers are sent.',
+            m('br'),
+            m('strong', 'Basic'),
+            ': sends a Base64-encoded username:password via the ',
+            m('code', 'Authorization'),
+            ' header.',
+            m('br'),
+            m('strong', 'API Key'),
+            ': sends a token via a configurable HTTP header.',
+            m('br'),
+            m('strong', 'SSO (Cookie)'),
+            ': uses browser cookies for authentication. On 403, refreshes cookies via an iframe redirect.',
+          ),
+        ),
+      ]),
+      m(
+        Select,
+        {
+          value: input.auth.type,
+          disabled: this.locked,
+          onchange: (e: Event) => {
+            const value = (e.target as HTMLSelectElement).value;
+            if (value === 'https_basic') {
+              input.auth = {type: 'https_basic', username: '', password: ''};
+            } else if (value === 'https_apikey') {
+              input.auth = {
+                type: 'https_apikey',
+                keyType: 'bearer',
+                key: '',
+                customHeaderName: '',
+              };
+            } else if (value === 'https_sso') {
+              input.auth = {type: 'https_sso'};
+            } else {
+              input.auth = {type: 'none'};
+            }
+            this.debouncedFetch();
+          },
+        },
+        m('option', {value: 'none'}, 'None'),
+        m('option', {value: 'https_basic'}, 'Basic'),
+        m('option', {value: 'https_apikey'}, 'API Key'),
+        m('option', {value: 'https_sso'}, 'SSO (Cookie)'),
+      ),
+      input.auth.type === 'https_basic' && this.renderBasicAuthFields(input),
+      input.auth.type === 'https_apikey' && this.renderApiKeyFields(input),
+    ];
+  }
+
+  private renderBasicAuthFields(input: HttpsUserInput): m.Children {
+    if (input.auth.type !== 'https_basic') return null;
+    const auth = input.auth;
+    return [
+      m(TextInput, {
+        placeholder: 'Username',
+        value: auth.username,
+        disabled: this.locked,
+        onInput: (value: string) => {
+          input.auth = {...auth, username: value};
+          this.debouncedFetch();
+        },
+      }),
+      m(TextInput, {
+        placeholder: 'Password',
+        type: 'password',
+        value: auth.password,
+        disabled: this.locked,
+        onInput: (value: string) => {
+          input.auth = {...auth, password: value};
+          this.debouncedFetch();
+        },
+      }),
+    ];
+  }
+
+  private renderApiKeyFields(input: HttpsUserInput): m.Children {
+    if (input.auth.type !== 'https_apikey') return null;
+    const auth = input.auth;
+    return [
+      m(FormLabel, [
+        'Header Format ',
+        m(
+          Popup,
+          {
+            trigger: m(Icon, {icon: 'help_outline'}),
+            closeOnOutsideClick: true,
+          },
+          m(
+            'span',
+            m('strong', 'Bearer'),
+            ': sends ',
+            m('code', 'Authorization: Bearer <key>'),
+            '.',
+            m('br'),
+            m('strong', 'X-API-Key'),
+            ': sends ',
+            m('code', 'X-API-Key: <key>'),
+            '.',
+            m('br'),
+            m('strong', 'Custom'),
+            ': sends the key via a custom header name you specify.',
+          ),
+        ),
+      ]),
+      m(
+        Select,
+        {
+          value: auth.keyType,
+          disabled: this.locked,
+          onchange: (e: Event) => {
+            const keyType = (e.target as HTMLSelectElement).value as
+              | 'bearer'
+              | 'x_api_key'
+              | 'custom';
+            input.auth = {
+              ...auth,
+              keyType,
+              customHeaderName: '',
+            } as typeof auth;
+            this.debouncedFetch();
+          },
+        },
+        m('option', {value: 'bearer'}, 'Bearer'),
+        m('option', {value: 'x_api_key'}, 'X-API-Key'),
+        m('option', {value: 'custom'}, 'Custom'),
+      ),
+      auth.keyType === 'custom' &&
+        m(TextInput, {
+          placeholder: 'Header name',
+          value: auth.customHeaderName,
+          disabled: this.locked,
+          onInput: (value: string) => {
+            input.auth = {...auth, customHeaderName: value};
+            this.debouncedFetch();
+          },
+        }),
+      m(TextInput, {
+        placeholder: 'API key',
+        type: 'password',
+        value: auth.key,
+        disabled: this.locked,
+        onInput: (value: string) => {
+          input.auth = {...auth, key: value};
           this.debouncedFetch();
         },
       }),
@@ -233,7 +416,8 @@ class AddExtensionServerModal {
 
   private renderModuleSection(): m.Children {
     const showRefresh =
-      this.loadedState?.type === 'ok' || this.loadedState?.type === 'error';
+      !this.isEmptyInput() &&
+      (this.loadedState?.type === 'ok' || this.loadedState?.type === 'error');
     return m(
       FormSection,
       {label: 'Modules'},
@@ -277,10 +461,10 @@ class AddExtensionServerModal {
     }
     const {enabledModules, availableModules} = this.loadedState;
     return m(MultiSelect, {
-      options: availableModules.map((name) => ({
-        id: name,
+      options: availableModules.map(({id, name}) => ({
+        id,
         name,
-        checked: enabledModules.has(name),
+        checked: enabledModules.has(id),
       })),
       onChange: (diffs: MultiSelectDiff[]) => {
         for (const diff of diffs) {
@@ -338,22 +522,21 @@ class AddExtensionServerModal {
     }
 
     const manifest = manifestResult.value;
-    const moduleNames = manifest.modules.map((m) => m.name);
     const enabledModules = preserveEnabledModules
       ? new Set(
           preserveEnabledModules.filter((m) =>
-            manifest.modules.some((mod) => mod.name === m),
+            manifest.modules.some((mod) => mod.id === m),
           ),
         )
       : new Set(
-          manifest.modules.some((mod) => mod.name === 'default')
+          manifest.modules.some((mod) => mod.id === 'default')
             ? ['default']
             : [],
         );
 
     this.loadedState = {
       type: 'ok',
-      availableModules: moduleNames,
+      availableModules: manifest.modules,
       enabledModules,
     };
     m.redraw();
@@ -384,7 +567,23 @@ class AddExtensionServerModal {
       }
       return false;
     }
-    return this.userInput.url.trim() === '';
+    if (this.userInput.url.trim() === '') return true;
+    const auth = this.userInput.auth;
+    // Basic auth requires both username and password.
+    if (
+      auth.type === 'https_basic' &&
+      (!auth.username.trim() || !auth.password.trim())
+    ) {
+      return true;
+    }
+    // API key auth requires a non-empty key (and header name for custom).
+    if (auth.type === 'https_apikey') {
+      if (!auth.key.trim()) return true;
+      if (auth.keyType === 'custom' && !auth.customHeaderName.trim()) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 

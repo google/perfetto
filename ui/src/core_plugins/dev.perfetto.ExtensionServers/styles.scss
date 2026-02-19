@@ -73,7 +73,8 @@
 
 // Add/Edit Extension Server modal
 .pf-add-extension-server-modal {
-  width: 350px;
+  width: 100%;
+  min-width: 350px;
   min-height: 450px;
 
   // Last form section (Modules) fills remaining space
@@ -103,4 +104,10 @@
     min-height: 0;
     width: 100%;
   }
+}
+
+// Error modal for extension server loading failures
+.pf-ext-server-errors {
+  max-height: 200px;
+  overflow-y: auto;
 }

@@ -28,7 +28,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -43,6 +42,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -68,15 +68,6 @@ PerfTextTraceTokenizer::PerfTextTraceTokenizer(TraceProcessorContext* ctx)
 PerfTextTraceTokenizer::~PerfTextTraceTokenizer() = default;
 
 base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
-  // Guess the clock used for timestamps, which would normally be described in
-  // `perf script --header`, which we don't expect to be included.
-  // Further, if the recording was using the default perf_clock (typically
-  // equivalent to sched_clock), the latter doesn't have a representation in
-  // perfetto at the time of writing.
-  // Therefore, approximate all clocks as MONOTONIC.
-  context_->clock_tracker->SetTraceTimeClock(
-      ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC));
-
   reader_.PushBack(std::move(blob));
   std::vector<FrameId> frames;
   // Loop over each sample.
@@ -173,7 +164,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
     evt.callsite_id = *parent_callsite;
 
     std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        ClockTracker::ClockId(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
+        ClockId::Machine(protos::pbzero::ClockSnapshot::Clock::MONOTONIC),
         sample->ts);
     if (trace_ts) {
       stream_->Push(*trace_ts, evt);

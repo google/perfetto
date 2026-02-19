@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
@@ -33,7 +34,10 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_type.h"
+
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -126,15 +130,47 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   }
   input_context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
-  // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
-  // parsed first so that we do not get issues with
-  // SetPidZeroIsUpidZeroIdleProcess()
-  trace_context_ = input_context_->ForkContextForTrace(file_id_, 0);
-  if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
-    trace_context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  if (IsContainerTraceType(trace_type_)) {
+    PERFETTO_DCHECK(!input_context_->trace_state);
+    trace_context_ = input_context_;
+  } else {
+    // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
+    // parsed first so that we do not get issues with
+    // SetPidZeroIsUpidZeroIdleProcess()
+    trace_context_ = input_context_->ForkContextForTrace(file_id_, 0);
+    if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
+      trace_context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+    }
   }
   ASSIGN_OR_RETURN(reader_, input_context_->reader_registry->CreateTraceReader(
                                 trace_type_, trace_context_));
+
+  // Centralize clock setup for all trace formats. Proto traces add an identity
+  // sync so BOOTTIME is reachable in the clock graph; the trace default clock
+  // is set later by ParseClockSnapshot. All other formats know their clock
+  // statically and set the global clock directly.
+  using ClockId = ClockTracker::ClockId;
+  if (trace_type_ == kProtoTraceType) {
+    trace_context_->clock_tracker->AddDeferredIdentitySync(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+  } else if (trace_type_ == kSystraceTraceType ||
+             trace_type_ == kSimpleperfProtoTraceType ||
+             trace_type_ == kPerfTextTraceType ||
+             trace_type_ == kPerfDataTraceType ||
+             trace_type_ == kArtMethodTraceType) {
+    trace_context_->clock_tracker->SetGlobalClock(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
+  } else if (trace_type_ == kFuchsiaTraceType) {
+    trace_context_->clock_tracker->SetGlobalClock(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+  } else if (trace_type_ == kGeckoTraceType || trace_type_ == kJsonTraceType ||
+             trace_type_ == kInstrumentsXmlTraceType) {
+    trace_context_->clock_tracker->SetGlobalClock(
+        ClockId::TraceFile(trace_context_->trace_id().value));
+  } else if (trace_type_ == kAndroidDumpstateTraceType) {
+    trace_context_->clock_tracker->SetGlobalClock(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME));
+  }
   return base::OkStatus();
 }
 

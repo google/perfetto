@@ -30,6 +30,8 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context_ptr.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -53,10 +55,14 @@ class ClockTrackerTest : public ::testing::Test {
         new ImportLogsTracker(&context_, TraceId(1)));
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
-    context_.trace_time_state = std::make_unique<TraceTimeState>(TraceTimeState{
-        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), false});
+    context_.trace_time_state = std::make_unique<TraceTimeState>(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    primary_sync_ = std::make_unique<ClockSynchronizer>(
+        context_.trace_time_state.get(),
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     ct_ = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+        primary_sync_.get(), true);
   }
   std::optional<int64_t> Convert(ClockTracker::ClockId src_clock_id,
                                  int64_t src_timestamp,
@@ -65,6 +71,7 @@ class ClockTrackerTest : public ::testing::Test {
   }
 
   TraceProcessorContext context_;
+  std::unique_ptr<ClockSynchronizer> primary_sync_;
   std::unique_ptr<ClockTracker> ct_;
 };
 
@@ -73,16 +80,16 @@ namespace {
 using ::testing::NiceMock;
 using Clock = protos::pbzero::ClockSnapshot::Clock;
 
-constexpr ClockTracker::ClockId REALTIME(
-    protos::pbzero::BUILTIN_CLOCK_REALTIME);
-constexpr ClockTracker::ClockId BOOTTIME(
-    protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
-constexpr ClockTracker::ClockId MONOTONIC(
-    protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
-constexpr ClockTracker::ClockId MONOTONIC_COARSE(
-    protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE);
-constexpr ClockTracker::ClockId MONOTONIC_RAW(
-    protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
+constexpr ClockTracker::ClockId REALTIME =
+    ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME);
+constexpr ClockTracker::ClockId BOOTTIME =
+    ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+constexpr ClockTracker::ClockId MONOTONIC =
+    ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+constexpr ClockTracker::ClockId MONOTONIC_COARSE =
+    ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE);
+constexpr ClockTracker::ClockId MONOTONIC_RAW =
+    ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
 
 TEST_F(ClockTrackerTest, ClockDomainConversions) {
   EXPECT_FALSE(ct_->ToTraceTime(REALTIME, 0).has_value());
@@ -232,10 +239,10 @@ TEST_F(ClockTrackerTest, NonStrictlyMonotonic) {
 TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  ClockTracker::ClockId c64_1 = ClockTracker::SequenceToGlobalClock(0, 1, 64);
-  ClockTracker::ClockId c65_1 = ClockTracker::SequenceToGlobalClock(0, 1, 65);
-  ClockTracker::ClockId c66_1 = ClockTracker::SequenceToGlobalClock(0, 1, 66);
-  ClockTracker::ClockId c66_2 = ClockTracker::SequenceToGlobalClock(0, 2, 64);
+  ClockTracker::ClockId c64_1 = ClockId::Sequence(0, 1, 64);
+  ClockTracker::ClockId c65_1 = ClockId::Sequence(0, 1, 65);
+  ClockTracker::ClockId c66_1 = ClockId::Sequence(0, 1, 66);
+  ClockTracker::ClockId c66_2 = ClockId::Sequence(0, 2, 64);
 
   ct_->AddSnapshot({{MONOTONIC, 10000},
                     {c64_1, 100000},
@@ -372,8 +379,8 @@ TEST_F(ClockTrackerTest, ClockOffset) {
   ct_->AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
   ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(0, 1, 64);
-  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(0, 2, 64);
+  auto seq_clock_1 = ClockId::Sequence(0, 1, 64);
+  auto seq_clock_2 = ClockId::Sequence(0, 2, 64);
   ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
   ct_->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
@@ -413,8 +420,8 @@ TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
   ct_->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
   ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(0, 1, 64);
-  auto seq_clock_2 = ClockTracker::SequenceToGlobalClock(0, 2, 64);
+  auto seq_clock_1 = ClockId::Sequence(0, 1, 64);
+  auto seq_clock_2 = ClockId::Sequence(0, 2, 64);
   ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
   ct_->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
@@ -444,14 +451,14 @@ TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
   context_.machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
-  ct_->SetTraceTimeClock(MONOTONIC);
+  ct_->SetGlobalClock(MONOTONIC);
   ct_->SetRemoteClockOffset(MONOTONIC, -2000);
   ct_->SetRemoteClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
 
   ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  auto seq_clock_1 = ClockTracker::SequenceToGlobalClock(0, 1, 64);
+  auto seq_clock_1 = ClockId::Sequence(0, 1, 64);
   ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
 
   int64_t realtime_to_trace_time_delta = -10 + 10010 - 100000 + 1000 - (-2000);
@@ -565,6 +572,153 @@ TEST_F(ClockTrackerTest, ThreeHopConversion) {
   // Another conversion within the same range.
   EXPECT_EQ(*Convert(REALTIME, 20, BOOTTIME), expected_ts + 10);
   EXPECT_EQ(ct_->cache_hits_for_testing(), hits + 2);
+}
+
+// Tests for multi-trace clock isolation (shared_sync fallback).
+TEST_F(ClockTrackerTest, NonPrimaryUsesSharedSnapshots) {
+  // Set up a shared ClockSynchronizer (simulating the per-machine shared sync).
+  ClockSynchronizer shared_sync(
+      context_.trace_time_state.get(),
+      std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+  // Add snapshots to the shared sync (primary trace's snapshots).
+  shared_sync.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  shared_sync.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+
+  // Create a non-primary ClockTracker that falls back to shared_sync.
+  auto non_primary = std::make_unique<ClockTracker>(
+      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+      &shared_sync, /*is_primary=*/false);
+
+  // Non-primary should be able to convert using the shared snapshots.
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 20), 10020);
+  EXPECT_EQ(*non_primary->ToTraceTime(MONOTONIC, 1000), 100000);
+}
+
+TEST_F(ClockTrackerTest, NonPrimarySwitchesToOwnOnAddSnapshot) {
+  ClockSynchronizer shared_sync(
+      context_.trace_time_state.get(),
+      std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+  shared_sync.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+
+  auto non_primary = std::make_unique<ClockTracker>(
+      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+      &shared_sync, /*is_primary=*/false);
+
+  // Before own snapshot: uses shared snapshots.
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
+
+  // Add own snapshot with different offset.
+  non_primary->AddSnapshot({{REALTIME, 100}, {BOOTTIME, 200100}});
+
+  // After own snapshot: uses own sync, not shared.
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 100), 200100);
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 110), 200110);
+}
+
+TEST_F(ClockTrackerTest, PrimaryTraceAlwaysUsesSharedSync) {
+  ClockSynchronizer shared_sync(
+      context_.trace_time_state.get(),
+      std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+
+  // Create primary trace ClockTracker pointing to shared_sync.
+  auto primary = std::make_unique<ClockTracker>(
+      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+      &shared_sync, /*is_primary=*/true);
+
+  // Primary adds snapshots — they should go to shared_sync.
+  primary->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+
+  // Primary converts using shared_sync.
+  EXPECT_EQ(*primary->ToTraceTime(REALTIME, 10), 10010);
+
+  // A non-primary trace should also see the primary's snapshots.
+  auto non_primary = std::make_unique<ClockTracker>(
+      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+      &shared_sync, /*is_primary=*/false);
+  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
+}
+
+// --- TraceTimeSetup state machine tests ---
+
+TEST_F(ClockTrackerTest, SetTraceTimeClockBehavior) {
+  ct_->SetGlobalClock(BOOTTIME);
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+}
+
+TEST_F(ClockTrackerTest, AddDeferredIdentitySync_InjectsEdge) {
+  // AddDeferredIdentitySync injects a zero-offset edge between the given clock
+  // and the trace time clock (BOOTTIME in test fixture).
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
+  ct_->AddDeferredIdentitySync(TRACE_FILE);
+
+  // The identity edge allows conversion: TRACE_FILE timestamps pass through.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 42), 42);
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 100), 100);
+}
+
+TEST_F(ClockTrackerTest, SetTraceDefaultClock_SetsDefaultClock) {
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
+  ct_->SetTraceDefaultClock(TRACE_FILE);
+
+  ASSERT_TRUE(ct_->trace_default_clock().has_value());
+  EXPECT_EQ(*ct_->trace_default_clock(), TRACE_FILE);
+}
+
+TEST_F(ClockTrackerTest, AddDeferredIdentitySync_MatchesTraceTimeClock) {
+  // If the identity clock IS the trace time clock, no edge needed.
+  ct_->AddDeferredIdentitySync(BOOTTIME);
+
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 42), 42);
+}
+
+TEST_F(ClockTrackerTest, AddDeferredIdentitySync_WithExplicitSnapshot) {
+  // AddDeferredIdentitySync creates a zero-offset edge TRACE_FILE ↔ BOOTTIME
+  // (since BOOTTIME is the global trace time clock in the test fixture).
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
+  ct_->AddDeferredIdentitySync(TRACE_FILE);
+
+  // Without any other snapshot, TRACE_FILE converts to BOOTTIME at offset 0.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 42), 42);
+
+  // An explicit snapshot overrides the identity edge with real data.
+  ct_->AddSnapshot({{TRACE_FILE, 100}, {BOOTTIME, 1100}});
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 100), 1100);
+  EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 1100), 1100);
+}
+
+TEST_F(ClockTrackerTest,
+       AddDeferredIdentitySync_DoesNotChangeGlobalTraceClock) {
+  // Trace time starts as BOOTTIME (test fixture default).
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
+  ct_->AddDeferredIdentitySync(TRACE_FILE);
+
+  // AddDeferredIdentitySync does NOT change the global trace time clock.
+  EXPECT_EQ(context_.trace_time_state->clock_id, BOOTTIME);
+}
+
+TEST_F(ClockTrackerTest, SetGlobalClock_ChangesGlobalClock) {
+  ct_->SetGlobalClock(MONOTONIC);
+  ct_->AddSnapshot({{REALTIME, 10}, {MONOTONIC, 500}});
+
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 500);
+  EXPECT_EQ(context_.trace_time_state->clock_id, MONOTONIC);
+}
+
+TEST_F(ClockTrackerTest, SetGlobalClock_DoesNotSetTraceDefaultClock) {
+  ct_->SetGlobalClock(MONOTONIC);
+
+  EXPECT_FALSE(ct_->trace_default_clock().has_value());
+}
+
+TEST_F(ClockTrackerTest, SetTraceDefaultClock_DoesNotChangeGlobalClock) {
+  ct_->SetTraceDefaultClock(MONOTONIC);
+
+  // Global clock should still be BOOTTIME (test fixture default).
+  EXPECT_EQ(context_.trace_time_state->clock_id, BOOTTIME);
 }
 
 }  // namespace

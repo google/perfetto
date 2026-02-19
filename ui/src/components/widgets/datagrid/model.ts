@@ -14,7 +14,13 @@
 
 import {SqlValue} from '../../../trace_processor/query_result';
 
-export type AggregateFunction = 'ANY' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
+export type AggregateFunction =
+  | 'ANY'
+  | 'SUM'
+  | 'AVG'
+  | 'MIN'
+  | 'MAX'
+  | 'COUNT_DISTINCT';
 export type SortDirection = 'ASC' | 'DESC';
 export type GroupDisplay = 'flat' | 'tree';
 export const DEFAULT_GROUP_DISPLAY: GroupDisplay = 'flat';

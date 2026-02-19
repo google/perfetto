@@ -21,20 +21,8 @@ import {Engine} from '../../../../trace_processor/engine';
 import {NUM, Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../data_source';
-import {AggregateFunction} from '../model';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, toAlias} from '../sql_utils';
-
-/**
- * Builds an aggregate expression string from function and field.
- * Note: COUNT is not part of AggregateFunction - use 'COUNT(*)' directly.
- */
-function buildAggregateExpr(func: AggregateFunction, field: string): string {
-  if (func === 'ANY') {
-    return `MIN(${field})`; // ANY maps to MIN
-  }
-  return `${func}(${field})`;
-}
+import {filterToSql, sqlAggregateExpr, toAlias} from '../sql_utils';
 
 // Flat GROUP BY datasource - uses simple GROUP BY queries without hierarchy.
 export class SQLDataSourceGroupBy {
@@ -134,7 +122,7 @@ export class SQLDataSourceGroupBy {
         aggExpr = 'COUNT(*)';
       } else {
         const fieldExpr = resolver.resolveColumnPath(agg.field);
-        aggExpr = buildAggregateExpr(agg.function, fieldExpr ?? agg.field);
+        aggExpr = sqlAggregateExpr(agg.function, fieldExpr ?? agg.field);
       }
       selectExprs.push(`${aggExpr} AS ${toAlias(agg.alias)}`);
     }
@@ -182,7 +170,7 @@ export class SQLDataSourceGroupBy {
         aggExpr = 'COUNT(*)';
       } else {
         const fieldExpr = resolver.resolveColumnPath(agg.field);
-        aggExpr = buildAggregateExpr(agg.function, fieldExpr ?? agg.field);
+        aggExpr = sqlAggregateExpr(agg.function, fieldExpr ?? agg.field);
       }
       selectExprs.push(`${aggExpr} AS ${toAlias(agg.alias)}`);
     }

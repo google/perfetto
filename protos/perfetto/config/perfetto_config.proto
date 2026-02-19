@@ -456,16 +456,55 @@ message TracingServiceState {
 
 // Begin of protos/perfetto/common/builtin_clock.proto
 
+// Builtin clock domains used in Perfetto traces.
+//
+// The default trace time clock is BUILTIN_CLOCK_TRACE_FILE: a synthetic clock
+// representing the trace file's own timeline. Each trace file gets its own
+// instance (scoped by trace file index).
+//
+// For backwards compatibility, Perfetto proto traces register BOOTTIME as a
+// fallback: if the first timestamp conversion uses a clock other than the
+// trace file clock and no explicit clock snapshot data exists, the trace time
+// is switched to BOOTTIME. This fallback does not fire for modern traces that
+// include ClockSnapshots or that only use the trace file clock directly.
+//
+// The `primary_trace_clock` field in ClockSnapshot can definitively override
+// the trace time clock regardless of the above.
 enum BuiltinClock {
   BUILTIN_CLOCK_UNKNOWN = 0;
+
+  // Corresponds to CLOCK_REALTIME. See clock_gettime(2).
   BUILTIN_CLOCK_REALTIME = 1;
+
+  // Corresponds to CLOCK_REALTIME_COARSE. See clock_gettime(2).
   BUILTIN_CLOCK_REALTIME_COARSE = 2;
+
+  // Corresponds to CLOCK_MONOTONIC. See clock_gettime(2).
   BUILTIN_CLOCK_MONOTONIC = 3;
+
+  // Corresponds to CLOCK_MONOTONIC_COARSE. See clock_gettime(2).
   BUILTIN_CLOCK_MONOTONIC_COARSE = 4;
+
+  // Corresponds to CLOCK_MONOTONIC_RAW. See clock_gettime(2).
   BUILTIN_CLOCK_MONOTONIC_RAW = 5;
+
+  // Corresponds to CLOCK_BOOTTIME. See clock_gettime(2).
+  // For proto traces, this is used as a backwards-compatible fallback trace
+  // time clock when no explicit clock snapshots are present.
   BUILTIN_CLOCK_BOOTTIME = 6;
+
+  // TSC (Time Stamp Counter). Architecture-specific high-resolution counter.
   BUILTIN_CLOCK_TSC = 9;
+
+  // Corresponds to the perf event clock (PERF_CLOCK).
   BUILTIN_CLOCK_PERF = 10;
+
+  // A synthetic clock representing the trace file's own timeline. Each trace
+  // file gets its own instance (scoped by trace file index). This is the
+  // default trace time clock before any clock snapshot or format-specific
+  // override takes effect.
+  BUILTIN_CLOCK_TRACE_FILE = 11;
+
   BUILTIN_CLOCK_MAX_ID = 63;
 
   reserved 7, 8;
@@ -4474,7 +4513,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 45.
+// Next id: 47.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -5384,6 +5423,15 @@ message TraceConfig {
   //
   // Introduced in: perfetto v54.
   optional bool trace_all_machines = 43;
+
+  // Allow key, value pairs to save arbitrary data about trace.
+  message Note {
+    // Required.
+    optional string key = 1;
+    // Required.
+    optional string value = 2;
+  }
+  repeated Note notes = 46;
 }
 
 // End of protos/perfetto/config/trace_config.proto

@@ -512,8 +512,8 @@ message AndroidBroadcastEvent {
   // delivered.
   optional PackageStoppedState package_stopped_state = 11;
 
-  // The type of the broadcast.
-  optional BroadcastType broadcast_type = 12;
+  // The type of the broadcast. It's a mask of BroadcastType.
+  optional int32 broadcast_type = 12;
 
   // Delivery group policy set for the broadcast.
   optional BroadcastDeliveryGroupPolicy delivery_group_policy = 13;
@@ -577,6 +577,8 @@ message AndroidProcessStartEvent {
   optional TriggerType trigger_type = 8;
 }
 
+// This can be delayed for up to 15s in some cases. It should typically
+// be paired with AndroidBinderDiedEvent which has less latency.
 message AndroidProcessDiedEvent {
   // Uid of the package of the dying process.
   optional int32 uid = 1;
@@ -584,7 +586,7 @@ message AndroidProcessDiedEvent {
   // Pid of the dying process.
   optional int32 pid = 2;
 
-  // The process name.
+  // The process name of the dying process.
   optional string process_name = 3;
 
   // The reason code of why the process dies.
@@ -603,6 +605,19 @@ message AndroidProcessDiedEvent {
   optional int32 has_foreground_services = 8;
 }
 
+// This is expected to come earlier than AndroidProcessDiedEvent.
+// For death reasons, see AndroidProcessDiedEvent.
+message AndroidBinderDiedEvent {
+  // Uid of the package of the dying process.
+  optional int32 uid = 1;
+
+  // Pid of the dying process.
+  optional int32 pid = 2;
+
+  // The process name of the dying process.
+  optional string process_name = 3;
+}
+
 message AndroidProcessStateChangedEvent {
   // Uid of the package of the process changing state.
   optional int32 uid = 1;
@@ -617,10 +632,10 @@ message AndroidProcessStateChangedEvent {
   optional ProcessStateEnum cur_proc_state = 4;
 
   // Previous capability flags.
-  optional ProcessCapabilityEnum prev_capability_flags = 5;
+  optional int32 prev_capability_flags = 5;
 
   // Current capability flags.
-  optional ProcessCapabilityEnum cur_capability_flags = 6;
+  optional int32 cur_capability_flags = 6;
 
   // Previous oom score.
   optional int32 prev_oom_score = 7;
@@ -635,11 +650,17 @@ message AndroidProcessStateChangedEvent {
   // one oom_adjuster event. See:
   // https://cs.android.com/android/platform/superproject/+/android-latest-release:frameworks/base/services/core/java/com/android/server/am/OomAdjuster.java;l=286;drc=9f59f0d6214008c9c7825102e64edb46ddb06297
   optional int64 seq_id = 10;
+
+  // Bitmask of reasons for granting PROCESS_CAPABILITY_CPU_TIME.
+  optional int32 cpu_time_reasons = 11;
+
+  // Bitmask of reasons for granting PROCESS_CAPABILITY_IMPLICIT_CPU_TIME.
+  optional int32 implicit_cpu_time_reasons = 12;
 }
 
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2013
+  // Next id: 2014
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -666,5 +687,7 @@ message AndroidTrackEvent {
     optional AndroidProcessDiedEvent process_died_event = 2011;
     // Process state changed event.
     optional AndroidProcessStateChangedEvent process_state_changed_event = 2012;
+    // Binder died event.
+    optional AndroidBinderDiedEvent binder_died_event = 2013;
   }
 }

@@ -201,10 +201,14 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
-    context_.trace_time_state = std::make_unique<TraceTimeState>(TraceTimeState{
-        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), false});
+    context_.trace_time_state = std::make_unique<TraceTimeState>(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    primary_sync_ = std::make_unique<ClockSynchronizer>(
+        context_.trace_time_state.get(),
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+        primary_sync_.get(), true);
     clock_ = context_.clock_tracker.get();
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
@@ -240,6 +244,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
   std::vector<uint64_t> trace_bytes_;
 
   TraceProcessorContext context_;
+  std::unique_ptr<ClockSynchronizer> primary_sync_;
   MockEventTracker* event_;
   MockSchedEventTracker* sched_;
   MockProcessTracker* process_;

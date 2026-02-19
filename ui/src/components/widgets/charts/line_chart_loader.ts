@@ -12,11 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM, STR_NULL} from '../../../trace_processor/query_result';
-import {sqlRangeClause} from './chart_utils';
+import {
+  NUM,
+  STR_NULL,
+  QueryResult,
+} from '../../../trace_processor/query_result';
+import {
+  createChartLoader,
+  ChartLoader,
+  PointColumnSpec,
+  rangeFilters,
+} from './chart_sql_source';
 import {LineChartData, LineChartPoint, LineChartSeries} from './line_chart';
+import type {QueryResult as SlotResult} from '../../../base/query_slot';
 
 /**
  * Configuration for SQLLineChartLoader.
@@ -48,9 +57,7 @@ export interface SQLLineChartLoaderOpts {
  * Per-use configuration for the line chart loader.
  */
 export interface LineChartLoaderConfig {
-  /**
-   * Filter to only include points within this X range (e.g., from brush).
-   */
+  /** Filter to only include points within this X range (e.g., from brush). */
   readonly xRange?: {readonly min: number; readonly max: number};
 
   /**
@@ -61,86 +68,60 @@ export interface LineChartLoaderConfig {
   readonly maxPoints?: number;
 }
 
-/**
- * Result returned by the line chart loader.
- */
-export interface LineChartLoaderResult {
-  /** The computed line chart data, or undefined if loading. */
-  readonly data: LineChartData | undefined;
-
-  /** Whether a query is currently pending. */
-  readonly isPending: boolean;
-}
+/** Result returned by the line chart loader. */
+export type LineChartLoaderResult = SlotResult<LineChartData>;
 
 /**
  * SQL-based line chart loader with async loading and caching.
  *
  * Fetches ordered (x, y) points directly from SQL, optionally grouped
- * into multiple series by a grouping column. Uses QuerySlot for caching
- * and request deduplication.
+ * into multiple series by a grouping column.
  */
 export class SQLLineChartLoader {
-  private readonly engine: Engine;
-  private readonly baseQuery: string;
-  private readonly xColumn: string;
-  private readonly yColumn: string;
-  private readonly seriesColumn: string | undefined;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<LineChartData>(this.taskQueue);
+  private readonly loader: ChartLoader<LineChartLoaderConfig, LineChartData>;
 
   constructor(opts: SQLLineChartLoaderOpts) {
-    this.engine = opts.engine;
-    this.baseQuery = opts.query;
-    this.xColumn = opts.xColumn;
-    this.yColumn = opts.yColumn;
-    this.seriesColumn = opts.seriesColumn;
-  }
+    const xCol = opts.xColumn;
+    const yCol = opts.yColumn;
+    const seriesCol = opts.seriesColumn;
 
-  use(config: LineChartLoaderConfig): LineChartLoaderResult {
-    const result = this.querySlot.use({
-      key: {
-        baseQuery: this.baseQuery,
-        xColumn: this.xColumn,
-        yColumn: this.yColumn,
-        seriesColumn: this.seriesColumn,
-        xRange: config.xRange,
-        maxPoints: config.maxPoints,
+    const schema: Record<string, 'text' | 'real'> = {
+      [xCol]: 'real',
+      [yCol]: 'real',
+    };
+    if (seriesCol !== undefined) {
+      schema[seriesCol] = 'text';
+    }
+
+    this.loader = createChartLoader({
+      engine: opts.engine,
+      query: opts.query,
+      schema,
+      buildQueryConfig: (config) => {
+        const columns: PointColumnSpec[] = [
+          {column: xCol, alias: '_x', cast: 'real'},
+          {column: yCol, alias: '_y', cast: 'real'},
+        ];
+        // When no breakdown column is configured, buildPoints() won't add
+        // _series to the SELECT. Add NULL AS _series explicitly so that
+        // parseResult's iter spec always finds the column.
+        if (seriesCol === undefined) {
+          columns.push({alias: '_series', cast: 'text'});
+        }
+        return {
+          type: 'points',
+          columns,
+          breakdown: seriesCol,
+          filters: rangeFilters(xCol, config.xRange),
+          orderBy:
+            seriesCol !== undefined
+              ? [{column: '_series'}, {column: '_x'}]
+              : [{column: '_x'}],
+        };
       },
-      queryFn: async () => {
-        const xCol = this.xColumn;
-        const yCol = this.yColumn;
-
-        const filterClause =
-          config.xRange !== undefined
-            ? `WHERE ${sqlRangeClause(xCol, config.xRange)}`
-            : '';
-
-        const seriesExpr =
-          this.seriesColumn !== undefined
-            ? `CAST(${this.seriesColumn} AS TEXT)`
-            : 'NULL';
-
-        const orderBy =
-          this.seriesColumn !== undefined
-            ? 'ORDER BY _series, _x'
-            : 'ORDER BY _x';
-
-        const sql = `
-          SELECT
-            CAST(${xCol} AS REAL) AS _x,
-            CAST(${yCol} AS REAL) AS _y,
-            ${seriesExpr} AS _series
-          FROM (${this.baseQuery})
-          ${filterClause}
-          ${orderBy}
-        `;
-
-        const queryResult = await this.engine.query(sql);
-
-        // Group points by series
+      parseResult: (queryResult: QueryResult, config) => {
         const seriesMap = new Map<string, LineChartPoint[]>();
-        const defaultName = this.seriesColumn !== undefined ? '' : yCol;
-
+        const defaultName = seriesCol !== undefined ? '' : yCol;
         const iter = queryResult.iter({_x: NUM, _y: NUM, _series: STR_NULL});
 
         for (; iter.valid(); iter.next()) {
@@ -153,7 +134,6 @@ export class SQLLineChartLoader {
           points.push({x: iter._x, y: iter._y});
         }
 
-        // Build series array, applying downsampling if needed
         const series: LineChartSeries[] = [];
         for (const [name, points] of seriesMap) {
           series.push({
@@ -164,19 +144,18 @@ export class SQLLineChartLoader {
                 : points,
           });
         }
-
         return {series};
       },
+      extraCacheKey: (config) => ({maxPoints: config.maxPoints}),
     });
+  }
 
-    return {
-      data: result.data,
-      isPending: result.isPending,
-    };
+  use(config: LineChartLoaderConfig): LineChartLoaderResult {
+    return this.loader.use(config);
   }
 
   dispose(): void {
-    this.querySlot.dispose();
+    this.loader.dispose();
   }
 }
 

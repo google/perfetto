@@ -441,21 +441,19 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         Summarizer* summarizer = summarizer_ptr->get();
         SummarizerQueryResult query_result;
         base::Status status = summarizer->Query(query_id, &query_result);
+        result->set_exists(query_result.exists);
         if (!status.ok()) {
           result->set_error(status.message());
-        } else {
-          result->set_exists(query_result.exists);
-          if (query_result.exists) {
-            result->set_table_name(query_result.table_name);
-            result->set_row_count(query_result.row_count);
-            for (const auto& col : query_result.columns) {
-              result->add_columns(col);
-            }
-            result->set_duration_ms(query_result.duration_ms);
-            result->set_sql(query_result.sql);
-            result->set_textproto(query_result.textproto);
-            result->set_standalone_sql(query_result.standalone_sql);
+        } else if (query_result.exists) {
+          result->set_table_name(query_result.table_name);
+          result->set_row_count(query_result.row_count);
+          for (const auto& col : query_result.columns) {
+            result->add_columns(col);
           }
+          result->set_duration_ms(query_result.duration_ms);
+          result->set_sql(query_result.sql);
+          result->set_textproto(query_result.textproto);
+          result->set_standalone_sql(query_result.standalone_sql);
         }
       }
       resp.Send(rpc_response_fn_);

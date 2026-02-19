@@ -1998,37 +1998,6 @@ config("bionic_kernel_uapi_headers") {
   ]
 }
 
-config("jsoncpp_config") {
-  visibility = _buildtools_visibility
-  cflags = [ "-DJSON_USE_EXCEPTION=0" ]
-  cflags += [
-    # Using -isystem instead of include_dirs (-I), so we don't need to suppress
-    # warnings coming from third-party headers. Doing so would mask warnings in
-    # our own code.
-    perfetto_isystem_cflag,
-    rebase_path("jsoncpp/include", root_build_dir),
-  ]
-  if (!is_win) {
-    cflags += [ "-Wno-deprecated-declarations" ]
-  }
-  if (is_clang && is_win) {
-    # JSON uses __int64 which clang complains about unless we specify this flag.
-    cflags += [ "-Wno-language-extension-token" ]
-  }
-}
-
-source_set("jsoncpp") {
-  visibility = _buildtools_visibility
-  sources = [
-    "jsoncpp/src/lib_json/json_reader.cpp",
-    "jsoncpp/src/lib_json/json_value.cpp",
-    "jsoncpp/src/lib_json/json_writer.cpp",
-  ]
-  configs -= [ "//gn/standalone:extra_warnings" ]
-  public_configs = [ ":jsoncpp_config" ]
-  deps = [ "//gn:default_deps" ]
-}
-
 config("no_format_warning") {
   if (!is_win || is_clang) {
     cflags = [ "-Wno-format" ]
