@@ -173,7 +173,7 @@ export default class MemoryViz implements PerfettoPlugin {
         bucket,
       );
       if (bucketNode) {
-        breakdownNode.addChildLast(bucketNode);
+        breakdownNode.addChildInOrder(bucketNode);
       }
     }
 
