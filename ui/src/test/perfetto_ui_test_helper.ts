@@ -91,7 +91,9 @@ export class PerfettoTestHelper {
 
   async waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {
     await this.page.waitForFunction(
-      () => typeof (window as {} as {waitForPerfettoIdle?: unknown}).waitForPerfettoIdle === 'function'
+      () =>
+        typeof (window as {} as {waitForPerfettoIdle?: unknown})
+          .waitForPerfettoIdle === 'function',
     );
     return this.page.evaluate(
       async (ms) =>
