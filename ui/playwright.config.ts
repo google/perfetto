@@ -19,9 +19,6 @@ const isMac = os.platform() === 'darwin';
 const isCi = Boolean(process.env.CI);
 const outDir = process.env.OUT_DIR ?? '../out/ui';
 
-// Installed by test/ci/ui_tests.sh
-const ciChromePath = '/tmp/chrome/opt/google/chrome/google-chrome';
-
 export default defineConfig({
   timeout: 30_000,
   testDir: './src',
@@ -61,7 +58,6 @@ export default defineConfig({
         headless: true,
         viewport: {width: 1920, height: 1080},
         launchOptions: {
-          // executablePath: isCi ? ciChromePath : undefined,
           args: [
             '--headless',
             '--disable-accelerated-2d-canvas',
@@ -79,7 +75,6 @@ export default defineConfig({
         ignoreHTTPSErrors: true,
         trace: 'off',
         screenshot: 'on',
-        // channel: 'chrome',
         video: 'off',
       },
     },
