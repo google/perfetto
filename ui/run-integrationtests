@@ -118,6 +118,7 @@ def run_in_docker(args):
       '-v', f'{REPO_ROOT}:{REPO_ROOT}', # Mount the repo root into the container
       '-w', f'{REPO_ROOT}/ui', # Set working directory to /ui
       '-u', f'{os.getuid()}:{os.getgid()}', # Run as current user to avoid permission issues
+      '-e', 'HOME=/tmp', # Chrome needs a writable home for crashpad
       *env_args,
       PLAYWRIGHT_IMAGE,
       'bash', '-c', playwright_cmd
