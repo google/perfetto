@@ -51,16 +51,6 @@ WITH
     FROM counter AS c
     JOIN mem_process_counter_tracks AS t
       ON c.track_id = t.id
-    WHERE
-      c.ts BETWEEN (
-        SELECT
-          start_ts
-        FROM trace_limits
-      ) AND (
-        SELECT
-          end_ts
-        FROM trace_limits
-      )
   ),
   mem_intervals AS (
     SELECT
@@ -102,6 +92,15 @@ WITH
         SELECT
           track_id
         FROM denied_tracks
+      )
+      AND i.ts BETWEEN (
+        SELECT
+          start_ts
+        FROM trace_limits
+      ) AND (
+        SELECT
+          end_ts
+        FROM trace_limits
       )
   )
 SELECT
