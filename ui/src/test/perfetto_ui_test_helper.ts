@@ -89,7 +89,12 @@ export class PerfettoTestHelper {
     });
   }
 
-  waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {
+  async waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {
+    await this.page.waitForFunction(
+      () =>
+        typeof (window as {} as {waitForPerfettoIdle?: unknown})
+          .waitForPerfettoIdle === 'function',
+    );
     return this.page.evaluate(
       async (ms) =>
         (window as {} as IdleDetectorWindow).waitForPerfettoIdle(ms),

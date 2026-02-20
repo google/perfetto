@@ -22,7 +22,7 @@ import {
 import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {NodeIssues} from '../node_issues';
-import {LabeledControl, OutlinedField} from '../widgets';
+import {OutlinedField} from '../widgets';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {loadNodeDoc} from '../node_doc_loader';
@@ -33,183 +33,44 @@ import {
   NodeTitle,
 } from '../node_styling_widgets';
 import {isNumericType} from '../utils';
-import {showModal} from '../../../../widgets/modal';
-import {CodeSnippet} from '../../../../widgets/code_snippet';
-import {traceSummarySpecToText} from '../../../../base/proto_utils_wasm';
-import {Spinner} from '../../../../widgets/spinner';
-import {DataGrid} from '../../../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../../../components/widgets/datagrid/datagrid_schema';
-import {Row} from '../../../../trace_processor/query_result';
+import {classNames} from '../../../../base/classnames';
+import {Icons} from '../../../../base/semantic_icons';
+import {Icon} from '../../../../widgets/icon';
 import {
-  getStructuredQueries,
-  buildEmbeddedQueryTree,
-} from '../query_builder_utils';
+  getDimensionUniquenessOptions,
+  getMetricUnitOptions,
+  getPolarityOptions,
+} from './metrics_enum_utils';
+import {showMetricsExportModal} from './metrics_export_modal';
 
-interface EnumOption {
-  value: string;
-  label: string;
-}
-
-/**
- * Converts an UPPER_SNAKE_CASE enum key to a human-readable label.
- * E.g., "TIME_NANOS" -> "Time nanos", "HIGHER_IS_BETTER" -> "Higher is better"
- */
-function enumKeyToLabel(key: string): string {
-  return key
-    .toLowerCase()
-    .split('_')
-    .map((word, i) =>
-      i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word,
-    )
-    .join(' ');
-}
-
-/**
- * Extracts enum options from a protobuf enum object.
- * Filters out UNSPECIFIED values and converts keys to human-readable labels.
- */
-function getEnumOptions(
-  enumObj: Record<string, string | number>,
-  excludePatterns: string[] = ['UNSPECIFIED'],
-): EnumOption[] {
-  const options: EnumOption[] = [];
-  for (const key of Object.keys(enumObj)) {
-    // Skip numeric reverse mappings and excluded patterns
-    if (typeof enumObj[key] !== 'number') continue;
-    if (excludePatterns.some((pattern) => key.includes(pattern))) continue;
-    // Skip legacy values
-    if (key.includes('LEGACY')) continue;
-
-    options.push({
-      value: key,
-      label: enumKeyToLabel(key),
-    });
-  }
-  return options;
-}
-
-/**
- * Returns metric unit options from the proto enum, plus a CUSTOM option.
- */
-function getMetricUnitOptions(): EnumOption[] {
-  const options = getEnumOptions(protos.TraceMetricV2Spec.MetricUnit);
-  // Add custom unit option at the end
-  options.push({value: 'CUSTOM', label: 'Custom unit...'});
-  return options;
-}
-
-/**
- * Returns polarity options from the proto enum.
- */
-function getPolarityOptions(): EnumOption[] {
-  return getEnumOptions(protos.TraceMetricV2Spec.MetricPolarity);
-}
-
-/**
- * Returns dimension uniqueness options from the proto enum.
- */
-function getDimensionUniquenessOptions(): EnumOption[] {
-  return getEnumOptions(protos.TraceMetricV2Spec.DimensionUniqueness);
-}
-
-// Helper to extract dimension value as string.
-function getDimensionValue(
-  dim: protos.TraceMetricV2Bundle.Row.IDimension,
-): string {
-  if (dim.stringValue !== undefined && dim.stringValue !== null) {
-    return dim.stringValue;
-  }
-  if (dim.int64Value !== undefined && dim.int64Value !== null) {
-    return String(dim.int64Value);
-  }
-  if (dim.doubleValue !== undefined && dim.doubleValue !== null) {
-    return String(dim.doubleValue);
-  }
-  if (dim.boolValue !== undefined && dim.boolValue !== null) {
-    return String(dim.boolValue);
-  }
-  return 'NULL';
-}
-
-// Helper to extract metric value as number or null.
-function getMetricValue(
-  val: protos.TraceMetricV2Bundle.Row.IValue,
-): number | null {
-  if (val.doubleValue !== undefined && val.doubleValue !== null) {
-    return val.doubleValue;
-  }
-  return null;
-}
-
-interface MetricResult {
-  schema: SchemaRegistry;
-  rows: Row[];
-  metricId: string;
-}
-
-// Parse a single metric bundle from a TraceSummary proto.
-// Column names must be provided because the response bundles don't
-// include specs when using template specs.
-function parseFirstMetricBundle(
-  data: Uint8Array,
-  metricId: string,
-  dimensionNames: string[],
-  valueColumn: string,
-): MetricResult | undefined {
-  const summary = protos.TraceSummary.decode(data);
-  const bundle = summary.metricBundles[0];
-  if (bundle === undefined) return undefined;
-
-  // Build schema columns: dimensions (text) + value (quantitative).
-  const schemaColumns: Record<
-    string,
-    {title: string; columnType: 'text' | 'quantitative'}
-  > = {};
-  for (const dim of dimensionNames) {
-    schemaColumns[dim] = {title: dim, columnType: 'text'};
-  }
-  schemaColumns[valueColumn] = {title: valueColumn, columnType: 'quantitative'};
-
-  const schema: SchemaRegistry = {[metricId]: schemaColumns};
-
-  // Convert rows to DataGrid format.
-  const rows: Row[] = [];
-  for (const row of bundle.row ?? []) {
-    const rowData: Row = {};
-    for (let i = 0; i < dimensionNames.length; i++) {
-      const dimValue = row.dimension?.[i];
-      rowData[dimensionNames[i]] = dimValue
-        ? getDimensionValue(dimValue)
-        : null;
-    }
-    // Template spec produces one value per row.
-    const val = row.values?.[0];
-    rowData[valueColumn] = val ? getMetricValue(val) : null;
-    rows.push(rowData);
-  }
-
-  return {schema, rows, metricId};
+export interface ValueColumnConfig {
+  column: string;
+  unit: string;
+  customUnit?: string;
+  polarity: string;
+  expanded?: boolean;
 }
 
 export interface MetricsSerializedState {
   metricIdPrefix: string;
-  valueColumn?: string;
-  unit: string;
-  customUnit?: string;
-  polarity: string;
+  valueColumns?: ValueColumnConfig[];
   dimensionUniqueness: string;
 }
 
 export interface MetricsNodeState extends QueryNodeState {
   metricIdPrefix: string;
-  valueColumn?: string;
-  unit: string;
-  customUnit?: string;
-  polarity: string;
+  valueColumns: ValueColumnConfig[];
   dimensionUniqueness: string;
-  // Available columns from the input (for UI selection)
   availableColumns: ColumnInfo[];
 }
+
+// Drag data transferred between the two column lists.
+interface DragPayload {
+  source: 'dimensions' | 'values';
+  columnName: string;
+}
+
+const DRAG_MIME = 'application/x-metrics-column';
 
 export class MetricsNode implements QueryNode {
   readonly nodeId: string;
@@ -218,10 +79,11 @@ export class MetricsNode implements QueryNode {
   nextNodes: QueryNode[];
   readonly state: MetricsNodeState;
 
+  // Transient drag-and-drop state (not serialized).
+  private dragOverTarget?: 'dimensions' | 'values';
+  private dragPayload?: DragPayload;
+
   get finalCols(): ColumnInfo[] {
-    // Metrics node outputs a TraceMetricV2TemplateSpec, not SQL columns
-    // Pass through the input columns since the node doesn't modify them
-    // The actual output is the metric template spec proto
     return this.primaryInput?.finalCols ?? [];
   }
 
@@ -230,26 +92,17 @@ export class MetricsNode implements QueryNode {
     this.state = {
       ...state,
       metricIdPrefix: state.metricIdPrefix ?? '',
-      valueColumn: state.valueColumn,
-      unit: state.unit ?? 'COUNT',
-      customUnit: state.customUnit,
-      polarity: state.polarity ?? 'NOT_APPLICABLE',
+      valueColumns: state.valueColumns ?? [],
       dimensionUniqueness: state.dimensionUniqueness ?? 'NOT_UNIQUE',
       availableColumns: state.availableColumns ?? [],
     };
     this.nextNodes = [];
   }
 
-  /**
-   * Returns the dimensions for this metric.
-   * Dimensions are all columns except the value column.
-   */
   getDimensions(): string[] {
-    if (this.state.valueColumn === undefined) {
-      return this.state.availableColumns.map((c) => c.name);
-    }
+    const valueNames = new Set(this.state.valueColumns.map((vc) => vc.column));
     return this.state.availableColumns
-      .filter((c) => c.name !== this.state.valueColumn)
+      .filter((c) => !valueNames.has(c.name))
       .map((c) => c.name);
   }
 
@@ -266,19 +119,14 @@ export class MetricsNode implements QueryNode {
       false,
     );
 
-    // Validate that selected value column still exists and is numeric
-    if (this.state.valueColumn !== undefined) {
-      const valueCol = this.state.availableColumns.find(
-        (c) => c.name === this.state.valueColumn,
-      );
-      if (valueCol === undefined || !isNumericType(valueCol.type)) {
-        this.state.valueColumn = undefined;
-      }
-    }
+    // Remove value columns whose column no longer exists or is no longer numeric.
+    this.state.valueColumns = this.state.valueColumns.filter((vc) => {
+      const col = this.state.availableColumns.find((c) => c.name === vc.column);
+      return col !== undefined && isNumericType(col.type);
+    });
   }
 
   validate(): boolean {
-    // Clear any previous errors at the start of validation
     if (this.state.issues) {
       this.state.issues.clear();
     }
@@ -292,47 +140,41 @@ export class MetricsNode implements QueryNode {
       return false;
     }
 
-    // Validate metric ID prefix
     if (!this.state.metricIdPrefix || this.state.metricIdPrefix.trim() === '') {
       this.setValidationError('Metric ID prefix is required');
       return false;
     }
 
-    // Check for custom unit issue
-    if (
-      this.state.valueColumn !== undefined &&
-      this.state.unit === 'CUSTOM' &&
-      (!this.state.customUnit || this.state.customUnit.trim() === '')
-    ) {
-      this.setValidationError(
-        `Custom unit is required for value column '${this.state.valueColumn}'`,
-      );
+    if (this.state.valueColumns.length === 0) {
+      this.setValidationError('At least one value column is required');
       return false;
     }
 
-    // Must have a value column
-    if (
-      this.state.valueColumn === undefined ||
-      this.state.valueColumn.trim() === ''
-    ) {
-      this.setValidationError('A value column is required');
-      return false;
-    }
-
-    // Check that the value column exists and is numeric
     const inputCols = this.primaryInput.finalCols ?? [];
-    const valueCol = inputCols.find((c) => c.name === this.state.valueColumn);
-    if (valueCol === undefined) {
-      this.setValidationError(
-        `Value column '${this.state.valueColumn}' not found in input`,
-      );
-      return false;
-    }
-    if (!isNumericType(valueCol.type)) {
-      this.setValidationError(
-        `Value column '${this.state.valueColumn}' must be numeric (got ${valueCol.type})`,
-      );
-      return false;
+    for (const vc of this.state.valueColumns) {
+      if (
+        vc.unit === 'CUSTOM' &&
+        (!vc.customUnit || vc.customUnit.trim() === '')
+      ) {
+        this.setValidationError(
+          `Custom unit is required for value column '${vc.column}'`,
+        );
+        return false;
+      }
+
+      const col = inputCols.find((c) => c.name === vc.column);
+      if (col === undefined) {
+        this.setValidationError(
+          `Value column '${vc.column}' not found in input`,
+        );
+        return false;
+      }
+      if (!isNumericType(col.type)) {
+        this.setValidationError(
+          `Value column '${vc.column}' must be numeric (got ${col.type})`,
+        );
+        return false;
+      }
     }
 
     return true;
@@ -352,7 +194,6 @@ export class MetricsNode implements QueryNode {
   nodeDetails(): NodeDetailsAttrs {
     const details: m.Child[] = [NodeTitle(this.getTitle())];
 
-    // Show invalid state when metric ID prefix is empty
     if (!this.state.metricIdPrefix || this.state.metricIdPrefix.trim() === '') {
       details.push(NodeDetailsMessage('Metric ID prefix required'));
       return {
@@ -364,9 +205,20 @@ export class MetricsNode implements QueryNode {
       m('div', 'ID prefix: ', ColumnName(this.state.metricIdPrefix)),
     );
 
-    if (this.state.valueColumn !== undefined) {
+    if (this.state.valueColumns.length > 0) {
       details.push(NodeDetailsSpacer());
-      details.push(m('div', 'Value: ', ColumnName(this.state.valueColumn)));
+      const label =
+        this.state.valueColumns.length === 1 ? 'Value: ' : 'Values: ';
+      details.push(
+        m(
+          'div',
+          label,
+          this.state.valueColumns.map((vc, i) => [
+            ColumnName(vc.column),
+            i < this.state.valueColumns.length - 1 ? ', ' : '',
+          ]),
+        ),
+      );
     }
 
     const dimensions = this.getDimensions();
@@ -392,12 +244,10 @@ export class MetricsNode implements QueryNode {
     const sections: NodeModifyAttrs['sections'] = [];
 
     // Metric ID prefix and Export button row.
-    // Use a lightweight check for the button's disabled state rather than
-    // calling getMetricTemplateSpec() which triggers full upstream validation.
     const canExport =
       this.primaryInput !== undefined &&
       !!this.state.metricIdPrefix?.trim() &&
-      this.state.valueColumn !== undefined;
+      this.state.valueColumns.length > 0;
     sections.push({
       content: m(
         '.pf-metrics-header-row',
@@ -421,28 +271,10 @@ export class MetricsNode implements QueryNode {
       ),
     });
 
-    // Value column controls
+    // Two-column drag-and-drop layout: Dimensions | Values
     sections.push({
-      content: this.renderValueControls(),
+      content: this.renderColumnsLayout(),
     });
-
-    // Show computed dimensions (read-only info)
-    const dimensions = this.getDimensions();
-    if (dimensions.length > 0) {
-      sections.push({
-        content: m(
-          LabeledControl,
-          {label: 'Dimensions:'},
-          m(
-            '.pf-metrics-v2-dimensions-info',
-            dimensions.map((d, i) => [
-              ColumnName(d),
-              i < dimensions.length - 1 ? ', ' : '',
-            ]),
-          ),
-        ),
-      });
-    }
 
     // Dimension uniqueness section
     sections.push({
@@ -472,223 +304,389 @@ export class MetricsNode implements QueryNode {
     });
 
     return {
-      info: 'Configure a trace-based metric. Select a numeric value column - all other columns become dimensions automatically. Use a Modify Columns node before this to control which columns are included.',
+      info: 'Configure trace-based metrics. Drag numeric columns from Dimensions to Values to create metrics. Each value column becomes a separate metric with its own unit and polarity.',
       sections,
     };
   }
 
-  private renderValueControls(): m.Children {
-    // Only show numeric columns
-    const numericColumns = this.state.availableColumns.filter((c) =>
+  private renderColumnsLayout(): m.Children {
+    const dimensionCols = this.getDimensionColumns();
+
+    return m(
+      '.pf-metrics-v2-columns-layout',
+      // Dimensions panel
+      this.renderDimensionsPanel(dimensionCols),
+      // Values panel
+      this.renderValuesPanel(dimensionCols),
+    );
+  }
+
+  private getDimensionColumns(): ColumnInfo[] {
+    const valueNames = new Set(this.state.valueColumns.map((vc) => vc.column));
+    return this.state.availableColumns.filter((c) => !valueNames.has(c.name));
+  }
+
+  private renderDimensionsPanel(dimensionCols: ColumnInfo[]): m.Children {
+    const isDropTarget = this.dragOverTarget === 'dimensions';
+    return m(
+      '.pf-metrics-v2-column-panel',
+      {
+        className: classNames(isDropTarget && 'pf-drop-active'),
+        ondragover: (e: DragEvent) => {
+          if (!e.dataTransfer?.types.includes(DRAG_MIME)) return;
+          e.preventDefault();
+          this.dragOverTarget = 'dimensions';
+        },
+        ondragleave: (e: DragEvent) => {
+          const target = e.currentTarget as HTMLElement;
+          const related = e.relatedTarget as HTMLElement | null;
+          if (!related || !target.contains(related)) {
+            if (this.dragOverTarget === 'dimensions') {
+              this.dragOverTarget = undefined;
+            }
+          }
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          this.dragOverTarget = undefined;
+          const payload = this.readDragPayload(e);
+          if (payload === undefined || payload.source !== 'values') return;
+          this.moveToValues(payload.columnName, false);
+        },
+      },
+      m(
+        '.pf-metrics-v2-column-panel__header',
+        `Dimensions (${dimensionCols.length})`,
+      ),
+      m(
+        '.pf-metrics-v2-column-panel__list',
+        dimensionCols.length === 0
+          ? m('.pf-metrics-v2-empty-hint', 'No dimensions')
+          : dimensionCols.map((col) => {
+              const numeric = isNumericType(col.type);
+              return m(
+                '.pf-metrics-v2-column-item',
+                {
+                  // Only numeric columns can be dragged to Values.
+                  draggable: numeric,
+                  ondragstart: numeric
+                    ? (e: DragEvent) => {
+                        const payload: DragPayload = {
+                          source: 'dimensions',
+                          columnName: col.name,
+                        };
+                        this.dragPayload = payload;
+                        e.dataTransfer?.setData(
+                          DRAG_MIME,
+                          JSON.stringify(payload),
+                        );
+                        e.dataTransfer?.setData('text/plain', col.name);
+                      }
+                    : undefined,
+                  ondragend: numeric
+                    ? () => {
+                        this.dragPayload = undefined;
+                        this.dragOverTarget = undefined;
+                      }
+                    : undefined,
+                },
+                numeric
+                  ? m(Icon, {
+                      icon: Icons.DragHandle,
+                      className: 'pf-metrics-v2-drag-handle',
+                    })
+                  : m('span.pf-metrics-v2-drag-handle'),
+                m('span.pf-metrics-v2-col-name', col.name),
+                m('span.pf-metrics-v2-col-type', col.type),
+                numeric
+                  ? m(Button, {
+                      icon: 'arrow_forward',
+                      compact: true,
+                      title: 'Move to values',
+                      onclick: () => this.moveToValues(col.name, true),
+                    })
+                  : undefined,
+              );
+            }),
+      ),
+    );
+  }
+
+  private renderValuesPanel(dimensionCols: ColumnInfo[]): m.Children {
+    const isDropTarget = this.dragOverTarget === 'values';
+    // Check if the currently dragged column is non-numeric (reject).
+    const isRejected =
+      isDropTarget &&
+      this.dragPayload?.source === 'dimensions' &&
+      (() => {
+        const col = this.state.availableColumns.find(
+          (c) => c.name === this.dragPayload?.columnName,
+        );
+        return col !== undefined && !isNumericType(col.type);
+      })();
+
+    // Numeric columns available to add (not already in values).
+    const numericDimensions = dimensionCols.filter((c) =>
       isNumericType(c.type),
     );
 
-    const columnOptions = numericColumns.map((col) =>
-      m(
-        'option',
-        {
-          value: col.name,
-          selected: this.state.valueColumn === col.name,
+    return m(
+      '.pf-metrics-v2-column-panel.pf-metrics-v2-values-panel',
+      {
+        className: classNames(
+          isDropTarget && !isRejected && 'pf-drop-active',
+          isRejected && 'pf-drop-rejected',
+        ),
+        ondragover: (e: DragEvent) => {
+          if (!e.dataTransfer?.types.includes(DRAG_MIME)) return;
+          this.dragOverTarget = 'values';
+          // Only allow drop of numeric columns from dimensions.
+          if (this.dragPayload?.source === 'dimensions') {
+            const col = this.state.availableColumns.find(
+              (c) => c.name === this.dragPayload?.columnName,
+            );
+            if (col !== undefined && isNumericType(col.type)) {
+              e.preventDefault();
+            }
+            // Non-numeric: don't preventDefault → drop not allowed.
+          } else if (this.dragPayload?.source === 'values') {
+            // Reordering within values - allow.
+            e.preventDefault();
+          }
         },
-        `${col.name} (${col.type})`,
+        ondragleave: (e: DragEvent) => {
+          const target = e.currentTarget as HTMLElement;
+          const related = e.relatedTarget as HTMLElement | null;
+          if (!related || !target.contains(related)) {
+            if (this.dragOverTarget === 'values') {
+              this.dragOverTarget = undefined;
+            }
+          }
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          this.dragOverTarget = undefined;
+          const payload = this.readDragPayload(e);
+          if (payload === undefined) return;
+          if (payload.source === 'dimensions') {
+            this.moveToValues(payload.columnName, true);
+          }
+          // Reordering within values could be added later.
+        },
+      },
+      m(
+        '.pf-metrics-v2-column-panel__header',
+        `Values (${this.state.valueColumns.length})`,
+      ),
+      m(
+        '.pf-metrics-v2-column-panel__list',
+        this.state.valueColumns.length === 0
+          ? m('.pf-metrics-v2-empty-hint', 'Drag numeric columns here')
+          : this.state.valueColumns.map((vc, index) =>
+              this.renderValueItem(vc, index),
+            ),
+        // "Add value column" button if there are numeric dimensions available.
+        numericDimensions.length > 0
+          ? m(
+              '.pf-metrics-v2-add-value',
+              m(
+                OutlinedField,
+                {
+                  label: 'Add value column',
+                  value: '',
+                  onchange: (e: Event) => {
+                    const name = (e.target as HTMLSelectElement).value;
+                    if (name) {
+                      this.moveToValues(name, true);
+                      // Reset select.
+                      (e.target as HTMLSelectElement).value = '';
+                    }
+                  },
+                },
+                [
+                  m('option', {value: '', disabled: true}, 'Select column...'),
+                  ...numericDimensions.map((col) =>
+                    m('option', {value: col.name}, `${col.name} (${col.type})`),
+                  ),
+                ],
+              ),
+            )
+          : undefined,
       ),
     );
+  }
 
-    const needsCustomUnit = this.state.unit === 'CUSTOM';
+  private renderValueItem(vc: ValueColumnConfig, index: number): m.Children {
+    const col = this.state.availableColumns.find((c) => c.name === vc.column);
+    const colType = col?.type ?? '?';
+    const needsCustomUnit = vc.unit === 'CUSTOM';
+    const isExpanded = vc.expanded ?? false;
 
-    return [
-      // Column selector
-      m(
-        OutlinedField,
-        {
-          label: 'Value column',
-          value: this.state.valueColumn ?? '',
-          onchange: (e: Event) => {
-            const selectedValue = (e.target as HTMLSelectElement).value;
-            this.state.valueColumn = selectedValue || undefined;
-            this.state.onchange?.();
-          },
+    return m(
+      '.pf-metrics-v2-column-item.pf-metrics-v2-value-item',
+      {
+        draggable: true,
+        ondragstart: (e: DragEvent) => {
+          const payload: DragPayload = {
+            source: 'values',
+            columnName: vc.column,
+          };
+          this.dragPayload = payload;
+          e.dataTransfer?.setData(DRAG_MIME, JSON.stringify(payload));
+          e.dataTransfer?.setData('text/plain', vc.column);
         },
-        [
-          m('option', {value: '', disabled: true}, 'Select numeric column...'),
-          ...columnOptions,
-        ],
+        ondragend: () => {
+          this.dragPayload = undefined;
+          this.dragOverTarget = undefined;
+        },
+      },
+      // Header row with name, type, expand toggle, and remove button
+      m(
+        '.pf-metrics-v2-value-header',
+        m(Icon, {
+          icon: Icons.DragHandle,
+          className: 'pf-metrics-v2-drag-handle',
+        }),
+        m('span.pf-metrics-v2-col-name', vc.column),
+        m('span.pf-metrics-v2-col-type', colType),
+        m(Button, {
+          icon: isExpanded ? 'expand_more' : 'chevron_right',
+          compact: true,
+          title: isExpanded ? 'Collapse config' : 'Expand config',
+          onclick: () => {
+            this.state.valueColumns[index] = {...vc, expanded: !isExpanded};
+          },
+        }),
+        m(Button, {
+          icon: 'close',
+          compact: true,
+          title: 'Move back to dimensions',
+          onclick: () => this.moveToValues(vc.column, false),
+        }),
       ),
-      // Unit selector
-      m(
-        OutlinedField,
-        {
-          label: 'Unit',
-          value: this.state.unit,
-          onchange: (e: Event) => {
-            const newUnit = (e.target as HTMLSelectElement).value;
-            this.state.unit = newUnit;
-            // Clear custom unit if not using custom
-            if (newUnit !== 'CUSTOM') {
-              this.state.customUnit = undefined;
-            }
-            this.state.onchange?.();
-          },
-        },
-        getMetricUnitOptions().map((u) =>
+      // Config controls: unit + polarity (only shown when expanded)
+      isExpanded &&
+        m(
+          '.pf-metrics-v2-value-config',
           m(
-            'option',
-            {value: u.value, selected: this.state.unit === u.value},
-            u.label,
-          ),
-        ),
-      ),
-      // Custom unit input (conditionally shown)
-      needsCustomUnit
-        ? m(OutlinedField, {
-            label: 'Custom unit',
-            value: this.state.customUnit ?? '',
-            placeholder: 'Enter custom unit...',
-            oninput: (e: Event) => {
-              this.state.customUnit = (e.target as HTMLInputElement).value;
-              this.state.onchange?.();
+            OutlinedField,
+            {
+              label: 'Unit',
+              value: vc.unit,
+              onchange: (e: Event) => {
+                const newUnit = (e.target as HTMLSelectElement).value;
+                this.state.valueColumns[index] = {
+                  ...vc,
+                  unit: newUnit,
+                  customUnit: newUnit !== 'CUSTOM' ? undefined : vc.customUnit,
+                };
+                this.state.onchange?.();
+              },
             },
-          })
-        : undefined,
-      // Polarity selector
-      m(
-        OutlinedField,
-        {
-          label: 'Polarity',
-          value: this.state.polarity,
-          onchange: (e: Event) => {
-            this.state.polarity = (e.target as HTMLSelectElement).value;
-            this.state.onchange?.();
-          },
-        },
-        getPolarityOptions().map((p) =>
+            getMetricUnitOptions().map((u) =>
+              m(
+                'option',
+                {value: u.value, selected: vc.unit === u.value},
+                u.label,
+              ),
+            ),
+          ),
+          needsCustomUnit
+            ? m(OutlinedField, {
+                label: 'Custom unit',
+                value: vc.customUnit ?? '',
+                placeholder: 'Enter custom unit...',
+                oninput: (e: Event) => {
+                  this.state.valueColumns[index] = {
+                    ...vc,
+                    customUnit: (e.target as HTMLInputElement).value,
+                  };
+                  this.state.onchange?.();
+                },
+              })
+            : undefined,
           m(
-            'option',
-            {value: p.value, selected: this.state.polarity === p.value},
-            p.label,
+            OutlinedField,
+            {
+              label: 'Polarity',
+              value: vc.polarity,
+              onchange: (e: Event) => {
+                this.state.valueColumns[index] = {
+                  ...vc,
+                  polarity: (e.target as HTMLSelectElement).value,
+                };
+                this.state.onchange?.();
+              },
+            },
+            getPolarityOptions().map((p) =>
+              m(
+                'option',
+                {value: p.value, selected: vc.polarity === p.value},
+                p.label,
+              ),
+            ),
           ),
         ),
-      ),
-    ];
+    );
+  }
+
+  /**
+   * Moves a column into or out of the values list.
+   * @param columnName The column to move.
+   * @param toValues If true, move from dimensions to values. If false, move from values to dimensions.
+   */
+  private moveToValues(columnName: string, toValues: boolean): void {
+    if (toValues) {
+      // Guard: only numeric columns can be value columns.
+      const col = this.state.availableColumns.find(
+        (c) => c.name === columnName,
+      );
+      if (col === undefined || !isNumericType(col.type)) return;
+
+      // Add to values with default config.
+      const alreadyExists = this.state.valueColumns.some(
+        (vc) => vc.column === columnName,
+      );
+      if (alreadyExists) return;
+      this.state.valueColumns = [
+        ...this.state.valueColumns,
+        {
+          column: columnName,
+          unit: 'COUNT',
+          polarity: 'NOT_APPLICABLE',
+        },
+      ];
+    } else {
+      // Remove from values (moves back to dimensions implicitly).
+      this.state.valueColumns = this.state.valueColumns.filter(
+        (vc) => vc.column !== columnName,
+      );
+    }
+    this.state.onchange?.();
+  }
+
+  private readDragPayload(e: DragEvent): DragPayload | undefined {
+    const raw = e.dataTransfer?.getData(DRAG_MIME);
+    if (raw === undefined || raw === '') return undefined;
+    try {
+      return JSON.parse(raw) as DragPayload;
+    } catch {
+      return undefined;
+    }
   }
 
   private async showExportModal(): Promise<void> {
     const templateSpec = this.getMetricTemplateSpec();
-    if (templateSpec === undefined) {
-      return;
-    }
+    if (templateSpec === undefined) return;
 
-    // Build a self-contained query tree for the template. The
-    // summarizeTrace API materializes shared queries as standalone tables,
-    // which breaks when those queries contain nested innerQueryId
-    // references. Embedding resolves this by inlining everything.
-    if (this.primaryInput !== undefined) {
-      const allQueries = getStructuredQueries(this.primaryInput);
-      if (!(allQueries instanceof Error)) {
-        const embedded = buildEmbeddedQueryTree(allQueries);
-        if (embedded !== undefined) {
-          templateSpec.query = embedded;
-        }
-      }
-    }
-
-    const summarySpec = new protos.TraceSummarySpec();
-    summarySpec.metricTemplateSpec = [templateSpec];
-
-    const textproto = await traceSummarySpecToText(summarySpec);
-
-    // Result state, updated asynchronously. Store data, not vnodes,
-    // so that fresh vnodes are created on each redraw (required by Mithril
-    // for stateful components like DataGrid).
-    let resultState:
-      | {kind: 'loading'}
-      | {kind: 'error'; message: string}
-      | {kind: 'data'; result: MetricResult} = {kind: 'loading'};
-    const metricIdPrefix = this.state.metricIdPrefix;
-    const dimensions = this.getDimensions();
-    const valueCol = this.state.valueColumn ?? 'value';
-
-    const renderResult = (): m.Children => {
-      switch (resultState.kind) {
-        case 'loading':
-          return m(Spinner);
-        case 'error':
-          return m('span.pf-metrics-error', resultState.message);
-        case 'data':
-          return m(DataGrid, {
-            data: resultState.result.rows,
-            schema: resultState.result.schema,
-            rootSchema: resultState.result.metricId,
-          });
-      }
-    };
-
-    showModal({
-      title: 'Export Metric',
-      className: 'pf-metrics-export-modal',
-      content: () =>
-        m(
-          'div',
-          m(CodeSnippet, {
-            text: textproto,
-            language: 'textproto',
-            downloadFileName: `${metricIdPrefix || 'metric'}_spec.pbtxt`,
-          }),
-          m(
-            '.pf-metrics-result-box',
-            m('.pf-metrics-result-header', 'Result'),
-            m('.pf-metrics-result-content', renderResult()),
-          ),
-        ),
-      buttons: [{text: 'Close'}],
+    await showMetricsExportModal({
+      templateSpec,
+      primaryInput: this.primaryInput,
+      metricIdPrefix: this.state.metricIdPrefix,
+      dimensions: this.getDimensions(),
+      valueColumns: [...this.state.valueColumns],
+      engine: this.state.trace?.engine,
     });
-
-    const engine = this.state.trace?.engine;
-    if (engine === undefined) {
-      resultState = {
-        kind: 'error',
-        message: 'No trace engine available. Please load a trace first.',
-      };
-      m.redraw();
-      return;
-    }
-
-    const TIMEOUT_MS = 30_000;
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error('Timed out waiting for trace processor')),
-        TIMEOUT_MS,
-      ),
-    );
-    Promise.race([
-      engine.summarizeTrace([summarySpec], undefined, undefined, 'proto'),
-      timeout,
-    ]).then(
-      (result) => {
-        if (result.error) {
-          resultState = {kind: 'error', message: result.error};
-        } else if (result.protoSummary) {
-          const parsed = parseFirstMetricBundle(
-            result.protoSummary,
-            metricIdPrefix,
-            dimensions,
-            valueCol,
-          );
-          if (parsed !== undefined && parsed.rows.length > 0) {
-            resultState = {kind: 'data', result: parsed};
-          } else {
-            resultState = {kind: 'error', message: 'No metric data found'};
-          }
-        } else {
-          resultState = {kind: 'error', message: 'No results returned'};
-        }
-        m.redraw();
-      },
-      (err) => {
-        resultState = {kind: 'error', message: String(err)};
-        m.redraw();
-      },
-    );
   }
 
   nodeInfo(): m.Children {
@@ -698,10 +696,7 @@ export class MetricsNode implements QueryNode {
   clone(): QueryNode {
     const stateCopy: MetricsNodeState = {
       metricIdPrefix: this.state.metricIdPrefix,
-      valueColumn: this.state.valueColumn,
-      unit: this.state.unit,
-      customUnit: this.state.customUnit,
-      polarity: this.state.polarity,
+      valueColumns: this.state.valueColumns.map((vc) => ({...vc})),
       dimensionUniqueness: this.state.dimensionUniqueness,
       availableColumns: newColumnInfoList(this.state.availableColumns),
       onchange: this.state.onchange,
@@ -716,24 +711,15 @@ export class MetricsNode implements QueryNode {
     const inputQuery = this.primaryInput.getStructuredQuery();
     if (inputQuery === undefined) return undefined;
 
-    // Wrap the input query to give this node its own ID in the query tree.
-    // The explore page uses node IDs to map query results back to nodes,
-    // so each node needs a unique ID even if it doesn't transform the SQL.
     const sq = new protos.PerfettoSqlStructuredQuery();
     sq.id = this.nodeId;
     sq.innerQueryId = this.primaryInput.nodeId;
     return sq;
   }
 
-  /**
-   * Returns the TraceMetricV2TemplateSpec proto for this metric configuration.
-   */
   getMetricTemplateSpec(): protos.TraceMetricV2TemplateSpec | undefined {
     if (!this.validate()) return undefined;
     if (this.primaryInput === undefined) return undefined;
-
-    const valueColumn = this.state.valueColumn;
-    if (valueColumn === undefined) return undefined;
 
     const inputQuery = this.primaryInput.getStructuredQuery();
     if (inputQuery === undefined) return undefined;
@@ -743,7 +729,6 @@ export class MetricsNode implements QueryNode {
     templateSpec.dimensions = this.getDimensions();
     templateSpec.query = inputQuery;
 
-    // Set dimension uniqueness
     if (this.state.dimensionUniqueness === 'UNIQUE') {
       templateSpec.dimensionUniqueness =
         protos.TraceMetricV2Spec.DimensionUniqueness.UNIQUE;
@@ -752,34 +737,32 @@ export class MetricsNode implements QueryNode {
         protos.TraceMetricV2Spec.DimensionUniqueness.NOT_UNIQUE;
     }
 
-    // Build value column spec
-    const valueSpec = new protos.TraceMetricV2TemplateSpec.ValueColumnSpec();
-    valueSpec.name = valueColumn;
+    templateSpec.valueColumnSpecs = this.state.valueColumns.map((vc) => {
+      const valueSpec = new protos.TraceMetricV2TemplateSpec.ValueColumnSpec();
+      valueSpec.name = vc.column;
 
-    // Set unit
-    if (this.state.unit === 'CUSTOM' && this.state.customUnit) {
-      valueSpec.customUnit = this.state.customUnit;
-    } else if (this.state.unit !== 'CUSTOM') {
-      const unitEnum =
-        protos.TraceMetricV2Spec.MetricUnit[
-          this.state.unit as keyof typeof protos.TraceMetricV2Spec.MetricUnit
-        ];
-      if (unitEnum !== undefined) {
-        valueSpec.unit = unitEnum;
+      if (vc.unit === 'CUSTOM' && vc.customUnit) {
+        valueSpec.customUnit = vc.customUnit;
+      } else if (vc.unit !== 'CUSTOM') {
+        const unitEnum =
+          protos.TraceMetricV2Spec.MetricUnit[
+            vc.unit as keyof typeof protos.TraceMetricV2Spec.MetricUnit
+          ];
+        if (unitEnum !== undefined) {
+          valueSpec.unit = unitEnum;
+        }
       }
-    }
 
-    // Set polarity
-    const polarityEnum =
-      protos.TraceMetricV2Spec.MetricPolarity[
-        this.state
-          .polarity as keyof typeof protos.TraceMetricV2Spec.MetricPolarity
-      ];
-    if (polarityEnum !== undefined) {
-      valueSpec.polarity = polarityEnum;
-    }
+      const polarityEnum =
+        protos.TraceMetricV2Spec.MetricPolarity[
+          vc.polarity as keyof typeof protos.TraceMetricV2Spec.MetricPolarity
+        ];
+      if (polarityEnum !== undefined) {
+        valueSpec.polarity = polarityEnum;
+      }
 
-    templateSpec.valueColumnSpecs = [valueSpec];
+      return valueSpec;
+    });
 
     return templateSpec;
   }
@@ -788,52 +771,63 @@ export class MetricsNode implements QueryNode {
     return {
       primaryInputId: this.primaryInput?.nodeId,
       metricIdPrefix: this.state.metricIdPrefix,
-      valueColumn: this.state.valueColumn,
-      unit: this.state.unit,
-      customUnit: this.state.customUnit,
-      polarity: this.state.polarity,
+      valueColumns: this.state.valueColumns.map(({expanded: _, ...vc}) => vc),
       dimensionUniqueness: this.state.dimensionUniqueness,
     };
   }
 
   static deserializeState(state: MetricsSerializedState): MetricsNodeState {
-    let valueColumn = state.valueColumn;
-    let unit = state.unit ?? 'COUNT';
-    let customUnit = state.customUnit;
-    let polarity = state.polarity ?? 'NOT_APPLICABLE';
-
-    // Handle migration from old multi-value format
-    if (valueColumn === undefined && 'values' in state) {
-      const values = (
-        state as unknown as {
-          values?: Array<{
-            column?: string;
-            unit: string;
-            customUnit?: string;
-            polarity: string;
-          }>;
-        }
-      ).values;
-      if (values !== undefined && values.length > 0) {
-        valueColumn = values[0].column;
-        unit = values[0].unit;
-        customUnit = values[0].customUnit;
-        polarity = values[0].polarity;
-      }
-    }
-
-    // Handle migration from old metricId to metricIdPrefix
+    // Handle migration from old metricId to metricIdPrefix.
     const metricIdPrefix =
       state.metricIdPrefix ??
       (state as unknown as {metricId?: string}).metricId ??
       '';
 
+    let valueColumns: ValueColumnConfig[] = [];
+
+    if (state.valueColumns !== undefined && Array.isArray(state.valueColumns)) {
+      // New format: valueColumns array.
+      valueColumns = state.valueColumns;
+    } else {
+      // Migration from old single-value format.
+      const old = state as unknown as {
+        valueColumn?: string;
+        unit?: string;
+        customUnit?: string;
+        polarity?: string;
+        values?: Array<{
+          column?: string;
+          unit: string;
+          customUnit?: string;
+          polarity: string;
+        }>;
+      };
+
+      if (old.valueColumn !== undefined) {
+        valueColumns = [
+          {
+            column: old.valueColumn,
+            unit: old.unit ?? 'COUNT',
+            customUnit: old.customUnit,
+            polarity: old.polarity ?? 'NOT_APPLICABLE',
+          },
+        ];
+      } else if (old.values !== undefined && old.values.length > 0) {
+        // Migration from old multi-value format.
+        valueColumns = old.values
+          .filter((v) => v.column !== undefined)
+          .map((v) => ({
+            column: v.column ?? '',
+            unit: v.unit ?? 'COUNT',
+            customUnit: v.customUnit,
+            polarity: v.polarity ?? 'NOT_APPLICABLE',
+          }));
+      }
+    }
+
     return {
       metricIdPrefix,
-      valueColumn,
-      unit,
-      customUnit,
-      polarity,
+      valueColumns,
       dimensionUniqueness: state.dimensionUniqueness ?? 'NOT_UNIQUE',
       availableColumns: [],
     };

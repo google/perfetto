@@ -59,6 +59,26 @@ import {
   SQLTreemapLoader,
   TreemapLoaderConfig,
 } from '../../../components/widgets/charts/treemap_loader';
+import {
+  SQLCdfLoader,
+  CdfLoaderConfig,
+} from '../../../components/widgets/charts/cdf_loader';
+import {
+  BoxplotChart,
+  BoxplotData,
+} from '../../../components/widgets/charts/boxplot';
+import {
+  SQLBoxplotLoader,
+  BoxplotLoaderConfig,
+} from '../../../components/widgets/charts/boxplot_loader';
+import {
+  HeatmapChart,
+  HeatmapData,
+} from '../../../components/widgets/charts/heatmap';
+import {
+  SQLHeatmapLoader,
+  HeatmapLoaderConfig,
+} from '../../../components/widgets/charts/heatmap_loader';
 import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
@@ -118,7 +138,7 @@ export function renderCharts(app: App): m.Children {
       m('h1', 'Charts'),
       m('p', [
         'ECharts-based chart components for visualizing data. ',
-        'Includes BarChart, LineChart, PieChart, Histogram, ScatterChart, and Treemap.',
+        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, CDF, Boxplot, and Heatmap charts.',
       ]),
     ),
 
@@ -243,6 +263,34 @@ export function renderCharts(app: App): m.Children {
         height: 300,
         showLabels: true,
         hierarchical: true,
+      },
+    }),
+
+    // BoxplotChart section
+    m('h2', {style: {marginTop: '32px'}}, 'BoxplotChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(BoxplotChartDemo, {
+          height: opts.height,
+          horizontal: opts.horizontal,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        horizontal: false,
+      },
+    }),
+
+    // HeatmapChart section
+    m('h2', {style: {marginTop: '32px'}}, 'HeatmapChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(HeatmapChartDemo, {
+          height: opts.height,
+        });
+      },
+      initialOpts: {
+        height: 300,
       },
     }),
 
@@ -383,6 +431,52 @@ function renderSQLDemos(app: App): m.Children[] {
         height: 300,
         showLabels: true,
         limit: 10,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLCdfLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLCdfDemo, {
+          trace,
+          height: opts.height,
+          maxPoints: opts.maxPoints,
+          enableBrush: opts.enableBrush,
+        });
+      },
+      initialOpts: {
+        height: 250,
+        maxPoints: 500,
+        enableBrush: true,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLBoxplotLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLBoxplotDemo, {
+          trace,
+          height: opts.height,
+          limit: opts.limit,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        limit: 10,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLHeatmapLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLHeatmapDemo, {
+          trace,
+          height: opts.height,
+          xLimit: opts.xLimit,
+          yLimit: opts.yLimit,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        xLimit: 15,
+        yLimit: 15,
       },
     }),
   ];
@@ -1386,6 +1480,325 @@ function SQLTreemapDemo(): m.Component<{
             },
             'Clear selection',
           ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Static sample data for BoxplotChart demo
+// ---------------------------------------------------------------------------
+
+const BOXPLOT_SAMPLE_DATA: BoxplotData = {
+  items: [
+    {label: 'Chrome', min: 200, q1: 800, median: 1500, q3: 2300, max: 4200},
+    {
+      label: 'SurfaceFlinger',
+      min: 400,
+      q1: 500,
+      median: 850,
+      q3: 1050,
+      max: 1200,
+    },
+    {label: 'SystemUI', min: 600, q1: 700, median: 2200, q3: 2650, max: 3100},
+    {label: 'Launcher', min: 500, q1: 600, median: 1200, q3: 1500, max: 1800},
+    {
+      label: 'AudioFlinger',
+      min: 800,
+      q1: 900,
+      median: 1000,
+      q3: 1050,
+      max: 1100,
+    },
+  ],
+};
+
+function BoxplotChartDemo(): m.Component<{
+  height: number;
+  horizontal: boolean;
+}> {
+  return {
+    view: ({attrs}) => {
+      return m('div', [
+        m(BoxplotChart, {
+          data: BOXPLOT_SAMPLE_DATA,
+          height: attrs.height,
+          categoryLabel: 'Process',
+          valueLabel: 'Duration (ns)',
+          orientation: attrs.horizontal ? 'horizontal' : 'vertical',
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          'Static boxplot with quartile statistics per process',
+        ),
+      ]);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Static sample data for HeatmapChart demo
+// ---------------------------------------------------------------------------
+
+const HEATMAP_SAMPLE_DATA: HeatmapData = (() => {
+  const xLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const yLabels = ['Chrome', 'SurfaceFlinger', 'SystemUI', 'Launcher'];
+  const rng = seededRandom(123);
+  const values: Array<readonly [number, number, number]> = [];
+  let min = Infinity;
+  let max = -Infinity;
+  for (let x = 0; x < xLabels.length; x++) {
+    for (let y = 0; y < yLabels.length; y++) {
+      const val = Math.floor(rng() * 100);
+      min = Math.min(min, val);
+      max = Math.max(max, val);
+      values.push([x, y, val]);
+    }
+  }
+  return {xLabels, yLabels, values, min, max};
+})();
+
+function HeatmapChartDemo(): m.Component<{
+  height: number;
+}> {
+  return {
+    view: ({attrs}) => {
+      return m('div', [
+        m(HeatmapChart, {
+          data: HEATMAP_SAMPLE_DATA,
+          height: attrs.height,
+          xAxisLabel: 'Day',
+          yAxisLabel: 'Process',
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          'Static heatmap: process activity by day of week',
+        ),
+      ]);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SQL CDF demo
+// ---------------------------------------------------------------------------
+
+function SQLCdfDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  maxPoints: number;
+  enableBrush: boolean;
+}> {
+  let loader: SQLCdfLoader | undefined;
+  let xRange: {min: number; max: number} | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLCdfLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT dur FROM slice WHERE dur > 0',
+          valueColumn: 'dur',
+        });
+      }
+
+      const config: CdfLoaderConfig = {
+        maxPoints: attrs.maxPoints,
+        filter: xRange,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(LineChart, {
+          data,
+          height: attrs.height,
+          xAxisLabel: 'Duration (ns)',
+          yAxisLabel: 'Cumulative %',
+          showPoints: false,
+          scaleAxes: true,
+          onBrush: attrs.enableBrush
+            ? (range) => {
+                xRange = {min: range.start, max: range.end};
+              }
+            : undefined,
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT dur FROM slice WHERE dur > 0'\n`,
+            `valueColumn: 'dur'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
+        xRange &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                xRange = undefined;
+              },
+            },
+            'Clear filter',
+          ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SQL Boxplot demo
+// ---------------------------------------------------------------------------
+
+function SQLBoxplotDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  limit: number;
+}> {
+  let loader: SQLBoxplotLoader | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLBoxplotLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT name, dur FROM slice WHERE dur > 0',
+          categoryColumn: 'name',
+          valueColumn: 'dur',
+        });
+      }
+
+      const config: BoxplotLoaderConfig = {
+        limit: attrs.limit,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(BoxplotChart, {
+          data,
+          height: attrs.height,
+          categoryLabel: 'Slice Name',
+          valueLabel: 'Duration (ns)',
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT name, dur FROM slice WHERE dur > 0'\n`,
+            `categoryColumn: 'name', valueColumn: 'dur'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SQL Heatmap demo
+// ---------------------------------------------------------------------------
+
+function SQLHeatmapDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  xLimit: number;
+  yLimit: number;
+}> {
+  let loader: SQLHeatmapLoader | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLHeatmapLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT priority, end_state, dur FROM sched WHERE dur > 0',
+          xColumn: 'priority',
+          yColumn: 'end_state',
+          valueColumn: 'dur',
+        });
+      }
+
+      const config: HeatmapLoaderConfig = {
+        aggregation: 'SUM',
+        xLimit: attrs.xLimit,
+        yLimit: attrs.yLimit,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(HeatmapChart, {
+          data,
+          height: attrs.height,
+          xAxisLabel: 'Priority',
+          yAxisLabel: 'End State',
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT priority, end_state, dur FROM sched WHERE dur > 0'\n`,
+            `xColumn: 'priority', yColumn: 'end_state', valueColumn: 'dur'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
       ]);
     },
     onremove: () => {
