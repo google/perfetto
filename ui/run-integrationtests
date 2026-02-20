@@ -31,7 +31,7 @@ REPO_ROOT = os.path.dirname(UI_DIR)
 
 # Playwright Docker image version should match playwright version in
 # package.json
-PLAYWRIGHT_IMAGE = 'mcr.microsoft.com/playwright:v1.58.2'
+PLAYWRIGHT_IMAGE = 'mcr.microsoft.com/playwright'
 
 
 def needs_sudo_for_docker():
@@ -94,6 +94,18 @@ def run_in_docker(args):
   # The full docker command is something like:
   # sudo docker run --rm -it -v`pwd`:`pwd` -w `pwd`/ui -u`id -u`:`id -g` mcr.microsoft.com/playwright:vX.XX.X bash -c './pnpm exec playwright test'
 
+  # Work out whick version of playwright we're using by running ./pnpm exec playwright --version and parsing the output, so we can use the matching Docker image. This ensures we have a compatible version of Chrome in the container.
+  result = subprocess.run(['./pnpm', 'exec', 'playwright', '--version'], capture_output=True, text=True, cwd=UI_DIR)
+  if result.returncode != 0:
+    print('Failed to get Playwright version:', result.stderr)
+    return result.returncode
+  version_line = result.stdout.strip()
+  if not version_line.startswith('Version '):
+    print('Unexpected Playwright version output:', version_line)
+    return 1
+  version = version_line[len('Version '):]
+  image = f'{PLAYWRIGHT_IMAGE}:v{version}'
+
   # Build the playwright command
   playwright_cmd_parts = ['./pnpm', 'exec', 'playwright', 'test']
   if args.rebaseline:
@@ -123,14 +135,14 @@ def run_in_docker(args):
       '-u', f'{os.getuid()}:{os.getgid()}', # Run as current user to avoid permission issues
       '-e', 'HOME=/tmp', # Chrome needs a writable home for crashpad
       *env_args,
-      PLAYWRIGHT_IMAGE,
+      image,
       'bash', '-c', playwright_cmd
   ]
 
   if needs_sudo_for_docker():
     docker_cmd = ['sudo'] + docker_cmd
 
-  print(f'Running in Docker with {PLAYWRIGHT_IMAGE}')
+  print(f'Running playwright in docker using {image}')
   if docker_cmd[0] == 'sudo':
     print('Note: you may be prompted for your password to run Docker with sudo.')
   sys.exit(subprocess.call(docker_cmd))
