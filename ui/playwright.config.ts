@@ -41,7 +41,6 @@ export default defineConfig({
     timeout: 5000,
     toHaveScreenshot: {
       // Rendering is not 100% identical on Mac. Be more tolerant.
-      // Otherwise, allow for small differences between rendering engines on Linux machines.
       maxDiffPixelRatio: isMac ? 0.05 : undefined,
     },
   },
