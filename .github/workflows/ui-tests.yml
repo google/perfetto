@@ -126,12 +126,6 @@ jobs:
         shell: bash
         run: ui/run-unittests --out out/ui --no-build
 
-        # Install the exact Chromium version that Playwright uses, to avoid any compatibility issues.
-      - name: Install Chrome
-        shell: bash
-        working-directory: ui
-        run: ./pnpm exec playwright install chromium 
-
       - name: UI integrationtests
         shell: bash
         run: ui/run-integrationtests --out out/ui --no-docker --no-build

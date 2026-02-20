@@ -61,6 +61,9 @@ def run_build(args):
 
 def run_native(args):
   """Run tests directly on the host machine."""
+  # Install the chromium through playwright
+  subprocess.check_call(['./pnpm', 'exec', 'playwright', 'install', 'chromium'], cwd=UI_DIR)
+
   cmd = ['./pnpm', 'exec', 'playwright', 'test']
   if args.interactive:
     if args.rebaseline:
