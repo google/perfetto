@@ -60,6 +60,7 @@
 #include "src/trace_processor/util/gzip_utils.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/trace_metadata.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -282,6 +283,10 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     if (!inserted && decoder.previous_packet_dropped()) {
       ++scoped_state->previous_packet_dropped_count;
     }
+  }
+
+  if (decoder.has_trace_metadata()) {
+    HandleTraceMetadata(decoder.trace_metadata());
   }
 
   if (decoder.first_packet_on_sequence()) {
@@ -517,6 +522,25 @@ void ProtoTraceReader::HandleFirstPacketOnSequence(
     uint32_t packet_sequence_id) {
   for (auto& module : module_context_.modules) {
     module->OnFirstPacketOnSequence(packet_sequence_id);
+  }
+}
+
+void ProtoTraceReader::HandleTraceMetadata(protozero::ConstBytes blob) {
+  protos::pbzero::TraceMetadata::Decoder decoder(blob);
+  for (auto it_buf = decoder.metadata(); it_buf; ++it_buf) {
+    protos::pbzero::TraceMetadata_Metadata::Decoder decoded_metadata(*it_buf);
+    auto key = decoded_metadata.key();
+    // Prefix all custom metadata keys with `trace_metadata.`
+    auto prefixed_key = "trace_metadata." + key.ToStdString();
+    auto key_id = context_->storage->InternString(prefixed_key);
+    if (decoded_metadata.has_long_value()) {
+      auto value = Variadic::Integer(decoded_metadata.long_value());
+      context_->metadata_tracker->SetDynamicMetadata(key_id, value);
+    } else if (decoded_metadata.has_string_value()) {
+      auto value = Variadic::String(
+          context_->storage->InternString(decoded_metadata.string_value()));
+      context_->metadata_tracker->SetDynamicMetadata(key_id, value);
+    }
   }
 }
 
