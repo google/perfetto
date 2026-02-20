@@ -133,6 +133,24 @@ void ProcessTracker::EndThread(int64_t timestamp, int64_t tid) {
   pids_.Erase(tid);
 }
 
+void ProcessTracker::EndProcess(int64_t timestamp, int64_t pid) {
+  // First try ending via the main thread (handles the common case where a
+  // main thread exists).
+  EndThread(timestamp, pid);
+
+  // If the process was created without a main thread (e.g. via
+  // StartNewProcessWithoutMainThread), EndThread won't find the thread.
+  // Look up the process directly by pid and set end_ts.
+  auto* upid_ptr = pids_.Find(pid);
+  if (!upid_ptr)
+    return;
+  auto& process_table = *context_->storage->mutable_process_table();
+  if (!process_table[*upid_ptr].end_ts().has_value()) {
+    process_table[*upid_ptr].set_end_ts(timestamp);
+  }
+  pids_.Erase(pid);
+}
+
 std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(int64_t tid) {
   return GetThreadOrNull(tid, std::nullopt);
 }
