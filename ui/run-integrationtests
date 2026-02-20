@@ -31,7 +31,7 @@ REPO_ROOT = os.path.dirname(UI_DIR)
 
 # Playwright Docker image version should match playwright version in
 # package.json
-PLAYWRIGHT_IMAGE = 'mcr.microsoft.com/playwright:v1.47.0'
+PLAYWRIGHT_IMAGE = 'mcr.microsoft.com/playwright:v1.58.2'
 
 
 def needs_sudo_for_docker():

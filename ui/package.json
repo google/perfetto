@@ -34,8 +34,8 @@
     "codemirror": "6.0.1",
     "color-convert": "^2.0.1",
     "d3": "^7.9.0",
-    "echarts": "^5.6.0",
     "devtools-protocol": "0.0.1561482",
+    "echarts": "^5.6.0",
     "esbuild": "^0.21.5",
     "events": "^3.3.0",
     "fzf": "^0.5.2",
@@ -56,7 +56,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.1.0",
     "@eslint/js": "^9.6.0",
-    "@playwright/test": "^1.47.0",
+    "@playwright/test": "^1.58.2",
     "@rollup/plugin-commonjs": "^26.0.1",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@types/jest": "^29.5.12",
