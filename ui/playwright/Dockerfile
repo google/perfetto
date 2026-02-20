@@ -14,16 +14,49 @@
 
 # Playwright container with Mesa GL support for headless rendering.
 # Build with: docker build --build-arg PLAYWRIGHT_VERSION=$(pnpm exec playwright --version) -t perfetto-playwright .
-ARG PLAYWRIGHT_VERSION
-FROM mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}
+# Use the same base as infra/ci/sandbox/Dockerfile to make it as identical to the CI as possible
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        # Mesa/GL dependencies
         libgl1-mesa-dri \
         mesa-utils \
         xvfb \
-        expect && \
+        expect \
+        python3 \
+        # Node.js
+        curl \
+        ca-certificates \
+        git && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g pnpm && \
+    apt-get install -y --no-install-recommends \
+        # Chromium dependencies
+        libnss3 \
+        libnspr4 \
+        libatk1.0-0 \
+        libatk-bridge2.0-0 \
+        libcups2 \
+        libdrm2 \
+        libdbus-1-3 \
+        libxkbcommon0 \
+        libatspi2.0-0 \
+        libx11-6 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxext6 \
+        libxfixes3 \
+        libxrandr2 \
+        libgbm1 \
+        libpango-1.0-0 \
+        libcairo2 \
+        libasound2 \
+        # Fonts
+        fonts-liberation \
+        fonts-noto-color-emoji && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

@@ -158,6 +158,8 @@ def run_in_docker(args):
     return 1
 
   # Build the playwright command (wrapped with xvfb-run for virtual display)
+  # First install browsers to /tmp (the only writable location in the container)
+  install_cmd = 'PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright ./pnpm exec playwright install chromium'
   playwright_cmd_parts = [
       'unbuffer', 'xvfb-run', '--auto-servernum',
       './pnpm', 'exec', 'playwright', 'test'
@@ -168,7 +170,8 @@ def run_in_docker(args):
     playwright_cmd_parts += ['--workers', args.workers]
   playwright_cmd_parts += args.filters
 
-  playwright_cmd = ' '.join(shlex.quote(p) for p in playwright_cmd_parts)
+  playwright_test_cmd = ' '.join(shlex.quote(p) for p in playwright_cmd_parts)
+  playwright_cmd = f'{install_cmd} && PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright {playwright_test_cmd}'
 
   # Build dev server args (similar to run_native)
   dev_server_args = []

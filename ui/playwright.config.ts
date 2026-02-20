@@ -42,7 +42,7 @@ export default defineConfig({
     toHaveScreenshot: {
       // Rendering is not 100% identical on Mac. Be more tolerant.
       // Otherwise, allow for small differences between rasterizers on different platforms.
-      maxDiffPixelRatio: isMac ? 0.05 : 0.00001,
+      maxDiffPixelRatio: isMac ? 0.05 : undefined,
     },
   },
 
