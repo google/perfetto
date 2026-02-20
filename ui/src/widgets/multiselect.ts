@@ -28,6 +28,8 @@ export interface MultiSelectOption {
   name: string;
   // Whether the option is selected or not.
   checked: boolean;
+  // Optional details that are shown on hover.
+  details?: string;
 }
 
 export interface MultiSelectDiff {
@@ -214,7 +216,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
     const {onChange = () => {}} = attrs;
 
     return options.map((item) => {
-      const {checked, name, id} = item;
+      const {checked, name, details, id} = item;
       return m(Checkbox, {
         label: name,
         key: id, // Prevents transitions jumping between items when searching
@@ -223,6 +225,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
         onchange: () => {
           onChange([{id, checked: !checked}]);
         },
+        title: details,
       });
     });
   }
