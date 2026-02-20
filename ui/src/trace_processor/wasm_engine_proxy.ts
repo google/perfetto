@@ -18,9 +18,23 @@ import {EngineBase} from '../trace_processor/engine';
 
 let idleWasmWorker: Worker | undefined = undefined;
 
+// Creates a worker that runs the engine. In Vite dev mode, we use ES module
+// workers; in production, we use the bundled engine_bundle.js.
+function createEngineWorker(): Worker {
+  if (import.meta.env?.DEV) {
+    // Vite dev mode: use ES module worker with the source file
+    return new Worker(new URL('../engine/index.ts', import.meta.url), {
+      type: 'module',
+    });
+  } else {
+    // Production: use the bundled worker
+    return new Worker(assetSrc('engine_bundle.js'));
+  }
+}
+
 export function warmupWasmWorker() {
   if (idleWasmWorker === undefined) {
-    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
+    idleWasmWorker = createEngineWorker();
   }
   return idleWasmWorker;
 }
@@ -51,7 +65,7 @@ export class WasmEngineProxy extends EngineBase implements Disposable {
     // around. The latency is hidden by the fact that the user usually takes few
     // seconds until they click on "open trace file" and pick a file.
     this.worker = warmupWasmWorker(); // Ensures the spare instance exists.
-    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
+    idleWasmWorker = createEngineWorker();
 
     this.worker.postMessage(port1, [port1]);
     this.port.onmessage = this.onMessage.bind(this);

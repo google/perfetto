@@ -58,7 +58,14 @@ export class WasmBridge {
     this.useMemory64 = hasMemory64Support();
     const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
     this.connection = initModule({
-      locateFile: (s: string) => s,
+      locateFile: (filename: string) => {
+        // In Vite dev mode, WASM files are served from /wasm/
+        // In production, they're in the same directory as the bundle
+        if (import.meta.env?.DEV) {
+          return `/wasm/${filename}`;
+        }
+        return filename;
+      },
       print: (line: string) => console.log(line),
       printErr: (line: string) => this.appendAndLogErr(line),
       onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),

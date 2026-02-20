@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from './assert';
+// assertTrue import removed - no longer needed after ES module support
 
 export function fetchWithTimeout(
   input: RequestInfo,
@@ -78,13 +78,18 @@ export function getServingRoot() {
   // e.g. `http://origin/v1.2.3/`.
   const script = document.currentScript as HTMLScriptElement;
 
-  if (script === null) {
-    // Can be null in tests.
-    assertTrue(typeof jest !== 'undefined');
+  let root: string;
+  if (script !== null) {
+    root = script.src;
+  } else if (typeof jest !== 'undefined') {
+    // In Jest tests, document.currentScript is null
     return '';
+  } else {
+    // For ES modules (e.g., Vite dev server), use import.meta.url
+    // This gives us the URL of the current module
+    root = import.meta.url;
   }
 
-  let root = script.src;
   root = root.substring(0, root.lastIndexOf('/') + 1);
   return root;
 }

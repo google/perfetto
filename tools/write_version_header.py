@@ -89,6 +89,7 @@ def main():
   parser.add_argument('--cpp_out', help='Path of the generated .h file.')
   parser.add_argument('--ts_out', help='Path of the generated .ts file.')
   parser.add_argument('--stdout', help='Write to stdout', action='store_true')
+  parser.add_argument('--json', help='Write JSON to stdout', action='store_true')
   parser.add_argument('--changelog', help='Path to CHANGELOG.')
   args = parser.parse_args()
 
@@ -136,6 +137,10 @@ def main():
 
   if args.stdout:
     print(version)
+
+  if args.json:
+    import json
+    print(json.dumps({'version': version, 'scm_revision': head_sha1}))
 
 
 if __name__ == '__main__':

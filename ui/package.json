@@ -56,6 +56,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.1.0",
     "@eslint/js": "^9.6.0",
+    "@lezer/generator": "^1.8.0",
     "@playwright/test": "^1.58.2",
     "@rollup/plugin-commonjs": "^26.0.1",
     "@rollup/plugin-node-resolve": "^15.2.3",
@@ -82,7 +83,9 @@
     "sass": "^1.77.6",
     "source-map": "^0.7.6",
     "tslib": "^2.6.3",
-    "typescript": "5.5.2"
+    "typescript": "5.5.2",
+    "vite": "^5",
+    "vite-plugin-proto": "^1.0.0"
   },
   "scripts": {
     "build": "node build.js",

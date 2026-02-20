@@ -283,31 +283,14 @@ async function main() {
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
     compileProtos();
-    genVersion();
     generateStdlibDocs();
 
-    const tsProjects = [
-      'ui',
-      'ui/src/service_worker'
-    ];
-    if (cfg.bigtrace) tsProjects.push('ui/src/bigtrace');
+    // TODO: Handle bigtrace and open_perfetto_trace with Vite
     if (cfg.openPerfettoTrace) {
       scanDir('ui/src/open_perfetto_trace');
-      tsProjects.push('ui/src/open_perfetto_trace');
     }
 
-
-    for (const prj of tsProjects) {
-      transpileTsProject(prj);
-    }
-
-    if (cfg.watch) {
-      for (const prj of tsProjects) {
-        transpileTsProject(prj, {watch: cfg.watch});
-      }
-    }
-
-    bundleJs('rollup.config.js');
+    bundleWithVite();
     genServiceWorkerManifestJson();
 
     // Watches the /dist. When changed:
@@ -571,7 +554,21 @@ function transpileTsProject(project, options) {
   }
 }
 
+// Bundles the frontend and engine using Vite.
+function bundleWithVite() {
+  const viteExec = pjoin(ROOT_DIR, 'ui/node_modules/.bin/vite');
+  const uiDir = pjoin(ROOT_DIR, 'ui');
+  const args = ['build'];
+  if (cfg.watch) {
+    args.push('--watch');
+    addTask(exec, [viteExec, args, {async: true, cwd: uiDir}]);
+  } else {
+    addTask(exec, [viteExec, args, {cwd: uiDir}]);
+  }
+}
+
 // Creates the three {frontend, controller, engine}_bundle.js in one invocation.
+// DEPRECATED: Use bundleWithVite() instead. Kept for reference.
 function bundleJs(cfgName) {
   const rcfg = pjoin(ROOT_DIR, 'ui/config', cfgName);
   const args = ['-c', rcfg, '--no-indent'];
@@ -818,7 +815,7 @@ function exec(cmd, args, opts) {
   opts = opts || {};
   opts.stdout = opts.stdout || 'inherit';
   if (cfg.verbose) console.log(`${cmd} ${args.join(' ')}\n`);
-  const spwOpts = {cwd: cfg.outDir, stdio: ['ignore', opts.stdout, 'inherit']};
+  const spwOpts = {cwd: opts.cwd || cfg.outDir, stdio: ['ignore', opts.stdout, 'inherit']};
   const checkExitCode = (code, signal) => {
     if (signal === 'SIGINT' || signal === 'SIGTERM') return;
     if (code !== 0 && !opts.noErrCheck) {
