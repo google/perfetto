@@ -143,7 +143,7 @@ testing environment, especially for rebaselining, otherwise it's very likely the
 screenshots will not match when run on the CI.
 
 ```
-xvfb-run ui/run-integrationtests --rebaseline
+ui/run-integrationtests --rebaseline
 tools/test_data upload
 ```
 
