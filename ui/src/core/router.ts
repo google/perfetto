@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertTrue} from '../base/logging';
+import {assertTrue} from '../base/assert';
 import {RouteArgs, ROUTE_SCHEMA} from '../public/route_schema';
 
 export const ROUTE_PREFIX = '#!';

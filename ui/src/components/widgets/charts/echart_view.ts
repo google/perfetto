@@ -46,7 +46,7 @@ import {
 } from 'echarts/components';
 import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsType} from 'echarts/core';
-import {assertExists} from '../../../base/logging';
+import {assertExists} from '../../../base/assert';
 import {classNames} from '../../../base/classnames';
 import {SimpleResizeObserver} from '../../../base/resize_observer';
 import {Spinner} from '../../../widgets/spinner';

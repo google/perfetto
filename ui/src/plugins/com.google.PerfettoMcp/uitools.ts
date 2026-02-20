@@ -17,7 +17,7 @@ import {z} from 'zod';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {Trace} from '../../public/trace';
 import {Time} from '../../base/time';
-import {assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/assert';
 
 export function registerUiTools(server: McpServer, ctxt: Trace) {
   server.tool(

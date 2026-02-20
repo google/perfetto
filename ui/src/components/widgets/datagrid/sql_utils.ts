@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertUnreachable} from '../../../base/logging';
+import {assertUnreachable} from '../../../base/assert';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {AggregateFunction, Filter} from './model';
 

@@ -14,7 +14,7 @@
 
 import protos from '../protos';
 import {defer, Deferred} from '../base/deferred';
-import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
+import {assertExists, assertTrue, assertUnreachable} from '../base/assert';
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,

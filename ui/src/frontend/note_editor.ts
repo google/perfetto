@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 import {Icons} from '../base/semantic_icons';
 import {Timestamp} from '../components/widgets/timestamp';
 import {TraceImpl} from '../core/trace_impl';

@@ -14,7 +14,7 @@
 
 import {QueryResult} from '../../../base/query_slot';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
-import {assertUnreachable} from '../../../base/logging';
+import {assertUnreachable} from '../../../base/assert';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {
   DataSource,

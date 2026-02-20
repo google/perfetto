@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {AppImpl} from '../core/app_impl';
 import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
 import {showModal} from '../widgets/modal';
