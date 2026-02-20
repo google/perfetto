@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/assert';
 import {duration, time, Time, TimeSpan} from '../../base/time';
 
 const micros = 1000n;

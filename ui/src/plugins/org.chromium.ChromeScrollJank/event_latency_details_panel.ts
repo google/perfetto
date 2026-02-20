@@ -52,7 +52,7 @@ import {Trace} from '../../public/trace';
 import {renderSliceArguments} from '../../components/details/slice_args';
 import {TrackEventRef} from '../../components/widgets/track_event_ref';
 import {SLICE_TABLE} from '../../components/widgets/sql/table_definitions';
-import {assertExists, assertTrue} from '../../base/logging';
+import {assertExists, assertTrue} from '../../base/assert';
 import {
   EVENT_LATENCY_TRACK,
   SCROLL_TIMELINE_TRACK,

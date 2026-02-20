@@ -105,37 +105,6 @@ SELECT
   *
 FROM _cpu_stats_subquery!(7, cpu7_curve, cpu7_static, freq_7, idle_7);
 
-CREATE PERFETTO TABLE _stats_cpu01234567 AS
-SELECT
-  ii.ts,
-  ii.dur,
-  id_0 AS cpu0_id,
-  id_1 AS cpu1_id,
-  id_2 AS cpu2_id,
-  id_3 AS cpu3_id,
-  id_4 AS cpu4_id,
-  id_5 AS cpu5_id,
-  id_6 AS cpu6_id,
-  id_7 AS cpu7_id,
-  id_8 AS dsu_id
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_stats_cpu0),
-    _ii_subquery!(_stats_cpu1),
-    _ii_subquery!(_stats_cpu2),
-    _ii_subquery!(_stats_cpu3),
-    _ii_subquery!(_stats_cpu4),
-    _ii_subquery!(_stats_cpu5),
-    _ii_subquery!(_stats_cpu6),
-    _ii_subquery!(_stats_cpu7),
-    _ii_subquery!(_wattson_dsu_frequency)
-  ),
-  ()
-) AS ii;
-
--- Combine system state so that it has idle, freq, and L3 hit info.
-CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice USING SPAN_OUTER_JOIN (_stats_cpu01234567, _arm_l3_rates);
-
 -- Does calculations for CPUs that are independent of other CPUs or frequencies
 -- This is the last generic table before going to device specific table calcs
 CREATE PERFETTO TABLE _w_independent_cpus_calc AS
@@ -189,25 +158,41 @@ SELECT
   _stats_cpu7.cpu7_curve,
   _wattson_dsu_frequency.dsu_freq,
   cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static + cpu5_static + cpu6_static + cpu7_static AS static_1d
-FROM _idle_freq_l3_hit_l3_miss_slice AS base
-JOIN _wattson_dsu_frequency
-  ON _wattson_dsu_frequency._auto_id = base.dsu_id
+FROM _interval_intersect!(
+  (
+    _ii_subquery!(_stats_cpu0),
+    _ii_subquery!(_stats_cpu1),
+    _ii_subquery!(_stats_cpu2),
+    _ii_subquery!(_stats_cpu3),
+    _ii_subquery!(_stats_cpu4),
+    _ii_subquery!(_stats_cpu5),
+    _ii_subquery!(_stats_cpu6),
+    _ii_subquery!(_stats_cpu7),
+    _ii_subquery!(_wattson_dsu_frequency),
+    _ii_subquery!(_arm_l3_rates)
+  ),
+  ()
+) AS base
 JOIN _stats_cpu0
-  ON _stats_cpu0._auto_id = base.cpu0_id
+  ON _stats_cpu0._auto_id = base.id_0
 JOIN _stats_cpu1
-  ON _stats_cpu1._auto_id = base.cpu1_id
+  ON _stats_cpu1._auto_id = base.id_1
 JOIN _stats_cpu2
-  ON _stats_cpu2._auto_id = base.cpu2_id
+  ON _stats_cpu2._auto_id = base.id_2
 JOIN _stats_cpu3
-  ON _stats_cpu3._auto_id = base.cpu3_id
+  ON _stats_cpu3._auto_id = base.id_3
 JOIN _stats_cpu4
-  ON _stats_cpu4._auto_id = base.cpu4_id
+  ON _stats_cpu4._auto_id = base.id_4
 JOIN _stats_cpu5
-  ON _stats_cpu5._auto_id = base.cpu5_id
+  ON _stats_cpu5._auto_id = base.id_5
 JOIN _stats_cpu6
-  ON _stats_cpu6._auto_id = base.cpu6_id
+  ON _stats_cpu6._auto_id = base.id_6
 JOIN _stats_cpu7
-  ON _stats_cpu7._auto_id = base.cpu7_id;
+  ON _stats_cpu7._auto_id = base.id_7
+JOIN _wattson_dsu_frequency
+  ON _wattson_dsu_frequency._auto_id = base.id_8
+JOIN _arm_l3_rates
+  ON _arm_l3_rates._auto_id = base.id_9;
 
 -- Slices view with all UNIQUE configs of independent and dependent CPU data
 CREATE PERFETTO VIEW _w_dependent_cpus_unique AS

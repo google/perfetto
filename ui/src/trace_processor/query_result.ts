@@ -51,7 +51,7 @@
 import '../base/static_initializers';
 import protobuf from 'protobufjs/minimal';
 import {defer, Deferred} from '../base/deferred';
-import {assertExists, assertFalse, assertTrue} from '../base/logging';
+import {assertExists, assertFalse, assertTrue} from '../base/assert';
 import {utf8Decode} from '../base/string_utils';
 import {Duration, duration, Time, time} from '../base/time';
 

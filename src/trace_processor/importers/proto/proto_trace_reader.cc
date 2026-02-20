@@ -152,6 +152,7 @@ class InlineSchedWakingSink
 ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
     : context_(ctx),
       parser_(std::make_unique<ProtoTraceParserImpl>(ctx, &module_context_)),
+      protovm_(ctx),
       skipped_packet_key_id_(ctx->storage->InternString("skipped_packet")),
       invalid_incremental_state_key_id_(
           ctx->storage->InternString("invalid_incremental_state")),
@@ -240,6 +241,19 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // machine_id is set only for remote machines.
   PERFETTO_DCHECK(decoder.has_machine_id() ==
                   (context_->machine_id() != MachineId(kDefaultMachineId)));
+
+  // Execute ProtoVM logic right after the "machine ID fork" as detailed in
+  // go/perfetto-proto-vm.
+  if (decoder.has_trace_provenance()) {
+    protovm_.ProcessTraceProvenancePacket(decoder.trace_provenance());
+  } else if (decoder.has_protovms()) {
+    protovm_.ProcessProtoVmsPacket(decoder.protovms(), packet);
+  } else if (auto new_packet = protovm_.TryProcessPatch(decoder, packet);
+             new_packet) {
+    packet = std::move(*new_packet);
+    decoder =
+        protos::pbzero::TracePacket::Decoder(packet.data(), packet.length());
+  }
 
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto [scoped_state, inserted] = sequence_state_.Insert(seq_id, {});

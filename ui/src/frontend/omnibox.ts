@@ -16,7 +16,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
-import {assertExists, assertUnreachable} from '../base/logging';
+import {assertExists, assertUnreachable} from '../base/assert';
 import {isString} from '../base/object_utils';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {exists} from '../base/utils';

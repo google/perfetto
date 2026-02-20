@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import z from 'zod';
-import {assertExists, assertTrue} from '../../../../base/logging';
+import {assertExists, assertTrue} from '../../../../base/assert';
 import {ByteStream} from '../../interfaces/byte_stream';
 import {base64Decode} from '../../../../base/string_utils';
 

@@ -29,57 +29,6 @@ export interface ErrorDetails {
 export type ErrorHandler = (err: ErrorDetails) => void;
 const errorHandlers: ErrorHandler[] = [];
 
-export function assertExists<A>(
-  value: A | null | undefined,
-  optMsg?: string,
-): A {
-  if (value === null || value === undefined) {
-    throw new Error(optMsg ?? "Value doesn't exist");
-  }
-  return value;
-}
-
-// assertExists trips over NULLs, but in many contexts NULL is a valid SQL value we have to work with.
-export function assertDefined<T>(value: T | undefined): T {
-  if (value === undefined) throw new Error('Value is undefined');
-  return value;
-}
-
-export function assertIsInstance<T>(
-  value: unknown,
-  clazz: Function,
-  optMsg?: string,
-): T {
-  assertTrue(
-    value instanceof clazz,
-    optMsg ?? `Value is not an instance of ${clazz.name}`,
-  );
-  return value as T;
-}
-
-export function assertTrue(value: boolean, optMsg?: string) {
-  if (!value) {
-    throw new Error(optMsg ?? 'Failed assertion');
-  }
-}
-
-export function assertFalse(value: boolean, optMsg?: string) {
-  assertTrue(!value, optMsg);
-}
-
-// This function serves two purposes.
-// 1) A runtime check - if we are ever called, we throw an exception.
-// This is useful for checking that code we suspect should never be reached is
-// actually never reached.
-// 2) A compile time check where typescript asserts that the value passed can be
-// cast to the "never" type.
-// This is useful for ensuring we exhaustively check union types.
-export function assertUnreachable(value: never, optMsg?: string): never {
-  throw new Error(
-    optMsg ?? `This code should not be reachable ${value as unknown}`,
-  );
-}
-
 export function addErrorHandler(handler: ErrorHandler) {
   if (!errorHandlers.includes(handler)) {
     errorHandlers.push(handler);

@@ -266,30 +266,26 @@ class WattsonStdlib(TestSuite):
             SELECT
               ii.ts,
               ii.dur,
-              stats.cpu0_id,
-              stats.cpu1_id,
-              stats.cpu2_id,
-              stats.cpu3_id,
               ss.power_state = 'suspended' AS suspended
             FROM _interval_intersect!(
               (
-                _ii_subquery!(_stats_cpu01234567),
+                _ii_subquery!(_w_independent_cpus_calc),
                 _ii_subquery!(android_suspend_state)
               ),
               ()
             ) AS ii
-            JOIN _stats_cpu01234567 AS stats
+            JOIN _w_independent_cpus_calc AS stats
               ON stats._auto_id = id_0
             JOIN android_suspend_state AS ss
               ON ss._auto_id = id_1
             WHERE suspended
             """),
         out=Csv("""
-            "ts","dur","cpu0_id","cpu1_id","cpu2_id","cpu3_id","suspended"
-            385019771468,61975407053,12042,12219,10489,8911,1
-            448320364476,3674872885,13008,12957,11169,9275,1
-            452415394221,69579176303,13659,13366,11656,9614,1
-            564873995228,135118729231,45230,37601,22805,20139,1
+            "ts","dur","suspended"
+            385019771468,61975407053,1
+            448320364476,3674872885,1
+            452415394221,69579176303,1
+            564873995228,135118729231,1
             """))
 
   # Tests traces from VM that have incomplete CPU tracks

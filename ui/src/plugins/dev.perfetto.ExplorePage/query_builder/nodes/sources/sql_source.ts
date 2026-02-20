@@ -34,7 +34,7 @@ import {ColumnInfo} from '../../column_info';
 import {setValidationError} from '../../node_issues';
 import {NodeDetailsAttrs} from '../../node_explorer_types';
 import {findRef, toHTMLElement} from '../../../../../base/dom_utils';
-import {assertExists} from '../../../../../base/logging';
+import {assertExists} from '../../../../../base/assert';
 import {ResizeHandle} from '../../../../../widgets/resize_handle';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';

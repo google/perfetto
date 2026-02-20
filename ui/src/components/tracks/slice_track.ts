@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {ColorScheme} from '../../base/color_scheme';
 import {Point2D, Size2D, Transform2D, VerticalBounds} from '../../base/geom';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
   CancellationSignal,

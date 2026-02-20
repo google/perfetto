@@ -1,0 +1,162 @@
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks { clock_id: 6 timestamp: 0 }
+    clocks { clock_id: 2 timestamp: 1682359234732002451 }
+    clocks { clock_id: 4 timestamp: 0 }
+    clocks { clock_id: 1 timestamp: 1682359234732002451 }
+    clocks { clock_id: 3 timestamp: 0 }
+    clocks { clock_id: 5 timestamp: 0 }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+
+packet {
+  trace_provenance {
+    buffers:
+    [ {
+      sequences:
+      [
+          # sequences from producer IDs 10 and 11 are processed by the ProtoVM
+          # (see ProtoVM config in packet below)
+          { id: 1 producer_id: 10 }
+          , { id: 2 producer_id: 11 }
+          ,
+          # sequences from producer ID 100 are ignored by the ProtoVM
+          # (see ProtoVM config in packet below)
+          { id: 3 producer_id: 100 }]
+    }]
+  }
+}
+
+# Minimal ProtoVM program.
+#
+# Input (patches): surfaceflinger_transaction packets
+# Output (incremental states): surfaceflinger_layers_snapshot packets
+#
+# Logic:
+# - Copy packet.surfaceflinger_transaction.vsync_id
+#   to packet.surfaceflinger_layers_snapshot.vsync_id
+# - Copy packet.surfaceflinger_transaction.elapsed_realtime_nanos
+#   to packet.timestamp
+packet {
+  protovms {
+    instance:
+    [ {
+      program {
+        instructions:
+        [
+            # Copy packet.surfaceflinger_transaction.vsync_id
+            # into packet.surfaceflinger_layers_snapshot.vsync_id
+            {
+              select {
+                relative_path:
+                [ {
+                  field_id: 94  # surfaceflinger_transaction
+                }
+                  ,
+                  {
+                    field_id: 2  # vsync_id
+                  }]
+              }
+              nested_instructions:
+              [ {
+                select {
+                  cursor: VM_CURSOR_DST
+                  create_if_not_exist: true
+                  relative_path:
+                  [ {
+                    field_id: 93  # surfaceflinger_layers_snapshot 
+                  }
+                    ,
+                    {
+                      field_id: 8  # vsync_id
+                    }]
+                }
+                nested_instructions:
+                [ { set {} }]
+              }]
+              abort_level: SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER
+            }
+            ,
+            # Copy packet.surfaceflinger_transaction.elapsed_realtime_nanos
+            # into packet.timestamp
+            {
+              select {
+                relative_path:
+                [ {
+                  field_id: 94  # surfaceflinger_transaction
+                }
+                  ,
+                  {
+                    field_id: 1  # elapsed_realtime_nanos
+                  }]
+              }
+              nested_instructions:
+              [ {
+                select {
+                  cursor: VM_CURSOR_DST
+                  create_if_not_exist: true
+                  relative_path:
+                  [ {
+                    field_id: 8  # timestamp
+                  }]
+                }
+                nested_instructions:
+                [ { set {} }]
+              }]
+            }]
+      }
+      memory_limit_kb: 1
+      producer_id: [ 10, 11 ]
+      state {
+        surfaceflinger_layers_snapshot {
+          where: "value set in initial state and never touched by the ProtoVM"
+        }
+      }
+    }]
+  }
+}
+
+# Processed (patch applied) by the ProtoVM
+packet {
+  first_packet_on_sequence: true
+  timestamp: 2749532000000
+  timestamp_clock_id: 3
+  surfaceflinger_transactions {
+    elapsed_realtime_nanos: 2749532000001
+    vsync_id: 24776
+  }
+  trusted_packet_sequence_id: 1
+  previous_packet_dropped: true
+}
+
+# Processed (patch applied) by the ProtoVM
+packet {
+  timestamp: 2749555000000
+  timestamp_clock_id: 3
+  surfaceflinger_transactions {
+    elapsed_realtime_nanos: 2749555000001
+    vsync_id: 24805
+  }
+  trusted_packet_sequence_id: 2
+}
+
+# Ignored by the ProtoVM. Comes from Producer ID 10 (processed by the ProtoVM),
+# but it isn't a surfaceflinger_transactions packet (i.e. not a patch).
+packet {
+  timestamp: 2749560000000
+  timestamp_clock_id: 3
+  for_testing { seq_value: 0 }
+  trusted_packet_sequence_id: 2
+}
+
+# Ignored by the ProtoVM. It's a valid patch, but comes from producer ID 100 and
+# the ProtoVM was configured to process only Producer ID 10 and 11.
+packet {
+  timestamp: 2749570000000
+  timestamp_clock_id: 3
+  surfaceflinger_transactions { elapsed_realtime_nanos: 0 vsync_id: 0 }
+  trusted_packet_sequence_id: 3
+}

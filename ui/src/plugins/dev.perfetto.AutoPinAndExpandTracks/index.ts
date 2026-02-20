@@ -18,7 +18,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Track} from '../../public/track';
 import {z} from 'zod';
-import {assertIsInstance} from '../../base/logging';
+import {assertIsInstance} from '../../base/assert';
 import {RouteArg, RouteArgs} from '../../public/route_schema';
 import {arrayEquals} from '../../base/array_utils';
 

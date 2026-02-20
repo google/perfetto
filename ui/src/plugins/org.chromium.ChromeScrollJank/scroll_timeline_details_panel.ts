@@ -19,7 +19,7 @@ import {LONG, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Duration, duration, Time, time} from '../../base/time';
-import {assertExists, assertTrue} from '../../base/logging';
+import {assertExists, assertTrue} from '../../base/assert';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';

@@ -17,7 +17,7 @@ import {canvasSave} from '../../base/canvas_utils';
 import {DisposableStack} from '../../base/disposable_stack';
 import {toHTMLElement} from '../../base/dom_utils';
 import {Rect2D, Size2D} from '../../base/geom';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {TimeScale} from '../../base/time_scale';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
 import {TraceImpl} from '../../core/trace_impl';

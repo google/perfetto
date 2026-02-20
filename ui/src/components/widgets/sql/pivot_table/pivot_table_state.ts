@@ -22,7 +22,7 @@ import {SqlColumn, sqlColumnId, SqlExpression} from '../table/sql_column';
 import {TableColumn} from '../table/table_column';
 import {SqlTableDescription} from '../table/table_description';
 import {moveArrayItem} from '../../../../base/array_utils';
-import {assertExists} from '../../../../base/logging';
+import {assertExists} from '../../../../base/assert';
 import {SortDirection} from '../../../../base/comparison_utils';
 import {Aggregation, expandAggregations} from './aggregations';
 import {PivotTreeNode} from './pivot_tree_node';

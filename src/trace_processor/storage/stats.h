@@ -831,7 +831,15 @@ namespace perfetto::trace_processor::stats {
   F(primes_missing_parent_id, kSingle, kInfo, kAnalysis,                       \
     "The parent_id field was missing from an edge that requires it."),         \
   F(primes_malformed_timestamp, kSingle, kDataLoss, kAnalysis,                 \
-    "The timestamp for an edge or trace was not able to be parsed")  // clang-format on
+    "The timestamp for an edge or trace was not able to be parsed"),           \
+  F(protovm_abort, kSingle,  kError, kAnalysis,                                \
+      "A ProtoVM instance aborted the execution while applying the patch. "    \
+      "This might be due to inconsistencies between VM program logic and "     \
+      "actual patch format."),                                                 \
+  F(protovm_registration_error, kSingle,  kError, kAnalysis,                   \
+    "Failed to find the sequence IDs corresponding to a ProtoVM's producer "   \
+    "ID. Such mapping should be provided by the TraceProvenance packet.")
+// clang-format on
 
 enum Type {
   kSingle,  // Single-value property, one value per key.

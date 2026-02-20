@@ -26,7 +26,7 @@ import {Track} from '../../public/track';
 import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Store} from '../../base/store';
 import {z} from 'zod';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {profileDescriptor} from './common';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
