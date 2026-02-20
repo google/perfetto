@@ -54,15 +54,6 @@ def build_docker_image(version, use_sudo):
   """Build the custom Playwright Docker image with Mesa GL support."""
   image_tag = f'{PLAYWRIGHT_IMAGE}:v{version}'
 
-  # Check if image already exists with correct version
-  check_cmd = ['docker', 'images', '-q', image_tag]
-  if use_sudo:
-    check_cmd = ['sudo'] + check_cmd
-  result = subprocess.run(check_cmd, capture_output=True, text=True)
-  if result.returncode == 0 and result.stdout.strip():
-    print(f'Using existing Docker image: {image_tag}')
-    return image_tag
-
   print(f'Building Docker image: {image_tag}')
   build_cmd = [
       'docker', 'build',
@@ -168,7 +159,7 @@ def run_in_docker(args):
 
   # Build the playwright command (wrapped with xvfb-run for virtual display)
   playwright_cmd_parts = [
-      'xvfb-run', '--auto-servernum', '--',
+      'unbuffer', 'xvfb-run', '--auto-servernum',
       './pnpm', 'exec', 'playwright', 'test'
   ]
   if args.rebaseline:
@@ -199,7 +190,7 @@ def run_in_docker(args):
       '-e', 'HOME=/tmp', # Chrome needs a writable home for crashpad
       *env_args,
       image,
-      'script', '-q', '/dev/null', '-c', playwright_cmd
+      'bash', '-c', playwright_cmd
   ]
 
   if use_sudo:

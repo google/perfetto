@@ -23,6 +23,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libgl1-mesa-dri \
         mesa-utils \
-        xvfb && \
+        xvfb \
+        expect && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
