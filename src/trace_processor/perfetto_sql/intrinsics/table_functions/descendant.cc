@@ -53,9 +53,19 @@ bool GetDescendantsInternal(
   cursor.SetFilterValueUnchecked(0, start_ref->ts());
   cursor.SetFilterValueUnchecked(1, start_ref->track_id().value);
   cursor.SetFilterValueUnchecked(2, start_ref->depth());
-  cursor.SetFilterValueUnchecked(3, start_ref->dur() >= 0
-                                        ? start_ref->ts() + start_ref->dur()
-                                        : std::numeric_limits<int64_t>::max());
+  // Intervals are closed on the left and open on the right, so we use Lt for
+  // the upper bound. However, instants (dur=0) stack on top of each other, so
+  // for an instant at ts=T we need child_ts <= T, achieved by using T+1 as
+  // the Lt bound. See SliceTracker::TryCloseStack for the matching logic.
+  int64_t ts_upper_bound;
+  if (start_ref->dur() > 0) {
+    ts_upper_bound = start_ref->ts() + start_ref->dur();
+  } else if (start_ref->dur() == 0) {
+    ts_upper_bound = start_ref->ts() + 1;
+  } else {
+    ts_upper_bound = std::numeric_limits<int64_t>::max();
+  }
+  cursor.SetFilterValueUnchecked(3, ts_upper_bound);
   for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
     row_numbers_accumulator.emplace_back(cursor.ToRowNumber());
   }
@@ -165,7 +175,7 @@ tables::SliceTable::ConstCursor Descendant::MakeCursor(
       dataframe::FilterSpec{
           tables::SliceTable::ColumnIndex::ts,
           3,
-          dataframe::Le{},
+          dataframe::Lt{},
           std::nullopt,
       },
   });

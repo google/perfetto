@@ -31,6 +31,8 @@ import m from 'mithril';
 import * as echarts from 'echarts/core';
 import {
   BarChart as EBarChart,
+  BoxplotChart as EBoxplotChart,
+  HeatmapChart as EHeatmapChart,
   LineChart as ELineChart,
   PieChart as EPieChart,
   ScatterChart as EScatterChart,
@@ -43,6 +45,7 @@ import {
   DataZoomComponent,
   BrushComponent,
   ToolboxComponent,
+  VisualMapComponent,
 } from 'echarts/components';
 import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsType} from 'echarts/core';
@@ -63,6 +66,8 @@ function ensureEChartsSetup(): void {
   echartsInitialized = true;
   echarts.use([
     EBarChart,
+    EBoxplotChart,
+    EHeatmapChart,
     ELineChart,
     EPieChart,
     EScatterChart,
@@ -73,6 +78,7 @@ function ensureEChartsSetup(): void {
     DataZoomComponent,
     BrushComponent,
     ToolboxComponent,
+    VisualMapComponent,
     CanvasRenderer,
   ]);
 }
