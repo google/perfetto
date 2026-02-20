@@ -34,6 +34,20 @@ REPO_ROOT = os.path.dirname(UI_DIR)
 PLAYWRIGHT_IMAGE = 'mcr.microsoft.com/playwright'
 
 
+def is_docker_available():
+  """Check if docker is installed and accessible."""
+  try:
+    result = subprocess.run(
+        ['docker', '--version'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=5
+    )
+    return result.returncode == 0
+  except (subprocess.TimeoutExpired, FileNotFoundError):
+    return False
+
+
 def needs_sudo_for_docker():
   """Check if sudo is needed to run docker commands."""
   try:
@@ -61,6 +75,11 @@ def run_build(args):
 
 def run_native(args):
   """Run tests directly on the host machine."""
+  print('Warning: Running without Docker. Results may vary across environments.')
+  if args.rebaseline:
+    print('Note: Rebaselining outside Docker may cause snapshot mismatches in CI.')
+  print('')
+
   # Install the chromium through playwright
   subprocess.check_call(['./pnpm', 'exec', 'playwright', 'install', 'chromium'], cwd=UI_DIR)
 
@@ -180,8 +199,18 @@ def main():
 
   if args.no_docker:
     return run_native(args)
-  else:
-    return run_in_docker(args)
+
+  if not is_docker_available():
+    print('Warning: Docker is not installed or not accessible.')
+    print('Docker is recommended for consistent test results, especially when')
+    print('rebaselining screenshots.')
+    print('')
+    print('To run without Docker, pass --no-docker:')
+    print('  ./run-integrationtests --no-docker')
+    print('')
+    return 1
+
+  return run_in_docker(args)
 
 
 if __name__ == '__main__':
