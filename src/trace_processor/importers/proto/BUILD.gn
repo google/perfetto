@@ -341,6 +341,7 @@ source_set("unittests") {
     "../../../protozero",
     "../../containers",
     "../../core/dataframe",
+    "../../perfetto_sql/intrinsics/table_functions:tables",
     "../../sorter",
     "../../storage",
     "../../tables",

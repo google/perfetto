@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_fwd.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
