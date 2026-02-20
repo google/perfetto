@@ -332,10 +332,8 @@ struct Regexp : public sqlite::Function<Regexp> {
       }
       return sqlite::result::Long(ctx, aux->Search(text));
     } else {
-      // Always-true branch to avoid spurious no-return warnings.
-      if (ctx) {
-        PERFETTO_FATAL("Regex not supported");
-      }
+      return sqlite::utils::SetError(
+          ctx, "regexp: regex is not supported on this platform");
     }
   }
 };
@@ -390,10 +388,45 @@ struct RegexpExtract : public sqlite::Function<RegexpExtract> {
       return sqlite::result::TransientString(
           ctx, result_sv.data(), static_cast<int>(result_sv.size()));
     } else {
-      // Always-true branch to avoid spurious no-return warnings.
-      if (ctx) {
-        PERFETTO_FATAL("Regex not supported");
+      return sqlite::utils::SetError(
+          ctx, "regexp_extract: regex is not supported on this platform");
+    }
+  }
+};
+
+struct RegexpReplaceSimple : public sqlite::Function<RegexpReplaceSimple> {
+  static constexpr char kName[] = "__intrinsic_regexp_replace_simple";
+  static constexpr int kArgCount = 3;
+
+  using AuxData = regex::Regex;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+    if constexpr (regex::IsRegexSupported()) {
+      const char* text =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+      const char* replacement =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[2]));
+      auto* aux = GetAuxData(ctx, 1);
+      if (PERFETTO_UNLIKELY(!aux || !text || !replacement)) {
+        const char* pattern_str =
+            reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+        if (!text || !pattern_str || !replacement) {
+          return;
+        }
+        SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
+                                regex::Regex::Create(pattern_str));
+        auto ptr = std::make_unique<AuxData>(std::move(regex));
+        aux = ptr.get();
+        SetAuxData(ctx, 0, std::move(ptr));
       }
+
+      const std::string result = aux->Replace(text, replacement);
+
+      return sqlite::result::TransientString(ctx, result.data(),
+                                             static_cast<int>(result.size()));
+    } else {
+      return sqlite::utils::SetError(
+          ctx,
+          "regexp_replace_simple: regex is not supported on this platform");
     }
   }
 };

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {GcsUploader} from '../../../base/gcs_uploader';
-import {assertExists} from '../../../base/logging';
+import {assertExists} from '../../../base/assert';
 import {CopyableLink} from '../../../widgets/copyable_link';
 import {showModal} from '../../../widgets/modal';
 import {RecordSessionSchema} from '../serialization_schema';

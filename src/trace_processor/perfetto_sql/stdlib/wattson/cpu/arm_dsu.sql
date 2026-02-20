@@ -15,7 +15,11 @@
 
 INCLUDE PERFETTO MODULE linux.devfreq;
 
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 INCLUDE PERFETTO MODULE wattson.device_infos;
+
+INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Converts event counter from count to rate (num of accesses per ns).
 CREATE PERFETTO FUNCTION _get_rate(
@@ -44,28 +48,91 @@ WHERE
 -- accesses in a given duration can be calculated by multiplying the appropriate
 -- rate with the time in the window of interest.
 CREATE PERFETTO TABLE _arm_l3_miss_rate AS
+WITH
+  base AS (
+    SELECT
+      ts,
+      dur,
+      access_rate AS l3_miss_rate
+    FROM _get_rate("arm_dsu_0/bus_access/_cpu0")
+  )
+SELECT
+  trace_start() AS ts,
+  min(ts) - trace_start() AS dur,
+  0 AS l3_miss_rate
+FROM base
+UNION ALL
 SELECT
   ts,
   dur,
-  access_rate AS l3_miss_rate
-FROM _get_rate("arm_dsu_0/bus_access/_cpu0");
+  l3_miss_rate
+FROM base
+UNION ALL
+SELECT
+  trace_start(),
+  trace_dur(),
+  0
+WHERE
+  NOT EXISTS(
+    SELECT
+      1
+    FROM base
+  );
 
 -- The rate of L3 accesses for each time slice based on the ARM DSU PMU
 -- counter's l3d_cache event. Units will be in number of DDR accesses per ns.
 -- The number of accesses in a given duration can be calculated by multiplying
 -- the appropriate rate with the time in the window of interest.
 CREATE PERFETTO TABLE _arm_l3_hit_rate AS
+WITH
+  base AS (
+    SELECT
+      ts,
+      dur,
+      access_rate AS l3_hit_rate
+    FROM _get_rate("arm_dsu_0/l3d_cache/_cpu0")
+  )
+SELECT
+  trace_start() AS ts,
+  min(ts) - trace_start() AS dur,
+  0 AS l3_hit_rate
+FROM base
+UNION ALL
 SELECT
   ts,
   dur,
-  access_rate AS l3_hit_rate
-FROM _get_rate("arm_dsu_0/l3d_cache/_cpu0");
+  l3_hit_rate
+FROM base
+UNION ALL
+SELECT
+  trace_start(),
+  trace_dur(),
+  0
+WHERE
+  NOT EXISTS(
+    SELECT
+      1
+    FROM base
+  );
 
 -- Combine L3 hit and miss rates into a single table.
-CREATE VIRTUAL TABLE _arm_l3_rates USING SPAN_OUTER_JOIN (
-  _arm_l3_miss_rate,
-  _arm_l3_hit_rate
-);
+CREATE PERFETTO TABLE _arm_l3_rates AS
+SELECT
+  ii.ts,
+  ii.dur,
+  miss.l3_miss_rate,
+  hit.l3_hit_rate
+FROM _interval_intersect!(
+  (
+    _ii_subquery!(_arm_l3_miss_rate),
+    _ii_subquery!(_arm_l3_hit_rate)
+  ),
+  ()
+) AS ii
+JOIN _arm_l3_miss_rate AS miss
+  ON miss._auto_id = id_0
+JOIN _arm_l3_hit_rate AS hit
+  ON hit._auto_id = id_1;
 
 -- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
 -- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The

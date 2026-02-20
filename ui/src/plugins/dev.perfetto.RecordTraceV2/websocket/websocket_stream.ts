@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../../../base/logging';
+import {assertTrue} from '../../../base/assert';
 import {ByteStream} from '../interfaces/byte_stream';
 
 export class WebSocketStream extends ByteStream {

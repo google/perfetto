@@ -15,7 +15,9 @@
  */
 
 #include "src/protovm/vm.h"
+
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/protovm/error_handling.h"
 #include "src/protovm/ro_cursor.h"
 #include "src/protovm/rw_proto.h"
@@ -35,7 +37,7 @@ Vm::Vm(protozero::ConstBytes program,
 Vm::Vm(const Vm& other)
     : owned_program_(other.SerializeProgram()),
       state_(std::in_place_type_t<ReadOnlyState>{},
-             other.SerializeIncrementalState()) {}
+             other.SerializeIncrementalStateAsString()) {}
 
 StatusOr<void> Vm::ApplyPatch(protozero::ConstBytes packet) {
   ReadWriteState* rw_state = std::get_if<ReadWriteState>(&state_);
@@ -47,13 +49,21 @@ StatusOr<void> Vm::ApplyPatch(protozero::ConstBytes packet) {
   return rw_state->parser.Run(src, dst);
 }
 
-std::string Vm::SerializeIncrementalState() const {
+void Vm::SerializeIncrementalState(protozero::Message* proto) const {
   if (const ReadOnlyState* state = std::get_if<ReadOnlyState>(&state_); state) {
-    return state->serialized_incremental_state;
+    proto->AppendRawProtoBytes(state->serialized_incremental_state.data(),
+                               state->serialized_incremental_state.size());
+    return;
   }
 
   const ReadWriteState* state = std::get_if<ReadWriteState>(&state_);
-  return state->incremental_state.SerializeAsString();
+  state->incremental_state.Serialize(proto);
+}
+
+std::string Vm::SerializeIncrementalStateAsString() const {
+  protozero::HeapBuffered<protozero::Message> proto;
+  SerializeIncrementalState(proto.get());
+  return proto.SerializeAsString();
 }
 
 std::string Vm::SerializeProgram() const {

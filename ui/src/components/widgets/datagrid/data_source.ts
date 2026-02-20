@@ -103,7 +103,7 @@ export interface PivotModel extends DataSourceModelBase {
         readonly alias: string;
       }
     | {
-        readonly function: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'ANY';
+        readonly function: AggregateFunction;
         readonly field: string;
         readonly alias: string;
       }

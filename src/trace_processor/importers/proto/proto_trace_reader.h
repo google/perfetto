@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/proto/packet_sequence_state_builder.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "src/trace_processor/importers/proto/protovm_incremental_tracing.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -125,6 +126,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   std::unique_ptr<ProtoTraceParserImpl> parser_;
   base::FlatHashMap<uint32_t, std::unique_ptr<ProtoTraceReader>>
       machine_to_proto_readers_;
+  ProtoVmIncrementalTracing protovm_;
 
   // Temporary. Currently trace packets do not have a timestamp, so the
   // timestamp given is latest_timestamp_.

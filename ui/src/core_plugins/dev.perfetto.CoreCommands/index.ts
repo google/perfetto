@@ -43,7 +43,7 @@ import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
 
@@ -299,7 +299,7 @@ export default class CoreCommands implements PerfettoPlugin {
       // now we need the extras to be loaded.
       const macros = await app.macros();
       for (const macro of macros) {
-        ctx.commands.registerMacro(macro);
+        ctx.commands.registerMacro(macro, macro.source);
       }
     });
 

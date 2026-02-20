@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/assert';
 import {time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
 import {

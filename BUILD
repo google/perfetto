@@ -292,6 +292,7 @@ perfetto_cc_binary(
         ":src_protozero_filtering_filter_util",
         ":src_protozero_filtering_message_filter",
         ":src_protozero_filtering_string_filter",
+        ":src_protozero_multifile_error_collector",
         ":src_protozero_text_to_proto_text_to_proto",
         "src/tools/proto_filter/proto_filter.cc",
     ],
@@ -329,6 +330,7 @@ perfetto_cc_binary(
 perfetto_cc_binary(
     name = "proto_merger",
     srcs = [
+        ":src_protozero_multifile_error_collector",
         "src/tools/proto_merger/allowlist.cc",
         "src/tools/proto_merger/allowlist.h",
         "src/tools/proto_merger/main.cc",
@@ -351,6 +353,7 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_protovm_protovm",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -564,6 +567,7 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_protovm_protovm",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -1948,6 +1952,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/protozero:multifile_error_collector
+perfetto_filegroup(
+    name = "src_protozero_multifile_error_collector",
+    srcs = [
+        "src/protozero/multifile_error_collector.cc",
+        "src/protozero/multifile_error_collector.h",
+    ],
+)
+
 # GN target: //src/protozero:proto_ring_buffer
 perfetto_filegroup(
     name = "src_protozero_proto_ring_buffer",
@@ -2837,6 +2850,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/proto_trace_reader.h",
         "src/trace_processor/importers/proto/proto_trace_tokenizer.cc",
         "src/trace_processor/importers/proto/proto_trace_tokenizer.h",
+        "src/trace_processor/importers/proto/protovm_incremental_tracing.cc",
+        "src/trace_processor/importers/proto/protovm_incremental_tracing.h",
         "src/trace_processor/importers/proto/stack_profile_sequence_state.cc",
         "src/trace_processor/importers/proto/stack_profile_sequence_state.h",
         "src/trace_processor/importers/proto/track_event_event_importer.h",
@@ -3531,6 +3546,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/android/profiling_manager:profiling_manager
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_android_profiling_manager_profiling_manager",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/profiling_manager/startup.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/profiling_manager/util.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/startup:startup
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
@@ -3763,6 +3787,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_prelude_before_eof_before_eof",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/functions.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/tables.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/before_eof/trace_bounds.sql",
@@ -3941,6 +3966,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_heap_graph_heap_graph",
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_heap_profile_heap_profile",
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_memory",
+        ":src_trace_processor_perfetto_sql_stdlib_android_profiling_manager_profiling_manager",
         ":src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
         ":src_trace_processor_perfetto_sql_stdlib_android_winscope_winscope",
         ":src_trace_processor_perfetto_sql_stdlib_appleos_appleos",
@@ -8459,6 +8485,7 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_protovm_protovm",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
@@ -8700,6 +8727,7 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_util",
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_protovm_protovm",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",

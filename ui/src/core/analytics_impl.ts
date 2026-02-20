@@ -18,7 +18,6 @@ import {VERSION} from '../gen/perfetto_version';
 import {Router} from './router';
 import {Analytics, TraceCategories} from '../public/analytics';
 
-const ANALYTICS_ID = 'G-BD89KT2P3C';
 const PAGE_TITLE = 'no-page-title';
 
 function isValidUrl(s: string) {
@@ -69,21 +68,15 @@ export function initAnalytics(
   testingMode: boolean,
   embeddedMode: boolean,
   enable: boolean,
+  analyticsId: string | undefined,
 ): AnalyticsInternal {
-  // Only initialize logging on the official site and on localhost (to catch
-  // analytics bugs when testing locally).
-  // Skip analytics is the fragment has "testing=1", this is used by UI tests.
+  // Skip analytics if the fragment has "testing=1", this is used by UI tests.
   // Skip analytics in embeddedMode since iFrames do not have the same access to
   // local storage.
   // Skip analytics if the user has disabled analytics.
-  if (
-    (window.location.origin.startsWith('http://localhost:') ||
-      window.location.origin.endsWith('.perfetto.dev')) &&
-    !testingMode &&
-    !embeddedMode &&
-    enable
-  ) {
-    return new AnalyticsImpl();
+  // Skip analytics if the embedder does not provide an analytics ID.
+  if (analyticsId !== undefined && !testingMode && !embeddedMode && enable) {
+    return new AnalyticsImpl(analyticsId);
   }
   return new NullAnalytics();
 }
@@ -105,8 +98,10 @@ class NullAnalytics implements AnalyticsInternal {
 
 class AnalyticsImpl implements AnalyticsInternal {
   private initialized_ = false;
+  private readonly analyticsId: string;
 
-  constructor() {
+  constructor(analyticsId: string) {
+    this.analyticsId = analyticsId;
     // The code below is taken from the official Google Analytics docs [1] and
     // adapted to TypeScript. We have it here rather than as an inline script
     // in index.html (as suggested by GA's docs) because inline scripts don't
@@ -133,7 +128,8 @@ class AnalyticsImpl implements AnalyticsInternal {
     if (this.initialized_) return;
     this.initialized_ = true;
     const script = document.createElement('script');
-    script.src = 'https://www.googletagmanager.com/gtag/js?id=' + ANALYTICS_ID;
+    script.src =
+      'https://www.googletagmanager.com/gtag/js?id=' + this.analyticsId;
     script.defer = true;
     document.head.appendChild(script);
     const route = window.location.href;
@@ -144,7 +140,7 @@ class AnalyticsImpl implements AnalyticsInternal {
     // GA's recommendation for SPAs is to disable automatic page views and
     // manually send page_view events. See:
     // https://developers.google.com/analytics/devguides/collection/gtagjs/pages#manual_pageviews
-    gtagGlobals.gtag('config', ANALYTICS_ID, {
+    gtagGlobals.gtag('config', this.analyticsId, {
       allow_google_signals: false,
       anonymize_ip: true,
       page_location: route,

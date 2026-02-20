@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {canvasClip} from '../../base/canvas_utils';
 import {Size2D} from '../../base/geom';
-import {assertUnreachable} from '../../base/logging';
+import {assertUnreachable} from '../../base/assert';
 import {Time, time, formatDate} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {TimestampFormat} from '../../public/timeline';

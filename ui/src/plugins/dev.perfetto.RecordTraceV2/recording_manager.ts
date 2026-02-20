@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import protos from '../../protos';
-import {assertFalse, assertTrue} from '../../base/logging';
+import {assertFalse, assertTrue} from '../../base/assert';
 import {errResult, okResult, Result} from '../../base/result';
 import {App} from '../../public/app';
 import {RecordSubpage} from './config/config_interfaces';

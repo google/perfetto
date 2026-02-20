@@ -21,9 +21,9 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -51,7 +51,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/simple_json_parser.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -434,8 +434,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
     std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-        timestamp);
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), timestamp);
     if (trace_ts)
       timestamp = *trace_ts;
   } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
@@ -445,8 +444,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
     std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-        timestamp);
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), timestamp);
     if (trace_ts)
       timestamp = *trace_ts;
   } else if (packet.has_timestamp()) {
@@ -641,7 +639,7 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     const V8Profile& profile = *profile_or;
     if (profile.start_time.has_value()) {
       std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
-          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+          ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
           *profile.start_time * 1000);
       if (ts) {
         v8_tracker_->SetStartTsForSessionAndPid(

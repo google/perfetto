@@ -33,8 +33,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
+
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -122,9 +125,22 @@ struct ClockId {
   uint32_t trace_file_id = 0;
 
   constexpr ClockId() = default;
-  constexpr explicit ClockId(uint32_t _clock_id) : ClockId(_clock_id, 0, 0) {}
-  constexpr ClockId(uint32_t cid, uint32_t sid, uint32_t tfi)
-      : clock_id(cid), seq_id(sid), trace_file_id(tfi) {}
+
+  // Factory for machine-scoped builtin clocks (e.g. BOOTTIME, MONOTONIC).
+  static constexpr ClockId Machine(uint32_t builtin_clock_id) {
+    return {builtin_clock_id, 0, 0};
+  }
+
+  // Factory for trace-file-scoped clocks.
+  static constexpr ClockId TraceFile(uint32_t tfi) {
+    return {protos::pbzero::BUILTIN_CLOCK_TRACE_FILE, 0, tfi};
+  }
+
+  // Factory for sequence-scoped clocks.
+  static constexpr ClockId Sequence(uint32_t tfi, uint32_t sid, uint32_t cid) {
+    PERFETTO_DCHECK(IsSequenceClock(cid));
+    return {cid, sid, tfi};
+  }
 
   bool operator==(const ClockId& o) const {
     return clock_id == o.clock_id && seq_id == o.seq_id &&
@@ -142,6 +158,18 @@ struct ClockId {
   friend H PerfettoHashValue(H h, const ClockId& c) {
     return H::Combine(std::move(h), c.clock_id, c.seq_id, c.trace_file_id);
   }
+
+  static constexpr bool IsSequenceClock(uint32_t clock_id) {
+    return clock_id >= 64 && clock_id < 128;
+  }
+
+  bool IsSequenceClock() const { return IsSequenceClock(clock_id); }
+
+ private:
+  friend class ClockSynchronizer;
+
+  constexpr ClockId(uint32_t cid, uint32_t sid, uint32_t tfi)
+      : clock_id(cid), seq_id(sid), trace_file_id(tfi) {}
 };
 
 // Clock description.
@@ -178,8 +206,21 @@ enum class ClockSyncErrorType {
 // that AddSnapshot can validate against the current trace-time clock
 // without a virtual call.
 struct TraceTimeState {
+  TraceTimeState() = default;
+  explicit TraceTimeState(ClockId _clock_id) : clock_id(_clock_id) {}
+
   ClockId clock_id;
-  bool used_for_conversion = false;
+
+  // Which trace file owns the trace time clock. Only the owner (or no owner)
+  // may change clock_id. Prevents secondary traces in a ZIP from overriding
+  // the primary trace's clock choice.
+  std::optional<uint32_t> trace_time_clock_owner;
+
+  std::optional<int64_t> timezone_offset;
+
+  // TODO(lalitm): remote_clock_offsets is a hack. We should have a proper
+  // definition for dealing with cross-machine clock synchronization.
+  base::FlatHashMap<ClockId, int64_t> remote_clock_offsets;
 };
 
 // Virtual interface for listening to clock synchronization events.
@@ -201,20 +242,10 @@ class ClockSynchronizer {
   ClockSynchronizer(TraceTimeState* trace_time_state,
                     std::unique_ptr<ClockSynchronizerListener> listener);
 
-  // IDs in the range [64, 128) are reserved for sequence-scoped clock ids.
-  // They can't be passed directly in ClockSynchronizer calls and must be
-  // resolved to global clock ids by calling SequenceToGlobalClock().
-  static bool IsSequenceClock(uint32_t raw_clock_id) {
-    return raw_clock_id >= 64 && raw_clock_id < 128;
-  }
-
-  // Converts a sequence-scoped clock id to a global clock id that can be
-  // passed as argument to ClockSynchronizer functions.
-  static ClockId SequenceToGlobalClock(uint32_t trace_file_id,
-                                       uint32_t seq_id,
-                                       uint32_t clock_id) {
-    PERFETTO_DCHECK(IsSequenceClock(clock_id));
-    return ClockId{clock_id, seq_id, trace_file_id};
+  // Returns true if the clock synchronizer has seen the given clock in any
+  // snapshot.
+  bool HasClock(ClockId clock_id) const {
+    return clocks_.find(clock_id) != clocks_.end();
   }
 
   // Appends a new snapshot for the given clock domains.

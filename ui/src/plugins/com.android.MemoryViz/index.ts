@@ -34,16 +34,31 @@ export default class MemoryViz implements PerfettoPlugin {
       name: 'Memory: Visualize (over selection)',
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
-        const rssAnonSwapTrack = await this.createRssAnonSwapTrack(ctx, window);
-        ctx.defaultWorkspace.pinnedTracksNode.addChildLast(rssAnonSwapTrack);
 
-        const rssFileTrack = await this.createBreakdownTrack(
-          ctx,
-          window,
-          'mem.rss.file',
-          'RSS File',
+        const tracks = [
+          ['mem.rss.file', 'RSS File'],
+          ['mem.rss.shmem', 'RSS Shmem'],
+          ['mem.dmabuf_rss', 'DMA buffer RSS'],
+          ['mem.heap', 'Heap Size'],
+          ['mem.locked', 'Locked Memory'],
+          ['GPU Memory', 'GPU Memory'],
+        ];
+
+        const trackPromises: Promise<TrackNode | undefined>[] = [
+          this.createRssAnonSwapTrack(ctx, window),
+        ];
+        trackPromises.push(
+          ...tracks.map(([trackName, displayName]) =>
+            this.createBreakdownTrack(ctx, window, trackName, displayName),
+          ),
         );
-        ctx.defaultWorkspace.pinnedTracksNode.addChildLast(rssFileTrack);
+        const createdTracks = await Promise.all(trackPromises);
+
+        for (const track of createdTracks) {
+          if (track) {
+            ctx.defaultWorkspace.pinnedTracksNode.addChildLast(track);
+          }
+        }
       },
     });
   }
@@ -55,6 +70,7 @@ export default class MemoryViz implements PerfettoPlugin {
     name: string,
     description: string,
     removable = true,
+    sortOrder?: number,
   ): Promise<TrackNode> {
     const track = await createQueryCounterTrack({
       trace: ctx,
@@ -78,13 +94,14 @@ export default class MemoryViz implements PerfettoPlugin {
       uri,
       name,
       removable,
+      sortOrder,
     });
   }
 
   private async createRssAnonSwapTrack(
     ctx: Trace,
     window: TimeSpan,
-  ): Promise<TrackNode> {
+  ): Promise<TrackNode | undefined> {
     const uri = `${MemoryViz.id}.rss_anon_swap.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
       `track_name IN ('mem.rss.anon', 'mem.swap')`,
@@ -111,8 +128,12 @@ export default class MemoryViz implements PerfettoPlugin {
       'Swap',
     );
 
-    rootNode.addChildLast(rssAnonNode);
-    rootNode.addChildLast(swapNode);
+    if (rssAnonNode) {
+      rootNode.addChildLast(rssAnonNode);
+    }
+    if (swapNode) {
+      rootNode.addChildLast(swapNode);
+    }
 
     return rootNode;
   }
@@ -122,7 +143,7 @@ export default class MemoryViz implements PerfettoPlugin {
     window: TimeSpan,
     trackName: string,
     name: string,
-  ): Promise<TrackNode> {
+  ): Promise<TrackNode | undefined> {
     const uri = `${MemoryViz.id}.${trackName}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
       `track_name = '${trackName}'`,
@@ -151,7 +172,9 @@ export default class MemoryViz implements PerfettoPlugin {
         trackName,
         bucket,
       );
-      breakdownNode.addChildLast(bucketNode);
+      if (bucketNode) {
+        breakdownNode.addChildInOrder(bucketNode);
+      }
     }
 
     return breakdownNode;
@@ -162,25 +185,29 @@ export default class MemoryViz implements PerfettoPlugin {
     window: TimeSpan,
     trackName: string,
     bucket: string,
-  ): Promise<TrackNode> {
+  ): Promise<TrackNode | undefined> {
     const processes = await ctx.engine.query(`
-      SELECT upid, pid, process_name, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.zygote_adjusted_value, 0)) as max_value FROM interval_self_intersect!((
-        SELECT
-          id,
-          MAX(ts, ${window.start}) as ts,
-          MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-        FROM _memory_breakdown_mem_with_buckets
-        WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND ts < ${
-          window.end
-        } AND ts + dur > ${window.start}
-      )) iss
-      JOIN _memory_breakdown_mem_with_buckets m USING(id)
+      SELECT
+        upid,
+        pid,
+        process_name,
+        MAX(zygote_adjusted_value) AS max_value
+      FROM _memory_breakdown_mem_with_buckets
+      WHERE
+        bucket = '${bucket}' AND
+        track_name = '${trackName}' AND
+        ts < ${window.end} AND
+        ts + dur > ${window.start}
       GROUP BY upid, pid, process_name
       HAVING max_value > 0
       ORDER BY max_value DESC
-      `);
+    `);
 
     const numProcesses = processes.numRows();
+    if (numProcesses === 0) {
+      return undefined;
+    }
+
     const plural = numProcesses === 1 ? '' : 'es';
     const name = `${bucket} (${numProcesses} process${plural})`;
 
@@ -189,6 +216,11 @@ export default class MemoryViz implements PerfettoPlugin {
       `bucket = '${bucket}'`,
       `track_name = '${trackName}'`,
     ]);
+    const peak = await ctx.engine.query(
+      `SELECT MAX(value) AS peak FROM (${sqlSource})`,
+    );
+    const peakValue = peak.iter({}).get('peak') as number;
+
     const bucketNode = await this.createTrack(
       ctx,
       uri,
@@ -198,6 +230,7 @@ export default class MemoryViz implements PerfettoPlugin {
         bucket
       }' OOM bucket (0 otherwise).`,
       true,
+      -peakValue, // Sort buckets in descending order of peak memory usage
     );
 
     for (

@@ -16,7 +16,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
-import {assertExists, assertUnreachable} from '../base/logging';
+import {assertExists, assertUnreachable} from '../base/assert';
 import {isString} from '../base/object_utils';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {exists} from '../base/utils';
@@ -27,7 +27,7 @@ import {raf} from '../core/raf_scheduler';
 import {TraceImpl} from '../core/trace_impl';
 import {Button} from '../widgets/button';
 import {Chip} from '../widgets/chip';
-import {HTMLAttrs} from '../widgets/common';
+import {HTMLAttrs, Intent} from '../widgets/common';
 import {EmptyState} from '../widgets/empty_state';
 import {HotkeyGlyphs, KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
@@ -143,11 +143,12 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     });
 
     const options = sorted.map(({recentsIndex, cmd}): OmniboxOption => {
-      const {segments, id, defaultHotkey} = cmd;
+      const {segments, id, defaultHotkey, source} = cmd;
       return {
         key: id,
         displayName: segments,
         tag: recentsIndex !== -1 ? 'recently used' : undefined,
+        source,
         rightContent: defaultHotkey && m(HotkeyGlyphs, {hotkey: defaultHotkey}),
       };
     });
@@ -343,19 +344,37 @@ interface OmniboxOptionRowAttrs extends HTMLAttrs {
 
   // Some tag to place on the right (to the left of the right content).
   readonly label?: string;
+
+  // Source label to show as a left-side chip (e.g. extension module name).
+  readonly source?: string;
 }
 
 class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
   private highlightedBefore = false;
 
   view({attrs}: m.Vnode<OmniboxOptionRowAttrs>): void | m.Children {
-    const {displayName, highlighted, rightContent, label, ...htmlAttrs} = attrs;
+    const {
+      displayName,
+      highlighted,
+      rightContent,
+      label,
+      source,
+      ...htmlAttrs
+    } = attrs;
     return m(
       'li',
       {
         class: classNames(highlighted && 'pf-highlighted'),
         ...htmlAttrs,
       },
+      source &&
+        m(Chip, {
+          className: 'pf-omnibox__source',
+          label: source,
+          rounded: true,
+          compact: true,
+          intent: Intent.Primary,
+        }),
       m('span.pf-title', this.renderTitle(displayName)),
       label && m(Chip, {className: 'pf-omnibox__tag', label, rounded: true}),
       rightContent,
@@ -393,6 +412,9 @@ interface OmniboxOption {
 
   // Some tag to place on the right (to the left of the right content).
   readonly tag?: string;
+
+  // Source label to show as a left-side chip (e.g. extension module name).
+  readonly source?: string;
 
   // Arbitrary components to put on the right hand side of the option.
   readonly rightContent?: m.Children;
@@ -584,19 +606,22 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
       selectedOptionIndex,
     } = attrs;
 
-    const opts = options.map(({displayName, key, rightContent, tag}, index) => {
-      return m(OmniboxOptionRow, {
-        key,
-        label: tag,
-        displayName: displayName,
-        highlighted: index === selectedOptionIndex,
-        onclick: () => {
-          closeOnSubmit && onClose();
-          onSubmit(key, false, false);
-        },
-        rightContent,
-      });
-    });
+    const opts = options.map(
+      ({displayName, key, rightContent, tag, source}, index) => {
+        return m(OmniboxOptionRow, {
+          key,
+          label: tag,
+          source,
+          displayName: displayName,
+          highlighted: index === selectedOptionIndex,
+          onclick: () => {
+            closeOnSubmit && onClose();
+            onSubmit(key, false, false);
+          },
+          rightContent,
+        });
+      },
+    );
 
     return m('ul.pf-omnibox-options-container', opts);
   }

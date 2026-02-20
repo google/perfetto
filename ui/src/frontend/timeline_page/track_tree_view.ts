@@ -36,7 +36,7 @@ import {
 } from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {

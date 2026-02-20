@@ -27,10 +27,15 @@ import {Keycap} from '../../../../widgets/hotkey_glyphs';
 export function buildMenuItems(
   nodeType: 'source' | 'multisource' | 'modification',
   onAddNode: (id: string) => void,
+  allowedIds?: ReadonlyArray<string>,
 ): m.Children[] {
   const nodes = nodeRegistry
     .list()
-    .filter(([_id, descriptor]) => descriptor.type === nodeType);
+    .filter(([_id, descriptor]) => descriptor.type === nodeType)
+    .filter(
+      ([id, _descriptor]) =>
+        allowedIds === undefined || allowedIds.includes(id),
+    );
 
   return buildCategorizedMenuItems(nodes, onAddNode);
 }

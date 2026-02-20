@@ -80,13 +80,16 @@ RETURNS TableOrSubquery AS
     -- Columns for tables ids, in the order of provided tables.
     __intrinsic_token_apply!(
       __first_arg,
-      (c2 AS id_0, c3 AS id_1, c4 AS id_2, c5 AS id_3, c6 AS id_4),
+      (
+        c2 AS id_0, c3 AS id_1, c4 AS id_2, c5 AS id_3, c6 AS id_4,
+        c7 AS id_5, c8 AS id_6, c9 AS id_7, c10 AS id_8, c11 AS id_9
+      ),
       $tabs
     )
     -- Columns for partitions, one for each column with partition.
     __intrinsic_token_apply_prefix!(
       _ii_df_select,
-      (c7, c8, c9, c10),
+      (c12, c13, c14, c15),
       $agg_columns
     )
   -- Interval intersect result table.
@@ -95,7 +98,10 @@ RETURNS TableOrSubquery AS
       __intrinsic_token_apply!(
         _interval_agg,
         $tabs,
-        ($agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns)
+        (
+          $agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns,
+          $agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns
+        )
       ),
       __intrinsic_stringify!($agg_columns)
     )
@@ -110,11 +116,16 @@ RETURNS TableOrSubquery AS
     AND __intrinsic_table_ptr_bind(c4, 'id_2')
     AND __intrinsic_table_ptr_bind(c5, 'id_3')
     AND __intrinsic_table_ptr_bind(c6, 'id_4')
+    AND __intrinsic_table_ptr_bind(c7, 'id_5')
+    AND __intrinsic_table_ptr_bind(c8, 'id_6')
+    AND __intrinsic_table_ptr_bind(c9, 'id_7')
+    AND __intrinsic_table_ptr_bind(c10, 'id_8')
+    AND __intrinsic_table_ptr_bind(c11, 'id_9')
 
     -- Partition columns.
     __intrinsic_token_apply_and_prefix!(
       _ii_df_bind,
-      (c7, c8, c9, c10),
+      (c12, c13, c14, c15),
       $agg_columns
     )
 );
