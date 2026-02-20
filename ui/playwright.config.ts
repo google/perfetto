@@ -23,7 +23,7 @@ const outDir = process.env.OUT_DIR ?? '../out/ui';
 const ciChromePath = '/tmp/chrome/opt/google/chrome/google-chrome';
 
 export default defineConfig({
-  timeout: 60_000,
+  timeout: 30_000,
   testDir: './src',
   snapshotDir: '../test/data/ui-screenshots',
   snapshotPathTemplate: '{snapshotDir}/{testFileName}/{testName}/{arg}{ext}',
@@ -45,7 +45,7 @@ export default defineConfig({
     toHaveScreenshot: {
       // Rendering is not 100% identical on Mac. Be more tolerant.
       // Otherwise, allow for small differences between rendering engines on Linux machines.
-      maxDiffPixelRatio: isMac ? 0.05 : 0.0001,
+      maxDiffPixelRatio: isMac ? 0.05 : undefined,
     },
   },
 
@@ -61,7 +61,7 @@ export default defineConfig({
         headless: true,
         viewport: {width: 1920, height: 1080},
         launchOptions: {
-          executablePath: isCi ? ciChromePath : undefined,
+          // executablePath: isCi ? ciChromePath : undefined,
           args: [
             '--headless',
             '--disable-accelerated-2d-canvas',
@@ -79,14 +79,17 @@ export default defineConfig({
         ignoreHTTPSErrors: true,
         trace: 'off',
         screenshot: 'on',
-        channel: 'chrome',
+        // channel: 'chrome',
         video: 'off',
       },
     },
   ],
 
   webServer: {
-    command: './run-dev-server ' + (process.env.DEV_SERVER_ARGS ?? ''),
+    // Just run the server without building
+    command:
+      './run-dev-server --no-build --no-depscheck ' +
+      (process.env.DEV_SERVER_ARGS ?? ''),
     url: 'http://127.0.0.1:10000',
     reuseExistingServer: true,
     timeout: 5 * 60 * 1000,
