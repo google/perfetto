@@ -22,6 +22,7 @@ import {
 import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
 import {checkAndroidTarget} from '../adb_platform_checks';
 import {
+  cloneAdbTracingSession,
   createAdbTracingSession,
   getAdbTracingServiceState,
 } from '../adb_tracing_session';
@@ -162,5 +163,11 @@ export class WebDeviceProxyTarget implements RecordingTarget {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
     return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
+  }
+
+  async cloneSession(uniqueSessionName: string): Promise<Result<Uint8Array>> {
+    const adbDeviceStatus = await this.connectIfNeeded();
+    if (!adbDeviceStatus.ok) return adbDeviceStatus;
+    return cloneAdbTracingSession(adbDeviceStatus.value, uniqueSessionName);
   }
 }

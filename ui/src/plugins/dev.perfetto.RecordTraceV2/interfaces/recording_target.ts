@@ -56,4 +56,8 @@ export interface RecordingTarget extends WithPreflightChecks {
   // Optional: polls per-process memory stats from the device. Only supported
   // on ADB-connected targets via `dumpsys meminfo`.
   pollMemoryStats?(): Promise<ProcessMemoryStats[] | undefined>;
+
+  // Optional: clone an active tracing session by its unique name and return
+  // the snapshot data. Creates a new connection for the clone operation.
+  cloneSession?(uniqueSessionName: string): Promise<Result<Uint8Array>>;
 }

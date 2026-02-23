@@ -20,6 +20,7 @@ import {
 import {PreflightCheck} from '../../interfaces/connection_check';
 import {AdbKeyManager} from './adb_key_manager';
 import {
+  cloneAdbTracingSession,
   createAdbTracingSession,
   getAdbTracingServiceState,
 } from '../adb_tracing_session';
@@ -97,6 +98,12 @@ export class AdbWebusbTarget implements RecordingTarget {
     const result = await dev.shell('dumpsys meminfo');
     if (!result.ok) return undefined;
     return parseDumpsysMeminfo(result.value);
+  }
+
+  async cloneSession(uniqueSessionName: string): Promise<Result<Uint8Array>> {
+    const adbDeviceStatus = await this.connectIfNeeded();
+    if (!adbDeviceStatus.ok) return adbDeviceStatus;
+    return cloneAdbTracingSession(adbDeviceStatus.value, uniqueSessionName);
   }
 
   disconnect(): void {

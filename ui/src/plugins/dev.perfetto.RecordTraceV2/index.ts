@@ -28,6 +28,7 @@ import {instructionsPage} from './pages/instructions_page';
 import {memoryRecordSection} from './pages/memory';
 import {powerRecordSection} from './pages/power';
 import {RecordPageV2} from './pages/record_page';
+import {snapshotPage} from './pages/snapshot_page';
 import {stackSamplingRecordSection} from './pages/stack_sampling';
 import {networkRecordSection} from './pages/network';
 import {targetSelectionPage} from './pages/target_selection_page';
@@ -87,6 +88,7 @@ export default class implements PerfettoPlugin {
         targetSelectionPage(recMgr),
         bufferConfigPage(recMgr),
         instructionsPage(recMgr),
+        snapshotPage(recMgr),
 
         chromeRecordSection(
           () => chromeProvider.getTrackEventDescriptor(),
