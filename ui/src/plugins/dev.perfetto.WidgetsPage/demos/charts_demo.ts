@@ -152,6 +152,7 @@ export function renderCharts(app: App): m.Children {
           logScale: opts.logScale,
           showPoints: opts.showPoints,
           multiSeries: opts.multiSeries,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -160,6 +161,12 @@ export function renderCharts(app: App): m.Children {
         logScale: false,
         showPoints: true,
         multiSeries: false,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
 
@@ -191,7 +198,8 @@ export function renderCharts(app: App): m.Children {
           logScale: opts.logScale,
           enableBrush: opts.enableBrush,
           horizontal: opts.horizontal,
-          aggregation: opts.aggregation as AggregateFunction,
+          aggregation: opts.aggregation,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -205,6 +213,12 @@ export function renderCharts(app: App): m.Children {
           'MIN',
           'MAX',
           'COUNT_DISTINCT',
+        ] as const),
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
         ] as const),
       },
     }),
@@ -239,6 +253,8 @@ export function renderCharts(app: App): m.Children {
           showLegend: opts.showLegend,
           bubbleMode: opts.bubbleMode,
           scaleAxes: opts.scaleAxes,
+          enableBrush: opts.enableBrush,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -246,6 +262,13 @@ export function renderCharts(app: App): m.Children {
         showLegend: true,
         bubbleMode: false,
         scaleAxes: false,
+        enableBrush: true,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
 
@@ -273,11 +296,18 @@ export function renderCharts(app: App): m.Children {
         return m(BoxplotChartDemo, {
           height: opts.height,
           horizontal: opts.horizontal,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
         height: 300,
         horizontal: false,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
 
@@ -318,7 +348,8 @@ function renderSQLDemos(app: App): m.Children[] {
           enableBrush: opts.enableBrush,
           logScale: opts.logScale,
           horizontal: opts.horizontal,
-          aggregation: opts.aggregation as AggregateFunction,
+          aggregation: opts.aggregation,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -333,6 +364,12 @@ function renderSQLDemos(app: App): m.Children[] {
           'MAX',
           'COUNT_DISTINCT',
         ] as const),
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLLineChartLoader'),
@@ -345,6 +382,7 @@ function renderSQLDemos(app: App): m.Children[] {
           showPoints: opts.showPoints,
           maxPoints: opts.maxPoints,
           scaleAxes: opts.scaleAxes,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -353,6 +391,12 @@ function renderSQLDemos(app: App): m.Children[] {
         showPoints: true,
         maxPoints: 200,
         scaleAxes: true,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLPieChartLoader'),
@@ -363,7 +407,7 @@ function renderSQLDemos(app: App): m.Children[] {
           height: opts.height,
           showLegend: opts.showLegend,
           donut: opts.donut,
-          aggregation: opts.aggregation as AggregateFunction,
+          aggregation: opts.aggregation,
           limit: opts.limit,
         });
       },
@@ -408,6 +452,8 @@ function renderSQLDemos(app: App): m.Children[] {
           showLegend: opts.showLegend,
           maxPoints: opts.maxPoints,
           scaleAxes: opts.scaleAxes,
+          enableBrush: opts.enableBrush,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -415,6 +461,13 @@ function renderSQLDemos(app: App): m.Children[] {
         showLegend: true,
         maxPoints: 500,
         scaleAxes: true,
+        enableBrush: true,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLTreemapLoader'),
@@ -441,12 +494,19 @@ function renderSQLDemos(app: App): m.Children[] {
           height: opts.height,
           maxPoints: opts.maxPoints,
           enableBrush: opts.enableBrush,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
         height: 250,
         maxPoints: 500,
         enableBrush: true,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLBoxplotLoader'),
@@ -456,11 +516,18 @@ function renderSQLDemos(app: App): m.Children[] {
           trace,
           height: opts.height,
           limit: opts.limit,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
         height: 300,
         limit: 10,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLHeatmapLoader'),
@@ -549,12 +616,22 @@ function HistogramDemo(): m.Component<{
   };
 }
 
+function toGridLines(
+  value: string,
+): 'horizontal' | 'vertical' | 'both' | undefined {
+  if (value === 'horizontal' || value === 'vertical' || value === 'both') {
+    return value;
+  }
+  return undefined;
+}
+
 function BarChartDemo(): m.Component<{
   height: number;
   logScale: boolean;
   enableBrush: boolean;
   horizontal: boolean;
   aggregation: AggregateFunction;
+  gridLines: string;
 }> {
   let brushedLabels: Array<string | number> | undefined;
 
@@ -594,6 +671,7 @@ function BarChartDemo(): m.Component<{
           integerMeasure: isIntegerAggregation(aggregation),
           logScale: attrs.logScale,
           orientation: attrs.horizontal ? 'horizontal' : 'vertical',
+          gridLines: toGridLines(attrs.gridLines),
           onBrush: attrs.enableBrush
             ? (labels) => {
                 brushedLabels = labels;
@@ -638,6 +716,7 @@ function SQLBarChartDemo(): m.Component<{
   logScale: boolean;
   horizontal: boolean;
   aggregation: AggregateFunction;
+  gridLines: string;
 }> {
   let loader: SQLBarChartLoader | undefined;
   let brushedLabels: Array<string | number> | undefined;
@@ -679,6 +758,7 @@ function SQLBarChartDemo(): m.Component<{
           integerMeasure: isIntegerAggregation(aggregation),
           logScale: attrs.logScale,
           orientation: attrs.horizontal ? 'horizontal' : 'vertical',
+          gridLines: toGridLines(attrs.gridLines),
           onBrush: attrs.enableBrush
             ? (labels) => {
                 brushedLabels = labels;
@@ -808,6 +888,7 @@ function SQLLineChartDemo(): m.Component<{
   showPoints: boolean;
   maxPoints: number;
   scaleAxes: boolean;
+  gridLines: string;
 }> {
   let loader: SQLLineChartLoader | undefined;
   let xRange: {min: number; max: number} | undefined;
@@ -837,6 +918,7 @@ function SQLLineChartDemo(): m.Component<{
           yAxisLabel: 'Value',
           showPoints: attrs.showPoints,
           scaleAxes: attrs.scaleAxes,
+          gridLines: toGridLines(attrs.gridLines),
           onBrush: attrs.enableBrush
             ? (range) => {
                 xRange = {min: range.start, max: range.end};
@@ -986,6 +1068,7 @@ function LineChartDemo(): m.Component<{
   logScale: boolean;
   showPoints: boolean;
   multiSeries: boolean;
+  gridLines: string;
 }> {
   let brushRange: {start: number; end: number} | undefined;
 
@@ -1074,6 +1157,7 @@ function LineChartDemo(): m.Component<{
           showPoints: attrs.showPoints,
           xAxisMin: range?.start,
           xAxisMax: range?.end,
+          gridLines: toGridLines(attrs.gridLines),
           onBrush: attrs.enableBrush
             ? (newRange) => {
                 brushRange = newRange;
@@ -1227,10 +1311,36 @@ function ScatterChartDemo(): m.Component<{
   showLegend: boolean;
   bubbleMode: boolean;
   scaleAxes: boolean;
+  enableBrush: boolean;
+  gridLines: string;
 }> {
+  let brushRange:
+    | {xMin: number; xMax: number; yMin: number; yMax: number}
+    | undefined;
+
   return {
     view: ({attrs}) => {
-      const data = attrs.bubbleMode ? SCATTER_BUBBLE_DATA : SCATTER_SAMPLE_DATA;
+      const fullData = attrs.bubbleMode
+        ? SCATTER_BUBBLE_DATA
+        : SCATTER_SAMPLE_DATA;
+
+      const range = brushRange;
+      const data: ScatterChartData =
+        range !== undefined
+          ? {
+              series: fullData.series.map((s) => ({
+                ...s,
+                points: s.points.filter(
+                  (p) =>
+                    p.x >= range.xMin &&
+                    p.x <= range.xMax &&
+                    p.y >= range.yMin &&
+                    p.y <= range.yMax,
+                ),
+              })),
+            }
+          : fullData;
+
       return m('div', [
         m(Scatterplot, {
           data,
@@ -1239,6 +1349,12 @@ function ScatterChartDemo(): m.Component<{
           yAxisLabel: 'Y Value',
           showLegend: attrs.showLegend,
           scaleAxes: attrs.scaleAxes,
+          gridLines: toGridLines(attrs.gridLines),
+          onBrush: attrs.enableBrush
+            ? (r) => {
+                brushRange = r;
+              }
+            : undefined,
         }),
         m(
           'pre',
@@ -1258,8 +1374,22 @@ function ScatterChartDemo(): m.Component<{
             attrs.scaleAxes
               ? '\nscaleAxes: true (axis range from data min/max)'
               : '\nscaleAxes: false (axis range includes zero)',
+            range
+              ? `\n\nBrushed: X=[${range.xMin.toFixed(1)}, ${range.xMax.toFixed(1)}]  Y=[${range.yMin.toFixed(1)}, ${range.yMax.toFixed(1)}]`
+              : '\n\nDrag to brush-select a region',
           ],
         ),
+        range &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                brushRange = undefined;
+              },
+            },
+            'Clear selection',
+          ),
       ]);
     },
   };
@@ -1358,8 +1488,13 @@ function SQLScatterChartDemo(): m.Component<{
   showLegend: boolean;
   maxPoints: number;
   scaleAxes: boolean;
+  enableBrush: boolean;
+  gridLines: string;
 }> {
   let loader: SQLScatterChartLoader | undefined;
+  let brushRange:
+    | {xMin: number; xMax: number; yMin: number; yMax: number}
+    | undefined;
 
   return {
     view: ({attrs}) => {
@@ -1373,10 +1508,31 @@ function SQLScatterChartDemo(): m.Component<{
         });
       }
 
+      // Always load with just maxPoints — brush filtering is applied
+      // client-side on the loaded points rather than via SQL-level range
+      // filters to avoid mismatches between floating-point brush coordinates
+      // and the integer values stored in SQLite.
       const config: ScatterChartLoaderConfig = {
         maxPoints: attrs.maxPoints,
       };
-      const {data, isPending} = loader.use(config);
+      const {data: rawData, isPending} = loader.use(config);
+
+      const range = brushRange;
+      const data: ScatterChartData | undefined =
+        rawData !== undefined && range !== undefined
+          ? {
+              series: rawData.series.map((s) => ({
+                ...s,
+                points: s.points.filter(
+                  (p) =>
+                    p.x >= range.xMin &&
+                    p.x <= range.xMax &&
+                    p.y >= range.yMin &&
+                    p.y <= range.yMax,
+                ),
+              })),
+            }
+          : rawData;
 
       return m('div', [
         m(Scatterplot, {
@@ -1386,6 +1542,12 @@ function SQLScatterChartDemo(): m.Component<{
           yAxisLabel: 'Duration',
           showLegend: attrs.showLegend,
           scaleAxes: attrs.scaleAxes,
+          gridLines: toGridLines(attrs.gridLines),
+          onBrush: attrs.enableBrush
+            ? (r) => {
+                brushRange = r;
+              }
+            : undefined,
         }),
         m(
           'pre',
@@ -1402,9 +1564,23 @@ function SQLScatterChartDemo(): m.Component<{
             `query: 'SELECT ts, dur, name FROM slice WHERE dur > 0 LIMIT 1000'\n`,
             `xColumn: 'ts', yColumn: 'dur', seriesColumn: 'name'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
+            range
+              ? `\n\nBrushed: X=[${range.xMin.toFixed(0)}, ${range.xMax.toFixed(0)}]  Y=[${range.yMin.toFixed(0)}, ${range.yMax.toFixed(0)}]`
+              : '\n\nDrag to brush-select a region',
             isPending ? '\n(loading...)' : '',
           ],
         ),
+        range &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                brushRange = undefined;
+              },
+            },
+            'Clear filter',
+          ),
       ]);
     },
     onremove: () => {
@@ -1520,6 +1696,7 @@ const BOXPLOT_SAMPLE_DATA: BoxplotData = {
 function BoxplotChartDemo(): m.Component<{
   height: number;
   horizontal: boolean;
+  gridLines: string;
 }> {
   return {
     view: ({attrs}) => {
@@ -1530,6 +1707,7 @@ function BoxplotChartDemo(): m.Component<{
           categoryLabel: 'Process',
           valueLabel: 'Duration (ns)',
           orientation: attrs.horizontal ? 'horizontal' : 'vertical',
+          gridLines: toGridLines(attrs.gridLines),
         }),
         m(
           'pre',
@@ -1610,6 +1788,7 @@ function SQLCdfDemo(): m.Component<{
   height: number;
   maxPoints: number;
   enableBrush: boolean;
+  gridLines: string;
 }> {
   let loader: SQLCdfLoader | undefined;
   let xRange: {min: number; max: number} | undefined;
@@ -1638,6 +1817,7 @@ function SQLCdfDemo(): m.Component<{
           yAxisLabel: 'Cumulative %',
           showPoints: false,
           scaleAxes: true,
+          gridLines: toGridLines(attrs.gridLines),
           onBrush: attrs.enableBrush
             ? (range) => {
                 xRange = {min: range.start, max: range.end};
@@ -1690,6 +1870,7 @@ function SQLBoxplotDemo(): m.Component<{
   trace: Trace;
   height: number;
   limit: number;
+  gridLines: string;
 }> {
   let loader: SQLBoxplotLoader | undefined;
 
@@ -1715,6 +1896,7 @@ function SQLBoxplotDemo(): m.Component<{
           height: attrs.height,
           categoryLabel: 'Slice Name',
           valueLabel: 'Duration (ns)',
+          gridLines: toGridLines(attrs.gridLines),
         }),
         m(
           'pre',

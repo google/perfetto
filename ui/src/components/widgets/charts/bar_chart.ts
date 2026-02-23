@@ -110,6 +110,13 @@ export interface BarChartAttrs {
   readonly orientation?: 'vertical' | 'horizontal';
 
   /**
+   * Show grid lines. 'horizontal' draws lines parallel to the X axis,
+   * 'vertical' draws lines parallel to the Y axis, 'both' shows both.
+   * Defaults to no grid lines.
+   */
+  readonly gridLines?: 'horizontal' | 'vertical' | 'both';
+
+  /**
    * Callback when brush selection completes (on mouseup).
    * Called with the labels of all bars in the brushed range.
    */
@@ -151,12 +158,19 @@ function buildBarOption(
     logScale = false,
     integerMeasure = false,
     orientation = 'vertical',
+    gridLines,
   } = attrs;
   const fmtMeasure = formatMeasure ?? formatNumber;
 
   const theme = getChartThemeColors();
   const horizontal = orientation === 'horizontal';
   const labels = data.items.map((item) => String(item.label));
+
+  // Map visual grid line direction to axis splitLine settings.
+  // Horizontal visual lines come from the Y axis; vertical from the X axis.
+  // In horizontal bar orientation the axes are swapped, so the mapping flips.
+  const showXAxisGrid = gridLines === 'vertical' || gridLines === 'both';
+  const showYAxisGrid = gridLines === 'horizontal' || gridLines === 'both';
 
   const categoryAxis = buildAxisOption(
     {
@@ -166,6 +180,7 @@ function buildBarOption(
       nameGap: horizontal ? 55 : 35,
       labelOverflow: 'truncate',
       labelWidth: horizontal ? 65 : undefined,
+      showSplitLine: horizontal ? showYAxisGrid : showXAxisGrid,
     },
     !horizontal,
   );
@@ -180,6 +195,7 @@ function buildBarOption(
           ? (v) => formatMeasure(v as number)
           : undefined,
       minInterval: integerMeasure ? 1 : undefined,
+      showSplitLine: horizontal ? showXAxisGrid : showYAxisGrid,
     },
     horizontal,
   );

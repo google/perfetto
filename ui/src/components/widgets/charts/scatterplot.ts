@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {extractBrushRange, formatNumber} from './chart_utils';
+import {extractBrushRect, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {buildChartOption, buildLegendOption} from './chart_option_builder';
 import {getChartThemeColors} from './chart_theme';
@@ -79,9 +79,14 @@ export interface ScatterChartAttrs {
 
   /**
    * Callback when brush selection completes (on mouseup).
-   * Called with the selected X range.
+   * Called with the selected X/Y rectangle.
    */
-  readonly onBrush?: (range: {start: number; end: number}) => void;
+  readonly onBrush?: (range: {
+    xMin: number;
+    xMax: number;
+    yMin: number;
+    yMax: number;
+  }) => void;
 
   /**
    * Fill parent container. Defaults to false.
@@ -135,6 +140,13 @@ export interface ScatterChartAttrs {
    * always including zero. Defaults to false.
    */
   readonly scaleAxes?: boolean;
+
+  /**
+   * Show grid lines. 'horizontal' draws lines parallel to the X axis,
+   * 'vertical' draws lines parallel to the Y axis, 'both' shows both.
+   * Defaults to no grid lines.
+   */
+  readonly gridLines?: 'horizontal' | 'vertical' | 'both';
 }
 
 export class Scatterplot implements m.ClassComponent<ScatterChartAttrs> {
@@ -157,7 +169,7 @@ export class Scatterplot implements m.ClassComponent<ScatterChartAttrs> {
       className,
       empty: isEmpty,
       eventHandlers: buildScatterEventHandlers(attrs),
-      activeBrushType: onBrush !== undefined ? 'lineX' : undefined,
+      activeBrushType: onBrush !== undefined ? 'rect' : undefined,
     });
   }
 }
@@ -251,7 +263,11 @@ function buildScatterOption(
         formatXValue !== undefined
           ? (v) => formatXValue(v as number)
           : undefined,
-      scale: attrs.scaleAxes,
+      // When brush is enabled, always scale axes to data range so that after
+      // filtering the axes fit the selected region rather than anchoring at 0.
+      scale: attrs.onBrush !== undefined || attrs.scaleAxes,
+      showSplitLine:
+        attrs.gridLines === 'vertical' || attrs.gridLines === 'both',
     },
     yAxis: {
       type: logScaleY ? 'log' : 'value',
@@ -260,7 +276,9 @@ function buildScatterOption(
         formatYValue !== undefined
           ? (v) => formatYValue(v as number)
           : undefined,
-      scale: attrs.scaleAxes,
+      scale: attrs.onBrush !== undefined || attrs.scaleAxes,
+      showSplitLine:
+        attrs.gridLines === 'horizontal' || attrs.gridLines === 'both',
     },
     tooltip: {
       trigger: 'item' as const,
@@ -286,7 +304,7 @@ function buildScatterOption(
       },
     },
     brush: attrs.onBrush
-      ? {xAxisIndex: 0, brushType: 'lineX' as const}
+      ? {xAxisIndex: 0, yAxisIndex: 0, brushType: 'rect' as const}
       : undefined,
     legend: displayLegend ? buildLegendOption() : {show: false},
   });
@@ -305,10 +323,9 @@ function buildScatterEventHandlers(
     {
       eventName: 'brushEnd',
       handler: (params) => {
-        const range = extractBrushRange(params);
+        const range = extractBrushRect(params);
         if (range !== undefined) {
-          const [start, end] = range;
-          onBrush({start, end});
+          onBrush(range);
         }
       },
     },

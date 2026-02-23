@@ -86,10 +86,15 @@ function ensureEChartsSetup(): void {
 /**
  * Typed params for the ECharts `brushEnd` event.
  * Used by chart brush handlers to extract selected ranges.
+ *
+ * coordRange is [min, max] for 1-D brushes (lineX / lineY) and
+ * [[xMin, xMax], [yMin, yMax]] for 2-D rect brushes.
  */
 export interface EChartBrushEndParams {
   readonly areas?: ReadonlyArray<{
-    readonly coordRange?: [number, number];
+    readonly coordRange?:
+      | [number, number]
+      | [[number, number], [number, number]];
   }>;
 }
 
