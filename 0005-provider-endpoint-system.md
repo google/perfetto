@@ -119,17 +119,20 @@ profiles. This is intentional - it follows from the "static client + no backend"
 architecture. Organizations needing centralized provisioning must fork/deploy
 their own UI bundle with the desired servers pre-configured.
 
-Extension servers are configured with HTTPS URLs. For convenience, the UI also
-supports shorthand aliases that resolve to standard HTTPS endpoints:
+Extension servers come in two types, configured via a discriminated union:
 
-- `github://owner/repo/ref` resolves to
-  `https://raw.githubusercontent.com/owner/repo/ref`
-- `gs://bucket/path` resolves to GCS public HTTPS API
-- `s3://bucket/path` resolves to S3 HTTPS API
+- **GitHub**: Configured with `repo` (e.g., `"owner/repo"`), `ref` (branch or
+  tag), and optional `path` (subdirectory). The UI constructs the fetch URL
+  internally, using `raw.githubusercontent.com` for unauthenticated requests or
+  the GitHub API for authenticated requests (to support private repos).
+- **HTTPS**: Configured with a direct URL. The URL is automatically normalized
+  to use `https://` if no scheme is provided. `http://` URLs are rejected —
+  browsers don't allow mixed-content fetch.
 
-Note: `http://` URLs are rejected - browsers don't allow mixed-content fetch,
-and silently upgrading can hide bugs if servers behave differently on HTTP vs
-HTTPS.
+Each server also stores: `enabledModules` (array of module IDs selected by the
+user), `enabled` (on/off toggle), `auth` (authentication configuration), and
+`locked` (whether the server can be edited/deleted by the user — used for
+embedder-configured servers).
 
 ### Standard Endpoints
 
@@ -161,13 +164,22 @@ The `manifest` endpoint returns server metadata, features, and module list:
 {
   "name": "Google Internal Extensions",
   "namespace": "com.google",
-  "features": ["macros", "sql_modules", "proto_descriptors"],
-  "modules": ["default", "android", "chrome"]
+  "features": [
+    {"name": "macros"},
+    {"name": "sql_modules"},
+    {"name": "proto_descriptors"}
+  ],
+  "modules": [
+    {"id": "default", "name": "Default"},
+    {"id": "android", "name": "Android"},
+    {"id": "chrome", "name": "Chrome"}
+  ]
 }
 ```
 
 **Fields:**
-- `name` (required): Human-readable server name shown in Settings
+- `name` (required): Human-readable server name shown in Settings and in
+  command palette source chips.
 - `namespace` (required): Unique identifier for this server, following reverse
   domain notation (e.g., `"com.google"`, `"dev.perfetto"`). Used to prevent
   naming conflicts when multiple extension servers are configured:
@@ -178,12 +190,16 @@ The `manifest` endpoint returns server metadata, features, and module list:
     `"com.google.StartupAnalysis"`)
   - The UI validates these constraints and rejects extensions that don't follow
     the namespacing convention.
-- `features` (required): List of features this server provides. Valid values:
-  `"macros"`, `"sql_modules"`, `"proto_descriptors"`. The UI only fetches
-  endpoints for declared features - if a feature is not listed, the
-  corresponding endpoint is not queried.
-- `modules` (required): List of available modules. Use `["default"]` for
-  single-module servers.
+- `features` (required): Array of feature objects, each with a `name` field.
+  Valid feature names: `"macros"`, `"sql_modules"`, `"proto_descriptors"`. The
+  UI only fetches endpoints for declared features - if a feature is not listed,
+  the corresponding endpoint is not queried.
+- `modules` (required): Array of module objects, each with:
+  - `id` (required): Identifier used in URL paths (`/modules/{id}/macros`) and
+    in the `enabledModules` setting array.
+  - `name` (required): Human-readable display name shown in the UI (module
+    selection, command palette source chips, etc.).
+  Use `[{"id": "default", "name": "Default"}]` for single-module servers.
 
 **Extension Response Formats:**
 
@@ -196,7 +212,7 @@ The extension endpoints return JSON with the following structures:
     {
       "id": "com.google.StartupAnalysis",
       "name": "Startup Analysis",
-      "commands": [
+      "run": [
         {"id": "dev.perfetto.RunQuery", "args": ["SELECT 1"]}
       ]
     }
@@ -206,11 +222,13 @@ The extension endpoints return JSON with the following structures:
 
 Note: The macro `id` must start with the server's namespace (e.g.,
 `com.google.`). The `name` is human-readable and shown in the command palette.
+The `run` field is an array of command invocations, each with a command `id` and
+`args` array.
 
 `/modules/{module}/sql_modules`:
 ```json
 {
-  "sqlModules": [
+  "sql_modules": [
     {"name": "com.google.startup", "sql": "CREATE PERFETTO TABLE..."},
     {"name": "com.google.memory", "sql": "CREATE PERFETTO FUNCTION..."}
   ]
@@ -223,7 +241,7 @@ Note: Each SQL module `name` must start with the server's namespace (e.g.,
 `/modules/{module}/proto_descriptors`:
 ```json
 {
-  "descriptors": [
+  "proto_descriptors": [
     "base64-encoded-descriptor-1",
     "base64-encoded-descriptor-2"
   ]
@@ -285,13 +303,15 @@ noise. Modules let users choose which sets of extensions they want.
 **How modules work:**
 
 - Server's `/manifest` endpoint lists available modules and features:
-  `{"name": "...", "namespace": "...", "features": [...], "modules": [...]}`
+  `{"name": "...", "namespace": "...", "features": [{...}], "modules": [{...}]}`
+- Each module has an `id` (used in URL paths and settings) and a `name`
+  (human-readable label shown in the UI)
 - When adding server, UI fetches manifest and shows module selection in Settings
 - The `default` module (if available) is automatically selected when manifest is
   fetched. Other modules remain unselected so users can opt in explicitly.
 - UI loads extensions only from selected modules
-- Each module's extensions in separate paths: `/modules/android/macros`,
-  `/modules/chrome/macros`, etc.
+- Each module's extensions in separate paths: `/modules/{module_id}/macros`,
+  `/modules/{module_id}/sql_modules`, etc.
 - UI only fetches endpoints for features declared in the manifest
 
 **Implementation notes:**
@@ -369,20 +389,19 @@ Server Authentication**. This section provides a high-level overview for context
 Extension servers support standard authentication mechanisms:
 
 - **Public access**: Servers can be publicly accessible (no auth required)
-- **GitHub OAuth**: Device Flow for client-side authentication without backend
-- **Cloud storage**: GCS and S3 native authentication
-- **Standard HTTPS auth**: Bearer tokens or Basic authentication
+- **GitHub PAT**: Personal Access Token for private GitHub repos
+- **HTTPS Basic auth**: Username/password
+- **HTTPS API key**: Bearer token, X-API-Key header, or custom header
+- **HTTPS SSO**: Cookie-based SSO with automatic iframe-based refresh on 403
 
-**Authentication flow:**
+Authentication is configured per-server in the Settings UI when adding or
+editing a server. Credentials are stored in localStorage alongside the server
+configuration. Secret fields (PAT, passwords, API keys) are marked with
+metadata so they can be stripped when sharing server configurations via URL.
 
-1. Try request without credentials (works for public servers)
-2. On 401/403 → Prompt user for credentials via provider-specific flow
-3. Store credentials in localStorage (separate from settings)
-4. Retry request with credentials
-5. Auto-refresh OAuth tokens as needed
-
-**Full specification:** See RFC-0006 for storage schemas, credential management
-UI, OAuth flows, token refresh logic, and security considerations.
+**SSO flow:** When a request returns 403 and the server uses SSO auth, the UI
+loads the server's base URL in a hidden iframe to refresh session cookies, then
+retries the request once.
 
 ## Examples
 
@@ -413,8 +432,16 @@ acme-corp/perfetto-resources/
 {
   "name": "Acme Corp Extensions",
   "namespace": "com.acme",
-  "features": ["macros", "sql_modules", "proto_descriptors"],
-  "modules": ["default", "android", "chrome"]
+  "features": [
+    {"name": "macros"},
+    {"name": "sql_modules"},
+    {"name": "proto_descriptors"}
+  ],
+  "modules": [
+    {"id": "default", "name": "Default"},
+    {"id": "android", "name": "Android"},
+    {"id": "chrome", "name": "Chrome"}
+  ]
 }
 ```
 
@@ -426,7 +453,7 @@ acme-corp/perfetto-resources/
     {
       "id": "com.acme.StartupAnalysis",
       "name": "Startup Analysis",
-      "commands": [{"id": "dev.perfetto.RunQuery", "args": ["SELECT 1"]}]
+      "run": [{"id": "dev.perfetto.RunQuery", "args": ["SELECT 1"]}]
     }
   ]
 }
@@ -436,7 +463,7 @@ acme-corp/perfetto-resources/
 
 ```json
 {
-  "sqlModules": [
+  "sql_modules": [
     {"name": "com.acme.startup", "sql": "CREATE PERFETTO TABLE..."}
   ]
 }
@@ -445,9 +472,12 @@ acme-corp/perfetto-resources/
 **Configuration:**
 
 ```
-URL: github://acme-corp/perfetto-resources/main
+Type: GitHub
+Repo: acme-corp/perfetto-resources
+Ref: main
+Path: /
 Modules: default, android, chrome
-Auth: GitHub OAuth (automatic)
+Auth: None (public repo) or PAT (private repo)
 ```
 
 ### Corporate Server
@@ -458,8 +488,13 @@ def get_manifest():
     return jsonify({
         "name": "Acme Corp Extensions",
         "namespace": "com.acme",
-        "features": ["macros", "sql_modules"],
-        "modules": ["default", "android", "chrome", "infra"]
+        "features": [{"name": "macros"}, {"name": "sql_modules"}],
+        "modules": [
+            {"id": "default", "name": "Default"},
+            {"id": "android", "name": "Android"},
+            {"id": "chrome", "name": "Chrome"},
+            {"id": "infra", "name": "Infrastructure"},
+        ]
     })
 
 @app.route('/modules/<module>/macros')
@@ -474,9 +509,10 @@ def get_module_sql_modules(module):
 **Configuration:**
 
 ```
+Type: HTTPS
 URL: https://perfetto.corp.example.com
 Modules: default, android
-Auth: Corporate SSO (OAuth2/OIDC)
+Auth: SSO (cookie-based)
 ```
 
 ## Security Considerations
@@ -561,44 +597,37 @@ Leverage existing systems (GitHub, GCS, corporate SSO).
 
 ## Implementation
 
-### Phase 1: Core Extension Server Infrastructure
+### Phase 1: Core Extension Server Infrastructure (Done)
 
-- Extension server config schema (localStorage)
+- Extension server config schema (localStorage via Settings)
 - Server fan-out orchestration (aggregate UI extensions from all enabled
   servers/modules)
 - Manifest fetching and parsing
-- Auth header injection
-- Error handling and logging
-
-### Phase 2: UI Extensions
-
-- Manifest endpoint (`/manifest`)
+- Auth header injection (PAT, Basic, API key, SSO)
+- Error handling, logging, and error modal
+- GitHub and HTTPS server types
+- Add/edit/delete/share server UI in Settings
 - Module discovery and selection UI
 - Extension endpoints (macros, SQL modules, proto descriptors)
-- Replace `is_internal_user_script_loader.ts`
-- Installation-configured server bootstrap (auto-added, `default` module
-  selected)
+- Embedder-configured server bootstrap (auto-added, `default` module selected,
+  locked)
+- URL-based server sharing (`?addServer=<base64>`)
+- SSO cookie refresh via hidden iframe
 
-### Phase 2.5: Authentication (RFC-0006)
-
-- GitHub App OAuth (Device Flow)
-- GCS/S3/HTTPS authentication flows
-- Credential management UI
-- See RFC-0006: Extension Server Authentication for details
-
-### Phase 3: Post-MVP Enhancements
+### Phase 2: Post-MVP Enhancements
 
 - Extension Server Store (curated catalog + Settings shortcuts; cover in
   dedicated RFC)
-- URL parameter support (`?add_server=...`)
+- Replace `is_internal_user_script_loader.ts`
 - Service worker caching for offline support
+- Command palette source chips showing server/module origin
 
-### Phase 4: Local HTTP Accelerator (Future)
+### Phase 3: Local HTTP Accelerator (Future)
 
 - Extend `trace_processor --httpd` to serve extension server endpoints
 - Local filesystem discovery
 
-### Phase 5: Symbolization & Deobfuscation (Separate RFC)
+### Phase 4: Symbolization & Deobfuscation (Separate RFC)
 
 - Endpoint specifications
 - Browser integration
