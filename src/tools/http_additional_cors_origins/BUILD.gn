@@ -12,19 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-declare_args() {
-  # Comma-separated list of additional CORS origins to allow in trace_processor
-  # and websocket_bridge.
-  perfetto_http_additional_cors_origins = ""
-}
+import("../../../gn/perfetto.gni")
 
 source_set("http_additional_cors_origins") {
   deps = [
     "../../../gn:default_deps",
     "../../base",
   ]
-
-  defines = [ "PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS=\"${perfetto_http_additional_cors_origins}\"" ]
 
   sources = [
     "http_additional_cors_origins.cc",

@@ -16,12 +16,14 @@
 
 #include "src/tools/http_additional_cors_origins/http_additional_cors_origins.h"
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 
 std::vector<std::string> GetHttpAdditionalCorsOrigins() {
-  return base::SplitString(PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS, ",");
+  return base::SplitString(
+      PERFETTO_BUILDFLAG(PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS), ",");
 }
 
 }  // namespace perfetto
