@@ -508,7 +508,7 @@ namespace perfetto::trace_processor::stats {
                                           kSingle,  kInfo,     kAnalysis,      \
       "Failed to decode ProtoLog message."),                                   \
   F(winscope_protolog_view_config_collision,                                   \
-                                          kSingle,  kInfo,     kAnalysis,      \
+                                          kSingle,  kError,    kAnalysis,      \
       "Got a viewer config collision!"),                                       \
   F(winscope_protolog_param_mismatch,                                          \
                                           kSingle,  kInfo,     kAnalysis,      \
