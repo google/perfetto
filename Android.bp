@@ -15762,6 +15762,7 @@ filegroup {
         "src/trace_processor/importers/proto/track_event_sequence_state.cc",
         "src/trace_processor/importers/proto/track_event_tokenizer.cc",
         "src/trace_processor/importers/proto/track_event_tracker.cc",
+        "src/trace_processor/importers/proto/user_tracker.cc",
     ],
 }
 

@@ -2872,6 +2872,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/track_event_tokenizer.h",
         "src/trace_processor/importers/proto/track_event_tracker.cc",
         "src/trace_processor/importers/proto/track_event_tracker.h",
+        "src/trace_processor/importers/proto/user_tracker.cc",
+        "src/trace_processor/importers/proto/user_tracker.h",
     ],
 )
 
