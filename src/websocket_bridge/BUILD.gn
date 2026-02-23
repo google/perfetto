@@ -18,7 +18,6 @@ source_set("lib") {
     "../base",
     "../base:unix_socket",
     "../base/http",
-    "../tools/http_additional_cors_origins",
     "../tracing/ipc:default_socket",
   ]
   sources = [

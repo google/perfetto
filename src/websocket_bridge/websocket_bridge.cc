@@ -23,14 +23,13 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/http/http_server.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/tracing/default_socket.h"
-
-#include "src/tools/http_additional_cors_origins/http_additional_cors_origins.h"
 
 namespace perfetto {
 namespace {
@@ -155,7 +154,10 @@ void WSBridge::Main(int argc, char** argv) {
   srv.AddAllowedOrigin("http://127.0.0.1:10000");
   srv.AddAllowedOrigin("https://ui.perfetto.dev");
 
-  for (const auto& origin : GetHttpAdditionalCorsOrigins()) {
+  std::vector<std::string> additional_cors_origins = base::SplitString(
+      PERFETTO_BUILDFLAG(PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS), ",");
+
+  for (const auto& origin : additional_cors_origins) {
     srv.AddAllowedOrigin(origin);
   }
 
