@@ -56,6 +56,8 @@
 #include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/common/builtin_clock.gen.h"
+#include "protos/perfetto/config/protovm/protovm_config.gen.h"
+#include "protos/perfetto/protovm/vm_program.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/remote_clock_sync.gen.h"
 #include "src/base/test/test_task_runner.h"
@@ -70,6 +72,7 @@
 
 #include "protos/perfetto/common/semantic_type.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
+#include "protos/perfetto/trace/perfetto/trace_provenance.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -122,6 +125,8 @@ constexpr size_t kDefaultShmSizeKb = TracingServiceImpl::kDefaultShmSize / 1024;
 constexpr size_t kDefaultShmPageSizeKb =
     TracingServiceImpl::kDefaultShmPageSize / 1024;
 constexpr size_t kMaxShmSizeKb = TracingServiceImpl::kMaxShmSize / 1024;
+
+constexpr size_t kProtoVmMemoryLimitKb = 16;
 
 AssertionResult HasTriggerModeInternal(
     const std::vector<protos::gen::TracePacket>& packets,
@@ -2394,10 +2399,11 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   // TraceUuid
   // Config
   // SystemInfo
+  // TraceProvenance
   // Tracing started (TracingServiceEvent)
   // All data source started (TracingServiceEvent)
   // Tracing disabled (TracingServiceEvent)
-  static const int kNumPreamblePackets = 9;
+  static const int kNumPreamblePackets = 10;
   static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
@@ -7876,6 +7882,497 @@ TEST_F(TracingServiceImplTest, NamedBufferMixedWithUnnamed) {
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_1");
   producer->WaitForDataSourceStop("ds_2");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, TraceProvenance) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  // Set up tracing session
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  consumer->EnableTracing(trace_config);
+
+  // Set up producer
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer_1");
+  producer->RegisterDataSource("data_source");
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  // Set up writers
+  std::unique_ptr<TraceWriter> writer_1 =
+      producer->CreateTraceWriter("data_source");
+  std::unique_ptr<TraceWriter> writer_2 =
+      producer->CreateTraceWriter("data_source");
+  task_runner.RunUntilIdle();  // Wait for the writers to be registered.
+
+  // Write some data
+  writer_1->NewTracePacket()->set_for_testing()->set_str("test_string_1");
+  writer_1->Flush();
+  writer_2->NewTracePacket()->set_for_testing()->set_str("test_string_2");
+  writer_2->Flush();
+
+  // Check trace provenance packet
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  auto packet = std::find_if(packets.cbegin(), packets.cend(),
+                             [](const protos::gen::TracePacket& p) {
+                               return p.has_trace_provenance();
+                             });
+  EXPECT_NE(packet, packets.cend());
+  EXPECT_THAT(
+      packet->trace_provenance(),
+      Property(
+          &protos::gen::TraceProvenance::buffers,
+          ElementsAre(Property(
+              &protos::gen::TraceProvenance::Buffer::sequences,
+              ElementsAre(
+                  AllOf(
+                      Property(&protos::gen::TraceProvenance::Sequence::id,
+                               Not(Eq(0u))),
+                      Property(
+                          &protos::gen::TraceProvenance::Sequence::producer_id,
+                          Not(Eq(0)))),
+                  AllOf(
+                      Property(&protos::gen::TraceProvenance::Sequence::id,
+                               Not(Eq(0u))),
+                      Property(
+                          &protos::gen::TraceProvenance::Sequence::producer_id,
+                          Not(Eq(0)))))))));
+}
+
+void WriteProtoVmPatches(TraceWriter& writer,
+                         const std::vector<std::string>& field_values) {
+  for (const auto& value : field_values) {
+    std::string s = value + std::string(1000, '#');
+    writer.NewTracePacket()
+        ->set_for_testing()
+        ->set_protovm_patch()
+        ->set_string_to_merge(std::move(s));
+    writer.Flush();
+  }
+}
+
+void ExpectProtoVmPackets(
+    const std::vector<protos::gen::TracePacket>& actual_packets,
+    const std::vector<std::string>& expected_incremental_states,
+    const std::vector<std::string>& expected_unapplied_patches) {
+  auto vms_packet = std::find_if(
+      actual_packets.cbegin(), actual_packets.cend(),
+      [](const protos::gen::TracePacket& p) { return p.has_protovms(); });
+  ASSERT_NE(vms_packet, actual_packets.cend());
+  // ProtoVMs packet: check available fields
+  EXPECT_THAT(
+      *vms_packet,
+      Property(
+          &protos::gen::TracePacket::protovms,
+          Property(
+              &protos::gen::TracePacket::ProtoVms::instance,
+
+              Each(AllOf(
+                  Property(&protos::gen::TracePacket::ProtoVms::Instance::
+                               has_program,
+                           true),
+                  Property(
+                      &protos::gen::TracePacket::ProtoVms::Instance::has_state,
+                      true),
+                  Property(&protos::gen::TracePacket::ProtoVms::Instance::
+                               memory_limit_kb,
+                           Eq(kProtoVmMemoryLimitKb)),
+                  Property(&protos::gen::TracePacket::ProtoVms::Instance::
+                               producer_id,
+                           Not(IsEmpty())))))));
+  // ProtoVMs packet: check data of serialized incremental states
+  std::vector<protos::gen::TracePacket> actual_incremental_states;
+  for (const auto& instance : vms_packet->protovms().instance()) {
+    actual_incremental_states.push_back(instance.state());
+  }
+  std::vector<::testing::Matcher<protos::gen::TracePacket>>
+      incremental_state_matchers;
+  for (const auto& expected : expected_incremental_states) {
+    incremental_state_matchers.push_back(Property(
+        &protos::gen::TracePacket::for_testing,
+        Property(
+            &protos::gen::TestEvent::protovm_incremental_state,
+            Property(
+                &protos::gen::TestEvent::ProtoVmIncrementalState::string_merged,
+                HasSubstr(expected)))));
+  }
+  EXPECT_THAT(actual_incremental_states,
+              UnorderedElementsAreArray(incremental_state_matchers));
+  // Other packets: check data of unapplied patches
+  std::vector<::testing::Matcher<protos::gen::TracePacket>> patch_matchers;
+  for (const auto& p : expected_unapplied_patches) {
+    patch_matchers.push_back(Property(
+        &protos::gen::TracePacket::for_testing,
+        Property(
+            &protos::gen::TestEvent::protovm_patch,
+            Property(&protos::gen::TestEvent::ProtoVmPatch::string_to_merge,
+                     HasSubstr(p)))));
+  }
+  EXPECT_THAT(actual_packets, IsSupersetOf(patch_matchers));
+}
+
+perfetto::protos::gen::VmProgram CreateProtoVmProgram(
+    uint32_t program_version = 1) {
+  auto add_copy_field_instructions =
+      [](protos::gen::TestEvent::ProtoVmPatch::FieldNumbers src,
+         protos::gen::TestEvent::ProtoVmIncrementalState::FieldNumbers dst,
+         protos::gen::VmProgram* program) {
+        // select src element
+        auto* instr_src_select = program->add_instructions();
+        auto* src_select = instr_src_select->mutable_select();
+
+        src_select->add_relative_path()->set_field_id(
+            protos::gen::TracePacket::kForTestingFieldNumber);
+
+        src_select->add_relative_path()->set_field_id(
+            protos::gen::TestEvent::kProtovmPatchFieldNumber);
+
+        src_select->add_relative_path()->set_field_id(src);
+
+        // select dst element
+        auto* instr_dst_select = instr_src_select->add_nested_instructions();
+        auto* dst_select = instr_dst_select->mutable_select();
+        dst_select->set_cursor(protos::gen::VmCursorEnum::VM_CURSOR_DST);
+        dst_select->set_create_if_not_exist(true);
+
+        dst_select->add_relative_path()->set_field_id(
+            protos::gen::TracePacket::kForTestingFieldNumber);
+        dst_select->add_relative_path()->set_field_id(
+            protos::gen::TestEvent::kProtovmIncrementalStateFieldNumber);
+        dst_select->add_relative_path()->set_field_id(dst);
+
+        // set dst = src
+        auto* instr_set = instr_dst_select->add_nested_instructions();
+        instr_set->mutable_set();
+      };
+
+  perfetto::protos::gen::VmProgram program;
+  program.set_version(program_version);
+  add_copy_field_instructions(
+      protos::gen::TestEvent::ProtoVmPatch::kStringToMergeFieldNumber,
+      protos::gen::TestEvent::ProtoVmIncrementalState::kStringMergedFieldNumber,
+      &program);
+  add_copy_field_instructions(
+      protos::gen::TestEvent::ProtoVmPatch::kIntToMergeFieldNumber,
+      protos::gen::TestEvent::ProtoVmIncrementalState::kIntMergedFieldNumber,
+      &program);
+
+  return program;
+}
+
+TEST_F(TracingServiceImplTest, ProtoVmNoAppliedPatch) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source", false, false, false, false,
+                               CreateProtoVmProgram());
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(4);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_protovm_config()->set_memory_limit_kb(
+      kProtoVmMemoryLimitKb);
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  // Wait for the writer to be registered.
+  task_runner.RunUntilIdle();
+
+  // Fill buffer but stop before triggering overwrites (no patch applied)
+  WriteProtoVmPatches(*writer, {"patch1", "patch2", "patch3"});
+
+  // Expect unapplied patches
+  ExpectProtoVmPackets(consumer->ReadBuffers(), {""},
+                       {"patch1", "patch2", "patch3"});
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ProtoVmWithAppliedPatches) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source", false, false, false, false,
+                               CreateProtoVmProgram());
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(4);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_protovm_config()->set_memory_limit_kb(
+      kProtoVmMemoryLimitKb);
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  // Wait for the writer to be registered.
+  task_runner.RunUntilIdle();
+
+  // Fill buffer and trigger overwrite of patch1 and patch2
+  WriteProtoVmPatches(*writer,
+                      {"patch1", "patch2", "patch3", "patch4", "patch5"});
+
+  // Expect VM incremental state with applied patch2
+  ExpectProtoVmPackets(consumer->ReadBuffers(), {"patch2"},
+                       {"patch3", "patch4", "patch5"});
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ProtoVmWithLateProducerRegistration) {
+  // Enable tracing
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(4);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_protovm_config()->set_memory_limit_kb(
+      kProtoVmMemoryLimitKb);
+  consumer->EnableTracing(trace_config);
+
+  // Register producer
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source", false, false, false, false,
+                               CreateProtoVmProgram());
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  // Wait for the writer to be registered.
+  task_runner.RunUntilIdle();
+
+  // Fill buffer and trigger overwrite of patch1 and patch2
+  WriteProtoVmPatches(*writer,
+                      {"patch1", "patch2", "patch3", "patch4", "patch5"});
+
+  // Expect VM incremental state with applied patch2
+  ExpectProtoVmPackets(consumer->ReadBuffers(), {"patch2"},
+                       {"patch3", "patch4", "patch5"});
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ProtoVmWithSessionClone) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source", false, false, false, false,
+                               CreateProtoVmProgram());
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(4);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_protovm_config()->set_memory_limit_kb(
+      kProtoVmMemoryLimitKb);
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  // Wait for the writer to be registered.
+  task_runner.RunUntilIdle();
+
+  // Fill buffer and trigger overwrite of patch1
+  WriteProtoVmPatches(*writer, {"patch1", "patch2", "patch3", "patch4"});
+
+  // Clone the session and check that the packets can be read from the new
+  // session.
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get());
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*consumer2, OnSessionCloned(_))
+      .WillOnce(
+          [clone_done](const Consumer::OnSessionClonedArgs&) { clone_done(); });
+  consumer2->CloneSession(1);
+  producer->ExpectFlush(writer.get());
+  task_runner.RunUntilCheckpoint("clone_done");
+  ExpectProtoVmPackets(consumer2->ReadBuffers(), {"patch1"},
+                       {"patch2", "patch3", "patch4"});
+
+  // Write more patches into the original session and trigger overwrite of
+  // patch2
+  WriteProtoVmPatches(*writer, {"patch5"});
+  ExpectProtoVmPackets(consumer->ReadBuffers(), {"patch2"},
+                       {"patch3", "patch4", "patch5"});
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
+// This test sets up a more complex scenario where the service needs to pick
+// among different ProtoVMs where the packets are routed to. It involves three
+// data sources:
+// - ds_with_single_vm: two producers, same ProtoVM instance.
+// - ds_with_multiple_vm: two producers, two ProtoVM instances (two different
+// program versions).
+// - ds_without_vm: one producer, no ProtoVM.
+TEST_F(TracingServiceImplTest, MultiProtoVmRouting) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  auto producer_single_vm_1 = CreateMockProducer();
+  producer_single_vm_1->Connect(svc.get(), "producer_single_vm_1", 10, 10);
+  producer_single_vm_1->RegisterDataSource(
+      "ds_with_single_vm", false, false, false, false, CreateProtoVmProgram(1));
+
+  auto producer_single_vm_2 = CreateMockProducer();
+  producer_single_vm_2->Connect(svc.get(), "producer_single_vm_2", 11, 11);
+  producer_single_vm_2->RegisterDataSource(
+      "ds_with_single_vm", false, false, false, false, CreateProtoVmProgram(1));
+
+  auto producer_multi_vm_1 = CreateMockProducer();
+  producer_multi_vm_1->Connect(svc.get(), "producer_multi_vm_1", 12, 12);
+  producer_multi_vm_1->RegisterDataSource(
+      "ds_with_multi_vm", false, false, false, false, CreateProtoVmProgram(1));
+
+  auto producer_multi_vm_2 = CreateMockProducer();
+  producer_multi_vm_2->Connect(svc.get(), "producer_multi_vm_2", 13, 13);
+  producer_multi_vm_2->RegisterDataSource(
+      "ds_with_multi_vm", false, false, false, false, CreateProtoVmProgram(2));
+
+  auto producer_no_vm = CreateMockProducer();
+  producer_no_vm->Connect(svc.get(), "producer_no_vm", 14, 14);
+  producer_no_vm->RegisterDataSource("ds_no_vm");
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(4);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+
+  auto* ds_single_vm = trace_config.add_data_sources()->mutable_config();
+  ds_single_vm->set_name("ds_with_single_vm");
+  ds_single_vm->set_target_buffer(0);
+  ds_single_vm->mutable_protovm_config()->set_memory_limit_kb(
+      kProtoVmMemoryLimitKb);
+
+  auto* ds_multi_vm = trace_config.add_data_sources()->mutable_config();
+  ds_multi_vm->set_name("ds_with_multi_vm");
+  ds_multi_vm->set_target_buffer(0);
+  ds_multi_vm->mutable_protovm_config()->set_memory_limit_kb(
+      kProtoVmMemoryLimitKb);
+
+  // Config ds_no_vm
+  auto* ds_no_vm = trace_config.add_data_sources()->mutable_config();
+  ds_no_vm->set_name("ds_no_vm");
+  ds_no_vm->set_target_buffer(0);
+
+  consumer->EnableTracing(trace_config);
+
+  // Wait for all producers and data sources to start
+  producer_single_vm_1->WaitForTracingSetup();
+  producer_single_vm_1->WaitForDataSourceSetup("ds_with_single_vm");
+
+  producer_single_vm_2->WaitForTracingSetup();
+  producer_single_vm_2->WaitForDataSourceSetup("ds_with_single_vm");
+
+  producer_multi_vm_1->WaitForTracingSetup();
+  producer_multi_vm_1->WaitForDataSourceSetup("ds_with_multi_vm");
+
+  producer_multi_vm_2->WaitForTracingSetup();
+  producer_multi_vm_2->WaitForDataSourceSetup("ds_with_multi_vm");
+
+  producer_no_vm->WaitForTracingSetup();
+  producer_no_vm->WaitForDataSourceSetup("ds_no_vm");
+
+  producer_single_vm_1->WaitForDataSourceStart("ds_with_single_vm");
+  producer_single_vm_2->WaitForDataSourceStart("ds_with_single_vm");
+  producer_multi_vm_1->WaitForDataSourceStart("ds_with_multi_vm");
+  producer_multi_vm_2->WaitForDataSourceStart("ds_with_multi_vm");
+  producer_no_vm->WaitForDataSourceStart("ds_no_vm");
+
+  auto writer_single_vm_1 =
+      producer_single_vm_1->CreateTraceWriter("ds_with_single_vm");
+  auto writer_single_vm_2 =
+      producer_single_vm_2->CreateTraceWriter("ds_with_single_vm");
+  auto writer_multi_vm_1 =
+      producer_multi_vm_1->CreateTraceWriter("ds_with_multi_vm");
+  auto writer_multi_vm_2 =
+      producer_multi_vm_2->CreateTraceWriter("ds_with_multi_vm");
+  auto writer_no_vm = producer_no_vm->CreateTraceWriter("ds_no_vm");
+
+  task_runner.RunUntilIdle();
+
+  // Overwritten sequence of packets:
+  // - single vm 1
+  // - single vm 2 (serialized incremental state of single_vm ds)
+  // - multi vm 1 (serialized incremental state of multi_vm ds - program ver. 1)
+  // - multi vm 2 (serialized incremental state of multi_vm ds - program ver. 2)
+  // - no vm
+  WriteProtoVmPatches(*writer_single_vm_1, {"single vm 1 - overwritten"});
+  WriteProtoVmPatches(*writer_single_vm_2, {"single vm 2 - overwritten"});
+  WriteProtoVmPatches(*writer_multi_vm_1, {"multi vm 1 - overwritten"});
+  WriteProtoVmPatches(*writer_multi_vm_2, {"multi vm 2 - overwritten"});
+  WriteProtoVmPatches(*writer_no_vm, {"no vm - overwritten"});
+
+  // Remaining packets in buffer:
+  WriteProtoVmPatches(*writer_single_vm_2, {"single vm 2 - in buffer"});
+  WriteProtoVmPatches(*writer_multi_vm_1, {"multi vm 1 - in buffer"});
+  WriteProtoVmPatches(*writer_multi_vm_2, {"multi vm 2 - in buffer"});
+
+  ExpectProtoVmPackets(consumer->ReadBuffers(),
+                       {"single vm 2 - overwritten", "multi vm 1 - overwritten",
+                        "multi vm 2 - overwritten"},
+                       {"single vm 2 - in buffer", "multi vm 1 - in buffer",
+                        "multi vm 2 - in buffer"});
+
+  consumer->DisableTracing();
+  producer_single_vm_1->WaitForDataSourceStop("ds_with_single_vm");
+  producer_single_vm_2->WaitForDataSourceStop("ds_with_single_vm");
+  producer_multi_vm_1->WaitForDataSourceStop("ds_with_multi_vm");
+  producer_multi_vm_2->WaitForDataSourceStop("ds_with_multi_vm");
+  producer_no_vm->WaitForDataSourceStop("ds_no_vm");
   consumer->WaitForTracingDisabled();
 }
 

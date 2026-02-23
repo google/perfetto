@@ -128,9 +128,20 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
   private renderSubpage(page: RecordSubpage): m.Children {
     switch (page.kind) {
       case 'PROBES_PAGE':
-        return page.probes
-          .filter((p) => supportsPlatform(p, this.recMgr.currentPlatform))
-          .map((probe) => m(Probe, {cfgMgr: this.recMgr.recordConfig, probe}));
+        return [
+          this.recMgr.hasCustomTraceConfig &&
+            m(
+              Callout,
+              {intent: Intent.Primary, icon: 'upload_file'},
+              'Using imported custom config. Changes to probe settings ' +
+                'below will not take effect.',
+            ),
+          ...page.probes
+            .filter((p) => supportsPlatform(p, this.recMgr.currentPlatform))
+            .map((probe) =>
+              m(Probe, {cfgMgr: this.recMgr.recordConfig, probe}),
+            ),
+        ];
       case 'GLOBAL_PAGE':
       case 'SESSION_PAGE':
         return page.render();
@@ -201,8 +212,19 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
           },
         }),
       ),
+      this.recMgr.hasCustomTraceConfig &&
+        m(
+          '.pf-custom-config-notice',
+          m(Icon, {icon: 'upload_file'}),
+          m('span', 'Imported config overrides probe settings'),
+        ),
       m(
         'ul',
+        {
+          className: this.recMgr.hasCustomTraceConfig
+            ? 'pf-probes-disabled'
+            : '',
+        },
         this.getSortedProbes(Array.from(pages.values())).map((rc) =>
           this.renderMenuEntry(rc),
         ),
@@ -252,7 +274,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
       showModal({title: 'Restore error', content: res.error});
       return;
     }
-    this.recMgr.app.navigate('#!/record/cmdline');
+    this.recMgr.app.navigate('#!/record');
   }
 }
 

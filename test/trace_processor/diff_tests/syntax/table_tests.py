@@ -622,7 +622,7 @@ class PerfettoTable(TestSuite):
         query="""
           SELECT key, int_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_window_manager_shell_transition_protos') as tbl
           ORDER BY tbl.base64_proto_id, key
-          LIMIT 56
+          LIMIT 58
           """,
         out=Csv("""
           "key","int_value","real_value"
@@ -654,6 +654,7 @@ class PerfettoTable(TestSuite):
           "type",0,"[NULL]"
           "wm_abort_time_ns",0,"[NULL]"
           "create_time_ns",82498121051,"[NULL]"
+          "dispatch_time_ns",0,"[NULL]"
           "finish_time_ns",0,"[NULL]"
           "finish_transaction_id",5604932322347,"[NULL]"
           "flags",0,"[NULL]"
@@ -670,6 +671,7 @@ class PerfettoTable(TestSuite):
           "type",0,"[NULL]"
           "wm_abort_time_ns",0,"[NULL]"
           "create_time_ns",76955664017,"[NULL]"
+          "dispatch_time_ns",0,"[NULL]"
           "finish_time_ns",0,"[NULL]"
           "finish_transaction_id",5604932322029,"[NULL]"
           "flags",0,"[NULL]"

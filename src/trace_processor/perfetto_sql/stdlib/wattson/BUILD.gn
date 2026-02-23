@@ -16,6 +16,7 @@ import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("wattson") {
   sources = [
+    "aggregation.sql",
     "cpu/arm_dsu.sql",
     "cpu/estimates.sql",
     "cpu/freq.sql",
@@ -27,6 +28,7 @@ perfetto_sql_source_set("wattson") {
     "curves/cpu_2d.sql",
     "curves/gpu.sql",
     "curves/l3.sql",
+    "curves/mt6897_2d.sql",
     "curves/tg5_cpu_1d.sql",
     "curves/tg5_cpu_2d.sql",
     "curves/tg5_cpu_2d_1.sql",
@@ -42,5 +44,6 @@ perfetto_sql_source_set("wattson") {
     "tasks/task_slices.sql",
     "ui/continuous_estimates.sql",
     "utils.sql",
+    "windows.sql",
   ]
 }

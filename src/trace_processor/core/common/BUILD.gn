@@ -21,6 +21,7 @@ source_set("common") {
     "op_types.h",
     "sort_types.h",
     "storage_types.h",
+    "tree_types.h",
     "value_fetcher.h",
   ]
   deps = [

@@ -112,7 +112,7 @@ import {QueryNode, Query} from '../query_node';
 import {getPrimarySelectedNode} from '../selection_utils';
 import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodeExplorer} from './node_explorer';
-import {Graph} from './graph/graph';
+import {Graph, GraphCallbacks} from './graph/graph';
 import {DataExplorer} from './data_explorer';
 import {
   DrawerPanel,
@@ -130,7 +130,7 @@ import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
 import {Column} from '../../../components/widgets/datagrid/model';
 import {ResizeHandle} from '../../../widgets/resize_handle';
-import {getAllDownstreamNodes} from './graph_utils';
+import {getAllDownstreamNodes, getAllNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
 import {DataSource} from '../../../components/widgets/datagrid/data_source';
 import {NavigationSidePanel} from './navigation_sidepanel';
@@ -143,6 +143,8 @@ export interface BuilderAttrs {
   readonly sqlModules: SqlModules;
   readonly queryExecutionService: QueryExecutionService;
 
+  // Graph data & callbacks (forwarded to Graph component).
+  readonly graphCallbacks: GraphCallbacks;
   readonly rootNodes: QueryNode[];
   readonly selectedNodes: ReadonlySet<string>;
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
@@ -154,52 +156,19 @@ export interface BuilderAttrs {
     text: string;
   }>;
   readonly loadGeneration?: number;
+
+  // Builder-specific callbacks.
   readonly isExplorerCollapsed?: boolean;
   readonly sidebarWidth?: number;
-
-  // Add nodes.
-  readonly onAddSourceNode: (id: string) => void;
-  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
-
   readonly onRootNodeCreated: (node: QueryNode) => void;
-  readonly onNodeSelected: (node?: QueryNode) => void;
-  readonly onNodeAddToSelection: (node: QueryNode) => void;
-  readonly onNodeRemoveFromSelection: (nodeId: string) => void;
-  readonly onDeselect: () => void;
-  readonly onNodeLayoutChange: (
-    nodeId: string,
-    layout: {x: number; y: number},
-  ) => void;
-  readonly onLabelsChange?: (
-    labels: Array<{
-      id: string;
-      x: number;
-      y: number;
-      width: number;
-      text: string;
-    }>,
-  ) => void;
   readonly onExplorerCollapsedChange?: (collapsed: boolean) => void;
   readonly onSidebarWidthChange?: (width: number) => void;
-
-  readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onClearAllNodes: () => void;
-  readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (
-    fromNode: QueryNode,
-    toNode: QueryNode,
-    isSecondaryInput: boolean,
-  ) => void;
   readonly onFilterAdd: (
     node: QueryNode,
     filter: UIFilter | UIFilter[],
     filterOperator?: 'AND' | 'OR',
   ) => void;
   readonly onColumnAdd?: (node: QueryNode, column: Column) => void;
-
-  // Import / Export JSON
-  readonly onImport: () => void;
-  readonly onExport: () => void;
 
   // Starting templates (when page is empty)
   readonly onLoadEmptyTemplate?: () => void;
@@ -242,6 +211,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   // because we need access outside of view() for executeSelectedNode() public method.
   // Updated in view() to stay synchronized with attrs.
   private selectedNode?: QueryNode;
+  // Stores all nodes for use in executeSelectedNode() which needs to pass
+  // allNodes to prevent auto-drop of disconnected graphs.
+  private rootNodes: QueryNode[] = [];
   private response?: QueryResponse;
   private dataSource?: DataSource;
   private drawerVisibility = DrawerPanelVisibility.COLLAPSED;
@@ -271,11 +243,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
-    const {trace, rootNodes, onNodeSelected, onClearAllNodes} = attrs;
+    const {trace, rootNodes} = attrs;
     const selectedNode = getPrimarySelectedNode(attrs.selectedNodes, rootNodes);
 
-    // Store selectedNode for keyboard shortcuts
+    // Store selectedNode and rootNodes for keyboard shortcuts (executeSelectedNode)
     this.selectedNode = selectedNode;
+    this.rootNodes = rootNodes;
 
     // Notify parent when execute function changes (when selectedNode changes)
     if (selectedNode !== this.previousSelectedNode) {
@@ -364,6 +337,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             trace,
             node: selectedNode,
             queryExecutionService: this.queryExecutionService,
+            allNodes: getAllNodes(rootNodes),
             resolveNode: (nodeId: string) =>
               this.resolveNode(nodeId, rootNodes),
             hasExistingResult: this.queryExecuted,
@@ -371,6 +345,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             onQueryAnalyzed: this.onNodeQueryAnalyzed,
             onAnalysisStateChange: (isAnalyzing: boolean) => {
               this.isAnalyzing = isAnalyzing;
+              if (isAnalyzing) {
+                // Clear dataSource at the START of analysis to prevent stale
+                // queries with old columns while the table is being re-materialized.
+                this.dataSource = undefined;
+              }
             },
             onExecutionStart: () => {
               this.isQueryRunning = true;
@@ -407,7 +386,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             '.pf-unselected-explorer',
             m(NavigationSidePanel, {
               selectedNode,
-              onAddSourceNode: attrs.onAddSourceNode,
+              onAddSourceNode: attrs.graphCallbacks.onAddSourceNode,
               onLoadExampleByPath: attrs.onLoadExampleByPath,
               onLoadExploreTemplate: attrs.onLoadExploreTemplate,
               onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
@@ -435,8 +414,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               response: this.response,
               dataSource: this.dataSource,
               sqlModules: attrs.sqlModules,
+              queryExecutionService: this.queryExecutionService,
               isQueryRunning: this.isQueryRunning,
               isAnalyzing: this.isAnalyzing,
+              isStale: this.queryExecutionService.isNodeStale(
+                selectedNode.nodeId,
+              ),
               onchange: () => {
                 attrs.onNodeStateChange?.();
               },
@@ -460,8 +443,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               onExecute: async () => {
                 await this.executeSelectedNode();
               },
-              onExportToTimeline: () => {
-                this.exportToTimeline(selectedNode);
+              onExportToTimeline: async () => {
+                await this.exportToTimeline(selectedNode);
               },
             })
           : m(DataExplorerEmptyState, {
@@ -472,26 +455,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         m(
           '.pf-qb-node-graph',
           m(Graph, {
+            ...attrs.graphCallbacks,
             rootNodes,
             selectedNodes: attrs.selectedNodes,
-            onNodeSelected,
-            onNodeAddToSelection: attrs.onNodeAddToSelection,
-            onNodeRemoveFromSelection: attrs.onNodeRemoveFromSelection,
             nodeLayouts: attrs.nodeLayouts,
             labels: attrs.labels,
             loadGeneration: attrs.loadGeneration,
-            onNodeLayoutChange: attrs.onNodeLayoutChange,
-            onLabelsChange: attrs.onLabelsChange,
-            onDeselect: attrs.onDeselect,
-            onAddSourceNode: attrs.onAddSourceNode,
-            onClearAllNodes,
-            onDuplicateNode: attrs.onDuplicateNode,
-            onAddOperationNode: (id, node) =>
-              attrs.onAddOperationNode(id, node),
-            onDeleteNode: attrs.onDeleteNode,
-            onConnectionRemove: attrs.onConnectionRemove,
-            onImport: attrs.onImport,
-            onExport: attrs.onExport,
           }),
           selectedNode &&
             m(
@@ -696,6 +665,9 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     return {
       onAnalysisStart: () => {
         this.isAnalyzing = true;
+        // Clear dataSource at the START of analysis to prevent stale
+        // queries with old columns while the table is being re-materialized.
+        this.dataSource = undefined;
         m.redraw();
       },
       onAnalysisComplete: (query: Query | Error | undefined) => {
@@ -748,6 +720,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     await this.queryExecutionService.processNode(
       selectedNode,
       this.trace.engine,
+      getAllNodes(this.rootNodes),
       {
         manual: true, // User explicitly requested execution
         hasExistingResult: this.queryExecuted,
@@ -756,9 +729,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     );
   }
 
-  private exportToTimeline(node: QueryNode) {
-    // Only export if we have a materialized table
-    const tableName = node.state.materializationTableName;
+  private async exportToTimeline(node: QueryNode) {
+    // Fetch table name from TP
+    const tableName = await this.queryExecutionService.getTableName(
+      node.nodeId,
+    );
     if (!tableName) {
       console.warn('Cannot export to timeline: no materialized table');
       return;

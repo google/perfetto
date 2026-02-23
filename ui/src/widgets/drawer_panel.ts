@@ -16,12 +16,12 @@ import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
 import {toHTMLElement} from '../base/dom_utils';
 import {DragGestureHandler} from '../base/drag_gesture_handler';
-import {assertExists, assertUnreachable} from '../base/logging';
 import {Gate} from '../base/mithril_utils';
 import {Button, ButtonBar} from './button';
 import {classNames} from '../base/classnames';
 import {HTMLAttrs} from './common';
 import {Icons} from '../base/semantic_icons';
+import {assertExists, assertUnreachable} from '../base/assert';
 
 export interface TabAttrs extends HTMLAttrs {
   // Is this tab currently active?

@@ -33,7 +33,7 @@ import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {Rect2D, Size2D} from '../base/geom';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
 import {WebGLRenderer} from '../base/gl/webgl_renderer';
 import {Canvas2DRenderer} from '../base/canvas2d_renderer';
@@ -299,9 +299,6 @@ export class VirtualOverlayCanvas
       viewportRect: virtualCanvas.viewportRect,
       renderer,
     });
-
-    // Make sure to finish drawing all queued operations
-    renderer.flush();
 
     // Also flush WebGL draw calls (this is distinct from the flush above).
     this.webglRenderer?.gl.flush();

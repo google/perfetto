@@ -56,6 +56,7 @@ import {createEditableTextLabels} from './text_label';
 import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
 import {NodeBox} from './node_box';
 import {buildMenuItems} from './menu_utils';
+import {nodeRegistry} from '../node_registry';
 import {
   getAllNodes,
   findNodeById,
@@ -95,12 +96,9 @@ function shouldShowTopPort(node: QueryNode): boolean {
 // GRAPH ATTRIBUTES INTERFACE
 // ========================================
 
-export interface GraphAttrs {
-  readonly rootNodes: QueryNode[];
-  readonly selectedNodes: ReadonlySet<string>;
-  readonly nodeLayouts: LayoutMap;
-  readonly labels: ReadonlyArray<TextLabelData>;
-  readonly loadGeneration?: number;
+// Callbacks shared between BuilderAttrs and GraphAttrs.
+// Builder forwards these to Graph without transformation.
+export interface GraphCallbacks {
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onNodeAddToSelection: (node: QueryNode) => void;
   readonly onNodeRemoveFromSelection: (nodeId: string) => void;
@@ -119,6 +117,14 @@ export interface GraphAttrs {
   ) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
+}
+
+export interface GraphAttrs extends GraphCallbacks {
+  readonly rootNodes: QueryNode[];
+  readonly selectedNodes: ReadonlySet<string>;
+  readonly nodeLayouts: LayoutMap;
+  readonly labels: ReadonlyArray<TextLabelData>;
+  readonly loadGeneration?: number;
 }
 
 // ========================================
@@ -210,20 +216,39 @@ function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  const multisourceItems = buildMenuItems('multisource', (id) =>
-    onAddOperationNode(id, targetNode),
+  const allowedChildren = nodeRegistry.getAllowedChildrenFor(targetNode.type);
+  if (allowedChildren.length === 0) {
+    return [];
+  }
+
+  const multisourceItems = buildMenuItems(
+    'multisource',
+    (id) => onAddOperationNode(id, targetNode),
+    allowedChildren,
   );
-  const modificationItems = buildMenuItems('modification', (id) =>
-    onAddOperationNode(id, targetNode),
+  const modificationItems = buildMenuItems(
+    'modification',
+    (id) => onAddOperationNode(id, targetNode),
+    allowedChildren,
   );
 
-  return [
-    m(MenuTitle, {label: 'Modification nodes'}),
-    ...modificationItems,
-    m(MenuDivider),
-    m(MenuTitle, {label: 'Operations'}),
-    ...multisourceItems,
-  ];
+  if (modificationItems.length === 0 && multisourceItems.length === 0) {
+    return [];
+  }
+
+  const menuItems: m.Children[] = [];
+  if (modificationItems.length > 0) {
+    menuItems.push(m(MenuTitle, {label: 'Modification nodes'}));
+    menuItems.push(...modificationItems);
+  }
+  if (modificationItems.length > 0 && multisourceItems.length > 0) {
+    menuItems.push(m(MenuDivider));
+  }
+  if (multisourceItems.length > 0) {
+    menuItems.push(m(MenuTitle, {label: 'Operations'}));
+    menuItems.push(...multisourceItems);
+  }
+  return menuItems;
 }
 
 // ========================================
@@ -336,6 +361,8 @@ function getNodeHue(node: QueryNode): number {
       return 14; // Deep Orange (#ffccbc)
     case NodeType.kCreateSlices:
       return 100; // Green (#c8e6c9)
+    case NodeType.kMetrics:
+      return 280; // Violet (#e1bee7)
     default:
       return 65; // Lime (#f0f4c3)
   }
@@ -383,17 +410,24 @@ function createNodeConfig(
   attrs: GraphAttrs,
 ): Omit<Node, 'x' | 'y'> {
   const canDockTop = shouldShowTopPort(qnode);
+  const addMenuItems = buildAddMenuItems(qnode, attrs.onAddOperationNode);
+  const outputs: NodePort[] =
+    addMenuItems.length > 0
+      ? [
+          {
+            content: 'Output',
+            direction: 'bottom',
+            contextMenuItems: addMenuItems,
+          },
+        ]
+      : nodeRegistry.getAllowedChildrenFor(qnode.type).length > 0
+        ? [{content: 'Output', direction: 'bottom'}]
+        : [];
 
   return {
     id: qnode.nodeId,
     inputs: getInputLabels(qnode),
-    outputs: [
-      {
-        content: 'Output',
-        direction: 'bottom',
-        contextMenuItems: buildAddMenuItems(qnode, attrs.onAddOperationNode),
-      },
-    ],
+    outputs,
     canDockBottom: true,
     canDockTop,
     hue: getNodeHue(qnode),
@@ -537,6 +571,10 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
     console.warn(
       `Cannot create connection: node not found (from: ${conn.fromNode}, to: ${conn.toNode})`,
     );
+    return;
+  }
+
+  if (!nodeRegistry.isConnectionAllowed(fromNode.type, toNode.type)) {
     return;
   }
 
@@ -971,6 +1009,17 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
               console.warn(
                 'Cannot dock: only single-node operations can be docked',
               );
+              m.redraw();
+              return;
+            }
+
+            // Check if the child node type is allowed as a child of the parent
+            if (
+              !nodeRegistry.isConnectionAllowed(
+                parentNode.type,
+                childQueryNode.type,
+              )
+            ) {
               m.redraw();
               return;
             }

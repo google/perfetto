@@ -29,13 +29,46 @@ namespace test {
 class VmTest : public ::testing::Test {
  protected:
   static constexpr size_t MEMORY_LIMIT_BYTES = 10 * 1024 * 1024;
+
+  std::string InitialIncrementalState() const {
+    protos::TraceEntry state{};
+    auto* element0 = state.add_elements();
+    element0->set_id(0);
+    element0->set_value(10);
+    auto* element1 = state.add_elements();
+    element1->set_id(1);
+    element1->set_value(11);
+    return state.SerializeAsString();
+  }
+
+  std::string SerializeIncrementalStateAsString(const Vm& vm) const {
+    protozero::HeapBuffered<protozero::Message> proto;
+    vm.SerializeIncrementalState(proto.get());
+    return proto.SerializeAsString();
+  }
 };
 
 TEST_F(VmTest, NoPatch) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
   Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
-  ASSERT_TRUE(vm.SerializeIncrementalState().empty());
+  ASSERT_TRUE(SerializeIncrementalStateAsString(vm).empty());
+}
+
+TEST_F(VmTest, ConstructionWithInitialIncrementalState) {
+  auto program =
+      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
+
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES,
+        AsConstBytes(InitialIncrementalState())};
+
+  protos::TraceEntry state{};
+  state.ParseFromString(SerializeIncrementalStateAsString(vm));
+  ASSERT_EQ(state.elements_size(), 2);
+  ASSERT_EQ(state.elements(0).id(), 0);
+  ASSERT_EQ(state.elements(0).value(), 10);
+  ASSERT_EQ(state.elements(1).id(), 1);
+  ASSERT_EQ(state.elements(1).value(), 11);
 }
 
 TEST_F(VmTest, ApplyPatch_DelOperation) {
@@ -50,7 +83,7 @@ TEST_F(VmTest, ApplyPatch_DelOperation) {
   vm.ApplyPatch(AsConstBytes(patch));
 
   protos::TraceEntry state{};
-  state.ParseFromString(vm.SerializeIncrementalState());
+  state.ParseFromString(SerializeIncrementalStateAsString(vm));
   ASSERT_EQ(state.elements_size(), 1);
   ASSERT_EQ(state.elements(0).id(), 1);
   ASSERT_EQ(state.elements(0).value(), 11);
@@ -67,7 +100,7 @@ TEST_F(VmTest, ApplyPatch_MergeOperation) {
     vm.ApplyPatch(AsConstBytes(patch));
 
     protos::TraceEntry state{};
-    state.ParseFromString(vm.SerializeIncrementalState());
+    state.ParseFromString(SerializeIncrementalStateAsString(vm));
     ASSERT_EQ(state.elements_size(), 1);
     ASSERT_EQ(state.elements(0).id(), 0);
     ASSERT_EQ(state.elements(0).value(), 10);
@@ -79,7 +112,7 @@ TEST_F(VmTest, ApplyPatch_MergeOperation) {
     vm.ApplyPatch(AsConstBytes(patch));
 
     protos::TraceEntry state{};
-    state.ParseFromString(vm.SerializeIncrementalState());
+    state.ParseFromString(SerializeIncrementalStateAsString(vm));
     ASSERT_EQ(state.elements_size(), 2);
     ASSERT_EQ(state.elements(0).id(), 0);
     ASSERT_EQ(state.elements(0).value(), 100);
@@ -96,7 +129,7 @@ TEST_F(VmTest, ApplyPatch_SetOperation) {
   // empty
   {
     protos::TraceEntry state{};
-    state.ParseFromString(vm.SerializeIncrementalState());
+    state.ParseFromString(SerializeIncrementalStateAsString(vm));
     ASSERT_EQ(state.elements_size(), 0);
   }
 
@@ -106,7 +139,7 @@ TEST_F(VmTest, ApplyPatch_SetOperation) {
     vm.ApplyPatch(AsConstBytes(patch));
 
     protos::TraceEntry state{};
-    state.ParseFromString(vm.SerializeIncrementalState());
+    state.ParseFromString(SerializeIncrementalStateAsString(vm));
     ASSERT_EQ(state.elements_size(), 2);
     ASSERT_EQ(state.elements(0).id(), 0);
     ASSERT_EQ(state.elements(0).value(), 10);
@@ -120,7 +153,7 @@ TEST_F(VmTest, ApplyPatch_SetOperation) {
     vm.ApplyPatch(AsConstBytes(patch));
 
     protos::TraceEntry state{};
-    state.ParseFromString(vm.SerializeIncrementalState());
+    state.ParseFromString(SerializeIncrementalStateAsString(vm));
     ASSERT_EQ(state.elements_size(), 2);
     ASSERT_EQ(state.elements(0).id(), 0);
     ASSERT_FALSE(state.elements(0).has_value());
@@ -143,6 +176,45 @@ TEST_F(VmTest, ApplyPatch_ErrorHandling) {
   ASSERT_NE(stacktrace.front().find(
                 "Attempted to access length-delimited field as a scalar"),
             std::string::npos);
+}
+
+TEST_F(VmTest, CloneReadOnly) {
+  auto program =
+      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+
+  auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
+  vm.ApplyPatch(AsConstBytes(patch));
+
+  std::unique_ptr<Vm> cloned_vm = vm.CloneReadOnly();
+
+  // Check read-only VM doesn't accept patches
+  ASSERT_TRUE(cloned_vm->ApplyPatch(AsConstBytes(patch)).IsAbort());
+
+  // Check cloned incremental state
+  protos::TraceEntry cloned_state{};
+  cloned_state.ParseFromString(SerializeIncrementalStateAsString(*cloned_vm));
+  ASSERT_EQ(cloned_state.elements_size(), 2);
+  ASSERT_EQ(cloned_state.elements(0).id(), 0);
+  ASSERT_EQ(cloned_state.elements(0).value(), 10);
+  ASSERT_EQ(cloned_state.elements(1).id(), 1);
+  ASSERT_EQ(cloned_state.elements(1).value(), 11);
+}
+
+TEST_F(VmTest, GetMemoryUsage) {
+  auto program =
+      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+
+  // Initial memory usage only accounts for the program size
+  ASSERT_EQ(vm.GetMemoryUsageBytes(), program.size());
+  ASSERT_EQ(vm.CloneReadOnly()->GetMemoryUsageBytes(), program.size());
+
+  // Populating the incremental state increases memory usage
+  auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
+  vm.ApplyPatch(AsConstBytes(patch));
+  ASSERT_GT(vm.GetMemoryUsageBytes(), program.size());
+  ASSERT_GT(vm.CloneReadOnly()->GetMemoryUsageBytes(), program.size());
 }
 
 }  // namespace test

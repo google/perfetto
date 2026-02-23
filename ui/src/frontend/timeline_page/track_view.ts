@@ -33,7 +33,7 @@ import {AppImpl} from '../../core/app_impl';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
-import {TrackWithFSM} from '../../core/track_manager';
+import {TrackWrapper} from '../../core/track_manager';
 import {TrackRenderer, Track} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
@@ -101,7 +101,7 @@ export interface TrackViewAttrs {
  */
 export class TrackView {
   readonly node: TrackNode;
-  readonly renderer?: TrackWithFSM;
+  readonly renderer?: TrackWrapper;
   readonly height: number;
   readonly verticalBounds: VerticalBounds;
 
@@ -114,7 +114,7 @@ export class TrackView {
 
     if (node.uri) {
       this.descriptor = trace.tracks.getTrack(node.uri);
-      this.renderer = this.trace.tracks.getTrackFSM(node.uri);
+      this.renderer = this.trace.tracks.getWrappedTrack(node.uri);
     }
 
     const heightPx = getTrackHeight(node, this.renderer?.track);
@@ -136,6 +136,7 @@ export class TrackView {
     const buttons = attrs.lite
       ? []
       : [
+          // Hover-only buttons first
           renderer?.track.getTrackShellButtons?.(),
           description !== undefined &&
             this.renderHelpButton(
@@ -144,10 +145,13 @@ export class TrackView {
                 : linkify(description),
             ),
           (removable || node.removable) && this.renderCloseButton(),
+          this.renderTrackMenuButton(),
+          // Always-visible buttons last (pin button is visible when pinned)
           // We don't want summary tracks to be pinned as they rarely have
           // useful information.
           !node.isSummary && this.renderPinButton(),
-          this.renderTrackMenuButton(),
+          // Area seletion (when in area selection mode is always visible so put
+          // it at the end)
           this.renderAreaSelectionCheckbox(),
         ];
 
@@ -213,9 +217,6 @@ export class TrackView {
               timescale,
             }) ?? false
           );
-        },
-        onupdate: () => {
-          renderer?.track.onFullRedraw?.();
         },
         onMoveBefore: (nodeId: string) => {
           // We are the reference node (the one to be moved relative to), nodeId
@@ -326,9 +327,6 @@ export class TrackView {
         renderer: renderer,
       });
 
-    // Flush after each track
-    renderer.flush();
-
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);
 
     const renderTime = performance.now() - start;
@@ -352,6 +350,7 @@ export class TrackView {
       onclick: () => {
         this.node.remove();
       },
+      className: 'pf-visible-on-hover',
       icon: Icons.Close,
       title: 'Remove track',
       compact: true,

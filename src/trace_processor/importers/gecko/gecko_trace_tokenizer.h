@@ -17,11 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_TOKENIZER_H_
 
+#include <memory>
 #include <string>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -54,6 +56,7 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
   TraceProcessorContext* const context_;
   std::unique_ptr<TraceSorter::Stream<GeckoEvent>> stream_;
   std::string pending_json_;
+  ClockTracker::ClockId trace_file_clock_;
 
   // Shared across all threads to avoid creating duplicate mappings.
   DummyMemoryMapping* dummy_mapping_ = nullptr;

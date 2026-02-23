@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -33,6 +32,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -120,13 +120,16 @@ ModuleResult NetworkTraceModule::TokenizePacket(
 
   if (evt.has_total_length()) {
     // Forward the bundle with (possibly de-interned) context.
-    packet_buffer_->set_timestamp(static_cast<uint64_t>(ts));
-    auto* event = packet_buffer_->set_network_packet_bundle();
-    event->set_ctx()->AppendRawProtoBytes(context.data, context.size);
-    event->set_total_length(evt.total_length());
-    event->set_total_packets(evt.total_packets());
-    event->set_total_duration(evt.total_duration());
-    PushPacketBufferForSort(ts, state);
+    TraceBlobView tbv =
+        context_->blob_packet_writer->WritePacket([&](auto* pkt) {
+          pkt->set_timestamp(static_cast<uint64_t>(ts));
+          auto* event = pkt->set_network_packet_bundle();
+          event->set_ctx()->AppendRawProtoBytes(context.data, context.size);
+          event->set_total_length(evt.total_length());
+          event->set_total_packets(evt.total_packets());
+          event->set_total_duration(evt.total_duration());
+        });
+    PushPacketBufferForSort(ts, std::move(tbv), state);
   } else {
     // Push a NetworkPacketEvent for each packet in the packed arrays.
     bool parse_error = false;
@@ -139,11 +142,14 @@ ModuleResult NetworkTraceModule::TokenizePacket(
 
     for (; timestamp_iter && length_iter; ++timestamp_iter, ++length_iter) {
       int64_t real_ts = ts + static_cast<int64_t>(*timestamp_iter);
-      packet_buffer_->set_timestamp(static_cast<uint64_t>(real_ts));
-      auto* event = packet_buffer_->set_network_packet();
-      event->AppendRawProtoBytes(context.data, context.size);
-      event->set_length(*length_iter);
-      PushPacketBufferForSort(real_ts, state);
+      TraceBlobView tbv =
+          context_->blob_packet_writer->WritePacket([&](auto* pkt) {
+            pkt->set_timestamp(static_cast<uint64_t>(real_ts));
+            auto* event = pkt->set_network_packet();
+            event->AppendRawProtoBytes(context.data, context.size);
+            event->set_length(*length_iter);
+          });
+      PushPacketBufferForSort(real_ts, std::move(tbv), state);
     }
   }
 
@@ -330,12 +336,10 @@ void NetworkTraceModule::ParseNetworkPacketBundle(int64_t ts, ConstBytes blob) {
 
 void NetworkTraceModule::PushPacketBufferForSort(
     int64_t timestamp,
+    TraceBlobView tbv,
     RefPtr<PacketSequenceStateGeneration> state) {
-  auto [vec, size] = packet_buffer_.SerializeAsUniquePtr();
-  TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
   module_context_->trace_packet_stream->Push(
       timestamp, TracePacketData{std::move(tbv), std::move(state)});
-  packet_buffer_.Reset();
 }
 
 }  // namespace perfetto::trace_processor

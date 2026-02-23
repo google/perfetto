@@ -199,7 +199,7 @@ message LayerProto {
   // Layer's corner radius
   optional float corner_radius = 41 [deprecated = true];
   // Metadata map. May be empty.
-  map<int32, string> metadata = 42;
+  map<int32, bytes> metadata = 42;
 
   optional TransformProto effective_transform = 43;
   optional FloatRectProto source_bounds = 44;

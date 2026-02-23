@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM} from '../../../trace_processor/query_result';
+import {NUM, QueryResult} from '../../../trace_processor/query_result';
+import {createChartLoader, ChartLoader, rangeFilters} from './chart_sql_source';
+import type {QueryResult as SlotResult} from '../../../base/query_slot';
 
 /**
  * A single bucket in the histogram.
@@ -73,6 +74,13 @@ export interface HistogramConfig {
    * If not provided, will be computed from the data.
    */
   readonly maxValue?: number;
+
+  /**
+   * When true, indicates that the data contains only integer values.
+   * Bucket boundaries will be snapped to integer values (bucket size
+   * is ceiled to the nearest integer).
+   */
+  readonly integer?: boolean;
 }
 
 /**
@@ -126,10 +134,17 @@ export function computeHistogram(
 
   if (config.bucketSize !== undefined) {
     bucketSize = config.bucketSize;
+    if (config.integer) {
+      bucketSize = Math.max(1, Math.ceil(bucketSize));
+    }
     bucketCount = Math.ceil((max - min) / bucketSize);
   } else if (config.bucketCount !== undefined) {
     bucketCount = config.bucketCount;
     bucketSize = (max - min) / bucketCount;
+    if (config.integer) {
+      bucketSize = Math.max(1, Math.ceil(bucketSize));
+      bucketCount = Math.ceil((max - min) / bucketSize);
+    }
   } else {
     // Terrell-Scott rule: k = (2 * n)^(1/3)
     bucketCount = Math.max(
@@ -137,6 +152,10 @@ export function computeHistogram(
       Math.min(100, Math.ceil(Math.pow(2 * validValues.length, 1 / 3))),
     );
     bucketSize = (max - min) / bucketCount;
+    if (config.integer) {
+      bucketSize = Math.max(1, Math.ceil(bucketSize));
+      bucketCount = Math.ceil((max - min) / bucketSize);
+    }
   }
 
   // Initialize buckets
@@ -177,25 +196,24 @@ export function computeHistogram(
  * Configuration for histogram loaders.
  */
 export interface HistogramLoaderConfig {
-  /**
-   * Fixed bucket size. If provided, bucketCount is ignored.
-   */
+  /** Fixed bucket size. If provided, bucketCount is ignored. */
   readonly bucketSize?: number;
 
-  /**
-   * Number of buckets to create. Ignored if bucketSize is provided.
-   */
+  /** Number of buckets to create. Ignored if bucketSize is provided. */
   readonly bucketCount?: number;
 
-  /**
-   * Minimum value for the histogram range.
-   */
+  /** Minimum value for the histogram range. */
   readonly minValue?: number;
 
-  /**
-   * Maximum value for the histogram range.
-   */
+  /** Maximum value for the histogram range. */
   readonly maxValue?: number;
+
+  /**
+   * When true, indicates that the data contains only integer values.
+   * Filter bounds will be snapped: min is floored, max is ceiled.
+   * Bucket boundaries will also snap to integers.
+   */
+  readonly integer?: boolean;
 
   /**
    * Range filter to apply to the data (e.g., from brush selection).
@@ -207,20 +225,8 @@ export interface HistogramLoaderConfig {
   };
 }
 
-/**
- * Result returned by histogram loaders.
- */
-export interface HistogramLoaderResult {
-  /**
-   * The computed histogram data, or undefined if loading.
-   */
-  readonly data: HistogramData | undefined;
-
-  /**
-   * Whether a query is currently pending.
-   */
-  readonly isPending: boolean;
-}
+/** Result returned by histogram loaders. */
+export type HistogramLoaderResult = SlotResult<HistogramData>;
 
 /**
  * Loader interface for histogram data.
@@ -235,18 +241,6 @@ export interface HistogramLoader {
  *
  * Takes values in the constructor and computes histograms synchronously.
  * Caches the result when config hasn't changed.
- *
- * Usage:
- * ```typescript
- * class MyComponent {
- *   private loader = new InMemoryHistogramLoader(myStaticValues);
- *
- *   view() {
- *     const {data} = this.loader.use({bucketCount: 20});
- *     return m(Histogram, {data});
- *   }
- * }
- * ```
  */
 export class InMemoryHistogramLoader implements HistogramLoader {
   private readonly values: readonly number[];
@@ -265,14 +259,20 @@ export class InMemoryHistogramLoader implements HistogramLoader {
 
     // Return cached result if config unchanged
     if (this.cachedConfig === configKey && this.cachedData !== undefined) {
-      return {data: this.cachedData, isPending: false};
+      return {data: this.cachedData, isPending: false, isFresh: true};
     }
 
-    // Apply filter if provided
+    // Apply filter if provided, snapping bounds for integer data
     let filteredValues = this.values;
     if (config.filter) {
+      const filterMin = config.integer
+        ? Math.floor(config.filter.min)
+        : config.filter.min;
+      const filterMax = config.integer
+        ? Math.ceil(config.filter.max)
+        : config.filter.max;
       filteredValues = this.values.filter(
-        (v) => v >= config.filter!.min && v <= config.filter!.max,
+        (v) => v >= filterMin && v <= filterMax,
       );
     }
 
@@ -282,17 +282,17 @@ export class InMemoryHistogramLoader implements HistogramLoader {
       bucketCount: config.bucketCount,
       minValue: config.minValue,
       maxValue: config.maxValue,
+      integer: config.integer,
     });
 
     // Cache result
     this.cachedConfig = configKey;
     this.cachedData = data;
 
-    return {data, isPending: false};
+    return {data, isPending: false, isFresh: true};
   }
 
   dispose(): void {
-    // No-op for in-memory loader, but keeps interface consistent
     this.cachedConfig = undefined;
     this.cachedData = undefined;
   }
@@ -302,128 +302,57 @@ export class InMemoryHistogramLoader implements HistogramLoader {
  * Configuration for SQLHistogramLoader.
  */
 export interface SQLHistogramLoaderOpts {
-  /**
-   * The trace processor engine to run queries against.
-   */
+  /** The trace processor engine to run queries against. */
   readonly engine: Engine;
 
-  /**
-   * SQL query that returns numeric values for the histogram.
-   * The query should include the valueColumn in its output.
-   */
+  /** SQL query that returns numeric values for the histogram. */
   readonly query: string;
 
-  /**
-   * Column name to use for histogram values.
-   * This column must exist in the query output.
-   */
+  /** Column name to use for histogram values. */
   readonly valueColumn: string;
 }
+
+const DEFAULT_BUCKET_COUNT = 20;
 
 /**
  * SQL-based histogram loader with async loading and caching.
  *
  * Performs histogram aggregation directly in SQL for efficiency with large
- * datasets. Uses QuerySlot internally for caching and request deduplication.
- *
- * Usage:
- * ```typescript
- * class SQLHistogramPanel {
- *   private loader: SQLHistogramLoader;
- *   private brushRange?: {min: number; max: number};
- *
- *   constructor(engine: Engine) {
- *     this.loader = new SQLHistogramLoader({
- *       engine,
- *       query: 'SELECT dur FROM slice WHERE dur > 0',
- *       valueColumn: 'dur',
- *     });
- *   }
- *
- *   view() {
- *     const {data, isPending} = this.loader.use({
- *       bucketCount: 20,
- *       filter: this.brushRange,
- *     });
- *     return m(Histogram, {
- *       data,
- *       onBrush: (range) => {
- *         this.brushRange = range ? {min: range.start, max: range.end} : undefined;
- *       },
- *     });
- *   }
- *
- *   onremove() {
- *     this.loader.dispose();
- *   }
- * }
- * ```
+ * datasets.
  */
-// Default bucket count for SQL aggregation
-const DEFAULT_BUCKET_COUNT = 20;
-
 export class SQLHistogramLoader implements HistogramLoader {
-  private readonly engine: Engine;
-  private readonly baseQuery: string;
-  private readonly valueColumn: string;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<HistogramData>(this.taskQueue);
+  private readonly loader: ChartLoader<HistogramLoaderConfig, HistogramData>;
 
-  /**
-   * Creates a new SQL histogram loader.
-   */
   constructor(opts: SQLHistogramLoaderOpts) {
-    this.engine = opts.engine;
-    this.baseQuery = opts.query;
-    this.valueColumn = opts.valueColumn;
-  }
+    const valCol = opts.valueColumn;
 
-  use(config: HistogramLoaderConfig): HistogramLoaderResult {
-    const bucketCount = config.bucketCount ?? DEFAULT_BUCKET_COUNT;
+    this.loader = createChartLoader({
+      engine: opts.engine,
+      query: opts.query,
+      schema: {[valCol]: 'real'},
+      buildQueryConfig: (config) => {
+        const bucketCount = config.bucketCount ?? DEFAULT_BUCKET_COUNT;
 
-    const result = this.querySlot.use({
-      key: {
-        baseQuery: this.baseQuery,
-        valueColumn: this.valueColumn,
-        filter: config.filter,
-        bucketCount,
+        // Snap filter bounds for integer data
+        const filter = config.filter
+          ? config.integer
+            ? {
+                min: Math.floor(config.filter.min),
+                max: Math.ceil(config.filter.max),
+              }
+            : config.filter
+          : undefined;
+
+        return {
+          type: 'histogram',
+          valueColumn: valCol,
+          bucketCount,
+          filters: rangeFilters(valCol, filter),
+        };
       },
-      queryFn: async () => {
-        const col = this.valueColumn;
-        const filterClause = config.filter
-          ? `WHERE ${col} >= ${config.filter.min} AND ${col} <= ${config.filter.max}`
-          : '';
+      parseResult: (queryResult: QueryResult, config) => {
+        const bucketCount = config.bucketCount ?? DEFAULT_BUCKET_COUNT;
 
-        // SQL query that computes histogram buckets in the database
-        // Uses scalar subqueries for bounds (SQLite caches these) to avoid
-        // expensive cross joins
-        const sql = `
-          WITH _data AS (
-            SELECT ${col} AS _value
-            FROM (${this.baseQuery})
-            ${filterClause}
-          )
-          SELECT
-            (SELECT MIN(_value) FROM _data) AS _min,
-            (SELECT MAX(_value) FROM _data) AS _max,
-            (SELECT COUNT(*) FROM _data) AS _total,
-            CASE
-              WHEN (SELECT MAX(_value) FROM _data) = (SELECT MIN(_value) FROM _data) THEN 0
-              WHEN _value = (SELECT MAX(_value) FROM _data) THEN ${bucketCount - 1}
-              ELSE MIN(${bucketCount - 1}, CAST(
-                (_value - (SELECT MIN(_value) FROM _data)) /
-                (((SELECT MAX(_value) FROM _data) - (SELECT MIN(_value) FROM _data)) / ${bucketCount}.0)
-              AS INT))
-            END AS _bucket_idx,
-            COUNT(*) AS _count
-          FROM _data
-          GROUP BY _bucket_idx
-          ORDER BY _bucket_idx
-        `;
-
-        const queryResult = await this.engine.query(sql);
-
-        // Parse results into HistogramData
         let min = 0;
         let max = 0;
         let totalCount = 0;
@@ -443,7 +372,6 @@ export class SQLHistogramLoader implements HistogramLoader {
           bucketCounts.set(iter._bucket_idx, iter._count);
         }
 
-        // Handle empty data
         if (totalCount === 0) {
           return {
             buckets: [],
@@ -456,7 +384,10 @@ export class SQLHistogramLoader implements HistogramLoader {
         }
 
         // Build bucket array (including empty buckets)
-        const bucketSize = (max - min) / bucketCount;
+        let bucketSize = (max - min) / bucketCount;
+        if (config.integer) {
+          bucketSize = Math.max(1, Math.ceil(bucketSize));
+        }
         const buckets: HistogramBucket[] = [];
         for (let i = 0; i < bucketCount; i++) {
           buckets.push({
@@ -475,15 +406,15 @@ export class SQLHistogramLoader implements HistogramLoader {
           nonNumericCount: 0,
         };
       },
+      extraCacheKey: (config) => ({integer: config.integer}),
     });
+  }
 
-    return {
-      data: result.data,
-      isPending: result.isPending,
-    };
+  use(config: HistogramLoaderConfig): HistogramLoaderResult {
+    return this.loader.use(config);
   }
 
   dispose(): void {
-    this.querySlot.dispose();
+    this.loader.dispose();
   }
 }

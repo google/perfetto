@@ -701,3 +701,262 @@
 .pf-callout-with-spacing {
   margin-bottom: 16px;
 }
+
+// Metrics header row with ID prefix and Export button
+.pf-metrics-header-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+
+  // OutlinedField should take most of the space
+  > .pf-outlined-field {
+    flex: 1;
+  }
+}
+
+// Metrics V2 Export button - styled to match OutlinedField height
+.pf-metrics-v2-export-button.pf-button {
+  // Match the OutlinedField dimensions
+  min-height: 44px; // Same as OutlinedField (legend height + input padding)
+  padding: 8px 16px;
+  justify-content: center;
+}
+
+// Metrics Export Modal - fixed size to prevent layout shifts.
+// The modal uses a flex column chain: modal → main → content div → result box
+// so the result box fills remaining space while the CodeSnippet keeps its
+// intrinsic size (with a max-height cap).
+.pf-modal-dialog.pf-metrics-export-modal {
+  width: 900px;
+  height: 700px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    gap: 16px;
+
+    // The content() wrapper div created by showModal.
+    > div {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      gap: 16px;
+    }
+  }
+
+  // Cap the textproto snippet so it doesn't push the result box off-screen.
+  .pf-code-snippet {
+    max-height: 200px;
+    overflow: auto;
+    flex-shrink: 0;
+  }
+}
+
+// Bordered box around the result table inside the export modal
+.pf-metrics-result-box {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; // Allow shrinking inside flex parent
+  border: 1px solid var(--pf-color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pf-metrics-result-header {
+  padding: 8px 12px;
+  font-weight: 500;
+  background: var(--pf-color-background-secondary);
+  border-bottom: 1px solid var(--pf-color-border);
+}
+
+.pf-metrics-result-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+
+  // DataGrid needs a definite height for virtual scrolling.
+  .pf-data-grid {
+    height: 100%;
+  }
+}
+
+// Error / loading states centered inside the result box
+.pf-metrics-error {
+  color: var(--md-sys-color-error);
+  padding: 16px;
+}
+
+.pf-metrics-result-content > .pf-spinner {
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+
+// Tabs inside the result box take full height.
+.pf-metrics-result-content > .pf-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  .pf-tabs__content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+
+    .pf-data-grid {
+      height: 100%;
+    }
+  }
+}
+
+// ─── Two-column drag-and-drop layout (Dimensions | Values) ──────────────────
+
+.pf-metrics-v2-columns-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-height: 200px;
+}
+
+.pf-metrics-v2-column-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+
+  &.pf-drop-active {
+    border-color: var(--pf-color-primary);
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-primary) 8%,
+      transparent
+    );
+  }
+
+  &.pf-drop-rejected {
+    border-color: var(--md-sys-color-error);
+    background-color: color-mix(
+      in srgb,
+      var(--md-sys-color-error) 8%,
+      transparent
+    );
+  }
+}
+
+.pf-metrics-v2-column-panel__header {
+  padding: 6px 10px;
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  background: var(--pf-color-background-secondary);
+  border-bottom: 1px solid var(--pf-color-border);
+  user-select: none;
+}
+
+.pf-metrics-v2-column-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.pf-metrics-v2-empty-hint {
+  padding: 12px;
+  color: var(--pf-color-text-secondary);
+  font-size: var(--pf-font-size-s);
+  text-align: center;
+  font-style: italic;
+}
+
+// Individual column item row (shared between dimensions and values)
+.pf-metrics-v2-column-item {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px;
+  cursor: grab;
+  user-select: none;
+  border-bottom: 1px solid var(--pf-color-border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &[draggable="true"]:hover {
+    background: var(--pf-color-background-secondary);
+  }
+}
+
+.pf-metrics-v2-value-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+}
+
+.pf-metrics-v2-drag-handle {
+  color: var(--pf-color-text-secondary);
+  font-size: 14px;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.pf-metrics-v2-col-name {
+  flex: 1;
+  font-family: var(--pf-font-monospace);
+  font-size: var(--pf-font-size-s);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-metrics-v2-col-type {
+  font-size: var(--pf-font-size-xs);
+  color: var(--pf-color-text-secondary);
+  font-style: italic;
+  flex-shrink: 0;
+}
+
+// Value item: config row (unit + polarity selects)
+.pf-metrics-v2-value-config {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0 4px 18px; // Indent to align under column name
+
+  > .pf-outlined-field {
+    flex: 1;
+    min-width: 100px;
+  }
+}
+
+// "Add value column" dropdown at the bottom of the values panel
+.pf-metrics-v2-add-value {
+  padding: 4px 8px;
+  border-top: 1px dashed var(--pf-color-border);
+
+  > .pf-outlined-field {
+    width: 100%;
+  }
+}
+
+// Dimensions item: inline layout (handle + name + type + optional arrow btn)
+.pf-metrics-v2-columns-layout .pf-metrics-v2-column-panel:first-child {
+  .pf-metrics-v2-column-item {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+}

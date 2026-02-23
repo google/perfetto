@@ -18,10 +18,8 @@ import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {FlamegraphState} from '../../widgets/flamegraph';
-import {
-  HeapProfileFlamegraphDetailsPanel,
-  profileType,
-} from './heap_profile_details_panel';
+import {profileDescriptor} from './common';
+import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 
 export function createHeapProfileTrack(
   trace: Trace,
@@ -42,19 +40,16 @@ export function createHeapProfileTrack(
         type: STR,
         id: NUM,
       },
-      filter: {
-        col: 'upid',
-        eq: upid,
-      },
+      filter: {col: 'upid', eq: upid},
     }),
     detailsPanel: (row) => {
       const ts = Time.fromRaw(row.ts);
-      const type = profileType(row.type);
+      const descriptor = profileDescriptor(row.type);
       return new HeapProfileFlamegraphDetailsPanel(
         trace,
         heapProfileIsIncomplete,
         upid,
-        type,
+        descriptor,
         ts,
         detailsPanelState,
         onDetailsPanelStateChange,

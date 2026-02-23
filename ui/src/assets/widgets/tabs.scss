@@ -74,6 +74,22 @@
     user-select: none;
   }
 
+  &__tab-wrapper {
+    display: contents;
+
+    &--dragging > .pf-tabs__tab {
+      opacity: 0.5;
+    }
+
+    &--drop-before > .pf-tabs__tab {
+      box-shadow: -2px 0 0 0 var(--pf-color-primary);
+    }
+
+    &--drop-after > .pf-tabs__tab {
+      box-shadow: 2px 0 0 0 var(--pf-color-primary);
+    }
+  }
+
   &__content {
     flex: 1;
     overflow: auto;

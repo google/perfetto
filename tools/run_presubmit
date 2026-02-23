@@ -347,8 +347,8 @@ def CheckIncludeViolations(changed_files: List[str]) -> List[str]:
     run_command([sys.executable, tool], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed.']
+  except subprocess.CalledProcessError as e:
+    return [f'{tool} failed:\n{e.stdout}']
   return []
 
 
@@ -422,8 +422,8 @@ def CheckProtoComments(changed_files: List[str]) -> List[str]:
     run_command([sys.executable, tool], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed']
+  except subprocess.CalledProcessError as e:
+    return [f'{tool} failed:\n{e.stdout}']
   return []
 
 
@@ -694,8 +694,8 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
         cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed']
+  except subprocess.CalledProcessError as e:
+    return [f'{tool} failed:\n{e.stdout}']
   return []
 
 
@@ -721,8 +721,8 @@ def CheckSqlMetrics(changed_files: List[str]) -> List[str]:
     run_command([sys.executable, tool], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed']
+  except subprocess.CalledProcessError as e:
+    return [f'{tool} failed:\n{e.stdout}']
   return []
 
 

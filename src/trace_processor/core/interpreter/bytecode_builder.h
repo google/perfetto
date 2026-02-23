@@ -98,6 +98,9 @@ class BytecodeBuilder {
   // These methods manage scratch register state for operations that need
   // temporary storage. The caller is responsible for emitting the actual
   // AllocateIndices opcode (this allows different cost tracking strategies).
+  //
+  // Multiple named scratch slots are supported via slot_id parameter.
+  // The default slot (used by single-argument methods) is slot 0.
 
   // Result from GetOrCreateScratchRegisters.
   struct ScratchRegisters {
@@ -105,20 +108,42 @@ class BytecodeBuilder {
     RwHandle<Span<uint32_t>> span;
   };
 
-  // Gets or creates scratch registers of the given size.
-  // Caller must emit AllocateIndices opcode after calling this.
-  ScratchRegisters GetOrCreateScratchRegisters(uint32_t size);
+  // Gets or creates scratch registers of the given size in the specified slot.
+  // Multiple slots can coexist with different slot_ids.
+  // Does NOT emit AllocateIndices - caller must emit it separately.
+  ScratchRegisters GetOrCreateScratchRegisters(uint32_t slot_id, uint32_t size);
 
-  // Marks the scratch registers as being in use after emitting AllocateIndices.
-  void MarkScratchInUse();
-
-  // Releases the scratch register so it can be reused.
-  void ReleaseScratch();
-
-  // Returns true if a scratch register is currently in use.
-  bool IsScratchInUse() const {
-    return scratch_indices_.has_value() && scratch_indices_->in_use;
+  // Gets or creates scratch registers in the default slot (slot 0).
+  ScratchRegisters GetOrCreateScratchRegisters(uint32_t size) {
+    return GetOrCreateScratchRegisters(0, size);
   }
+
+  // Allocates scratch in the specified slot and emits AllocateIndices bytecode.
+  // This is the preferred method - combines register allocation + bytecode
+  // emission.
+  ScratchRegisters AllocateScratch(uint32_t slot_id, uint32_t size);
+
+  // Marks the specified scratch slot as being in use.
+  void MarkScratchInUse(uint32_t slot_id);
+
+  // Marks the default scratch slot (slot 0) as being in use.
+  void MarkScratchInUse() { MarkScratchInUse(0); }
+
+  // Releases the specified scratch slot so it can be reused.
+  void ReleaseScratch(uint32_t slot_id);
+
+  // Releases the default scratch slot (slot 0).
+  void ReleaseScratch() { ReleaseScratch(0); }
+
+  // Returns true if the specified scratch slot is currently in use.
+  bool IsScratchInUse(uint32_t slot_id) const {
+    return slot_id < scratch_slots_.size() &&
+           scratch_slots_[slot_id].has_value() &&
+           scratch_slots_[slot_id]->in_use;
+  }
+
+  // Returns true if the default scratch slot (slot 0) is currently in use.
+  bool IsScratchInUse() const { return IsScratchInUse(0); }
 
   // === Opcode emission ===
 
@@ -159,8 +184,8 @@ class BytecodeBuilder {
   // Scope-based cache: scope_id -> (reg_type, index) -> register handle
   std::vector<base::FlatHashMap<uint64_t, HandleBase>> scope_caches_;
 
-  // Scratch management
-  std::optional<ScratchIndices> scratch_indices_;
+  // Scratch management - multiple slots indexed by slot_id
+  std::vector<std::optional<ScratchIndices>> scratch_slots_;
 };
 
 }  // namespace perfetto::trace_processor::core::interpreter

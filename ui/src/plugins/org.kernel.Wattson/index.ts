@@ -34,7 +34,7 @@ import {
   GPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
 import SchedPlugin from '../dev.perfetto.Sched';
-import {createCpuWarnings, hasWattsonSufficientCPUConfigs} from './warning';
+import {createCpuWarnings, missingWattsonCpuConfigs} from './warning';
 
 export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
@@ -46,7 +46,7 @@ export default class implements PerfettoPlugin {
     const gpuSupported = await hasWattsonGpuSupport(ctx.engine);
     const realCpuIdleCounters = await hasCpuIdleCounters(ctx.engine);
     const missingEvents = markersSupported
-      ? await hasWattsonSufficientCPUConfigs(ctx.engine)
+      ? await missingWattsonCpuConfigs(ctx.engine)
       : [];
 
     // Short circuit if Wattson is not supported for this Perfetto trace
@@ -250,7 +250,7 @@ async function addWattsonCpuElements(
     createAggregationTab(ctx, new WattsonEstimateSelectionAggregator()),
   );
   ctx.selection.registerAreaSelectionTab(
-    createAggregationTab(ctx, new WattsonThreadSelectionAggregator()),
+    createAggregationTab(ctx, new WattsonThreadSelectionAggregator(ctx)),
   );
   ctx.selection.registerAreaSelectionTab(
     createAggregationTab(ctx, new WattsonProcessSelectionAggregator()),

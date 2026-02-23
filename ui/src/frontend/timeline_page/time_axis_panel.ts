@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {canvasClip} from '../../base/canvas_utils';
 import {Size2D} from '../../base/geom';
-import {assertUnreachable} from '../../base/logging';
+import {assertUnreachable} from '../../base/assert';
 import {Time, time, formatDate} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {TimestampFormat} from '../../public/timeline';
@@ -55,9 +55,6 @@ export class TimeAxisPanel {
     canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
     this.renderPanel(ctx, trackSize);
     ctx.restore();
-
-    ctx.fillStyle = COLOR_BORDER;
-    ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
   }
 
   private renderOffsetTimestamp(ctx: CanvasRenderingContext2D): void {

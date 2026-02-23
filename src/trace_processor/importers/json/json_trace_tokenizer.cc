@@ -32,7 +32,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -40,6 +40,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/v8_profile_parser.h"
@@ -48,7 +49,8 @@
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/simple_json_parser.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/json_parser.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -488,7 +490,8 @@ JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
       systrace_stream_(context_->sorter->CreateStream(
           std::make_unique<SystraceSink>(&parser_))),
       v8_stream_(context_->sorter->CreateStream(
-          std::make_unique<V8Sink>(v8_tracker_.get()))) {}
+          std::make_unique<V8Sink>(v8_tracker_.get()))),
+      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)) {}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
 
 base::Status JsonTraceTokenizer::Parse(TraceBlobView blob) {
@@ -616,11 +619,8 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
       std::string_view ph = GetStringValue(it_.value());
       event.phase = ph.size() >= 1 ? ph[0] : '\0';
     } else if (it_.key() == "ts") {
-      if (!CoerceToTs(it_.value(), ts, status)) {
-        PERFETTO_DLOG("%s", status.c_message());
-        context_->storage->IncrementStats(stats::json_tokenizer_failure);
-        return false;
-      }
+      // On failure, ts remains at max() which will be handled below.
+      CoerceToTs(it_.value(), ts, status);
     } else if (it_.key() == "dur") {
       if (!CoerceToTs(it_.value(), event.dur, status)) {
         PERFETTO_DLOG("%s", status.c_message());
@@ -754,9 +754,10 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     context_->storage->IncrementStats(stats::json_tokenizer_failure);
     return true;
   }
-  // Metadata events may omit ts. In all other cases error.
+  // Don't check ts for metadata events. In all other cases error.
   if (ts == std::numeric_limits<int64_t>::max()) {
     if (event.phase != 'M') {
+      PERFETTO_DLOG("%s", status.c_message());
       context_->storage->IncrementStats(stats::json_tokenizer_failure);
       return true;
     }
@@ -801,7 +802,10 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     }
     return true;
   }
-  json_stream_->Push(ts, std::move(event));
+  auto trace_ts = context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+  if (trace_ts) {
+    json_stream_->Push(*trace_ts, std::move(event));
+  }
   return true;
 }
 
@@ -857,8 +861,12 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {
     ASSIGN_OR_RETURN(int64_t ts,
                      v8_tracker_->AddDeltaAndGetTs(
                          id, event.pid, profile.time_deltas[i] * 1000));
-    v8_stream_->Push(ts, LegacyV8CpuProfileEvent{id, event.pid, event.tid,
-                                                 profile.samples[i]});
+    auto trace_ts = context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+    if (trace_ts) {
+      v8_stream_->Push(*trace_ts,
+                       LegacyV8CpuProfileEvent{id, event.pid, event.tid,
+                                               profile.samples[i]});
+    }
   }
   return base::OkStatus();
 }
@@ -972,7 +980,11 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
 
     SystraceLine line;
     RETURN_IF_ERROR(systrace_line_tokenizer_.Tokenize(raw_line, &line));
-    systrace_stream_->Push(line.ts, std::move(line));
+    auto trace_ts =
+        context_->clock_tracker->ToTraceTime(trace_file_clock_, line.ts);
+    if (trace_ts) {
+      systrace_stream_->Push(*trace_ts, std::move(line));
+    }
   }
   return SetOutAndReturn(next, out);
 }

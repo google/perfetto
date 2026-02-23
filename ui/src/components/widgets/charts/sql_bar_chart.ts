@@ -27,7 +27,7 @@ import {Popup, PopupPosition} from '../../../widgets/popup';
 import {raf} from '../../../core/raf_scheduler';
 import {Button, ButtonBar} from '../../../widgets/button';
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {assertDefined} from '../../../base/logging';
+import {assertDefined} from '../../../base/assert';
 import {uuidv4} from '../../../base/uuid';
 
 interface Data {

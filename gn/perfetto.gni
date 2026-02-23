@@ -97,6 +97,10 @@ declare_args() {
   # based on GN (e.g. v8) should NOT set this and instead directly sets
   # perfetto_build_with_embedder=true in their GN files.
   is_perfetto_embedder = false
+
+  # Comma-separated list of additional CORS origins to allow in trace_processor
+  # and websocket_bridge.
+  perfetto_http_additional_cors_origins = ""
 }
 
 # This can be overridden by embedders (e.g. v8) in their .gn(i) files. This must

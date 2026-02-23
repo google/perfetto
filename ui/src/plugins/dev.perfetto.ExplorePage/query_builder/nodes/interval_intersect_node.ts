@@ -40,6 +40,7 @@ import {
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeTitle, ColumnName} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
+import {getCommonColumns} from '../utils';
 
 export interface IntervalIntersectSerializedState {
   intervalNodes: string[];
@@ -350,7 +351,7 @@ export class IntervalIntersectNode implements QueryNode {
     }
 
     // Get common columns for partition selection
-    const commonColumns = this.getCommonColumns();
+    const commonColumns = this.getCommonColumnsForPartition();
 
     // Build options: include both common columns AND currently selected partition columns
     // This ensures we show invalid partition columns so the user can deselect them
@@ -544,36 +545,15 @@ export class IntervalIntersectNode implements QueryNode {
     return warnings;
   }
 
-  private getCommonColumns(): string[] {
-    const EXCLUDED_COLUMNS = new Set(['id', 'ts', 'dur']);
-    const EXCLUDED_TYPES = new Set(['STRING', 'BYTES']);
-
+  private getCommonColumnsForPartition(): string[] {
     if (this.inputNodesList.length === 0) return [];
-
-    // Start with columns from the first input
-    const firstNode = this.inputNodesList[0];
-    const commonColumns = new Set(
-      firstNode.finalCols
-        .filter(
-          (c) => !EXCLUDED_COLUMNS.has(c.name) && !EXCLUDED_TYPES.has(c.type),
-        )
-        .map((c) => c.name),
+    return getCommonColumns(
+      this.inputNodesList.map((n) => n.finalCols),
+      {
+        excludedColumns: new Set(['id', 'ts', 'dur']),
+        excludedTypes: new Set(['STRING', 'BYTES']),
+      },
     );
-
-    // Intersect with columns from remaining inputs
-    for (let i = 1; i < this.inputNodesList.length; i++) {
-      const node = this.inputNodesList[i];
-      const nodeColumns = new Map(node.finalCols.map((c) => [c.name, c.type]));
-      // Keep only columns that exist in this node too with a non-excluded type
-      for (const col of commonColumns) {
-        const colType = nodeColumns.get(col);
-        if (colType === undefined || EXCLUDED_TYPES.has(colType)) {
-          commonColumns.delete(col);
-        }
-      }
-    }
-
-    return Array.from(commonColumns).sort();
   }
 
   nodeSpecificModify(): NodeModifyAttrs {

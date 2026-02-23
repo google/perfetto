@@ -136,7 +136,20 @@ describe('QueryExecutionService', () => {
   });
 
   describe('executeWithCoordination - Error Handling', () => {
-    it('should propagate errors to caller but continue processing queue', async () => {
+    it('should propagate errors from operations', async () => {
+      const node = createTestNode('node1');
+
+      const throwingOp = async () => {
+        throw new Error('Test error');
+      };
+
+      // Errors propagate - operations must handle their own errors
+      await expect(
+        service.executeWithCoordination(node, throwingOp),
+      ).rejects.toThrow('Test error');
+    });
+
+    it('should continue processing queue after error', async () => {
       const executionOrder: string[] = [];
       const node1 = createTestNode('node1');
       const node2 = createTestNode('node2');
@@ -155,27 +168,14 @@ describe('QueryExecutionService', () => {
 
       const promises = [
         service.executeWithCoordination(node1, op1),
-        service.executeWithCoordination(node2, op2).catch((e) => e),
+        service.executeWithCoordination(node2, op2).catch(() => {}), // Caller handles error
         service.executeWithCoordination(node3, op3),
       ];
 
       await Promise.all(promises);
 
-      // All three should execute despite error in op2
+      // All three should execute - queue continues after error
       expect(executionOrder).toEqual(['op1', 'op2', 'op3']);
-    });
-
-    it('should propagate errors to caller', async () => {
-      const node = createTestNode('node1');
-
-      const throwingOp = async () => {
-        throw new Error('Test error');
-      };
-
-      // Should throw
-      await expect(
-        service.executeWithCoordination(node, throwingOp),
-      ).rejects.toThrow('Test error');
     });
   });
 
@@ -234,49 +234,11 @@ describe('QueryExecutionService', () => {
 
       await promise;
 
+      // Brief wait to let queue processing complete (sets isExecuting = false)
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       expect(isExecutingDuringOp).toBe(true);
       expect(service.isQueryExecuting()).toBe(false);
-    });
-  });
-
-  describe('shouldExecuteQuery', () => {
-    it('should return true for first execution', () => {
-      const node = createTestNode('node1');
-      const hash = 'hash123';
-
-      expect(service.shouldExecuteQuery(node, hash)).toBe(true);
-    });
-
-    it('should return false if hash matches materialized hash', () => {
-      const node = createTestNode('node1');
-      const hash = 'hash123';
-
-      node.state.materializedQueryHash = hash;
-
-      expect(service.shouldExecuteQuery(node, hash)).toBe(false);
-    });
-
-    it('should return true if hash changed', () => {
-      const node = createTestNode('node1');
-      const oldHash = 'hash123';
-      const newHash = 'hash456';
-
-      node.state.materializedQueryHash = oldHash;
-
-      expect(service.shouldExecuteQuery(node, newHash)).toBe(true);
-    });
-  });
-
-  describe('getCachedQueryHash and setCachedQueryHash', () => {
-    it('should cache and retrieve query hashes', () => {
-      const node = createTestNode('node1');
-      const hash = 'hash123';
-
-      expect(service.getCachedQueryHash(node)).toBeUndefined();
-
-      service.setCachedQueryHash(node, hash);
-
-      expect(service.getCachedQueryHash(node)).toBe(hash);
     });
   });
 });

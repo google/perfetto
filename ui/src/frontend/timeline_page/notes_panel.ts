@@ -16,7 +16,7 @@ import m from 'mithril';
 import {canvasClip} from '../../base/canvas_utils';
 import {currentTargetOffset} from '../../base/dom_utils';
 import {Size2D} from '../../base/geom';
-import {assertUnreachable} from '../../base/logging';
+import {assertUnreachable} from '../../base/assert';
 import {TimeScale} from '../../base/time_scale';
 import {randomColor} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
@@ -96,9 +96,6 @@ export class NotesPanel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
-    ctx.fillStyle = COLOR_BORDER;
-    ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
-
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
 
     ctx.save();
@@ -120,6 +117,7 @@ export class NotesPanel {
 
     this.timescale = timescale;
 
+    ctx.fillStyle = COLOR_BORDER;
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
       const offset = this.trace.timeline.getTimeAxisOrigin();

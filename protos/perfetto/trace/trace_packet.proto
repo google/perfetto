@@ -19,6 +19,7 @@ syntax = "proto2";
 import "protos/perfetto/common/system_info.proto";
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
+import "protos/perfetto/protovm/vm_program.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
@@ -62,6 +63,7 @@ import "protos/perfetto/trace/gpu/vulkan_api_event.proto";
 import "protos/perfetto/trace/interned_data/interned_data.proto";
 import "protos/perfetto/trace/memory_graph.proto";
 import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
+import "protos/perfetto/trace/perfetto/trace_provenance.proto";
 import "protos/perfetto/trace/perfetto/tracing_service_event.proto";
 import "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto";
 import "protos/perfetto/trace/power/android_entity_state_residency.proto";
@@ -112,8 +114,23 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 124.
+// Next id: 126.
 message TracePacket {
+  // Encapsulates the state and configuration of the ProtoVM instances running
+  // when the trace was snapshotted. This allows TP to re-instantiate the VMs
+  // and use them to inflate patches into full-state packets.
+  // Note: this message can't be defined in a dedicated file because it has a
+  // recursive dependency with TracePacket (see 'state' field below).
+  message ProtoVms {
+    message Instance {
+      optional VmProgram program = 1;
+      optional TracePacket state = 2;
+      optional uint32 memory_limit_kb = 3;
+      repeated int32 producer_id = 4;
+    }
+    repeated Instance instance = 1;
+  }
+
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
   // Android). It can be overridden using a different timestamp_clock_id.
@@ -183,6 +200,8 @@ message TracePacket {
     StatsdAtom statsd_atom = 84;
     AndroidSystemProperty android_system_property = 86;
     EntityStateResidency entity_state_residency = 91;
+    TraceProvenance trace_provenance = 124;
+    ProtoVms protovms = 125;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

@@ -84,8 +84,6 @@ using CallsiteId = tables::StackProfileCallsiteTable_Id;
 
 using MetadataId = tables::MetadataTable_Id;
 
-using FlamegraphId = tables::ExperimentalFlamegraphTable_Id;
-
 using VulkanAllocId = tables::VulkanMemoryAllocationsTable_Id;
 
 using ProcessMemorySnapshotId = tables::ProcessMemorySnapshotTable_Id;
@@ -631,6 +629,13 @@ class TraceStorage {
   }
   tables::PerfSampleTable* mutable_perf_sample_table() {
     return mutable_table<tables::PerfSampleTable>();
+  }
+
+  const tables::PerfCounterSetTable& perf_counter_set_table() const {
+    return table<tables::PerfCounterSetTable>();
+  }
+  tables::PerfCounterSetTable* mutable_perf_counter_set_table() {
+    return mutable_table<tables::PerfCounterSetTable>();
   }
 
   const tables::InstrumentsSampleTable& instruments_sample_table() const {

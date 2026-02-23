@@ -1796,3 +1796,39 @@ class JsonParser(TestSuite):
         1000000,5000000,0,101,100
         26000000,4000000,1,101,100
         """))
+
+  def test_json_metadata_missing_or_invalid_ts(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "M",
+              "pid": 100,
+              "name": "process_name",
+              "args": { "name": "MissingTs" }
+            },
+            {
+              "ph": "M",
+              "pid": 101,
+              "ts": null,
+              "name": "process_name",
+              "args": { "name": "NullTs" }
+            },
+            {
+              "ph": "M",
+              "pid": 102,
+              "ts": "invalid",
+              "name": "process_name",
+              "args": { "name": "InvalidTs" }
+            }
+          ]
+        '''),
+        query='''
+          SELECT pid, name FROM process WHERE name IS NOT NULL ORDER BY pid
+        ''',
+        out=Csv("""
+          "pid","name"
+          100,"MissingTs"
+          101,"NullTs"
+          102,"InvalidTs"
+        """))

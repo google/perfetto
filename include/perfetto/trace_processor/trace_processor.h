@@ -28,6 +28,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
+#include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
 
@@ -239,18 +240,16 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
 
   // =================================================================
-  // |                        Experimental                           |
+  // |  EXPERIMENTAL: Summarizer related functionality starts here   |
   // =================================================================
+  //
+  // WARNING: This API is under active development and may change without
+  // notice. Do not depend on this interface in production code.
 
-  // Analyzes a structured query and returns the generated SQL along with
-  // metadata. The `spec` contains a TraceSummarySpec with all queries (in its
-  // `query` field). Each query must have an `id` field set. The `query_id`
-  // specifies which query from the spec should be analyzed (must match one of
-  // the queries' id fields).
-  virtual base::Status AnalyzeStructuredQuery(
-      const TraceSummarySpecBytes& spec,
-      const std::string& query_id,
-      AnalyzedStructuredQuery* output) = 0;
+  // EXPERIMENTAL: Creates a new Summarizer instance for managing lazy
+  // materialization of structured queries. On success, |out| is populated with
+  // the new instance and ownership is transferred to the caller.
+  virtual base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) = 0;
 };
 
 }  // namespace perfetto::trace_processor

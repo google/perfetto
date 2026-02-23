@@ -20,8 +20,8 @@
 #include <cstdint>
 
 #include "perfetto/protozero/field.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -54,13 +54,12 @@ class AppWakelockModule : public ProtoImporterModule {
  private:
   void ParseWakelockBundle(int64_t ts, protozero::ConstBytes blob);
 
-  // Helper to simplify pushing a TracePacket to the sorter. The caller fills in
-  // the packet buffer and uses this to push for sorting and reset the buffer.
+  // Pushes a serialized TracePacket to the sorter.
   void PushPacketBufferForSort(int64_t timestamp,
+                               TraceBlobView tbv,
                                RefPtr<PacketSequenceStateGeneration> state);
 
   TraceProcessorContext* context_;
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet_buffer_;
 
   const StringId arg_flags_;
   const StringId arg_owner_pid_;

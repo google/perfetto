@@ -76,7 +76,10 @@ source_set("blob") {
 }
 
 source_set("clock") {
-  sources = [ "clock_synchronizer.h" ]
+  sources = [
+    "clock_synchronizer.cc",
+    "clock_synchronizer.h",
+  ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
@@ -277,7 +280,7 @@ source_set("simple_json_parser") {
   ]
 }
 
-# JSON args flattening using the streaming parser. No jsoncpp dependency.
+# JSON args flattening using the streaming parser.
 source_set("json_args") {
   sources = [
     "json_args.cc",

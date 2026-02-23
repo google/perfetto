@@ -44,7 +44,7 @@ import {exists, getOrCreate} from '../base/utils';
 import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {Icon} from '../widgets/icon';
 import {Button} from '../widgets/button';
 

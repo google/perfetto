@@ -47,6 +47,7 @@ message FrameTimelineEvent {
     JANK_APP_RESYNCED_JITTER = 4096;
     JANK_DISPLAY_NOT_ON = 8192;
     JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS = 16384;
+    JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS = 32768;
   };
 
   // Specifies the severity of a jank.

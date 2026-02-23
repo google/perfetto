@@ -239,6 +239,33 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       }
     }
 
+    function onTabReorder(
+      draggedTabId: string,
+      beforeTabId: string | undefined,
+    ) {
+      const draggedIndex = editorTabs.findIndex((t) => t.id === draggedTabId);
+      if (draggedIndex === -1) return;
+
+      // Remove the dragged tab
+      const [draggedTab] = editorTabs.splice(draggedIndex, 1);
+
+      // Find where to insert it
+      if (beforeTabId === undefined) {
+        // Insert at the end
+        editorTabs.push(draggedTab);
+      } else {
+        const beforeIndex = editorTabs.findIndex((t) => t.id === beforeTabId);
+        if (beforeIndex === -1) {
+          // beforeTabId not found, insert at end
+          editorTabs.push(draggedTab);
+        } else {
+          editorTabs.splice(beforeIndex, 0, draggedTab);
+        }
+      }
+
+      debouncedSave();
+    }
+
     trace.pages.registerPage({
       route: '/query',
       render: () =>
@@ -252,6 +279,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
           onTabClose,
           onTabAdd,
           onTabRename,
+          onTabReorder,
         }),
     });
 

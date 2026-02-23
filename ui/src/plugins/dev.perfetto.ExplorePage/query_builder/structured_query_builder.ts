@@ -934,4 +934,52 @@ export class StructuredQueryBuilder {
     sq.experimentalFilterToIntervals = filterToIntervals;
     return sq;
   }
+
+  /**
+   * Creates a structured query with filter-in operation (semi-join).
+   * Filters rows from the base query where a column's values exist in
+   * another column from the match values query.
+   * References the input queries by ID (not embedded).
+   *
+   * @param baseQuery The base query containing rows to filter
+   * @param matchValuesQuery The query containing values to match against
+   * @param baseColumn The column name in the base query to filter on
+   * @param matchColumn The column name in the match_values query to match against
+   * @param nodeId The node id to assign
+   * @returns A new structured query with filter-in, or undefined if extraction fails
+   */
+  static withFilterIn(
+    baseQuery: QuerySource,
+    matchValuesQuery: QuerySource,
+    baseColumn: string,
+    matchColumn: string,
+    nodeId?: string,
+  ): protos.PerfettoSqlStructuredQuery | undefined {
+    const actualNodeId = nodeId ?? nextNodeId();
+
+    // Create reference queries
+    const baseId = extractQueryId(baseQuery);
+    if (!baseId) return undefined;
+    const base = this.createRef(baseId, `${actualNodeId}_base_ref`);
+
+    const matchValuesId = extractQueryId(matchValuesQuery);
+    if (!matchValuesId) return undefined;
+    const matchValues = this.createRef(
+      matchValuesId,
+      `${actualNodeId}_match_values_ref`,
+    );
+
+    const sq = new protos.PerfettoSqlStructuredQuery();
+    sq.id = actualNodeId;
+
+    const filterIn =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalFilterIn();
+    filterIn.base = base;
+    filterIn.matchValues = matchValues;
+    filterIn.baseColumn = baseColumn;
+    filterIn.matchColumn = matchColumn;
+
+    sq.experimentalFilterIn = filterIn;
+    return sq;
+  }
 }

@@ -543,6 +543,42 @@ message PerfettoSqlStructuredQuery {
     optional PerfettoSqlStructuredQuery input_query = 1;
   }
 
+  // DON'T USE. EXPERIMENTAL.
+  // Filters rows from `base` to only those where `base_column` has a value
+  // that exists in `match_column` from `match_values`. This is essentially
+  // a semi-join operation.
+  //
+  // Examples:
+  //  1) Filter slices to only those belonging to specific threads:
+  //    * `base` points to slices data with a utid column.
+  //    * `match_values` points to a query selecting specific thread utids.
+  //    * `base_column` = "utid", `match_column` = "utid"
+  //  2) Filter counter data to specific track IDs:
+  //    * `base` points to counter data.
+  //    * `match_values` points to a query with track IDs of interest.
+  //    * `base_column` = "track_id", `match_column` = "id"
+  //
+  // Schema:
+  //  1) The query in `base` must have a column named `base_column`.
+  //  2) The query in `match_values` must have a column named `match_column`.
+  //
+  // Output Schema:
+  // The output preserves the exact same columns as `base`, filtered to only
+  // rows where `base_column` value exists in `match_values.match_column`.
+  message ExperimentalFilterIn {
+    // The base query containing rows to filter. Required.
+    optional PerfettoSqlStructuredQuery base = 1;
+
+    // The query containing values to match against. Required.
+    optional PerfettoSqlStructuredQuery match_values = 2;
+
+    // The column name in the base query to filter on. Required.
+    optional string base_column = 3;
+
+    // The column name in the match_values query to match against. Required.
+    optional string match_column = 4;
+  }
+
   // An opaque id field for the query. The convention is to use underscores
   // and lower case (foo_bar) but this is not enforced. Optional in the general
   // case but strongly recommended for good error messages. Required in cases
@@ -611,6 +647,11 @@ message PerfettoSqlStructuredQuery {
     // Source is a counter-to-intervals operation. See
     // ExperimentalCounterIntervals documentation for more information.
     ExperimentalCounterIntervals experimental_counter_intervals = 107;
+
+    // DON'T USE. EXPERIMENTAL.
+    // Source is a filter-in operation (semi-join). See
+    // ExperimentalFilterIn documentation for more information.
+    ExperimentalFilterIn experimental_filter_in = 108;
   }
 
   // Evaluation order of operations:

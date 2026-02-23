@@ -37,6 +37,7 @@ export default class implements PerfettoPlugin {
     await addFixedColorSliceTrack(trace);
     await addNestedTrackGroup(trace);
     addTracksWithHelpText(trace);
+    await addIncompleteSlicesTrack(trace);
   }
 }
 
@@ -359,4 +360,60 @@ function addGroupWithHelpText(trace: Trace) {
   const groupNode = new TrackNode({uri, name: 'Group with Help Text'});
   trace.defaultWorkspace.addChildInOrder(groupNode);
   return groupNode;
+}
+
+// Example 8: A track with incomplete slices (dur = -1) at various depth levels.
+async function addIncompleteSlicesTrack(trace: Trace): Promise<void> {
+  const traceStartTime = trace.traceInfo.start;
+  const traceDur = trace.traceInfo.end - trace.traceInfo.start;
+  const tableName = 'incomplete_events';
+
+  // Create a table with incomplete slices at different depths
+  await trace.engine.tryQuery(`drop table if exists ${tableName}`);
+  await trace.engine.query(`
+    create table ${tableName} (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      ts INTEGER,
+      dur INTEGER,
+      depth INTEGER
+    );
+
+    insert into ${tableName} (name, ts, dur, depth)
+    values
+      -- Complete slices for context
+      ('Complete 0', ${traceStartTime}, ${traceDur / 4n}, 0),
+      ('Complete 1', ${traceStartTime + traceDur / 3n}, ${traceDur / 4n}, 1),
+      ('Complete 2', ${traceStartTime + traceDur / 2n}, ${traceDur / 4n}, 2),
+      -- Incomplete slices (dur = -1) at various depths
+      ('Incomplete at depth 0', ${traceStartTime + traceDur / 8n}, -1, 0),
+      ('Incomplete at depth 1', ${traceStartTime + traceDur / 6n}, -1, 1),
+      ('Incomplete at depth 2', ${traceStartTime + traceDur / 5n}, -1, 2),
+      ('Incomplete at depth 3', ${traceStartTime + traceDur / 4n}, -1, 3)
+    ;
+  `);
+
+  const name = 'Incomplete Slices (Various Depths)';
+  const uri = `com.example.Tracks#IncompleteSlicesTrack`;
+
+  trace.tracks.registerTrack({
+    uri,
+    renderer: SliceTrack.create({
+      trace: trace,
+      uri,
+      dataset: new SourceDataset({
+        src: tableName,
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+          depth: NUM,
+        },
+      }),
+    }),
+  });
+
+  // Add to workspace
+  trace.defaultWorkspace.addChildInOrder(new TrackNode({uri, name}));
 }

@@ -18,7 +18,7 @@ enum FtraceEvent {
 // Walk through user's Perfetto Trace Configs and check
 // against bare minimum configs that makes Wattson work.
 // Add the missing ones to missingEvents, display in UI.
-export async function hasWattsonSufficientCPUConfigs(
+export async function missingWattsonCpuConfigs(
   engine: Engine,
 ): Promise<string[]> {
   // 1. Determine required events first

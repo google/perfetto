@@ -14,16 +14,20 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {NUM} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
-import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {
+  createPerfettoTable,
+  createPerfettoView,
+} from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {Track} from '../../public/track';
 import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Store} from '../../base/store';
 import {z} from 'zod';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
+import {profileDescriptor} from './common';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
@@ -33,11 +37,15 @@ const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.object({
 
 type HeapProfilePluginState = z.infer<typeof HEAP_PROFILE_PLUGIN_STATE_SCHEMA>;
 
+function trackUri(upid: number, type: string): string {
+  return `/process_${upid}/${type}_heap_profile`;
+}
+
 export default class HeapProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
-  private readonly trackMap = new Map<number, Track>();
+  private readonly trackMap = new Map<string, Track>();
   private store?: Store<HeapProfilePluginState>;
 
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
@@ -68,7 +76,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           upid,
           0 AS dur,
           0 AS depth,
-          'graph' AS type
+          'java_heap_graph' AS type
         FROM heap_graph_object
         GROUP BY graph_sample_ts, upid
 
@@ -80,9 +88,9 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           upid,
           0 AS dur,
           0 AS depth,
-          'heap_profile:' || GROUP_CONCAT(DISTINCT heap_name) AS type
+          'heap_profile:' || heap_name AS type
         FROM heap_profile_allocation
-        GROUP BY ts, upid
+        GROUP BY ts, upid, heap_name
       `,
     });
   }
@@ -92,46 +100,77 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       ProcessThreadGroupsPlugin,
     );
     const incomplete = await this.getIncomplete(trace);
-    const result = await trace.engine.query(`
-      SELECT DISTINCT 
-        upid
+    const heapTypesResult = await trace.engine.query(`
+      SELECT DISTINCT type
       FROM ${EVENT_TABLE_NAME}
     `);
-    for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
-      const upid = it.upid;
-      const uri = `/process_${upid}/heap_profile`;
+    const heapTypes = [];
+    for (const it = heapTypesResult.iter({type: STR}); it.valid(); it.next()) {
+      heapTypes.push(it.type);
+    }
 
-      const store = assertExists(this.store);
-      const track: Track = {
-        uri,
-        tags: {
-          upid,
-        },
-        renderer: createHeapProfileTrack(
-          trace,
-          uri,
-          EVENT_TABLE_NAME,
-          upid,
-          incomplete,
-          store.state.detailsPanelFlamegraphState,
-          (state) => {
-            store.edit((draft) => {
-              draft.detailsPanelFlamegraphState = state;
-            });
-          },
-        ),
-      };
-
-      trace.tracks.registerTrack(track);
-      this.trackMap.set(upid, track);
-
-      const group = trackGroupsPlugin.getGroupForProcess(upid);
-      const trackNode = new TrackNode({
-        uri,
-        name: 'Heap Profile',
-        sortOrder: -30,
+    let typeIdx = 0;
+    for (const heapType of heapTypes) {
+      // Create a view for this particular type
+      const viewName = `${EVENT_TABLE_NAME}_view_${typeIdx}`;
+      await createPerfettoView({
+        engine: trace.engine,
+        name: viewName,
+        as: `
+          SELECT *
+          FROM ${EVENT_TABLE_NAME}
+          WHERE type = '${heapType}'
+        `,
       });
-      group?.addChildInOrder(trackNode);
+      typeIdx++;
+
+      const upidResult = await trace.engine.query(`
+        SELECT DISTINCT upid
+        FROM ${viewName}
+      `);
+
+      const upids = [];
+      for (const it = upidResult.iter({upid: NUM}); it.valid(); it.next()) {
+        upids.push(it.upid);
+      }
+
+      for (const upid of upids) {
+        const group = trackGroupsPlugin.getGroupForProcess(upid);
+        if (!group) continue;
+
+        const store = assertExists(this.store);
+        const uri = trackUri(upid, heapType);
+
+        const track: Track = {
+          uri,
+          tags: {
+            upid,
+          },
+          renderer: createHeapProfileTrack(
+            trace,
+            uri,
+            viewName,
+            upid,
+            incomplete,
+            store.state.detailsPanelFlamegraphState,
+            (state) => {
+              store.edit((draft) => {
+                draft.detailsPanelFlamegraphState = state;
+              });
+            },
+          ),
+        };
+
+        trace.tracks.registerTrack(track);
+        this.trackMap.set(uri, track);
+
+        const trackNode = new TrackNode({
+          uri,
+          name: profileDescriptor(heapType).label,
+          sortOrder: -30,
+        });
+        group.addChildInOrder(trackNode);
+      }
     }
   }
 
@@ -146,20 +185,20 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async selectFirstHeapProfile(ctx: Trace) {
-    // Select the first sample from each track
     const result = await ctx.engine.query(`
         SELECT
           id,
-          upid
+          upid,
+          type
         FROM ${EVENT_TABLE_NAME}
         ORDER BY ts
         LIMIT 1
       `);
 
-    const iter = result.maybeFirstRow({id: NUM, upid: NUM});
+    const iter = result.maybeFirstRow({id: NUM, upid: NUM, type: STR});
     if (!iter) return;
 
-    const track = this.trackMap.get(iter.upid);
+    const track = this.trackMap.get(trackUri(iter.upid, iter.type));
     if (!track) return;
 
     ctx.selection.selectTrackEvent(track.uri, iter.id);

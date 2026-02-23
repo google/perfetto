@@ -22,13 +22,37 @@
 
 namespace perfetto::trace_to_text {
 
+// ProGuard/R8 mapping specification.
+struct ProguardMapSpec {
+  std::string package;  // Java package name
+  std::string path;     // Path to mapping.txt
+};
+
 // Context structure for bundle configuration
 struct BundleContext {
   // Additional paths to search for symbols (beyond automatic discovery)
   std::vector<std::string> symbol_paths;
 
+  // ProGuard/R8 mapping files for Java deobfuscation
+  std::vector<ProguardMapSpec> proguard_maps;
+
   // If true, disables automatic symbol path discovery
   bool no_auto_symbol_paths = false;
+
+  // If true, output verbose details (all paths tried, etc.)
+  bool verbose = false;
+
+  // Value of ANDROID_PRODUCT_OUT for AOSP builds symbol discovery
+  std::string android_product_out;
+
+  // Home directory for ~/.debug symbol discovery
+  std::string home_dir;
+
+  // Working directory for Gradle project detection
+  std::string working_dir;
+
+  // Root directory for /usr/lib/debug symbol discovery
+  std::string root_dir;
 };
 
 // Creates a bundle from the input trace with symbolization,
