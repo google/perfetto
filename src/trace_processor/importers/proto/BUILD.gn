@@ -70,6 +70,8 @@ source_set("minimal") {
     "track_event_tokenizer.h",
     "track_event_tracker.cc",
     "track_event_tracker.h",
+    "user_tracker.cc",
+    "user_tracker.h",
   ]
   public_deps = [ ":proto_importer_module" ]
   deps = [

@@ -345,7 +345,7 @@ ANDROID_USER_LIST_TABLE = Table(
     class_name='AndroidUserListTable',
     sql_name='__intrinsic_android_user_list',
     columns=[
-        C('type', CppString()),
+        C('type', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('android_user_id', CppInt64()),
     ],
     tabledoc=TableDoc(
