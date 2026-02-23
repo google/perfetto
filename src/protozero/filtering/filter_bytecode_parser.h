@@ -20,7 +20,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <optional>
 #include <vector>
 
 namespace protozero {
@@ -43,6 +42,14 @@ namespace protozero {
 // See comments around |word_| below for the structure of the word vector.
 class FilterBytecodeParser {
  public:
+  static constexpr uint32_t kSimpleField = 0x7fffffff;
+  static constexpr uint32_t kFilterStringField = 0x7ffffffe;
+  // FilterStringFieldWithType uses a range: 0x7fff0000 to 0x7ffffffd.
+  // The semantic type is encoded in the lower 16 bits.
+  static constexpr uint32_t kFilterStringFieldWithType = 0x7fff0000;
+  static constexpr uint32_t kFilterStringFieldWithTypeMask = 0x7fff0000;
+  static constexpr uint32_t kSemanticTypeMask = 0xffff;
+
   // Result of a Query() operation
   struct QueryResult {
     bool allowed;  // Whether the field is allowed at all or no.
@@ -52,6 +59,10 @@ class FilterBytecodeParser {
     // parser.
     uint32_t nested_msg_index;
 
+    // The semantic type of the field (only meaningful when
+    // filter_string_field() returns true). A value of 0 means unspecified.
+    uint32_t semantic_type;
+
     // If |allowed|==true, specifies if the field is of a simple type (varint,
     // fixed32/64, string or byte).
     bool simple_field() const { return nested_msg_index == kSimpleField; }
@@ -59,22 +70,41 @@ class FilterBytecodeParser {
     // If |allowed|==true, specifies if this field is a string field that needs
     // to be filtered.
     bool filter_string_field() const {
-      return nested_msg_index == kFilterStringField;
+      // Range: [kFilterStringFieldWithType, kFilterStringField] i.e.
+      // [0x7fff0000, 0x7ffffffe]. This excludes kSimpleField (0x7fffffff).
+      return nested_msg_index >= kFilterStringFieldWithType &&
+             nested_msg_index <= kFilterStringField;
     }
 
     // If |allowed|==true, specifies if the field is a nested field that needs
     // recursion. The caller is expected to use |nested_msg_index| for the next
     // Query() calls.
     bool nested_msg_field() const {
+      static_assert(kFilterStringFieldWithType < kFilterStringField,
+                    "kFilterStringFieldWithType < kFilterStringField");
       static_assert(kFilterStringField < kSimpleField,
                     "kFilterStringField < kSimpleField");
-      return nested_msg_index < kFilterStringField;
+      return nested_msg_index < kFilterStringFieldWithType;
     }
   };
 
   // Loads a filter. The filter data consists of a sequence of varints which
   // contains the filter opcodes and a final checksum.
-  bool Load(const void* filter_data, size_t len);
+  // If a filter is already loaded, it is replaced.
+  //
+  // Optionally accepts an overlay (pass nullptr/0 if not needed). The overlay
+  // can add new fields or upgrade existing fields (e.g., to FilterString).
+  // The overlay uses the same opcode format as the base bytecode, but with an
+  // explicit message index prefix:
+  //   [msg_index, (field_id << 3) | opcode, argument] ... [checksum]
+  // Entry sizes depend on the opcode (same as base bytecode).
+  // Entries must be sorted by (msg_index, field_id). The base bytecode and
+  // overlay are merged during loading, maintaining sorted field order.
+  // See /rfcs/0011-subset-string-filter-rules.md for design details.
+  bool Load(const void* filter_data,
+            size_t len,
+            const void* overlay_data = nullptr,
+            size_t overlay_len = 0);
 
   // Checks wheter a given field is allowed or not.
   // msg_index = 0 is the index of the root message, where all queries should
@@ -87,10 +117,11 @@ class FilterBytecodeParser {
  private:
   static constexpr uint32_t kDirectlyIndexLimit = 128;
   static constexpr uint32_t kAllowed = 1u << 31u;
-  static constexpr uint32_t kSimpleField = 0x7fffffff;
-  static constexpr uint32_t kFilterStringField = 0x7ffffffe;
 
-  bool LoadInternal(const uint8_t* filter_data, size_t len);
+  bool LoadInternal(const uint8_t* filter_data,
+                    size_t len,
+                    const uint8_t* overlay_data,
+                    size_t overlay_len);
 
   // The state of all fields for all messages is stored in one contiguous array.
   // This is to avoid memory fragmentation and allocator overhead.
@@ -121,7 +152,9 @@ class FilterBytecodeParser {
   //  0x7fffffff: The field is "simple" (varint, fixed32/64, string, bytes) and
   //      can be directly passed through in output. No recursion is needed.
   //  0x7ffffffe: The field is string field which needs to be filtered.
-  //  [0, 7ffffffd]: The field is a nested submessage. The value is the index
+  //  0x7fff0000-0x7ffffffd: The field is a string field with a semantic type.
+  //      The lower 16 bits encode the semantic type.
+  //  [0, 0x7ffeffff]: The field is a nested submessage. The value is the index
   //     that must be passed as first argument to the next Query() calls.
   //     Note that the message index is purely a monotonic counter in the
   std::vector<uint32_t> words_;

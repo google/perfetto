@@ -14,8 +14,9 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {ButtonVariant} from './button';
+import {ButtonBar, ButtonVariant} from './button';
 import {CopyToClipboardButton} from './copy_to_clipboard_button';
+import {DownloadToFileButton} from './download_to_file_button';
 
 interface CodeSnippetAttrs {
   // The text to be displayed in the code snippet.
@@ -24,12 +25,14 @@ interface CodeSnippetAttrs {
   readonly language?: string;
   // Any additional classes to apply to the container.
   readonly class?: string;
+  // If set, a download button will be shown which downloads the text to a file
+  // with this name.
+  readonly downloadFileName?: string;
 }
 
 export class CodeSnippet implements m.ClassComponent<CodeSnippetAttrs> {
   view({attrs}: m.Vnode<CodeSnippetAttrs>) {
-    const {text, language, class: className} = attrs;
-
+    const {text, language, class: className, downloadFileName} = attrs;
     return m(
       '.pf-code-snippet',
       {
@@ -38,11 +41,21 @@ export class CodeSnippet implements m.ClassComponent<CodeSnippetAttrs> {
       m(
         '.pf-code-snippet-header',
         m('span.pf-code-snippet-language', language),
-        m(CopyToClipboardButton, {
-          textToCopy: text,
-          variant: ButtonVariant.Minimal,
-          title: 'Copy to clipboard',
-        }),
+        m(
+          ButtonBar,
+          downloadFileName &&
+            m(DownloadToFileButton, {
+              content: text,
+              fileName: downloadFileName,
+              variant: ButtonVariant.Minimal,
+              title: 'Download code snippet',
+            }),
+          m(CopyToClipboardButton, {
+            textToCopy: text,
+            variant: ButtonVariant.Minimal,
+            title: 'Copy to clipboard',
+          }),
+        ),
       ),
       m('pre', m('code', text)),
     );

@@ -212,7 +212,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // using a different ProtoTraceReader instance. The packet will be parsed
   // in the context of the remote machine.
   if (PERFETTO_UNLIKELY(decoder.machine_id())) {
-    if (!context_->machine_id()) {
+    if (context_->machine_id() == MachineId(kDefaultMachineId)) {
       auto [it, inserted] =
           machine_to_proto_readers_.Insert(decoder.machine_id(), nullptr);
       if (PERFETTO_UNLIKELY(inserted)) {
@@ -228,7 +228,9 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     }
   }
   // Assert that the packet is parsed using the right instance of reader.
-  PERFETTO_DCHECK(decoder.has_machine_id() == !!context_->machine_id());
+  // machine_id is set only for remote machines.
+  PERFETTO_DCHECK(decoder.has_machine_id() ==
+                  (context_->machine_id() != MachineId(kDefaultMachineId)));
 
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto [scoped_state, inserted] = sequence_state_.Insert(seq_id, {});
@@ -272,7 +274,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_remote_clock_sync()) {
-    PERFETTO_DCHECK(context_->machine_id());
+    PERFETTO_DCHECK(context_->machine_id() != MachineId(kDefaultMachineId));
     return ParseRemoteClockSync(decoder.remote_clock_sync());
   }
 
@@ -896,6 +898,26 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     storage->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
+    if (buf.has_shadow_buffer_stats()) {
+      protos::pbzero::TraceStats::BufferStats::ShadowBufferStats::Decoder sbs(
+          buf.shadow_buffer_stats());
+      storage->SetIndexedStats(stats::traced_buf_v2s_packets_seen, buf_num,
+                               static_cast<int64_t>(sbs.packets_seen()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_packets_in_both, buf_num,
+                               static_cast<int64_t>(sbs.packets_in_both()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_packets_only_v1, buf_num,
+                               static_cast<int64_t>(sbs.packets_only_v1()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_packets_only_v2, buf_num,
+                               static_cast<int64_t>(sbs.packets_only_v2()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_patches_attempted, buf_num,
+                               static_cast<int64_t>(sbs.patches_attempted()));
+      storage->SetIndexedStats(
+          stats::traced_buf_v2s_v1_patches_succeeded, buf_num,
+          static_cast<int64_t>(sbs.v1_patches_succeeded()));
+      storage->SetIndexedStats(
+          stats::traced_buf_v2s_v2_patches_succeeded, buf_num,
+          static_cast<int64_t>(sbs.v2_patches_succeeded()));
+    }
   }
 
   struct BufStats {
@@ -925,15 +947,18 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
   }
 }
 
-base::Status ProtoTraceReader::NotifyEndOfFile() {
+base::Status ProtoTraceReader::OnPushDataToSorter() {
   received_eof_ = true;
   for (auto& packet : eof_deferred_packets_) {
     RETURN_IF_ERROR(TimestampTokenizeAndPushToSorter(std::move(packet)));
   }
-  for (auto& module : module_context_.modules) {
-    module->NotifyEndOfFile();
-  }
   return base::OkStatus();
+}
+
+void ProtoTraceReader::OnEventsFullyExtracted() {
+  for (auto& module : module_context_.modules) {
+    module->OnEventsFullyExtracted();
+  }
 }
 
 }  // namespace perfetto::trace_processor

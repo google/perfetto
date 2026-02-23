@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {BarChartData, ColumnDef, Sorting} from '../../components/aggregation';
+import {BarChartData} from '../../components/aggregation';
 import {
+  AggregatePivotModel,
   Aggregation,
   Aggregator,
   createIITable,
@@ -71,15 +72,13 @@ export class ThreadStateByCpuAggregator implements Aggregator {
             thread.name as thread_name,
             thread.tid,
             tstate.state as state,
+            utid,
             ucpu,
-            sum(tstate.dur) AS total_dur,
-            sum(tstate.dur) / count() as avg_dur,
-            count() as occurrences,
-            cast(sum(dur) as real) / sum(sum(dur)) over () as percent_of_total
+            dur,
+            dur * 1.0 / sum(dur) OVER () as fraction_of_total
           from (${iiTable.name}) tstate
           join thread using (utid)
           left join process using (upid)
-          group by utid, state, ucpu
         `);
 
         const query = `
@@ -115,61 +114,75 @@ export class ThreadStateByCpuAggregator implements Aggregator {
     };
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Process',
-        columnId: 'process_name',
-      },
-      {
-        title: 'PID',
-        columnId: 'pid',
-      },
-      {
-        title: 'Thread',
-        columnId: 'thread_name',
-      },
-      {
-        title: 'TID',
-        columnId: 'tid',
-      },
-      {
-        title: 'CPU',
-        columnId: 'ucpu',
-      },
-      {
-        title: 'State',
-        columnId: 'state',
-      },
-      {
-        title: 'Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'total_dur',
-        sum: true,
-      },
-      {
-        title: 'Wall duration %',
-        formatHint: 'PERCENT',
-        columnId: 'percent_of_total',
-      },
-      {
-        title: 'Avg Wall duration',
-        formatHint: 'DURATION_NS',
-        columnId: 'avg_dur',
-      },
-      {
-        title: 'Occurrences',
-        columnId: 'occurrences',
-        sum: true,
-      },
-    ];
+  getColumnDefinitions(): AggregatePivotModel {
+    return {
+      groupBy: [
+        {id: 'thread_name', field: 'thread_name'},
+        {id: 'state', field: 'state'},
+        {id: 'ucpu', field: 'ucpu'},
+      ],
+      aggregates: [
+        {id: 'count', function: 'COUNT'},
+        {id: 'process_name', field: 'process_name', function: 'ANY'},
+        {id: 'pid', field: 'pid', function: 'ANY'},
+        {id: 'thread_name', field: 'thread_name', function: 'ANY'},
+        {id: 'tid', field: 'tid', function: 'ANY'},
+        {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+        {
+          id: 'fraction_of_total_sum',
+          field: 'fraction_of_total',
+          function: 'SUM',
+        },
+        {id: 'dur_avg', field: 'dur', function: 'AVG'},
+      ],
+      columns: [
+        {
+          title: 'Process',
+          columnId: 'process_name',
+        },
+        {
+          title: 'PID',
+          columnId: 'pid',
+          formatHint: 'NUMERIC',
+        },
+        {
+          title: 'Thread',
+          columnId: 'thread_name',
+        },
+        {
+          title: 'TID',
+          columnId: 'tid',
+          formatHint: 'NUMERIC',
+        },
+        {
+          title: 'CPU',
+          columnId: 'ucpu',
+          formatHint: 'NUMERIC',
+        },
+        {
+          title: 'UTID',
+          columnId: 'utid',
+          formatHint: 'NUMERIC',
+        },
+        {
+          title: 'State',
+          columnId: 'state',
+        },
+        {
+          title: 'Wall duration',
+          formatHint: 'DURATION_NS',
+          columnId: 'dur',
+        },
+        {
+          title: 'Wall duration %',
+          formatHint: 'PERCENT',
+          columnId: 'fraction_of_total',
+        },
+      ],
+    };
   }
 
   getTabName() {
     return 'Thread States by CPU';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'total_dur', direction: 'DESC'};
   }
 }

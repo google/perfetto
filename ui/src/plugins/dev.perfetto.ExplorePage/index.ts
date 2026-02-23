@@ -19,6 +19,38 @@ import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExplorePageState} from './explore_page';
 import {nodeRegistry} from './query_builder/node_registry';
 import {QueryNodeState} from './query_node';
+import {deserializeState} from './json_handler';
+import {recentGraphsStorage} from './recent_graphs';
+
+/**
+ * Loads the Explore Page state from recent graphs storage.
+ * Returns undefined if no state is found or if deserialization fails.
+ */
+function loadStateFromRecentGraphs(trace: Trace): ExplorePageState | undefined {
+  try {
+    const json = recentGraphsStorage.getCurrentJson();
+    if (!json) {
+      return undefined;
+    }
+
+    const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      // SQL modules not yet initialized - return undefined to retry later
+      return undefined;
+    }
+
+    return deserializeState(json, trace, sqlModules);
+  } catch (error) {
+    console.debug(
+      'Failed to load Explore Page state from recent graphs:',
+      error,
+    );
+    // Clear corrupted data to prevent repeated failures
+    recentGraphsStorage.clear();
+    return undefined;
+  }
+}
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
@@ -29,8 +61,17 @@ export default class implements PerfettoPlugin {
   // trace.
   private state: ExplorePageState = {
     rootNodes: [],
+    selectedNodes: new Set(),
     nodeLayouts: new Map(),
+    labels: [],
   };
+
+  // Track whether we've successfully loaded state from local storage
+  private hasAttemptedStateLoad = false;
+
+  // Track whether we've auto-initialized base JSON in this session
+  // This prevents reloading base JSON when clearing all nodes
+  private hasAutoInitialized = false;
 
   onStateUpdate = (
     update:
@@ -42,25 +83,64 @@ export default class implements PerfettoPlugin {
     } else {
       this.state = update;
     }
+
+    // Save current state to recent graphs (updates the first entry)
+    recentGraphsStorage.saveCurrentState(this.state);
+
     m.redraw();
   };
+
+  // Try to load state from recent graphs. Called lazily when the page renders.
+  private tryLoadState(trace: Trace): void {
+    if (this.hasAttemptedStateLoad) return;
+
+    const savedState = loadStateFromRecentGraphs(trace);
+    if (savedState !== undefined) {
+      // Load saved state from recent graphs (preserves work across page refreshes)
+      this.state = savedState;
+      this.hasAttemptedStateLoad = true;
+      // Only mark as auto-initialized if the saved state has nodes
+      // This allows base JSON to load after a reload when state is empty,
+      // but prevents it from loading after manual "Clear all nodes" in the same session
+      if (savedState.rootNodes.length > 0) {
+        this.hasAutoInitialized = true;
+      }
+    } else if (
+      trace.plugins.getPlugin(SqlModulesPlugin).getSqlModules() !== undefined
+    ) {
+      // SQL modules are available but no state was loaded - mark as attempted
+      // to avoid retrying on every render
+      this.hasAttemptedStateLoad = true;
+    }
+    // If SQL modules aren't ready yet, we'll retry on next render
+  }
 
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.pages.registerPage({
       route: '/explore',
       render: () => {
+        // Ensure SQL modules initialization is triggered (no-op if already started)
+        trace.plugins.getPlugin(SqlModulesPlugin).ensureInitialized();
+
+        // Try to load saved state lazily (waits for SQL modules to be ready)
+        this.tryLoadState(trace);
+
         return m(ExplorePage, {
           trace,
           state: this.state,
           sqlModulesPlugin: trace.plugins.getPlugin(SqlModulesPlugin),
           onStateUpdate: this.onStateUpdate,
+          hasAutoInitialized: this.hasAutoInitialized,
+          setHasAutoInitialized: (value: boolean) => {
+            this.hasAutoInitialized = value;
+          },
         });
       },
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
-      sortOrder: 21,
-      text: 'Explore',
+      sortOrder: 20,
+      text: 'Data Explorer',
       href: '#!/explore',
       icon: 'data_exploration',
     });
@@ -104,7 +184,7 @@ export default class implements PerfettoPlugin {
         this.onStateUpdate((currentState) => ({
           ...currentState,
           rootNodes: [...currentState.rootNodes, newNode],
-          selectedNode: newNode,
+          selectedNodes: new Set([newNode.nodeId]),
         }));
 
         // Navigate to Explore Page

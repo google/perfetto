@@ -105,11 +105,13 @@ export function targetSelectionPage(recMgr: RecordingManager): RecordSubpage {
 }
 
 class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
+  private objToId = new ObjToId();
+
   view({attrs}: m.CVnode<RecMgrAttrs>) {
     const recMgr = attrs.recMgr;
 
     return [
-      m('header', 'Select platform'),
+      m('header', 'Target platform'),
       m(SegmentedButtons, {
         className: 'platform-selector',
         options: TARGET_PLATFORMS.map((p) => ({label: p.name, icon: p.icon})),
@@ -131,7 +133,7 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
         m(TargetSelector, {
           recMgr,
           provider: recMgr.currentProvider,
-          key: new ObjToId().getKey(recMgr.currentProvider),
+          key: `${this.objToId.getKey(recMgr.currentProvider)}-${recMgr.currentPlatform}`,
         }),
       ],
 
@@ -139,7 +141,7 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
         m(TargetDetails, {
           recMgr,
           target: recMgr.currentTarget,
-          key: new ObjToId().getKey(recMgr.currentTarget),
+          key: `${this.objToId.getKey(recMgr.currentTarget)}-${recMgr.currentPlatform}`,
         }),
       ],
     ];
@@ -397,7 +399,7 @@ class TargetSelector implements m.ClassComponent<TargetSelectorAttrs> {
             onchange: (e: Event) => {
               const idx = (e.target as HTMLSelectElement).selectedIndex;
               recMgr.setTarget(this.targets[idx]);
-              // m.redraw();
+              m.redraw();
             },
           },
           ...this.targets.map((target) =>

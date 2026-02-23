@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
 
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
@@ -31,7 +30,6 @@
 #include <regex>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 namespace perfetto::trace_processor {
@@ -52,10 +50,10 @@ std::string SubstrTrim(const std::string& input) {
 SystraceLineTokenizer::SystraceLineTokenizer()
     : std_line_matcher_(
           std::regex(R"(-(\d+)\s+\(?\s*(\d+|-+)?\)?\s?\[(\d+)\]\s*)"
-                     R"([a-zA-Z0-9.]{0,5}\s*(\d+\.\d+):\s+(\S+):)")) {
+                     R"(([a-zA-Z.]{3}[0-9.]{1,2}\s*)?(\d+\.\d+):\s+(\S+):)")) {
   if constexpr (regex::IsRegexSupported()) {
     auto regex_or = regex::Regex::Create(
-        R"(-([0-9]+)[[:space:]]+\(?[[:space:]]*([0-9]+|-+)?\)?[[:space:]]?\[([0-9]+)\][[:space:]]*[a-zA-Z0-9.]{0,5}[[:space:]]*([0-9]+\.[0-9]+):[[:space:]]+([^[:space:]]+):)");
+        R"(-([0-9]+)[[:space:]]+\(?[[:space:]]*([0-9]+|-+)?\)?[[:space:]]?\[([0-9]+)\][[:space:]]*([a-zA-Z.]{3}[0-9.]{1,2}[[:space:]]*)?([0-9]+\.[0-9]+):[[:space:]]+([^[:space:]]+):)");
     if (!regex_or.ok()) {
       PERFETTO_FATAL("%s", regex_or.status().c_message());
     }
@@ -100,7 +98,7 @@ base::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
 
   std::string pid_str(matches[1]);
   std::string cpu_str(matches[3]);
-  std::string ts_str(matches[4]);
+  std::string ts_str(matches[5]);
 
   std::string_view prefix(
       buffer.data(), static_cast<size_t>(matches[0].data() - buffer.data()));
@@ -111,7 +109,7 @@ base::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
       static_cast<size_t>(buffer.data() + buffer.size() - match_end));
   line->task = SubstrTrim(std::string(prefix));
   line->tgid_str = matches[2];
-  line->event_name = matches[5];
+  line->event_name = matches[6];
   line->args_str = SubstrTrim(std::string(suffix));
 
   std::optional<uint32_t> maybe_pid = base::StringToUInt32(pid_str);

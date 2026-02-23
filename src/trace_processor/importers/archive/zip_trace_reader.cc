@@ -48,7 +48,11 @@ base::Status ZipTraceReader::Parse(TraceBlobView blob) {
   return zip_reader_.Parse(std::move(blob));
 }
 
-base::Status ZipTraceReader::NotifyEndOfFile() {
+base::Status ZipTraceReader::OnPushDataToSorter() {
+  if (!parsers_.empty()) {
+    return base::OkStatus();
+  }
+
   std::vector<util::ZipFile> files = zip_reader_.TakeFiles();
 
   // Android bug reports are ZIP files and its files do not get handled
@@ -81,13 +85,19 @@ base::Status ZipTraceReader::NotifyEndOfFile() {
     parsers_.push_back(std::move(chunk_reader));
 
     RETURN_IF_ERROR(parser.Parse(std::move(file.second.data)));
-    RETURN_IF_ERROR(parser.NotifyEndOfFile());
+    RETURN_IF_ERROR(parser.OnPushDataToSorter());
     // Make sure the ForwardingTraceParser determined the same trace type as we
     // did.
     PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
   }
 
   return base::OkStatus();
+}
+
+void ZipTraceReader::OnEventsFullyExtracted() {
+  for (auto it = parsers_.rbegin(); it != parsers_.rend(); ++it) {
+    (*it)->OnEventsFullyExtracted();
+  }
 }
 
 }  // namespace perfetto::trace_processor

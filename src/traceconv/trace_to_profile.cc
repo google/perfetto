@@ -23,15 +23,16 @@
 #include <vector>
 
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
-#include "src/profiling/symbolizer/symbolize_database.h"
+#include "src/trace_processor/util/symbolizer/local_symbolizer.h"
+#include "src/trace_processor/util/symbolizer/symbolize_database.h"
 #include "src/traceconv/utils.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/profiling/pprof_builder.h"
-#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/deobfuscation/deobfuscator.h"
+#include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 namespace {
 constexpr const char* kDefaultTmp = "/tmp";

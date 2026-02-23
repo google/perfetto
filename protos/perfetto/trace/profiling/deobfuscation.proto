@@ -27,6 +27,21 @@ message ObfuscatedMember {
   // deobfuscated field name relative to the class containing this
   // ObfuscatedMember.
   optional string deobfuscated_name = 2;
+
+  // R8 inline method support: line number ranges for disambiguation.
+  // When multiple methods map to the same obfuscated name, the line number
+  // from the stack frame is used to select the correct mapping.
+  //
+  // Format in R8 mapping: "1:3:void foo():10:12 -> a"
+  // - obfuscated_line_start/end = 1:3 (line range in obfuscated code)
+  // - source_line_start/end = 10:12 (line range in original source)
+  //
+  // Methods with the same obfuscated_name and overlapping obfuscated line
+  // ranges form an inline chain, ordered innermost (inlined) first.
+  optional uint32 obfuscated_line_start = 3;
+  optional uint32 obfuscated_line_end = 4;
+  optional uint32 source_line_start = 5;
+  optional uint32 source_line_end = 6;
 }
 
 message ObfuscatedClass {

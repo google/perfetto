@@ -29,10 +29,20 @@ TEST(FtraceEventParserTest, InferProtoType) {
   EXPECT_EQ(
       InferProtoType(Field{"__data_loc char[] foo", 0, 4, false}).ToString(),
       "string");
-  EXPECT_EQ(InferProtoType(Field{"char[] foo", 0, 8, false}).ToString(),
-            "string");
   EXPECT_EQ(InferProtoType(Field{"char * foo", 0, 8, false}).ToString(),
             "string");
+  EXPECT_EQ(InferProtoType(Field{"const char * foo", 0, 8, false}).ToString(),
+            "string");
+
+  EXPECT_EQ(
+      InferProtoType(Field{"__data_loc u8[] foo", 0, 4, false}).ToString(),
+      "bytes");
+  EXPECT_EQ(
+      InferProtoType(Field{"__data_loc __u8[] foo", 0, 4, false}).ToString(),
+      "bytes");
+  EXPECT_EQ(InferProtoType(Field{"__data_loc unsigned char[] foo", 0, 4, false})
+                .ToString(),
+            "bytes");
 
   EXPECT_EQ(InferProtoType(Field{"int foo", 0, 4, true}).ToString(), "int32");
   EXPECT_EQ(InferProtoType(Field{"s32 signal", 50, 4, true}).ToString(),

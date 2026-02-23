@@ -105,6 +105,8 @@ void SetSystemInfo(protos::gen::InitRelayRequest* request) {
 
   if (sys_info.page_size.has_value())
     info->set_page_size(*sys_info.page_size);
+  if (sys_info.system_ram_bytes.has_value())
+    info->set_system_ram_bytes(*sys_info.system_ram_bytes);
   if (sys_info.num_cpus.has_value())
     info->set_num_cpus(*sys_info.num_cpus);
 

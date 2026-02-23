@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- Create a proto using process metadata.
+SELECT RUN_METRIC('android/process_metadata.sql');
 -- Create the base table (`android_jank_cuj`) containing all completed CUJs
 -- found in the trace.
 SELECT RUN_METRIC('android/jank/cujs.sql');
@@ -21,7 +23,7 @@ SELECT RUN_METRIC('android/jank/cujs.sql');
 -- and GPU completion threads.
 -- Also stores the (not CUJ-specific) threads of SF: main, render engine,
 -- and GPU completion threads.
-SELECT RUN_METRIC('android/jank/relevant_threads.sql');
+INCLUDE PERFETTO MODULE android.cujs.threads;
 
 -- Create tables to store the main slices on each of the relevant threads
 -- * `Choreographer#doFrame` on the main thread

@@ -333,6 +333,7 @@ class Trace(object):
 
   def add_gpu_counter_spec(self,
                            ts,
+                           gpu_id,
                            counter_id,
                            name,
                            description=None,
@@ -341,6 +342,7 @@ class Trace(object):
     packet = self.add_packet()
     packet.timestamp = ts
     gpu_counters = packet.gpu_counter_event
+    gpu_counters.gpu_id = gpu_id
     counter_desc = gpu_counters.counter_descriptor
     spec = counter_desc.specs.add()
     spec.counter_id = counter_id
@@ -741,7 +743,8 @@ class Trace(object):
                                            gpu_composition,
                                            jank_type,
                                            prediction_type,
-                                           jank_severity_type=None):
+                                           jank_severity_type=None,
+                                           jank_score=0):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.actual_surface_frame_start
@@ -762,6 +765,7 @@ class Trace(object):
       else:
         event.jank_severity_type = jank_severity_type
       event.prediction_type = prediction_type
+      event.jank_severity_score = jank_score
 
   def add_frame_end_event(self, ts, cookie):
     packet = self.add_packet()

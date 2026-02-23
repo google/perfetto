@@ -16,7 +16,7 @@
   // Make the progress bar 1px high but -1px margin which makes it render over
   // the top of the element above it to save space.
   height: 1px;
-  margin-top: -1px;
+  margin-bottom: -1px;
   z-index: 10;
   position: relative;
   overflow: hidden;

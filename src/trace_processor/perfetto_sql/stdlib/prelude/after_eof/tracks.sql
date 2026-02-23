@@ -19,6 +19,10 @@
 -- This module provides the track concept and specialized track tables for
 -- organizing events by thread, process, CPU, and GPU contexts.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
+INCLUDE PERFETTO MODULE prelude.after_eof.views;
+
 -- Tracks are a fundamental concept in trace processor and represent a
 -- "timeline" for events of the same type and with the same context. See
 -- https://perfetto.dev/docs/analysis/trace-processor#tracks for a more
@@ -51,7 +55,7 @@ CREATE PERFETTO VIEW track (
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
+  -- Machine identifier
   machine_id LONG,
   -- An opaque key indicating that this track belongs to a group of tracks which
   -- are "conceptually" the same track.
@@ -94,7 +98,7 @@ CREATE PERFETTO TABLE thread_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
+  -- Machine identifier
   machine_id LONG,
   -- The utid that the track is associated with.
   utid JOINID(thread.id)
@@ -133,7 +137,7 @@ CREATE PERFETTO TABLE process_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
+  -- Machine identifier
   machine_id LONG,
   -- The upid that the track is associated with.
   upid JOINID(process.id)
@@ -172,7 +176,7 @@ CREATE PERFETTO TABLE cpu_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
+  -- Machine identifier
   machine_id LONG,
   -- The CPU that the track is associated with.
   cpu LONG
@@ -219,7 +223,7 @@ CREATE PERFETTO TABLE gpu_track (
   -- The dimensions of the track which uniquely identify the track within a
   -- given type.
   dimension_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
+  -- Machine identifier
   machine_id LONG,
   -- The source of the track. Deprecated.
   scope STRING,

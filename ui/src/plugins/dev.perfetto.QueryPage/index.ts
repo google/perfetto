@@ -13,82 +13,245 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  QueryResponse,
-  runQueryForQueryTable,
-} from '../../components/query_table/queries';
-import {QueryTable} from '../../components/query_table/query_table';
+import {z} from 'zod';
+import {runQueryForQueryTable} from '../../components/query_table/queries';
+import {QueryResultsTable} from '../../components/query_table/query_table';
 import {App} from '../../public/app';
-import {Flag} from '../../public/feature_flag';
 import {PerfettoPlugin} from '../../public/plugin';
+import {Setting} from '../../public/settings';
 import {Trace} from '../../public/trace';
-import {Editor} from '../../widgets/editor';
-import {QueryPage} from './query_page';
+import {QueryPage, QueryEditorTab} from './query_page';
 import {queryHistoryStorage} from '../../components/widgets/query_history';
-import {ResizeHandle} from '../../widgets/resize_handle';
-import {findRef, toHTMLElement} from '../../base/dom_utils';
-import {assertExists} from '../../base/logging';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import {EmptyState} from '../../widgets/empty_state';
+import {Anchor} from '../../widgets/anchor';
+import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {shortUuid} from '../../base/uuid';
+import {debounce} from '../../base/rate_limiters';
+
+const QUERY_TABS_STORAGE_KEY = 'perfettoQueryTabs';
+
+const persistedTabSchema = z.object({
+  id: z.string(),
+  editorText: z.string(),
+  title: z.string(),
+});
+
+const persistedTabStateSchema = z.object({
+  tabs: z.array(persistedTabSchema).min(1),
+  activeTabId: z.string(),
+});
+
+type PersistedTabState = z.infer<typeof persistedTabStateSchema>;
+
+function saveTabsToStorage(
+  setting: Setting<boolean>,
+  tabs: QueryEditorTab[],
+  activeTabId: string,
+): void {
+  if (!setting.get()) return;
+
+  const state: PersistedTabState = {
+    tabs: tabs.map((tab) => ({
+      id: tab.id,
+      editorText: tab.editorText,
+      title: tab.title,
+    })),
+    activeTabId,
+  };
+  localStorage.setItem(QUERY_TABS_STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadTabsFromStorage(
+  setting: Setting<boolean>,
+): PersistedTabState | undefined {
+  if (!setting.get()) return undefined;
+
+  const stored = localStorage.getItem(QUERY_TABS_STORAGE_KEY);
+  if (!stored) return undefined;
+
+  try {
+    const parsed = JSON.parse(stored);
+    const result = persistedTabStateSchema.safeParse(parsed);
+    if (!result.success) {
+      return undefined;
+    }
+    return result.data;
+  } catch {
+    return undefined;
+  }
+}
 
 export default class QueryPagePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.QueryPage';
-  static addQueryPageMiniFlag: Flag;
+  static readonly dependencies = [SqlModulesPlugin];
 
-  static onActivate(app: App) {
-    QueryPagePlugin.addQueryPageMiniFlag = app.featureFlags.register({
-      id: 'dev.perfetto.QueryPage',
-      name: 'Enable mini query page tab',
-      defaultValue: false,
+  private static queryTabPersistenceSetting: Setting<boolean>;
+
+  static onActivate(app: App): void {
+    QueryPagePlugin.queryTabPersistenceSetting = app.settings.register({
+      id: `${QueryPagePlugin.id}#queryTabPersistence`,
+      name: 'Experimental: Query Tab Persistence',
       description:
-        'Enables a tab version of the query page that allows query tab - like functionality in the tab drawer',
+        'Persist query editor tabs to localStorage across sessions. ' +
+        'Experimental: stored queries may be lost during version upgrades.',
+      schema: z.boolean(),
+      defaultValue: false,
     });
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    // The query page and tab share the same query data.
-    let executedQuery: string | undefined;
-    let queryResult: QueryResponse | undefined;
-    let editorText = '';
+    const persistenceSetting = QueryPagePlugin.queryTabPersistenceSetting;
 
-    const onExecute = async (text: string) => {
-      if (!text) {
-        return;
+    // Debounced save to avoid writing on every keypress
+    const debouncedSave = debounce(() => {
+      saveTabsToStorage(persistenceSetting, editorTabs, activeTabId);
+    }, 1000);
+
+    // Multi-tab state: array of editor tabs with active tab tracking
+    const editorTabs: QueryEditorTab[] = [];
+
+    function createNewTabName(index: number): string {
+      return `Query ${index}`;
+    }
+
+    function createNewTab(
+      tabName?: string,
+      editorText: string = '',
+    ): QueryEditorTab {
+      // If no tab name is provided, count up until we find a unique name
+      if (!tabName) {
+        let count = 1;
+        const existingNames = new Set<string>();
+        // This function is only called during initialization, so we can
+        // safely access the existing tabs from the closure.
+        for (const tab of editorTabs) {
+          existingNames.add(tab.title);
+        }
+        while (existingNames.has(createNewTabName(count))) {
+          count++;
+        }
+        tabName = createNewTabName(count);
       }
 
+      return {
+        id: shortUuid(),
+        editorText,
+        queryResult: undefined,
+        isLoading: false,
+        title: tabName,
+      };
+    }
+
+    // Try to restore tabs from localStorage if persistence is enabled
+    const persistedState = loadTabsFromStorage(persistenceSetting);
+    if (persistedState) {
+      for (const tab of persistedState.tabs) {
+        editorTabs.push({
+          id: tab.id,
+          editorText: tab.editorText,
+          title: tab.title,
+          queryResult: undefined,
+          isLoading: false,
+        });
+      }
+    } else {
+      editorTabs.push(createNewTab());
+    }
+
+    let activeTabId =
+      persistedState &&
+      editorTabs.some((t) => t.id === persistedState.activeTabId)
+        ? persistedState.activeTabId
+        : editorTabs[0].id;
+
+    // Helper to find the active tab
+    function getActiveTab(): QueryEditorTab | undefined {
+      return editorTabs.find((t) => t.id === activeTabId);
+    }
+
+    async function onExecute(tabId: string, text: string) {
+      if (!text) return;
+
+      const tab = editorTabs.find((t) => t.id === tabId);
+      if (!tab) return;
+
+      tab.queryResult = undefined;
       queryHistoryStorage.saveQuery(text);
 
-      executedQuery = text;
-      queryResult = undefined;
-      queryResult = await runQueryForQueryTable(text, trace.engine);
+      tab.isLoading = true;
+      tab.queryResult = await runQueryForQueryTable(text, trace.engine);
+      tab.isLoading = false;
 
-      // TODO(stevegolton): Just show the mini query page instead of adding an
-      // ephemeral tab.
+      trace.tabs.showTab('dev.perfetto.QueryPage');
+    }
 
-      // if (QueryPagePlugin.addQueryPageMiniFlag.get()) {
-      //   trace.tabs.showTab('dev.perfetto.QueryPage');
-      // }
+    function onEditorContentUpdate(tabId: string, content: string) {
+      const tab = editorTabs.find((t) => t.id === tabId);
+      if (tab) {
+        tab.editorText = content;
+        debouncedSave();
+      }
+    }
 
-      addQueryResultsTab(
-        trace,
-        {
-          query: executedQuery,
-          title: 'Standalone Query',
-          prefetchedResponse: queryResult,
-        },
-        'analyze_page_query',
-      );
-    };
+    function onTabChange(tabId: string) {
+      activeTabId = tabId;
+      debouncedSave();
+    }
+
+    function onTabClose(tabId: string) {
+      const index = editorTabs.findIndex((t) => t.id === tabId);
+      if (index === -1) return;
+
+      // Don't close the last tab
+      if (editorTabs.length === 1) return;
+
+      editorTabs.splice(index, 1);
+
+      // If we closed the active tab, switch to an adjacent one
+      if (activeTabId === tabId) {
+        const newIndex = Math.min(index, editorTabs.length - 1);
+        activeTabId = editorTabs[newIndex].id;
+      }
+
+      debouncedSave();
+    }
+
+    function onTabAdd(
+      tabName?: string,
+      initialQuery?: string,
+      autoExecute?: boolean,
+    ) {
+      const newTab = createNewTab(tabName, initialQuery);
+      editorTabs.push(newTab);
+      activeTabId = newTab.id;
+      debouncedSave();
+
+      if (autoExecute) {
+        onExecute(newTab.id, initialQuery ?? '');
+      }
+    }
+
+    function onTabRename(tabId: string, newName: string) {
+      const tab = editorTabs.find((t) => t.id === tabId);
+      if (tab) {
+        tab.title = newName;
+        debouncedSave();
+      }
+    }
 
     trace.pages.registerPage({
       route: '/query',
       render: () =>
         m(QueryPage, {
           trace,
-          editorText,
-          executedQuery,
-          queryResult,
-          onEditorContentUpdate: (text) => (editorText = text),
+          editorTabs,
+          activeTabId,
+          onEditorContentUpdate,
           onExecute,
+          onTabChange,
+          onTabClose,
+          onTabAdd,
+          onTabRename,
         }),
     });
 
@@ -97,78 +260,38 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       text: 'Query (SQL)',
       href: '#!/query',
       icon: 'database',
-      sortOrder: 20,
+      sortOrder: 21,
     });
 
-    if (QueryPagePlugin.addQueryPageMiniFlag.get()) {
-      trace.tabs.registerTab({
-        uri: 'dev.perfetto.QueryPage',
-        isEphemeral: false,
-        content: {
-          render() {
-            return m(QueryPageMini, {
-              trace,
-              editorText,
-              executedQuery,
-              queryResult,
-              onEditorContentUpdate: (text) => (editorText = text),
-              onExecute,
-            });
-          },
-          getTitle() {
-            return 'QueryPage Mini';
-          },
+    trace.tabs.registerTab({
+      uri: 'dev.perfetto.QueryPage',
+      isEphemeral: false,
+      content: {
+        render() {
+          const activeTab = getActiveTab();
+          return m(QueryResultsTable, {
+            trace,
+            isLoading: activeTab?.isLoading ?? false,
+            resp: activeTab?.queryResult,
+            fillHeight: true,
+            emptyState: m(
+              EmptyState,
+              {
+                fillHeight: true,
+                title: 'No query results',
+              },
+              [
+                'Execute a query in the ',
+                m(Anchor, {href: '#!/query'}, 'Query Page'),
+                ' to see results here.',
+              ],
+            ),
+          });
         },
-      });
-    }
-  }
-}
-
-interface QueryPageMiniAttrs {
-  trace: Trace;
-  editorText: string;
-  executedQuery?: string;
-  queryResult?: QueryResponse;
-  onEditorContentUpdate?(content: string): void;
-  onExecute?(query: string): void;
-}
-
-class QueryPageMini implements m.ClassComponent<QueryPageMiniAttrs> {
-  private editorHeight: number = 0;
-  private editorElement?: HTMLElement;
-
-  oncreate({dom}: m.VnodeDOM<QueryPageMiniAttrs>) {
-    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
-    this.editorElement.style.height = '200px';
-  }
-
-  view({attrs}: m.Vnode<QueryPageMiniAttrs>): m.Children {
-    return m(
-      '.pf-query-page-mini',
-
-      m(Editor, {
-        ref: 'editor',
-        language: 'perfetto-sql',
-        onUpdate: attrs.onEditorContentUpdate,
-        onExecute: attrs.onExecute,
-      }),
-      m(ResizeHandle, {
-        onResize: (deltaPx: number) => {
-          this.editorHeight += deltaPx;
-          this.editorElement!.style.height = `${this.editorHeight}px`;
+        getTitle() {
+          return 'Query Page Results';
         },
-        onResizeStart: () => {
-          this.editorHeight = this.editorElement!.clientHeight;
-        },
-      }),
-      attrs.executedQuery === undefined
-        ? null
-        : m(QueryTable, {
-            trace: attrs.trace,
-            query: attrs.executedQuery,
-            resp: attrs.queryResult,
-            fillHeight: false,
-          }),
-    );
+      },
+    });
   }
 }

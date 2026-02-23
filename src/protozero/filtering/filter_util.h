@@ -22,8 +22,9 @@
 #include <list>
 #include <map>
 #include <optional>
-#include <set>
 #include <string>
+
+#include "src/protozero/filtering/filter_bytecode_generator.h"
 
 // We include this intentionally instead of forward declaring to allow
 // for an easy find/replace transformation when moving to Google3.
@@ -42,23 +43,28 @@ class FilterUtil {
   ~FilterUtil();
 
   // Loads a message schema from a .proto file, recursing into nested types.
+  // Filtering options are read from proto annotations
+  // [(perfetto.protos.proto_filter)] on each field, rather than from
+  // command-line arguments.
   // Args:
   // proto_file: path to the .proto file.
   // root_message: fully qualified message name (e.g., perfetto.protos.Trace).
   //     If empty, the first message in the file will be used.
   // proto_dir_path: the root for .proto includes. If empty uses CWD.
-  // passthrough: an optional set of fields that should be transparently passed
-  //     through without recursing further.
-  //     Syntax: "perfetto.protos.TracePacket:trace_config"
-  // filter_string_fields: an optional set of fields that should be treated as
-  //     string fields which need to be filtered.
-  //     Syntax: same as passthrough
-  bool LoadMessageDefinition(
-      const std::string& proto_file,
-      const std::string& root_message,
-      const std::string& proto_dir_path,
-      const std::set<std::string>& passthrough_fields = {},
-      const std::set<std::string>& filter_string_fields = {});
+  bool LoadMessageDefinition(const std::string& proto_file,
+                             const std::string& root_message,
+                             const std::string& proto_dir_path);
+
+  // Loads a message schema from a pre-compiled binary FileDescriptorSet.
+  // This is simpler than LoadMessageDefinition as it doesn't need to resolve
+  // proto imports at runtime - all dependencies are baked into the descriptor.
+  // Args:
+  // file_descriptor_set_proto: pointer to binary FileDescriptorSet data.
+  // size: size of the binary data.
+  // root_message: fully qualified message name (e.g., perfetto.protos.Trace).
+  bool LoadFromDescriptorSet(const uint8_t* file_descriptor_set_proto,
+                             size_t size,
+                             const std::string& root_message);
 
   // Deduplicates leaf messages having the same sets of field ids.
   // It changes the internal state and affects the behavior of next calls to
@@ -67,9 +73,13 @@ class FilterUtil {
 
   // Generates the filter bytecode for the root message previously loaded by
   // LoadMessageDefinition() using FilterBytecodeGenerator.
-  // The returned string is a binary-encoded proto message of type
-  // perfetto.protos.ProtoFilter (see proto_filter.proto).
-  std::string GenerateFilterBytecode();
+  // Returns the bytecode and optional v54 overlay (see FilterBytecodeGenerator
+  // for details).
+  // |min_version| specifies the minimum bytecode parser version to target.
+  // Defaults to the latest version.
+  FilterBytecodeGenerator::SerializeResult GenerateFilterBytecode(
+      FilterBytecodeGenerator::BytecodeVersion min_version =
+          FilterBytecodeGenerator::BytecodeVersion::kLatest);
 
   // Prints the list of messages and fields onto stdout in a diff-friendly text
   // format. Example:
@@ -94,7 +104,17 @@ class FilterUtil {
     struct Field {
       std::string name;
       std::string type;  // "uint32", "string", "message"
-      bool filter_string;
+      bool filter_string = false;
+      // Semantic type for string fields that need filtering.
+      // 0 = unspecified/unset. Only meaningful when filter_string == true.
+      // Maps to SemanticType enum values from semantic_type.proto.
+      uint32_t semantic_type = 0;
+      // If true and semantic_type is set, include this field in v2 bytecode
+      // (as simple filter_string).
+      bool allow_v2_with_semantic_type = false;
+      // If true and filter_string is set, include this field in v1 bytecode
+      // (as simple string).
+      bool allow_v1_with_filter_string = false;
       // Only when type == "message". Note that when using Dedupe() this can
       // be aliased against a different submessage which happens to have the
       // same set of field ids.
@@ -107,7 +127,7 @@ class FilterUtil {
     std::string full_name;  // e.g., "perfetto.protos.Foo.Bar";
     std::map<uint32_t /*field_id*/, Field> fields;
 
-    // True if at least one field has a non-null |nestd_type|.
+    // True if at least one field has a non-null |nested_type|.
     bool has_nested_fields = false;
 
     // True if at least one field has |filter_string|==true.
@@ -115,18 +135,12 @@ class FilterUtil {
   };
 
   using DescriptorsByNameMap = std::map<std::string, Message*>;
+
   Message* ParseProtoDescriptor(const google::protobuf::Descriptor*,
                                 DescriptorsByNameMap*);
 
   // list<> because pointers need to be stable.
   std::list<Message> descriptors_;
-  std::set<std::string> passthrough_fields_;
-  std::set<std::string> filter_string_fields_;
-
-  // Used only for debugging aid, to print out an error message when the user
-  // specifies a field to pass through but it doesn't exist.
-  std::set<std::string> passthrough_fields_seen_;
-  std::set<std::string> filter_string_fields_seen_;
 
   FILE* print_stream_ = stdout;
 };

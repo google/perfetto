@@ -284,22 +284,22 @@ class TablesCounters(TestSuite):
         """,
         out=Csv("""
         "id","name","machine_id","cpu"
-        0,"cpu.times.user_ns","[NULL]",0
-        1,"cpu.times.user_nice_ns","[NULL]",0
-        2,"cpu.times.system_mode_ns","[NULL]",0
-        3,"cpu.times.idle_ns","[NULL]",0
-        4,"cpu.times.io_wait_ns","[NULL]",0
-        5,"cpu.times.irq_ns","[NULL]",0
-        6,"cpu.times.softirq_ns","[NULL]",0
-        7,"cpu.times.steal_ns","[NULL]",0
-        8,"cpu.times.user_ns","[NULL]",1
-        9,"cpu.times.user_nice_ns","[NULL]",1
-        10,"cpu.times.system_mode_ns","[NULL]",1
-        11,"cpu.times.idle_ns","[NULL]",1
-        12,"cpu.times.io_wait_ns","[NULL]",1
-        13,"cpu.times.irq_ns","[NULL]",1
-        14,"cpu.times.softirq_ns","[NULL]",1
-        15,"cpu.times.steal_ns","[NULL]",1
+        0,"cpu.times.user_ns",0,0
+        1,"cpu.times.user_nice_ns",0,0
+        2,"cpu.times.system_mode_ns",0,0
+        3,"cpu.times.idle_ns",0,0
+        4,"cpu.times.io_wait_ns",0,0
+        5,"cpu.times.irq_ns",0,0
+        6,"cpu.times.softirq_ns",0,0
+        7,"cpu.times.steal_ns",0,0
+        8,"cpu.times.user_ns",0,1
+        9,"cpu.times.user_nice_ns",0,1
+        10,"cpu.times.system_mode_ns",0,1
+        11,"cpu.times.idle_ns",0,1
+        12,"cpu.times.io_wait_ns",0,1
+        13,"cpu.times.irq_ns",0,1
+        14,"cpu.times.softirq_ns",0,1
+        15,"cpu.times.steal_ns",0,1
         16,"cpu.times.user_ns",1,0
         17,"cpu.times.user_nice_ns",1,0
         18,"cpu.times.system_mode_ns",1,0

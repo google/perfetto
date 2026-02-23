@@ -17,60 +17,102 @@ import {Duration} from '../base/time';
 import {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
-import {BarChartData, ColumnDef, Sorting} from './aggregation';
-import {ColumnDefinition, DataGridDataSource} from './widgets/data_grid/common';
-import {DataGrid, renderCell, DataGridApi} from './widgets/data_grid/data_grid';
-import {defaultValueFormatter} from './widgets/data_grid/export_utils';
+import {BarChartData, ColumnDef} from './aggregation';
+import {DataGrid, renderCell, DataGridApi} from './widgets/datagrid/datagrid';
+import {defaultValueFormatter} from './widgets/datagrid/export_utils';
+import {AggregatePivotModel, DataGridState} from './aggregation_adapter';
+import {
+  CellRenderer,
+  ColumnSchema,
+  ColumnType,
+  SchemaRegistry,
+} from './widgets/datagrid/datagrid_schema';
+import {DataSource} from './widgets/datagrid/data_source';
+import {Button} from '../widgets/button';
+import {Icons} from '../base/semantic_icons';
 
 export interface AggregationPanelAttrs {
-  readonly dataSource: DataGridDataSource;
-  readonly sorting: Sorting;
-  readonly columns: ReadonlyArray<ColumnDef>;
+  readonly dataSource: DataSource;
+  readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
   readonly barChartData?: ReadonlyArray<BarChartData>;
   readonly onReady?: (api: DataGridApi) => void;
+  readonly dataGridState?: DataGridState;
+  readonly onClearGridState?: () => void;
+  readonly controls?: m.Children;
 }
 
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
 {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    const {dataSource, sorting, columns, barChartData, onReady} = attrs;
+    const {
+      dataSource,
+      columns,
+      barChartData,
+      onReady,
+      dataGridState,
+      onClearGridState,
+      controls,
+    } = attrs;
 
     return m(Stack, {fillHeight: true, spacing: 'none'}, [
       barChartData && m(StackFixed, m(Box, this.renderBarChart(barChartData))),
-      m(StackAuto, this.renderTable(dataSource, sorting, columns, onReady)),
+      m(
+        StackAuto,
+        this.renderTable(
+          controls,
+          dataSource,
+          columns,
+          onReady,
+          dataGridState,
+          onClearGridState,
+        ),
+      ),
     ]);
   }
 
   private renderTable(
-    dataSource: DataGridDataSource,
-    sorting: Sorting,
-    columns: ReadonlyArray<ColumnDef>,
+    controls: m.Children | undefined,
+    dataSource: DataSource,
+    model: ReadonlyArray<ColumnDef> | AggregatePivotModel,
     onReady?: (api: DataGridApi) => void,
+    dataGridState?: DataGridState,
+    onClearGridState?: () => void,
   ) {
-    const columnsById = new Map(columns.map((c) => [c.columnId, c]));
+    // Get column definitions - either from pivot model or flat model
+    const columnDefs = 'groupBy' in model ? model.columns : model;
+
+    // Build schema from column definitions
+    const columnSchema: ColumnSchema = {};
+    for (const c of columnDefs) {
+      columnSchema[c.columnId] = {
+        title: c.title,
+        titleString: c.title,
+        columnType: filterTypeForColumnDef(c.formatHint),
+        cellRenderer:
+          c.cellRenderer ?? getCellRenderer(c.formatHint, c.columnId),
+        cellFormatter: getValueFormatter(c.formatHint),
+      };
+    }
+    const schema: SchemaRegistry = {data: columnSchema};
 
     return m(DataGrid, {
       fillHeight: true,
-      showResetButton: false,
-      columns: columns.map((c): ColumnDefinition => {
-        return {
-          name: c.columnId,
-          title: c.title,
-          aggregation: c.sum ? 'SUM' : undefined,
-        };
-      }),
+      schema,
+      rootSchema: 'data',
       data: dataSource,
-      initialSorting: sorting,
       onReady,
-      cellRenderer: (value: SqlValue, columnName: string) => {
-        const formatHint = columnsById.get(columnName)?.formatHint;
-        return this.renderCell(value, columnName, formatHint);
-      },
-      valueFormatter: (value: SqlValue, columnName: string) => {
-        const formatHint = columnsById.get(columnName)?.formatHint;
-        return valueFormatter(value, formatHint);
-      },
+      // Spread controlled state props (columns, filters, pivot and callbacks)
+      ...dataGridState,
+      toolbarItemsLeft: [
+        controls,
+        onClearGridState &&
+          m(Button, {
+            icon: Icons.ResetState,
+            tooltip: 'Reset grid state to default for this aggregation',
+            onclick: () => onClearGridState(),
+          }),
+      ],
     });
   }
 
@@ -95,24 +137,69 @@ export class AggregationPanel
       }),
     );
   }
+}
 
-  private renderCell(value: SqlValue, colName: string, formatHint?: string) {
-    if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
-      return Duration.humanise(value);
-    } else if (formatHint === 'PERCENT' && typeof value === 'number') {
-      return `${(value * 100).toFixed(2)}%`;
-    } else {
-      return renderCell(value, colName);
-    }
+function filterTypeForColumnDef(
+  formatHint: string | undefined,
+): ColumnType | undefined {
+  switch (formatHint) {
+    case undefined:
+      return undefined;
+    case 'ID':
+      return 'identifier';
+    case 'NUMERIC':
+    case 'DURATION_NS':
+    case 'PERCENT':
+      return 'quantitative';
+    case 'STRING':
+    default:
+      return 'text';
   }
 }
 
-function valueFormatter(value: SqlValue, formatHint?: string): string {
-  if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+function getValueFormatter(
+  formatHint: string | undefined,
+): (value: SqlValue) => string {
+  switch (formatHint) {
+    case 'DURATION_NS':
+      return formatDurationValue;
+    case 'PERCENT':
+      return formatPercentValue;
+    default:
+      return defaultValueFormatter;
+  }
+}
+
+function getCellRenderer(
+  formatHint: string | undefined,
+  columnName: string,
+): CellRenderer {
+  switch (formatHint) {
+    case 'DURATION_NS':
+      return formatDurationValue;
+    case 'PERCENT':
+      return formatPercentValue;
+    default:
+      return function (value) {
+        return renderCell(value, columnName);
+      };
+  }
+}
+
+function formatDurationValue(value: SqlValue): string {
+  if (typeof value === 'bigint') {
     return Duration.humanise(value);
-  } else if (formatHint === 'PERCENT' && typeof value === 'number') {
+  } else if (typeof value === 'number') {
+    return Duration.humanise(BigInt(Math.round(value)));
+  } else {
+    return String(value);
+  }
+}
+
+function formatPercentValue(value: SqlValue): string {
+  if (typeof value === 'number') {
     return `${(value * 100).toFixed(2)}%`;
   } else {
-    return defaultValueFormatter(value);
+    return String(value);
   }
 }

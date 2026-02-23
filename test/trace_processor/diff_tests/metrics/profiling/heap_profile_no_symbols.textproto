@@ -1,4 +1,16 @@
 packet {
+  clock_snapshot {
+    clocks: {
+      clock_id: 6 # BOOTTIME
+      timestamp: 0
+    }
+    clocks: {
+      clock_id: 4 # MONOTONIC_COARSE
+      timestamp: 10
+    }
+  }
+}
+packet {
   trusted_packet_sequence_id: 999
   timestamp: 10
   profile_packet {
@@ -50,6 +62,7 @@ packet {
         free_count: 1
       }
     }
+    index: 0
   }
 }
 packet {
@@ -104,6 +117,7 @@ packet {
         free_count: 1
       }
     }
+    index: 1
   }
 }
 

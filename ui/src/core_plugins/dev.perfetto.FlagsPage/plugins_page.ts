@@ -31,6 +31,11 @@ import {TextInput} from '../../widgets/text_input';
 import {EmptyState} from '../../widgets/empty_state';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
+import {Icons} from '../../base/semantic_icons';
+import {GateDetector} from '../../base/mithril_utils';
+import {findRef} from '../../base/dom_utils';
+
+const SEARCH_BOX_REF = 'plugin-search-box';
 
 enum SortOrder {
   Name = 'name',
@@ -109,7 +114,7 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
       : sorted.map((item) => ({item, segments: []}));
     const subpage = decodeURIComponent(attrs.subpage ?? '');
 
-    return m(
+    const page = m(
       SettingsShell,
       {
         title: 'Plugins',
@@ -183,6 +188,7 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
           ),
           m(TextInput, {
             placeholder: 'Search...',
+            ref: SEARCH_BOX_REF,
             value: this.filterText,
             leftIcon: 'search',
             oninput: (e: Event) => {
@@ -207,6 +213,26 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
           : this.renderEmptyState(isFiltering),
       ),
     );
+
+    return m(
+      GateDetector,
+      {
+        onVisibilityChanged: (visible: boolean, dom: Element) => {
+          if (visible) {
+            // Focus the search input
+            const input = findRef(
+              dom,
+              SEARCH_BOX_REF,
+            ) as HTMLInputElement | null;
+            if (input) {
+              input.focus();
+              input.select();
+            }
+          }
+        },
+      },
+      page,
+    );
   }
 
   private renderEmptyState(isFiltering: boolean) {
@@ -214,12 +240,11 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
       return m(
         EmptyState,
         {
-          icon: 'filter_alt_off',
           title: 'No plugins match your search criteria',
         },
         m(Button, {
           label: 'Clear filter',
-          icon: 'clear',
+          icon: Icons.FilterOff,
           variant: ButtonVariant.Filled,
           intent: Intent.Primary,
           onclick: () => {
@@ -229,7 +254,7 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
       );
     } else {
       return m(EmptyState, {
-        icon: 'search_off',
+        icon: Icons.NoData,
         title: 'No plugins found',
       });
     }

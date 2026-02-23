@@ -46,6 +46,7 @@ message FrameTimelineEvent {
     JANK_NON_ANIMATING = 2048;
     JANK_APP_RESYNCED_JITTER = 4096;
     JANK_DISPLAY_NOT_ON = 8192;
+    JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS = 16384;
   };
 
   // Specifies the severity of a jank.
@@ -142,6 +143,9 @@ message FrameTimelineEvent {
 
     // experimental value for present_type. Do not consider in jank analysis.
     optional PresentType present_type_experimental = 17;
+
+    // jank metadata information (for debug).
+    optional float jank_debug_metadata = 18;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -197,6 +201,9 @@ message FrameTimelineEvent {
 
     // experimental value for present_type. Do not consider in jank analysis.
     optional PresentType present_type_experimental = 13;
+
+    // jank metadata information (for debug).
+    optional float jank_debug_metadata = 14;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding

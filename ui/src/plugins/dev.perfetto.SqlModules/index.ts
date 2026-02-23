@@ -28,7 +28,7 @@ import {
 
 const docs = defer<SqlModulesDocsSchema>();
 
-export default class implements PerfettoPlugin {
+export default class SqlModulesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
 
   private sqlModules: SqlModules | undefined;
@@ -40,8 +40,10 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    docs.then((resolvedDocs) => {
-      this.sqlModules = new SqlModulesImpl(trace, resolvedDocs);
+    docs.then(async (resolvedDocs) => {
+      const impl = new SqlModulesImpl(trace, resolvedDocs);
+      // Don't initialize immediately - let consumers trigger it when needed
+      this.sqlModules = impl;
       m.redraw();
     });
 
@@ -56,18 +58,42 @@ export default class implements PerfettoPlugin {
 
         const tables = this.sqlModules.listTablesNames();
 
+        // Annotate disabled modules in the prompt
+        const annotatedTables = tables.map((tableName) => {
+          const module = this.sqlModules!.getModuleForTable(tableName);
+          if (module && this.sqlModules!.isModuleDisabled(module.includeKey)) {
+            return `${tableName} (no data)`;
+          }
+          return tableName;
+        });
+
         const chosenTable = await trace.omnibox.prompt(
           'Choose a table...',
-          tables,
+          annotatedTables,
         );
         if (chosenTable === undefined) {
           return;
         }
-        const module = this.sqlModules.getModuleForTable(chosenTable);
+
+        // Strip the annotation if present
+        const actualTableName = chosenTable.replace(' (no data)', '');
+        const module = this.sqlModules.getModuleForTable(actualTableName);
         if (module === undefined) {
           return;
         }
-        const sqlTable = module.getSqlTableDescription(chosenTable);
+
+        // Warn if opening a disabled module
+        if (this.sqlModules.isModuleDisabled(module.includeKey)) {
+          const proceed = window.confirm(
+            `Warning: The module "${module.includeKey}" may not have data in this trace. ` +
+              `The table might be empty. Continue anyway?`,
+          );
+          if (!proceed) {
+            return;
+          }
+        }
+
+        const sqlTable = module.getSqlTableDefinition(actualTableName);
         sqlTable &&
           extensions.addLegacySqlTableTab(trace, {
             table: sqlTable,
@@ -78,6 +104,13 @@ export default class implements PerfettoPlugin {
 
   getSqlModules(): SqlModules | undefined {
     return this.sqlModules;
+  }
+
+  ensureInitialized(): Promise<void> {
+    if (this.sqlModules) {
+      return this.sqlModules.ensureInitialized();
+    }
+    return Promise.resolve();
   }
 }
 

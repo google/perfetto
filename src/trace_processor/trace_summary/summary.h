@@ -38,6 +38,16 @@ base::Status Summarize(TraceProcessor* processor,
                        std::vector<uint8_t>* output,
                        const TraceSummaryOutputSpec& output_spec);
 
+// Executes a structured query and returns the result as CSV.
+//
+// Parses the spec files, generates SQL for the query with the given ID,
+// and executes it. The output is written as CSV to the provided string.
+base::Status ExecuteStructuredQuery(
+    TraceProcessor* processor,
+    const std::vector<TraceSummarySpecBytes>& specs,
+    const std::string& query_id,
+    std::string* output);
+
 }  // namespace perfetto::trace_processor::summary
 
 #endif  // SRC_TRACE_PROCESSOR_TRACE_SUMMARY_SUMMARY_H_

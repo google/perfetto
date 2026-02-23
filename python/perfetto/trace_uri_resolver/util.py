@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple
+from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple, Union
 
 # Limit parsing file to 1MB to maintain parity with the UI
 MAX_BYTES_LOADED = 1 * 1024 * 1024
@@ -55,6 +55,29 @@ def parse_trace_uri(uri: str) -> Tuple[Optional[str], str]:
     return None, uri
 
   return (uri[:idx], uri[idx + 1:])
+
+
+def to_bool(arg: Union[bool, str]) -> bool:
+  """Converts input into a bool.
+
+  For resolvers that can accept bool type, it may accept a string value parsed
+  from a URI. We need to convert the string value to a bool.
+
+  Args:
+    arg: The input argument to convert.
+
+  Returns:
+    The boolean value of the input argument.
+  """
+  if isinstance(arg, bool):
+    return arg
+
+  lower_arg = arg.lower()
+  if lower_arg in ('true', '1'):
+    return True
+  if lower_arg in ('false', '0'):
+    return False
+  raise ValueError(f'Invalid boolean argument: {arg}')
 
 
 def to_list(cs: Any) -> Optional[List[Any]]:

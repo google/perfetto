@@ -16,8 +16,10 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {HTMLAttrs, HTMLButtonAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
-import {Popup} from './popup';
+import {Popup, PopupPosition} from './popup';
 import {assertUnreachable} from '../base/logging';
+import {isEmptyVnodes} from '../base/mithril_utils';
+import {Tooltip} from './tooltip';
 
 export enum ButtonVariant {
   Filled = 'Filled',
@@ -31,52 +33,54 @@ interface CommonAttrs extends HTMLButtonAttrs {
   // Useful for when the button represents some toggleable state, such as
   // showing/hiding a popup menu.
   // Defaults to false.
-  active?: boolean;
+  readonly active?: boolean;
   // Use minimal padding, reducing the overall size of the button by a few px.
   // Defaults to false.
-  compact?: boolean;
+  readonly compact?: boolean;
   // Optional right icon.
-  rightIcon?: string;
+  readonly rightIcon?: string;
   // List of space separated class names forwarded to the icon.
-  className?: string;
+  readonly className?: string;
   // Allow clicking this button to close parent popups.
   // Defaults to false.
-  dismissPopup?: boolean;
+  readonly dismissPopup?: boolean;
   // Show loading spinner instead of icon.
   // Defaults to false.
-  loading?: boolean;
+  readonly loading?: boolean;
   // Whether to use a filled icon
   // Defaults to false;
-  iconFilled?: boolean;
+  readonly iconFilled?: boolean;
   // Indicate the intent of the button using color.
   // Defaults to undefined aka "None"
-  intent?: Intent;
+  readonly intent?: Intent;
   // Choose what style the button should have.
   // - Filled: The button has a background - used for standalone buttons.
   // - Text: The button has no visible background - used for when many buttons
   //   appear together and styling on each one would be too visually busy e.g.
   //   on toolbars.
   // Defaults to Filled.
-  variant?: ButtonVariant;
+  readonly variant?: ButtonVariant;
   // Turns the button into a pill shape.
-  rounded?: boolean;
+  readonly rounded?: boolean;
   // Makes the button shrink to fit inside it's container, rather than its width
   // being defined by its content. Useful for when you have buttons with dynamic
   // content that may change size, and you don't want the button to change size
   // as that happens. Defaults to false.
-  shrink?: boolean;
+  readonly shrink?: boolean;
+  // Optional tooltip to show on hover.
+  readonly tooltip?: m.Children;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
   // Icon buttons require an icon.
-  icon: string;
+  readonly icon: string;
 }
 
 interface LabelButtonAttrs extends CommonAttrs {
   // Label buttons require a label.
-  label: string;
+  readonly label: string;
   // Label buttons can have an optional icon.
-  icon?: string;
+  readonly icon?: string;
 }
 
 export type ButtonAttrs = LabelButtonAttrs | IconButtonAttrs;
@@ -100,6 +104,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       rounded,
       shrink,
       loading,
+      tooltip,
       ...htmlAttrs
     } = attrs;
 
@@ -119,7 +124,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       className,
     );
 
-    return m(
+    const button = m(
       'button.pf-button',
       {
         ...htmlAttrs,
@@ -134,6 +139,21 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
           filled: iconFilled,
         }),
     );
+
+    if (isEmptyVnodes(tooltip)) {
+      // No tooltip, just render the button directly.
+      return button;
+    } else {
+      // Wrap the button in a tooltip.
+      return m(
+        Tooltip,
+        {
+          trigger: button,
+          position: PopupPosition.Top,
+        },
+        m('span.pf-button__tooltip', tooltip),
+      );
+    }
   }
 
   private renderIcon(attrs: ButtonAttrs): m.Children {

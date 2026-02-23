@@ -33,6 +33,8 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {escapeQuery} from '../../trace_processor/query_utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import {createScrollTimelineV4Track} from './scroll_timeline_v4_track';
+import {createScrollTimelineV4Model} from './scroll_timeline_v4_model';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -49,6 +51,7 @@ export default class implements PerfettoPlugin {
     await this.addScrollJankV3ScrollTrack(ctx, group);
     await ScrollJankCauseMap.initialize(ctx.engine);
     await this.addScrollTimelineTrack(ctx, group);
+    await this.addScrollTimelineV4Track(ctx, group);
     await this.addVsyncTracks(ctx, group);
     ctx.defaultWorkspace.addChildInOrder(group);
     group.expand();
@@ -218,6 +221,25 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       renderer: createScrollTimelineTrack(ctx, model),
+    });
+
+    const track = new TrackNode({uri, name: title});
+    group.addChildInOrder(track);
+  }
+
+  private async addScrollTimelineV4Track(
+    ctx: Trace,
+    group: TrackNode,
+  ): Promise<void> {
+    const uri = 'org.chromium.ChromeScrollJank#scrollTimelineV4';
+    const title = 'Chrome Scroll Timeline v4';
+
+    const tableName = 'org_chromium_ChromeScrollJank_scroll_timeline_v4';
+    const model = await createScrollTimelineV4Model(ctx.engine, tableName, uri);
+
+    ctx.tracks.registerTrack({
+      uri,
+      renderer: createScrollTimelineV4Track(ctx, model),
     });
 
     const track = new TrackNode({uri, name: title});

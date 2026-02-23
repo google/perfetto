@@ -117,7 +117,8 @@ export interface Engine {
   stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult>;
 
   analyzeStructuredQuery(
-    structuredQueries: protos.PerfettoSqlStructuredQuery[],
+    spec: protos.TraceSummarySpec,
+    queryId: string,
   ): Promise<protos.AnalyzeStructuredQueryResult>;
 
   getProxy(tag: string): EngineProxy;
@@ -311,6 +312,7 @@ export abstract class EngineBase implements Engine, Disposable {
         } else {
           res.resolve();
         }
+        this.pendingRegisterSqlPackage = undefined;
         break;
       case TPM.TPM_SUMMARIZE_TRACE:
         const summaryRes = assertExists(
@@ -609,7 +611,7 @@ export abstract class EngineBase implements Engine, Disposable {
 
   registerSqlPackages(pkg: {
     name: string;
-    modules: {name: string; sql: string}[];
+    modules: ReadonlyArray<{name: string; sql: string}>;
   }): Promise<void> {
     if (this.pendingRegisterSqlPackage) {
       return Promise.reject(new Error('Already registering SQL package'));
@@ -622,7 +624,7 @@ export abstract class EngineBase implements Engine, Disposable {
     const args = (rpc.registerSqlPackageArgs =
       new protos.RegisterSqlPackageArgs());
     args.packageName = pkg.name;
-    args.modules = pkg.modules;
+    args.modules = [...pkg.modules];
     args.allowOverride = true;
     this.pendingRegisterSqlPackage = result;
     this.rpcSendRequest(rpc);
@@ -630,7 +632,8 @@ export abstract class EngineBase implements Engine, Disposable {
   }
 
   analyzeStructuredQuery(
-    structuredQueries: protos.PerfettoSqlStructuredQuery[],
+    spec: protos.TraceSummarySpec,
+    queryId: string,
   ): Promise<protos.AnalyzeStructuredQueryResult> {
     if (this.pendingAnalyzeStructuredQueries) {
       return Promise.reject(new Error('Already analyzing structured queries'));
@@ -640,7 +643,8 @@ export abstract class EngineBase implements Engine, Disposable {
     rpc.request = TPM.TPM_ANALYZE_STRUCTURED_QUERY;
     const args = (rpc.analyzeStructuredQueryArgs =
       new protos.AnalyzeStructuredQueryArgs());
-    args.queries = structuredQueries;
+    args.spec = spec;
+    args.queryId = queryId;
     this.pendingAnalyzeStructuredQueries = result;
     this.rpcSendRequest(rpc);
     return result;
@@ -748,9 +752,10 @@ export class EngineProxy implements Engine, Disposable {
   }
 
   analyzeStructuredQuery(
-    structuredQueries: protos.PerfettoSqlStructuredQuery[],
+    spec: protos.TraceSummarySpec,
+    queryId: string,
   ): Promise<protos.AnalyzeStructuredQueryResult> {
-    return this.engine.analyzeStructuredQuery(structuredQueries);
+    return this.engine.analyzeStructuredQuery(spec, queryId);
   }
 
   get engineId(): string {

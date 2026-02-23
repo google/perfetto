@@ -184,19 +184,19 @@ describe('TimelineImpl', () => {
   describe('panIntoView', () => {
     describe('center', () => {
       test('should center on instant after the viewport', () => {
-        timeline.panIntoView(t(1700), {align: 'center'});
+        timeline.panIntoView(t(1700), {align: 'center', animation: 'step'});
 
         expect(timeline).toHaveViewport(1600, 1800);
       });
 
       test('should center on instant before the viewport', () => {
-        timeline.panIntoView(t(1200), {align: 'center'});
+        timeline.panIntoView(t(1200), {align: 'center', animation: 'step'});
 
         expect(timeline).toHaveViewport(1100, 1300);
       });
 
       test('should center on instant that is already in view', () => {
-        timeline.panIntoView(t(1550), {align: 'center'});
+        timeline.panIntoView(t(1550), {align: 'center', animation: 'step'});
 
         expect(timeline).toHaveViewport(1450, 1650);
       });
@@ -207,6 +207,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1700), {
           align: 'nearest',
           margin: 0,
+          animation: 'step',
         });
 
         expect(timeline).toHaveViewport(1500, 1700);
@@ -216,6 +217,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1200), {
           align: 'nearest',
           margin: 0,
+          animation: 'step',
         });
 
         expect(timeline).toHaveViewport(1200, 1400);
@@ -225,6 +227,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1550), {
           align: 'nearest',
           margin: 0,
+          animation: 'step',
         });
 
         expect(timeline).toHaveViewport(1400, 1600);
@@ -236,6 +239,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1700), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         expect(timeline).toHaveViewport(1520, 1720);
@@ -245,6 +249,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1200), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         expect(timeline).toHaveViewport(1180, 1380);
@@ -254,6 +259,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1550), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         expect(timeline).toHaveViewport(1400, 1600);
@@ -263,6 +269,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1590), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         expect(timeline).toHaveViewport(1410, 1610);
@@ -275,6 +282,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1000), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         // Should clamp to trace start [1000, 1200] without changing duration
@@ -289,6 +297,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(2000), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         // Should clamp to trace end [1800, 2000] without changing duration
@@ -303,6 +312,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1020), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         // With 10% margin (20 ticks), ideal would be [1000, 1200]
@@ -318,6 +328,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1980), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         // With 10% margin (20 ticks), ideal would be [1800, 2000]
@@ -331,6 +342,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1500), {
           align: 'zoom',
           zoomWidth: 100,
+          animation: 'step',
         });
 
         // Should center on 1500 with duration 100
@@ -338,7 +350,7 @@ describe('TimelineImpl', () => {
       });
 
       test('should use current viewport duration if zoomWidth not specified', () => {
-        timeline.panIntoView(t(1300), {align: 'zoom'});
+        timeline.panIntoView(t(1300), {align: 'zoom', animation: 'step'});
 
         // Should center on 1300 with current duration (200)
         expect(timeline).toHaveViewport(1200, 1400);
@@ -348,6 +360,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1500), {
           align: 'zoom',
           zoomWidth: 5,
+          animation: 'step',
         });
 
         expect(timeline).toHaveViewport(1495, 1505);
@@ -357,6 +370,7 @@ describe('TimelineImpl', () => {
         timeline.panIntoView(t(1050), {
           align: 'zoom',
           zoomWidth: 800,
+          animation: 'step',
         });
 
         // Centering 1050 with width 800 would give [650, 1450]
@@ -369,6 +383,7 @@ describe('TimelineImpl', () => {
           align: 'zoom',
           zoomWidth: 100,
           margin: 0.1,
+          animation: 'step',
         });
 
         // With margin 0.1, viewport should be slightly wider than 100
@@ -385,6 +400,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1150), t(1250), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1100, 1300);
         });
@@ -393,6 +409,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1350), t(1450), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1300, 1500);
         });
@@ -401,6 +418,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1450), t(1550), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1400, 1600);
         });
@@ -409,6 +427,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1550), t(1650), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1500, 1700);
         });
@@ -417,6 +436,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1750), t(1850), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1700, 1900);
         });
@@ -427,6 +447,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1100), t(1300), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1100, 1300);
         });
@@ -435,6 +456,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1300), t(1500), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1300, 1500);
         });
@@ -443,6 +465,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1400), t(1600), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1400, 1600);
         });
@@ -451,6 +474,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1500), t(1700), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1500, 1700);
         });
@@ -459,6 +483,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1700), t(1900), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1700, 1900);
         });
@@ -469,6 +494,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1000), t(1400), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1100, 1300);
         });
@@ -477,6 +503,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1100), t(1500), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1200, 1400);
         });
@@ -485,6 +512,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1300), t(1700), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1400, 1600);
         });
@@ -493,6 +521,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1500), t(1900), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1600, 1800);
         });
@@ -501,6 +530,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1600), t(2000), {
             align: 'center',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1700, 1900);
         });
@@ -513,6 +543,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1150), t(1250), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1150, 1350);
         });
@@ -521,6 +552,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1350), t(1450), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1350, 1550);
         });
@@ -529,6 +561,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1450), t(1550), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1400, 1600);
         });
@@ -537,6 +570,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1550), t(1650), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1450, 1650);
         });
@@ -545,6 +579,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1750), t(1850), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1650, 1850);
         });
@@ -555,6 +590,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1100), t(1300), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1100, 1300);
         });
@@ -563,6 +599,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1300), t(1500), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1300, 1500);
         });
@@ -571,6 +608,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1400), t(1600), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1400, 1600);
         });
@@ -579,6 +617,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1500), t(1700), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1500, 1700);
         });
@@ -587,6 +626,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1700), t(1900), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1700, 1900);
         });
@@ -597,6 +637,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1000), t(1400), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1200, 1400);
         });
@@ -605,6 +646,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1100), t(1500), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1300, 1500);
         });
@@ -613,6 +655,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1300), t(1700), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1400, 1600);
         });
@@ -621,6 +664,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1500), t(1900), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1500, 1700);
         });
@@ -629,6 +673,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1600), t(2000), {
             align: 'nearest',
             margin: 0,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1600, 1800);
         });
@@ -641,6 +686,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1150), t(1250), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1130, 1330);
         });
@@ -649,6 +695,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1350), t(1450), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1330, 1530);
         });
@@ -657,6 +704,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1450), t(1550), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1400, 1600);
         });
@@ -665,6 +713,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1550), t(1650), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1470, 1670);
         });
@@ -673,6 +722,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1750), t(1850), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1670, 1870);
         });
@@ -683,6 +733,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1100), t(1300), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1120, 1320);
         });
@@ -691,6 +742,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1300), t(1500), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1320, 1520);
         });
@@ -699,6 +751,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1400), t(1600), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1400, 1600);
         });
@@ -707,6 +760,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1500), t(1700), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1480, 1680);
         });
@@ -715,6 +769,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1700), t(1900), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1680, 1880);
         });
@@ -725,6 +780,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1000), t(1400), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1220, 1420);
         });
@@ -733,6 +789,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1100), t(1500), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1320, 1520);
         });
@@ -741,6 +798,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1300), t(1700), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1400, 1600);
         });
@@ -749,6 +807,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1500), t(1900), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1480, 1680);
         });
@@ -757,6 +816,7 @@ describe('TimelineImpl', () => {
           timeline.panSpanIntoView(t(1600), t(2000), {
             align: 'nearest',
             margin: 0.1,
+            animation: 'step',
           });
           expect(timeline).toHaveViewport(1580, 1780);
         });
@@ -771,6 +831,7 @@ describe('TimelineImpl', () => {
         timeline.panSpanIntoView(t(1000), t(1050), {
           align: 'nearest',
           margin: 0,
+          animation: 'step',
         });
 
         // Should clamp to trace start [1000, 1200] without changing duration
@@ -785,6 +846,7 @@ describe('TimelineImpl', () => {
         timeline.panSpanIntoView(t(1950), t(2000), {
           align: 'nearest',
           margin: 0,
+          animation: 'step',
         });
 
         // Should clamp to trace end [1800, 2000] without changing duration
@@ -799,6 +861,7 @@ describe('TimelineImpl', () => {
         timeline.panSpanIntoView(t(1020), t(1080), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         // With 10% margin (20 ticks), ideal would put viewport before trace start
@@ -814,6 +877,7 @@ describe('TimelineImpl', () => {
         timeline.panSpanIntoView(t(1920), t(1980), {
           align: 'nearest',
           margin: 0.1,
+          animation: 'step',
         });
 
         // With 10% margin (20 ticks), ideal would put viewport after trace end
@@ -829,6 +893,7 @@ describe('TimelineImpl', () => {
         timeline.panSpanIntoView(t(1000), t(1300), {
           align: 'nearest',
           margin: 0,
+          animation: 'step',
         });
 
         // Should align end of span to viewport end, clamping at trace start
@@ -843,6 +908,7 @@ describe('TimelineImpl', () => {
         timeline.panSpanIntoView(t(1700), t(2000), {
           align: 'nearest',
           margin: 0,
+          animation: 'step',
         });
 
         // Should align start of span to viewport start, clamping at trace end
@@ -859,6 +925,7 @@ describe('TimelineImpl', () => {
 
       timeline.panSpanIntoView(spanStart, spanEnd, {
         align: 'zoom',
+        animation: 'step',
         margin: 0,
       });
 
@@ -873,6 +940,7 @@ describe('TimelineImpl', () => {
       timeline.panSpanIntoView(spanStart, spanEnd, {
         align: 'zoom',
         margin,
+        animation: 'step',
       });
 
       // With 10% margin on each side, the span (400) should occupy 80% of viewport
@@ -887,6 +955,7 @@ describe('TimelineImpl', () => {
 
       timeline.panSpanIntoView(spanStart, spanEnd, {
         align: 'zoom',
+        animation: 'step',
         margin: 0,
       });
 
@@ -899,6 +968,7 @@ describe('TimelineImpl', () => {
 
       timeline.panSpanIntoView(spanStart, spanEnd, {
         align: 'zoom',
+        animation: 'step',
       });
 
       // Should be clamped to MIN_DURATION (10)
@@ -913,6 +983,7 @@ describe('TimelineImpl', () => {
       timeline.panSpanIntoView(spanStart, spanEnd, {
         align: 'zoom',
         margin,
+        animation: 'step',
       });
 
       expect(timeline).toHaveViewport(1000, 2000);
@@ -955,13 +1026,13 @@ describe('TimelineImpl', () => {
 
   describe('panIntoView edge cases', () => {
     test('should handle instant at trace start', () => {
-      timeline.panIntoView(t(1000), {align: 'center'});
+      timeline.panIntoView(t(1000), {align: 'center', animation: 'step'});
 
       expect(timeline).toHaveViewport(1000, 1200);
     });
 
     test('should handle instant at trace end', () => {
-      timeline.panIntoView(t(2000), {align: 'center'});
+      timeline.panIntoView(t(2000), {align: 'center', animation: 'step'});
 
       expect(timeline).toHaveViewport(1800, 2000);
     });
@@ -970,6 +1041,7 @@ describe('TimelineImpl', () => {
       timeline.panIntoView(t(1000), {
         align: 'zoom',
         zoomWidth: 100,
+        animation: 'step',
       });
 
       expect(timeline).toHaveViewport(1000, 1100);
@@ -979,6 +1051,7 @@ describe('TimelineImpl', () => {
       timeline.panIntoView(t(2000), {
         align: 'zoom',
         zoomWidth: 100,
+        animation: 'step',
       });
 
       expect(timeline).toHaveViewport(1900, 2000);
@@ -990,6 +1063,7 @@ describe('TimelineImpl', () => {
       timeline.panSpanIntoView(t(1000), t(2000), {
         align: 'zoom',
         margin: 0,
+        animation: 'step',
       });
 
       expect(timeline).toHaveViewport(1000, 2000);
@@ -999,6 +1073,7 @@ describe('TimelineImpl', () => {
       timeline.panSpanIntoView(t(1000), t(1500), {
         align: 'center',
         margin: 0,
+        animation: 'step',
       });
 
       expect(timeline).toHaveViewport(1150, 1350);
@@ -1008,6 +1083,7 @@ describe('TimelineImpl', () => {
       timeline.panSpanIntoView(t(1500), t(2000), {
         align: 'center',
         margin: 0,
+        animation: 'step',
       });
 
       expect(timeline).toHaveViewport(1650, 1850);
@@ -1054,7 +1130,11 @@ describe('TimelineImpl', () => {
     test('should handle panIntoView with margin larger than viewport', () => {
       const timestamp = t(1500);
       // Margin of 0.6 means 60% on each side, which is > 100%
-      timeline.panIntoView(timestamp, {align: 'center', margin: 0.6});
+      timeline.panIntoView(timestamp, {
+        align: 'center',
+        margin: 0.6,
+        animation: 'step',
+      });
 
       // Should still work, clamping appropriately
       expect(timeline.visibleWindow.contains(timestamp)).toBe(true);

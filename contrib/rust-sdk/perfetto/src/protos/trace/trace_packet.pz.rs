@@ -15,11 +15,18 @@
 // Manually generated with bindings for a limited set of TracePacket
 // fields to limit core proto bindings.
 
+use crate::pb_enum;
 use crate::pb_msg;
 use crate::protos::trace::clock_snapshot::*;
 use crate::protos::trace::interned_data::interned_data::*;
 use crate::protos::trace::test_event::*;
 use crate::protos::trace::track_event::track_event::*;
+
+pb_enum!(TracePacketSequenceFlags {
+    SEQ_UNSPECIFIED: 0,
+    SEQ_INCREMENTAL_STATE_CLEARED: 1,
+    SEQ_NEEDS_INCREMENTAL_STATE: 2,
+});
 
 pb_msg!(TracePacket {
     timestamp: u64, primitive, 8,

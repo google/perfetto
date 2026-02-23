@@ -21,7 +21,7 @@ import {Popup, PopupAttrs, PopupPosition} from './popup';
 
 export interface MenuItemAttrs extends HTMLAttrs {
   // Text to display on the menu button.
-  label: string;
+  label: m.Children;
   // Optional left icon.
   icon?: string;
   // Optional right icon.

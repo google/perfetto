@@ -188,7 +188,7 @@ uint32_t PerfettoPbDecoderSkipField(struct PerfettoPbDecoder* decoder) {
     }
     case PERFETTO_PB_WIRE_TYPE_FIXED64: {
       const uint8_t* end_of_val = read_ptr + sizeof(uint64_t);
-      if (read_ptr > decoder->end_ptr) {
+      if (end_of_val > decoder->end_ptr) {
         return PERFETTO_PB_DECODER_ERROR;
       }
       read_ptr = end_of_val;

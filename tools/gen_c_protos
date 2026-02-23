@@ -40,6 +40,7 @@ TEST_DEFAULTS = {
 PROD_FILES = [
     'protos/perfetto/common/builtin_clock.proto',
     'protos/perfetto/common/data_source_descriptor.proto',
+    'protos/perfetto/common/semantic_type.proto',
     'protos/perfetto/config/data_source_config.proto',
     'protos/perfetto/config/trace_config.proto',
     'protos/perfetto/config/track_event/track_event_config.proto',

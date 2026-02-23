@@ -86,6 +86,10 @@ class FtraceTokenizer {
       uint32_t cpu,
       TraceBlobView event,
       RefPtr<PacketSequenceStateGeneration> state);
+  void TokenizeFtraceFwtpPerfettoCounter(
+      uint32_t cpu,
+      TraceBlobView event,
+      RefPtr<PacketSequenceStateGeneration> state);
   std::optional<protozero::Field> GetFtraceEventField(
       uint32_t event_id,
       const TraceBlobView& event);

@@ -520,3 +520,63 @@ RETURNS TableOrSubquery AS
   WHERE
     value = 0
 );
+
+-- Helper to unparenthesize a column list with __intrinsic_token_apply.
+CREATE PERFETTO MACRO _imop_identity(
+    col ColumnName
+)
+RETURNS Expr AS
+$col;
+
+-- Merge overlapping intervals within each partition group to generate a minimum
+-- covering set of intervals with no overlap within each partition.
+--
+-- For each partition, this macro merges overlapping intervals into
+-- non-overlapping intervals. The result contains intervals where at least
+-- one input interval is active.
+--
+-- For example, with partition 'A':
+--   Input: (ts=1, dur=10), (ts=5, dur=12)
+--   Output: (ts=1, dur=16)
+CREATE PERFETTO MACRO interval_merge_overlapping_partitioned(
+    -- Table or subquery containing interval data.
+    intervals TableOrSubquery,
+    -- Column name for partition grouping.
+    partition_columns ColumnNameList
+)
+-- The returned table has the schema (ts TIMESTAMP, dur DURATION, partitions).
+-- |ts| is the start of the merged interval. |dur| is the duration of the
+-- merged interval. |partitions| is all of the columns in partition_columns.
+RETURNS TableOrSubquery AS
+(
+  -- Algorithm: For each partition, merge overlaps in three steps:
+  -- 1. Find the max endpoint for **preceding** slices in the same partition.
+  -- 2. Number groups by counting times when a slices timestamp is greater than
+  --    the maximum endpoint so far. This indicates a gap, and thus new group.
+  -- 3. Aggreagate slices in the same group to find the start and end time.
+  WITH
+    _max_endpoint_so_far AS (
+      SELECT
+        ts,
+        dur,
+        __intrinsic_token_apply!(_imop_identity, $partition_columns),
+        max(ts + dur) OVER (PARTITION BY __intrinsic_token_apply!(_imop_identity, $partition_columns) ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS max_endpoint_so_far
+      FROM $intervals
+      WHERE
+        dur >= 0
+    ),
+    _numbered_groups AS (
+      SELECT
+        *,
+        sum(coalesce(ts > max_endpoint_so_far, TRUE)) OVER (PARTITION BY __intrinsic_token_apply!(_imop_identity, $partition_columns) ORDER BY ts) AS overlap_group_number
+      FROM _max_endpoint_so_far
+    )
+  SELECT
+    min(ts) AS ts,
+    max(ts + dur) - min(ts) AS dur,
+    __intrinsic_token_apply!(_imop_identity, $partition_columns)
+  FROM _numbered_groups
+  GROUP BY
+    __intrinsic_token_apply!(_imop_identity, $partition_columns),
+    overlap_group_number
+);

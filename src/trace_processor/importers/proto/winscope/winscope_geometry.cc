@@ -25,10 +25,6 @@ namespace {
 const double CLOSE_THRESHOLD = 0.01;
 const double EQUAL_THRESHOLD = 0.000001;
 
-bool IsEqual(double a, double b) {
-  return std::abs(a - b) < EQUAL_THRESHOLD;
-}
-
 bool IsClose(double a, double b) {
   return std::abs(a - b) < CLOSE_THRESHOLD;
 }
@@ -46,6 +42,10 @@ bool IsPointInCircle(Point point, Point center, double r) {
   return dx * dx + dy * dy <= r * r + CLOSE_THRESHOLD;
 }
 }  // namespace
+
+bool IsEqual(double a, double b) {
+  return std::abs(a - b) < EQUAL_THRESHOLD;
+}
 
 Rect::Rect() = default;
 

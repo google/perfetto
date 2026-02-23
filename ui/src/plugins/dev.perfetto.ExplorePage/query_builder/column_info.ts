@@ -21,6 +21,9 @@ export interface ColumnInfo {
   checked: boolean;
   column: SqlColumn;
   alias?: string;
+  // When true, the type was explicitly modified by the user and should be
+  // preserved even when upstream columns change.
+  typeUserModified?: boolean;
 }
 
 export function columnInfoFromSqlColumn(
@@ -58,6 +61,7 @@ export function newColumnInfo(
     column: {...col.column, name: finalName},
     alias: undefined,
     checked: checked ?? col.checked,
+    typeUserModified: col.typeUserModified,
   };
 }
 

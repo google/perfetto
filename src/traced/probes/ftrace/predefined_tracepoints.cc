@@ -87,9 +87,12 @@ base::FlatSet<GroupAndName> GenerateGfxTracePoints(
   AddEventGroup(table, "g2d", &events);
   InsertEvent("g2d", "tracing_mark_write", &events);
   InsertEvent("g2d", "g2d_perf_update_qos", &events);
+  InsertEvent("g2d", "g2d_slice_instant", &events);
+  InsertEvent("g2d", "g2d_counter", &events);
 
   AddEventGroup(table, "panel", &events);
   InsertEvent("panel", "panel_write_generic", &events);
+  InsertEvent("panel", "gram_collision", &events);
   return events;
 }
 

@@ -27,6 +27,11 @@ executable("traced_probes") {
   ]
   sources = [ "main.cc" ]
   assert_no_deps = [ "../../../gn:protobuf_lite" ]
+
+  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
+  if (perfetto_build_standalone || is_perfetto_build_generator) {
+    assert_no_deps += [ "../../../buildtools:abseil_cpp" ]
+  }
 }
 
 # Contains all the implementation but not the main() entry point. This target

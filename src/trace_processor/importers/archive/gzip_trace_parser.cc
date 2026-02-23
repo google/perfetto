@@ -125,12 +125,18 @@ base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
   }
 }
 
-base::Status GzipTraceParser::NotifyEndOfFile() {
+base::Status GzipTraceParser::OnPushDataToSorter() {
   if (output_state_ != kStreamBoundary || decompressor_.AvailIn() > 0) {
     return base::ErrStatus("GZIP stream incomplete, trace is likely corrupt");
   }
   PERFETTO_CHECK(!buffer_);
-  return inner_ ? inner_->NotifyEndOfFile() : base::OkStatus();
+  return inner_ ? inner_->OnPushDataToSorter() : base::OkStatus();
+}
+
+void GzipTraceParser::OnEventsFullyExtracted() {
+  if (inner_) {
+    inner_->OnEventsFullyExtracted();
+  }
 }
 
 }  // namespace perfetto::trace_processor

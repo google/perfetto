@@ -19,6 +19,10 @@
 -- This module provides tables and views for analyzing CPU scheduling behavior,
 -- including scheduling slices, thread states, and CPU information.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
+INCLUDE PERFETTO MODULE prelude.after_eof.views;
+
 -- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
   -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
@@ -33,7 +37,7 @@ CREATE PERFETTO VIEW cpu (
   cluster_id LONG,
   -- A string describing this core.
   processor STRING,
-  -- Machine identifier, non-null for CPUs on a remote machine.
+  -- Machine identifier
   machine_id LONG,
   -- Capacity of a CPU of a device, a metric which indicates the
   -- relative performance of a CPU on a device
@@ -79,14 +83,14 @@ SELECT
   ucpu
 FROM __intrinsic_cpu_freq;
 
--- This table holds slices with kernel thread scheduling information. These
--- slices are collected when the Linux "ftrace" data source is used with the
--- "sched/switch" and "sched/wakeup*" events enabled.
+-- Contains scheduling slices with kernel thread scheduling information.
+-- These slices are collected when the Linux "ftrace" data source is used with
+-- the "sched/switch" and "sched/wakeup*" events enabled.
 --
--- The rows in this table will always have a matching row in the |thread_state|
+-- The rows in this view will always have a matching row in the |thread_state|
 -- table with |thread_state.state| = 'Running'
-CREATE PERFETTO VIEW sched_slice (
-  --  Unique identifier for this scheduling slice.
+CREATE PERFETTO VIEW sched (
+  -- Unique identifier for this scheduling slice.
   id ID,
   -- The timestamp at the start of the slice.
   ts TIMESTAMP,
@@ -110,7 +114,9 @@ CREATE PERFETTO VIEW sched_slice (
   -- The kernel priority that the thread ran at.
   priority LONG,
   -- The unique CPU identifier that the slice executed on.
-  ucpu LONG
+  ucpu LONG,
+  -- Legacy column, should no longer be used.
+  ts_end LONG
 ) AS
 SELECT
   id,
@@ -120,34 +126,39 @@ SELECT
   utid,
   end_state,
   priority,
-  ucpu
+  ucpu,
+  ts + dur AS ts_end
 FROM __intrinsic_sched_slice;
 
--- Shorter alias for table `sched_slice`.
-CREATE PERFETTO VIEW sched (
-  -- Alias for `sched_slice.id`.
+-- Alias of `sched`. Prefer using `sched` instead.
+CREATE PERFETTO VIEW sched_slice (
+  -- Alias of `sched.id`.
   id ID,
-  -- Alias for `sched_slice.ts`.
+  -- Alias of `sched.ts`.
   ts TIMESTAMP,
-  -- Alias for `sched_slice.dur`.
+  -- Alias of `sched.dur`.
   dur DURATION,
-  -- Alias for `sched_slice.cpu`.
+  -- Alias of `sched.cpu`.
   cpu LONG,
-  -- Alias for `sched_slice.utid`.
+  -- Alias of `sched.utid`.
   utid JOINID(thread.id),
-  -- Alias for `sched_slice.end_state`.
+  -- Alias of `sched.end_state`.
   end_state STRING,
-  -- Alias for `sched_slice.priority`.
+  -- Alias of `sched.priority`.
   priority LONG,
-  -- Alias for `sched_slice.ucpu`.
-  ucpu LONG,
-  -- Legacy column, should no longer be used.
-  ts_end LONG
+  -- Alias of `sched.ucpu`.
+  ucpu LONG
 ) AS
 SELECT
-  *,
-  ts + dur AS ts_end
-FROM sched_slice;
+  id,
+  ts,
+  dur,
+  cpu,
+  utid,
+  end_state,
+  priority,
+  ucpu
+FROM sched;
 
 -- This table contains the scheduling state of every thread on the system during
 -- the trace.
@@ -181,7 +192,7 @@ CREATE PERFETTO VIEW thread_state (
   -- Whether the wakeup was from interrupt context or process context.
   irq_context LONG,
   -- The unique CPU identifier that the thread executed on.
-  ucpu LONG
+  ucpu JOINID(cpu.id)
 ) AS
 SELECT
   id,

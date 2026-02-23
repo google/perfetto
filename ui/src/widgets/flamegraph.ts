@@ -16,33 +16,33 @@ import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
+import {Chip} from './chip';
+import {Intent} from './common';
+import {copyToClipboard} from '../base/clipboard';
+import {CopyToClipboardButton} from './copy_to_clipboard_button';
 import {EmptyState} from './empty_state';
+import {Form, FormLabel} from './form';
+import {Icon} from './icon';
+import {MiddleEllipsis} from './middle_ellipsis';
 import {Popup, PopupPosition} from './popup';
 import {Select} from './select';
 import {Spinner} from './spinner';
-import {TagInput} from './tag_input';
 import {SegmentedButtons} from './segmented_buttons';
+import {TagInput} from './tag_input';
+import {TextInput} from './text_input';
+import {Tooltip} from './tooltip';
 import {z} from 'zod';
 import {Rect2D, Size2D} from '../base/geom';
 import {VirtualOverlayCanvas} from './virtual_overlay_canvas';
 import {MenuItem, MenuItemAttrs, PopupMenu} from './menu';
 import {Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
+import {MithrilEvent} from '../base/mithril_utils';
+import {Icons} from '../base/semantic_icons';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 3;
-const FILTER_COMMON_TEXT = `
-- "Show Stack: foo" or "SS: foo" or "foo" to show only stacks containing "foo"
-- "Hide Stack: foo" or "HS: foo" to hide all stacks containing "foo"
-- "Show From Frame: foo" or "SFF: foo" to show frames containing "foo" and all descendants
-- "Hide Frame: foo" or "HF: foo" to hide all frames containing "foo"
-- "Pivot: foo" or "P: foo" to pivot on frames containing "foo".
-Note: Pivot applies after all other filters and only one pivot can be active at a time.
-`;
-const FILTER_EMPTY_TEXT = `
-Available filters:${FILTER_COMMON_TEXT}
-`;
 const LABEL_PADDING_PX = 5;
 const LABEL_MIN_WIDTH_FOR_TEXT_PX = 5;
 const PADDING_NODE_COUNT = 8;
@@ -97,22 +97,25 @@ export type FlamegraphPropertyDefinition = {
   displayName: string;
   value: string;
   isVisible: boolean;
+  isAggregatable: boolean;
 };
 
+export interface FlamegraphNode {
+  readonly id: number;
+  readonly parentId: number;
+  readonly depth: number;
+  readonly name: string;
+  readonly selfValue: number;
+  readonly cumulativeValue: number;
+  readonly parentCumulativeValue?: number;
+  readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
+  readonly marker?: string;
+  readonly xStart: number;
+  readonly xEnd: number;
+}
+
 export interface FlamegraphQueryData {
-  readonly nodes: ReadonlyArray<{
-    readonly id: number;
-    readonly parentId: number;
-    readonly depth: number;
-    readonly name: string;
-    readonly selfValue: number;
-    readonly cumulativeValue: number;
-    readonly parentCumulativeValue?: number;
-    readonly properties: ReadonlyMap<string, FlamegraphPropertyDefinition>;
-    readonly marker?: string;
-    readonly xStart: number;
-    readonly xEnd: number;
-  }>;
+  readonly nodes: ReadonlyArray<FlamegraphNode>;
   readonly unfilteredCumulativeValue: number;
   readonly allRootsCumulativeValue: number;
   readonly minDepth: number;
@@ -164,6 +167,9 @@ export type FlamegraphState = z.infer<typeof FLAMEGRAPH_STATE_SCHEMA>;
 interface FlamegraphMetric {
   readonly name: string;
   readonly unit: string;
+  // Label for the name column in copy stack table and tooltip.
+  // Examples: "Symbol", "Slice", "Class". Defaults to "Name".
+  readonly nameColumnLabel?: string;
 }
 
 export interface FlamegraphAttrs {
@@ -172,6 +178,137 @@ export interface FlamegraphAttrs {
   readonly data: FlamegraphQueryData | undefined;
 
   readonly onStateChange: (filters: FlamegraphState) => void;
+}
+
+type FilterType =
+  | 'SHOW_STACK'
+  | 'HIDE_STACK'
+  | 'SHOW_FROM_FRAME'
+  | 'HIDE_FRAME'
+  | 'PIVOT';
+
+interface FilterTypeOption {
+  readonly value: FilterType;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly description: string;
+}
+
+const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
+  {
+    value: 'SHOW_STACK',
+    label: 'Show Stack',
+    shortLabel: 'SS',
+    description:
+      'Keep only samples whose stack contains a matching frame. ' +
+      'Non-matching samples are removed entirely.',
+  },
+  {
+    value: 'HIDE_STACK',
+    label: 'Hide Stack',
+    shortLabel: 'HS',
+    description:
+      'Remove samples whose stack contains a matching frame. ' +
+      'Also called "Drop function" in other profilers.',
+  },
+  {
+    value: 'SHOW_FROM_FRAME',
+    label: 'Show From Frame',
+    shortLabel: 'SFF',
+    description:
+      'Keep only matching frames and their descendants, removing ancestors. ' +
+      'Also called "Focus on subtree" in other profilers.',
+  },
+  {
+    value: 'HIDE_FRAME',
+    label: 'Hide Frame',
+    shortLabel: 'HF',
+    description:
+      'Remove matching frames from all stacks, collapsing children into parent. ' +
+      'Also called "Merge function" in other profilers.',
+  },
+  {
+    value: 'PIVOT',
+    label: 'Pivot',
+    shortLabel: 'P',
+    description:
+      'Re-root the flamegraph at matching frames. ' +
+      'Shows callers above and callees below the pivot point.',
+  },
+];
+
+interface FilterBuilderAttrs {
+  onAdd: (filters: Array<{type: FilterType; value: string}>) => void;
+  hasPivot?: boolean;
+}
+
+class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
+  private type: FilterType = 'SHOW_STACK';
+  private filter = '';
+
+  view({attrs}: m.CVnode<FilterBuilderAttrs>) {
+    const {onAdd, hasPivot} = attrs;
+    const opt = FILTER_TYPES.find((o) => o.value === this.type);
+
+    return m(
+      Form,
+      {
+        submitLabel: 'Add',
+        cancelLabel: 'Cancel',
+        onSubmit: () => {
+          if (!this.filter.trim()) return;
+          onAdd([{type: this.type, value: this.filter.trim()}]);
+          this.filter = '';
+        },
+        validation: () => this.filter.trim() !== '',
+      },
+      m(FormLabel, 'Type'),
+      m(
+        Select,
+        {
+          oninput: (e: Event) => {
+            this.type = (e.target as HTMLSelectElement).value as FilterType;
+          },
+        },
+        FILTER_TYPES.map((o) => m('option', {value: o.value}, o.label)),
+      ),
+      opt && m('.pf-filter-builder__desc', opt.description),
+      m(FormLabel, 'Filter'),
+      m(TextInput, {
+        autofocus: true,
+        placeholder: 'e.g. main, alloc.*',
+        value: this.filter,
+        onInput: (v) => {
+          this.filter = v;
+        },
+      }),
+      hasPivot &&
+        this.type === 'PIVOT' &&
+        m('.pf-filter-builder__warn', 'Replaces current pivot'),
+      m('.pf-filter-builder__separator'),
+      m(
+        '.pf-filter-builder__tip',
+        m(Icon, {icon: 'lightbulb_outline'}),
+        ' You can also type directly in the filter bar ',
+        m(
+          Tooltip,
+          {trigger: m(Icon, {icon: 'help_outline'})},
+          m(
+            '.pf-filter-builder__help',
+            m('.pf-filter-builder__help-title', 'Filter bar syntax:'),
+            FILTER_TYPES.map((o) =>
+              m(
+                '.pf-filter-builder__help-row',
+                m('strong', `${o.shortLabel}:`),
+                ` ${o.label}`,
+              ),
+            ),
+            m('.pf-filter-builder__help-row', 'Example: SS: main HF: alloc.*'),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /*
@@ -207,8 +344,8 @@ export interface FlamegraphAttrs {
 export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private attrs: FlamegraphAttrs;
 
-  private rawFilterText: string = '';
-  private filterFocus: boolean = false;
+  private showFilterBuilder: boolean = false;
+  private quickAddValue: string = '';
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
@@ -228,12 +365,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   };
   private lastClickedNode?: RenderNode;
 
+  // Track hovered node by index to avoid redraws when mouse moves within same node.
+  // We also keep hoveredX/Y so we can re-find the node after render nodes change.
+  private hoveredNodeIdx?: number;
   private hoveredX?: number;
   private hoveredY?: number;
 
   private canvasWidth = 0;
   private labelCharWidth = 0;
-  private canvasRect?: Rect2D;
+  private viewportRect?: Rect2D;
+  private lastPopupVisible = false;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -268,9 +409,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const canvasHeight =
       Math.max(maxDepth - minDepth + PADDING_NODE_COUNT, PADDING_NODE_COUNT) *
       NODE_HEIGHT;
-    const hoveredNode = this.renderNodes?.find((n) =>
-      isIntersecting(this.hoveredX, this.hoveredY, n),
-    );
+    const hoveredNode =
+      this.hoveredNodeIdx !== undefined
+        ? this.renderNodes?.[this.hoveredNodeIdx]
+        : undefined;
     return m(
       '.pf-flamegraph',
       this.renderFilterBar(attrs),
@@ -280,8 +422,29 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           className: 'pf-virtual-canvas',
           overflowX: 'hidden',
           overflowY: 'auto',
-          onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {
-            this.drawCanvas(ctx, virtualCanvasSize, canvasRect);
+          onscroll: (e: MithrilEvent<Event>) => {
+            // Only redraw if popup visibility would change
+            if (!this.tooltipPos) {
+              e.redraw = false;
+              return;
+            }
+            const target = e.target as HTMLElement;
+            const scrollTop = target.scrollTop;
+            const clientHeight = target.clientHeight;
+            const tooltipY = this.tooltipPos.y;
+            const nowVisible =
+              tooltipY >= scrollTop && tooltipY <= scrollTop + clientHeight;
+            if (nowVisible === this.lastPopupVisible) {
+              e.redraw = false;
+            }
+          },
+          onCanvasRedraw: ({
+            ctx,
+            virtualCanvasSize,
+            canvasRect,
+            viewportRect,
+          }) => {
+            this.drawCanvas(ctx, virtualCanvasSize, canvasRect, viewportRect);
           },
         },
         m(
@@ -291,28 +454,31 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               height: `${canvasHeight}px`,
               cursor: hoveredNode === undefined ? 'default' : 'pointer',
             },
-            onmousemove: ({offsetX, offsetY}: MouseEvent) => {
+            onmousemove: (e: MithrilEvent<MouseEvent>) => {
+              const {offsetX, offsetY} = e;
               this.hoveredX = offsetX;
               this.hoveredY = offsetY;
+
+              const nodeIdx = this.renderNodes?.findIndex((n) =>
+                isIntersecting(offsetX, offsetY, n),
+              );
+              const newHoveredIdx =
+                nodeIdx !== undefined && nodeIdx !== -1 ? nodeIdx : undefined;
+
+              if (newHoveredIdx === this.hoveredNodeIdx) {
+                e.redraw = false;
+                return;
+              }
+              this.hoveredNodeIdx = newHoveredIdx;
+
               if (this.tooltipPos?.state === 'CLICK') {
                 return;
               }
-              const renderNode = this.renderNodes?.find((n) =>
-                isIntersecting(offsetX, offsetY, n),
-              );
-              if (renderNode === undefined) {
+              if (newHoveredIdx === undefined) {
                 this.tooltipPos = undefined;
                 return;
               }
-              if (
-                isIntersecting(
-                  this.tooltipPos?.x,
-                  this.tooltipPos?.y,
-                  renderNode,
-                )
-              ) {
-                return;
-              }
+              const renderNode = this.renderNodes![newHoveredIdx];
               this.tooltipPos = {
                 x: offsetX,
                 y: renderNode.y,
@@ -321,6 +487,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               };
             },
             onmouseout: () => {
+              this.hoveredNodeIdx = undefined;
               this.hoveredX = undefined;
               this.hoveredY = undefined;
               if (
@@ -359,36 +526,36 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               const renderNode = this.renderNodes?.find((n) =>
                 isIntersecting(offsetX, offsetY, n),
               );
-              // TODO(lalitm): ignore merged nodes for now as we haven't quite
-              // figured out the UX for this.
               if (renderNode?.source.kind === 'MERGED') {
                 return;
               }
               this.zoomRegion = renderNode?.source;
             },
           },
-          m(
-            Popup,
-            {
-              trigger: m('.popup-anchor', {
-                style: {
-                  left: this.tooltipPos?.x + 'px',
-                  top: this.tooltipPos?.y + 'px',
-                },
-              }),
-              // We have a wide set of buttons that would overflow given the
-              // normal width constraints of the popup.
-              fitContent: true,
-              position: PopupPosition.Right,
-              isOpen:
-                this.isPopupAnchorVisible() &&
-                (this.tooltipPos?.state === 'HOVER' ||
-                  this.tooltipPos?.state === 'CLICK'),
-              className: 'pf-flamegraph-tooltip-popup',
-              offset: NODE_HEIGHT,
-            },
-            this.renderTooltip(),
-          ),
+          (() => {
+            const popupVisible =
+              this.isPopupAnchorVisible() &&
+              (this.tooltipPos?.state === 'HOVER' ||
+                this.tooltipPos?.state === 'CLICK');
+            this.lastPopupVisible = popupVisible;
+            return m(
+              Popup,
+              {
+                trigger: m('.popup-anchor', {
+                  style: {
+                    left: this.tooltipPos?.x + 'px',
+                    top: this.tooltipPos?.y + 'px',
+                  },
+                }),
+                fitContent: true,
+                position: PopupPosition.Right,
+                isOpen: popupVisible,
+                className: 'pf-flamegraph-tooltip-popup',
+                offset: NODE_HEIGHT,
+              },
+              this.renderTooltip(),
+            );
+          })(),
         ),
       ),
     );
@@ -434,9 +601,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private drawCanvas(
     ctx: CanvasRenderingContext2D,
     size: Size2D,
-    rect: Rect2D,
+    canvasRect: Rect2D,
+    viewportRect: Rect2D,
   ) {
-    this.canvasRect = rect;
+    this.viewportRect = viewportRect;
     this.canvasWidth = size.width;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
@@ -458,13 +626,19 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         );
       }
       this.tooltipPos = undefined;
+      // Re-find hovered node using stored coordinates
+      const nodeIdx = this.renderNodes?.findIndex((n) =>
+        isIntersecting(this.hoveredX, this.hoveredY, n),
+      );
+      this.hoveredNodeIdx =
+        nodeIdx !== undefined && nodeIdx !== -1 ? nodeIdx : undefined;
     }
     if (this.attrs.data === undefined || this.renderNodes === undefined) {
       return;
     }
 
-    const yStart = rect.top;
-    const yEnd = rect.bottom;
+    const yStart = canvasRect.top;
+    const yEnd = canvasRect.bottom;
 
     const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
       this.attrs.data;
@@ -553,15 +727,42 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   }
 
   private isPopupAnchorVisible(): boolean {
-    if (!this.tooltipPos || !this.canvasRect) {
+    if (!this.tooltipPos || !this.viewportRect) {
       return false;
     }
     const {y} = this.tooltipPos;
-    return y >= this.canvasRect.top && y <= this.canvasRect.bottom;
+    return y >= this.viewportRect.top && y <= this.viewportRect.bottom;
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
-    const self = this;
+    const tags = toTags(this.attrs.state);
+    const hasPivot = this.attrs.state.view.kind === 'PIVOT';
+    const hasFilters = tags.length > 0;
+
+    const removeTag = (i: number) => {
+      if (i === this.attrs.state.filters.length) {
+        this.attrs.onStateChange({
+          ...this.attrs.state,
+          view: {kind: 'TOP_DOWN'},
+        });
+      } else {
+        const filters = this.attrs.state.filters.filter((_, j) => j !== i);
+        this.attrs.onStateChange({...this.attrs.state, filters});
+      }
+    };
+
+    const addFilterFn = (filters: Array<{type: FilterType; value: string}>) => {
+      let newState = this.attrs.state;
+      for (const {type, value} of filters) {
+        if (type === 'PIVOT') {
+          newState = {...newState, view: {kind: 'PIVOT', pivot: value}};
+        } else {
+          newState = addFilter(newState, {kind: type, filter: value});
+        }
+      }
+      this.attrs.onStateChange(newState);
+    };
+
     return m(
       '.filter-bar',
       m(
@@ -571,7 +772,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           onchange: (e: Event) => {
             const el = e.target as HTMLSelectElement;
             attrs.onStateChange({
-              ...self.attrs.state,
+              ...this.attrs.state,
               selectedMetricName: el.value,
             });
           },
@@ -580,52 +781,86 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           return m('option', {value: x.name}, x.name);
         }),
       ),
+      m('.pf-flamegraph-filter-bar-separator'),
+      m('span.pf-flamegraph-filter-label', 'Filters:'),
+      // Tag input: chips + text input combined
+      m(TagInput, {
+        tags,
+        value: this.quickAddValue,
+        onChange: (text) => {
+          this.quickAddValue = text;
+        },
+        onTagAdd: (text) => {
+          const filters = splitFilters(text).map((part) => parseFilter(part));
+          if (filters.length > 0) {
+            addFilterFn(filters);
+            this.quickAddValue = '';
+          }
+        },
+        onTagRemove: removeTag,
+        placeholder: hasFilters ? '' : 'e.g. SS: main HF: alloc.*',
+        renderTag: (text, onRemove) =>
+          m(Chip, {
+            ondblclick: () => {
+              this.quickAddValue = text;
+              onRemove();
+            },
+            label: m(MiddleEllipsis, {text}),
+            removable: true,
+            compact: true,
+            intent: Intent.Primary,
+            onRemove,
+          }),
+      }),
+      // [+] button opens guided form dialog
       m(
         Popup,
         {
-          trigger: m(TagInput, {
-            tags: toTags(self.attrs.state),
-            value: this.rawFilterText,
-            onChange: (value: string) => {
-              self.rawFilterText = value;
+          trigger: m(Button, {
+            icon: Icons.Add,
+            compact: true,
+            active: this.showFilterBuilder,
+            onclick: () => {
+              this.showFilterBuilder = !this.showFilterBuilder;
             },
-            onTagAdd: (tag: string) => {
-              self.rawFilterText = '';
-              self.attrs.onStateChange(updateState(self.attrs.state, tag));
-            },
-            onTagRemove(index: number) {
-              if (index === self.attrs.state.filters.length) {
-                self.attrs.onStateChange({
-                  ...self.attrs.state,
-                  view: {kind: 'TOP_DOWN'},
-                });
-              } else {
-                const filters = Array.from(self.attrs.state.filters);
-                filters.splice(index, 1);
-                self.attrs.onStateChange({
-                  ...self.attrs.state,
-                  filters,
-                });
-              }
-            },
-            onfocus() {
-              self.filterFocus = true;
-            },
-            onblur() {
-              self.filterFocus = false;
-            },
-            placeholder: 'Add filter...',
           }),
-          isOpen: self.filterFocus && this.rawFilterText.length === 0,
-          position: PopupPosition.Bottom,
+          isOpen: this.showFilterBuilder,
+          onChange: (shouldOpen: boolean) => {
+            this.showFilterBuilder = shouldOpen;
+          },
+          position: PopupPosition.RightStart,
+          closeOnOutsideClick: true,
+          closeOnEscape: true,
+          className: 'pf-filter-builder',
         },
-        m('.pf-flamegraph-filter-bar-popup-content', FILTER_EMPTY_TEXT.trim()),
+        m(FilterBuilder, {onAdd: addFilterFn, hasPivot}),
       ),
+      m(CopyToClipboardButton(), {
+        textToCopy: () => tags.join(' '),
+        compact: true,
+        disabled: !hasFilters,
+      }),
+      m(Button, {
+        icon: 'delete',
+        compact: true,
+        disabled: !hasFilters,
+        onclick: () => {
+          attrs.onStateChange({
+            ...this.attrs.state,
+            filters: [],
+            view:
+              this.attrs.state.view.kind === 'PIVOT'
+                ? {kind: 'TOP_DOWN'}
+                : this.attrs.state.view,
+          });
+        },
+      }),
+      m('.pf-flamegraph-filter-bar-separator'),
       m(SegmentedButtons, {
         options: [{label: 'Top Down'}, {label: 'Bottom Up'}],
         selectedOption: this.attrs.state.view.kind === 'TOP_DOWN' ? 0 : 1,
         onOptionSelected: (num) => {
-          self.attrs.onStateChange({
+          this.attrs.onStateChange({
             ...this.attrs.state,
             view: {kind: num === 0 ? 'TOP_DOWN' : 'BOTTOM_UP'},
           });
@@ -654,7 +889,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       nodeActions,
       rootActions,
     } = assertExists(this.attrs.data);
-    const {unit} = assertExists(this.selectedMetric);
+    const {unit, nameColumnLabel} = assertExists(this.selectedMetric);
     if (source.kind === 'ROOT') {
       const val = displaySize(allRootsCumulativeValue, unit);
       const percent = displayPercentage(
@@ -706,12 +941,17 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
       selfPercentText += `, parent: ${parentSelfPercent}`;
     }
+    const nameLabel = nameColumnLabel ?? 'Name';
     return m(
       'div',
       // Show marker at the top of the tooltip
       marker &&
         m('.tooltip-text-line', m('.tooltip-marker-text', `■ ${marker}`)),
-      m('.tooltip-bold-text', name),
+      m(
+        '.tooltip-text-line',
+        m('.tooltip-bold-text', `${nameLabel}:`),
+        m('.tooltip-text', name),
+      ),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', 'Cumulative:'),
@@ -800,7 +1040,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             });
           },
         }),
-        this.renderActionsMenu(nodeActions, properties),
+        this.renderActionsMenu(nodeActions, properties, nodes[queryIdx]),
       ),
     );
   }
@@ -814,8 +1054,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private renderActionsMenu(
     actions: ReadonlyArray<FlamegraphOptionalAction>,
     properties: ReadonlyMap<string, FlamegraphPropertyDefinition>,
+    node?: FlamegraphNode,
   ) {
-    if (actions.length === 0) {
+    if (actions.length === 0 && node === undefined) {
       return null;
     }
 
@@ -828,6 +1069,22 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         }),
         position: PopupPosition.Bottom,
       },
+      node !== undefined &&
+        m(MenuItem, {
+          label: 'Copy Stack',
+          icon: Icons.Copy,
+          onclick: () => {
+            copyToClipboard(this.buildStackString(node, false));
+          },
+        }),
+      node !== undefined &&
+        m(MenuItem, {
+          label: 'Copy Stack With Details',
+          icon: Icons.Copy,
+          onclick: () => {
+            copyToClipboard(this.buildStackString(node, true));
+          },
+        }),
       actions.map((action) => this.renderMenuItem(action, properties)),
     );
   }
@@ -882,6 +1139,106 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       label: action.name,
       disabled: true,
     });
+  }
+
+  private buildStackString(node: FlamegraphNode, withDetails: boolean): string {
+    const {nodes, unfilteredCumulativeValue} = assertExists(this.attrs.data);
+    const metric = assertExists(this.selectedMetric);
+    const view = this.attrs.state.view;
+
+    // Walk via parentId for all modes. Reverse for TOP_DOWN and PIVOT below.
+    const stack: FlamegraphNode[] = [];
+    let currentId = node.id;
+    while (currentId !== -1) {
+      const current = assertExists(nodes.find((n) => n.id === currentId));
+      stack.push(current);
+      currentId = current.parentId;
+    }
+
+    const shouldReverse =
+      view.kind === 'TOP_DOWN' || (view.kind === 'PIVOT' && node.depth > 0);
+    if (shouldReverse) {
+      stack.reverse();
+    }
+
+    if (!withDetails) {
+      return stack.map((n) => n.name).join('\n');
+    }
+
+    // Collect all unique property keys, separated by aggregatable status
+    const unaggKeys: string[] = [];
+    const aggKeys: string[] = [];
+    for (const entry of stack) {
+      for (const [key, prop] of entry.properties) {
+        if (prop.isAggregatable) {
+          if (!aggKeys.includes(key)) {
+            aggKeys.push(key);
+          }
+        } else {
+          if (!unaggKeys.includes(key)) {
+            unaggKeys.push(key);
+          }
+        }
+      }
+    }
+
+    // Helper to get display name for a property key
+    const getDisplayName = (key: string): string => {
+      for (const entry of stack) {
+        const prop = entry.properties.get(key);
+        if (prop !== undefined) {
+          return prop.displayName;
+        }
+      }
+      return key;
+    };
+
+    // Build header: Name | Non-agg props | Cumulative | Self | Agg props
+    const nameLabel = metric.nameColumnLabel ?? 'Name';
+    const unitDisplay = getUnitDisplayName(metric.unit);
+    const headers = [nameLabel];
+    for (const key of unaggKeys) {
+      headers.push(getDisplayName(key));
+    }
+    headers.push(
+      `Cumulative ${metric.name} (${unitDisplay})`,
+      `Self ${metric.name} (${unitDisplay})`,
+    );
+    for (const key of aggKeys) {
+      headers.push(getDisplayName(key));
+    }
+
+    // Format as markdown table
+    const lines: string[] = [];
+    lines.push('| ' + headers.join(' | ') + ' |');
+    lines.push('|' + headers.map(() => '------').join('|') + '|');
+
+    for (const entry of stack) {
+      const cumulative = displaySize(entry.cumulativeValue, metric.unit);
+      const cumulativePercent = displayPercentage(
+        entry.cumulativeValue,
+        unfilteredCumulativeValue,
+      );
+      const self = displaySize(entry.selfValue, metric.unit);
+      const selfPercent = displayPercentage(
+        entry.selfValue,
+        unfilteredCumulativeValue,
+      );
+
+      const cols = [entry.name];
+      for (const key of unaggKeys) {
+        cols.push(entry.properties.get(key)?.value ?? '');
+      }
+      cols.push(
+        `${cumulative} (${cumulativePercent})`,
+        `${self} (${selfPercent})`,
+      );
+      for (const key of aggKeys) {
+        cols.push(entry.properties.get(key)?.value ?? '');
+      }
+      lines.push('| ' + cols.join(' | ') + ' |');
+    }
+    return lines.join('\n');
   }
 
   private createReducedProperties(
@@ -948,7 +1305,16 @@ function computeRenderNodes(
     const state = computeState(qXStart, qXEnd, zoomRegion, depthMatchingZoom);
 
     if (width < MIN_PIXEL_DISPLAYED) {
-      const parentChildMergeKey = `${parentId}_${depth}`;
+      // Check if parent was merged - if so, use x-position-based key so that
+      // children of different parents that were merged together also merge.
+      // This enables recursive merging: if parents A and B merged into the
+      // same visual node, their children should also merge together.
+      const parentMergedX = mergedKeyToX.get(`${parentId}_${depth}`);
+      const parentChildMergeKey =
+        parentMergedX !== undefined
+          ? `x_${Math.round(parentMergedX)}_${depth}`
+          : `p_${parentId}_${depth}`;
+
       const mergedXKey = `${id}_${depth > 0 ? depth + 1 : depth - 1}`;
       const childMergedIdx = keyToChildMergedIdx.get(parentChildMergeKey);
       if (childMergedIdx !== undefined) {
@@ -967,7 +1333,7 @@ function computeRenderNodes(
         mergedKeyToX.set(mergedXKey, r.x);
         continue;
       }
-      const mergedX = mergedKeyToX.get(`${parentId}_${depth}`) ?? x;
+      const mergedX = parentMergedX ?? x;
       renderNodes.push({
         x: mergedX,
         y,
@@ -1083,39 +1449,11 @@ function displayPercentage(size: number, totalSize: number): string {
   return `${((size / totalSize) * 100.0).toFixed(2)}%`;
 }
 
-function updateState(state: FlamegraphState, filter: string): FlamegraphState {
-  const lwr = filter.toLowerCase();
-  const splitFilterFn = (f: string) => f.substring(f.indexOf(':') + 1).trim();
-  if (lwr.startsWith('ss:') || lwr.startsWith('show stack:')) {
-    return addFilter(state, {
-      kind: 'SHOW_STACK',
-      filter: splitFilterFn(filter),
-    });
-  } else if (lwr.startsWith('hs:') || lwr.startsWith('hide stack:')) {
-    return addFilter(state, {
-      kind: 'HIDE_STACK',
-      filter: splitFilterFn(filter),
-    });
-  } else if (lwr.startsWith('sff:') || lwr.startsWith('show from frame:')) {
-    return addFilter(state, {
-      kind: 'SHOW_FROM_FRAME',
-      filter: splitFilterFn(filter),
-    });
-  } else if (lwr.startsWith('hf:') || lwr.startsWith('hide frame:')) {
-    return addFilter(state, {
-      kind: 'HIDE_FRAME',
-      filter: splitFilterFn(filter),
-    });
-  } else if (lwr.startsWith('p:') || lwr.startsWith('pivot:')) {
-    return {
-      ...state,
-      view: {kind: 'PIVOT', pivot: splitFilterFn(filter)},
-    };
+function getUnitDisplayName(unit: string | undefined): string {
+  if (unit === undefined || unit === '' || unit === 'count') {
+    return 'count';
   }
-  return addFilter(state, {
-    kind: 'SHOW_STACK',
-    filter: filter.trim(),
-  });
+  return unit;
 }
 
 function toTags(state: FlamegraphState): ReadonlyArray<string> {
@@ -1149,15 +1487,84 @@ function addFilter(
   };
 }
 
+// Split text into individual filters by finding filter type prefixes
+// e.g. 'Show Stack: main Hide Frame: alloc' -> ['Show Stack: main', 'Hide Frame: alloc']
+// e.g. 'SS: foo HF: bar' -> ['SS: foo', 'HF: bar']
+function splitFilters(text: string): string[] {
+  const lowerText = text.toLowerCase();
+
+  // Find all positions where a filter prefix starts (case insensitive)
+  const splitPositions: number[] = [];
+  for (const type of FILTER_TYPES) {
+    for (const prefix of [type.shortLabel, type.label]) {
+      const searchStr = prefix.toLowerCase() + ':';
+      let pos = 0;
+      while ((pos = lowerText.indexOf(searchStr, pos)) !== -1) {
+        // Only split if at start or preceded by whitespace
+        if (pos === 0 || /\s/.test(text[pos - 1])) {
+          splitPositions.push(pos);
+        }
+        pos += searchStr.length;
+      }
+    }
+  }
+
+  // Sort and deduplicate positions
+  splitPositions.sort((a, b) => a - b);
+
+  // If no prefixes found, return the whole text as one filter
+  if (splitPositions.length === 0) {
+    return text.trim() ? [text.trim()] : [];
+  }
+
+  // Split text at those positions
+  const result: string[] = [];
+  for (let i = 0; i < splitPositions.length; i++) {
+    const start = splitPositions[i];
+    const end = splitPositions[i + 1] ?? text.length;
+    const part = text.substring(start, end).trim();
+    if (part) {
+      result.push(part);
+    }
+  }
+  return result;
+}
+
+// Parse a filter string into type and value
+// e.g. 'SS: main' -> {type: 'SHOW_STACK', value: 'main'}
+// e.g. 'Show Stack: main' -> {type: 'SHOW_STACK', value: 'main'}
+function parseFilter(
+  text: string,
+  defaultType: FilterType = 'SHOW_STACK',
+): {type: FilterType; value: string} {
+  const i = text.indexOf(':');
+  if (i === -1) return {type: defaultType, value: text};
+  const prefix = text.substring(0, i).trim().toLowerCase();
+  const value = text.substring(i + 1).trim();
+  const match = FILTER_TYPES.find(
+    (o) =>
+      o.shortLabel.toLowerCase() === prefix || o.label.toLowerCase() === prefix,
+  );
+  return match ? {type: match.value, value} : {type: defaultType, value: text};
+}
+
 // Unfortunately, widgets *cannot* depend on components so we cannot use the
 // colorizer code. Since we need very little of that code anyway, just inline
 // what we need here.
 const PERCEIVED_BRIGHTNESS_LIMIT = 180;
 const WHITE_COLOR = new HSLColor([0, 0, 100]);
 const BLACK_COLOR = new HSLColor([0, 0, 0]);
-const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 62]);
+// Lightness 85 ensures even darken(10) stays above brightness threshold for black text
+const GRAY_VARIANT_COLOR = new HSLColor([0, 0, 85]);
 
-function makeColorScheme(base: Color, variant: Color) {
+interface ColorScheme {
+  readonly base: Color;
+  readonly variant: Color;
+  readonly textBase: Color;
+  readonly textVariant: Color;
+}
+
+function makeColorScheme(base: Color, variant: Color): ColorScheme {
   // Use the same text color for both base and variant to prevent text color
   // switching on hover. The text color is determined by the base color only.
   const textColor =
@@ -1172,19 +1579,38 @@ function makeColorScheme(base: Color, variant: Color) {
   };
 }
 
-function getFlamegraphColorScheme(name: string, greyed: boolean) {
+// Pre-computed color schemes for special cases
+const GREYED_COLOR_SCHEME = makeColorScheme(
+  GRAY_VARIANT_COLOR,
+  GRAY_VARIANT_COLOR.darken(5),
+);
+const ROOT_COLOR_SCHEME = makeColorScheme(
+  GRAY_VARIANT_COLOR.darken(10),
+  GRAY_VARIANT_COLOR.darken(15),
+);
+
+// Cache for computed color schemes by name
+const colorSchemeCache = new Map<string, ColorScheme>();
+
+function getFlamegraphColorScheme(name: string, greyed: boolean): ColorScheme {
   if (greyed) {
-    return makeColorScheme(GRAY_VARIANT_COLOR, GRAY_VARIANT_COLOR.darken(5));
+    return GREYED_COLOR_SCHEME;
   }
   if (name === 'unknown' || name === 'root') {
-    return makeColorScheme(
-      GRAY_VARIANT_COLOR.darken(10),
-      GRAY_VARIANT_COLOR.darken(15),
-    );
+    return ROOT_COLOR_SCHEME;
   }
+
+  // Check cache first
+  let scheme = colorSchemeCache.get(name);
+  if (scheme !== undefined) {
+    return scheme;
+  }
+
   // Hash the name to get a predictable hue, then create color with fixed
   // saturation and lightness values to match what pprof web UI does.
   const hue = hash(name, 360);
   const base = new HSLColor({h: hue, s: 46, l: 80});
-  return makeColorScheme(base, base.darken(15).saturate(15));
+  scheme = makeColorScheme(base, base.darken(15).saturate(15));
+  colorSchemeCache.set(name, scheme);
+  return scheme;
 }

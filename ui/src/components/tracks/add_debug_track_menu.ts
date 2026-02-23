@@ -27,6 +27,9 @@ interface AddDebugTrackMenuAttrs {
   readonly availableColumns: ReadonlyArray<string>;
   // The actual query used to define the debug track.
   readonly query: string;
+
+  // Called when the user adds the track.
+  readonly onAdd?: () => void;
 }
 
 const TRACK_NAME_FIELD_REF = 'TRACK_NAME_FIELD';
@@ -103,7 +106,10 @@ export class AddDebugTrackMenu
     return m(
       Form,
       {
-        onSubmit: () => this.createTracks(attrs),
+        onSubmit: () => {
+          attrs.onAdd?.();
+          this.createTracks(attrs);
+        },
         submitLabel: 'Add Track',
         cancelLabel: 'Cancel',
       },

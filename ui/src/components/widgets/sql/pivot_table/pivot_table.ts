@@ -70,7 +70,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             },
             pivotId(pivot),
           ),
-          reorderable: {handle: 'pivot'},
+          reorderable: {reorderGroup: 'pivot'},
           thickRightBorder: index === pivots.length - 1,
         };
         return gridColumn;
@@ -89,7 +89,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             },
             aggregationId(agg),
           ),
-          reorderable: {handle: 'aggregation'},
+          reorderable: {reorderGroup: 'aggregation'},
         };
         return gridColumn;
       }),
@@ -98,7 +98,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
     if (extraRowButton) {
       columns.push({
         key: 'action-button',
-        minWidth: 0,
+        widthPx: 24,
         header: m(GridHeaderCell, ''),
       });
     }
@@ -274,16 +274,14 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             key: tableColumnId(column),
             column,
           })),
-          manager: {
-            filters: state.filters,
-            trace: state.trace,
-            getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-              buildSqlQuery({
-                table: state.table.name,
-                columns,
-                filters: state.filters.get(),
-              }),
-          },
+          filters: state.filters,
+          trace: state.trace,
+          getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+            buildSqlQuery({
+              table: state.table.name,
+              columns,
+              filters: state.filters.get(),
+            }),
           existingColumnIds: new Set(state.getPivots().map(pivotId)),
           onColumnSelected: (column) => state.addPivot(column, index),
         }),
@@ -370,16 +368,14 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             key: tableColumnId(column),
             column,
           })),
-          manager: {
-            filters: state.filters,
-            trace: state.trace,
-            getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
-              buildSqlQuery({
-                table: state.table.name,
-                columns,
-                filters: state.filters.get(),
-              }),
-          },
+          filters: state.filters,
+          trace: state.trace,
+          getSqlQuery: (columns: {[key: string]: SqlColumn}) =>
+            buildSqlQuery({
+              table: state.table.name,
+              columns,
+              filters: state.filters.get(),
+            }),
           columnMenu: (column) => ({
             rightIcon: Icons.ContextMenuAlt,
             children: AGGREGATIONS.map((agg) =>

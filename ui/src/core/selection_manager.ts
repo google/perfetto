@@ -59,6 +59,7 @@ export class SelectionManagerImpl implements SelectionManager {
     SelectionDetailsPanel
   >();
   public readonly areaSelectionTabs: AreaSelectionTab[] = [];
+  private _currentSelectionSubTab?: string;
 
   constructor(
     private readonly engine: Engine,
@@ -284,7 +285,7 @@ export class SelectionManagerImpl implements SelectionManager {
       });
 
       const datasets = values.map(([dataset]) => dataset);
-      const union = UnionDataset.create(datasets).optimize();
+      const union = UnionDataset.create(datasets);
 
       // Make sure to include the filter value in the schema.
       const schema = {...union.schema, [colName]: UNKNOWN};
@@ -521,5 +522,13 @@ export class SelectionManagerImpl implements SelectionManager {
 
   registerAreaSelectionTab(tab: AreaSelectionTab): void {
     this.areaSelectionTabs.push(tab);
+  }
+
+  get currentSelectionSubTab(): string | undefined {
+    return this._currentSelectionSubTab;
+  }
+
+  setCurrentSelectionSubTab(id: string | undefined): void {
+    this._currentSelectionSubTab = id;
   }
 }

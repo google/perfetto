@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/fnv_hash.h"
+#include "src/protozero/filtering/filter_bytecode_parser.h"
 
+#include <cstdint>
+#include <initializer_list>
+#include <vector>
+
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "src/protozero/filtering/filter_bytecode_common.h"
-#include "src/protozero/filtering/filter_bytecode_parser.h"
 #include "test/gtest_and_gmock.h"
 
 namespace protozero {
@@ -35,6 +39,35 @@ bool LoadBytecode(FilterBytecodeParser* parser,
   }
   words.Append(static_cast<uint32_t>(hasher.digest()));
   return parser->Load(words.data(), words.size());
+}
+
+std::vector<uint8_t> MakeOverlay(std::initializer_list<uint32_t> words) {
+  perfetto::base::FnvHasher hasher;
+  protozero::PackedVarInt packed;
+  for (uint32_t w : words) {
+    packed.Append(w);
+    hasher.Update(w);
+  }
+  packed.Append(static_cast<uint32_t>(hasher.digest()));
+  return {packed.data(), packed.data() + packed.size()};
+}
+
+bool LoadBytecodeWithOverlay(FilterBytecodeParser* parser,
+                             std::initializer_list<uint32_t> bytecode,
+                             std::initializer_list<uint32_t> overlay) {
+  perfetto::base::FnvHasher hasher;
+  protozero::PackedVarInt words;
+  for (uint32_t w : bytecode) {
+    words.Append(w);
+    hasher.Update(w);
+  }
+  words.Append(static_cast<uint32_t>(hasher.digest()));
+
+  // Build the overlay with checksum.
+  auto overlay_bytes = MakeOverlay(overlay);
+
+  return parser->Load(words.data(), words.size(), overlay_bytes.data(),
+                      overlay_bytes.size());
 }
 
 TEST(FilterBytecodeParserTest, EomHandling) {
@@ -254,6 +287,223 @@ TEST(FilterBytecodeParserTest, ParserNestedMessages) {
   EXPECT_TRUE(parser.Query(3, 2).allowed);
   EXPECT_EQ(parser.Query(3, 2).nested_msg_index, 2u);
   EXPECT_FALSE(parser.Query(3, 4).allowed);
+}
+
+TEST(FilterBytecodeParserTest, OverlayUpgradeToFilterString) {
+  FilterBytecodeParser parser;
+
+  // Base: fields 1 (simple), 2 (simple), 3 (simple)
+  // Overlay: upgrade field 2 to FilterString
+  EXPECT_TRUE(LoadBytecodeWithOverlay(
+      &parser,
+      {kFilterOpcode_SimpleField | (1u << 3),
+       kFilterOpcode_SimpleField | (2u << 3),
+       kFilterOpcode_SimpleField | (3u << 3), kFilterOpcode_EndOfMessage},
+      {0u,                                             // msg_index
+       kFilterOpcode_FilterString | (2u << 3), 0u}));  // argument (unused)
+
+  EXPECT_TRUE(parser.Query(0, 1).allowed);
+  EXPECT_TRUE(parser.Query(0, 1).simple_field());
+
+  EXPECT_TRUE(parser.Query(0, 2).allowed);
+  EXPECT_TRUE(parser.Query(0, 2).filter_string_field());
+
+  EXPECT_TRUE(parser.Query(0, 3).allowed);
+  EXPECT_TRUE(parser.Query(0, 3).simple_field());
+}
+
+TEST(FilterBytecodeParserTest, OverlayAddNewField) {
+  FilterBytecodeParser parser;
+
+  // Base: fields 1, 3
+  // Overlay: add field 2 as FilterString
+  EXPECT_TRUE(LoadBytecodeWithOverlay(
+      &parser,
+      {kFilterOpcode_SimpleField | (1u << 3),
+       kFilterOpcode_SimpleField | (3u << 3), kFilterOpcode_EndOfMessage},
+      {0u,                                             // msg_index
+       kFilterOpcode_FilterString | (2u << 3), 0u}));  // argument (unused)
+
+  EXPECT_TRUE(parser.Query(0, 1).allowed);
+  EXPECT_TRUE(parser.Query(0, 1).simple_field());
+
+  EXPECT_TRUE(parser.Query(0, 2).allowed);
+  EXPECT_TRUE(parser.Query(0, 2).filter_string_field());
+
+  EXPECT_TRUE(parser.Query(0, 3).allowed);
+  EXPECT_TRUE(parser.Query(0, 3).simple_field());
+}
+
+TEST(FilterBytecodeParserTest, OverlayAddFieldAtEnd) {
+  FilterBytecodeParser parser;
+
+  // Base: fields 1, 2
+  // Overlay: add field 5 as SimpleField
+  EXPECT_TRUE(LoadBytecodeWithOverlay(
+      &parser,
+      {kFilterOpcode_SimpleField | (1u << 3),
+       kFilterOpcode_SimpleField | (2u << 3), kFilterOpcode_EndOfMessage},
+      {0u,                                            // msg_index
+       kFilterOpcode_SimpleField | (5u << 3), 0u}));  // argument (unused)
+
+  EXPECT_TRUE(parser.Query(0, 1).allowed);
+  EXPECT_TRUE(parser.Query(0, 2).allowed);
+  EXPECT_FALSE(parser.Query(0, 3).allowed);
+  EXPECT_FALSE(parser.Query(0, 4).allowed);
+  EXPECT_TRUE(parser.Query(0, 5).allowed);
+  EXPECT_TRUE(parser.Query(0, 5).simple_field());
+}
+
+TEST(FilterBytecodeParserTest, OverlayMultipleEntries) {
+  FilterBytecodeParser parser;
+
+  // Base: fields 1, 5, 10
+  // Overlay: add field 3, upgrade field 5, add field 7
+  EXPECT_TRUE(LoadBytecodeWithOverlay(
+      &parser,
+      {kFilterOpcode_SimpleField | (1u << 3),
+       kFilterOpcode_SimpleField | (5u << 3),
+       kFilterOpcode_SimpleField | (10u << 3), kFilterOpcode_EndOfMessage},
+      {0u, kFilterOpcode_FilterString | (3u << 3), 0u,    // add field 3
+       0u, kFilterOpcode_FilterString | (5u << 3), 0u,    // upgrade field 5
+       0u, kFilterOpcode_SimpleField | (7u << 3), 0u}));  // add field 7
+
+  EXPECT_TRUE(parser.Query(0, 1).allowed);
+  EXPECT_TRUE(parser.Query(0, 1).simple_field());
+
+  EXPECT_FALSE(parser.Query(0, 2).allowed);
+
+  EXPECT_TRUE(parser.Query(0, 3).allowed);
+  EXPECT_TRUE(parser.Query(0, 3).filter_string_field());
+
+  EXPECT_FALSE(parser.Query(0, 4).allowed);
+
+  EXPECT_TRUE(parser.Query(0, 5).allowed);
+  EXPECT_TRUE(parser.Query(0, 5).filter_string_field());
+
+  EXPECT_FALSE(parser.Query(0, 6).allowed);
+
+  EXPECT_TRUE(parser.Query(0, 7).allowed);
+  EXPECT_TRUE(parser.Query(0, 7).simple_field());
+
+  EXPECT_TRUE(parser.Query(0, 10).allowed);
+  EXPECT_TRUE(parser.Query(0, 10).simple_field());
+}
+
+TEST(FilterBytecodeParserTest, OverlayMultipleMessages) {
+  FilterBytecodeParser parser;
+
+  // Base: Message 0 has field 1, Message 1 has field 2
+  // Overlay: add field 3 to message 0, add field 4 to message 1
+  EXPECT_TRUE(LoadBytecodeWithOverlay(
+      &parser,
+      {// Message 0
+       kFilterOpcode_SimpleField | (1u << 3), kFilterOpcode_EndOfMessage,
+       // Message 1
+       kFilterOpcode_SimpleField | (2u << 3), kFilterOpcode_EndOfMessage},
+      {0u, kFilterOpcode_FilterString | (3u << 3), 0u,     // msg 0, field 3
+       1u, kFilterOpcode_FilterString | (4u << 3), 0u}));  // msg 1, field 4
+
+  // Message 0
+  EXPECT_TRUE(parser.Query(0, 1).allowed);
+  EXPECT_TRUE(parser.Query(0, 1).simple_field());
+  EXPECT_FALSE(parser.Query(0, 2).allowed);
+  EXPECT_TRUE(parser.Query(0, 3).allowed);
+  EXPECT_TRUE(parser.Query(0, 3).filter_string_field());
+
+  // Message 1
+  EXPECT_FALSE(parser.Query(1, 1).allowed);
+  EXPECT_TRUE(parser.Query(1, 2).allowed);
+  EXPECT_TRUE(parser.Query(1, 2).simple_field());
+  EXPECT_FALSE(parser.Query(1, 3).allowed);
+  EXPECT_TRUE(parser.Query(1, 4).allowed);
+  EXPECT_TRUE(parser.Query(1, 4).filter_string_field());
+}
+
+TEST(FilterBytecodeParserTest, OverlayLargeFieldId) {
+  FilterBytecodeParser parser;
+
+  // Base: field 1
+  // Overlay: add field 200 (> 128, uses range storage)
+  EXPECT_TRUE(LoadBytecodeWithOverlay(
+      &parser,
+      {kFilterOpcode_SimpleField | (1u << 3), kFilterOpcode_EndOfMessage},
+      {0u, kFilterOpcode_FilterString | (200u << 3), 0u}));
+
+  EXPECT_TRUE(parser.Query(0, 1).allowed);
+  EXPECT_FALSE(parser.Query(0, 127).allowed);
+  EXPECT_FALSE(parser.Query(0, 128).allowed);
+  EXPECT_FALSE(parser.Query(0, 199).allowed);
+  EXPECT_TRUE(parser.Query(0, 200).allowed);
+  EXPECT_TRUE(parser.Query(0, 200).filter_string_field());
+  EXPECT_FALSE(parser.Query(0, 201).allowed);
+}
+
+TEST(FilterBytecodeParserTest, OverlayEmptyOverlay) {
+  FilterBytecodeParser parser;
+
+  // Empty overlay should behave same as no overlay.
+  EXPECT_TRUE(LoadBytecodeWithOverlay(
+      &parser,
+      {kFilterOpcode_SimpleField | (1u << 3),
+       kFilterOpcode_SimpleField | (2u << 3), kFilterOpcode_EndOfMessage},
+      {}));  // Empty overlay
+
+  EXPECT_TRUE(parser.Query(0, 1).allowed);
+  EXPECT_TRUE(parser.Query(0, 1).simple_field());
+  EXPECT_TRUE(parser.Query(0, 2).allowed);
+  EXPECT_TRUE(parser.Query(0, 2).simple_field());
+  EXPECT_FALSE(parser.Query(0, 3).allowed);
+}
+
+TEST(FilterBytecodeParserTest, OverlayErrorInvalidOpcode) {
+  FilterBytecodeParser parser;
+  parser.set_suppress_logs_for_fuzzer(true);
+
+  // Overlay with invalid opcode (EndOfMessage = 0 is not valid in overlay)
+  EXPECT_FALSE(LoadBytecodeWithOverlay(
+      &parser,
+      {kFilterOpcode_SimpleField | (1u << 3), kFilterOpcode_EndOfMessage},
+      {0u, kFilterOpcode_EndOfMessage}));  // Invalid opcode
+}
+
+TEST(FilterBytecodeParserTest, OverlayErrorTruncated) {
+  FilterBytecodeParser parser;
+  parser.set_suppress_logs_for_fuzzer(true);
+
+  // Overlay with only msg_index, missing field_word.
+  // We need to manually construct this malformed overlay.
+  perfetto::base::FnvHasher hasher;
+  protozero::PackedVarInt packed;
+  packed.Append(0u);  // msg_index only, no field_word
+  hasher.Update(0u);
+  packed.Append(static_cast<uint32_t>(hasher.digest()));
+
+  perfetto::base::FnvHasher base_hasher;
+  protozero::PackedVarInt base;
+  base.Append(kFilterOpcode_SimpleField | (1u << 3));
+  base_hasher.Update(kFilterOpcode_SimpleField | (1u << 3));
+  base.Append(kFilterOpcode_EndOfMessage);
+  base_hasher.Update(kFilterOpcode_EndOfMessage);
+  base.Append(static_cast<uint32_t>(base_hasher.digest()));
+
+  EXPECT_FALSE(
+      parser.Load(base.data(), base.size(), packed.data(), packed.size()));
+}
+
+TEST(FilterBytecodeParserTest, OverlayErrorNotSorted) {
+  FilterBytecodeParser parser;
+  parser.set_suppress_logs_for_fuzzer(true);
+
+  // Overlay entries not sorted by msg_index (entry for msg 0 after msg 1)
+  EXPECT_FALSE(LoadBytecodeWithOverlay(
+      &parser,
+      {// Message 0
+       kFilterOpcode_SimpleField | (1u << 3),
+       kFilterOpcode_EndOfMessage,  // Message 1
+       kFilterOpcode_SimpleField | (2u << 3), kFilterOpcode_EndOfMessage},
+      {1u, kFilterOpcode_FilterString | (3u << 3),     // msg 1 first
+       0u, kFilterOpcode_FilterString | (4u << 3)}));  // msg 0 after - error!
 }
 
 }  // namespace

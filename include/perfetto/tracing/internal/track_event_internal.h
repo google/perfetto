@@ -17,11 +17,16 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_INTERNAL_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_INTERNAL_H_
 
+#include "perfetto/base/export.h"
 #include "perfetto/base/flat_set.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/debug_annotation.h"
+#include "perfetto/tracing/string_helpers.h"
 #include "perfetto/tracing/trace_writer_base.h"
 #include "perfetto/tracing/traced_value.h"
 #include "perfetto/tracing/track.h"
@@ -29,8 +34,18 @@
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
+#include <array>
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <memory>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace perfetto {
 
@@ -178,6 +193,21 @@ struct TrackEventIncrementalState {
   std::unordered_map<uint64_t, int64_t> last_counter_value_per_track;
   int64_t last_thread_time_ns = 0;
   uint64_t last_thread_time_timestamp_ns = 0;
+
+  // Clears the incremental state without destroying and recreating this object.
+  // This allows reusing allocated memory in hash maps and other data structures
+  // instead of deallocating and reallocating them.
+  void Clear() {
+    was_cleared = true;
+    serialized_interned_data.Reset();
+    interned_data_indices = {};
+    seen_tracks.clear();
+    dynamic_categories.clear();
+    last_timestamp_ns = 0;
+    last_counter_value_per_track.clear();
+    last_thread_time_ns = 0;
+    last_thread_time_timestamp_ns = 0;
+  }
 };
 
 // The backend portion of the track event trace point implemention. Outlined to

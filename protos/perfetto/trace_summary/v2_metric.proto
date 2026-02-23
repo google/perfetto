@@ -232,7 +232,7 @@ message TraceMetricV2Spec {
   // interpreting and displaying metric values across different tools and
   // surfaces.
   enum MetricUnit {
-    // Next value: 31
+    // Next value: 33
     METRIC_UNIT_UNSPECIFIED = 0;
     // A unitless count of items or events.
     COUNT = 1;
@@ -294,6 +294,10 @@ message TraceMetricV2Spec {
     MICRO_AMP_HOURS = 29;
     // Time measured in minutes.
     TIME_MINS = 30;
+    // Signal strength measured in dBm (decibels relative to a milliwatt).
+    DECIBEL_MILLIWATTS = 31;
+    // A rate measured in kilobytes per second.
+    KILOBYTES_PER_SECOND = 32;
   }
   oneof unit_oneof {
     // A standard, predefined unit for the metric's value.

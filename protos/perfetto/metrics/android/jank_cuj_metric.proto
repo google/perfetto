@@ -61,7 +61,7 @@ message AndroidJankCujMetric {
     optional string layer_name = 11;
   }
 
-  // Next id: 10
+  // Next id: 11
   message Frame {
     // Index of the frame within the single user journey.
     optional int64 frame_number = 1;
@@ -80,6 +80,9 @@ message AndroidJankCujMetric {
     // Whether SF missed the frame deadline.
     optional bool sf_missed = 6;
 
+    // Jank severity weight score for janky frames.
+    optional double jank_score = 10;
+
     // Whether the SF callback missed before emitting jank metrics.
     // SF callback is used to get the jank classification.
     optional bool sf_callback_missed = 8;
@@ -89,7 +92,7 @@ message AndroidJankCujMetric {
     optional bool hwui_callback_missed = 9;
   }
 
-  // Next id: 18
+  // Next id: 21
   message Metrics {
     // Overall number of frames within the CUJ.
     optional int64 total_frames = 1;
@@ -103,12 +106,21 @@ message AndroidJankCujMetric {
     // Number of frames missed due to SF.
     optional int64 missed_sf_frames = 4;
 
+    // Weighted number of frames missed due to the app missing the deadline.
+    optional double weighted_missed_app_frames = 19;
+
+    // Weighted number of frames missed due to SF.
+    optional double weighted_missed_sf_frames = 20;
+
     // Number of successive frames missed.
     // Not available in timeline_metrics and trace_metrics.
     optional int64 missed_frames_max_successive = 5;
 
     // Max frame duration in nanoseconds.
     optional int64 frame_dur_max = 6;
+
+    // Duration in ns of the animation.
+    optional int64 anim_duration = 18;
 
     // Average frame duration in nanoseconds.
     // Not available in counter_metrics.

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef, Sorting} from '../../components/aggregation';
+import {ColumnDef} from '../../components/aggregation';
 import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -131,48 +131,53 @@ export class CounterSelectionAggregator implements Aggregator {
       {
         title: 'Name',
         columnId: 'name',
+        sort: 'DESC',
       },
       {
         title: 'Delta value',
         columnId: 'delta_value',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Rate /s',
         columnId: 'rate',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Weighted avg value',
         columnId: 'avg_value',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Count',
         columnId: 'count',
         sum: true,
+        formatHint: 'NUMERIC',
       },
       {
         title: 'First value',
         columnId: 'first_value',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Last value',
         columnId: 'last_value',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Min value',
         columnId: 'min_value',
+        formatHint: 'NUMERIC',
       },
       {
         title: 'Max value',
         columnId: 'max_value',
+        formatHint: 'NUMERIC',
       },
     ];
   }
 
   getTabName() {
     return 'Counters';
-  }
-
-  getDefaultSorting(): Sorting {
-    return {column: 'name', direction: 'DESC'};
   }
 }

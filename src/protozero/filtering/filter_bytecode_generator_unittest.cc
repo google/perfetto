@@ -16,8 +16,9 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/protozero/packed_repeated_fields.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
+#include <cstdint>
+#include <string>
+
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 
@@ -38,7 +39,7 @@ TEST(FilterBytecodeGeneratorTest, SimpleFields) {
   gen.EndMessage();
 
   FilterBytecodeParser parser;
-  std::string bytecode = gen.Serialize();
+  std::string bytecode = gen.Serialize().bytecode;
   ASSERT_TRUE(parser.Load(reinterpret_cast<const uint8_t*>(bytecode.data()),
                           bytecode.size()));
   EXPECT_FALSE(parser.Query(0, 0).allowed);
@@ -61,7 +62,7 @@ TEST(FilterBytecodeGeneratorTest, SimpleAndRanges) {
   gen.EndMessage();
 
   FilterBytecodeParser parser;
-  std::string bytecode = gen.Serialize();
+  std::string bytecode = gen.Serialize().bytecode;
   ASSERT_TRUE(parser.Load(reinterpret_cast<const uint8_t*>(bytecode.data()),
                           bytecode.size()));
   EXPECT_FALSE(parser.Query(0, 0).allowed);
@@ -103,7 +104,7 @@ TEST(FilterBytecodeGeneratorTest, Nested) {
   gen.EndMessage();
 
   FilterBytecodeParser parser;
-  std::string bytecode = gen.Serialize();
+  std::string bytecode = gen.Serialize().bytecode;
   ASSERT_TRUE(parser.Load(reinterpret_cast<const uint8_t*>(bytecode.data()),
                           bytecode.size()));
 
@@ -137,6 +138,106 @@ TEST(FilterBytecodeGeneratorTest, Nested) {
   EXPECT_EQ(parser.Query(3, 1).nested_msg_index, 0u);
   EXPECT_TRUE(parser.Query(3, 31).allowed);
   EXPECT_TRUE(parser.Query(3, 31).simple_field());
+}
+
+TEST(FilterBytecodeGeneratorTest, SemanticTypeOverlayV2) {
+  // Test that generating for v2 with semantic types creates an overlay
+  FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV2);
+  gen.AddFilterStringField(1u, /*semantic_type=*/42u, /*allow_in_v1=*/false,
+                           /*allow_in_v2=*/false);
+  gen.EndMessage();
+
+  auto result = gen.Serialize();
+  EXPECT_GT(result.bytecode.size(), 0u);
+  EXPECT_GT(result.v54_overlay.size(), 0u);
+
+  // Verify base bytecode denies the field (v2 doesn't support semantic types)
+  FilterBytecodeParser parser_base;
+  ASSERT_TRUE(
+      parser_base.Load(reinterpret_cast<const uint8_t*>(result.bytecode.data()),
+                       result.bytecode.size()));
+  auto query_base = parser_base.Query(0, 1);
+  EXPECT_FALSE(query_base.allowed);  // Field is denied in v2
+  EXPECT_FALSE(query_base.filter_string_field());
+
+  // Verify overlay provides the semantic type
+  FilterBytecodeParser parser_overlay;
+  ASSERT_TRUE(parser_overlay.Load(
+      reinterpret_cast<const uint8_t*>(result.bytecode.data()),
+      result.bytecode.size(),
+      reinterpret_cast<const uint8_t*>(result.v54_overlay.data()),
+      result.v54_overlay.size()));
+  auto query_overlay = parser_overlay.Query(0, 1);
+  EXPECT_TRUE(query_overlay.allowed);
+  EXPECT_TRUE(query_overlay.filter_string_field());
+  EXPECT_EQ(query_overlay.semantic_type, 42u);  // Semantic type from overlay
+}
+
+TEST(FilterBytecodeGeneratorTest, SemanticTypeV54NoOverlay) {
+  // Test that generating for v54 with semantic types doesn't create an overlay
+  FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV54);
+  gen.AddFilterStringField(1u, /*semantic_type=*/42u, /*allow_in_v1=*/false,
+                           /*allow_in_v2=*/false);
+  gen.EndMessage();
+
+  auto result = gen.Serialize();
+  EXPECT_GT(result.bytecode.size(), 0u);
+  EXPECT_EQ(result.v54_overlay.size(), 0u);  // No overlay for v54
+
+  // Parse and verify the bytecode contains semantic type
+  FilterBytecodeParser parser;
+  ASSERT_TRUE(
+      parser.Load(reinterpret_cast<const uint8_t*>(result.bytecode.data()),
+                  result.bytecode.size()));
+  auto query = parser.Query(0, 1);
+  EXPECT_TRUE(query.allowed);
+  EXPECT_TRUE(query.filter_string_field());
+  EXPECT_EQ(query.semantic_type, 42u);
+}
+
+TEST(FilterBytecodeGeneratorTest, AllowInV1) {
+  // Test that allow_in_v1=true adds field as simple field in v1 bytecode
+  FilterBytecodeGenerator gen(FilterBytecodeGenerator::BytecodeVersion::kV1);
+  // Field 1: denied in v1 (allow_in_v1=false)
+  gen.AddFilterStringField(1u, /*semantic_type=*/0u, /*allow_in_v1=*/false,
+                           /*allow_in_v2=*/false);
+  // Field 2: allowed in v1 as simple field (allow_in_v1=true)
+  gen.AddFilterStringField(2u, /*semantic_type=*/0u, /*allow_in_v1=*/true,
+                           /*allow_in_v2=*/false);
+  // Field 3: with semantic type, denied in v1 (allow_in_v1=false)
+  gen.AddFilterStringField(3u, /*semantic_type=*/42u, /*allow_in_v1=*/false,
+                           /*allow_in_v2=*/false);
+  // Field 4: with semantic type, allowed in v1 (allow_in_v1=true)
+  gen.AddFilterStringField(4u, /*semantic_type=*/42u, /*allow_in_v1=*/true,
+                           /*allow_in_v2=*/false);
+  gen.EndMessage();
+
+  auto result = gen.Serialize();
+  EXPECT_GT(result.bytecode.size(), 0u);
+  EXPECT_EQ(result.v54_overlay.size(), 0u);  // No overlay for v1
+
+  FilterBytecodeParser parser;
+  ASSERT_TRUE(
+      parser.Load(reinterpret_cast<const uint8_t*>(result.bytecode.data()),
+                  result.bytecode.size()));
+
+  // Field 1: should be denied
+  EXPECT_FALSE(parser.Query(0, 1).allowed);
+
+  // Field 2: should be allowed as simple field (no filter_string in v1)
+  auto query2 = parser.Query(0, 2);
+  EXPECT_TRUE(query2.allowed);
+  EXPECT_TRUE(query2.simple_field());
+  EXPECT_FALSE(query2.filter_string_field());
+
+  // Field 3: should be denied
+  EXPECT_FALSE(parser.Query(0, 3).allowed);
+
+  // Field 4: should be allowed as simple field
+  auto query4 = parser.Query(0, 4);
+  EXPECT_TRUE(query4.allowed);
+  EXPECT_TRUE(query4.simple_field());
+  EXPECT_FALSE(query4.filter_string_field());
 }
 
 }  // namespace

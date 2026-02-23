@@ -50,13 +50,15 @@ WITH frames AS (
     process.upid,
     process.name AS process_name,
     timeline.name AS vsync,
-    jank_type GLOB '*App Deadline Missed*' AS missed_app_frame,
+    jank_type GLOB '*App Deadline Missed*'
+      OR jank_type GLOB '*App Resynced Jitter*' AS missed_app_frame,
     jank_type GLOB '*SurfaceFlinger CPU Deadline Missed*'
       OR jank_type GLOB '*SurfaceFlinger GPU Deadline Missed*'
       OR jank_type GLOB '*SurfaceFlinger Scheduling*'
       OR jank_type GLOB '*Prediction Error*'
       OR jank_type GLOB '*Display HAL*' AS missed_sf_frame,
     jank_type GLOB '*App Deadline Missed*'
+      OR jank_type GLOB '*App Resynced Jitter*'
       OR jank_type GLOB '*SurfaceFlinger CPU Deadline Missed*'
       OR jank_type GLOB '*SurfaceFlinger GPU Deadline Missed*'
       OR jank_type GLOB '*SurfaceFlinger Scheduling*'

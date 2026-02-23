@@ -1,0 +1,366 @@
+{
+  "nodes": [
+    {
+      "nodeId": "1",
+      "type": "simple_slices",
+      "state": {},
+      "nextNodes": [
+        "3"
+      ]
+    },
+    {
+      "nodeId": "2",
+      "type": "table",
+      "state": {
+        "sqlTable": "thread"
+      },
+      "nextNodes": [
+        "3"
+      ]
+    },
+    {
+      "nodeId": "12",
+      "type": "table",
+      "state": {
+        "sqlTable": "thread_state"
+      },
+      "nextNodes": [
+        "13"
+      ]
+    },
+    {
+      "nodeId": "35",
+      "type": "simple_slices",
+      "state": {},
+      "nextNodes": [
+        "36"
+      ]
+    },
+    {
+      "nodeId": "14",
+      "type": "aggregation",
+      "state": {
+        "primaryInputId": "13",
+        "groupByColumns": [
+          {
+            "name": "id",
+            "checked": false
+          },
+          {
+            "name": "ts",
+            "checked": false
+          },
+          {
+            "name": "dur",
+            "checked": false
+          },
+          {
+            "name": "cpu",
+            "checked": false
+          },
+          {
+            "name": "utid",
+            "checked": true
+          },
+          {
+            "name": "state",
+            "checked": false
+          },
+          {
+            "name": "io_wait",
+            "checked": false
+          },
+          {
+            "name": "blocked_function",
+            "checked": false
+          },
+          {
+            "name": "waker_utid",
+            "checked": false
+          },
+          {
+            "name": "waker_id",
+            "checked": false
+          },
+          {
+            "name": "irq_context",
+            "checked": false
+          },
+          {
+            "name": "ucpu",
+            "checked": false
+          }
+        ],
+        "aggregations": [
+          {
+            "column": {
+              "name": "dur",
+              "type": "DURATION",
+              "column": {
+                "name": "dur",
+                "type": {
+                  "kind": "duration"
+                },
+                "description": "The duration of the slice."
+              },
+              "checked": true
+            },
+            "aggregationOp": "SUM",
+            "isValid": true
+          }
+        ]
+      },
+      "nextNodes": [
+        "196"
+      ]
+    },
+    {
+      "nodeId": "36",
+      "type": "join",
+      "state": {
+        "leftNodeId": "35",
+        "rightNodeId": "749",
+        "leftQueryAlias": "left",
+        "rightQueryAlias": "right",
+        "conditionType": "equality",
+        "joinType": "INNER",
+        "leftColumn": "utid",
+        "rightColumn": "utid",
+        "sqlExpression": "",
+        "leftColumns": [
+          {
+            "name": "id",
+            "type": "ID(slice.id)",
+            "checked": true,
+            "columnName": "id"
+          },
+          {
+            "name": "ts",
+            "type": "TIMESTAMP",
+            "checked": false,
+            "columnName": "ts"
+          },
+          {
+            "name": "dur",
+            "type": "DURATION",
+            "checked": false,
+            "columnName": "dur"
+          },
+          {
+            "name": "name",
+            "type": "STRING",
+            "checked": true,
+            "columnName": "name"
+          },
+          {
+            "name": "track_id",
+            "type": "JOINID(track.id)",
+            "checked": false,
+            "columnName": "track_id"
+          },
+          {
+            "name": "track_name",
+            "type": "STRING",
+            "checked": false,
+            "columnName": "track_name"
+          },
+          {
+            "name": "process_name",
+            "type": "STRING",
+            "checked": false,
+            "columnName": "process_name"
+          },
+          {
+            "name": "upid",
+            "type": "JOINID(process.id)",
+            "checked": false,
+            "columnName": "upid"
+          },
+          {
+            "name": "pid",
+            "type": "INT",
+            "checked": false,
+            "columnName": "pid"
+          },
+          {
+            "name": "thread_name",
+            "type": "STRING",
+            "checked": false,
+            "columnName": "thread_name"
+          },
+          {
+            "name": "utid",
+            "type": "JOINID(thread.id)",
+            "checked": false,
+            "columnName": "utid"
+          },
+          {
+            "name": "tid",
+            "type": "INT",
+            "checked": false,
+            "columnName": "tid"
+          },
+          {
+            "name": "depth",
+            "type": "INT",
+            "checked": false,
+            "columnName": "depth"
+          },
+          {
+            "name": "parent_id",
+            "type": "JOINID(slice.id)",
+            "checked": false,
+            "columnName": "parent_id"
+          },
+          {
+            "name": "category",
+            "type": "STRING",
+            "checked": false,
+            "columnName": "category"
+          },
+          {
+            "name": "arg_set_id",
+            "type": "ARG_SET_ID",
+            "checked": false,
+            "columnName": "arg_set_id"
+          }
+        ],
+        "rightColumns": [
+          {
+            "name": "utid",
+            "type": "JOINID(thread.id)",
+            "checked": true,
+            "columnName": "utid"
+          },
+          {
+            "name": "sum_dur",
+            "type": "DURATION",
+            "checked": true,
+            "alias": "total_running_time",
+            "columnName": "sum_dur"
+          }
+        ]
+      },
+      "nextNodes": []
+    },
+    {
+      "nodeId": "3",
+      "type": "add_columns",
+      "state": {
+        "primaryInputId": "1",
+        "secondaryInputNodeId": "2",
+        "selectedColumns": [
+          "name"
+        ],
+        "leftColumn": "utid",
+        "rightColumn": "id",
+        "suggestionSelections": {
+          "thread": [
+            "name"
+          ]
+        },
+        "expandedSuggestions": [],
+        "selectedSuggestionTable": "thread",
+        "columnAliases": {},
+        "suggestionAliases": {},
+        "columnTypes": {},
+        "isGuidedConnection": true,
+        "autoExecute": true,
+        "computedColumns": []
+      },
+      "nextNodes": []
+    },
+    {
+      "nodeId": "13",
+      "type": "filter",
+      "state": {
+        "primaryInputId": "12",
+        "filters": [
+          {
+            "column": "state",
+            "op": "=",
+            "value": "Running"
+          }
+        ]
+      },
+      "nextNodes": [
+        "14"
+      ]
+    },
+    {
+      "nodeId": "196",
+      "type": "sort",
+      "state": {
+        "primaryInputId": "14",
+        "sortCriteria": [
+          {
+            "colName": "sum_dur",
+            "direction": "DESC"
+          }
+        ]
+      },
+      "nextNodes": [
+        "749"
+      ]
+    },
+    {
+      "nodeId": "749",
+      "type": "limit_and_offset",
+      "state": {
+        "primaryInputId": "196",
+        "limit": 10,
+        "offset": 0
+      },
+      "nextNodes": [
+        "36"
+      ]
+    }
+  ],
+  "rootNodeIds": [
+    "1",
+    "2",
+    "12",
+    "35",
+    "14",
+    "36"
+  ],
+  "selectedNodeId": "36",
+  "nodeLayouts": {
+    "1": {
+      "x": 211.84297955742258,
+      "y": 70.50362356426135
+    },
+    "2": {
+      "x": 0,
+      "y": 73.17788239434803
+    },
+    "12": {
+      "x": 519.4999688713282,
+      "y": 198.4719244156391
+    },
+    "35": {
+      "x": 581.0324780198836,
+      "y": 89.58789232150073
+    },
+    "36": {
+      "x": 835.217866893278,
+      "y": 213.45853682080508
+    }
+  },
+  "labels": [
+    {
+      "id": "label-1",
+      "x": 23.924863037160456,
+      "y": 0,
+      "width": 400,
+      "text": "Example 1: Simple join using \"Add column\" node. This joins slices with thread info by utid."
+    },
+    {
+      "id": "label-2",
+      "x": 523.9248630371604,
+      "y": 0,
+      "width": 500,
+      "text": "Example 2: Using the Join node for more complex joins. Get the slices that belong to the threads and join with the longest thread running time."
+    }
+  ]
+}

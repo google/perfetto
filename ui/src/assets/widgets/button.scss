@@ -102,6 +102,10 @@
     margin-left: 6px; // Make some room between the icon and label
   }
 
+  &__tooltip {
+    font-size: var(--pf-font-size-s);
+  }
+
   &:focus-visible {
     @include focus;
   }

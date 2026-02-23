@@ -184,11 +184,6 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // NOTE: No Iterators can active when called.
   virtual size_t RestoreInitialTables() = 0;
 
-  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
-  // functionality to |RegisterSqlModule()| and the only difference is in
-  // the argument, which is directly translatable to |SqlPackage|.
-  virtual base::Status RegisterSqlModule(SqlModule) = 0;
-
   // =================================================================
   // |  Trace-based metrics (v1) related functionality starts here   |
   // =================================================================
@@ -247,9 +242,15 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // |                        Experimental                           |
   // =================================================================
 
-  virtual base::Status AnalyzeStructuredQueries(
-      const std::vector<StructuredQueryBytes>& queries,
-      std::vector<AnalyzedStructuredQuery>* output) = 0;
+  // Analyzes a structured query and returns the generated SQL along with
+  // metadata. The `spec` contains a TraceSummarySpec with all queries (in its
+  // `query` field). Each query must have an `id` field set. The `query_id`
+  // specifies which query from the spec should be analyzed (must match one of
+  // the queries' id fields).
+  virtual base::Status AnalyzeStructuredQuery(
+      const TraceSummarySpecBytes& spec,
+      const std::string& query_id,
+      AnalyzedStructuredQuery* output) = 0;
 };
 
 }  // namespace perfetto::trace_processor

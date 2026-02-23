@@ -321,6 +321,9 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'proc_stat_runtime',
     topLevelGroup: 'PROCESS',
     group: undefined,
+    // These are better visualized as deltas because they represent cumulative
+    // runtime.
+    mode: 'delta',
   },
   {
     type: 'process_gpu_memory',
@@ -432,5 +435,10 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'android_dma_heap_change',
     topLevelGroup: 'THREAD',
     group: undefined,
+  },
+  {
+    type: 'pixel_fwtp_counters',
+    topLevelGroup: 'HARDWARE',
+    group: 'Pixel Firmware',
   },
 ];

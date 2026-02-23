@@ -30,7 +30,7 @@ message AndroidWattsonTimePeriodMetric {
   // enough information to make an educated extrapolation of a HW state. The
   // only example right now is for cpu_idle, of which the cpu_idle state can be
   // extrapolated from the swapper thread (aka idle thread).
-  optional bool is_crude_estimate = 4;
+  optional int32 is_crude_estimate = 4;
 }
 
 message AndroidWattsonEstimateInfo {

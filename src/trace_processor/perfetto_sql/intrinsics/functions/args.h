@@ -15,23 +15,33 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_ARGS_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_ARGS_H_
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/dynamic_string_writer.h"
+#include <optional>
+
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/util/args_utils.h"
+#include "src/trace_processor/util/json_serializer.h"
 
 namespace perfetto::trace_processor {
 
 // extract_arg(arg_set_id, arg_name) returns the value of the given argument
 // from a given arg set.
-struct ExtractArg : public sqlite::Function<ExtractArg> {
+struct ExtractArgFunction : public sqlite::Function<ExtractArgFunction> {
   static constexpr char kName[] = "extract_arg";
   static constexpr int kArgCount = 2;
 
-  using UserData = TraceStorage;
+  struct Context {
+    explicit Context(TraceStorage* s)
+        : storage(s), args_cursor(s->arg_table()) {}
+
+    TraceStorage* storage;
+    ArgExtractor args_cursor;
+  };
+
+  using UserData = Context;
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
 };
 
@@ -43,17 +53,16 @@ struct ArgSetToJson : public sqlite::Function<ArgSetToJson> {
   struct Context {
     explicit Context(TraceStorage* s)
         : storage(s),
-          arg_cursor(
-              s->mutable_arg_table()->CreateCursor({dataframe::FilterSpec{
-                  tables::ArgTable::ColumnIndex::arg_set_id,
-                  0,
-                  dataframe::Eq{},
-                  std::nullopt,
-              }})) {}
+          arg_cursor(s->arg_table().CreateCursor({dataframe::FilterSpec{
+              tables::ArgTable::ColumnIndex::arg_set_id,
+              0,
+              dataframe::Eq{},
+              std::nullopt,
+          }})) {}
 
     TraceStorage* storage;
-    tables::ArgTable::Cursor arg_cursor;
-    base::DynamicStringWriter json_writer;
+    tables::ArgTable::ConstCursor arg_cursor;
+    json::JsonSerializer json_serializer;
     ArgSet arg_set;
   };
 

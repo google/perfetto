@@ -188,12 +188,11 @@ void PerfTracker::AddMapping(int64_t trace_ts,
   context_->storage->mutable_mmap_record_table()->Insert(row);
 }
 
-base::Status PerfTracker::NotifyEndOfFile() {
+void PerfTracker::OnEventsFullyExtracted() {
+  // Phase 3: Finalize ETM tracker
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  RETURN_IF_ERROR(
-      static_cast<etm::EtmTracker*>(etm_tracker_.get())->Finalize());
+  static_cast<etm::EtmTracker*>(etm_tracker_.get())->Finalize();
 #endif
-  return base::OkStatus();
 }
 
 void PerfTracker::RegisterAuxTokenizer(uint32_t type,

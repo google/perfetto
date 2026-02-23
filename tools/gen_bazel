@@ -162,7 +162,11 @@ proto_groups = {
             '//protos/perfetto/trace/android:android_track_event_source_set',
         ],
         'visibility': [],
-    }
+    },
+    'proto_filter_options': {
+        'sources': ['//protos/perfetto/proto_filtering:source_set'],
+        'visibility': [],
+    },
 }
 
 # Path for the protobuf sources in the standalone build.

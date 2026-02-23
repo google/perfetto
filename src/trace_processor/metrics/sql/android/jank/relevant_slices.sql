@@ -13,8 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+INCLUDE PERFETTO MODULE android.cujs.base;
 INCLUDE PERFETTO MODULE android.surfaceflinger;
+
+SELECT RUN_METRIC('android/jank/relevant_threads.sql');
 
 CREATE OR REPLACE PERFETTO FUNCTION vsync_from_name(slice_name STRING)
 RETURNS STRING AS

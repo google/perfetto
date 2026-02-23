@@ -39,6 +39,16 @@ message CommitDataRequest {
     // data is stored in the shmem buffer and referenced by the fields above.
     // See |use_shemem_emulation| in the codebase for reference.
     optional bytes data = 4;
+
+    // Set to true when scraping data in shmem emulation (aka commits-over-ipc)
+    // AND the chunk was still in kChunkBeingWritten. This is necessary because
+    // in emulation mode, the service cannot tell whether this is a complete
+    // chunk coming from a regular TraceWriter commit, or a scraped one.
+    // This field is only set when `data` is present. It is never set (and is
+    // ignored by the service) for the regular case of doing commits over
+    // shmem. Introduced in Perfetto v54.
+    // See /rfcs/0010-smb-scraping-remote-producers.md .
+    optional bool chunk_incomplete = 5;
   }
   repeated ChunksToMove chunks_to_move = 1;
 

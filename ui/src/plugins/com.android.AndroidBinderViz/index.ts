@@ -18,24 +18,36 @@ import {
 } from '../../components/tracks/breakdown_tracks';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import {BinderSliceDetailsPanel} from './details_panel';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidBinderViz';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await this.createBinderTransactionTrack(ctx, 'server', 'client');
-    await this.createBinderTransactionTrack(ctx, 'client', 'server');
+    await this.createBinderTransactionTrack(
+      ctx,
+      'server',
+      'client',
+      'binder_txn_id',
+    );
+    await this.createBinderTransactionTrack(
+      ctx,
+      'client',
+      'server',
+      'binder_reply_id',
+    );
   }
 
   async createBinderTransactionTrack(
     ctx: Trace,
     perspective: string,
     oppositePerspective: string,
+    sliceIdColumn?: string,
   ) {
     const binderCounterBreakdowns = new BreakdownTracks({
       trace: ctx,
       trackTitle: `Binder ${perspective} Transaction Counts`,
-      modules: ['android.binder', 'android.binder_breakdown'],
+      modules: ['android.binder'],
       aggregationType: BreakdownTrackAggType.COUNT,
       aggregation: {
         columns: [
@@ -55,18 +67,9 @@ export default class implements PerfettoPlugin {
         tsCol: `${oppositePerspective}_ts`,
         durCol: `${oppositePerspective}_dur`,
       },
-      pivots: {
-        columns: ['reason_type', 'reason'],
-        tableName: 'android_binder_client_server_breakdown',
-        tsCol: 'ts',
-        durCol: 'dur',
-        joins: [
-          {
-            joinTableName: 'android_binder_client_server_breakdown',
-            joinColumns: ['binder_txn_id'],
-          },
-        ],
-      },
+      sliceIdColumn: sliceIdColumn,
+      sortTracks: false,
+      detailsPanel: (trace: Trace) => new BinderSliceDetailsPanel(trace),
     });
 
     ctx.defaultWorkspace.addChildInOrder(

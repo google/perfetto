@@ -238,7 +238,6 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_DemangleRust) {
   ASSERT_TRUE(it.Get(0).is_null());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")).ok());
   auto it = Query(
@@ -325,7 +324,6 @@ TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
 TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14357) {
   ASSERT_FALSE(LoadTrace("clusterfuzz_14357", 4096).ok());
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14730) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14730", 4096).ok());
@@ -830,6 +828,84 @@ TEST_F(TraceProcessorIntegrationTest, NoNotifyEndOfFileCalled) {
                   ->Parse(TraceBlobView(
                       TraceBlob::CopyFrom(kProtoData, sizeof(kProtoData))))
                   .ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, PackagePrefixClash_ExistingIsPrefix) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  // Register package "foo"
+  SqlPackage pkg1;
+  pkg1.name = "foo";
+  pkg1.modules.push_back({"foo.mod1", "SELECT 1"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg1));
+
+  // Registering "foo.bar" should fail (existing "foo" is prefix of "foo.bar")
+  SqlPackage pkg2;
+  pkg2.name = "foo.bar";
+  pkg2.modules.push_back({"foo.bar.mod2", "SELECT 2"});
+  auto status = Processor()->RegisterSqlPackage(pkg2);
+  ASSERT_FALSE(status.ok());
+  ASSERT_THAT(status.message(), HasSubstr("clashes"));
+}
+
+TEST_F(TraceProcessorIntegrationTest, PackagePrefixClash_NewIsPrefix) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  // Register package "foo.bar"
+  SqlPackage pkg1;
+  pkg1.name = "foo.bar";
+  pkg1.modules.push_back({"foo.bar.mod1", "SELECT 1"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg1));
+
+  // Registering "foo" should fail (new "foo" is prefix of existing "foo.bar")
+  SqlPackage pkg2;
+  pkg2.name = "foo";
+  pkg2.modules.push_back({"foo.mod2", "SELECT 2"});
+  auto status = Processor()->RegisterSqlPackage(pkg2);
+  ASSERT_FALSE(status.ok());
+  ASSERT_THAT(status.message(), HasSubstr("clashes"));
+}
+
+TEST_F(TraceProcessorIntegrationTest, PackageSameNameOverride) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  // Register package "foo"
+  SqlPackage pkg1;
+  pkg1.name = "foo";
+  pkg1.modules.push_back({"foo.mod1", "SELECT 1"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg1));
+
+  // Re-registering "foo" without override should fail
+  SqlPackage pkg2;
+  pkg2.name = "foo";
+  pkg2.modules.push_back({"foo.mod2", "SELECT 2"});
+  ASSERT_FALSE(Processor()->RegisterSqlPackage(pkg2).ok());
+
+  // Re-registering "foo" with override should succeed
+  pkg2.allow_override = true;
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg2));
+}
+
+TEST_F(TraceProcessorIntegrationTest, MultiLevelPackageInclude) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  // Register a multi-level package "foo.bar" with module "foo.bar.baz"
+  SqlPackage pkg;
+  pkg.name = "foo.bar";
+  pkg.modules.push_back(
+      {"foo.bar.baz", "CREATE PERFETTO TABLE test_tbl AS SELECT 42 AS val"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
+
+  // INCLUDE should find the module via prefix matching
+  auto it = Query("INCLUDE PERFETTO MODULE foo.bar.baz");
+  ASSERT_FALSE(it.Next());
+  ASSERT_OK(it.Status()) << it.Status().message();
+
+  auto it2 = Query("SELECT val FROM test_tbl");
+  ASSERT_TRUE(it2.Next()) << it2.Status().message();
+  ASSERT_EQ(it2.Get(0).long_value, 42);
+  ASSERT_FALSE(it2.Next());
+  ASSERT_OK(it2.Status());
 }
 
 }  // namespace

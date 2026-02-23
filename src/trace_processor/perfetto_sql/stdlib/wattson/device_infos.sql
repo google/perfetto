@@ -93,6 +93,7 @@ WITH
           FROM metadata
           WHERE
             name = 'android_guest_soc_model'
+          LIMIT 1
         ),
         -- Get model from metadata
         (
@@ -101,6 +102,7 @@ WITH
           FROM metadata
           WHERE
             name = 'android_soc_model'
+          LIMIT 1
         ),
         -- Get device name from metadata and map it to model
         (

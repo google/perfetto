@@ -25,6 +25,7 @@ import {
 import {RpcConsumerPort} from './record_controller_interfaces';
 import {
   browserSupportsPerfettoConfig,
+  browserSupportsTrackEventDescriptor,
   extractTraceConfig,
   hasSystemDataSourceConfig,
 } from './trace_config_utils';
@@ -86,6 +87,9 @@ export class ChromeTracingController extends RpcConsumerPort {
         break;
       case 'GetCategories':
         this.getCategories();
+        break;
+      case 'GetTrackEventDescriptor':
+        this.getTrackEventDescriptor();
         break;
       default:
         this.sendErrorMessage('Action not recognized');
@@ -245,6 +249,49 @@ export class ChromeTracingController extends RpcConsumerPort {
         return;
       }
       fetchCategories();
+      this.devtoolsSocket.detach();
+    });
+  }
+
+  getTrackEventDescriptor() {
+    const fetchTrackEventDescriptor = async () => {
+      let encodedDescriptor: string;
+      if (browserSupportsTrackEventDescriptor()) {
+        encodedDescriptor = (await this.api.Tracing.getTrackEventDescriptor())
+          .descriptor;
+      } else {
+        const categories = (await this.api.Tracing.getCategories()).categories;
+        const descriptor = protos.TrackEventDescriptor.create({
+          availableCategories: categories.map((value) => {
+            return protos.TrackEventCategory.create({
+              name: value,
+            });
+          }),
+        });
+        encodedDescriptor = base64Encode(
+          protos.TrackEventDescriptor.encode(descriptor).finish(),
+        );
+      }
+      this.uiPort.postMessage({
+        type: 'GetTrackEventDescriptorResponse',
+        encodedDescriptor,
+      });
+    };
+    // If a target is already attached, we simply fetch the categories.
+    if (this.devtoolsSocket.isAttached()) {
+      fetchTrackEventDescriptor();
+      return;
+    }
+    // Otherwise, we attach temporarily.
+    this.devtoolsSocket.attachToBrowser(async (error?: string) => {
+      if (error) {
+        this.sendErrorMessage(
+          `Could not attach to DevTools browser target ` +
+            `(req. Chrome >= M81): ${error}`,
+        );
+        return;
+      }
+      fetchTrackEventDescriptor();
       this.devtoolsSocket.detach();
     });
   }

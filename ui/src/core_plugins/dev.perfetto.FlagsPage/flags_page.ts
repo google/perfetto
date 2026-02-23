@@ -30,6 +30,10 @@ import {Intent} from '../../widgets/common';
 import {Anchor} from '../../widgets/anchor';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
+import {GateDetector} from '../../base/mithril_utils';
+import {findRef} from '../../base/dom_utils';
+
+const SEARCH_BOX_REF = 'flags-search-box';
 
 const RELEASE_PROCESS_URL =
   'https://perfetto.dev/docs/visualization/perfetto-ui-release-process';
@@ -128,12 +132,11 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
       return m(
         EmptyState,
         {
-          icon: 'filter_alt_off',
           title: 'No settings match your search criteria',
         },
         m(Button, {
           label: 'Clear filter',
-          icon: 'clear',
+          icon: Icons.FilterOff,
           variant: ButtonVariant.Filled,
           onclick: () => {
             this.filterText = '';
@@ -160,7 +163,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
 
     const subpage = decodeURIComponent(attrs.subpage ?? '');
 
-    return m(
+    const page = m(
       SettingsShell,
       {
         stickyHeaderContent: m(
@@ -210,6 +213,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
           m(StackAuto),
           m(TextInput, {
             placeholder: 'Search...',
+            ref: SEARCH_BOX_REF,
             value: this.filterText,
             leftIcon: 'search',
             oninput: (e: Event) => {
@@ -280,6 +284,25 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
           ),
         ),
       ),
+    );
+
+    return m(
+      GateDetector,
+      {
+        onVisibilityChanged: (visible: boolean, dom: Element) => {
+          if (visible) {
+            const input = findRef(
+              dom,
+              SEARCH_BOX_REF,
+            ) as HTMLInputElement | null;
+            if (input) {
+              input.focus();
+              input.select();
+            }
+          }
+        },
+      },
+      page,
     );
   }
 }

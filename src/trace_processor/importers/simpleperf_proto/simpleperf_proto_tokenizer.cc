@@ -81,7 +81,7 @@ base::Status SimpleperfProtoTokenizer::Parse(TraceBlobView blob) {
   }
 }
 
-base::Status SimpleperfProtoTokenizer::NotifyEndOfFile() {
+base::Status SimpleperfProtoTokenizer::OnPushDataToSorter() {
   if (state_ != State::kFinished) {
     return base::ErrStatus("Unexpected end of simpleperf_proto file");
   }

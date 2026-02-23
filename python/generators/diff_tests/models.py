@@ -55,6 +55,7 @@ class Config:
   simpleperf_descriptor: str
   keep_input: bool
   print_slowest_tests: bool
+  jobs: int = 0  # Number of parallel jobs. 0 means use all available CPUs.
 
 
 class TestType(Enum):
@@ -62,6 +63,7 @@ class TestType(Enum):
   QUERY = 1
   METRIC = 2
   METRIC_V2 = 3
+  STRUCTURED_QUERY = 4
 
 
 @dataclass
@@ -75,6 +77,8 @@ class TestCase:
   expected_str: str
   register_files_dir: Optional[str]
   type: TestType
+  spec_file_path: Optional[str] = None
+  spec_textproto: Optional[str] = None
 
   def validate(self, name_filter: str):
     query_metric_pattern = re.compile(name_filter)

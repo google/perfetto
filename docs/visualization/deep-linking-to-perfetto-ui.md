@@ -4,51 +4,83 @@ This document describes how to open traces hosted on external servers with the
 Perfetto UI. This can help integrating the Perfetto UI with custom dashboards
 and implement _'Open with Perfetto UI'_-like features.
 
-## Using window.open and postMessage
+In this guide, you'll learn how to:
 
-The supported way of doing this is to _inject_ the trace as an ArrayBuffer via
-`window.open('https://ui.perfetto.dev')` and `postMessage()`. In order to do
-this you need some minimal JavaScript code running on some hosting
-infrastructure you control which can access the trace file. In most cases this
-is some dashboard which you want to deep-link to the Perfetto UI.
+- Open public traces directly via URL (simplest approach).
+- Open traces with full control using postMessage (for auth, sharing, etc.).
 
-#### Open ui.perfetto.dev via window.open
+You'll also learn how to customize the UI state when opening traces (zoom,
+selection, queries).
 
-The source dashboard, the one that knows how to locate a trace and deal with ACL
-checking / oauth authentication and the like, creates a new tab by doing
+## Option 1: Direct URL for public traces
+
+If your trace is publicly accessible via HTTPS, you can link directly to it
+using the `url` query parameter:
+
+```
+https://ui.perfetto.dev/#!/?url=https://example.com/path/to/trace.pftrace
+```
+
+**Requirements:**
+
+- The trace must be served over HTTPS.
+- The URL must respond to a simple GET request without query parameters.
+- Your server must set CORS headers to allow the Perfetto UI origin e.g.
+  `Access-Control-Allow-Origin: https://ui.perfetto.dev` or
+  `Access-Control-Allow-Origin: *`.
+
+This is the easiest option for publicly hosted traces that don't require
+authentication or custom sharing features.
+
+**Limitations:**
+
+- No authentication support (traces must be publicly accessible).
+- No custom sharing URL support.
+- No control over the trace title displayed in the UI.
+
+If you need any of these features, use
+[Option 2](#option-2-using-postmessage-for-full-control) instead.
+
+## Option 2: Using postMessage for full control
+
+For traces that require authentication, custom sharing URLs, or other advanced
+features, use the postMessage approach. This requires some JavaScript code
+running on infrastructure you control.
+
+### Step 1: Open ui.perfetto.dev via window.open
+
+The source dashboard (the one that knows how to locate a trace and deal with ACL
+checking, OAuth authentication, etc.) creates a new tab:
 
 ```js
 var handle = window.open('https://ui.perfetto.dev');
 ```
 
 The window handle allows bidirectional communication using `postMessage()`
-between the source dashboard and the Perfetto UI.
+between your dashboard and the Perfetto UI.
 
-#### Wait for the UI to be ready via PING/PONG
+### Step 2: Wait for the UI to be ready via PING/PONG
 
-Wait for the UI to be ready. The `window.open()` message channel is not
-buffered. If you send a message before the opened page has registered an
-`onmessage` listener the messagge will be dropped on the floor. In order to
-avoid this race, you can use a very basic PING/PONG protocol: keep sending a
-'PING' message until the opened window replies with a 'PONG'. When this happens,
-that is the signal that the Perfetto UI is ready to open traces.
+The `window.open()` message channel is not buffered. If you send a message
+before the opened page has registered an `onmessage` listener, the message will
+be dropped. To avoid this race condition, use a PING/PONG protocol: keep sending
+'PING' messages until the opened window replies with 'PONG'.
 
-#### Post the trace data
+### Step 3: Post the trace data
 
-Once the PING/PONG handshake is complete, you can post a message to the Perfetto
-UI window. The message should be a JavaScript object with a single `perfetto`
-key.
+Once the PING/PONG handshake is complete, post a message to the Perfetto UI
+window. The message should be a JavaScript object with a single `perfetto` key:
 
 ```js
-  {
-    'perfetto': {
-      buffer: ArrayBuffer;
-      title: string;
-      fileName?: string;    // Optional
-      url?: string;         // Optional
-      appStateHash?: string // Optional
-    }
+{
+  'perfetto': {
+    buffer: ArrayBuffer;
+    title: string;
+    fileName?: string;    // Optional
+    url?: string;         // Optional
+    appStateHash?: string // Optional
   }
+}
 ```
 
 The properties of the `perfetto` object are:
@@ -56,8 +88,8 @@ The properties of the `perfetto` object are:
 - `buffer`: An `ArrayBuffer` containing the raw trace data. You would typically
   get this by fetching a trace file from your backend.
 - `title`: A human-readable string that will be displayed as the title of the
-  trace in the UI. This helps users to distinguish between different traces if
-  they have multiple tabs open.
+  trace in the UI. This helps users distinguish between different traces if they
+  have multiple tabs open.
 - `fileName` (optional): The suggested file name if a user decides to download
   the trace from the Perfetto UI. If omitted, a generic name will be used.
 - `url` (optional): A URL for sharing the trace. See the "Sharing" section
@@ -65,17 +97,17 @@ The properties of the `perfetto` object are:
 - `appStateHash` (optional): A hash for restoring the UI state when sharing. See
   the "Sharing" section below.
 
-### Sharing Traces and UI State
+### Sharing traces and UI state
 
 When traces are opened via `postMessage`, Perfetto avoids storing the trace as
-doing so may violate the retention policy of the original trace source. That is
-to say the trace is not uploaded anywhere. Thus, you must provide a URL that
-provides a direct link to the same trace via your infrastructure, which should
-automatically re-open Perfetto and use postmessage to supply the same trace.
+doing so may violate the retention policy of the original trace source. The
+trace is not uploaded anywhere. Thus, you must provide a URL that provides a
+direct link to the same trace via your infrastructure, which should
+automatically re-open Perfetto and use postMessage to supply the same trace.
 
 The `url` and `appStateHash` properties work together to allow users to share a
 link to a trace that, when opened, restores the trace and the UI to the same
-state (e.g. zoom level, selected event).
+state (e.g., zoom level, selected event).
 
 When a user clicks the "Share" button in the Perfetto UI, Perfetto looks at the
 `url` you provided when opening the trace. If this `url` contains the special
@@ -112,129 +144,88 @@ for which the code is in
 [this GitHub gist](https://gist.github.com/chromy/170c11ce30d9084957d7f3aa065e89f8).
 
 Googlers: take a look at the
-[existing examples in the internal codesearch](http://go/perfetto-ui-deeplink-cs)
+[existing examples in the internal codesearch](http://go/perfetto-ui-deeplink-cs).
 
 ### Common pitfalls
 
-Many browsers sometimes block window.open() requests prompting the user to allow
-popups for the site. This usually happens if:
+Many browsers sometimes block `window.open()` requests, prompting the user to
+allow popups for the site. This usually happens if:
 
-- The window.open() is NOT initiated by a user gesture.
-- Too much time is passed from the user gesture to the window.open()
+- The `window.open()` is NOT initiated by a user gesture.
+- Too much time passes between the user gesture and the `window.open()`.
 
-If the trace file is big enough, the fetch() might take long time and pass the
-user gesture threshold. This can be detected by observing that the window.open()
-returned `null`. When this happens the best option is to show another clickable
-element and bind the fetched trace ArrayBuffer to the new onclick handler, like
-the code in the example above does.
+If the trace file is big enough, the `fetch()` might take long enough to exceed
+the user gesture threshold. This can be detected by observing that
+`window.open()` returned `null`. When this happens, the best option is to show
+another clickable element and bind the fetched trace ArrayBuffer to the new
+onclick handler, like the code in the example above does.
 
-Some browser can have a variable time threshold for the user gesture timeout
-which depends on the website engagement score (how much the user has visited the
-page that does the window.open() before). It's quite common when testing this
-code to see a popup blocker the first time the new feature is used and then not
-see it again.
+Some browsers have a variable time threshold for the user gesture timeout which
+depends on the website engagement score (how much the user has visited the page
+before). It's common when testing this code to see a popup blocker the first
+time the new feature is used and then not see it again.
 
-This scheme will not work from a `file://` based URL. This is due to browser
-security context for `file://` URLs.
+This scheme will not work from a `file://` based URL due to browser security
+restrictions for `file://` URLs.
 
 The source website must not be served with the
-`Cross-Origin-Opener-Policy: same-origin` header. For example see
+`Cross-Origin-Opener-Policy: same-origin` header. For example, see
 [this issue](https://github.com/google/perfetto/issues/525#issuecomment-1625055986).
 
 ### Where does the posted trace go?
 
 The Perfetto UI is client-only and doesn't require any server-side interaction.
-Traces pushed via postMessage() are kept only in the browser memory/cache and
+Traces pushed via `postMessage()` are kept only in the browser memory/cache and
 are not sent to any server.
 
-## Why can't I just pass a URL?
+## Customizing the UI with URL parameters
 
-_"Why you don't let me just pass a URL to the Perfetto UI (e.g.
-ui.perfetto.dev?url=...) and you deal with all this?"_
+Beyond just opening a trace, you can control the initial UI state using URL
+fragment parameters. These work with both Option 1 (direct URL) and Option 2
+(postMessage).
 
-The answer to this is manifold and boils down to security.
+### Zooming into a region of the trace
 
-#### Cross origin requests blocking
-
-If ui.perfetto.dev had to do a `fetch('https://yourwebsite.com/trace')` that
-would be a cross-origin request. Browsers disallow by default cross-origin fetch
-requests. In order for this to work, the web server that hosts yourwebsite.com
-would have to expose a custom HTTP response header
-(`Access-Control-Allow-Origin: https://ui.perfetto.dev`) to allow the fetch. In
-most cases customizing the HTTP response headers is outside of dashboard's
-owners control.
-
-You can learn more about CORS at
-https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
-
-#### Content Security Policy
-
-Perfetto UI uses a strict Content Security Policy which disallows foreign
-fetches and subresources, as a security mitigation about common attacks. Even
-assuming that CORS headers are properly set and your trace files are publicly
-accessible, fetching the trace from the Perfetto UI would require allow-listing
-your origin in our CSP policy. This is not scalable.
-
-You can learn more about CSP at
-https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
-
-#### Dealing with OAuth2 or other authentication mechanisms
-
-Even ignoring CORS, the Perfetto UI would have to deal with OAuth2 or other
-authentication mechanisms to fetch the trace file. Even if all the dashboards
-out there used OAuth2, that would still mean that Perfetto UI would have to know
-about all the possible OAuth2 scopes, one for each dashboard. This is not
-scalable.
-
-## Opening the trace at a specific event or time
-
-Using the fragment query string allows for more control over the UI after the
-trace opens. For example this URL:
+Pass `visStart` and `visEnd` to control the initial viewport. These values are
+raw timestamps in nanoseconds as seen in the SQL tables:
 
 ```
 https://ui.perfetto.dev/#!/?visStart=261191575272856&visEnd=261191675272856
 ```
 
-Will open the pushed trace at 261191575272856ns (~261192s) and the viewing
-window will be 261191675272856ns -261191575272856ns = 100ms wide.
+This opens the trace at ~261192s with a 100ms wide viewing window.
 
-**Selecting a slice on load**:
+### Selecting a slice on load
 
-You can pass the following parameters: `ts`, `dur`, `pid`, `tid`. The UI will
-query the slice table and find a slice that matches the parameters passed. If a
-slice is found it's highlighted. You don't have to provide all the parameters.
-Usually `ts` and `dur` suffice to uniquely identifying a slice.
+Pass `ts`, `dur`, `pid`, and/or `tid` parameters. The UI will query the slice
+table and find a slice matching the parameters. If found, the slice is
+highlighted. You don't have to provide all parameters; usually `ts` and `dur`
+suffice to uniquely identify a slice.
 
-We deliberately do NOT support linking by slice id. This is because slice IDs
-are not stable across perfetto versions. Instead you can link a slice by passing
-the exact start and duration (`ts` and `dur`), as you see them by issuing a
-query `SELECT ts, dur FROM slices WHERE id=...`.
+NOTE: We deliberately do NOT support linking by slice ID because slice IDs are
+not stable across Perfetto versions. Instead, link by passing the exact start
+timestamp and duration (`ts` and `dur`) as seen by issuing a query like
+`SELECT ts, dur FROM slices WHERE id=...`.
 
-**Zooming into a region of the trace on load**:
-
-Pass `visStart`, `visEnd`. These values are the raw values in `ns` as seen in
-the sql tables.
-
-**Issuing a query on load**:
+### Issuing a query on load
 
 Pass the query in the `query` parameter.
 
-Try the following examples:
+### Examples
+
+Try these examples:
 
 - [visStart & visEnd](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&visStart=261191575272856&visEnd=261191675272856)
 - [ts & dur](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&ts=261192482777530&dur=1667500)
 - [query](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&query=select%20'Hello%2C%20world!'%20as%20msg)
 
-You must take care to correctly escape strings where needed.
+Remember to URL-encode strings where needed.
 
-## Configuring the UI with startup commands
+### Startup commands
 
-Beyond controlling the initial view and selection, you can also automatically
-configure the UI itself when a trace opens by embedding startup commands in the
-URL. This is particularly useful for dashboard integration where you want to
-provide users with a pre-configured analysis environment.
-
-**Adding startup commands via URL**:
+You can also automatically configure the UI itself when a trace opens by
+embedding startup commands in the URL. This is useful for dashboard integration
+where you want to provide users with a pre-configured analysis environment.
 
 Pass startup commands in the `startupCommands` parameter as a URL-encoded JSON
 array. The commands execute automatically after the trace loads, allowing you to
@@ -266,5 +257,5 @@ commands with backwards compatibility guarantees, see the
 
 ## Source links
 
-The source code that deals with the postMessage() in the Perfetto UI is
+The source code that deals with the `postMessage()` in the Perfetto UI is
 [`post_message_handler.ts`](/ui/src/frontend/post_message_handler.ts).

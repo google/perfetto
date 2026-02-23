@@ -152,6 +152,7 @@ export default class implements PerfettoPlugin {
       async getSearchFilter(searchTerm) {
         return {
           where: `msg GLOB ${escapeSearchQuery(searchTerm)}`,
+          columns: {msg: STR_NULL},
         };
       },
     });

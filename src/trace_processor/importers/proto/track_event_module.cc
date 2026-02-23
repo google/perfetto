@@ -117,8 +117,8 @@ void TrackEventModule::ParseTrackEventData(const TracePacket::Decoder& decoder,
                           decoder.trusted_packet_sequence_id());
 }
 
-void TrackEventModule::NotifyEndOfFile() {
-  parser_.NotifyEndOfFile();
+void TrackEventModule::OnEventsFullyExtracted() {
+  parser_.OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor

@@ -14,7 +14,12 @@
 
 import m from 'mithril';
 import {Engine} from '../../../trace_processor/engine';
-import {LONG_NULL, STR, STR_NULL} from '../../../trace_processor/query_result';
+import {
+  LONG_NULL,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 import {GridLayout} from '../../../widgets/grid_layout';
@@ -25,6 +30,7 @@ import {
   loadStatsWithFilter,
   groupByCategory,
   renderErrorCategoryCard,
+  getTraceInfos,
 } from '../utils';
 import {parseJsonWithBigints} from '../../../base/json_utils';
 
@@ -35,6 +41,7 @@ const importLogSpec = {
   name: STR,
   byte_offset: LONG_NULL,
   args: STR_NULL,
+  trace_id: NUM_NULL,
 };
 
 interface ImportLogRow {
@@ -43,6 +50,8 @@ interface ImportLogRow {
   name: string;
   byte_offset: bigint | null;
   args: string | null;
+  traceId: number | null;
+  traceIndex: number | null;
 }
 
 interface ErrorCategory {
@@ -56,6 +65,7 @@ interface ErrorCategory {
 export interface ImportErrorsData {
   errors: StatsSectionRow[];
   categories: ErrorCategory[];
+  isMultiTrace: boolean;
 }
 
 export async function loadImportErrorsData(
@@ -66,44 +76,52 @@ export async function loadImportErrorsData(
     "severity = 'error' AND source = 'analysis' AND value > 0",
   );
 
+  const traceInfos = await getTraceInfos(engine);
+  const isMultiTrace = traceInfos.size > 1;
+
   // Group errors by category and add logs array
   const categories = groupByCategory(errors).map((cat) => ({
     ...cat,
     logs: [] as ImportLogRow[],
   }));
 
-  // Load import logs for each category
+  const categoryMap = new Map<string, ErrorCategory>();
   for (const category of categories) {
-    const logsResult = await engine.query(`
-      select
-        ts,
-        severity,
-        name,
-        byte_offset,
-        __intrinsic_arg_set_to_json(arg_set_id) as args
-      from _trace_import_logs
-      where name = '${category.name}' AND severity = 'error'
-      order by ts
-    `);
-
-    const logs: ImportLogRow[] = [];
-    for (
-      const iter = logsResult.iter(importLogSpec);
-      iter.valid();
-      iter.next()
-    ) {
-      logs.push({
-        ts: iter.ts !== null ? Time.fromRaw(iter.ts) : null,
-        severity: iter.severity,
-        name: iter.name,
-        byte_offset: iter.byte_offset,
-        args: iter.args,
-      });
-    }
-    category.logs = logs;
+    categoryMap.set(category.name, category);
   }
 
-  return {errors, categories};
+  // Load import logs for each category
+  const logsResult = await engine.query(`
+    select
+      ts,
+      severity,
+      name,
+      byte_offset,
+      __intrinsic_arg_set_to_json(arg_set_id) as args,
+      trace_id
+    from _trace_import_logs
+    where severity = 'error'
+    order by ts
+  `);
+
+  for (const iter = logsResult.iter(importLogSpec); iter.valid(); iter.next()) {
+    const category = categoryMap.get(iter.name);
+    if (!category) continue;
+
+    const traceId = iter.trace_id;
+    const info = traceId !== null ? traceInfos.get(traceId) : undefined;
+    category.logs.push({
+      ts: iter.ts !== null ? Time.fromRaw(iter.ts) : null,
+      severity: iter.severity,
+      name: iter.name,
+      byte_offset: iter.byte_offset,
+      args: iter.args,
+      traceId: iter.trace_id ?? null,
+      traceIndex: info?.traceIndex ?? null,
+    });
+  }
+
+  return {errors, categories, isMultiTrace};
 }
 
 export interface ImportErrorsTabAttrs {
@@ -148,12 +166,17 @@ export class ImportErrorsTab implements m.ClassComponent<ImportErrorsTabAttrs> {
             title: 'Detailed Breakdown',
             subtitle: 'Individual import error entries grouped by category',
           },
-          categories.map((cat) => this.renderCategorySection(cat)),
+          categories.map((cat) =>
+            this.renderCategorySection(cat, attrs.data.isMultiTrace),
+          ),
         ),
     );
   }
 
-  private renderCategorySection(category: ErrorCategory): m.Children {
+  private renderCategorySection(
+    category: ErrorCategory,
+    isMultiTrace: boolean,
+  ): m.Children {
     // Check if we have logs and if the count matches
     const hasMatchingLogs = category.logs.length === category.totalCount;
     // Generate ID for the category section
@@ -163,51 +186,76 @@ export class ImportErrorsTab implements m.ClassComponent<ImportErrorsTabAttrs> {
       m('h3', {id: categoryId}, category.name),
       category.description && m('p', category.description),
       hasMatchingLogs
-        ? this.renderLogsGrid(category)
+        ? this.renderLogsGrid(category, isMultiTrace)
         : this.renderStatsGrid(category),
     );
   }
 
-  private renderLogsGrid(category: ErrorCategory): m.Children {
+  private renderLogsGrid(
+    category: ErrorCategory,
+    isMultiTrace: boolean,
+  ): m.Children {
     // Initialize window if needed
     if (!this.logsWindows.has(category.name)) {
       // Calculate row height based on max number of args
       const maxArgCount = category.logs.reduce((max, log) => {
-        const argCount = this.getArgCount(log.args);
+        const argCount = this.getArgCount(log.args ?? null);
         return argCount > max ? argCount : max;
       }, 1);
       const rowHeightPx = maxArgCount * 25 + 10;
       this.logsWindows.set(category.name, {offset: 0, limit: 100, rowHeightPx});
     }
     const window = this.logsWindows.get(category.name)!;
+
+    const columns = [];
+    if (isMultiTrace) {
+      columns.push({
+        key: 'trace_id',
+        header: m(GridHeaderCell, 'Trace'),
+      });
+    }
+    columns.push(
+      {
+        key: 'ts',
+        header: m(GridHeaderCell, 'Timestamp'),
+      },
+      {
+        key: 'byte_offset',
+        header: m(GridHeaderCell, 'Byte Offset'),
+      },
+      {
+        key: 'args',
+        header: m(GridHeaderCell, 'Details'),
+      },
+    );
+
     return m(Grid, {
-      columns: [
-        {
-          key: 'ts',
-          header: m(GridHeaderCell, 'Timestamp'),
-        },
-        {
-          key: 'byte_offset',
-          header: m(GridHeaderCell, 'Byte Offset'),
-        },
-        {
-          key: 'args',
-          header: m(GridHeaderCell, 'Details'),
-        },
-      ],
+      columns,
       rowData: {
         offset: window.offset,
         total: category.logs.length,
         data: category.logs
           .slice(window.offset, window.offset + window.limit)
-          .map((log) => [
-            m(GridCell, log.ts !== null ? renderTimecode(log.ts) : '-'),
-            m(
-              GridCell,
-              log.byte_offset !== null ? String(log.byte_offset) : '-',
-            ),
-            m(GridCell, this.renderArgs(log.args)),
-          ]),
+          .map((log) => {
+            const cells = [];
+            if (isMultiTrace) {
+              cells.push(
+                m(
+                  GridCell,
+                  log.traceIndex !== null ? String(log.traceIndex) : '-',
+                ),
+              );
+            }
+            cells.push(
+              m(GridCell, log.ts !== null ? renderTimecode(log.ts) : '-'),
+              m(
+                GridCell,
+                log.byte_offset !== null ? String(log.byte_offset) : '-',
+              ),
+              m(GridCell, this.renderArgs(log.args)),
+            );
+            return cells;
+          }),
         onLoadData: (offset: number, limit: number) => {
           this.logsWindows.set(category.name, {
             offset,

@@ -18,7 +18,6 @@ perfetto_py_library("trace_processor_table_generator") {
   sources = [
     "generators/trace_processor_table/public.py",
     "generators/trace_processor_table/serialize.py",
-    "generators/trace_processor_table/serialize_new.py",
     "generators/trace_processor_table/util.py",
   ]
 }

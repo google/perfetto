@@ -15,20 +15,6 @@ flag {
   is_fixed_read_only: true
 }
 flag {
-  name: "use_murmur_hash_for_flat_hash_map"
-  namespace: "perfetto"
-  description: "Controls whether we will use the new MurmurHash implementation for FlatHashMap. false = use FNV1A (used for ~5 years) true = use MurmurHash"
-  bug: "433766726"
-  is_fixed_read_only: true
-}
-flag {
-  name: "ftrace_clear_offline_cpus_only"
-  namespace: "perfetto"
-  description: "Controls whether we will optimize the ClearTrace() function to only clear the buffers for offline CPUs instead of all."
-  bug: "435317463"
-  is_fixed_read_only: true
-}
-flag {
   name: "use_rt_mutex"
   namespace: "perfetto"
   description: "Controls whether base::MaybeRtMutex will use base::RtMutex or a standard std::mutex, for reducing priority-inversion in annotated classes"
@@ -61,5 +47,19 @@ flag {
   namespace: "perfetto"
   description: "Controls whether SharedMemoryArbiter will prevent posting duplicate immediate flush tasks when the shared memory buffer is more than half full. When enabled, only one immediate flush task is posted until it completes, preventing excessive CPU usage from task runner spam."
   bug: "330580374"
+  is_fixed_read_only: true
+}
+flag {
+  name: "use_unix_socket_inotify"
+  namespace: "perfetto"
+  description: "Enables immediate reconnection to traced in case of crash or disconnection using inotify"
+  bug: "445943111"
+  is_fixed_read_only: true
+}
+flag {
+  name: "track_event_incremental_state_clear_not_destroy"
+  namespace: "perfetto"
+  description: "Instead of creating/destroying intern maps for TrackEvent's ClearIncrementalState callback, instead just clear the maps, preventing unnecessary memory allocs/frees."
+  bug: "473625429"
   is_fixed_read_only: true
 }

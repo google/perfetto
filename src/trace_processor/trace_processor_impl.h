@@ -25,15 +25,16 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
@@ -75,8 +76,6 @@ class TraceProcessorImpl : public TraceProcessor,
   Iterator ExecuteQuery(const std::string& sql) override;
 
   base::Status RegisterSqlPackage(SqlPackage) override;
-
-  base::Status RegisterSqlModule(SqlModule module) override;
 
   // =================================================================
   // |  Trace-based metrics (v2) related functionality starts here   |
@@ -135,23 +134,22 @@ class TraceProcessorImpl : public TraceProcessor,
   // |  Experimental   |
   // ===================
 
-  base::Status AnalyzeStructuredQueries(
-      const std::vector<StructuredQueryBytes>&,
-      std::vector<AnalyzedStructuredQuery>*) override;
+  base::Status AnalyzeStructuredQuery(const TraceSummarySpecBytes& spec,
+                                      const std::string& query_id,
+                                      AnalyzedStructuredQuery* output) override;
 
  private:
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
-  void FlushInternal(bool should_build_bounds_table);
-
   bool IsRootMetricField(const std::string& metric_name);
+
+  void CacheBoundsAndBuildTable();
 
   static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
       TraceProcessorContext* context,
       TraceStorage* storage,
       const Config& config,
-      DataframeSharedStorage* dataframe_shared_storage,
       const std::vector<SqlPackage>&,
       std::vector<metrics::SqlMetricFile>& sql_metrics,
       const DescriptorPool* metrics_descriptor_pool,
@@ -160,8 +158,8 @@ class TraceProcessorImpl : public TraceProcessor,
       bool notify_eof_called,
       std::pair<int64_t, int64_t> cached_trace_bounds);
 
-  static std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>
-  GetUnfinalizedStaticTables(TraceStorage* storage);
+  static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
+      TraceStorage* storage);
 
   static std::vector<std::unique_ptr<StaticTableFunction>>
   CreateStaticTableFunctions(TraceProcessorContext* context,
@@ -173,7 +171,6 @@ class TraceProcessorImpl : public TraceProcessor,
 
   const Config config_;
 
-  DataframeSharedStorage dataframe_shared_storage_;
   std::unique_ptr<PerfettoSqlEngine> engine_;
 
   DescriptorPool metrics_descriptor_pool_;

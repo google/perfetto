@@ -23,6 +23,10 @@ pub mod builtin_clock;
 #[path = "data_source_descriptor.pz.rs"]
 pub mod data_source_descriptor;
 
+/// `semantic_type` protos.
+#[path = "semantic_type.pz.rs"]
+pub mod semantic_type;
+
 /// `track_event_descriptor` protos.
 #[path = "track_event_descriptor.pz.rs"]
 pub mod track_event_descriptor;

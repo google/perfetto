@@ -14,30 +14,22 @@
 
 import {IntervalIntersectNode} from './interval_intersect_node';
 import {ModifyColumnsNode} from './modify_columns_node';
-import {QueryNode, NodeType, notifyNextNodes} from '../../query_node';
+import {QueryNode} from '../../query_node';
+import {notifyNextNodes} from '../graph_utils';
 import {ColumnInfo} from '../column_info';
 import {
   PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
+import {createMockNode} from '../testing/test_utils';
 
 describe('IntervalIntersectNode', () => {
   function createMockPrevNode(id: string, columns: ColumnInfo[]): QueryNode {
-    return {
+    return createMockNode({
       nodeId: id,
-      type: NodeType.kTable,
-      nextNodes: [],
-      finalCols: columns,
-      state: {},
-      validate: () => true,
+      columns,
       getTitle: () => `Mock ${id}`,
-      nodeSpecificModify: () => null,
-      nodeDetails: () => ({content: null}),
-      nodeInfo: () => null,
-      clone: () => createMockPrevNode(id, columns),
-      getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
-    } as QueryNode;
+    });
   }
 
   function createColumnInfo(
@@ -69,70 +61,6 @@ describe('IntervalIntersectNode', () => {
   }
 
   describe('constructor', () => {
-    it('should initialize with default filterNegativeDur as true', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
-
-      expect(node.state.filterNegativeDur).toEqual([true, true]);
-    });
-
-    it('should preserve provided filterNegativeDur values', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-        filterNegativeDur: [false, true],
-      });
-
-      expect(node.state.filterNegativeDur).toEqual([false, true]);
-    });
-
-    it('should fill missing filterNegativeDur indices with true', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2, node3],
-        filterNegativeDur: [false],
-      });
-
-      expect(node.state.filterNegativeDur).toEqual([false, true, true]);
-    });
-
     it('should set autoExecute to false by default', () => {
       const node = new IntervalIntersectNode({
         inputNodes: [],
@@ -655,6 +583,117 @@ describe('IntervalIntersectNode', () => {
       expect(node.validate()).toBe(true);
       expect(node.state.issues?.queryError).toBeUndefined();
     });
+
+    it('should fail validation when partition column is missing from an input', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node3 = createMockPrevNode('node3', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        // Missing 'utid' column
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2, node3],
+        partitionColumns: ['utid'],
+      });
+
+      expect(node.validate()).toBe(false);
+      expect(node.state.issues?.queryError?.message).toContain(
+        "Partition column 'utid' is missing from Input 2",
+      );
+      expect(node.state.issues?.queryError?.message).toContain(
+        'remove the partitioning',
+      );
+    });
+
+    it('should pass validation when all inputs have partition columns', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node3 = createMockPrevNode('node3', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2, node3],
+        partitionColumns: ['utid'],
+      });
+
+      expect(node.validate()).toBe(true);
+    });
+
+    it('should fail validation when only some partition columns are missing', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+        createColumnInfo('upid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+        // Missing 'upid' column
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        partitionColumns: ['utid', 'upid'],
+      });
+
+      expect(node.validate()).toBe(false);
+      expect(node.state.issues?.queryError?.message).toContain(
+        "Partition column 'upid' is missing from Input 1",
+      );
+    });
+
+    it('should pass validation with empty partition columns array', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+        createColumnInfo('utid', 'INT'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        partitionColumns: [],
+      });
+
+      expect(node.validate()).toBe(true);
+      expect(node.state.issues?.queryError).toBeUndefined();
+    });
   });
 
   describe('getTitle', () => {
@@ -682,7 +721,6 @@ describe('IntervalIntersectNode', () => {
 
       const node = new IntervalIntersectNode({
         inputNodes: [node1, node2],
-        filterNegativeDur: [true, false],
         partitionColumns: ['utid'],
       });
 
@@ -690,7 +728,6 @@ describe('IntervalIntersectNode', () => {
 
       expect(cloned).toBeInstanceOf(IntervalIntersectNode);
       expect(cloned.nodeId).not.toBe(node.nodeId);
-      expect(cloned.state.filterNegativeDur).toEqual([true, false]);
       expect(cloned.state.partitionColumns).toEqual(['utid']);
     });
 
@@ -708,18 +745,15 @@ describe('IntervalIntersectNode', () => {
 
       const node = new IntervalIntersectNode({
         inputNodes: [node1, node2],
-        filterNegativeDur: [true, false],
         partitionColumns: ['utid'],
       });
 
       const cloned = node.clone() as IntervalIntersectNode;
 
       // Modify cloned arrays
-      cloned.state.filterNegativeDur![0] = false;
       cloned.state.partitionColumns!.push('upid');
 
       // Original should not be affected
-      expect(node.state.filterNegativeDur).toEqual([true, false]);
       expect(node.state.partitionColumns).toEqual(['utid']);
     });
   });
@@ -744,7 +778,6 @@ describe('IntervalIntersectNode', () => {
 
       const node = new IntervalIntersectNode({
         inputNodes: [node1, node2, node3],
-        filterNegativeDur: [true, false, true],
         partitionColumns: ['utid'],
       });
 
@@ -752,7 +785,6 @@ describe('IntervalIntersectNode', () => {
 
       // All input node IDs are now serialized
       expect(serialized.intervalNodes).toEqual(['node1', 'node2', 'node3']);
-      expect(serialized.filterNegativeDur).toEqual([true, false, true]);
       expect(serialized.partitionColumns).toEqual(['utid']);
     });
 
@@ -807,18 +839,15 @@ describe('IntervalIntersectNode', () => {
       const serialized = {
         // All input node IDs are stored
         intervalNodes: ['node1', 'node2', 'node3'],
-        filterNegativeDur: [true, false, true],
         partitionColumns: ['utid'],
       };
 
-      const deserialized = IntervalIntersectNode.deserializeState(
+      const deserialized = IntervalIntersectNode.deserializeConnections(
         nodes,
         serialized,
       );
 
       expect(deserialized.inputNodes).toEqual([node1, node2, node3]);
-      expect(deserialized.filterNegativeDur).toEqual([true, false, true]);
-      expect(deserialized.partitionColumns).toEqual(['utid']);
     });
 
     it('should handle missing nodes gracefully', () => {
@@ -841,105 +870,16 @@ describe('IntervalIntersectNode', () => {
       const serialized = {
         // Include a missing node ID to test graceful handling
         intervalNodes: ['node1', 'node2', 'node_missing'],
-        filterNegativeDur: [true, false, true],
         partitionColumns: ['utid'],
       };
 
-      const deserialized = IntervalIntersectNode.deserializeState(
+      const deserialized = IntervalIntersectNode.deserializeConnections(
         nodes,
         serialized,
       );
 
       // Should only include found nodes (node_missing is filtered out)
       expect(deserialized.inputNodes).toEqual([node1, node2]);
-      expect(deserialized.filterNegativeDur).toEqual([true, false, true]);
-    });
-  });
-
-  describe('onPrevNodesUpdated', () => {
-    it('should initialize filterNegativeDur when undefined', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
-
-      // Clear filterNegativeDur
-      node.state.filterNegativeDur = undefined;
-
-      node.onPrevNodesUpdated();
-
-      expect(node.state.filterNegativeDur).toBeDefined();
-      expect(node.state.filterNegativeDur).toEqual([true, true]);
-    });
-
-    it('should compact filterNegativeDur when inputNodes shrinks', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2, node3],
-        filterNegativeDur: [true, false, true],
-      });
-
-      // Remove one input node
-      node.secondaryInputs.connections.delete(2);
-
-      node.onPrevNodesUpdated();
-
-      expect(node.state.filterNegativeDur).toEqual([true, false]);
-    });
-
-    it('should expand filterNegativeDur when inputNodes grows', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const node = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-        filterNegativeDur: [true, false],
-      });
-
-      // Add another input node
-      node.secondaryInputs.connections.set(2, node3);
-
-      node.onPrevNodesUpdated();
-
-      expect(node.state.filterNegativeDur).toEqual([true, false, true]);
     });
   });
 
@@ -1442,6 +1382,279 @@ describe('IntervalIntersectNode', () => {
 
       // Should NOT create columns for the undefined node
       expect(cols.find((c) => c.name === 'id_1')).toBeUndefined();
+    });
+  });
+
+  describe('tsDurSource', () => {
+    it('should have id column only when tsDurSource is a number', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      // Test with default (intersection) - no id column
+      const nodeDefault = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+      });
+
+      let cols = nodeDefault.finalCols;
+      let colNames = cols.map((c) => c.name);
+
+      expect(colNames).not.toContain('id'); // No id for intersection
+      expect(colNames).toContain('ts');
+      expect(colNames).toContain('dur');
+      expect(colNames).toContain('id_0');
+      expect(colNames).toContain('ts_0');
+      expect(colNames).toContain('dur_0');
+      expect(colNames).toContain('id_1');
+      expect(colNames).toContain('ts_1');
+      expect(colNames).toContain('dur_1');
+
+      // Test with tsDurSource = 0 - has id column
+      const nodeSource0 = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        tsDurSource: 0,
+      });
+
+      cols = nodeSource0.finalCols;
+      colNames = cols.map((c) => c.name);
+
+      expect(colNames).toContain('id'); // Has id when source is an input
+      expect(colNames).toContain('ts');
+      expect(colNames).toContain('dur');
+      expect(colNames).toContain('id_0');
+      expect(colNames).toContain('ts_0');
+      expect(colNames).toContain('dur_0');
+      expect(colNames).toContain('id_1');
+      expect(colNames).toContain('ts_1');
+      expect(colNames).toContain('dur_1');
+
+      // Test with tsDurSource = 1 - has id column
+      const nodeSource1 = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        tsDurSource: 1,
+      });
+
+      cols = nodeSource1.finalCols;
+      colNames = cols.map((c) => c.name);
+
+      expect(colNames).toContain('id'); // Has id when source is an input
+      expect(colNames).toContain('ts');
+      expect(colNames).toContain('dur');
+      expect(colNames).toContain('id_0');
+      expect(colNames).toContain('ts_0');
+      expect(colNames).toContain('dur_0');
+      expect(colNames).toContain('id_1');
+      expect(colNames).toContain('ts_1');
+      expect(colNames).toContain('dur_1');
+    });
+
+    it('should serialize and deserialize tsDurSource correctly', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        tsDurSource: 1,
+      });
+
+      const serialized = node.serializeState();
+      expect(serialized.tsDurSource).toBe(1);
+
+      const deserialized = IntervalIntersectNode.deserializeState(serialized);
+      expect(deserialized.tsDurSource).toBe(1);
+    });
+
+    it('should include tsDurSource in clone', () => {
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'INT'),
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        tsDurSource: 0,
+      });
+
+      const cloned = node.clone() as IntervalIntersectNode;
+
+      expect(cloned.state.tsDurSource).toBe(0);
+    });
+
+    it('should update id column type when tsDurSource changes to different input', () => {
+      // Create two inputs with DIFFERENT id types
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfo('id', 'INT'), // Input 0 has INT id
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfo('id', 'STRING'), // Input 1 has STRING id
+        createColumnInfo('ts', 'INT64'),
+        createColumnInfo('dur', 'INT64'),
+      ]);
+
+      const node = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        tsDurSource: 0, // Start with input 0
+      });
+
+      // Check id type matches input 0
+      let idCol = node.finalCols.find((c) => c.name === 'id');
+      expect(idCol).toBeDefined();
+      expect(idCol?.type).toBe('INT');
+
+      // Change to input 1
+      node.state.tsDurSource = 1;
+
+      // Check id type should now match input 1
+      idCol = node.finalCols.find((c) => c.name === 'id');
+      expect(idCol).toBeDefined();
+      expect(idCol?.type).toBe('STRING');
+    });
+
+    it('should propagate id column type change to downstream ModifyColumnsNode when tsDurSource changes', () => {
+      // Create two inputs with DIFFERENT id types
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
+        createColumnInfoWithSqlType(
+          'ts',
+          'TIMESTAMP',
+          PerfettoSqlTypes.TIMESTAMP,
+        ),
+        createColumnInfoWithSqlType(
+          'dur',
+          'DURATION',
+          PerfettoSqlTypes.DURATION,
+        ),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfoWithSqlType('id', 'STRING', PerfettoSqlTypes.STRING),
+        createColumnInfoWithSqlType(
+          'ts',
+          'TIMESTAMP',
+          PerfettoSqlTypes.TIMESTAMP,
+        ),
+        createColumnInfoWithSqlType(
+          'dur',
+          'DURATION',
+          PerfettoSqlTypes.DURATION,
+        ),
+      ]);
+
+      // Create IntervalIntersectNode with tsDurSource = 0
+      const intervalNode = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        tsDurSource: 0,
+      });
+
+      // Create ModifyColumnsNode downstream
+      const modifyNode = new ModifyColumnsNode({
+        selectedColumns: [],
+      });
+      modifyNode.primaryInput = intervalNode;
+      intervalNode.nextNodes.push(modifyNode);
+      modifyNode.onPrevNodesUpdated();
+
+      // Verify id column has INT type from input 0
+      let idCol = modifyNode.state.selectedColumns.find((c) => c.name === 'id');
+      expect(idCol).toBeDefined();
+      expect(idCol?.type).toBe('INT');
+
+      // Change tsDurSource to input 1
+      intervalNode.state.tsDurSource = 1;
+      notifyNextNodes(intervalNode);
+
+      // Verify id column type updated to STRING from input 1
+      idCol = modifyNode.state.selectedColumns.find((c) => c.name === 'id');
+      expect(idCol).toBeDefined();
+      expect(idCol?.type).toBe('STRING');
+    });
+
+    it('should preserve user-modified type in ModifyColumnsNode when tsDurSource changes', () => {
+      // Create two inputs with DIFFERENT id types
+      const node1 = createMockPrevNode('node1', [
+        createColumnInfoWithSqlType('id', 'INT', PerfettoSqlTypes.INT),
+        createColumnInfoWithSqlType(
+          'ts',
+          'TIMESTAMP',
+          PerfettoSqlTypes.TIMESTAMP,
+        ),
+        createColumnInfoWithSqlType(
+          'dur',
+          'DURATION',
+          PerfettoSqlTypes.DURATION,
+        ),
+      ]);
+      const node2 = createMockPrevNode('node2', [
+        createColumnInfoWithSqlType('id', 'STRING', PerfettoSqlTypes.STRING),
+        createColumnInfoWithSqlType(
+          'ts',
+          'TIMESTAMP',
+          PerfettoSqlTypes.TIMESTAMP,
+        ),
+        createColumnInfoWithSqlType(
+          'dur',
+          'DURATION',
+          PerfettoSqlTypes.DURATION,
+        ),
+      ]);
+
+      // Create IntervalIntersectNode with tsDurSource = 0
+      const intervalNode = new IntervalIntersectNode({
+        inputNodes: [node1, node2],
+        tsDurSource: 0,
+      });
+
+      // Create ModifyColumnsNode downstream
+      const modifyNode = new ModifyColumnsNode({
+        selectedColumns: [],
+      });
+      modifyNode.primaryInput = intervalNode;
+      intervalNode.nextNodes.push(modifyNode);
+      modifyNode.onPrevNodesUpdated();
+
+      // Simulate user manually changing the id column type to CUSTOM_TYPE
+      const idColIndex = modifyNode.state.selectedColumns.findIndex(
+        (c) => c.name === 'id',
+      );
+      modifyNode.state.selectedColumns[idColIndex] = {
+        ...modifyNode.state.selectedColumns[idColIndex],
+        type: 'CUSTOM_TYPE',
+        typeUserModified: true,
+      };
+
+      // Change tsDurSource to input 1
+      intervalNode.state.tsDurSource = 1;
+      notifyNextNodes(intervalNode);
+
+      // Verify user-modified type is PRESERVED (not overwritten by STRING)
+      const idCol = modifyNode.state.selectedColumns.find(
+        (c) => c.name === 'id',
+      );
+      expect(idCol).toBeDefined();
+      expect(idCol?.type).toBe('CUSTOM_TYPE');
+      expect(idCol?.typeUserModified).toBe(true);
     });
   });
 });

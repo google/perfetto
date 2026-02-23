@@ -1,0 +1,162 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Fixed width for function selection modal
+.pf-function-selection-modal {
+  width: 600px;
+}
+
+// Make the function list scrollable (reuse table list styles)
+.pf-exp-function-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pf-function-cards-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+// Function card styling
+.pf-function-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pf-function-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .pf-function-name {
+    font-weight: 500;
+    font-size: var(--pf-font-size-lg);
+  }
+
+  .pf-match-type-chip {
+    background-color: var(--surface-variant);
+    color: var(--on-surface-variant);
+    font-size: 11px;
+    opacity: 0.8;
+  }
+}
+
+.pf-function-module {
+  font-size: var(--pf-font-size-sm);
+  color: var(--on-surface-variant);
+  opacity: 0.8;
+}
+
+.pf-function-signature {
+  font-family: "Roboto Mono", monospace;
+  font-size: var(--pf-font-size-sm);
+  color: var(--primary);
+  background-color: var(--surface-variant);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.pf-function-description {
+  font-size: var(--pf-font-size-sm);
+  color: var(--on-surface);
+  margin-top: 4px;
+
+  // Inherit markdown styles from table description
+  code {
+    background-color: var(--surface-variant);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: "Roboto Mono", monospace;
+    font-size: 0.9em;
+    color: var(--on-surface);
+  }
+
+  p {
+    margin: 0.5em 0;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+// Selected function styling
+@layer pf-widgets {
+  .pf-card-stack > .pf-card.pf-selected-function {
+    background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
+    border: 2px solid var(--pf-color-accent);
+    box-shadow: 0 2px 8px var(--pf-color-box-shadow);
+  }
+
+  .pf-card-stack > .pf-card.pf-selected-function.pf-interactive:hover {
+    background: color-mix(in srgb, var(--pf-color-accent) 25%, transparent);
+    box-shadow: 0 4px 12px var(--pf-color-box-shadow);
+  }
+}
+
+// Function info in configure step
+.pf-function-info {
+  background-color: var(--surface-variant);
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+
+  p {
+    margin: 0 0 8px 0;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+// Function argument row
+.pf-function-arg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  label {
+    font-weight: 500;
+    font-size: var(--pf-font-size-sm);
+
+    small {
+      font-weight: normal;
+      color: var(--on-surface-variant);
+      display: block;
+      margin-top: 2px;
+    }
+  }
+}
+
+// Error text styling
+.pf-error-text {
+  color: var(--error);
+  font-size: var(--pf-font-size-sm);
+  margin-top: 4px;
+}

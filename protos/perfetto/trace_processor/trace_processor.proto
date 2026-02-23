@@ -20,7 +20,6 @@ package perfetto.protos;
 
 import "protos/perfetto/common/descriptor.proto";
 import "protos/perfetto/trace_processor/metatrace_categories.proto";
-import "protos/perfetto/perfetto_sql/structured_query.proto";
 import "protos/perfetto/trace_summary/file.proto";
 
 // This file defines the schema for {,un}marshalling arguments and return values
@@ -383,19 +382,23 @@ message FinalizeDataResult {
 }
 
 message AnalyzeStructuredQueryArgs {
-  repeated PerfettoSqlStructuredQuery queries = 1;
+  // The spec containing queries to analyze. Queries are taken from the `query`
+  // field of the spec. Each query must have an id field set and can reference
+  // other queries via inner_query_id fields.
+  optional TraceSummarySpec spec = 1;
+  // The ID of the query to analyze. Must match the id field of exactly one
+  // query in the spec's query list. The analysis will generate SQL for this
+  // query, resolving any dependencies via inner_query_id references.
+  optional string query_id = 2;
 }
 
 message AnalyzeStructuredQueryResult {
-  message StructuredQueryResult {
-    optional string sql = 1;
-    optional string textproto = 4;
-    repeated string modules = 2;
-    repeated string preambles = 3;
-    repeated string columns = 5;
-  }
   optional string error = 1;
-  repeated StructuredQueryResult results = 2;
+  optional string sql = 2;
+  optional string textproto = 3;
+  repeated string modules = 4;
+  repeated string preambles = 5;
+  repeated string columns = 6;
 }
 
 message TraceSummaryArgs {

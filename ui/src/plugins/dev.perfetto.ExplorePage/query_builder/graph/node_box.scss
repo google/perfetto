@@ -13,7 +13,6 @@
 // limitations under the License.
 
 @import "../common";
-@import "node_colors";
 
 .pf-exp-node-box {
   @extend .pf-exp-node;
@@ -91,9 +90,9 @@
 .pf-exp-node-box__content {
   display: flex;
   flex-direction: column;
-  max-width: 100%;
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
+  max-width: 300px;
   // Reserve space for the absolutely-positioned actions menu that appears on hover
   // This prevents node content from being obscured by action buttons
   // Value accommodates 2-3 icon buttons (each ~1.5rem) plus gaps
