@@ -17,16 +17,33 @@ import {resolve} from 'path';
 import {existsSync, createReadStream} from 'fs';
 
 const UI_DIR = resolve(__dirname, '..');
+const ROOT_DIR = resolve(UI_DIR, '..');
 
 // Plugin to serve WASM files and static assets in dev mode
 export function devStaticServePlugin(): Plugin {
   const WASM_DIR = resolve(UI_DIR, '../out/ui/ui/dist_version');
   const FONTS_DIR = resolve(UI_DIR, '../buildtools/typefaces');
+  const crossOriginIsolation = process.env.CORP_ENABLED === '1';
 
   return {
     name: 'dev-static-serve',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
+        // Add Cross-Origin Isolation headers if enabled
+        if (crossOriginIsolation) {
+          res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+        }
+
+        // Serve test files from /test/
+        if (req.url?.startsWith('/test/')) {
+          const filePath = resolve(ROOT_DIR, req.url.slice(1));
+          if (existsSync(filePath)) {
+            createReadStream(filePath).pipe(res);
+            return;
+          }
+        }
+
         // Serve WASM files from /wasm/
         if (req.url?.startsWith('/wasm/')) {
           const filename = req.url.replace('/wasm/', '');

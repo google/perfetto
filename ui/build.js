@@ -290,34 +290,40 @@ async function main() {
       scanDir('ui/src/open_perfetto_trace');
     }
 
-    bundleWithVite();
-    genServiceWorkerManifestJson();
+    // Skip production build when running dev server - Vite handles everything
+    if (!cfg.startHttpServer) {
+      bundleWithVite();
+      genServiceWorkerManifestJson();
 
-    // Watches the /dist. When changed:
-    // - Notifies the HTTP live reload clients.
-    // - Regenerates the ServiceWorker file map.
-    scanDir(cfg.outDistRootDir);
+      // Watches the /dist. When changed:
+      // - Notifies the HTTP live reload clients.
+      // - Regenerates the ServiceWorker file map.
+      scanDir(cfg.outDistRootDir);
+    }
   }
 
   // We should enter the loop only in watch mode, where tsc and rollup are
   // asynchronous because they run in watch mode.
-  if (args.no_build && !isDistComplete()) {
-    console.log('No build was requested, but artifacts are not available.');
-    console.log('In case of execution error, re-run without --no-build.');
-  }
-  if (!args.no_build) {
-    const tStart = performance.now();
-    while (!isDistComplete()) {
-      const secs = Math.ceil((performance.now() - tStart) / 1000);
-      process.stdout.write(
-          `\t\tWaiting for first build to complete... ${secs} s\r`);
-      await new Promise((r) => setTimeout(r, 500));
+  // Skip this check when running dev server - Vite handles compilation.
+  if (!cfg.startHttpServer) {
+    if (args.no_build && !isDistComplete()) {
+      console.log('No build was requested, but artifacts are not available.');
+      console.log('In case of execution error, re-run without --no-build.');
     }
+    if (!args.no_build) {
+      const tStart = performance.now();
+      while (!isDistComplete()) {
+        const secs = Math.ceil((performance.now() - tStart) / 1000);
+        process.stdout.write(
+            `\t\tWaiting for first build to complete... ${secs} s\r`);
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
+    if (cfg.watch) console.log('\nFirst build completed!');
   }
-  if (cfg.watch) console.log('\nFirst build completed!');
 
   if (cfg.startHttpServer) {
-    startServer();
+    startViteDevServer();
   }
   if (args.run_unittests) {
     runTests('jest.unittest.config.js');
@@ -614,6 +620,25 @@ function genServiceWorkerManifestJson() {
   addTask(makeManifest, []);
 }
 
+function startViteDevServer() {
+  const viteExec = pjoin(ROOT_DIR, 'ui/node_modules/.bin/vite');
+  const uiDir = pjoin(ROOT_DIR, 'ui');
+  const host = cfg.httpServerListenHost;
+  const port = cfg.httpServerListenPort;
+
+  console.log(`Starting Vite dev server on http://${host === '127.0.0.1' ? 'localhost' : host}:${port}`);
+
+  const env = {...process.env};
+  if (cfg.crossOriginIsolation) {
+    env.CORP_ENABLED = '1';
+  }
+
+  const args = ['--host', host, '--port', String(port)];
+  const spwOpts = {cwd: uiDir, stdio: 'inherit', env};
+  childProcess.spawn(viteExec, args, spwOpts);
+}
+
+// DEPRECATED: Use startViteDevServer() instead. Kept for reference.
 function startServer() {
   const host = cfg.httpServerListenHost == '127.0.0.1' ? 'localhost' : cfg.httpServerListenHost;
   console.log(
