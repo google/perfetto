@@ -18,26 +18,47 @@ import {RecordingManager} from '../recording_manager';
 import {RecordSubpage} from '../config/config_interfaces';
 import {RecordPluginSchema} from '../serialization_schema';
 import {Button} from '../../../widgets/button';
+import {Checkbox} from '../../../widgets/checkbox';
 import {TracingSession} from '../interfaces/tracing_session';
 import {uuidv4} from '../../../base/uuid';
 import {WasmEngineProxy} from '../../../trace_processor/wasm_engine_proxy';
-import {EngineBase} from '../../../trace_processor/engine';
-import {NUM} from '../../../trace_processor/query_result';
+import {NUM, STR} from '../../../trace_processor/query_result';
 import {
   DataGrid,
   renderCell,
 } from '../../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
+import {
+  LineChart,
+  LineChartData,
+  LineChartSeries,
+} from '../../../components/widgets/charts/line_chart';
 
-interface SnapshotEntry {
-  timestamp: Date;
-  sizeBytes: number;
-  data?: Uint8Array;
-  engine?: EngineBase;
-  loading?: boolean;
-  error?: string;
-  rssBytes?: number;
+const snapshotIntervalMs = 3_000;
+const snapshotInitialMs = 3_000;
+
+const MEMORY_COUNTER_NAMES = [
+  'mem.rss',
+  'mem.rss.anon',
+  'mem.rss.file',
+  'mem.rss.shmem',
+  'mem.swap',
+] as const;
+
+type MemoryCounterName = (typeof MEMORY_COUNTER_NAMES)[number];
+
+const COUNTER_LABELS: Record<MemoryCounterName, string> = {
+  'mem.rss': 'RSS (total)',
+  'mem.rss.anon': 'RSS anon',
+  'mem.rss.file': 'RSS file',
+  'mem.rss.shmem': 'RSS shmem',
+  'mem.swap': 'Swap',
+};
+
+interface MemoryDataPoint {
+  elapsedSec: number;
+  counters: Map<MemoryCounterName, number>;
 }
 
 export function snapshotPage(recMgr: RecordingManager): RecordSubpage {
@@ -45,7 +66,7 @@ export function snapshotPage(recMgr: RecordingManager): RecordSubpage {
     kind: 'GLOBAL_PAGE',
     id: 'snapshots',
     icon: 'memory',
-    title: 'Memory Snapshots',
+    title: 'Memory Monitor',
     subtitle: 'Track per-process memory usage',
     render() {
       return m(SnapshotPage, {recMgr});
@@ -61,50 +82,68 @@ interface SnapshotPageAttrs {
 
 let snapshotEngineCounter = 0;
 
-// Creates a minimal trace config focused on per-process memory counters.
-function createMemorySnapshotConfig(
+// Creates the "heavy" trace config: heap profiling only.
+// This is the trace that gets opened in the UI when recording stops.
+function createHeavyTraceConfig(
   uniqueSessionName: string,
+  processName: string,
 ): protos.ITraceConfig {
   return {
     uniqueSessionName,
     durationMs: 0, // No timeout - run until stopped
     buffers: [
       {
-        sizeKb: 32 * 1024, // 32MB ring buffer
+        sizeKb: 64 * 1024, // 64MB ring buffer
         fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
       },
     ],
     dataSources: [
-      // Per-process memory stats (RSS, swap, etc.)
       {
         config: {
-          name: 'linux.process_stats',
-          targetBuffer: 0,
-          processStatsConfig: {
-            scanAllProcessesOnStart: true,
-            procStatsPollMs: 1000, // Poll every second
+          name: 'android.heapprofd',
+          heapprofdConfig: {
+            samplingIntervalBytes: 4096,
+            processCmdline: [processName],
+            shmemSizeBytes: 8 * 1024 * 1024, // 8MB
+            blockClient: true,
+            allHeaps: false,
           },
         },
       },
-      // Package list for mapping PIDs to package names (Android)
       {
         config: {
-          name: 'android.packages_list',
-          targetBuffer: 0,
+          name: 'android.java_hprof',
+          javaHprofConfig: {
+            processCmdline: [processName],
+          },
         },
       },
-      // Ftrace events for process/thread association
+    ],
+  };
+}
+
+// Creates the lightweight monitoring config: just process_stats counters.
+// This session is cloned periodically for the live memory chart. Clones are
+// small because there's no heap profiling data in this session.
+function createMonitoringConfig(
+  uniqueSessionName: string,
+): protos.ITraceConfig {
+  return {
+    uniqueSessionName,
+    durationMs: 0,
+    buffers: [
+      {
+        sizeKb: 4 * 1024, // 4MB - counters are tiny
+        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
+      },
+    ],
+    dataSources: [
       {
         config: {
-          name: 'linux.ftrace',
-          targetBuffer: 0,
-          ftraceConfig: {
-            ftraceEvents: [
-              'sched/sched_process_exit',
-              'sched/sched_process_free',
-              'task/task_newtask',
-              'task/task_rename',
-            ],
+          name: 'linux.process_stats',
+          processStatsConfig: {
+            scanAllProcessesOnStart: true,
+            procStatsPollMs: 1000,
           },
         },
       },
@@ -113,11 +152,17 @@ function createMemorySnapshotConfig(
 }
 
 class SnapshotPage implements m.ClassComponent<SnapshotPageAttrs> {
-  private sessionName: string = '';
-  private session?: TracingSession;
+  // Heavy session - heap profiling + stats. Opened in UI when stopped.
+  private heavySessionName: string = '';
+  private heavySession?: TracingSession;
+
+  // Lightweight monitoring session - just counters. Cloned for live chart.
+  private monitorSessionName: string = '';
+  private monitorSession?: TracingSession;
+
   private isRecording = false;
-  private snapshots: SnapshotEntry[] = [];
-  private isTakingSnapshot = false;
+  private isStopping = false;
+  private openTraceOnStop = true;
   private error?: string;
 
   // Process selection state
@@ -125,6 +170,13 @@ class SnapshotPage implements m.ClassComponent<SnapshotPageAttrs> {
   private selectedProcess?: {name: string; pid: number};
   private pollTimer?: number;
   private schema: SchemaRegistry;
+
+  // Auto-clone state
+  private dataPoints: MemoryDataPoint[] = [];
+  private activeClones = 0;
+  private activeQueries = 0;
+  private cloneTimer?: number;
+  private recordingStartTime?: number;
 
   constructor() {
     // Build schema with action column
@@ -169,6 +221,9 @@ class SnapshotPage implements m.ClassComponent<SnapshotPageAttrs> {
   onremove() {
     if (this.pollTimer) {
       window.clearInterval(this.pollTimer);
+    }
+    if (this.cloneTimer !== undefined) {
+      window.clearTimeout(this.cloneTimer);
     }
   }
 
@@ -235,22 +290,21 @@ class SnapshotPage implements m.ClassComponent<SnapshotPageAttrs> {
         ),
 
         // Process list datagrid
-        this.processRows.length > 0 &&
-          m(DataGrid, {
-            className: 'pf-device-memory-table',
-            schema: this.schema,
-            rootSchema: 'process',
-            data: this.processRows,
-            initialColumns: [
-              {id: 'process', field: 'process'},
-              {id: 'pid', field: 'pid'},
-              {id: 'pss_kb', field: 'pss_kb', sort: 'DESC'},
-              {id: 'action', field: 'action'},
-            ],
-            canAddColumns: false,
-            canRemoveColumns: false,
-            enablePivotControls: false,
-          }),
+        m(DataGrid, {
+          className: 'pf-device-memory-table',
+          schema: this.schema,
+          rootSchema: 'process',
+          data: this.processRows,
+          initialColumns: [
+            {id: 'process', field: 'process'},
+            {id: 'pid', field: 'pid'},
+            {id: 'pss_kb', field: 'pss_kb', sort: 'DESC'},
+            {id: 'action', field: 'action'},
+          ],
+          canAddColumns: false,
+          canRemoveColumns: false,
+          enablePivotControls: false,
+        }),
 
         // Selected process and start button
         m(
@@ -273,28 +327,32 @@ class SnapshotPage implements m.ClassComponent<SnapshotPageAttrs> {
       );
     }
 
-    // Recording - show snapshot controls
+    // Recording - show memory chart and controls
     return m(
       '.snapshot-page',
-      m('header', 'Memory Snapshots'),
+      m('header', 'Memory Monitor'),
       m(
         'p',
         `Tracking: ${this.selectedProcess?.name} (PID ${this.selectedProcess?.pid})`,
       ),
 
-      // Session controls
+      // Session controls - only a Stop button
       m(
         '.snapshot-controls',
         m(Button, {
-          label: this.isTakingSnapshot ? 'Taking...' : 'Take Snapshot',
-          icon: 'photo_camera',
-          disabled: this.isTakingSnapshot,
-          onclick: () => this.takeSnapshot(recMgr),
-        }),
-        m(Button, {
-          label: 'Stop Recording',
+          label: this.isStopping ? 'Stopping...' : 'Stop',
           icon: 'stop',
-          onclick: () => this.stopRecording(),
+          disabled: this.isStopping,
+          onclick: () => this.stopRecording(recMgr),
+        }),
+        m(Checkbox, {
+          label: 'Open trace when done',
+          checked: this.openTraceOnStop,
+          onchange: (e) => {
+            this.openTraceOnStop = Boolean(
+              (e.target as HTMLInputElement).checked,
+            );
+          },
         }),
       ),
 
@@ -302,43 +360,76 @@ class SnapshotPage implements m.ClassComponent<SnapshotPageAttrs> {
       m(
         '.snapshot-status',
         m('span.recording-indicator', '● Recording'),
-        m('span', ` Session: ${this.sessionName}`),
+        m(
+          'span',
+          ` Heavy: ${this.heavySessionName} | Monitor: ${this.monitorSessionName}`,
+        ),
+        m(
+          'span',
+          ` | ${this.dataPoints.length} snapshots` +
+            ` (${this.dataPointsWithData()} with data)`,
+        ),
+        m(
+          'span',
+          ` | Clones: ${this.activeClones} | Queries: ${this.activeQueries}`,
+        ),
       ),
 
       // Error display
       this.error && m('.snapshot-error', this.error),
 
-      // Snapshots list
-      this.snapshots.length > 0 && [
-        m('header', 'Snapshots'),
-        m(
-          '.snapshot-list',
-          this.snapshots.map((snap, i) =>
-            m(
-              '.snapshot-entry',
-              {key: i},
-              m('span.snapshot-num', `#${i + 1}`),
-              m('span.snapshot-time', snap.timestamp.toLocaleTimeString()),
-              snap.error
-                ? m('span.snapshot-error', snap.error)
-                : snap.loading
-                  ? m(
-                      'span.snapshot-loading',
-                      'Loading into trace processor...',
-                    )
-                  : [
-                      m('span.snapshot-size', this.formatBytes(snap.sizeBytes)),
-                      snap.rssBytes !== undefined &&
-                        m(
-                          'span.snapshot-rss',
-                          ` | RSS: ${this.formatBytes(snap.rssBytes)}`,
-                        ),
-                    ],
-            ),
-          ),
-        ),
-      ],
+      // Memory history chart
+      this.buildChartData() !== undefined
+        ? m(LineChart, {
+            data: this.buildChartData(),
+            height: 300,
+            xAxisLabel: 'Time (seconds)',
+            yAxisLabel: 'Memory',
+            showLegend: true,
+            showPoints: true,
+            gridLines: 'horizontal',
+            formatXValue: (v: number) => `${v.toFixed(0)}s`,
+            formatYValue: (v: number) => this.formatBytes(v),
+          })
+        : m('p', 'Waiting for memory data...'),
     );
+  }
+
+  private buildChartData(): LineChartData | undefined {
+    if (this.dataPoints.length === 0) return undefined;
+
+    // Determine which counters actually appear in any data point.
+    const presentCounters = new Set<MemoryCounterName>();
+    for (const dp of this.dataPoints) {
+      for (const name of dp.counters.keys()) {
+        presentCounters.add(name);
+      }
+    }
+
+    const series: LineChartSeries[] = [];
+    for (const counterName of MEMORY_COUNTER_NAMES) {
+      if (!presentCounters.has(counterName)) continue;
+
+      const points = this.dataPoints
+        .filter((dp) => dp.counters.has(counterName))
+        .map((dp) => ({
+          x: dp.elapsedSec,
+          y: dp.counters.get(counterName)!,
+        }));
+
+      if (points.length > 0) {
+        series.push({
+          name: COUNTER_LABELS[counterName],
+          points,
+        });
+      }
+    }
+
+    return {series};
+  }
+
+  private dataPointsWithData(): number {
+    return this.dataPoints.filter((dp) => dp.counters.size > 0).length;
   }
 
   private async startRecording(recMgr: RecordingManager) {
@@ -346,124 +437,237 @@ class SnapshotPage implements m.ClassComponent<SnapshotPageAttrs> {
     if (!target || !this.selectedProcess) return;
 
     this.error = undefined;
-    this.snapshots = [];
-    this.sessionName = `snapshot-session-${uuidv4().substring(0, 8)}`;
+    this.dataPoints = [];
+    const uid = uuidv4().substring(0, 8);
+    this.heavySessionName = `mem-heavy-${uid}`;
+    this.monitorSessionName = `mem-monitor-${uid}`;
 
-    // Create a minimal config focused on memory counters
-    const traceConfig = createMemorySnapshotConfig(this.sessionName);
+    // Start the heavy session (heap profiling + stats) — this is the trace
+    // the user opens at the end.
+    const heavyConfig = createHeavyTraceConfig(
+      this.heavySessionName,
+      this.selectedProcess.name,
+    );
+    console.log('Heavy trace config:', heavyConfig);
 
-    const result = await target.startTracing(traceConfig);
-    if (!result.ok) {
-      this.error = `Failed to start recording: ${result.error}`;
+    const heavyResult = await target.startTracing(heavyConfig);
+    if (!heavyResult.ok) {
+      this.error = `Failed to start heavy session: ${heavyResult.error}`;
       m.redraw();
       return;
     }
+    this.heavySession = heavyResult.value;
 
-    this.session = result.value;
+    // Start the lightweight monitoring session (just counters) — this is the
+    // one we clone periodically for the live chart.
+    const monitorConfig = createMonitoringConfig(this.monitorSessionName);
+    console.log('Monitor trace config:', monitorConfig);
+
+    const monitorResult = await target.startTracing(monitorConfig);
+    if (!monitorResult.ok) {
+      this.error = `Failed to start monitor session: ${monitorResult.error}`;
+      // Stop the heavy session since we can't monitor.
+      await this.heavySession.stop();
+      this.heavySession = undefined;
+      m.redraw();
+      return;
+    }
+    this.monitorSession = monitorResult.value;
+
     this.isRecording = true;
+    this.recordingStartTime = Date.now();
 
-    // Listen for session state changes
-    this.session.onSessionUpdate.addListener(() => {
-      if (this.session?.state === 'ERRORED') {
-        this.error = 'Recording session errored';
+    // Listen for heavy session errors.
+    this.heavySession.onSessionUpdate.addListener(() => {
+      if (this.heavySession?.state === 'ERRORED') {
+        this.error = 'Heavy recording session errored';
         this.isRecording = false;
+        if (this.cloneTimer !== undefined) {
+          window.clearTimeout(this.cloneTimer);
+          this.cloneTimer = undefined;
+        }
       }
       m.redraw();
     });
 
+    // Take an initial snapshot after a short delay, then schedule the next
+    // snapshot only after the current one completes to avoid piling up.
+    this.cloneTimer = window.setTimeout(() => {
+      this.autoClone(recMgr);
+    }, snapshotInitialMs);
+
     m.redraw();
   }
 
-  private async takeSnapshot(recMgr: RecordingManager) {
+  private async autoClone(recMgr: RecordingManager): Promise<void> {
     const target = recMgr.currentTarget;
-    if (!target?.cloneSession || !this.sessionName || !this.selectedProcess)
+    if (
+      !this.isRecording ||
+      !target?.cloneSession ||
+      !this.monitorSessionName ||
+      !this.selectedProcess
+    ) {
       return;
+    }
 
-    this.isTakingSnapshot = true;
-    this.error = undefined;
+    this.activeClones++;
     m.redraw();
 
-    const result = await target.cloneSession(this.sessionName);
-
-    const entry: SnapshotEntry = {
-      timestamp: new Date(),
-      sizeBytes: 0,
-    };
-
-    if (result.ok) {
-      entry.sizeBytes = result.value.length;
-      entry.data = result.value;
-      entry.loading = true;
-
-      // Add entry immediately to show progress
-      this.snapshots.push(entry);
-      this.isTakingSnapshot = false;
-      m.redraw();
-
-      // Create a new trace processor instance and load the snapshot
-      try {
-        const engine = await this.createEngineAndLoadTrace(entry.data);
-        entry.engine = engine;
-        entry.loading = false;
-
-        // Get latest RSS for the selected process
-        const processName = this.selectedProcess.name;
-        const memResult = await engine.query(`
-          SELECT
-            c.value as rss_bytes
-          FROM counter c
-          JOIN process_counter_track t ON c.track_id = t.id
-          JOIN process p ON t.upid = p.upid
-          WHERE t.name = 'mem.rss'
-            AND p.name GLOB '*${processName}*'
-          ORDER BY c.ts DESC
-          LIMIT 1
-        `);
-        const iter = memResult.iter({rss_bytes: NUM});
-        if (iter.valid()) {
-          entry.rssBytes = iter.rss_bytes as number;
-        }
-      } catch (e) {
-        entry.error = `Failed to load into trace processor: ${e}`;
-        entry.loading = false;
+    try {
+      // Clone the lightweight monitoring session, not the heavy one.
+      const result = await target.cloneSession(this.monitorSessionName);
+      if (!result.ok) {
+        this.error = `Clone failed: ${result.error}`;
+        return;
       }
-      m.redraw();
-    } else {
-      entry.error = result.error;
-      this.snapshots.push(entry);
-      this.isTakingSnapshot = false;
+
+      const traceData = result.value;
+      const engineId = `snapshot-${++snapshotEngineCounter}`;
+      const engine = new WasmEngineProxy(engineId);
+
+      try {
+        await engine.resetTraceProcessor({
+          tokenizeOnly: false,
+          cropTrackEvents: false,
+          ingestFtraceInRawTable: true,
+          analyzeTraceProtoContent: false,
+          ftraceDropUntilAllCpusValid: true,
+          forceFullSort: false,
+        });
+        await engine.parse(traceData);
+        await engine.notifyEof();
+
+        this.activeQueries++;
+        m.redraw();
+
+        try {
+          const counters = await this.extractMemoryCounters(
+            engine,
+            this.selectedProcess.pid,
+          );
+
+          const elapsedSec =
+            (Date.now() - (this.recordingStartTime ?? Date.now())) / 1000;
+
+          this.dataPoints.push({elapsedSec, counters});
+          this.error = undefined; // Clear any previous error on success.
+        } finally {
+          this.activeQueries--;
+        }
+      } finally {
+        engine[Symbol.dispose]();
+      }
+    } catch (e) {
+      this.error = `Snapshot error: ${e}`;
+    } finally {
+      this.activeClones--;
+      // Schedule the next snapshot after this one completes.
+      if (this.isRecording) {
+        this.cloneTimer = window.setTimeout(() => {
+          this.autoClone(recMgr);
+        }, snapshotIntervalMs);
+      }
       m.redraw();
     }
   }
 
-  private async createEngineAndLoadTrace(
-    traceData: Uint8Array,
-  ): Promise<EngineBase> {
-    const engineId = `snapshot-${++snapshotEngineCounter}`;
-    const engine = new WasmEngineProxy(engineId);
+  private async extractMemoryCounters(
+    engine: WasmEngineProxy,
+    pid: number,
+  ): Promise<Map<MemoryCounterName, number>> {
+    const counters = new Map<MemoryCounterName, number>();
 
-    // Initialize the trace processor
-    await engine.resetTraceProcessor({
-      tokenizeOnly: false,
-      cropTrackEvents: false,
-      ingestFtraceInRawTable: true,
-      analyzeTraceProtoContent: false,
-      ftraceDropUntilAllCpusValid: true,
-      forceFullSort: false,
+    const queryResult = await engine.query(`
+      SELECT
+        t.name AS counter_name,
+        c.value AS counter_value
+      FROM counter c
+      JOIN process_counter_track t ON c.track_id = t.id
+      JOIN process p ON t.upid = p.upid
+      WHERE t.name IN (
+        'mem.rss',
+        'mem.rss.anon',
+        'mem.rss.file',
+        'mem.rss.shmem',
+        'mem.swap'
+      )
+      AND p.pid = ${pid}
+      AND c.ts = (
+        SELECT MAX(c2.ts)
+        FROM counter c2
+        WHERE c2.track_id = c.track_id
+      )
+    `);
+
+    const iter = queryResult.iter({
+      counter_name: STR,
+      counter_value: NUM,
     });
 
-    // Load the trace data
-    await engine.parse(traceData);
-    await engine.notifyEof();
+    for (; iter.valid(); iter.next()) {
+      const name = iter.counter_name as MemoryCounterName;
+      if ((MEMORY_COUNTER_NAMES as readonly string[]).includes(name)) {
+        counters.set(name, iter.counter_value as number);
+      }
+    }
 
-    return engine;
+    return counters;
   }
 
-  private stopRecording() {
-    this.session?.cancel();
-    this.session = undefined;
+  private async stopRecording(recMgr: RecordingManager) {
+    if (!this.heavySession) return;
+
+    this.isStopping = true;
+
+    // Stop the auto-clone timer.
+    if (this.cloneTimer !== undefined) {
+      window.clearTimeout(this.cloneTimer);
+      this.cloneTimer = undefined;
+    }
+
+    m.redraw();
+
+    // Stop the monitoring session first (we don't need its data).
+    if (this.monitorSession) {
+      await this.monitorSession.stop();
+      this.monitorSession = undefined;
+    }
+
+    // Stop the heavy session and wait for it to finish.
+    await this.heavySession.stop();
+
+    await new Promise<void>((resolve) => {
+      const checkState = () => {
+        if (this.heavySession?.state === 'FINISHED') {
+          resolve();
+        } else if (this.heavySession?.state === 'ERRORED') {
+          this.error = 'Heavy session ended with error';
+          resolve();
+        } else {
+          setTimeout(checkState, 100);
+        }
+      };
+      checkState();
+    });
+
+    // Get the trace data from the heavy session and open it if requested.
+    const traceData = this.heavySession.getTraceData();
+    if (traceData && this.openTraceOnStop) {
+      const fileName = `memory-${this.selectedProcess?.name ?? 'trace'}-${Date.now()}.perfetto-trace`;
+      recMgr.app.openTraceFromBuffer({
+        buffer: traceData.buffer as ArrayBuffer,
+        title: fileName,
+        fileName,
+      });
+    }
+
+    this.heavySession = undefined;
+    this.monitorSession = undefined;
     this.isRecording = false;
+    this.isStopping = false;
     this.selectedProcess = undefined;
+    this.dataPoints = [];
+    this.recordingStartTime = undefined;
     m.redraw();
   }
 

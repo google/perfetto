@@ -37,12 +37,6 @@ import {Card} from '../../../widgets/card';
 import {showModal} from '../../../widgets/modal';
 import {traceConfigToPb} from '../../../base/proto_utils_wasm';
 import protos from '../../../protos';
-import {
-  DataGrid,
-  renderCell,
-} from '../../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
-import {Row, SqlValue} from '../../../trace_processor/query_result';
 
 type RecMgrAttrs = {recMgr: RecordingManager};
 
@@ -527,87 +521,8 @@ class TargetDetails implements m.ClassComponent<TargetDetailsAttrs> {
   view({attrs}: m.CVnode<TargetDetailsAttrs>) {
     return [
       this.checksRenderer?.renderTable(),
-      attrs.target.pollMemoryStats &&
-        m(DeviceMemoryStatsRenderer, {target: attrs.target}),
       m(SessionMgmtRenderer, {recMgr: attrs.recMgr, target: attrs.target}),
     ];
-  }
-}
-
-const MEMORY_STATS_SCHEMA: SchemaRegistry = {
-  process: {
-    process: {title: 'Process', columnType: 'text'},
-    pid: {title: 'PID', columnType: 'quantitative'},
-    pss_kb: {
-      title: 'PSS (KB)',
-      columnType: 'quantitative',
-      cellRenderer: (value: SqlValue) => {
-        if (typeof value === 'number') {
-          return `${value.toLocaleString()} KB`;
-        } else {
-          return renderCell(value);
-        }
-      },
-    },
-  },
-};
-
-type DeviceMemoryStatsAttrs = {target: RecordingTarget};
-class DeviceMemoryStatsRenderer
-  implements m.ClassComponent<DeviceMemoryStatsAttrs>
-{
-  private trash = new DisposableStack();
-  private rows: Row[] = [];
-
-  constructor({attrs}: m.CVnode<DeviceMemoryStatsAttrs>) {
-    this.trash.use(this.startPolling(attrs.target));
-  }
-
-  private startPolling(target: RecordingTarget): Disposable {
-    // Kick off an initial poll immediately.
-    this.poll(target);
-    const timerId = window.setInterval(() => this.poll(target), 3000);
-    return {
-      [Symbol.dispose]() {
-        window.clearInterval(timerId);
-      },
-    };
-  }
-
-  private async poll(target: RecordingTarget) {
-    const result = await target.pollMemoryStats?.();
-    if (result !== undefined) {
-      this.rows = result.map((s) => ({
-        process: s.processName,
-        pid: s.pid,
-        pss_kb: s.pssKb,
-      }));
-    }
-    m.redraw();
-  }
-
-  view() {
-    return [
-      m('header', 'Device memory'),
-      m(DataGrid, {
-        className: 'pf-device-memory-table',
-        schema: MEMORY_STATS_SCHEMA,
-        rootSchema: 'process',
-        data: this.rows,
-        initialColumns: [
-          {id: 'process', field: 'process'},
-          {id: 'pid', field: 'pid'},
-          {id: 'pss_kb', field: 'pss_kb', sort: 'DESC'},
-        ],
-        canAddColumns: false,
-        canRemoveColumns: false,
-        enablePivotControls: false,
-      }),
-    ];
-  }
-
-  onremove() {
-    this.trash.dispose();
   }
 }
 
