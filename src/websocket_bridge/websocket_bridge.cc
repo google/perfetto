@@ -30,6 +30,8 @@
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/tracing/default_socket.h"
 
+#include "src/tools/http_additional_cors_origins/http_additional_cors_origins.h"
+
 namespace perfetto {
 namespace {
 
@@ -152,6 +154,10 @@ void WSBridge::Main(int argc, char** argv) {
   srv.AddAllowedOrigin("http://localhost:10000");
   srv.AddAllowedOrigin("http://127.0.0.1:10000");
   srv.AddAllowedOrigin("https://ui.perfetto.dev");
+
+  for (const auto& origin : GetHttpAdditionalCorsOrigins()) {
+    srv.AddAllowedOrigin(origin);
+  }
 
   CommandLineOptions cmd_line_options = ParseCommandLineOptions(argc, argv);
 
