@@ -37,6 +37,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # TODO(stevegolton): Debug - remove.
+      - name: 'Debug GL info'
+        shell: bash
+        run: xvfb-run glxinfo -B
+
       # Fetch the upstream branch as well, so we can diff and see the list of
       # changed files (unless this is a post-submit test).
       - name: Fetch upstream branch
@@ -128,7 +133,7 @@ jobs:
 
       - name: UI integrationtests
         shell: bash
-        run: ui/run-integrationtests --out out/ui --no-docker --no-build
+        run: xvfb-run ui/run-integrationtests --out out/ui --no-docker --no-build
 
         # UI code formatting checks must be done here, rather than repo-checks,
         # because they need a out/ui build.

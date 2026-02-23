@@ -164,7 +164,6 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
-        ":src_protovm_protovm",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
@@ -274,6 +273,7 @@ perfetto_cc_library(
         ":src_base_base",
         ":src_base_clock_snapshots",
         ":src_base_version",
+        ":src_protovm_protovm",
     ],
     linkstatic = True,
 )
@@ -353,7 +353,6 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
-        ":src_protovm_protovm",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -541,6 +540,7 @@ perfetto_cc_library(
                ":src_base_base",
                ":src_base_clock_snapshots",
                ":src_base_version",
+               ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
@@ -567,7 +567,6 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
-        ":src_protovm_protovm",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -763,6 +762,7 @@ perfetto_cc_library(
                ":src_base_clock_snapshots",
                ":src_base_http_http",
                ":src_base_version",
+               ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
@@ -942,7 +942,6 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
-        ":src_protovm_protovm",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
@@ -1079,6 +1078,7 @@ perfetto_cc_library(
         ":src_base_base",
         ":src_base_clock_snapshots",
         ":src_base_version",
+        ":src_protovm_protovm",
     ] + PERFETTO_CONFIG.deps.zlib,
     linkstatic = True,
 )
@@ -1837,7 +1837,7 @@ perfetto_filegroup(
 )
 
 # GN target: //src/protovm:protovm
-perfetto_filegroup(
+perfetto_cc_library(
     name = "src_protovm_protovm",
     srcs = [
         "src/protovm/allocator.cc",
@@ -1862,6 +1862,12 @@ perfetto_filegroup(
         "src/protovm/vm.cc",
         "src/protovm/vm.h",
     ],
+    deps = [
+        ":protos_perfetto_protovm_zero",
+        ":protozero",
+        ":src_base_base",
+    ],
+    linkstatic = True,
 )
 
 # GN target: //src/protozero/descriptor_diff:lib
@@ -8265,7 +8271,6 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
-        ":src_protovm_protovm",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
@@ -8368,6 +8373,7 @@ perfetto_cc_library(
         ":src_base_base",
         ":src_base_clock_snapshots",
         ":src_base_version",
+        ":src_protovm_protovm",
     ],
     linkstatic = True,
 )
@@ -8485,7 +8491,6 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
-        ":src_protovm_protovm",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
@@ -8671,6 +8676,7 @@ perfetto_cc_library(
                ":protozero",
                ":src_base_base",
                ":src_base_clock_snapshots",
+               ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
@@ -8727,7 +8733,6 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_util",
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
-        ":src_protovm_protovm",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -8908,6 +8913,7 @@ perfetto_cc_binary(
                ":src_base_base",
                ":src_base_clock_snapshots",
                ":src_base_version",
+               ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",

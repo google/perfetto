@@ -27,6 +27,7 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
+from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.metadata_tables import THREAD_TABLE
 from src.trace_processor.tables.track_tables import TRACK_TABLE
@@ -78,7 +79,8 @@ ANDROID_CPU_PER_UID_TRACK_TABLE = Table(
 ANDROID_GAME_INTERVENTION_LIST_TABLE = Table(
     python_module=__file__,
     class_name='AndroidGameInterventionListTable',
-    sql_name='android_game_intervention_list',
+    sql_name='__intrinsic_android_game_intervention_list',
+    wrapping_sql_view=WrappingSqlView('android_game_intervention_list'),
     columns=[
         C('package_name', CppString()),
         C('uid', CppInt64()),
@@ -153,7 +155,8 @@ ANDROID_GAME_INTERVENTION_LIST_TABLE = Table(
 ANDROID_DUMPSTATE_TABLE = Table(
     python_module=__file__,
     class_name='AndroidDumpstateTable',
-    sql_name='android_dumpstate',
+    sql_name='__intrinsic_android_dumpstate',
+    wrapping_sql_view=WrappingSqlView('android_dumpstate'),
     columns=[
         C('section', CppOptional(CppString())),
         C('service', CppOptional(CppString())),

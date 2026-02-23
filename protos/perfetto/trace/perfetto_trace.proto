@@ -5640,6 +5640,10 @@ message TraceStats {
       optional uint64 v1_patches_succeeded = 6;
       // Num. patches that succeeded on V2 buffer.
       optional uint64 v2_patches_succeeded = 7;
+
+      // This is to distinguish the updated calculations after fixing the
+      // hashes. This field is either empty or "2"
+      optional uint32 stats_version = 8;
     }
     optional ShadowBufferStats shadow_buffer_stats = 21;
   }

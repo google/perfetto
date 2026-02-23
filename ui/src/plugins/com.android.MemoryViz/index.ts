@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -24,15 +25,113 @@ export default class MemoryViz implements PerfettoPlugin {
   static readonly id = 'com.android.MemoryViz';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await ctx.engine.query(`
-      INCLUDE PERFETTO MODULE intervals.intersect;
-      INCLUDE PERFETTO MODULE android.memory.memory_breakdown;
-    `);
+    ctx.commands.registerCommand({
+      id: 'com.android.visualizeMemoryReclaim',
+      name: 'Memory: reclaim events',
+      callback: async () => {
+        await ctx.engine.query(`
+          INCLUDE PERFETTO MODULE intervals.overlap;
+          INCLUDE PERFETTO MODULE intervals.intersect;
+          INCLUDE PERFETTO MODULE slices.with_context;
+        `);
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: `
+              -- 1. Get and merge Direct Reclaim slices globally.
+              WITH direct_reclaim_merged AS (
+                SELECT
+                  m.ts,
+                  m.dur
+                FROM interval_merge_overlapping!(
+                  (
+                    SELECT ts, dur
+                    FROM thread_slice
+                    WHERE name LIKE 'mm_vmscan_direct_reclaim'
+                  ),
+                  0
+                ) m
+                WHERE m.dur > 0
+              ),
+              -- 2. Get and merge kswapd0 thread slices.
+              kswapd_slices AS (
+                SELECT ts, dur
+                FROM thread_slice
+                WHERE thread_name = 'kswapd0' AND dur > 0
+              ),
+              -- 3. Combine both sources with priorities and unique IDs for intersection.
+              all_intervals AS (
+                SELECT
+                  *, row_number() OVER () AS id
+                FROM (
+                  SELECT
+                    *, 1 AS priority
+                  FROM direct_reclaim_merged
+                  UNION ALL
+                  SELECT
+                    *, 0 AS priority
+                  FROM kswapd_slices
+                )
+              ),
+              -- 4. Calculate sub-intervals where the source intervals overlap.
+              intersected AS (
+                SELECT
+                  ii.ts,
+                  ii.dur,
+                  ii.group_id,
+                  ii.id
+                FROM interval_self_intersect!(all_intervals) ii
+                WHERE ii.interval_ends_at_ts = FALSE
+              )
+              -- 5. For each piece of time (group_id), pick the source with the highest priority.
+              SELECT
+                ii.ts,
+                ii.dur,
+                CASE WHEN MAX(ai.priority) = 1 THEN 'direct reclaim' ELSE 'kswapd0' END AS name
+              FROM intersected ii
+              JOIN all_intervals ai ON ii.id = ai.id
+              GROUP BY ii.group_id
+            `,
+          },
+          title: 'Kswapd0 / Direct Reclaim',
+        });
+
+        await ctx.engine.query(`
+          INCLUDE PERFETTO MODULE android.memory.lmk;
+        `);
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: `
+              SELECT
+                ts,
+                0 as dur,
+                upid,
+                pid,
+                process_name,
+                oom_score_adj,
+                android_oom_adj_score_to_bucket_name(oom_score_adj) AS oom_bucket,
+                kill_reason
+              FROM android_lmk_events
+            `,
+          },
+          title: 'LMK',
+          columns: {
+            name: 'process_name',
+          },
+          pivotOn: 'oom_bucket',
+        });
+      },
+    });
 
     ctx.commands.registerCommand({
       id: `com.android.visualizeMemory`,
       name: 'Memory: Visualize (over selection)',
       callback: async () => {
+        await ctx.engine.query(`
+          INCLUDE PERFETTO MODULE intervals.intersect;
+          INCLUDE PERFETTO MODULE android.memory.memory_breakdown;
+        `);
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
 
         const tracks = [

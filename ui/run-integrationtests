@@ -29,9 +29,46 @@ import sys
 UI_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(UI_DIR)
 
-# Playwright Docker image version should match playwright version in
-# package.json
-PLAYWRIGHT_IMAGE = 'mcr.microsoft.com/playwright'
+# Custom Playwright Docker image name (built from ui/playwright/Dockerfile)
+PLAYWRIGHT_IMAGE = 'perfetto-playwright'
+PLAYWRIGHT_DOCKERFILE = os.path.join(UI_DIR, 'playwright', 'Dockerfile')
+
+
+def get_playwright_version():
+  """Get the installed Playwright version."""
+  result = subprocess.run(
+      ['./pnpm', 'exec', 'playwright', '--version'],
+      capture_output=True,
+      text=True,
+      cwd=UI_DIR
+  )
+  if result.returncode != 0:
+    raise RuntimeError(f'Failed to get Playwright version: {result.stderr}')
+  version_line = result.stdout.strip()
+  if not version_line.startswith('Version '):
+    raise RuntimeError(f'Unexpected Playwright version output: {version_line}')
+  return version_line[len('Version '):]
+
+
+def build_docker_image(version, use_sudo):
+  """Build the custom Playwright Docker image with Mesa GL support."""
+  image_tag = f'{PLAYWRIGHT_IMAGE}:v{version}'
+
+  print(f'Building Docker image: {image_tag}')
+  build_cmd = [
+      'docker', 'build',
+      '--build-arg', f'PLAYWRIGHT_VERSION={version}',
+      '-t', image_tag,
+      os.path.dirname(PLAYWRIGHT_DOCKERFILE)
+  ]
+  if use_sudo:
+    build_cmd = ['sudo'] + build_cmd
+
+  result = subprocess.run(build_cmd)
+  if result.returncode != 0:
+    raise RuntimeError(f'Failed to build Docker image')
+
+  return image_tag
 
 
 def is_docker_available():
@@ -110,30 +147,31 @@ def run_native(args):
 
 def run_in_docker(args):
   """Run tests inside a Docker container with pre-installed Chrome."""
-  # The full docker command is something like:
-  # sudo docker run --rm -it -v`pwd`:`pwd` -w `pwd`/ui -u`id -u`:`id -g` mcr.microsoft.com/playwright:vX.XX.X bash -c './pnpm exec playwright test'
+  use_sudo = needs_sudo_for_docker()
 
-  # Work out whick version of playwright we're using by running ./pnpm exec playwright --version and parsing the output, so we can use the matching Docker image. This ensures we have a compatible version of Chrome in the container.
-  result = subprocess.run(['./pnpm', 'exec', 'playwright', '--version'], capture_output=True, text=True, cwd=UI_DIR)
-  if result.returncode != 0:
-    print('Failed to get Playwright version:', result.stderr)
-    return result.returncode
-  version_line = result.stdout.strip()
-  if not version_line.startswith('Version '):
-    print('Unexpected Playwright version output:', version_line)
+  # Get the Playwright version and build/use matching Docker image
+  try:
+    version = get_playwright_version()
+    image = build_docker_image(version, use_sudo)
+  except RuntimeError as e:
+    print(str(e))
     return 1
-  version = version_line[len('Version '):]
-  image = f'{PLAYWRIGHT_IMAGE}:v{version}'
 
-  # Build the playwright command
-  playwright_cmd_parts = ['./pnpm', 'exec', 'playwright', 'test']
+  # Build the playwright command (wrapped with xvfb-run for virtual display)
+  # First install browsers to /tmp (the only writable location in the container)
+  install_cmd = 'PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright ./pnpm exec playwright install chromium'
+  playwright_cmd_parts = [
+      'unbuffer', 'xvfb-run', '--auto-servernum',
+      './pnpm', 'exec', 'playwright', 'test'
+  ]
   if args.rebaseline:
     playwright_cmd_parts += ['--update-snapshots']
   if args.workers:
     playwright_cmd_parts += ['--workers', args.workers]
   playwright_cmd_parts += args.filters
 
-  playwright_cmd = ' '.join(shlex.quote(p) for p in playwright_cmd_parts)
+  playwright_test_cmd = ' '.join(shlex.quote(p) for p in playwright_cmd_parts)
+  playwright_cmd = f'{install_cmd} && PLAYWRIGHT_BROWSERS_PATH=/tmp/ms-playwright {playwright_test_cmd}'
 
   # Build dev server args (similar to run_native)
   dev_server_args = []
@@ -158,10 +196,10 @@ def run_in_docker(args):
       'bash', '-c', playwright_cmd
   ]
 
-  if needs_sudo_for_docker():
+  if use_sudo:
     docker_cmd = ['sudo'] + docker_cmd
 
-  print(f'Running playwright in docker using {image}')
+  print(f'Running Playwright in Docker using {image}')
   if docker_cmd[0] == 'sudo':
     print('Note: you may be prompted for your password to run Docker with sudo.')
   sys.exit(subprocess.call(docker_cmd))
