@@ -17,7 +17,6 @@ import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRect, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {buildChartOption, buildLegendOption} from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single data point in a scatter chart.
@@ -191,8 +190,6 @@ function buildScatterOption(
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
-
-  const theme = getChartThemeColors();
   const displayLegend = showLegend ?? data.series.length > 1;
 
   // Compute size range for normalization if any points have sizes
@@ -246,7 +243,7 @@ function buildScatterOption(
         : symbolSize,
       itemStyle: s.color !== undefined ? {color: s.color} : undefined,
       emphasis: {
-        itemStyle: {borderWidth: 2, borderColor: theme.backgroundColor},
+        itemStyle: {borderWidth: 2},
       },
     };
   });

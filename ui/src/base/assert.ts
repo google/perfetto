@@ -41,9 +41,11 @@ export function assertDefined<T>(value: T | undefined, optMsg?: string): T {
   return value;
 }
 
+// Asserts that the value is an instance of the given class. Returns the value
+// with a narrowed type if the assertion passes, otherwise throws an error.
 export function assertIsInstance<T>(
   value: unknown,
-  clazz: Function,
+  clazz: abstract new (...args: never[]) => T,
   optMsg?: string,
 ): T {
   assertTrue(
