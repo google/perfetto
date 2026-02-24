@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import protos from '../../../protos';
+// import {Tooltip} from '../../../widgets/tooltip';
 import {
   RecordSubpage,
   RecordProbe,
@@ -31,6 +32,7 @@ import {
 import {Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
+import {Stack} from '../../../widgets/stack';
 import {PopupPosition} from '../../../widgets/popup';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
@@ -275,19 +277,33 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     this.options.forEach((o) => currentOptionsMap.set(o.id, o));
     for (const cat of descriptor.availableCategories) {
       if (typeof cat.name !== 'string' || !cat.name) continue;
+
       let name = cat.name.replace(DISABLED_PREFIX, '');
       if (cat.name.startsWith(DISABLED_PREFIX)) {
         name += ' (disabled-by-default)';
       }
-      if (cat.tags && cat.tags.length > 0) {
-        name += ' (' + cat.tags.join(', ') + ')';
-      }
+
+      const label: m.Children = [name];
       if (cat.description) {
-        name += ' ⓘ';
+        label.push(m(Icon, {icon: 'Info'}));
+      }
+      if (cat.tags && cat.tags.length > 0) {
+        label.push(
+          m(
+            Stack,
+            {orientation: 'horizontal', inline: true},
+            cat.tags.map((cat) => {
+              return m(Chip, {
+                label: cat,
+              });
+            }),
+          ),
+        );
       }
       const option: MultiSelectOption = {
         id: cat.name,
         name: name,
+        label,
         checked: currentOptionsMap.get(cat.name)?.checked ?? false,
         details: cat.description || undefined,
       };
