@@ -17,7 +17,18 @@ import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
 import {buildTooltipOption} from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
+
+// Default chart colors - these will be overridden by EChartView's theme application
+const DEFAULT_CHART_COLORS = [
+  '#5470c6',
+  '#91cc75',
+  '#fac858',
+  '#ee6666',
+  '#73c0de',
+  '#3ba272',
+  '#fc8452',
+  '#9a60b4',
+];
 
 /**
  * A node in the treemap hierarchy.
@@ -123,11 +134,10 @@ function buildTreemapOption(
     enableDrillDown = false,
   } = attrs;
 
-  const theme = getChartThemeColors();
-
-  // Build category-to-color mapping
+  // Build category-to-color mapping using default colors
+  // EChartView will apply theme colors for text/border styling
   const categoryColors = new Map<string, string>();
-  assignColors(data.nodes, categoryColors, theme.chartColors);
+  assignColors(data.nodes, categoryColors, DEFAULT_CHART_COLORS);
 
   const total = data.nodes.reduce((sum, n) => sum + computeTotal(n), 0);
 
@@ -153,33 +163,26 @@ function buildTreemapOption(
           show: showLabels,
           formatter: '{b}',
           fontSize: 11,
-          color: theme.textColor,
         },
         itemStyle: {
-          borderColor: theme.backgroundColor,
           borderWidth: 2,
           gapWidth: 2,
         },
         breadcrumb: enableDrillDown
           ? {
               show: true,
-              itemStyle: {
-                textStyle: {color: theme.textColor},
-              },
             }
           : {show: false},
         levels: [
           {
             // Level 0: parent groups
             itemStyle: {
-              borderColor: theme.borderColor,
               borderWidth: 3,
               gapWidth: 3,
             },
             upperLabel: {
               show: true,
               height: 20,
-              color: theme.textColor,
               fontSize: 12,
               fontWeight: 'bold' as const,
             },
@@ -188,7 +191,6 @@ function buildTreemapOption(
             // Level 1: children
             colorSaturation: [0.35, 0.65],
             itemStyle: {
-              borderColor: theme.backgroundColor,
               borderWidth: 1,
               gapWidth: 1,
             },
@@ -197,7 +199,6 @@ function buildTreemapOption(
             // Level 2+: deeper children (if any)
             colorSaturation: [0.25, 0.55],
             itemStyle: {
-              borderColor: theme.backgroundColor,
               borderWidth: 1,
               gapWidth: 1,
             },
