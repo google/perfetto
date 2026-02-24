@@ -704,6 +704,13 @@ message AndroidLogConfig {
   // If non-empty ignores all log messages whose tag doesn't match one of the
   // specified values.
   repeated string filter_tags = 4;
+
+  // If true, includes the contents of the logcat buffers that were already
+  // present before the data source started. By default (false), only new
+  // log entries produced after the data source starts are recorded.
+  // Can be useful for boot traces or situations where logs from before
+  // traced started are important.
+  optional bool preserve_log_buffer = 5;
 }
 
 // End of protos/perfetto/config/android/android_log_config.proto
