@@ -1,0 +1,373 @@
+#!/usr/bin/env python3
+# Copyright (C) 2024 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Downloads fonts from Google Fonts and manages typeface assets.
+
+This script downloads fonts from Google Fonts, converts them to WOFF2 format,
+and places them in buildtools/typefaces/. It can also upload them to GCS.
+
+Requirements:
+  pip install fonttools brotli
+
+Usage:
+  ./tools/typefaces update   # Download all fonts from Google Fonts
+  ./tools/typefaces upload   # Upload to GCS and update install-build-deps
+"""
+
+import argparse
+import hashlib
+import os
+import re
+import subprocess
+import sys
+import tarfile
+import tempfile
+import urllib.request
+
+try:
+  from fontTools.ttLib import TTFont
+  from fontTools.subset import Subsetter, Options as SubsetOptions
+except ImportError:
+  TTFont = None
+  Subsetter = None
+  SubsetOptions = None
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TYPEFACES_DIR = os.path.join(ROOT_DIR, 'buildtools', 'typefaces')
+INSTALL_BUILD_DEPS = os.path.join(ROOT_DIR, 'tools', 'install-build-deps')
+GCS_BUCKET = 'gs://perfetto'
+
+# Latin subset - matches typefaces.scss unicode-range
+LATIN_UNICODES = ('U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,'
+                  'U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,'
+                  'U+2212,U+2215,U+FEFF,U+FFFD')
+
+# Font configurations.
+# - 'axes': dict of axis names to values (range '100..900', single '400', or
+#           multiple '400;700')
+# - 'unicodes': unicode ranges to subset (e.g., 'U+0020-007F' for basic ASCII)
+FONTS = {
+    'Roboto': {
+        'output': 'Roboto.woff2',
+        'family': 'Roboto Flex',
+        'axes': {
+            'wght': '100..900'
+        },
+        'unicodes': LATIN_UNICODES,
+    },
+    'RobotoCondensed': {
+        'output': 'RobotoCondensed.woff2',
+        'family': 'Roboto Condensed',
+        'axes': {
+            'wght': '100..900'
+        },
+        'unicodes': LATIN_UNICODES,
+    },
+    'RobotoMono': {
+        'output': 'RobotoMono-Regular.woff2',
+        'family': 'Roboto Mono',
+        'axes': {
+            'wght': '400'
+        },
+    },
+    'MaterialSymbolsOutlined': {
+        'output': 'MaterialSymbolsOutlined.woff2',
+        'family': 'Material Symbols Outlined',
+        'axes': {
+            'FILL': '0..1'
+        },
+    },
+}
+
+
+def get_google_fonts_css_url(family, axes):
+  """Constructs the Google Fonts CSS2 API URL.
+
+  Args:
+    family: Font family name (e.g., 'Roboto Flex')
+    axes: Dict of axis names to values. Values can be:
+          - range: '100..900'
+          - single: '400'
+          - multiple: '400;700'
+  """
+  family_param = family.replace(' ', '+')
+  axis_names = ','.join(axes.keys())
+  axis_values = ','.join(axes.values())
+  return f'https://fonts.googleapis.com/css2?family={family_param}:{axis_names}@{axis_values}'
+
+
+def fetch_font_url_from_css(css_url, subset='latin'):
+  """Fetches the CSS from Google Fonts and extracts the font file URL.
+
+  Args:
+    css_url: The Google Fonts CSS2 API URL
+    subset: Which unicode subset to get ('latin', 'latin-ext', 'cyrillic', etc.)
+  """
+  # Use a user agent that requests woff2 format
+  headers = {
+      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+                    '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  }
+  req = urllib.request.Request(css_url, headers=headers)
+  with urllib.request.urlopen(req) as response:
+    css = response.read().decode('utf-8')
+
+  # Google Fonts CSS has comments like /* latin */ before each @font-face
+  # Find the URL for the requested subset
+  pattern = rf'/\*\s*{re.escape(subset)}\s*\*/[^{{]*\{{[^}}]*url\((https://fonts\.gstatic\.com/[^)]+\.woff2)\)'
+  match = re.search(pattern, css, re.DOTALL)
+  if match:
+    return match.group(1)
+
+  # Fallback: just get the first woff2 URL
+  urls = re.findall(r'url\((https://fonts\.gstatic\.com/[^)]+\.woff2)\)', css)
+  if not urls:
+    urls = re.findall(r'url\((https://fonts\.gstatic\.com/[^)]+\.ttf)\)', css)
+  if not urls:
+    raise ValueError(f'Could not find font URL in CSS from {css_url}')
+
+  return urls[-1]  # Last one is usually latin
+
+
+def download_file(url, dest_path):
+  """Downloads a file from a URL to the destination path."""
+  headers = {
+      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+                    '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  }
+  req = urllib.request.Request(url, headers=headers)
+  with urllib.request.urlopen(req) as response:
+    with open(dest_path, 'wb') as f:
+      f.write(response.read())
+
+
+def subset_font(font, unicodes_str):
+  """Subsets a font to only include specified unicode ranges."""
+
+  # Parse unicode ranges like "U+0020-007F,U+00A0-00FF"
+  unicodes = set()
+  for part in unicodes_str.split(','):
+    part = part.strip().upper()
+    if not part.startswith('U+'):
+      continue
+    part = part[2:]  # Remove U+
+    if '..' in part:
+      # Range like 0020..007F (alternative syntax)
+      start, end = part.split('..')
+      for cp in range(int(start, 16), int(end, 16) + 1):
+        unicodes.add(cp)
+    elif '-' in part and len(part) > 4:
+      # Range like 0020-007F
+      start, end = part.split('-')
+      for cp in range(int(start, 16), int(end, 16) + 1):
+        unicodes.add(cp)
+    else:
+      # Single codepoint
+      unicodes.add(int(part, 16))
+
+  options = SubsetOptions()
+  options.layout_features = ['*']  # Keep all OpenType features
+  options.name_IDs = ['*']  # Keep all name records
+  options.notdef_outline = True
+  options.recalc_average_width = True
+  options.recalc_bounds = True
+  options.recalc_max_context = True
+  options.ignore_missing_unicodes = True  # Font may not have all requested glyphs
+
+  subsetter = Subsetter(options=options)
+  subsetter.populate(unicodes=unicodes)
+  subsetter.subset(font)
+
+
+def subset_glyphs(input_path, output_path, unicodes):
+  """Subsets a font file to only include specified unicode ranges."""
+  font = TTFont(input_path)
+  print(f'  Subsetting to specified unicode ranges')
+  subset_font(font, unicodes)
+  font.flavor = 'woff2'
+  font.save(output_path)
+  font.close()
+
+
+def update_font(name, config, verbose=True):
+  """Downloads and converts a single font."""
+  output_path = os.path.join(TYPEFACES_DIR, config['output'])
+
+  if verbose:
+    print(f'Updating {name}...')
+
+  css_url = get_google_fonts_css_url(config['family'], config['axes'])
+
+  if verbose:
+    print(f'  Fetching CSS from: {css_url}')
+
+  # Get the actual font URL from the CSS
+  font_url = fetch_font_url_from_css(css_url)
+  if verbose:
+    print(f'  Font URL: {font_url}')
+
+  # Download to a temp file
+  with tempfile.NamedTemporaryFile(suffix='.font', delete=False) as tmp:
+    tmp_path = tmp.name
+
+  try:
+    if verbose:
+      print(f'  Downloading font...')
+    download_file(font_url, tmp_path)
+
+    # Process the font
+    if config.get('unicodes'):
+      # Subset glyphs to specified unicode ranges
+      subset_glyphs(tmp_path, output_path, config['unicodes'])
+    else:
+      # Copy directly (Google Fonts already returns woff2)
+      if verbose:
+        print(f'  Copying directly')
+      with open(tmp_path, 'rb') as src:
+        with open(output_path, 'wb') as dst:
+          dst.write(src.read())
+
+    if verbose:
+      size = os.path.getsize(output_path)
+      print(f'  Saved to: {output_path} ({size:,} bytes)')
+
+  finally:
+    if os.path.exists(tmp_path):
+      os.unlink(tmp_path)
+
+
+def upload_typefaces():
+  """Creates a tarball of typefaces and uploads to GCS."""
+  # Get list of font files to include
+  font_files = [config['output'] for config in FONTS.values()]
+
+  # Check all files exist
+  for filename in font_files:
+    filepath = os.path.join(TYPEFACES_DIR, filename)
+    if not os.path.exists(filepath):
+      print(f'Error: {filepath} does not exist. Run update first.')
+      return 1
+
+  # Create tarball in temp directory
+  with tempfile.TemporaryDirectory() as tmpdir:
+    tarball_path = os.path.join(tmpdir, 'typefaces.tar.gz')
+
+    print('Creating tarball...')
+    with tarfile.open(tarball_path, 'w:gz') as tar:
+      for filename in font_files:
+        filepath = os.path.join(TYPEFACES_DIR, filename)
+        tar.add(filepath, arcname=filename)
+        print(f'  Added {filename}')
+
+    # Calculate SHA256
+    print('Calculating SHA256...')
+    sha256 = hashlib.sha256()
+    with open(tarball_path, 'rb') as f:
+      for chunk in iter(lambda: f.read(8192), b''):
+        sha256.update(chunk)
+    sha256_hash = sha256.hexdigest()
+    print(f'  SHA256: {sha256_hash}')
+
+    # Upload to GCS
+    gcs_path = f'{GCS_BUCKET}/typefaces-{sha256_hash}.tar.gz'
+    print(f'Uploading to {gcs_path}...')
+    try:
+      subprocess.run(
+          ['gsutil', 'cp', '-n', '-a', 'public-read', tarball_path, gcs_path],
+          check=True)
+    except FileNotFoundError:
+      print('Error: gsutil not found. Install Google Cloud SDK.')
+      return 1
+    except subprocess.CalledProcessError as e:
+      print(f'Error uploading: {e}')
+      return 1
+
+    # Update install-build-deps
+    print(f'Updating {INSTALL_BUILD_DEPS}...')
+    with open(INSTALL_BUILD_DEPS, 'r') as f:
+      content = f.read()
+
+    # Replace the SHA256 hash
+    new_content = re.sub(r"TYPEFACES_SHA256 = '[a-f0-9]+'",
+                         f"TYPEFACES_SHA256 = '{sha256_hash}'", content)
+
+    if new_content == content:
+      print('  Warning: TYPEFACES_SHA256 not found or already up to date')
+    else:
+      with open(INSTALL_BUILD_DEPS, 'w') as f:
+        f.write(new_content)
+      print(f'  Updated TYPEFACES_SHA256 to {sha256_hash}')
+
+    # Update .stamp file
+    stamp_path = os.path.join(TYPEFACES_DIR, '.stamp')
+    with open(stamp_path, 'w') as f:
+      f.write(sha256_hash + '\n')
+    print(f'  Updated .stamp file')
+
+    print('\nDone!')
+    print(
+        f'  GCS URL: https://storage.googleapis.com/perfetto/typefaces-{sha256_hash}.tar.gz'
+    )
+
+  return 0
+
+
+def update_all_fonts():
+  """Downloads and updates all fonts from Google Fonts."""
+  # Ensure typefaces directory exists
+  os.makedirs(TYPEFACES_DIR, exist_ok=True)
+
+  for name, config in FONTS.items():
+    update_font(name, config, verbose=True)
+
+  # Print summary of font sizes
+  print('\nFont sizes:')
+  total_size = 0
+  for name, config in FONTS.items():
+    output_path = os.path.join(TYPEFACES_DIR, config['output'])
+    size = os.path.getsize(output_path)
+    total_size += size
+    print(f'  {config["output"]}: {size:,} bytes')
+  print(f'  Total: {total_size:,} bytes')
+
+  print('\nRun "./tools/typefaces upload" to upload to GCS.')
+  return 0
+
+
+def main():
+  parser = argparse.ArgumentParser(
+      description='Download fonts from Google Fonts and manage typeface assets')
+  subparsers = parser.add_subparsers(dest='command', required=True)
+
+  # Update command
+  subparsers.add_parser('update', help='Download all fonts from Google Fonts')
+
+  # Upload command
+  subparsers.add_parser(
+      'upload',
+      help='Create tarball and upload to GCS, update install-build-deps')
+
+  args = parser.parse_args()
+
+  if args.command == 'update':
+    return update_all_fonts()
+  elif args.command == 'upload':
+    return upload_typefaces()
+  else:
+    parser.print_help()
+    return 1
+
+
+if __name__ == '__main__':
+  sys.exit(main())
