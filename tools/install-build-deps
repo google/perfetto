@@ -420,7 +420,7 @@ EMULATOR_DEPS_ANDROID = [
 # This variable is updated by tools/roll-catapult-trace-viewer.
 CATAPULT_SHA256 = 'b30108e05268ce6c65bb4126b65f6bfac165d17f5c1fd285046e7e6fd76c209f'
 
-TYPEFACES_SHA256 = 'd8e62cb0df55043cd3bccb20fb65008a2f4a98f3ba7d8f2f5b81e5eb46c011da'
+TYPEFACES_SHA256 = '8edaf662e24a910b232c9fc2f1a2a8aeea5bd32e74d0748c54a68f4b81717680'
 
 UI_DEPS = [
     Dependency(
