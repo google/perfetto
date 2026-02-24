@@ -23,7 +23,6 @@ import {
   buildBrushOption,
   buildTooltipOption,
 } from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single bar in the bar chart.
@@ -161,8 +160,6 @@ function buildBarOption(
     gridLines,
   } = attrs;
   const fmtMeasure = formatMeasure ?? formatNumber;
-
-  const theme = getChartThemeColors();
   const horizontal = orientation === 'horizontal';
   const labels = data.items.map((item) => String(item.label));
 
@@ -202,7 +199,6 @@ function buildBarOption(
 
   const option: Record<string, unknown> = {
     animation: false,
-    color: [...theme.chartColors],
     grid: buildGridOption({
       bottom: dimensionLabel && !horizontal ? 45 : 25,
     }),
@@ -221,11 +217,10 @@ function buildBarOption(
         type: 'bar',
         data: data.items.map((item) => item.value),
         itemStyle: barColor !== undefined ? {color: barColor} : undefined,
-        emphasis: {
-          itemStyle: {
-            color: barHoverColor ?? theme.accentColor,
-          },
-        },
+        emphasis:
+          barHoverColor !== undefined
+            ? {itemStyle: {color: barHoverColor}}
+            : undefined,
       },
     ],
   };

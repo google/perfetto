@@ -23,7 +23,6 @@ import {
 } from './histogram_loader';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {buildChartOption} from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
 
 // Re-export data types for convenience
 export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
@@ -135,8 +134,6 @@ function buildOption(
     logScale = false,
   } = attrs;
   const fmtY = formatYValue ?? formatNumber;
-
-  const theme = getChartThemeColors();
   const categories = data.buckets.map((b) => formatXValue(b.start));
 
   const option = buildChartOption({
@@ -187,9 +184,10 @@ function buildOption(
       barWidth: '100%',
       barCategoryGap: '0%',
       itemStyle: barColor !== undefined ? {color: barColor} : undefined,
-      emphasis: {
-        itemStyle: {color: barHoverColor ?? theme.accentColor},
-      },
+      emphasis:
+        barHoverColor !== undefined
+          ? {itemStyle: {color: barHoverColor}}
+          : undefined,
     },
   ];
 
