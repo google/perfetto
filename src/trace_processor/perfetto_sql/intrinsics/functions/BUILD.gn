@@ -28,6 +28,8 @@ source_set("functions") {
     "counter_intervals.h",
     "create_function.cc",
     "create_function.h",
+    "create_slices.cc",
+    "create_slices.h",
     "create_view_function.cc",
     "create_view_function.h",
     "dominator_tree.cc",
