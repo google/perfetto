@@ -18,7 +18,7 @@ import {Trace} from '../../public/trace';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
-import {assertExists, assertTrue} from '../../base/logging';
+import {assertExists, assertTrue} from '../../base/assert';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {

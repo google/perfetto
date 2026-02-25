@@ -31,6 +31,8 @@ import m from 'mithril';
 import * as echarts from 'echarts/core';
 import {
   BarChart as EBarChart,
+  BoxplotChart as EBoxplotChart,
+  HeatmapChart as EHeatmapChart,
   LineChart as ELineChart,
   PieChart as EPieChart,
   ScatterChart as EScatterChart,
@@ -43,10 +45,12 @@ import {
   DataZoomComponent,
   BrushComponent,
   ToolboxComponent,
+  VisualMapComponent,
+  MarkAreaComponent,
 } from 'echarts/components';
 import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsType} from 'echarts/core';
-import {assertExists} from '../../../base/logging';
+import {assertExists} from '../../../base/assert';
 import {classNames} from '../../../base/classnames';
 import {SimpleResizeObserver} from '../../../base/resize_observer';
 import {Spinner} from '../../../widgets/spinner';
@@ -63,6 +67,8 @@ function ensureEChartsSetup(): void {
   echartsInitialized = true;
   echarts.use([
     EBarChart,
+    EBoxplotChart,
+    EHeatmapChart,
     ELineChart,
     EPieChart,
     EScatterChart,
@@ -73,6 +79,8 @@ function ensureEChartsSetup(): void {
     DataZoomComponent,
     BrushComponent,
     ToolboxComponent,
+    VisualMapComponent,
+    MarkAreaComponent,
     CanvasRenderer,
   ]);
 }
@@ -80,10 +88,15 @@ function ensureEChartsSetup(): void {
 /**
  * Typed params for the ECharts `brushEnd` event.
  * Used by chart brush handlers to extract selected ranges.
+ *
+ * coordRange is [min, max] for 1-D brushes (lineX / lineY) and
+ * [[xMin, xMax], [yMin, yMax]] for 2-D rect brushes.
  */
 export interface EChartBrushEndParams {
   readonly areas?: ReadonlyArray<{
-    readonly coordRange?: [number, number];
+    readonly coordRange?:
+      | [number, number]
+      | [[number, number], [number, number]];
   }>;
 }
 
@@ -226,7 +239,7 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
       this.resizeObs = undefined;
     }
     this.detachAllHandlers();
-    if (this.chart) {
+    if (this.chart !== undefined) {
       this.chart.dispose();
       this.chart = undefined;
     }

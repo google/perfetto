@@ -36,7 +36,7 @@ import {
 } from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {
@@ -90,7 +90,7 @@ const WEBGL_RENDERING = featureFlags.register({
   name: 'WebGL rendering',
   description: `Use WebGL for rendering track rectangles. Falls back to
     Canvas 2D when disabled or unavailable.`,
-  defaultValue: false,
+  defaultValue: true,
 });
 
 // Snap-to-boundaries feature constants

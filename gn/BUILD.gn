@@ -91,6 +91,7 @@ action("gen_buildflags") {
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
     "PERFETTO_FORCE_DCHECK_ON=$perfetto_force_dcheck_on",
     "PERFETTO_FORCE_DCHECK_OFF=$perfetto_force_dcheck_off",
+    "PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS=\"$perfetto_http_additional_cors_origins\"",
     "PERFETTO_VERBOSE_LOGS=$perfetto_verbose_logs_enabled",
     "PERFETTO_VERSION_GEN=$enable_perfetto_version_gen",
     "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",

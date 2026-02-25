@@ -84,8 +84,8 @@ class PERFETTO_EXPORT_COMPONENT ProtoDecoder {
   const uint8_t* end() const { return end_; }
 
  protected:
-  const uint8_t* const begin_;
-  const uint8_t* const end_;
+  const uint8_t* begin_;
+  const uint8_t* end_;
   const uint8_t* read_ptr_ = nullptr;
 };
 
@@ -532,6 +532,19 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
 
   TypedProtoDecoder(TypedProtoDecoder&& other) noexcept
       : TypedProtoDecoderBase(std::move(other)) {
+    MaybeCopyOnStackStorage(other);
+  }
+
+  TypedProtoDecoder& operator=(TypedProtoDecoder&& other) noexcept {
+    if (this != &other) {
+      TypedProtoDecoderBase::operator=(std::move(other));
+      MaybeCopyOnStackStorage(other);
+    }
+    return *this;
+  }
+
+ private:
+  void MaybeCopyOnStackStorage(const TypedProtoDecoder& other) {
     // If the moved-from decoder was using on-stack storage, we need to update
     // our pointer to point to this decoder's on-stack storage.
     if (fields_ == other.on_stack_storage_) {
@@ -541,7 +554,6 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
     }
   }
 
- private:
   Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
 };
 

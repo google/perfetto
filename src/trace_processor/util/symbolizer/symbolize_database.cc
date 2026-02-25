@@ -63,8 +63,8 @@ constexpr const char* kQueryUnsymbolized =
         spm.build_id,
         spf.rel_pc,
         spm.load_bias
-      from stack_profile_frame spf
-      join stack_profile_mapping spm on spf.mapping = spm.id
+      from __intrinsic_stack_profile_frame spf
+      join __intrinsic_stack_profile_mapping spm on spf.mapping = spm.id
       where (
           spm.build_id != ''
           -- The [[] is *not* a typo: that's how you escape [ inside a glob.
@@ -79,8 +79,8 @@ constexpr const char* kQueryUnsymbolized =
 constexpr const char* kQueryMappingsWithoutBuildId =
     R"(
       select iif(spm.name = '', '[empty mapping name]', spm.name), count(*)
-      from stack_profile_frame spf
-      join stack_profile_mapping spm on spf.mapping = spm.id
+      from __intrinsic_stack_profile_frame spf
+      join __intrinsic_stack_profile_mapping spm on spf.mapping = spm.id
       where spm.build_id = ''
         and spm.name NOT GLOB '[[]kernel.kallsyms]*'
         and spf.symbol_set_id IS NULL

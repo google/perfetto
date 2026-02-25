@@ -196,7 +196,8 @@ INPUTMETHOD_SERVICE_TABLE = Table(
 SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerLayersSnapshotTable',
-    sql_name='surfaceflinger_layers_snapshot',
+    sql_name='__intrinsic_surfaceflinger_layers_snapshot',
+    wrapping_sql_view=WrappingSqlView('surfaceflinger_layers_snapshot'),
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -265,7 +266,8 @@ SURFACE_FLINGER_DISPLAY_TABLE = Table(
 SURFACE_FLINGER_LAYER_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerLayerTable',
-    sql_name='surfaceflinger_layer',
+    sql_name='__intrinsic_surfaceflinger_layer',
+    wrapping_sql_view=WrappingSqlView('surfaceflinger_layer'),
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE)),
         C(
@@ -355,7 +357,8 @@ WINSCOPE_FILL_REGION_TABLE = Table(
 SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerTransactionsTable',
-    sql_name='surfaceflinger_transactions',
+    sql_name='__intrinsic_surfaceflinger_transactions',
+    wrapping_sql_view=WrappingSqlView('surfaceflinger_transactions'),
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -577,7 +580,8 @@ VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
 WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionsTable',
-    sql_name='window_manager_shell_transitions',
+    sql_name='__intrinsic_window_manager_shell_transitions',
+    wrapping_sql_view=WrappingSqlView('window_manager_shell_transitions'),
     columns=[
         C('ts', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('transition_id', CppInt64()),
@@ -700,7 +704,9 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
 WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionHandlersTable',
-    sql_name='window_manager_shell_transition_handlers',
+    sql_name='__intrinsic_window_manager_shell_transition_handlers',
+    wrapping_sql_view=WrappingSqlView(
+        'window_manager_shell_transition_handlers'),
     columns=[
         C('handler_id', CppInt64()),
         C('handler_name', CppString()),
@@ -897,7 +903,8 @@ WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
 PROTOLOG_TABLE = Table(
     python_module=__file__,
     class_name='ProtoLogTable',
-    sql_name='protolog',
+    sql_name='__intrinsic_protolog',
+    wrapping_sql_view=WrappingSqlView('protolog'),
     columns=[
         C(
             'ts',

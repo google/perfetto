@@ -14,7 +14,7 @@
 
 import {removeFalsyValues} from '../../base/array_utils';
 import {AsyncLimiter} from '../../base/async_limiter';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Time} from '../../base/time';
 import {
   createAggregationTab,

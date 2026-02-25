@@ -25,7 +25,7 @@ import {
   NoteSelection,
   TrackSelection,
 } from '../../public/selection';
-import {assertUnreachable} from '../../base/logging';
+import {assertUnreachable} from '../../base/assert';
 import {Button, ButtonBar} from '../../widgets/button';
 import {NoteEditor} from '../note_editor';
 import {Gate} from '../../base/mithril_utils';

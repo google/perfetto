@@ -37,7 +37,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 struct Base64Decode : public sqlite::Function<Base64Decode> {
-  static constexpr char kName[] = "base64_decode";
+  static constexpr char kName[] = "__intrinsic_base64_decode";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {

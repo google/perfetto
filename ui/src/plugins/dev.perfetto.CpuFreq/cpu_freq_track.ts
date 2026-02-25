@@ -19,7 +19,7 @@ import {deferChunkedTask} from '../../base/chunked_task';
 import {Color} from '../../base/color';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Point2D} from '../../base/geom';
-import {assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
   CancellationSignal,

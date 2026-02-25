@@ -37,6 +37,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # TODO(stevegolton): Debug - remove.
+      - name: 'Debug GL info'
+        shell: bash
+        run: xvfb-run glxinfo -B
+
       # Fetch the upstream branch as well, so we can diff and see the list of
       # changed files (unless this is a post-submit test).
       - name: Fetch upstream branch
@@ -126,18 +131,9 @@ jobs:
         shell: bash
         run: ui/run-unittests --out out/ui --no-build
 
-      - name: Install Chrome
-        shell: bash
-        run: |
-          mkdir /tmp/chrome
-          cd /tmp/chrome
-          CHROME_VERSION=145.0.7632.45
-          curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
-          dpkg-deb -x chrome.deb  .
-
       - name: UI integrationtests
         shell: bash
-        run: ui/run-integrationtests --out out/ui --no-build
+        run: xvfb-run ui/run-integrationtests --out out/ui --no-docker --no-build
 
         # UI code formatting checks must be done here, rather than repo-checks,
         # because they need a out/ui build.

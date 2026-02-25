@@ -44,23 +44,37 @@ export const PROBES_SCHEMA = z
   .default({});
 export type ProbesSchema = z.infer<typeof PROBES_SCHEMA>;
 
-// The schema that holds the settings for a recording session, that is, the
-// state of the probes and the buffer size & type.
-// This does NOT include the state of the other recording pages (e.g. the
-// Target device selector, the "saved sessions", etc)
-export const RECORD_SESSION_SCHEMA = z
-  .object({
-    mode: z
-      .enum(['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'])
-      .default('STOP_WHEN_FULL'),
-    bufSizeKb: z.number().default(64 * 1024),
-    durationMs: z.number().default(10_000),
-    maxFileSizeMb: z.number().default(500),
-    fileWritePeriodMs: z.number().default(2500),
-    compression: z.boolean().default(false),
-    probes: PROBES_SCHEMA,
-  })
-  .prefault({});
+// A probe-based session config built from the UI probe settings.
+export const PROBES_SESSION_SCHEMA = z.object({
+  // Old configs won't have 'kind', so default to 'probes'.
+  kind: z.literal('probes').default('probes'),
+  mode: z
+    .enum(['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'])
+    .default('STOP_WHEN_FULL'),
+  bufSizeKb: z.number().default(64 * 1024),
+  durationMs: z.number().default(10_000),
+  maxFileSizeMb: z.number().default(500),
+  fileWritePeriodMs: z.number().default(2500),
+  compression: z.boolean().default(false),
+  probes: PROBES_SCHEMA,
+});
+export type ProbesSessionSchema = z.infer<typeof PROBES_SESSION_SCHEMA>;
+
+// A custom session config from an imported TraceConfig textproto.
+const CUSTOM_SESSION_SCHEMA = z.object({
+  kind: z.literal('custom'),
+  customTraceConfigBase64: z.string(),
+  customConfigFileName: z.string().optional(),
+});
+export type CustomSessionSchema = z.infer<typeof CUSTOM_SESSION_SCHEMA>;
+
+// The schema that holds the settings for a recording session.
+// z.union tries custom first (requires kind:'custom'), then falls back to
+// probes (where kind defaults to 'probes' for backward compat).
+export const RECORD_SESSION_SCHEMA = z.union([
+  CUSTOM_SESSION_SCHEMA,
+  PROBES_SESSION_SCHEMA,
+]);
 export type RecordSessionSchema = z.infer<typeof RECORD_SESSION_SCHEMA>;
 
 // The schema for the target selection page.
@@ -75,9 +89,10 @@ export const TARGET_SCHEMA = z
   .default({});
 export type TargetSchema = z.infer<typeof TARGET_SCHEMA>;
 
+// A saved session: name + the full session config (probes or custom).
 export const SAVED_SESSION_SCHEMA = z.object({
   name: z.string(),
-  config: RECORD_SESSION_SCHEMA,
+  config: RECORD_SESSION_SCHEMA.default(() => PROBES_SESSION_SCHEMA.parse({})),
 });
 export type SavedSessionSchema = z.infer<typeof SAVED_SESSION_SCHEMA>;
 

@@ -20,7 +20,7 @@ import {Color} from '../../base/color';
 import {ColorScheme} from '../../base/color_scheme';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Point2D} from '../../base/geom';
-import {assertExists, assertTrue} from '../../base/logging';
+import {assertExists, assertTrue} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
   CancellationSignal,

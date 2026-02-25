@@ -43,7 +43,7 @@ import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
 

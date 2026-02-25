@@ -33,9 +33,14 @@ import {PivotTableState} from '../widgets/sql/pivot_table/pivot_table_state';
 import {TableColumn} from '../widgets/sql/table/table_column';
 import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
 import {pivotId} from '../widgets/sql/pivot_table/ids';
-import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
-import {SqlHistogram, SqlHistogramState} from '../widgets/charts/sql_histogram';
-import {sqlColumnId} from '../widgets/sql/table/sql_column';
+import {BarChart} from '../widgets/charts/bar_chart';
+import {SQLBarChartLoader} from '../widgets/charts/bar_chart_loader';
+import {Histogram} from '../widgets/charts/histogram';
+import {SQLHistogramLoader} from '../widgets/charts/histogram_loader';
+import {sqlColumnId, SqlColumn} from '../widgets/sql/table/sql_column';
+import {buildSqlQuery} from '../widgets/sql/table/query_builder';
+import {uuidv4} from '../../base/uuid';
+import {StandardFilters} from '../widgets/sql/table/filters';
 import {TabOption, TabStrip} from '../../widgets/tab_strip';
 import {Gate} from '../../base/mithril_utils';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
@@ -44,6 +49,26 @@ export interface AddSqlTableTabParams {
   table: SqlTableDefinition;
   filters?: Filter[];
   imports?: string[];
+}
+
+// State for bar chart tabs using ECharts
+// Loader is recreated when filters change (query changes)
+interface BarChartTabState {
+  readonly uuid: string;
+  readonly column: SqlColumn;
+  readonly columnName: string;
+  loader?: SQLBarChartLoader;
+  lastQuery?: string;
+}
+
+// State for histogram tabs using ECharts
+// Loader is recreated when filters change (query changes)
+interface HistogramTabState {
+  readonly uuid: string;
+  readonly column: SqlColumn;
+  readonly columnName: string;
+  loader?: SQLHistogramLoader;
+  lastQuery?: string;
 }
 
 export function addLegacyTableTab(
@@ -72,8 +97,8 @@ class SqlTableTab implements Tab {
   private selectedTab: string;
 
   private pivots: PivotTableState[] = [];
-  private barCharts: SqlBarChartState[] = [];
-  private histograms: SqlHistogramState[] = [];
+  private barCharts: BarChartTabState[] = [];
+  private histograms: HistogramTabState[] = [];
 
   private getTableButtons() {
     const range = this.tableState.getDisplayedRange();
@@ -163,13 +188,14 @@ class SqlTableTab implements Tab {
         label: 'Add bar chart',
         icon: Icons.Chart,
         onclick: () => {
-          const state = new SqlBarChartState({
-            trace: this.tableState.trace,
-            sqlSource: this.tableState.config.name,
+          const uuid = uuidv4();
+          const columnName = sqlColumnId(column.column);
+          const state: BarChartTabState = {
+            uuid,
             column: column.column,
-            filters: this.tableState.filters,
-          });
-          this.selectedTab = state.uuid;
+            columnName,
+          };
+          this.selectedTab = uuid;
           this.barCharts.push(state);
         },
       }),
@@ -178,13 +204,14 @@ class SqlTableTab implements Tab {
           label: 'Add histogram',
           icon: Icons.Chart,
           onclick: () => {
-            const state = new SqlHistogramState({
-              trace: this.tableState.trace,
-              sqlSource: this.tableState.config.name,
+            const uuid = uuidv4();
+            const columnName = sqlColumnId(column.column);
+            const state: HistogramTabState = {
+              uuid,
               column: column.column,
-              filters: this.tableState.filters,
-            });
-            this.selectedTab = state.uuid;
+              columnName,
+            };
+            this.selectedTab = uuid;
             this.histograms.push(state);
           },
         }),
@@ -248,34 +275,94 @@ class SqlTableTab implements Tab {
     }
 
     for (const chart of this.barCharts) {
+      // Build query with current filters
+      const query = buildSqlQuery({
+        table: this.tableState.config.name,
+        filters: this.tableState.filters.get(),
+        columns: {value: chart.column},
+      });
+
+      // Recreate loader if query changed
+      if (chart.lastQuery !== query) {
+        chart.loader?.dispose();
+        chart.loader = new SQLBarChartLoader({
+          engine: this.tableState.trace.engine,
+          query,
+          dimensionColumn: 'value',
+          measureColumn: 'value',
+        });
+        chart.lastQuery = query;
+      }
+
+      const result = chart.loader!.use({aggregation: 'COUNT_DISTINCT'});
       tabs.push({
         key: chart.uuid,
-        title: `Bar chart: ${sqlColumnId(chart.args.column)}`,
+        title: `Bar chart: ${chart.columnName}`,
         rightIcon: m(Button, {
           icon: Icons.Close,
           onclick: () => {
+            chart.loader?.dispose();
             this.barCharts = this.barCharts.filter(
               (c) => c.uuid !== chart.uuid,
             );
           },
         }),
-        content: m(SqlBarChart, {state: chart}),
+        content: m(BarChart, {
+          data: result.data,
+          orientation: 'horizontal',
+          dimensionLabel: chart.columnName,
+          measureLabel: 'Count',
+          fillParent: true,
+          onBrush: (labels) => {
+            this.tableState.filters.addFilter(
+              StandardFilters.valueIsOneOf(
+                chart.column,
+                labels.map((l) => (l === '(null)' ? null : l)),
+              ),
+            );
+          },
+        }),
       });
     }
 
     for (const histogram of this.histograms) {
+      // Build query with current filters
+      const query = buildSqlQuery({
+        table: this.tableState.config.name,
+        filters: this.tableState.filters.get(),
+        columns: {value: histogram.column},
+      });
+
+      // Recreate loader if query changed
+      if (histogram.lastQuery !== query) {
+        histogram.loader?.dispose();
+        histogram.loader = new SQLHistogramLoader({
+          engine: this.tableState.trace.engine,
+          query,
+          valueColumn: 'value',
+        });
+        histogram.lastQuery = query;
+      }
+
+      const result = histogram.loader!.use({});
       tabs.push({
         key: histogram.uuid,
-        title: `Histogram: ${sqlColumnId(histogram.args.column)}`,
+        title: `Histogram: ${histogram.columnName}`,
         rightIcon: m(Button, {
           icon: Icons.Close,
           onclick: () => {
+            histogram.loader?.dispose();
             this.histograms = this.histograms.filter(
               (h) => h.uuid !== histogram.uuid,
             );
           },
         }),
-        content: m(SqlHistogram, {state: histogram}),
+        content: m(Histogram, {
+          fillParent: true,
+          data: result.data,
+          xAxisLabel: histogram.columnName,
+          yAxisLabel: 'Count',
+        }),
       });
     }
 

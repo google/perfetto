@@ -36,6 +36,9 @@ RUN set -ex; \
         tini \
         libpulse0 \
         libgl1 \
+        libgl1-mesa-dri \
+        mesa-utils \
+        xvfb \
         libxml2 \
         libc6-dev-i386 \
         linux-libc-dev:i386 \

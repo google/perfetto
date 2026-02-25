@@ -30,6 +30,10 @@ export interface ProfileDescriptor {
   heapName?: string;
 }
 
+export function isProfileDescriptor(type: string): boolean {
+  return type === 'java_heap_graph' || type.startsWith('heap_profile:');
+}
+
 export function profileDescriptor(type: string): ProfileDescriptor {
   if (type === 'java_heap_graph') {
     return {

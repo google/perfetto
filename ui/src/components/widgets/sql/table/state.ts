@@ -17,7 +17,7 @@ import {ColumnOrderClause, SqlColumn, sqlColumnId} from './sql_column';
 import {buildSqlQuery} from './query_builder';
 import {raf} from '../../../../core/raf_scheduler';
 import {SortDirection} from '../../../../base/comparison_utils';
-import {assertTrue} from '../../../../base/logging';
+import {assertTrue} from '../../../../base/assert';
 import {SqlTableDescription} from './table_description';
 import {Trace} from '../../../../public/trace';
 import {areFiltersEqual, Filter, Filters} from './filters';

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {buildChartQuery, ColumnSchema, QueryConfig} from './chart_sql_source';
+import {ChartSource, ColumnSchema, QueryConfig} from './chart_sql_source';
 
 const QUERY = 'SELECT name, dur, ts, cpu, size, category FROM slice';
 const SCHEMA: ColumnSchema = {
@@ -29,7 +29,7 @@ function normalizeWhitespace(sql: string): string {
 }
 
 function build(config: QueryConfig): string {
-  return buildChartQuery(QUERY, SCHEMA, config);
+  return new ChartSource({query: QUERY, schema: SCHEMA}).buildQuery(config);
 }
 
 // ---------------------------------------------------------------------------
@@ -38,19 +38,18 @@ function build(config: QueryConfig): string {
 
 test('validates column names in schema', () => {
   expect(() =>
-    buildChartQuery(
-      'SELECT * FROM t',
-      {'bad column': 'text'},
-      {
-        type: 'aggregated',
-        dimensions: [{column: 'bad column'}],
-        measures: [{column: 'bad column', aggregation: 'SUM'}],
-      },
-    ),
+    new ChartSource({
+      query: 'SELECT * FROM t',
+      schema: {'bad column': 'text'},
+    }).buildQuery({
+      type: 'aggregated',
+      dimensions: [{column: 'bad column'}],
+      measures: [{column: 'bad column', aggregation: 'SUM'}],
+    }),
   ).toThrow('Invalid SQL column name');
 });
 
-test('buildChartQuery throws for unknown column', () => {
+test('ChartSource throws for unknown column', () => {
   expect(() =>
     build({
       type: 'aggregated',

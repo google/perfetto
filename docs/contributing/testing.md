@@ -137,6 +137,11 @@ baseline (this requires access to a google bucket through gcloud which only
 googlers have access to, googlers can install gcloud
 [here](https://g3doc.corp.google.com/cloud/sdk/g3doc/index.md#installing-and-using-the-cloud-sdk)).
 
+The tests are run in a docker container by default, unless -`-no-docker` is
+passed. It's recommended to use the container for a stable and reproducable
+testing environment, especially for rebaselining, otherwise it's very likely the
+screenshots will not match when run on the CI.
+
 ```
 ui/run-integrationtests --rebaseline
 tools/test_data upload

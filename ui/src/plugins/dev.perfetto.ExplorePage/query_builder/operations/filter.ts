@@ -19,6 +19,7 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {Filter} from '../../../../components/widgets/datagrid/model';
+import {ColumnName} from '../node_styling_widgets';
 
 // ============================================================================
 // Filter Type Definitions
@@ -541,6 +542,110 @@ export function createExperimentalFiltersProto(
 }
 
 /**
+ * Check if a filter operator is an equality operator (= or is null).
+ */
+function isEqualityOp(op: UIFilter['op']): boolean {
+  return op === '=' || op === 'is null';
+}
+
+/**
+ * Create properly nested filter groups by column, with automatic
+ * AND/OR selection per group.
+ *
+ * The grouping logic is:
+ * - Group filters by column name
+ * - Same column equality filters (=, is null): OR together
+ * - Same column range filters (<, >, <=, >=): AND together
+ * - Different column groups: AND together at top level
+ *
+ * For example, filters:
+ *   name = 'foo', name = 'bar', dur >= 100, dur < 200
+ * Become:
+ *   (name = 'foo' OR name = 'bar') AND (dur >= 100 AND dur < 200)
+ *
+ * Use this for VisualisationNode where chart-generated filters need
+ * automatic grouping. For FilterNode, use createExperimentalFiltersProto
+ * which respects the user-chosen operator.
+ */
+export function createAutoGroupedFiltersProto(
+  filters: UIFilter[] | undefined,
+  sourceCols: ColumnInfo[],
+): protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup | undefined {
+  if (filters === undefined || filters.length === 0) {
+    return undefined;
+  }
+
+  // Filter out disabled filters
+  const enabledFilters = filters.filter((f) => f.enabled !== false);
+  if (enabledFilters.length === 0) {
+    return undefined;
+  }
+
+  // Group filters by column
+  const filtersByColumn = new Map<string, UIFilter[]>();
+  for (const filter of enabledFilters) {
+    const existing = filtersByColumn.get(filter.column) ?? [];
+    existing.push(filter);
+    filtersByColumn.set(filter.column, existing);
+  }
+
+  // If only one column, create a simple flat group
+  if (filtersByColumn.size === 1) {
+    const columnFilters = [...filtersByColumn.values()][0];
+    const protoFilters = createFiltersProto(columnFilters, sourceCols);
+    if (!protoFilters) {
+      return undefined;
+    }
+
+    const filterGroup =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup();
+
+    // Determine operator based on filter types
+    const allEquality = columnFilters.every((f) => isEqualityOp(f.op));
+    filterGroup.op = allEquality
+      ? protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.OR
+      : protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.AND;
+    filterGroup.filters = protoFilters;
+
+    return filterGroup;
+  }
+
+  // Multiple columns - create nested groups
+  // Top level is AND, each column group uses appropriate operator
+  const topGroup =
+    new protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup();
+  topGroup.op =
+    protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.AND;
+  topGroup.groups = [];
+
+  for (const columnFilters of filtersByColumn.values()) {
+    const protoFilters = createFiltersProto(columnFilters, sourceCols);
+    if (!protoFilters || protoFilters.length === 0) {
+      continue;
+    }
+
+    const columnGroup =
+      new protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup();
+
+    // Determine operator based on filter types for this column
+    const allEquality = columnFilters.every((f) => isEqualityOp(f.op));
+    columnGroup.op = allEquality
+      ? protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.OR
+      : protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator.AND;
+    columnGroup.filters = protoFilters;
+
+    topGroup.groups.push(columnGroup);
+  }
+
+  // If we ended up with no groups, return undefined
+  if (topGroup.groups.length === 0) {
+    return undefined;
+  }
+
+  return topGroup;
+}
+
+/**
  * Helper to format a single filter as a readable string.
  */
 function formatSingleFilter(filter: UIFilter): string {
@@ -602,7 +707,7 @@ export function formatFilterDetails(
   const renderFilterChip = (filter: UIFilter) => {
     const isEnabled = filter.enabled !== false;
     const label = formatSingleFilter(filter);
-    const classNames = [
+    const chipClassNames = [
       'pf-filter-chip-wrapper',
       !isEnabled && 'pf-filter-chip-wrapper--disabled',
       compact && 'pf-filter-chip-wrapper--compact',
@@ -613,7 +718,7 @@ export function formatFilterDetails(
     return m(
       'span',
       {
-        className: classNames,
+        className: chipClassNames,
         style: {
           display: 'inline-flex',
           alignItems: 'center',
@@ -628,7 +733,7 @@ export function formatFilterDetails(
       m(Chip, {
         label,
         rounded: true,
-        removable: !!effectiveOnRemove,
+        removable: effectiveOnRemove !== undefined,
         intent: isEnabled ? Intent.Primary : Intent.None,
         onpointerdown: (e: PointerEvent) => {
           // Stop propagation to prevent node selection in the graph
@@ -705,4 +810,39 @@ export function formatFilterDetails(
         : `${enabledCount} of ${count} enabled`,
     ),
   );
+}
+
+/**
+ * Format filter details as a compact summary showing filter counts per column.
+ * Used by VisualisationNode for its nodeDetails display.
+ */
+export function formatFilterSummary(
+  filters: UIFilter[] | undefined,
+): m.Child | undefined {
+  if (!filters || filters.length === 0) {
+    return undefined;
+  }
+
+  // Group filters by column
+  const filtersByColumn = new Map<string, UIFilter[]>();
+  for (const filter of filters) {
+    const existing = filtersByColumn.get(filter.column) ?? [];
+    existing.push(filter);
+    filtersByColumn.set(filter.column, existing);
+  }
+
+  // Build summary showing count per column, one per line
+  const lines: m.Child[] = [];
+  for (const [column, columnFilters] of filtersByColumn) {
+    const count = columnFilters.length;
+    const filterWord = count === 1 ? 'filter' : 'filters';
+    lines.push(
+      m('.pf-filter-summary__line', [
+        ColumnName(column),
+        `: ${count} ${filterWord}`,
+      ]),
+    );
+  }
+
+  return m('.pf-filter-summary', lines);
 }

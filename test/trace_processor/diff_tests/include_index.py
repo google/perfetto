@@ -57,6 +57,7 @@ from diff_tests.parser.android.tests_inputmethod_clients import InputMethodClien
 from diff_tests.parser.android.tests_inputmethod_manager_service import InputMethodManagerService
 from diff_tests.parser.android.tests_inputmethod_service import InputMethodService
 from diff_tests.parser.android.tests_protolog import ProtoLog
+from diff_tests.parser.android.tests_protovm_incremental_tracing import ProtoVmIncrementalTracing
 from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
 from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
 from diff_tests.parser.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
@@ -249,6 +250,7 @@ def fetch_all_diff_tests(
       SurfaceFlingerTransactions,
       ShellTransitions,
       ProtoLog,
+      ProtoVmIncrementalTracing,
       ViewCapture,
       WindowManager,
       TrackEvent,

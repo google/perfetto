@@ -17,7 +17,7 @@ import {DisposableStack} from '../../base/disposable_stack';
 import {toHTMLElement} from '../../base/dom_utils';
 import {Rect2D, Size2D} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists, assertUnreachable} from '../../base/logging';
+import {assertExists, assertUnreachable} from '../../base/assert';
 import {Time, time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';

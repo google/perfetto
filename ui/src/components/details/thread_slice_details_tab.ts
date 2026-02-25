@@ -34,7 +34,7 @@ import {
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
-import {assertIsInstance} from '../../base/logging';
+import {assertIsInstance} from '../../base/assert';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
