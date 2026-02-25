@@ -915,7 +915,7 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeStringNotInPool) {
 
   // Use separate source and update buffers to properly test memcpy behavior.
   std::vector<uint32_t> source_indices = {0, 1, 2, 3};
-  std::vector<uint32_t> update_buffer(4, 0);
+  std::vector<uint32_t> update_buffer = {100, 101, 102, 103};
 
   SetRegistersAndExecute(
       "StringFilter<Ne>: [storage_register=Register(3), "
@@ -924,8 +924,8 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeStringNotInPool) {
       CastFilterValueResult::Valid("nonexistent"), GetSpan(source_indices),
       GetSpan(update_buffer), GetStoragePtr<String>(0));
 
-  // All 4 indices should be returned since "nonexistent" != any string
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(0, 1, 2, 3));
+  // All 4 indices should be returned since "nonexistent" != any string.
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(100, 101, 102, 103));
 }
 
 TEST_F(BytecodeInterpreterTest, NullFilter) {
