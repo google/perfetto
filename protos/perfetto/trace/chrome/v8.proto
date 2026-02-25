@@ -201,7 +201,7 @@ message V8JsCode {
     bytes machine_code = 7;
     bytes bytecode = 8;
   }
-    oneof source_map {
+  oneof source_map {
     // For Ignition / bytecode:
     //  - Maps bytecode-ranges to byte offsets (for the same script as the
     //    related js function)
