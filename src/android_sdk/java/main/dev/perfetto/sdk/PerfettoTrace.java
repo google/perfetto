@@ -19,6 +19,7 @@ package dev.perfetto.sdk;
 import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -42,6 +43,8 @@ public final class PerfettoTrace {
   private static boolean sIsDebug = false;
   private static final PerfettoNativeMemoryCleaner sNativeMemoryCleaner =
       new PerfettoNativeMemoryCleaner();
+
+  private static final AtomicBoolean sAttemptedSystemRegistration = new AtomicBoolean(false);
 
   /** For fetching the next flow event id in a process. */
   private static final AtomicInteger sFlowEventId = new AtomicInteger();
@@ -290,6 +293,9 @@ public final class PerfettoTrace {
 
   /** Registers the process with Perfetto. */
   public static void register(boolean isBackendInProcess) {
+    if (!isBackendInProcess) {
+        sAttemptedSystemRegistration.set(true);
+    }
     native_register(isBackendInProcess);
   }
 
@@ -340,5 +346,14 @@ public final class PerfettoTrace {
     }
 
     return builder.endNested().endProto();
+  }
+
+  /**
+   * Returns whether the calling process attempted to register with the system backend of perfetto
+   * by calling {@code register(false)}. A true return does not mean that the registration is
+   * already completed, as that is an asynchronous operation.
+   */
+  public static boolean getAttempedSystemRegistration() {
+      return sAttemptedSystemRegistration.get();
   }
 }
