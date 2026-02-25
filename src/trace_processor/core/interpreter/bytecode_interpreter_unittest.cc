@@ -925,7 +925,69 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeStringNotInPool) {
       GetSpan(update_buffer), GetStoragePtr<String>(0));
 
   // All 4 indices should be returned since "nonexistent" != any string.
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(100, 101, 102, 103));
+  const auto& res = GetRegister<Span<uint32_t>>(2);
+  EXPECT_THAT(res, ElementsAre(100, 101, 102, 103));
+
+  // Also verify that the underlying buffer was not touched at all.
+  EXPECT_EQ(res.b, update_buffer.data());
+  EXPECT_THAT(update_buffer, ElementsAre(100, 101, 102, 103));
+}
+
+// Test StringFilterNe for a string that is in the pool.
+TEST_F(BytecodeInterpreterTest, StringFilterNeInPool) {
+  auto apple_id = spool_.InternString("apple");
+  auto banana_id = spool_.InternString("banana");
+  auto cherry_id = spool_.InternString("cherry");
+
+  auto values = CreateFlexVectorForTesting<StringPool::Id>(
+      {apple_id, banana_id, apple_id, cherry_id});
+  AddColumn(dataframe::Column{std::move(values),
+                              dataframe::NullStorage::NonNull{}, Unsorted{},
+                              HasDuplicates{}});
+
+  std::vector<uint32_t> source_indices = {0, 1, 2, 3};
+  std::vector<uint32_t> update_buffer = {10, 11, 12, 13, 999};
+
+  SetRegistersAndExecute(
+      "StringFilter<Ne>: [storage_register=Register(3), "
+      "val_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]",
+      CastFilterValueResult::Valid("apple"), GetSpan(source_indices),
+      Span<uint32_t>{update_buffer.data(), update_buffer.data() + 4},
+      GetStoragePtr<String>(0));
+
+  // Should return indices 11 (banana) and 13 (cherry).
+  const auto& res = GetRegister<Span<uint32_t>>(2);
+  EXPECT_THAT(res, ElementsAre(11, 13));
+
+  // The first two elements of update_buffer should have been updated.
+  // The rest should remain as they were in the original buffer.
+  // Note: Filter works by reading from output and writing back to it.
+  // In this case:
+  // Row 0 (apple): match=F, o_read points to 10.
+  // Row 1 (banana): match=T, o_read points to 11, writes 11 to output[0].
+  // Row 2 (apple): match=F, o_read points to 12.
+  // Row 3 (cherry): match=T, o_read points to 13, writes 13 to output[1].
+  EXPECT_THAT(update_buffer, ElementsAre(11, 13, 12, 13, 999));
+}
+
+// Test StringFilterNe with empty source.
+TEST_F(BytecodeInterpreterTest, StringFilterNeEmpty) {
+  AddColumn(dataframe::Column{dataframe::Storage{dataframe::Storage::String{}},
+                              dataframe::NullStorage::NonNull{}, Unsorted{},
+                              HasDuplicates{}});
+
+  std::vector<uint32_t> source_indices = {};
+  std::vector<uint32_t> update_buffer = {};
+
+  SetRegistersAndExecute(
+      "StringFilter<Ne>: [storage_register=Register(3), "
+      "val_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]",
+      CastFilterValueResult::Valid("anything"), GetSpan(source_indices),
+      GetSpan(update_buffer), GetStoragePtr<String>(0));
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
 }
 
 TEST_F(BytecodeInterpreterTest, NullFilter) {
