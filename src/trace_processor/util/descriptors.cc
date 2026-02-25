@@ -71,21 +71,10 @@ FieldDescriptor CreateFieldFromDecoder(
 
 base::Status CheckExtensionField(const ProtoDescriptor& proto_descriptor,
                                  const FieldDescriptor& field) {
-  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   const auto* existing_field = proto_descriptor.FindFieldByTag(field.number());
-  if (existing_field) {
-    if (field.type() != existing_field->type()) {
-      return base::ErrStatus("Field %s is re-introduced with different type",
-                             field.name().c_str());
-    }
-    if ((field.type() == FieldDescriptorProto::TYPE_MESSAGE ||
-         field.type() == FieldDescriptorProto::TYPE_ENUM) &&
-        field.raw_type_name() != existing_field->raw_type_name()) {
-      return base::ErrStatus(
-          "Field %s is re-introduced with different type %s (was %s)",
-          field.name().c_str(), field.raw_type_name().c_str(),
-          existing_field->raw_type_name().c_str());
-    }
+  if (existing_field && field.type() != existing_field->type()) {
+    return base::ErrStatus("Field %s is re-introduced with different type",
+                           field.name().c_str());
   }
   return base::OkStatus();
 }
