@@ -14,7 +14,7 @@
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {defer} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/assert';
+import {assertTrue, checkExists} from '../base/assert';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {App} from '../public/app';
 import {SqlPackage} from '../public/extra_sql_packages';
@@ -122,7 +122,7 @@ export class AppImpl implements App {
   // Singleton.
   private static _instance: AppImpl;
   static get instance(): AppImpl {
-    return assertExists(AppImpl._instance);
+    return checkExists(AppImpl._instance);
   }
 
   readonly timestampFormat: Setting<TimestampFormat>;

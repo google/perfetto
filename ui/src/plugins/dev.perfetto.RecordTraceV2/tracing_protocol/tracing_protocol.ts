@@ -19,7 +19,7 @@ import {ByteStream} from '../interfaces/byte_stream';
 import {ProtoRingBuffer} from '../../../trace_processor/proto_ring_buffer';
 import {defer} from '../../../base/deferred';
 import {exists} from '../../../base/utils';
-import {assertExists, assertFalse, assertTrue} from '../../../base/assert';
+import {checkExists, assertFalse, assertTrue} from '../../../base/assert';
 import {PacketAssembler} from './packet_assembler';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
 
@@ -70,12 +70,12 @@ export class TracingProtocol {
     const frameData = await repsponsePromise;
     const rxFrame = protos.IPCFrame.decode(frameData);
     assertTrue(rxFrame.msg === 'msgBindServiceReply');
-    const replyMsg = assertExists(rxFrame.msgBindServiceReply);
+    const replyMsg = checkExists(rxFrame.msgBindServiceReply);
     const boundMethods = new Map<string, number>();
     assertTrue(replyMsg.success === true);
-    const serviceId = assertExists(replyMsg.serviceId);
-    for (const m of assertExists(replyMsg.methods)) {
-      boundMethods.set(assertExists(m.name), assertExists(m.id));
+    const serviceId = checkExists(replyMsg.serviceId);
+    for (const m of checkExists(replyMsg.methods)) {
+      boundMethods.set(checkExists(m.name), checkExists(m.id));
     }
     // Now that the details of the RPC methods are known, build and return the
     // TracingProtocol object, so the caller can finally make calls.
@@ -191,8 +191,8 @@ export class TracingProtocol {
     // See 170256902#comment21
     const frame = protos.IPCFrame.decode(frameData.slice());
     if (frame.msg === 'msgInvokeMethodReply') {
-      const reply = assertExists(frame.msgInvokeMethodReply);
-      const pendInvoke = assertExists(this.pendingInvokes.get(frame.requestId));
+      const reply = checkExists(frame.msgInvokeMethodReply);
+      const pendInvoke = checkExists(this.pendingInvokes.get(frame.requestId));
       // We process messages without a `replyProto` field (for instance
       // `FreeBuffers` does not have `replyProto`). However, we ignore messages
       // without a valid 'success' field.

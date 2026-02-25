@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertTrue} from '../base/assert';
+import {assertTrue, checkExists} from '../base/assert';
 import {time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
 import {
@@ -169,7 +169,7 @@ async function createEngine(
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
 
   if (isMetatracingEnabled()) {
-    engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
+    engine.enableMetatrace(checkExists(getEnabledMetatracingCategories()));
   }
   return engine;
 }
@@ -497,7 +497,7 @@ async function getTraceInfo(
   // The max() is so the query returns NULL if the tz info doesn't exist.
   const queryTz = `select max(int_value) as tzOffMin from metadata
         where name = 'timezone_off_mins'`;
-  const resTz = await assertExists(engine).query(queryTz);
+  const resTz = await engine.query(queryTz);
   const tzOffMin = resTz.firstRow({tzOffMin: NUM_NULL}).tzOffMin ?? 0;
 
   // This is the offset between the unix epoch and ts in the ts domain.

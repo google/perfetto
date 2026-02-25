@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {checkHotkey, Hotkey} from '../base/hotkeys';
-import {toHTMLElement} from '../base/dom_utils';
 import {classNames} from '../base/classnames';
+import {assertInstanceOf} from '../base/assert';
 
 export interface HotkeyConfig {
   readonly hotkey: Hotkey;
@@ -72,15 +72,17 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
     );
   }
 
-  oncreate(vnode: m.VnodeDOM<HotkeyContextAttrs>) {
-    const focusable = vnode.attrs.focusable ?? true;
+  oncreate({attrs, dom}: m.VnodeDOM<HotkeyContextAttrs>) {
+    assertInstanceOf(dom, HTMLElement);
+
+    const focusable = attrs.focusable ?? true;
     // If focusable is false, bind to document for global hotkeys.
     // Otherwise, bind to the element itself.
-    this.eventTarget = focusable ? vnode.dom : document;
+    this.eventTarget = focusable ? dom : document;
     this.eventTarget.addEventListener('keydown', this.onKeyDown);
-    this.hotkeys = vnode.attrs.hotkeys;
-    if (vnode.attrs.autoFocus && focusable) {
-      toHTMLElement(vnode.dom).focus();
+    this.hotkeys = attrs.hotkeys;
+    if (attrs.autoFocus && focusable) {
+      dom.focus();
     }
   }
 

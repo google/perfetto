@@ -16,8 +16,8 @@ import {createPopper, Instance, OptionsGeneric} from '@popperjs/core';
 import m from 'mithril';
 import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
-import {findRef, toHTMLElement} from '../base/dom_utils';
-import {assertExists} from '../base/assert';
+import {findRef} from '../base/dom_utils';
+import {assertExists, assertInstanceOf} from '../base/assert';
 import {PopupPosition} from './popup';
 import {ExtendedModifiers} from './popper_utils';
 
@@ -126,9 +126,9 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
         return {container: undefined};
       },
       onContentMount: (dom: HTMLElement) => {
-        const popupElement = toHTMLElement(
-          assertExists(findRef(dom, Tooltip.TOOLTIP_REF)),
-        );
+        const popupElement = findRef(dom, Tooltip.TOOLTIP_REF);
+        assertInstanceOf(popupElement, HTMLElement);
+
         this.tooltipElement = popupElement;
         this.createOrUpdatePopper(attrs);
         onTooltipMount(popupElement);
@@ -162,7 +162,9 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
   }
 
   oncreate({dom}: m.VnodeDOM<TooltipAttrs, this>) {
-    this.triggerElement = assertExists(findRef(dom, Tooltip.TRIGGER_REF));
+    const triggerElement = findRef(dom, Tooltip.TRIGGER_REF);
+    assertExists(triggerElement);
+    this.triggerElement = triggerElement;
   }
 
   onupdate({attrs}: m.VnodeDOM<TooltipAttrs, this>) {

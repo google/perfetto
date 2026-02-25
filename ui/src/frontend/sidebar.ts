@@ -44,7 +44,7 @@ import {exists, getOrCreate} from '../base/utils';
 import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
-import {assertExists} from '../base/assert';
+import {checkExists} from '../base/assert';
 import {Icon} from '../widgets/icon';
 import {Button} from '../widgets/button';
 import {Router} from '../core/router';
@@ -156,7 +156,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
           action: () => {
             enableMetatracing();
             engine.enableMetatrace(
-              assertExists(getEnabledMetatracingCategories()),
+              checkExists(getEnabledMetatracingCategories()),
             );
           },
         },
@@ -167,7 +167,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
     });
   } else {
     enableMetatracing();
-    engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
+    engine.enableMetatrace(checkExists(getEnabledMetatracingCategories()));
   }
 }
 

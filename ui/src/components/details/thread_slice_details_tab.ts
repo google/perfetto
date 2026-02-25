@@ -36,7 +36,7 @@ import {
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
-import {assertIsInstance} from '../../base/assert';
+import {assertInstanceOf} from '../../base/assert';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
@@ -213,10 +213,11 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private readonly attrs: ThreadSliceDetailsPanelAttrs;
 
   constructor(trace: Trace, attrs?: ThreadSliceDetailsPanelAttrs) {
-    // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
+    // Rationale for the assertInstanceOf: ThreadSliceDetailsPanel requires a
     // TraceImpl (because of flows) but here we must take a Trace interface,
     // because this track is exposed to plugins (which see only Trace).
-    this.trace = assertIsInstance(trace, TraceImpl);
+    assertInstanceOf(trace, TraceImpl);
+    this.trace = trace;
     this.attrs = attrs ?? {};
   }
 

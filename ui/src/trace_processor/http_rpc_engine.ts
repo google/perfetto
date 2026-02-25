@@ -15,7 +15,7 @@
 import protos from '../protos';
 import {fetchWithTimeout} from '../base/http_utils';
 import {reportError} from '../base/logging';
-import {assertExists} from '../base/assert';
+import {checkExists} from '../base/assert';
 import {EngineBase} from '../trace_processor/engine';
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
@@ -69,7 +69,7 @@ export class HttpRpcEngine extends EngineBase {
     for (;;) {
       const queuedMsg = this.requestQueue.shift();
       if (queuedMsg === undefined) break;
-      assertExists(this.websocket).send(queuedMsg);
+      checkExists(this.websocket).send(queuedMsg);
     }
     this.connected = true;
   }
@@ -89,7 +89,7 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   private onWebsocketMessage(e: MessageEvent) {
-    const blob = assertExists(e.data as Blob);
+    const blob = checkExists(e.data as Blob);
     this.queue.push(blob);
     this.processQueue();
   }
@@ -99,7 +99,7 @@ export class HttpRpcEngine extends EngineBase {
     this.isProcessingQueue = true;
     while (this.queue.length > 0) {
       try {
-        const blob = assertExists(this.queue.shift());
+        const blob = checkExists(this.queue.shift());
         const buf = await blob.arrayBuffer();
         super.onRpcResponseBytes(new Uint8Array(buf));
       } catch (e) {

@@ -26,7 +26,7 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {assertExists} from '../../base/assert';
+import {checkExists} from '../../base/assert';
 
 async function listThreads(trace: Trace) {
   const query = `
@@ -147,6 +147,6 @@ export default class implements PerfettoPlugin {
   }
 
   getThreadMap() {
-    return assertExists(this.threads);
+    return checkExists(this.threads);
   }
 }

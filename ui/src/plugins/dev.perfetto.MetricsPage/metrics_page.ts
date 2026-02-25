@@ -18,7 +18,7 @@ import {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
-import {assertExists, assertUnreachable} from '../../base/assert';
+import {checkExists, assertUnreachable} from '../../base/assert';
 import {Trace} from '../../public/trace';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Editor} from '../../widgets/editor';
@@ -669,7 +669,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
   }
 
   view({attrs}: m.Vnode<MetricsPageAttrs>) {
-    const v1Controller = assertExists(this.v1Controller);
+    const v1Controller = checkExists(this.v1Controller);
     return m(
       '.pf-metrics-page',
       m(

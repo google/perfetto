@@ -1218,7 +1218,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
       if (this.hoveredSlice === undefined) {
         if (this.attrs.onSliceOut) {
-          this.attrs.onSliceOut({slice: assertExists(prevHoveredSlice)});
+          assertExists(prevHoveredSlice);
+          this.attrs.onSliceOut({slice: prevHoveredSlice});
         }
       } else {
         if (this.attrs.onSliceOver) {

@@ -52,17 +52,16 @@ export class SettingsShell implements m.ClassComponent<SettingsShellAttrs> {
     );
   }
 
-  oncreate(vnode: m.VnodeDOM<SettingsShellAttrs, this>) {
-    const canary = assertExists(
-      vnode.dom.querySelector('.pf-settings-shell__title'),
-    );
-    const header = assertExists(
-      vnode.dom.querySelector('.pf-settings-shell__header'),
-    );
+  oncreate({dom}: m.VnodeDOM<SettingsShellAttrs, this>) {
+    const canaryElement = dom.querySelector('.pf-settings-shell__title');
+    const headerElement = dom.querySelector('.pf-settings-shell__header');
+
+    assertExists(canaryElement);
+    assertExists(headerElement);
 
     this.observer = new IntersectionObserver(
       ([entry]) => {
-        header.classList.toggle(
+        headerElement.classList.toggle(
           'pf-settings-shell__header--stuck',
           !entry.isIntersecting,
         );
@@ -70,7 +69,7 @@ export class SettingsShell implements m.ClassComponent<SettingsShellAttrs> {
       {threshold: [0]},
     );
 
-    this.observer.observe(canary);
+    this.observer.observe(canaryElement);
   }
 
   onremove() {

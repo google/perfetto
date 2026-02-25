@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import protos from '../protos';
-import {assertExists} from '../base/assert';
+import {checkExists, assertUnreachable} from '../base/assert';
 import {VERSION} from '../gen/perfetto_version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
@@ -155,7 +155,8 @@ export async function checkHttpRpcConnection(): Promise<void> {
     // No RPC = exit immediately to the WASM UI.
     return;
   }
-  const tpStatus = assertExists(state.status);
+
+  const tpStatus = checkExists(state.status);
 
   function forceWasm() {
     AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';
@@ -179,8 +180,7 @@ export async function checkHttpRpcConnection(): Promise<void> {
           forceWasm();
           return;
         default:
-          const x: never = result;
-          throw new Error(`Unsupported result ${x}`);
+          assertUnreachable(result);
       }
     }
   }

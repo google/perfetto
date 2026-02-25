@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/assert';
+import {assertTrue, assertExists} from '../base/assert';
 
 // The 64-bit variant of TraceProcessor wasm is always built in all build
 // configurations and we can depend on it from typescript.
@@ -123,9 +123,11 @@ export class WasmBridge {
   // This function is bound and passed to Initialize and is called by the C++
   // code while in the ccall(trace_processor_on_rpc_request).
   private onReply(heapPtrArg: bigint | number, size: number) {
+    assertExists(this.messagePort);
+
     const heapPtr = this.wasmPtrCast(heapPtrArg);
     const data = this.connection.HEAPU8.slice(heapPtr, heapPtr + size);
-    assertExists(this.messagePort).postMessage(data, [data.buffer]);
+    this.messagePort.postMessage(data, [data.buffer]);
   }
 
   private appendAndLogErr(line: string) {

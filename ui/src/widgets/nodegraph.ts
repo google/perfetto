@@ -830,8 +830,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     // Query ports within this NodeGraph instance only (not globally).
     // Using document.querySelectorAll would pick up ports from other
     // NodeGraph instances (e.g. hidden tabs), causing incorrect positions.
-    const container = assertExists(canvasElement);
-    const allPorts = container.querySelectorAll('.pf-port[data-port]');
+    assertExists(canvasElement);
+    const allPorts = canvasElement.querySelectorAll('.pf-port[data-port]');
     allPorts.forEach((portElement) => {
       const portId = portElement.getAttribute('data-port');
       if (!portId) return;
@@ -1071,8 +1071,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
     // Scope to this NodeGraph instance to avoid matching elements from other
     // instances (e.g. hidden tabs with the same node IDs).
-    const scope = assertExists(canvasElement);
-    const portElement = scope.querySelector(selector);
+    assertExists(canvasElement);
+    const portElement = canvasElement.querySelector(selector);
 
     if (portElement) {
       const nodeElement = portElement.closest('.pf-node') as HTMLElement | null;
@@ -1188,8 +1188,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   }
 
   function getNodeDimensions(nodeId: string): {width: number; height: number} {
-    const scope = assertExists(canvasElement);
-    const nodeElement = scope.querySelector(`[data-node="${nodeId}"]`);
+    assertExists(canvasElement);
+    const nodeElement = canvasElement.querySelector(`[data-node="${nodeId}"]`);
     if (nodeElement) {
       const rect = nodeElement.getBoundingClientRect();
       // Divide by zoom to get canvas content space dimensions

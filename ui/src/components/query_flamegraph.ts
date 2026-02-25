@@ -233,9 +233,8 @@ export class QueryFlamegraph implements AsyncDisposable {
     metrics: ReadonlyArray<QueryFlamegraphMetric>,
     state: FlamegraphState,
   ) {
-    const metric = assertExists(
-      metrics.find((x) => state.selectedMetricName === x.name),
-    );
+    const metric = metrics.find((x) => state.selectedMetricName === x.name);
+    assertExists(metric);
     const engine = this.trace.engine;
     this.queryLimiter.schedule(async () => {
       this.data = undefined;

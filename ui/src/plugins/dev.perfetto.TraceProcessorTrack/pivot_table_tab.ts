@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../../base/assert';
+import {checkExists} from '../../base/assert';
 import {Icons} from '../../base/semantic_icons';
 import {PivotTable} from '../../components/widgets/sql/pivot_table/pivot_table';
 import {PivotTableState} from '../../components/widgets/sql/pivot_table/pivot_table_state';
@@ -88,12 +88,10 @@ export class PivotTableTab implements AreaSelectionTab {
   private getOrCreateState(): PivotTableState {
     if (this.state !== undefined) return this.state;
     const sliceTable = resolveTableDefinition(this.trace, SLICE_TABLE);
-    const name = assertExists(
+    const name = checkExists(
       sliceTable.columns.find((c) => c.column === 'name'),
     );
-    const dur = assertExists(
-      sliceTable.columns.find((c) => c.column === 'dur'),
-    );
+    const dur = checkExists(sliceTable.columns.find((c) => c.column === 'dur'));
     this.state = new PivotTableState({
       trace: this.trace,
       table: sliceTable,

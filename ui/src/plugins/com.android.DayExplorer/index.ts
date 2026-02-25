@@ -30,7 +30,7 @@ import {
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 import {Store} from '../../base/store';
 import {z} from 'zod';
-import {assertExists} from '../../base/assert';
+import {assertExists, checkExists} from '../../base/assert';
 
 const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 
@@ -153,6 +153,8 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       id: 'day_explorer_flamegraph_selection',
       name: 'Day Explorer Flamegraph',
       render: (selection: AreaSelection) => {
+        const store = checkExists(this.store);
+
         const selectionChanged =
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
@@ -166,7 +168,6 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
         if (flameagraphWithMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
         const {flamegraph, metrics} = flameagraphWithMetrics;
         return {
           isLoading: false,
@@ -174,6 +175,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
             metrics,
             state: store.state.areaSelectionFlamegraphState,
             onStateChange: (state) => {
+              assertExists(this.store);
               store.edit((draft) => {
                 draft.areaSelectionFlamegraphState = state;
               });
@@ -188,6 +190,8 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     trace: Trace,
     currentSelection: AreaSelection,
   ): QueryFlamegraphWithMetrics | undefined {
+    assertExists(this.store);
+
     // The flame graph will be shown when any day explorer track is in the area
     // selection. The selection is used to filter by time, but not by track. All
     // day explorer tracks are considered for the graph.
@@ -239,8 +243,8 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Component',
     });
-    const store = assertExists(this.store);
-    store.edit((draft) => {
+
+    this.store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
         metrics,

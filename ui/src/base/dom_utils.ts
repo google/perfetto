@@ -67,15 +67,6 @@ export function findRef(root: Element, ref: string): Element | null {
   }
 }
 
-// Safely cast an Element to an HTMLElement.
-// Throws if the element is not an HTMLElement.
-export function toHTMLElement(el: Element): HTMLElement {
-  if (!(el instanceof HTMLElement)) {
-    throw new Error('Element is not an HTMLElement');
-  }
-  return el as HTMLElement;
-}
-
 // Return true if EventTarget is or is inside an editable element.
 // Editable elements incluce: <input type="text">, <textarea>, or elements with
 // the |contenteditable| attribute set.

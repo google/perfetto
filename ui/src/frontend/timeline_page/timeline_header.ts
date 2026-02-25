@@ -15,9 +15,8 @@
 import m from 'mithril';
 import {canvasSave} from '../../base/canvas_utils';
 import {DisposableStack} from '../../base/disposable_stack';
-import {toHTMLElement} from '../../base/dom_utils';
 import {Rect2D, Size2D} from '../../base/geom';
-import {assertExists} from '../../base/assert';
+import {assertExists, assertInstanceOf} from '../../base/assert';
 import {TimeScale} from '../../base/time_scale';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
 import {TraceImpl} from '../../core/trace_impl';
@@ -108,8 +107,8 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
   }
 
   oncreate({dom}: m.VnodeDOM<TimelineHeaderAttrs>) {
-    const timelineHeaderElement = toHTMLElement(dom);
-    this.interactions = new ZonedInteractionHandler(timelineHeaderElement);
+    assertInstanceOf(dom, HTMLElement);
+    this.interactions = new ZonedInteractionHandler(dom);
     this.trash.use(this.interactions);
   }
 
@@ -141,7 +140,8 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
     const visibleWindow = this.trace.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, timelineRect);
 
-    assertExists(this.interactions).update([
+    assertExists(this.interactions);
+    this.interactions.update([
       shiftDragPanInteraction(this.trace, timelineRect, timescale),
       wheelNavigationInteraction(this.trace, timelineRect, timescale),
       {

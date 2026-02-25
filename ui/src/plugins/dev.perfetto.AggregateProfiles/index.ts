@@ -24,7 +24,7 @@ import {
   AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
 } from './types';
 import {Store} from '../../base/store';
-import {assertExists} from '../../base/assert';
+import {checkExists} from '../../base/assert';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AggregateProfiles';
@@ -43,7 +43,7 @@ export default class implements PerfettoPlugin {
     if (profiles.length === 0) {
       return;
     }
-    const store = assertExists(this.store);
+    const store = checkExists(this.store);
     trace.pages.registerPage({
       route: '/aggregateprofiles',
       render: () =>

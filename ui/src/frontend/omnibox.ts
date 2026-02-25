@@ -16,7 +16,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
-import {assertExists, assertUnreachable} from '../base/assert';
+import {assertExists, assertUnreachable, checkExists} from '../base/assert';
 import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
 import {AppImpl} from '../core/app_impl';
@@ -74,7 +74,8 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
   private renderPromptOmnibox(): m.Children {
     const omnibox = AppImpl.instance.omnibox;
-    const prompt = assertExists(omnibox.pendingPrompt);
+    const prompt = omnibox.pendingPrompt;
+    assertExists(prompt);
 
     let options: OmniboxOption[] | undefined = undefined;
 
@@ -192,7 +193,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
   private renderRegisteredMode(): m.Children {
     const omnibox = AppImpl.instance.omnibox;
-    const desc = assertExists(omnibox.activeRegisteredMode);
+    const desc = checkExists(omnibox.activeRegisteredMode);
     return m(OmniboxWidget, {
       value: omnibox.text,
       placeholder: desc.placeholder,

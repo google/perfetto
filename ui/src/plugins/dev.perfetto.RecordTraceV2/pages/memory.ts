@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../../base/assert';
+import {checkExists} from '../../../base/assert';
 import {splitLinesNonEmpty} from '../../../base/string_utils';
 import protos from '../../../protos';
 import {
@@ -341,7 +341,7 @@ function polledProcStats(): RecordProbe {
       const ds = tc.addDataSource(PROC_STATS_DS_NAME, ADV_PROC_ASSOC_BUF_ID);
       // Because of the dependency on ADV_PROC_ASSOC_PROBE_ID, we expect
       // procThreadAssociation() to create the config first.
-      const cfg = assertExists(ds.processStatsConfig);
+      const cfg = checkExists(ds.processStatsConfig);
       cfg.procStatsPollMs = settings.pollMs.value || undefined;
       cfg.recordProcessAge = settings.procAge.enabled || undefined;
       cfg.recordProcessRuntime = settings.procRuntime.enabled || undefined;

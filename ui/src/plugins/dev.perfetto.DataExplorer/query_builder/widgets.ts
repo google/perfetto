@@ -35,8 +35,8 @@ import {Tooltip} from '../../../widgets/tooltip';
 import {showModal} from '../../../widgets/modal';
 import {Editor} from '../../../widgets/editor';
 import {ResizeHandle} from '../../../widgets/resize_handle';
-import {findRef, toHTMLElement} from '../../../base/dom_utils';
-import {assertExists} from '../../../base/assert';
+import {findRef} from '../../../base/dom_utils';
+import {assertInstanceOf} from '../../../base/assert';
 
 /**
  * Round action button with consistent styling for Data Explorer.
@@ -1067,6 +1067,8 @@ export interface ResizableSqlEditorAttrs {
   autofocus?: boolean;
 }
 
+const EDITOR_REF = 'editor';
+
 export class ResizableSqlEditor
   implements m.ClassComponent<ResizableSqlEditorAttrs>
 {
@@ -1074,14 +1076,15 @@ export class ResizableSqlEditor
   private editorElement?: HTMLElement;
 
   oncreate({dom}: m.VnodeDOM<ResizableSqlEditorAttrs>) {
-    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
-    this.editorElement.style.height = '400px';
+    const element = findRef(dom, EDITOR_REF);
+    assertInstanceOf(element, HTMLElement);
+    element.style.height = '400px';
   }
 
   view({attrs}: m.CVnode<ResizableSqlEditorAttrs>) {
     return [
       m(Editor, {
-        ref: 'editor',
+        ref: EDITOR_REF,
         text: attrs.sql,
         onUpdate: attrs.onUpdate,
         onExecute: attrs.onExecute,

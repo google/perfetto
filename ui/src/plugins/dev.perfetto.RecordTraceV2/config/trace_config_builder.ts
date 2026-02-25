@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertFalse} from '../../../base/assert';
+import {checkExists, assertFalse} from '../../../base/assert';
 import {getOrCreate} from '../../../base/utils';
 import protos from '../../../protos';
 
@@ -39,7 +39,7 @@ export class TraceConfigBuilder {
   }
 
   get defaultBuffer(): BufferConfig {
-    return assertExists(this.buffers.get(DEFAULT_BUFFER_ID));
+    return checkExists(this.buffers.get(DEFAULT_BUFFER_ID));
   }
 
   // It has get-or-create semantics.

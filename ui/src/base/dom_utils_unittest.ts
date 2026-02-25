@@ -17,7 +17,6 @@ import {
   elementIsEditable,
   findRef,
   isOrContains,
-  toHTMLElement,
 } from './dom_utils';
 
 describe('isOrContains', () => {
@@ -62,21 +61,6 @@ describe('findRef', () => {
     expect(findRef(unrelated, 'foo')).toBeNull();
     expect(findRef(fooChild, 'bar')).toBeNull();
     expect(findRef(barChild, 'foo')).toBeNull();
-  });
-});
-
-describe('toHTMLElement', () => {
-  it('should convert a div to an HTMLElement', () => {
-    const divElement: Element = document.createElement('div');
-    expect(toHTMLElement(divElement)).toEqual(divElement);
-  });
-
-  it('should fail to convert an svg element to an HTMLElement', () => {
-    const svgElement = document.createElementNS(
-      'http://www.w3.org/2000/svg',
-      'svg',
-    );
-    expect(() => toHTMLElement(svgElement)).toThrow(Error);
   });
 });
 

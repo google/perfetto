@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists, assertTrue} from '../base/assert';
+import {assertTrue, assertExists} from '../base/assert';
 import {Registry} from '../base/registry';
 import {PageHandler, PageManager} from '../public/page';
 import {Analytics} from '../public/analytics';
@@ -67,7 +67,8 @@ export class PageManagerImpl implements PageManager {
         // If either the route doesn't exist or requires a trace but the trace
         // is not loaded, fall back on the default route.
         const renderedPage =
-          maybeRenderedPage ?? assertExists(this.renderPageForRoute('/', ''));
+          maybeRenderedPage ?? this.renderPageForRoute('/', '');
+        assertExists(renderedPage);
         return [key, renderedPage];
       })
       .map(([key, page]) => {

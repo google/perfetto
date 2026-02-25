@@ -79,7 +79,9 @@ class FakeTraceAnalyzer implements TraceAnalyzer {
     onProgress(1.0);
 
     if (this.errors.has(file.name)) {
-      throw new Error(assertExists(this.errors.get(file.name)?.message));
+      const message = this.errors.get(file.name)?.message;
+      assertExists(message);
+      throw new Error(message);
     }
     const result = this.results.get(file.name);
     if (result) {

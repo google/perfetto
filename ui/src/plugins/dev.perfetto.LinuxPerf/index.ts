@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../base/assert';
+import {checkExists} from '../../base/assert';
 import {
   QueryFlamegraph,
   QueryFlamegraphMetric,
@@ -79,7 +79,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     this.store = trace.mountStore(LinuxPerfPlugin.id, (init) =>
       this.migrateLinuxPerfPluginState(init),
     );
-    const store = assertExists(this.store);
+    const store = checkExists(this.store);
     await this.cacheCounterTypesPerSession(trace);
     await this.addProcessPerfSamplesTracks(trace, store);
     await this.addThreadPerfSamplesTracks(trace, store);
@@ -447,7 +447,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
           return undefined;
         }
         const {flamegraph, metrics} = flamegraphWithMetrics;
-        const store = assertExists(this.store);
+        const store = checkExists(this.store);
         return {
           isLoading: false,
           content: flamegraph.render({
@@ -571,7 +571,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       aggregatableProperties,
     });
 
-    const store = assertExists(this.store);
+    const store = checkExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -606,7 +606,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
 }
 
 async function selectPerfTracksIfSingleProcess(trace: Trace) {
-  const profile = await assertExists(trace.engine).query(`
+  const profile = await checkExists(trace.engine).query(`
     select distinct upid
     from perf_sample
     join thread using (utid)
@@ -629,7 +629,7 @@ function getSelectedProcessTrackTags(currentSelection: AreaSelection) {
       trackInfo.tags?.utid === undefined
     ) {
       ret.push([
-        assertExists(trackInfo.tags?.upid),
+        checkExists(trackInfo.tags?.upid),
         Number(trackInfo.tags.perfSessionId),
       ]);
     }

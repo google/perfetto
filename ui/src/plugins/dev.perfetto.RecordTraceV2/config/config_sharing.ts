@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {GcsUploader} from '../../../base/gcs_uploader';
-import {assertExists} from '../../../base/assert';
+import {checkExists} from '../../../base/assert';
 import {CopyableLink} from '../../../widgets/copyable_link';
 import {showModal} from '../../../widgets/modal';
 import {RecordSessionSchema} from '../serialization_schema';
@@ -31,7 +31,7 @@ export async function shareRecordConfig(config: RecordSessionSchema) {
   const uploader = new GcsUploader(json, {mimeType: 'application/json'});
   await uploader.waitForCompletion();
   const url = uploader.uploadedUrl;
-  const hash = assertExists(url.split('/').pop());
+  const hash = checkExists(url.split('/').pop());
   showModal({
     title: 'Permalink',
     content: m(CopyableLink, {

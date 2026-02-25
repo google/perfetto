@@ -19,7 +19,7 @@ import {LONG, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Duration, duration, Time, time} from '../../base/time';
-import {assertExists, assertTrue} from '../../base/assert';
+import {checkExists, assertTrue} from '../../base/assert';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';
@@ -288,7 +288,7 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderRelatedTrackReferences(): m.Child {
-    const scrollUpdateData = assertExists(this.scrollUpdateData);
+    const scrollUpdateData = checkExists(this.scrollUpdateData);
     const children: m.Children = [];
     if (scrollUpdateData.eventLatencyPluginSliceId !== undefined) {
       children.push(
@@ -321,7 +321,7 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderStdlibReferences(): m.Child {
-    const scrollUpdateData = assertExists(this.scrollUpdateData);
+    const scrollUpdateData = checkExists(this.scrollUpdateData);
     return m(
       TreeNode,
       {

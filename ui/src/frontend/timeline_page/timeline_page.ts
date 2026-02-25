@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {DisposableStack} from '../../base/disposable_stack';
-import {toHTMLElement} from '../../base/dom_utils';
+import {assertInstanceOf} from '../../base/assert';
 import {Rect2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {AppImpl} from '../../core/app_impl';
@@ -149,9 +149,11 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       m(ResizeHandle, {
         onResize: (deltaPx: number) => {
           if (this.pinnedTracksHeight === 'auto') {
-            this.pinnedTracksHeight = toHTMLElement(
-              document.querySelector('.pf-timeline-page__pinned-track-tree')!,
-            ).getBoundingClientRect().height;
+            const treeEl = document.querySelector(
+              '.pf-timeline-page__pinned-track-tree',
+            );
+            assertInstanceOf(treeEl, HTMLElement);
+            this.pinnedTracksHeight = treeEl.getBoundingClientRect().height;
           }
           this.pinnedTracksHeight = this.pinnedTracksHeight + deltaPx;
           m.redraw();
@@ -176,10 +178,11 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
 
   oncreate(vnode: m.VnodeDOM<TimelinePageAttrs>) {
     const {attrs, dom} = vnode;
+    assertInstanceOf(dom, HTMLElement);
 
     // Handles WASD keybindings to pan & zoom
     const panZoomHandler = new KeyboardNavigationHandler({
-      element: toHTMLElement(dom),
+      element: dom,
       onPanned: (pannedPx: number) => {
         if (!this.timelineBounds) return;
         const timeline = attrs.trace.timeline;

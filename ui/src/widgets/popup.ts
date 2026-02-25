@@ -17,8 +17,8 @@ import type {Modifier} from '@popperjs/core';
 import m from 'mithril';
 import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
-import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
-import {assertExists} from '../base/assert';
+import {findRef, isOrContains} from '../base/dom_utils';
+import {assertExists, assertInstanceOf} from '../base/assert';
 import {ExtendedModifiers} from './popper_utils';
 
 // Note: We could just use the Placement type from popper.js instead, which is a
@@ -255,9 +255,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         return {container: undefined};
       },
       onContentMount: (dom: HTMLElement) => {
-        const popupElement = toHTMLElement(
-          assertExists(findRef(dom, Popup.POPUP_REF)),
-        );
+        const popupElement = findRef(dom, Popup.POPUP_REF);
+        assertInstanceOf(popupElement, HTMLElement);
         this.popupElement = popupElement;
         this.createOrUpdatePopper(attrs);
         document.addEventListener('mousedown', this.handleDocMouseDown);
@@ -304,7 +303,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   }
 
   oncreate({dom}: m.VnodeDOM<PopupAttrs, this>) {
-    this.triggerElement = assertExists(findRef(dom, Popup.TRIGGER_REF));
+    const triggerElement = findRef(dom, Popup.TRIGGER_REF);
+    assertExists(triggerElement);
+    this.triggerElement = triggerElement;
   }
 
   onupdate({attrs}: m.VnodeDOM<PopupAttrs, this>) {
@@ -475,9 +476,12 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   }
 
   private eventInPopupOrTrigger(e: Event): boolean {
-    const target = e.target as HTMLElement;
-    const onTrigger = isOrContains(assertExists(this.triggerElement), target);
-    const onPopup = isOrContains(assertExists(this.popupElement), target);
+    assertExists(this.triggerElement);
+    assertExists(this.popupElement);
+    assertInstanceOf(e.target, Element);
+
+    const onTrigger = isOrContains(this.triggerElement, e.target);
+    const onPopup = isOrContains(this.popupElement, e.target);
     return onTrigger || onPopup;
   }
 

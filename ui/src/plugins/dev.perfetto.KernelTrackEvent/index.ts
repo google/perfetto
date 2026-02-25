@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../base/assert';
+import {checkExists} from '../../base/assert';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -109,7 +109,7 @@ export default class implements PerfettoPlugin {
       const {trackId, name, utid, upid, cpu, isCounter, scope, tid, pid} = it;
 
       const displayTrackName = this.getTrackName(
-        assertExists(name),
+        checkExists(name),
         pid ?? undefined,
         tid ?? undefined,
         cpu ?? undefined,
@@ -204,21 +204,21 @@ export default class implements PerfettoPlugin {
     cpu: number | undefined,
   ): TrackNode {
     if (upid !== undefined) {
-      return assertExists(
+      return checkExists(
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
-          .getGroupForProcess(assertExists(upid)),
+          .getGroupForProcess(checkExists(upid)),
       );
     }
     if (utid !== undefined) {
-      return assertExists(
+      return checkExists(
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
-          .getGroupForThread(assertExists(utid)),
+          .getGroupForThread(checkExists(utid)),
       );
     }
     if (cpu !== undefined) {
-      return assertExists(
+      return checkExists(
         ctx.plugins
           .getPlugin(StandardGroupsPlugin)
           .getOrCreateStandardGroup(ctx.defaultWorkspace, 'CPU'),
@@ -226,7 +226,7 @@ export default class implements PerfettoPlugin {
     }
     // custom-scoped event: "Kernel -> Kernel track events".
     if (this.kernelTrackEventsNode === undefined) {
-      const kernelGroup = assertExists(
+      const kernelGroup = checkExists(
         ctx.plugins
           .getPlugin(StandardGroupsPlugin)
           .getOrCreateStandardGroup(ctx.defaultWorkspace, 'KERNEL'),

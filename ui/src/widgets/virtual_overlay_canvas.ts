@@ -31,9 +31,9 @@
 
 import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
-import {findRef, toHTMLElement} from '../base/dom_utils';
+import {findRef} from '../base/dom_utils';
 import {Rect2D, Size2D} from '../base/geom';
-import {assertExists} from '../base/assert';
+import {assertDefined, assertInstanceOf, checkExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
 import {WebGLRenderer} from '../base/gl/webgl_renderer';
 import {Canvas2DRenderer} from '../base/canvas2d_renderer';
@@ -167,9 +167,8 @@ export class VirtualOverlayCanvas
 
   oncreate({attrs, dom}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
     this.dom = dom;
-    const canvasContainerElement = toHTMLElement(
-      assertExists(findRef(dom, CANVAS_CONTAINER_REF)),
-    );
+    const canvasContainerElement = findRef(dom, CANVAS_CONTAINER_REF);
+    assertInstanceOf(canvasContainerElement, HTMLElement);
     const {overflowX = 'visible', overflowY = 'visible'} = attrs;
 
     // Create the virtual canvas inside the canvas container element. We assume
@@ -184,7 +183,7 @@ export class VirtualOverlayCanvas
     this.virtualCanvas = virtualCanvas;
 
     // Create the canvas rendering context
-    this.ctx = assertExists(virtualCanvas.canvasElement.getContext('2d'));
+    this.ctx = checkExists(virtualCanvas.canvasElement.getContext('2d'));
 
     // Create WebGL canvas if enabled
     if (attrs.enableWebGL) {
@@ -274,10 +273,12 @@ export class VirtualOverlayCanvas
   }
 
   private redrawCanvas() {
-    const ctx = assertExists(this.ctx);
-    const virtualCanvas = assertExists(this.virtualCanvas);
-    const attrs = assertExists(this.attrs);
-    const containerElement = assertExists(this.dom);
+    const {ctx, virtualCanvas, attrs, dom} = this;
+
+    assertDefined(ctx);
+    assertDefined(virtualCanvas);
+    assertDefined(attrs);
+    assertDefined(dom);
 
     // Create the appropriate renderer: WebGLRenderer if available, otherwise
     // Canvas2DRenderer as fallback.
@@ -300,7 +301,7 @@ export class VirtualOverlayCanvas
 
     // Call the user-provided draw callback to render into the canvas
     attrs.onCanvasRedraw?.({
-      dom: containerElement,
+      dom,
       ctx,
       virtualCanvasSize: virtualCanvas.size,
       canvasRect: virtualCanvas.canvasRect,

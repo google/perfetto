@@ -43,7 +43,7 @@ import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
-import {assertExists} from '../../base/assert';
+import {checkExists} from '../../base/assert';
 import {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
 
@@ -288,7 +288,7 @@ export default class CoreCommands implements PerfettoPlugin {
     const app = AppImpl.instance;
 
     // Rgister macros from settings first.
-    const settingMacros = assertExists(CoreCommands.macrosSetting).get();
+    const settingMacros = checkExists(CoreCommands.macrosSetting).get();
     for (const macro of settingMacros) {
       ctx.commands.registerMacro(macro);
     }

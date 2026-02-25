@@ -14,8 +14,8 @@
 
 import {test, Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
-import {assertExists} from '../base/assert';
 import {Locator} from '@playwright/test';
+import {assertExists, checkExists} from '../base/assert';
 
 test.describe.configure({mode: 'serial'});
 
@@ -87,7 +87,8 @@ test('gpu counter', async () => {
     'GPU/GPU Frequency/Gpu 0 Frequency',
     gpuFreqGroup,
   );
-  const coords = assertExists(await gpuTrack.boundingBox());
+  const coords = await gpuTrack.boundingBox();
+  assertExists(coords);
   await page.mouse.move(600, coords.y + 10);
   await page.mouse.down();
   await page.mouse.move(800, coords.y + 60);
@@ -106,7 +107,7 @@ test('frametimeline', async () => {
     'com.android.systemui 25348/Actual Timeline',
     sysui,
   );
-  const coords = assertExists(await actualTimeline.boundingBox());
+  const coords = checkExists(await actualTimeline.boundingBox());
   await page.mouse.move(600, coords.y + 10);
   await page.mouse.down();
   await page.mouse.move(1000, coords.y + 20);
@@ -126,7 +127,7 @@ test('slices', async () => {
     .nth(1);
   await animThread.scrollIntoViewIfNeeded();
   await pth.waitForPerfettoIdle();
-  const coords = assertExists(await animThread.boundingBox());
+  const coords = checkExists(await animThread.boundingBox());
   await page.mouse.move(600, coords.y + 10);
   await page.mouse.down();
   await page.mouse.move(1000, coords.y + 20);

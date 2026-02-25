@@ -26,7 +26,7 @@ import {hex} from 'color-convert';
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {DisposableStack} from '../../base/disposable_stack';
-import {findRef, toHTMLElement} from '../../base/dom_utils';
+import {findRef} from '../../base/dom_utils';
 import {
   HorizontalBounds,
   Rect2D,
@@ -36,7 +36,7 @@ import {
 } from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists} from '../../base/assert';
+import {assertExists, assertInstanceOf} from '../../base/assert';
 import {Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {
@@ -398,15 +398,14 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     // or change every update cycle. This chunk of code hooks the
     // ZonedInteractionHandler back up again if the DOM element is present,
     // otherwise it just removes it.
-    const interactionTarget = findRef(dom, TRACK_CONTAINER_REF) ?? undefined;
+    const interactionTarget = findRef(dom, TRACK_CONTAINER_REF);
     if (interactionTarget !== this.interactions?.target) {
       this.interactions?.[Symbol.dispose]();
       if (!interactionTarget) {
         this.interactions = undefined;
       } else {
-        this.interactions = new ZonedInteractionHandler(
-          toHTMLElement(interactionTarget),
-        );
+        assertInstanceOf(interactionTarget, HTMLElement);
+        this.interactions = new ZonedInteractionHandler(interactionTarget);
       }
     }
   }
@@ -589,7 +588,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const areaSelection =
       trace.selection.selection.kind === 'area' && trace.selection.selection;
 
-    assertExists(this.interactions).update([
+    assertExists(this.interactions);
+    this.interactions.update([
       shiftDragPanInteraction(trace, timelineRect, timescale),
       areaSelection !== false && {
         id: 'start-edit',

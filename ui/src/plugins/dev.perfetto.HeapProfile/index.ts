@@ -26,7 +26,6 @@ import {Track} from '../../public/track';
 import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Store} from '../../base/store';
 import {z} from 'zod';
-import {assertExists} from '../../base/assert';
 import {
   isProfileDescriptor,
   ProfileDescriptor,
@@ -39,6 +38,7 @@ import {
   AreaSelectionTab,
 } from '../../public/selection';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
+import {checkExists} from '../../base/assert';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
@@ -194,7 +194,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         const group = trackGroupsPlugin.getGroupForProcess(upid);
         if (!group) continue;
 
-        const store = assertExists(this.store);
+        const store = checkExists(this.store);
         const uri = trackUri(upid, heapType);
         const descriptor = profileDescriptor(heapType);
         const track: Track = {
@@ -279,7 +279,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       id: `heap_profiler_flamegraph_selection_${descriptor.heapName}`,
       name: `${descriptor.label} flamegraph`,
       render: (selection: AreaSelection) => {
-        const store = assertExists(this.store);
+        const store = checkExists(this.store);
         const selectionChanged =
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);

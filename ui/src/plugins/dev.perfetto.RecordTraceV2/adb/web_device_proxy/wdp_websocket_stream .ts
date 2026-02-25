@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import z from 'zod';
-import {assertExists, assertTrue} from '../../../../base/assert';
+import {checkExists, assertTrue} from '../../../../base/assert';
 import {ByteStream} from '../../interfaces/byte_stream';
 import {base64Decode} from '../../../../base/string_utils';
 
@@ -39,7 +39,7 @@ export class WdpWebSocketStream extends ByteStream {
         // Unmarshall this transparently to caller.
         const parsed = this.schema.safeParse(JSON.parse(e.data));
         this.onData(
-          new Uint8Array(base64Decode(assertExists(parsed.data).response)),
+          new Uint8Array(base64Decode(checkExists(parsed.data).response)),
         );
       } else {
         assertTrue(e.data instanceof ArrayBuffer);

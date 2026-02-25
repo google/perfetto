@@ -341,7 +341,9 @@ export class PivotTableState {
     for (const it = res.iter({}); it.valid(); it.next()) {
       const row: Row = {};
       for (const column of res.columns()) {
-        row[assertExists(aliasToIds.get(column))] = it.get(column);
+        const index = aliasToIds.get(column);
+        assertExists(index);
+        row[index] = it.get(column);
       }
       rows.push(row);
     }

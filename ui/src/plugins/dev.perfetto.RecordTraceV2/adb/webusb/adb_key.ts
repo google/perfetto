@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigInteger, RSAKey} from 'jsbn-rsa';
-import {assertExists, assertTrue} from '../../../../base/assert';
+import {checkExists, assertTrue} from '../../../../base/assert';
 import {
   base64Decode,
   base64Encode,
@@ -135,8 +135,8 @@ export class AdbKey {
   getPublicKey(): string {
     const rsaKey = new RSAKey();
     rsaKey.setPublic(
-      hexEncode(base64Decode(assertExists(this.jwkPrivate.n))),
-      hexEncode(base64Decode(assertExists(this.jwkPrivate.e))),
+      hexEncode(base64Decode(checkExists(this.jwkPrivate.n))),
+      hexEncode(base64Decode(checkExists(this.jwkPrivate.e))),
     );
 
     const n0inv = R32.subtract(rsaKey.n.modInverse(R32)).intValue();

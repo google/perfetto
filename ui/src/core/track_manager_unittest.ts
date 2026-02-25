@@ -99,7 +99,8 @@ beforeEach(() => {
 
 describe('TrackManager', () => {
   it('calls render on the track', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = trackManager.getWrappedTrack(td.uri);
+    assertExists(entry);
 
     entry.render(dummyCtx);
     expect(mockTrack.render).toHaveBeenCalledTimes(1);
@@ -107,10 +108,12 @@ describe('TrackManager', () => {
   });
 
   it('reuses tracks across render cycles', () => {
-    const first = assertExists(trackManager.getWrappedTrack(td.uri));
+    const first = trackManager.getWrappedTrack(td.uri);
+    assertExists(first);
     first.render(dummyCtx);
 
-    const second = assertExists(trackManager.getWrappedTrack(td.uri));
+    const second = trackManager.getWrappedTrack(td.uri);
+    assertExists(second);
     second.render(dummyCtx);
 
     expect(first).toBe(second);
@@ -118,7 +121,8 @@ describe('TrackManager', () => {
   });
 
   it('contains crash inside render()', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = trackManager.getWrappedTrack(td.uri);
+    assertExists(entry);
     const e = new Error('test error');
 
     // Mock crash inside render
@@ -133,7 +137,8 @@ describe('TrackManager', () => {
   });
 
   it('does not call render after crash', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = trackManager.getWrappedTrack(td.uri);
+    assertExists(entry);
     const e = new Error('test error');
 
     // Mock crash inside render
@@ -150,12 +155,14 @@ describe('TrackManager', () => {
   });
 
   it('exposes the track renderer', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = trackManager.getWrappedTrack(td.uri);
+    assertExists(entry);
     expect(entry.track).toBe(mockTrack);
   });
 
   it('exposes the track descriptor', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = trackManager.getWrappedTrack(td.uri);
+    assertExists(entry);
     expect(entry.desc).toBe(td);
   });
 });

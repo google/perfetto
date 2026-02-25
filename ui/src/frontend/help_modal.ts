@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../base/assert';
 import {AppImpl} from '../core/app_impl';
 import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
 import {showModal} from '../widgets/modal';
@@ -24,6 +23,8 @@ import {
   NotSupportedError,
 } from '../base/keyboard_layout_map';
 import {KeyMapping} from './timeline_page/wasd_navigation_handler';
+import {exists} from '../base/utils';
+import {Command} from '../public/command';
 
 export function toggleHelp() {
   AppImpl.instance.analytics.logEvent('User Actions', 'Show help');
@@ -158,7 +159,9 @@ class KeyMappingsHelp implements m.ClassComponent {
       m(
         'table',
         AppImpl.instance.commands.commands
-          .filter(({defaultHotkey}) => defaultHotkey)
+          .filter((command): command is Required<Command> =>
+            exists(command.defaultHotkey),
+          )
           .sort((a, b) => a.name.localeCompare(b.name))
           .map(({defaultHotkey, name}) => {
             return m(
@@ -167,7 +170,7 @@ class KeyMappingsHelp implements m.ClassComponent {
                 'td',
                 m(HotkeyGlyphs, {
                   spacing: 'large',
-                  hotkey: assertExists(defaultHotkey),
+                  hotkey: defaultHotkey,
                 }),
               ),
               m('td', name),

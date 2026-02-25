@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {assertExists, assertFalse, assertTrue} from '../../../base/assert';
+import {checkExists, assertFalse, assertTrue} from '../../../base/assert';
 import {getOrCreate} from '../../../base/utils';
 import {ProbesSchema} from '../serialization_schema';
 import {TargetPlatformId} from '../interfaces/target_platform';
@@ -59,7 +59,7 @@ export class ConfigManager {
   }
 
   setProbeEnabled(probeId: string, enabled: boolean) {
-    const probe = assertExists(this.probesById.get(probeId));
+    const probe = checkExists(this.probesById.get(probeId));
     this.enabledProbes.set(probeId, enabled);
     for (const depProbeId of probe.dependencies ?? []) {
       assertTrue(this.probesById.has(depProbeId));
@@ -102,7 +102,7 @@ export class ConfigManager {
    */
   getProbeEnableDependants(probeId: string): string[] {
     return Array.from(this.indirectlyEnabledProbes.get(probeId) ?? []).map(
-      (id) => assertExists(this.probesById.get(id)).title,
+      (id) => checkExists(this.probesById.get(id)).title,
     );
   }
 
@@ -179,7 +179,7 @@ export class ConfigManager {
     const seenIds = new Set<string>();
     const queueProbe = (probeId: string) => {
       if (enabledOnly && !this.isProbeEnabled(probeId)) return;
-      const probe = assertExists(this.probesById.get(probeId));
+      const probe = checkExists(this.probesById.get(probeId));
       if (orderedProbes.includes(probe)) return; // Already added.
       if (seenIds.has(probeId)) {
         throw new Error('Cycle detected in probe ' + probeId);

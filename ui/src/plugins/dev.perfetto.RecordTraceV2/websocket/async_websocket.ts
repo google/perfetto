@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer, Deferred} from '../../../base/deferred';
-import {assertExists, assertTrue} from '../../../base/assert';
+import {checkExists, assertTrue} from '../../../base/assert';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
 import {utf8Decode, utf8Encode} from '../../../base/string_utils';
 
@@ -72,7 +72,7 @@ export class AsyncWebsocket {
 
   /** Turns this back into a standard WebSocket. */
   release(): WebSocket {
-    const sock = assertExists(this.sock);
+    const sock = checkExists(this.sock);
     this.sock = undefined;
     sock.onmessage = null;
     sock.onopen = null;
@@ -82,7 +82,7 @@ export class AsyncWebsocket {
   }
 
   send(data: string | ArrayBufferLike) {
-    assertExists(this.sock).send(data);
+    checkExists(this.sock).send(data);
   }
 
   waitForData(numBytes: number = ANY_SIZE): Promise<Uint8Array> {

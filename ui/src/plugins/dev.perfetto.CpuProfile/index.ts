@@ -27,7 +27,7 @@ import {
   QueryFlamegraphWithMetrics,
 } from '../../components/query_flamegraph';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
-import {assertExists} from '../../base/assert';
+import {assertExists, checkExists} from '../../base/assert';
 import {Store} from '../../base/store';
 import {z} from 'zod';
 
@@ -72,7 +72,6 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       where not is_idle
     `);
 
-    const store = assertExists(this.store);
     const it = result.iter({
       utid: NUM,
       upid: NUM_NULL,
@@ -94,9 +93,10 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
           ctx,
           uri,
           utid,
-          store.state.detailsPanelFlamegraphState,
+          this.store.state.detailsPanelFlamegraphState,
           (state) => {
-            store.edit((draft) => {
+            assertExists(this.store);
+            this.store.edit((draft) => {
               draft.detailsPanelFlamegraphState = state;
             });
           },
@@ -142,7 +142,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
           return undefined;
         }
         const {flamegraph, metrics} = flamegraphWithMetrics;
-        const store = assertExists(this.store);
+        const store = checkExists(this.store);
         return {
           isLoading: false,
           content: flamegraph.render({
@@ -211,7 +211,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Symbol',
     });
-    const store = assertExists(this.store);
+    const store = checkExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -223,7 +223,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
 }
 
 async function selectCpuProfileCallsite(trace: Trace) {
-  const profile = await assertExists(trace.engine).query(`
+  const profile = await checkExists(trace.engine).query(`
     select utid, upid
     from cpu_profile_stack_sample
     join thread using(utid)

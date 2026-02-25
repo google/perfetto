@@ -12,68 +12,83 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Assertion utilities for runtime validation and TypeScript type narrowing.
+// Assertion and check utilities for runtime validation and TypeScript type
+// narrowing.
 //
-// These functions provide fail-fast semantics: if an assertion fails, an
-// exception is thrown immediately. This makes bugs easier to catch and debug
-// by surfacing issues at the point of failure rather than propagating invalid
-// state.
+// Two flavors:
+// - assert*() — void. Narrows the type of the input variable in place for
+//   subsequent code. Use as a standalone statement.
+// - checkExists() — returns the narrowed value. Use in expressions,
+//   assignments, and function arguments.
 //
-// In addition to runtime checks, these assertions help TypeScript narrow types.
-// For example, after calling assertExists(x), TypeScript knows x is non-null.
+// All functions throw immediately on failure (fail-fast).
 
-export function assertExists<A>(
-  value: A | null | undefined,
-  optMsg?: string,
-): A {
+// Throws if |value| is null or undefined. Returns the value with null and
+// undefined stripped from the type, for use in expressions.
+export function checkExists<T>(value: T, msg?: string): NonNullable<T> {
   if (value === null || value === undefined) {
-    throw new Error(optMsg ?? 'Value is null or undefined');
+    throw new Error(msg ?? 'Value is null or undefined');
   }
   return value;
 }
 
-// assertExists trips over NULLs, but in many contexts NULL is a valid SQL value
-// we have to work with.
-export function assertDefined<T>(value: T | undefined, optMsg?: string): T {
-  if (value === undefined) {
-    throw new Error(optMsg ?? 'Value is undefined');
+// Throws if |value| is null or undefined. Narrows the type of |value| to
+// exclude null and undefined for all subsequent code.
+export function assertExists<T>(
+  value: T,
+  msg?: string,
+): asserts value is NonNullable<T> {
+  if (value === null || value === undefined) {
+    throw new Error(msg ?? 'Value is null or undefined');
   }
-  return value;
 }
 
-// Asserts that the value is an instance of the given class. Returns the value
-// with a narrowed type if the assertion passes, otherwise throws an error.
-export function assertIsInstance<T>(
+// Throws if |value| is undefined. Narrows the type of |value| to exclude
+// undefined for all subsequent code. Unlike assertExists(), this permits null.
+export function assertDefined<T>(
+  value: T | undefined,
+  msg?: string,
+): asserts value is T {
+  if (value === undefined) throw new Error(msg ?? 'Value is undefined');
+}
+
+// Throws if |value| is not an instance of |cls|. Narrows the type of |value|
+// to |T| for all subsequent code.
+export function assertInstanceOf<T>(
   value: unknown,
-  clazz: abstract new (...args: never[]) => T,
-  optMsg?: string,
-): T {
-  assertTrue(
-    value instanceof clazz,
-    optMsg ?? `Value is not an instance of ${clazz.name}`,
-  );
-  return value as T;
-}
-
-export function assertTrue(value: boolean, optMsg?: string) {
-  if (!value) {
-    throw new Error(optMsg ?? 'Failed assertion');
+  cls: abstract new (...args: never[]) => T,
+  msg?: string,
+): asserts value is T {
+  if (!(value instanceof cls)) {
+    throw new Error(msg ?? `Value is not instance of '${cls.name}'`);
   }
 }
 
-export function assertFalse(value: boolean, optMsg?: string) {
-  assertTrue(!value, optMsg);
+export function checkInstanceOf<T>(
+  value: unknown,
+  cls: abstract new (...args: never[]) => T,
+  msg?: string,
+): T {
+  if (!(value instanceof cls)) {
+    throw new Error(msg ?? `Value is not instance of '${cls.name}'`);
+  }
+  return value;
 }
 
-// This function serves two purposes.
-// 1) A runtime check - if we are ever called, we throw an exception.
-// This is useful for checking that code we suspect should never be reached is
-// actually never reached.
-// 2) A compile time check where typescript asserts that the value passed can be
-// cast to the "never" type.
-// This is useful for ensuring we exhaustively check union types.
-export function assertUnreachable(value: never, optMsg?: string): never {
+// Throws if |value| is not truthy.
+export function assertTrue(value: boolean, msg?: string) {
+  if (!value) throw new Error(msg ?? 'Value is not truthy');
+}
+
+// Throws if |value| is truthy.
+export function assertFalse(value: boolean, msg?: string) {
+  if (value) throw new Error(msg ?? 'Value is not falsy');
+}
+
+// Throws unconditionally at runtime. At compile time, requires |value| to be
+// of type 'never', ensuring exhaustive checks of union types and enums.
+export function assertUnreachable(value: never, msg?: string): never {
   throw new Error(
-    optMsg ?? `This code should not be reachable ${value as unknown}`,
+    msg ?? `This code should not be reachable ${value as unknown}`,
   );
 }

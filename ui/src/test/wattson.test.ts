@@ -14,7 +14,7 @@
 
 import {test, Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
-import {assertExists} from '../base/assert';
+import {checkExists} from '../base/assert';
 
 test.describe.configure({mode: 'serial'});
 
@@ -44,7 +44,7 @@ test('wattson aggregations', async () => {
   await wattsonGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(wattsonGrp);
   const cpuEstimate = pth.locateTrack('Wattson/Cpu0 estimate', wattsonGrp);
-  const coords = assertExists(await cpuEstimate.boundingBox());
+  const coords = checkExists(await cpuEstimate.boundingBox());
   await page.keyboard.press('Escape');
   await page.mouse.move(600, coords.y + 10);
   await page.mouse.down();

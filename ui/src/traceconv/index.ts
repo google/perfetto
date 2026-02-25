@@ -66,8 +66,8 @@ function forwardError(error: ErrorDetails) {
 }
 
 function fsNodeToBuffer(fsNode: traceconv.FileSystemNode): Uint8Array {
-  const fileSize = assertExists(fsNode.usedBytes);
-  return new Uint8Array(fsNode.contents.buffer, 0, fileSize);
+  assertExists(fsNode.usedBytes);
+  return new Uint8Array(fsNode.contents.buffer, 0, fsNode.usedBytes);
 }
 
 async function runTraceconv(trace: Blob, args: string[]) {
@@ -79,10 +79,11 @@ async function runTraceconv(trace: Blob, args: string[]) {
     printErr: updateStatus,
     onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
   });
+  assertExists(module.FS.filesystems.WORKERFS);
   await deferredRuntimeInitialized;
   module.FS.mkdir('/fs');
   module.FS.mount(
-    assertExists(module.FS.filesystems.WORKERFS),
+    module.FS.filesystems.WORKERFS,
     {blobs: [{name: 'trace.proto', data: trace}]},
     '/fs',
   );

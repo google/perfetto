@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../base/assert';
+import {checkExists} from '../base/assert';
 import {Registry} from '../base/registry';
 import {PerfettoPlugin, PerfettoPluginStatic} from '../public/plugin';
 import {Trace} from '../public/trace';
@@ -157,7 +157,7 @@ export class PluginManagerImpl {
     pluginDescriptor: PerfettoPluginStatic<T>,
   ): T {
     const plugin = this.registry.get(pluginDescriptor.id);
-    return assertExists(plugin.traceContext).instance as T;
+    return checkExists(plugin.traceContext).instance as T;
   }
 
   isCorePlugin(pluginId: string): boolean {
