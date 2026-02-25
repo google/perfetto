@@ -337,4 +337,9 @@ phony {
     }
 }
 
-
+filegroup {
+    name: "ravenwood-perfetto-policies",
+    srcs: [
+        "src/android_sdk/jni/ravenwood-perfetto-policies.txt",
+    ],
+}
