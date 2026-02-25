@@ -321,3 +321,20 @@ cc_aconfig_library {
     ],
     min_sdk_version: "30",
 }
+
+// This target groups the dependencies on the android-tree rules that generate
+// /etc/tracing_descriptors.gz and /vendor/etc/tracing_descriptors.gz
+// Those targets are defined in /system/core and TODO(primiano): /vendor.
+phony {
+    name: "etc_system_tracing_proto_descriptors",
+    target: {
+        android: {
+            required: [
+                // TODO(primiano): uncomment after ag/38422283 lands.
+                // "system_tracing_protos_descriptor",
+            ],
+        }
+    }
+}
+
+
