@@ -7896,15 +7896,15 @@ message V8JsCode {
     // For Ignition / bytecode:
     //  - Maps bytecode-ranges to byte offsets (for the same script as the
     //    related js function)
-    bytes source_positions = 8;
+    bytes source_positions = 9;
     // For Sparkplug code:
     //  - Maps machine-code ranges to bytecode ranges in the corresponding
     //    ignition code object for the same js-function.
-    bytes bytecode_positions = 9;
+    bytes bytecode_positions = 10;
     // For optimized code:
     // - Maps machine-code-ranges to bytecode ranges in various
     //   ignition code objects (inlining might happen from multiple functions)
-    bytes inlined_bytecode_positions = 10;
+    bytes inlined_bytecode_positions = 11;
   }
 }
 
