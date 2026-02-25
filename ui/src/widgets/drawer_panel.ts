@@ -233,6 +233,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
         [
           leftHandleContent,
           m('.pf-drawer-panel__tabs', tabsUI),
+          m('.pf-drawer-panel__spacer'),
           this.renderTabResizeButtons(visibility, onVisibilityChange),
         ],
       ),
@@ -301,6 +302,14 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   }
 
   private onPointerDown(e: PointerEvent, attrs: DrawerPanelAttrs) {
+    // Only start drag if the handle itself or the spacer is targeted
+    const target = e.target as HTMLElement;
+    const isHandle = target === e.currentTarget;
+    const isSpacer = target.classList.contains('pf-drawer-panel__spacer');
+    if (!isHandle && !isSpacer) {
+      return;
+    }
+
     this.handleElement = e.currentTarget as HTMLElement;
     this.handleElement.setPointerCapture(e.pointerId);
     this.dragStartY = e.clientY;
