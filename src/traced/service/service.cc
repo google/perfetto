@@ -148,7 +148,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     PERFETTO_DLOG("Loaded extension descriptor: %s (%zu bytes)", path,
                   mm.length());
     init_opts.extension_descriptors.push_back(
-        {path, reinterpret_cast_cast<const uint8_t*>(mm.data()), mm.length(),
+        {path, reinterpret_cast<const uint8_t*>(mm.data()), mm.length(),
          /*gzipped=*/true});
     extension_descriptor_mmaps.push_back(std::move(mm));
   }
