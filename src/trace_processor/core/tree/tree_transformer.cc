@@ -234,7 +234,7 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   interp.Initialize(builder_->bytecode(), builder_->register_count(), pool_);
   interp.SetRegisterValue(
       interpreter::WriteHandle<StoragePtr>(parent_storage_reg_.index),
-      StoragePtr{normalized_parent.begin(), StorageType(Uint32{})});
+      StoragePtr{normalized_parent.begin(), nullptr, StorageType(Uint32{})});
 
   for (const auto& init : dt_->register_inits()) {
     auto val = dataframe::QueryPlanImpl::GetRegisterInitValue(init, df_);

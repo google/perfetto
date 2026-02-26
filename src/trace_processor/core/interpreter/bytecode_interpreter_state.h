@@ -101,6 +101,14 @@ struct InterpreterState {
     return static_cast<const typename T::cpp_type*>(ReadFromRegister(reg).ptr);
   }
 
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE auto* ReadMutableStorageFromRegister(
+      RwHandle<StoragePtr> reg) {
+    auto& sp = ReadFromRegister(reg);
+    PERFETTO_DCHECK(sp.mutable_ptr);
+    return static_cast<typename T::cpp_type*>(sp.mutable_ptr);
+  }
+
   // Writes a value to the specified register, handling type safety through
   // the handle.
   template <typename T>

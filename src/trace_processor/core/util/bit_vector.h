@@ -254,6 +254,14 @@ struct BitVector {
   // still maintaining the invariants of the class.
   void shrink_to_fit() { words_.shrink_to_fit(); }
 
+  // Returns a deep copy of this bitvector.
+  BitVector Copy() const {
+    auto word_count = (size_ + 63ull) / 64ull;
+    auto words = FlexVector<uint64_t>::CreateWithSize(word_count);
+    memcpy(words.data(), words_.data(), word_count * sizeof(uint64_t));
+    return BitVector(std::move(words), size_);
+  }
+
   // Returns the number of bits in the vector.
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
 

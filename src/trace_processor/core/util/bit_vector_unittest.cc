@@ -490,5 +490,33 @@ TEST(BitVectorTest, ResizeAcrossWordBoundary) {
   }
 }
 
+// Test Copy produces an independent deep copy
+TEST(BitVectorTest, Copy) {
+  auto bits = BitVector::CreateWithSize(200, false);
+  bits.set(0);
+  bits.set(63);
+  bits.set(64);
+  bits.set(127);
+  bits.set(199);
+
+  auto copy = bits.Copy();
+
+  // Copy should have the same size and bits.
+  EXPECT_EQ(copy.size(), 200u);
+  EXPECT_TRUE(copy.is_set(0));
+  EXPECT_TRUE(copy.is_set(63));
+  EXPECT_TRUE(copy.is_set(64));
+  EXPECT_TRUE(copy.is_set(127));
+  EXPECT_TRUE(copy.is_set(199));
+  EXPECT_FALSE(copy.is_set(1));
+  EXPECT_FALSE(copy.is_set(128));
+
+  // Mutating the copy should not affect the original.
+  copy.clear(0);
+  copy.set(1);
+  EXPECT_TRUE(bits.is_set(0));
+  EXPECT_FALSE(bits.is_set(1));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core

@@ -107,7 +107,8 @@ class BytecodeInterpreterTest : public testing::Test {
   // Returns StoragePtr for a column, to pass to SetRegistersAndExecute.
   template <typename T>
   StoragePtr GetStoragePtr(uint32_t col_idx) {
-    return StoragePtr{column_ptrs_[col_idx]->storage.unchecked_data<T>(), T{}};
+    return StoragePtr{column_ptrs_[col_idx]->storage.unchecked_data<T>(),
+                      nullptr, T{}};
   }
 
   // Returns null bitvector pointer for a column.

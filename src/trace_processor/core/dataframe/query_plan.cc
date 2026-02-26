@@ -268,30 +268,35 @@ i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
     case RegisterInit::Type::GetTypeIndex<Id>():
       // Id columns don't have actual storage - the row index IS the value.
       // Return a nullptr StoragePtr which the interpreter knows to handle.
-      return i::StoragePtr{nullptr, Id{}};
+      return i::StoragePtr{nullptr, nullptr, Id{}};
     case RegisterInit::Type::GetTypeIndex<Uint32>():
       return i::StoragePtr{
           columns[init.source_index]->storage.unchecked_data<Uint32>(),
+          nullptr,
           Uint32{},
       };
     case RegisterInit::Type::GetTypeIndex<Int32>():
       return i::StoragePtr{
           columns[init.source_index]->storage.unchecked_data<Int32>(),
+          nullptr,
           Int32{},
       };
     case RegisterInit::Type::GetTypeIndex<Int64>():
       return i::StoragePtr{
           columns[init.source_index]->storage.unchecked_data<Int64>(),
+          nullptr,
           Int64{},
       };
     case RegisterInit::Type::GetTypeIndex<Double>():
       return i::StoragePtr{
           columns[init.source_index]->storage.unchecked_data<Double>(),
+          nullptr,
           Double{},
       };
     case RegisterInit::Type::GetTypeIndex<String>():
       return i::StoragePtr{
           columns[init.source_index]->storage.unchecked_data<String>(),
+          nullptr,
           String{},
       };
     case RegisterInit::Type::GetTypeIndex<RegisterInit::NullBitvector>():

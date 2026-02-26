@@ -100,6 +100,7 @@ using StringIdToRankMap =
 // Pointer to storage data along with its type.
 struct StoragePtr {
   const void* ptr;
+  void* mutable_ptr = nullptr;
   StorageType type;
 };
 
