@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {copyToClipboard} from '../base/clipboard';
-import {Anchor} from './anchor';
+import {InteractiveText} from './interactive_text';
 
 interface CopyableLinkAttrs {
   url: string;
@@ -28,7 +28,7 @@ export class CopyableLink implements m.ClassComponent<CopyableLinkAttrs> {
     return m(
       'div',
       m(
-        Anchor,
+        InteractiveText,
         {
           href: url,
           title: 'Click to copy the URL into the clipboard',

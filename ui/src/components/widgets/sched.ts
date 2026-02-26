@@ -14,9 +14,9 @@
 
 import m from 'mithril';
 import {SchedSqlId} from '../sql_utils/core_types';
-import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {Trace} from '../../public/trace';
+import {InteractiveText} from '../../widgets/interactive_text';
 
 interface SchedRefAttrs {
   readonly trace: Trace;
@@ -42,7 +42,7 @@ export function goToSchedSlice(trace: Trace, id: SchedSqlId) {
 export class SchedRef implements m.ClassComponent<SchedRefAttrs> {
   view(vnode: m.Vnode<SchedRefAttrs>) {
     return m(
-      Anchor,
+      InteractiveText,
       {
         icon: Icons.UpdateSelection,
         onclick: () => {

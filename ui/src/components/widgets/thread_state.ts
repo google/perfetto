@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {ThreadStateSqlId} from '../sql_utils/core_types';
-import {Anchor} from '../../widgets/anchor';
+import {InteractiveText} from '../../widgets/interactive_text';
 import {Icons} from '../../base/semantic_icons';
 import {ThreadState} from '../sql_utils/thread_state';
 import {Trace} from '../../public/trace';
@@ -35,7 +35,7 @@ interface ThreadStateRefAttrs {
 export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
   view(vnode: m.Vnode<ThreadStateRefAttrs>) {
     return m(
-      Anchor,
+      InteractiveText,
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
