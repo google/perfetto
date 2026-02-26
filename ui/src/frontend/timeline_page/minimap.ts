@@ -13,24 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DisposableStack} from '../../base/disposable_stack';
-import {toHTMLElement} from '../../base/dom_utils';
-import {Rect2D, Size2D} from '../../base/geom';
+import {Size2D} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {assertExists, assertUnreachable} from '../../base/assert';
 import {Time, time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
-import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
 import {colorForCpu} from '../../components/colorizer';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {
-  COLOR_TEXT_MUTED,
-  FONT_COMPACT,
-  COLOR_BORDER,
-  COLOR_NEUTRAL,
-} from '../css_constants';
+import {COLOR_TEXT_MUTED, FONT_COMPACT, COLOR_BORDER} from '../css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
@@ -38,7 +30,7 @@ import {
   TickType,
 } from './gridline_helper';
 
-const HANDLE_SIZE_PX = 5;
+const HEADER_HEIGHT_PX = 20;
 
 export interface MinimapAttrs {
   readonly trace: TraceImpl;
@@ -46,9 +38,6 @@ export interface MinimapAttrs {
 }
 
 export class Minimap implements m.ClassComponent<MinimapAttrs> {
-  private readonly trash = new DisposableStack();
-  private interactions?: ZonedInteractionHandler;
-
   view({attrs}: m.CVnode<MinimapAttrs>) {
     return m(
       VirtualOverlayCanvas,
@@ -57,27 +46,75 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
           attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
         disableCanvasRedrawOnMithrilUpdates: true,
         className: attrs.className,
-        onCanvasRedraw: ({ctx, virtualCanvasSize}) => {
-          this.renderCanvas(attrs.trace, ctx, virtualCanvasSize);
+        onCanvasRedraw: ({ctx, virtualCanvasSize, dom}) => {
+          this.renderCanvas(attrs.trace, ctx, virtualCanvasSize, dom);
         },
       },
-      m('.pf-overview-timeline'),
+      m('.pf-minimap'),
     );
   }
 
-  oncreate({dom}: m.VnodeDOM<MinimapAttrs, this>) {
-    this.interactions = new ZonedInteractionHandler(toHTMLElement(dom));
-    this.trash.use(this.interactions);
-  }
+  private renderBrushes(trace: TraceImpl, element: Element) {
+    const timeline = assertExists(element.querySelector('.pf-minimap'));
+    const timelineWidth = timeline.getBoundingClientRect().width;
+    const traceTime = trace.traceInfo;
+    const pxBounds = {left: 0, right: timelineWidth};
+    const hpTraceTime = HighPrecisionTimeSpan.fromTime(
+      traceTime.start,
+      traceTime.end,
+    );
+    const timescale = new TimeScale(hpTraceTime, pxBounds);
+    const {left, right} = timescale.hpTimeSpanToPxSpan(
+      trace.timeline.visibleWindow,
+    );
 
-  onremove(_: m.VnodeDOM<MinimapAttrs, this>) {
-    this.trash.dispose();
+    m.render(timeline, [
+      m(SelectionArea, {
+        onDrag: (startX, currentX) => {
+          const left = Math.min(startX, currentX);
+          const right = Math.max(startX, currentX);
+          const span = timescale.pxSpanToHpTimeSpan({left, right});
+          trace.timeline.setVisibleWindow(span);
+          m.redraw();
+        },
+      }),
+      m(DragHandle, {
+        left,
+        right,
+        onDrag: (deltaX) => {
+          const delta = timescale.pxToDuration(deltaX);
+          trace.timeline.pan(delta);
+          m.redraw();
+        },
+      }),
+      m(Brush, {
+        className: 'pf-minimap__brush',
+        x: left,
+        onDrag: (x) => {
+          // Convert to time and set the new time
+          const time = timescale.pxToHpTime(x);
+          trace.timeline.moveStart(time);
+          m.redraw();
+        },
+      }),
+      m(Brush, {
+        className: 'pf-minimap__brush',
+        x: right,
+        onDrag: (x) => {
+          // Convert to time and set the new time
+          const time = timescale.pxToHpTime(x);
+          trace.timeline.moveEnd(time);
+          m.redraw();
+        },
+      }),
+    ]);
   }
 
   private renderCanvas(
     trace: TraceImpl,
     ctx: CanvasRenderingContext2D,
     size: Size2D,
+    dom: Element,
   ) {
     if (size.width <= 0) return;
 
@@ -89,8 +126,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
     );
     const timescale = new TimeScale(hpTraceTime, pxBounds);
 
-    const headerHeight = 20;
-    const tracksHeight = size.height - headerHeight;
+    const tracksHeight = size.height - HEADER_HEIGHT_PX;
     const traceContext = new TimeSpan(
       trace.traceInfo.start,
       trace.traceInfo.end,
@@ -109,7 +145,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
         if (xPos <= 0) continue;
         if (xPos > size.width) break;
         if (type === TickType.MAJOR) {
-          ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
+          ctx.fillRect(xPos - 1, 0, 1, HEADER_HEIGHT_PX - 5);
           const domainTime = trace.timeline.toDomainTime(time);
           renderTimestamp(
             trace,
@@ -135,7 +171,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
 
       let y = 0;
       for (const row of rows) {
-        const topFloat = headerHeight + y * trackHeight;
+        const topFloat = HEADER_HEIGHT_PX + y * trackHeight;
         const top = Math.round(topFloat);
         const bottom = Math.round(topFloat + trackHeight);
         ctx.fillStyle = colorForCpu(y).setHSL({s: 50}).cssString;
@@ -153,113 +189,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
       ctx.globalAlpha = 1.0;
     }
 
-    // Draw semi-opaque rects that occlude the non-visible time range.
-    const {left, right} = timescale.hpTimeSpanToPxSpan(
-      trace.timeline.visibleWindow,
-    );
-
-    const vizStartPx = Math.floor(left);
-    const vizEndPx = Math.ceil(right);
-
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = COLOR_NEUTRAL;
-    ctx.fillRect(0, headerHeight, vizStartPx, tracksHeight);
-    ctx.fillRect(vizEndPx, headerHeight, size.width - vizEndPx, tracksHeight);
-    ctx.globalAlpha = 1.0;
-
-    // Draw brushes.
-    ctx.fillStyle = COLOR_BORDER;
-    ctx.fillRect(vizStartPx - 1, headerHeight, 1, tracksHeight);
-    ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
-
-    const hbarWidth = HANDLE_SIZE_PX;
-    const hbarHeight = tracksHeight * 0.4;
-    // Draw handlebar
-    ctx.fillRect(
-      vizStartPx - Math.floor(hbarWidth / 2) - 1,
-      headerHeight,
-      hbarWidth,
-      hbarHeight,
-    );
-    ctx.fillRect(
-      vizEndPx - Math.floor(hbarWidth / 2),
-      headerHeight,
-      hbarWidth,
-      hbarHeight,
-    );
-
-    assertExists(this.interactions).update([
-      {
-        id: 'left-handle',
-        area: Rect2D.fromPointAndSize({
-          x: vizStartPx - Math.floor(hbarWidth / 2) - 1,
-          y: 0,
-          width: hbarWidth,
-          height: size.height,
-        }),
-        cursor: 'col-resize',
-        drag: {
-          cursorWhileDragging: 'col-resize',
-          onDrag: (event) => {
-            const delta = timescale.pxToDuration(event.deltaSinceLastEvent.x);
-            trace.timeline.moveStart(delta);
-          },
-        },
-      },
-      {
-        id: 'right-handle',
-        area: Rect2D.fromPointAndSize({
-          x: vizEndPx - Math.floor(hbarWidth / 2) - 1,
-          y: 0,
-          width: hbarWidth,
-          height: size.height,
-        }),
-        cursor: 'col-resize',
-        drag: {
-          cursorWhileDragging: 'col-resize',
-          onDrag: (event) => {
-            const delta = timescale.pxToDuration(event.deltaSinceLastEvent.x);
-            trace.timeline.moveEnd(delta);
-          },
-        },
-      },
-      {
-        id: 'drag',
-        area: new Rect2D({
-          left: vizStartPx,
-          right: vizEndPx,
-          top: 0,
-          bottom: size.height,
-        }),
-        cursor: 'grab',
-        drag: {
-          cursorWhileDragging: 'grabbing',
-          onDrag: (event) => {
-            const delta = timescale.pxToDuration(event.deltaSinceLastEvent.x);
-            trace.timeline.pan(delta);
-          },
-        },
-      },
-      {
-        id: 'select',
-        area: new Rect2D({
-          left: 0,
-          right: size.width,
-          top: 0,
-          bottom: size.height,
-        }),
-        cursor: 'text',
-        drag: {
-          cursorWhileDragging: 'text',
-          onDrag: (event) => {
-            const span = timescale.pxSpanToHpTimeSpan(
-              Rect2D.fromPoints(event.dragStart, event.dragCurrent),
-            );
-            trace.timeline.setVisibleWindow(span);
-          },
-        },
-      },
-    ]);
+    this.renderBrushes(trace, dom);
   }
 }
 
@@ -314,4 +244,126 @@ function renderTimecode(
   const timecode = Time.toTimecode(time);
   const {dhhmmss} = timecode;
   ctx.fillText(dhhmmss, x, y, minWidth);
+}
+
+interface BrushAttrs extends m.Attributes {
+  readonly x: number;
+  onDrag(x: number): void;
+}
+
+interface DragHandleAttrs extends m.Attributes {
+  readonly left: number;
+  readonly right: number;
+  onDrag(deltaX: number): void;
+}
+
+interface SelectionAreaAttrs extends m.Attributes {
+  onDrag(startX: number, currentX: number): void;
+}
+
+function SelectionArea(): m.Component<SelectionAreaAttrs> {
+  let dragStartX: number | undefined;
+
+  return {
+    view({attrs}: m.Vnode<SelectionAreaAttrs>) {
+      return m('div', {
+        onpointerdown: (e: PointerEvent) => {
+          const target = e.target as HTMLElement;
+          target.setPointerCapture(e.pointerId);
+          const rect = target.getBoundingClientRect();
+          dragStartX = e.clientX - rect.left;
+        },
+        onpointerup: (e: PointerEvent) => {
+          const target = e.target as HTMLElement;
+          target.releasePointerCapture(e.pointerId);
+          dragStartX = undefined;
+        },
+        onpointermove: (e: PointerEvent) => {
+          if (dragStartX !== undefined) {
+            const target = e.target as HTMLElement;
+            const rect = target.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            attrs.onDrag(dragStartX, currentX);
+          }
+        },
+        class: 'pf-minimap__selection-area',
+      });
+    },
+  };
+}
+
+function DragHandle(): m.Component<DragHandleAttrs> {
+  let lastClientX: number | undefined;
+
+  return {
+    view({attrs}: m.Vnode<DragHandleAttrs>) {
+      return m('span.pf-minimap__drag-handle', {
+        onpointerdown: (e: PointerEvent) => {
+          const target = e.target as HTMLElement;
+          target.setPointerCapture(e.pointerId);
+          lastClientX = e.clientX;
+        },
+        onpointerup: (e: PointerEvent) => {
+          const target = e.target as HTMLElement;
+          target.releasePointerCapture(e.pointerId);
+          lastClientX = undefined;
+        },
+        onpointermove: (e: PointerEvent) => {
+          if (lastClientX !== undefined) {
+            const deltaX = e.clientX - lastClientX;
+            lastClientX = e.clientX;
+            attrs.onDrag(deltaX);
+          }
+        },
+        style: {
+          position: 'absolute',
+          top: 0,
+          left: `${attrs.left}px`,
+          width: `${attrs.right - attrs.left}px`,
+          height: `${HEADER_HEIGHT_PX}px`,
+        },
+      });
+    },
+  };
+}
+
+function Brush(): m.Component<BrushAttrs> {
+  let currentDrag: {startX: number} | undefined;
+
+  return {
+    view({attrs}: m.Vnode<BrushAttrs>) {
+      return m(
+        '.pf-minimap__brush',
+        {
+          onpointerdown: (e: PointerEvent) => {
+            const target = e.currentTarget as HTMLElement;
+            target.setPointerCapture(e.pointerId);
+            currentDrag = {startX: e.offsetX};
+          },
+          onpointerup: (e: PointerEvent) => {
+            const target = e.currentTarget as HTMLElement;
+            target.releasePointerCapture(e.pointerId);
+            currentDrag = undefined;
+          },
+          onpointermove: (e: PointerEvent) => {
+            if (currentDrag) {
+              const brushElement = e.currentTarget as HTMLElement;
+              const offsetParent = brushElement.offsetParent as HTMLElement;
+              const pointerClientX = e.clientX;
+              const left = offsetParent.getBoundingClientRect().left;
+              const offsetX = pointerClientX - left;
+              attrs.onDrag(offsetX);
+            }
+          },
+          style: {
+            position: 'absolute',
+            top: 0,
+            left: `${attrs.x}px`,
+          },
+        },
+        m('.pf-minimap__brush-line'),
+        m('.pf-minimap__brush-handle'),
+      );
+    },
+  };
 }

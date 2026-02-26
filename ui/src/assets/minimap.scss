@@ -1,0 +1,100 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-minimap {
+  height: 70px;
+  border-bottom: solid 1px var(--pf-color-border);
+  position: relative;
+  overflow: hidden;
+
+  .pf-minimap__selection-area {
+    position: absolute;
+    top: 20px; // HEADER_HEIGHT_PX
+    left: 0;
+    right: 0;
+    bottom: 0;
+    cursor: text;
+  }
+
+  .pf-minimap__drag-handle {
+    opacity: 0.2;
+    background: var(--pf-color-primary);
+    cursor: grab;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  .pf-minimap__brush {
+    height: 100%;
+    cursor: col-resize;
+    transform: translateX(-50%);
+    z-index: 1;
+  }
+
+  .pf-minimap__brush-handle {
+    background: var(--pf-color-background);
+    border: solid 1px var(--pf-color-primary);
+    width: 12px;
+    height: 16px;
+    border-radius: 3px;
+    position: relative;
+
+    &:hover {
+      background: color_hover(var(--pf-color-background));
+    }
+
+    &:active {
+      background: color_active(var(--pf-color-background));
+    }
+
+    // The 'arrow' part of the handle
+    &::after {
+      content: "";
+      background: inherit;
+      border: solid 1px var(--pf-color-primary);
+      border-width: 0 0 1px 1px;
+      transform: rotate(-45deg);
+      position: absolute;
+      top: 8px;
+      width: 9px;
+      height: 9px;
+      border-radius: 3px;
+      clip-path: polygon(0 0, 0 100%, 100% 100%);
+    }
+
+    // The 'grip' lines on the handle
+    &::before {
+      content: "";
+      z-index: 2;
+      border: solid 1px var(--pf-color-primary);
+      border-width: 0 1px 0 1px;
+      position: absolute;
+      width: 3px;
+      height: 10px;
+      top: 2px;
+      left: 2.5px;
+    }
+  }
+
+  .pf-minimap__brush-line {
+    position: absolute;
+    top: 0;
+    left: 5px; // Center of the brush handle
+    border-left: solid 1px var(--pf-color-primary);
+    height: 100%;
+    pointer-events: none;
+  }
+}
