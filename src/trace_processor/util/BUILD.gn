@@ -399,6 +399,28 @@ source_set("trace_type") {
   ]
 }
 
+source_set("flatbuf_reader") {
+  sources = [
+    "flatbuf_reader.cc",
+    "flatbuf_reader.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
+source_set("flatbuf_writer") {
+  sources = [
+    "flatbuf_writer.cc",
+    "flatbuf_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
 source_set("tar_writer") {
   sources = [
     "tar_writer.cc",
@@ -426,6 +448,7 @@ source_set("winscope_proto_mapping") {
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
+    "flatbuf_reader_unittest.cc",
     "debug_annotation_parser_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
@@ -452,6 +475,8 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":bump_allocator",
+    ":flatbuf_reader",
+    ":flatbuf_writer",
     ":descriptors",
     ":galloping_search",
     ":glob",

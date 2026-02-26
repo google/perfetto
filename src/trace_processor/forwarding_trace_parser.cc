@@ -77,6 +77,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kSimpleperfProtoTraceType:
     case kSystraceTraceType:
     case kTarTraceType:
+    case kArrowIpcTraceType:
     case kUnknownTraceType:
     case kZipFile:
       return TraceSorter::SortingMode::kFullSort;
