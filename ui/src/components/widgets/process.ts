@@ -24,7 +24,6 @@ import {
   ProcessInfo,
 } from '../sql_utils/process';
 import {Trace} from '../../public/trace';
-import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {ProcessDetailsTab} from '../details/process_details_tab';
 import {
@@ -32,6 +31,7 @@ import {
   sqlIdRegistry,
 } from '../widgets/sql/details/sql_ref_renderer_registry';
 import {asUpid} from '../sql_utils/core_types';
+import {InteractiveText} from '../../widgets/interactive_text';
 
 export function showProcessDetailsMenuItem(
   trace: Trace,
@@ -91,7 +91,7 @@ export function renderProcessRef(trace: Trace, info: ProcessInfo): m.Children {
   return m(
     PopupMenu,
     {
-      trigger: m(Anchor, getProcessName(info)),
+      trigger: m(InteractiveText, getProcessName(info)),
     },
     processRefMenuItems(trace, info),
   );
