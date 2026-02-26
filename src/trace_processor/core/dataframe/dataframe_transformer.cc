@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -33,8 +34,10 @@
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
+#include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::dataframe {
@@ -52,14 +55,53 @@ DataframeTransformer::DataframeTransformer(i::BytecodeBuilder& builder,
   indexes_ = df.indexes_;
 }
 
+// static
+std::shared_ptr<Column> DataframeTransformer::MakeColumn(
+    StorageType type,
+    Nullability nullability) {
+  NullStorage null_storage(NullStorage::NonNull{});
+  if (!nullability.Is<NonNull>()) {
+    null_storage =
+        NullStorage(NullStorage::DenseNull{BitVector::CreateWithSize(0)});
+  }
+  if (type.Is<Int32>()) {
+    return std::make_shared<Column>(Column{Storage(Storage::Int32{}),
+                                           std::move(null_storage), Unsorted{},
+                                           DuplicateState(HasDuplicates{})});
+  }
+  if (type.Is<Int64>()) {
+    return std::make_shared<Column>(Column{Storage(Storage::Int64{}),
+                                           std::move(null_storage), Unsorted{},
+                                           DuplicateState(HasDuplicates{})});
+  }
+  if (type.Is<Double>()) {
+    return std::make_shared<Column>(Column{Storage(Storage::Double{}),
+                                           std::move(null_storage), Unsorted{},
+                                           DuplicateState(HasDuplicates{})});
+  }
+  if (type.Is<String>()) {
+    return std::make_shared<Column>(Column{Storage(Storage::String{}),
+                                           std::move(null_storage), Unsorted{},
+                                           DuplicateState(HasDuplicates{})});
+  }
+  return std::make_shared<Column>(Column{Storage(Storage::Uint32{}),
+                                         std::move(null_storage), Unsorted{},
+                                         DuplicateState(HasDuplicates{})});
+}
+
 base::StatusOr<i::RwHandle<BitVector>> DataframeTransformer::Filter(
     std::vector<FilterSpec>& specs) {
   // Build input indices.
   auto range_reg = builder_.AllocateRegister<Range>();
-  {
+  if (!gathered_) {
     using B = i::InitRange;
     auto& op = builder_.AddOpcode<B>(i::Index<B>());
     op.arg<B::size>() = max_row_count_;
+    op.arg<B::dest_register>() = range_reg;
+  } else {
+    using B = i::InitRangeFromSpan;
+    auto& op = builder_.AddOpcode<B>(i::Index<B>());
+    op.arg<B::source_span_register>() = row_count_span_;
     op.arg<B::dest_register>() = range_reg;
   }
 
@@ -122,6 +164,22 @@ StorageType DataframeTransformer::GetStorageType(uint32_t col_idx) const {
   return columns_[col_idx]->storage.type();
 }
 
+Nullability DataframeTransformer::GetNullability(uint32_t col_idx) const {
+  return columns_[col_idx]->null_storage.nullability();
+}
+
+i::ReadHandle<const BitVector*> DataframeTransformer::NullBitvectorRegisterFor(
+    uint32_t col_idx) {
+  auto [reg, inserted] = cache_.GetOrAllocate<const BitVector*>(
+      columns_[col_idx].get(), kNullBvReg);
+  if (inserted) {
+    register_inits_.emplace_back(RegisterInit{reg.index,
+                                              RegisterInit::NullBitvector{},
+                                              static_cast<uint16_t>(col_idx)});
+  }
+  return reg;
+}
+
 std::optional<uint32_t> DataframeTransformer::FindColumn(
     const std::string& name) const {
   for (uint32_t i = 0; i < column_names_.size(); ++i) {
@@ -130,6 +188,85 @@ std::optional<uint32_t> DataframeTransformer::FindColumn(
     }
   }
   return std::nullopt;
+}
+
+uint32_t DataframeTransformer::AddColumn(
+    const std::string& name,
+    StorageType type,
+    Nullability nullability,
+    i::RwHandle<i::StoragePtr> storage_reg) {
+  auto col_idx = static_cast<uint32_t>(columns_.size());
+  auto col = MakeColumn(type, nullability);
+  cache_.Set(col.get(), kStorageReg, i::HandleBase{storage_reg.index});
+  columns_.push_back(std::move(col));
+  column_names_.push_back(name);
+  return col_idx;
+}
+
+void DataframeTransformer::GatherAllColumns(
+    i::ReadHandle<Span<uint32_t>> indices) {
+  row_count_span_ = indices;
+
+  gather_state_.resize(columns_.size());
+  for (uint32_t col = 0; col < columns_.size(); ++col) {
+    StorageType type = columns_[col]->storage.type();
+
+    if (type.Is<Id>()) {
+      continue;
+    }
+
+    auto non_id = type.TryDowncast<i::NonIdStorageType>();
+    if (!non_id) {
+      continue;
+    }
+
+    // Allocate gather state registers.
+    auto slab_reg = builder_.AllocateRegister<Slab<uint8_t>>();
+    auto null_bv_reg = builder_.AllocateRegister<BitVector>();
+    auto null_bv_ptr_reg = builder_.AllocateRegister<const BitVector*>();
+    auto dest_storage_reg = builder_.AllocateRegister<i::StoragePtr>();
+
+    // Get source storage register (allocate + RegisterInit if needed).
+    auto source_storage_handle = StorageRegisterFor(col);
+
+    // Get null bitvector register (allocate + RegisterInit if needed).
+    auto [null_reg, null_inserted] =
+        cache_.GetOrAllocate<const BitVector*>(columns_[col].get(), kNullBvReg);
+    if (null_inserted) {
+      register_inits_.emplace_back(RegisterInit{null_reg.index,
+                                                RegisterInit::NullBitvector{},
+                                                static_cast<uint16_t>(col)});
+    }
+
+    Nullability nullability = columns_[col]->null_storage.nullability();
+
+    // Emit GatherColumn bytecode.
+    using GC = i::GatherColumnBase;
+    auto& op = builder_.AddOpcode<GC>(i::Index<i::GatherColumn>(*non_id));
+    op.arg<GC::source_storage_register>() = source_storage_handle;
+    op.arg<GC::indices_register>() = indices;
+    op.arg<GC::source_null_bv_register>() = null_reg;
+    op.arg<GC::source_nullability>() = nullability.index();
+    op.arg<GC::dest_slab_register>() = slab_reg;
+    op.arg<GC::dest_null_bv_register>() = null_bv_reg;
+    op.arg<GC::dest_null_bv_ptr_register>() = null_bv_ptr_reg;
+    op.arg<GC::dest_storage_register>() = dest_storage_reg;
+
+    gather_state_[col] =
+        GatherState{slab_reg, null_bv_reg, null_bv_ptr_reg, dest_storage_reg};
+
+    // Replace column with new object (new pointer = natural cache miss).
+    columns_[col] = MakeColumn(type, nullability);
+
+    // Pre-populate cache with new Column* -> new gathered registers.
+    cache_.Set(columns_[col].get(), kStorageReg,
+               i::HandleBase{dest_storage_reg.index});
+    cache_.Set(columns_[col].get(), kNullBvReg,
+               i::HandleBase{null_bv_ptr_reg.index});
+  }
+
+  gathered_ = true;
+  indexes_.clear();
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe

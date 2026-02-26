@@ -3258,6 +3258,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_filter.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_propagate_down.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_propagate_down.h",
     ],
 )
 
@@ -3875,6 +3877,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/std/trees/filter.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/propagate_down.sql",
         "src/trace_processor/perfetto_sql/stdlib/std/trees/table_conversion.sql",
     ],
 )

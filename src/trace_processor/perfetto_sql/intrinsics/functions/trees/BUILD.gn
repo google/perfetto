@@ -20,6 +20,8 @@ source_set("trees") {
     "tree_filter.h",
     "tree_functions.cc",
     "tree_functions.h",
+    "tree_propagate_down.cc",
+    "tree_propagate_down.h",
   ]
   deps = [
     "../../../../../../gn:default_deps",

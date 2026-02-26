@@ -109,6 +109,18 @@ struct MaxOp {};
 // TypeSet combining Min and Max operations.
 using MinMaxOp = TypeSet<MinOp, MaxOp>;
 
+// Type tag for summing values during propagation.
+struct SumOp {};
+
+// Type tag for taking the first (parent) value during propagation.
+struct FirstOp {};
+
+// Type tag for keeping the last (child) value during propagation.
+struct LastOp {};
+
+// TypeSet of combine operations for numeric propagation.
+using CombineOp = TypeSet<SumOp, MinOp, MaxOp, FirstOp, LastOp>;
+
 // TypeSet containing all the non-id storage types.
 using NonIdStorageType = TypeSet<Uint32, Int32, Int64, Double, String>;
 

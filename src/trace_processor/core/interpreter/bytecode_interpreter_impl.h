@@ -1830,6 +1830,310 @@ inline PERFETTO_ALWAYS_INLINE void FilterTree(InterpreterState& state,
   original_rows_span.e = original_rows_span.b + new_count;
 }
 
+// Copies column storage into a Slab<uint8_t> and creates a mutable StoragePtr.
+// Handles all nullability types: NonNull (plain copy), DenseNull (copy data +
+// bitvector), SparseNull (densify data via popcount + create dense bitvector).
+inline PERFETTO_ALWAYS_INLINE void CopyStorageToSlab(
+    InterpreterState& state,
+    const struct CopyStorageToSlab& bc) {
+  using B = struct CopyStorageToSlab;
+
+  const StoragePtr& src =
+      state.ReadFromRegister(bc.arg<B::source_storage_register>());
+  const Span<uint32_t>& row_count_span =
+      state.ReadFromRegister(bc.arg<B::row_count_span_register>());
+  const BitVector* source_null_bv =
+      state.ReadFromRegister(bc.arg<B::source_null_bv_register>());
+  uint32_t nullability_index = bc.arg<B::source_nullability>();
+  auto row_count = static_cast<uint32_t>(row_count_span.size());
+
+  // Compute byte size based on storage type.
+  static constexpr uint32_t kElementSizes[] = {
+      0,                      // Id (should not be used)
+      sizeof(uint32_t),       // Uint32
+      sizeof(int32_t),        // Int32
+      sizeof(int64_t),        // Int64
+      sizeof(double),         // Double
+      sizeof(StringPool::Id)  // String
+  };
+  uint32_t elem_size = kElementSizes[src.type.index()];
+  uint32_t byte_count = row_count * elem_size;
+
+  constexpr uint32_t kNonNullIdx = Nullability::GetTypeIndex<NonNull>();
+  constexpr uint32_t kDenseNullIdx = Nullability::GetTypeIndex<DenseNull>();
+
+  auto slab = Slab<uint8_t>::Alloc(byte_count);
+  if (nullability_index == kNonNullIdx || !source_null_bv) {
+    // NonNull: plain copy.
+    memcpy(slab.data(), src.ptr, byte_count);
+  } else if (nullability_index == kDenseNullIdx) {
+    // DenseNull: data is already dense, copy data and bitvector.
+    memcpy(slab.data(), src.ptr, byte_count);
+    BitVector bv_copy = source_null_bv->Copy();
+    state.WriteToRegister(bc.arg<B::dest_null_bv_register>(),
+                          std::move(bv_copy));
+  } else {
+    // SparseNull: data is compacted. Densify by expanding via popcount.
+    // Zero-fill first so null slots have deterministic values.
+    memset(slab.data(), 0, byte_count);
+    Slab<uint32_t> prefix_pop = source_null_bv->PrefixPopcount();
+    BitVector dense_bv = BitVector::CreateWithSize(row_count, false);
+    for (uint32_t i = 0; i < row_count; ++i) {
+      if (source_null_bv->is_set(i)) {
+        uint32_t word_idx = i / 64u;
+        uint32_t storage_idx =
+            prefix_pop[word_idx] +
+            static_cast<uint32_t>(
+                source_null_bv->count_set_bits_until_in_word(i));
+        memcpy(slab.data() + i * elem_size,
+               static_cast<const uint8_t*>(src.ptr) + storage_idx * elem_size,
+               elem_size);
+        dense_bv.set(i);
+      }
+    }
+    state.WriteToRegister(bc.arg<B::dest_null_bv_register>(),
+                          std::move(dense_bv));
+  }
+
+  void* mutable_ptr = slab.data();
+  state.WriteToRegister(bc.arg<B::dest_slab_register>(), std::move(slab));
+  state.WriteToRegister(bc.arg<B::dest_storage_register>(),
+                        StoragePtr{mutable_ptr, mutable_ptr, src.type});
+}
+
+// Propagates values down a tree from roots to children using BFS.
+// The combine operation is a runtime tag (CombineOp index) stored in the
+// bytecode. The switch hoists outside the BFS loop via a lambda, so each
+// case instantiates its own optimized loop with zero branches in the hot path.
+//
+// Null handling (when source_nullability != NonNull):
+//   - null parent + non-null child: child keeps its value
+//   - non-null parent + null child: child = parent, becomes non-null
+//   - both non-null: apply combine op
+//   - both null: stay null
+template <typename T>
+inline PERFETTO_ALWAYS_INLINE void PropagateDown(
+    InterpreterState& state,
+    const struct PropagateDown<T>& bc) {
+  using B = PropagateDownBase;
+
+  const Span<uint32_t>& offsets =
+      state.ReadFromRegister(bc.template arg<B::offsets_register>());
+  const Span<uint32_t>& children =
+      state.ReadFromRegister(bc.template arg<B::children_register>());
+  const Span<uint32_t>& roots =
+      state.ReadFromRegister(bc.template arg<B::roots_register>());
+  auto* data = state.ReadMutableStorageFromRegister<T>(
+      bc.template arg<B::update_storage_register>());
+  Span<uint32_t>& scratch =
+      state.ReadFromRegister(bc.template arg<B::scratch_register>());
+  uint32_t op = bc.template arg<B::combine_op>();
+  uint32_t nullability_index = bc.template arg<B::source_nullability>();
+
+  constexpr uint32_t kNonNullIdx = Nullability::GetTypeIndex<NonNull>();
+  bool has_nulls = nullability_index != kNonNullIdx;
+
+  // Get mutable pointer to the null bitvector (may be unused if non-null).
+  BitVector* null_bv = nullptr;
+  if (has_nulls) {
+    null_bv = state.MaybeReadFromRegister(
+        WriteHandle<BitVector>(bc.template arg<B::null_bv_register>()));
+  }
+
+  // BFS helper: seeds queue with roots, then traverses applying |apply|.
+  auto bfs = [&](auto apply) {
+    uint32_t* queue = scratch.b;
+    uint32_t queue_end = 0;
+    for (const uint32_t* it = roots.b; it != roots.e; ++it) {
+      queue[queue_end++] = *it;
+    }
+    for (uint32_t qi = 0; qi < queue_end; ++qi) {
+      uint32_t parent = queue[qi];
+      uint32_t cs = offsets.b[parent];
+      uint32_t ce = offsets.b[parent + 1];
+      for (uint32_t ci = cs; ci < ce; ++ci) {
+        uint32_t child = children.b[ci];
+        apply(data, parent, child);
+        queue[queue_end++] = child;
+      }
+    }
+  };
+
+  // Wraps a non-null combine lambda to add null handling.
+  auto with_nulls = [&](auto combine) {
+    return [&, combine](auto* d, uint32_t p, uint32_t c) {
+      bool p_null = !null_bv->is_set(p);
+      bool c_null = !null_bv->is_set(c);
+      if (p_null) {
+        // Null parent: child keeps its value (no-op).
+        return;
+      }
+      if (c_null) {
+        // Non-null parent + null child: child = parent, becomes non-null.
+        d[c] = d[p];
+        null_bv->set(c);
+        return;
+      }
+      // Both non-null: apply combine op.
+      combine(d, p, c);
+    };
+  };
+
+  if constexpr (std::is_same_v<typename T::cpp_type, StringPool::Id>) {
+    auto min_fn = [&](auto* d, uint32_t p, uint32_t c) {
+      if (state.string_pool->Get(d[p]) < state.string_pool->Get(d[c])) {
+        d[c] = d[p];
+      }
+    };
+    auto max_fn = [&](auto* d, uint32_t p, uint32_t c) {
+      if (state.string_pool->Get(d[p]) > state.string_pool->Get(d[c])) {
+        d[c] = d[p];
+      }
+    };
+    auto first_fn = [](auto* d, uint32_t p, uint32_t c) { d[c] = d[p]; };
+    switch (op) {
+      case CombineOp::GetTypeIndex<MinOp>():
+        has_nulls ? bfs(with_nulls(min_fn)) : bfs(min_fn);
+        break;
+      case CombineOp::GetTypeIndex<MaxOp>():
+        has_nulls ? bfs(with_nulls(max_fn)) : bfs(max_fn);
+        break;
+      case CombineOp::GetTypeIndex<FirstOp>():
+        has_nulls ? bfs(with_nulls(first_fn)) : bfs(first_fn);
+        break;
+      case CombineOp::GetTypeIndex<LastOp>():
+        break;  // No-op: keep child's value.
+      default:
+        PERFETTO_DCHECK(false);
+        break;
+    }
+  } else {
+    auto sum_fn = [](auto* d, uint32_t p, uint32_t c) { d[c] += d[p]; };
+    auto min_fn = [](auto* d, uint32_t p, uint32_t c) {
+      d[c] = std::min(d[p], d[c]);
+    };
+    auto max_fn = [](auto* d, uint32_t p, uint32_t c) {
+      d[c] = std::max(d[p], d[c]);
+    };
+    auto first_fn = [](auto* d, uint32_t p, uint32_t c) { d[c] = d[p]; };
+    switch (op) {
+      case CombineOp::GetTypeIndex<SumOp>():
+        has_nulls ? bfs(with_nulls(sum_fn)) : bfs(sum_fn);
+        break;
+      case CombineOp::GetTypeIndex<MinOp>():
+        has_nulls ? bfs(with_nulls(min_fn)) : bfs(min_fn);
+        break;
+      case CombineOp::GetTypeIndex<MaxOp>():
+        has_nulls ? bfs(with_nulls(max_fn)) : bfs(max_fn);
+        break;
+      case CombineOp::GetTypeIndex<FirstOp>():
+        has_nulls ? bfs(with_nulls(first_fn)) : bfs(first_fn);
+        break;
+      case CombineOp::GetTypeIndex<LastOp>():
+        break;  // No-op: keep child's value.
+      default:
+        PERFETTO_DCHECK(false);
+        break;
+    }
+  }
+}
+
+inline PERFETTO_ALWAYS_INLINE void InitRangeFromSpan(
+    InterpreterState& state,
+    const struct InitRangeFromSpan& bc) {
+  using B = struct InitRangeFromSpan;
+  const auto& span = state.ReadFromRegister(bc.arg<B::source_span_register>());
+  state.WriteToRegister(bc.arg<B::dest_register>(),
+                        Range{0, static_cast<uint32_t>(span.size())});
+}
+
+template <typename T>
+inline PERFETTO_ALWAYS_INLINE void GatherColumn(
+    InterpreterState& state,
+    const struct GatherColumn<T>& bc) {
+  using B = GatherColumnBase;
+  using CppType = typename T::cpp_type;
+
+  const StoragePtr& storage =
+      state.ReadFromRegister(bc.template arg<B::source_storage_register>());
+  const Span<uint32_t>& indices =
+      state.ReadFromRegister(bc.template arg<B::indices_register>());
+  const BitVector* source_null_bv =
+      state.ReadFromRegister(bc.template arg<B::source_null_bv_register>());
+  uint32_t nullability_index = bc.template arg<B::source_nullability>();
+
+  auto new_count = static_cast<uint32_t>(indices.size());
+  uint32_t byte_count = new_count * sizeof(CppType);
+
+  // Allocate destination slab.
+  auto slab = Slab<uint8_t>::Alloc(byte_count);
+  auto* dest = reinterpret_cast<CppType*>(slab.data());
+  const auto* src = static_cast<const CppType*>(storage.ptr);
+
+  // Nullability enum indices match Nullability TypeSet order.
+  // 0 = NonNull, 1..3 = SparseNull variants, 4 = DenseNull
+  constexpr uint32_t kNonNullIdx = Nullability::GetTypeIndex<NonNull>();
+  constexpr uint32_t kDenseNullIdx = Nullability::GetTypeIndex<DenseNull>();
+
+  if (nullability_index == kNonNullIdx || !source_null_bv) {
+    // NonNull: just gather data.
+    for (uint32_t i = 0; i < new_count; ++i) {
+      dest[i] = src[indices.b[i]];
+    }
+    // No null bitvector needed.
+    state.WriteToRegister(bc.template arg<B::dest_null_bv_ptr_register>(),
+                          static_cast<const BitVector*>(nullptr));
+  } else if (nullability_index == kDenseNullIdx) {
+    // DenseNull: gather data and gather bitvector bits.
+    for (uint32_t i = 0; i < new_count; ++i) {
+      dest[i] = src[indices.b[i]];
+    }
+    // Gather null bitvector bits.
+    BitVector gathered_bv = BitVector::CreateWithSize(new_count, false);
+    for (uint32_t i = 0; i < new_count; ++i) {
+      if (source_null_bv->is_set(indices.b[i])) {
+        gathered_bv.set(i);
+      }
+    }
+    state.WriteToRegister(bc.template arg<B::dest_null_bv_register>(),
+                          std::move(gathered_bv));
+    BitVector* bv_ptr = state.MaybeReadFromRegister(
+        WriteHandle<BitVector>(bc.template arg<B::dest_null_bv_register>()));
+    state.WriteToRegister(bc.template arg<B::dest_null_bv_ptr_register>(),
+                          static_cast<const BitVector*>(bv_ptr));
+  } else {
+    // SparseNull: translate indices through popcount, gather data,
+    // expand bitvector to dense.
+    Slab<uint32_t> prefix_pop = source_null_bv->PrefixPopcount();
+    BitVector gathered_bv = BitVector::CreateWithSize(new_count, false);
+    for (uint32_t i = 0; i < new_count; ++i) {
+      uint32_t table_idx = indices.b[i];
+      if (source_null_bv->is_set(table_idx)) {
+        uint32_t word_idx = table_idx / 64u;
+        uint32_t storage_idx =
+            prefix_pop[word_idx] +
+            static_cast<uint32_t>(
+                source_null_bv->count_set_bits_until_in_word(table_idx));
+        dest[i] = src[storage_idx];
+        gathered_bv.set(i);
+      }
+    }
+    state.WriteToRegister(bc.template arg<B::dest_null_bv_register>(),
+                          std::move(gathered_bv));
+    BitVector* bv_ptr = state.MaybeReadFromRegister(
+        WriteHandle<BitVector>(bc.template arg<B::dest_null_bv_register>()));
+    state.WriteToRegister(bc.template arg<B::dest_null_bv_ptr_register>(),
+                          static_cast<const BitVector*>(bv_ptr));
+  }
+
+  // Write gathered data to a NEW StoragePtr register (not in-place).
+  void* gathered_ptr = slab.data();
+  state.WriteToRegister(bc.template arg<B::dest_slab_register>(),
+                        std::move(slab));
+  state.WriteToRegister(bc.template arg<B::dest_storage_register>(),
+                        StoragePtr{gathered_ptr, gathered_ptr, T{}});
+}
+
 }  // namespace ops
 
 // Macros for generating case statements that dispatch to ops:: free functions.

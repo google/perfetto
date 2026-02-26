@@ -721,6 +721,105 @@ struct FilterTree : Bytecode {
                                      scratch2_register);
 };
 
+// Copies column storage data into a Slab<uint8_t> and creates a mutable
+// StoragePtr pointing to the copy. Used by PropagateDown which needs to
+// modify column data without mutating the original dataframe.
+// Handles all nullability types:
+//   - NonNull: plain memcpy
+//   - DenseNull: memcpy data + copy null bitvector
+//   - SparseNull: densify data (expand via popcount), create dense null bv
+struct CopyStorageToSlab : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{5};
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(ReadHandle<StoragePtr>,
+                                     source_storage_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     row_count_span_register,
+                                     ReadHandle<const BitVector*>,
+                                     source_null_bv_register,
+                                     uint32_t,
+                                     source_nullability,
+                                     RwHandle<Slab<uint8_t>>,
+                                     dest_slab_register,
+                                     RwHandle<StoragePtr>,
+                                     dest_storage_register,
+                                     RwHandle<BitVector>,
+                                     dest_null_bv_register);
+};
+
+// Propagates values down a tree from roots to children using BFS.
+// For each child, the update value is combined with the parent's value using
+// the specified combine operation (passed as a runtime PropagateOp tag).
+// Handles nullable columns: if source_nullability != NonNull, uses
+// null_bv_register to track which rows are null. During BFS:
+//   - null parent + non-null child: child keeps its value
+//   - non-null parent + null child: child = parent, becomes non-null
+//   - both non-null: apply combine op
+//   - both null: stay null
+struct PropagateDownBase : TemplatedBytecode1<NonIdStorageType> {
+  static constexpr Cost kCost = LinearPerRowCost{10};
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_8(ReadHandle<Span<uint32_t>>,
+                                     offsets_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     children_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     roots_register,
+                                     RwHandle<StoragePtr>,
+                                     update_storage_register,
+                                     RwHandle<Span<uint32_t>>,
+                                     scratch_register,
+                                     uint32_t,
+                                     combine_op,
+                                     RwHandle<BitVector>,
+                                     null_bv_register,
+                                     uint32_t,
+                                     source_nullability);
+};
+template <typename T>
+struct PropagateDown : PropagateDownBase {
+  static_assert(TS1::Contains<T>());
+};
+
+// Creates Range{0, span.size()} for dynamic row count after compaction.
+// Used after FilterTree + GatherAllColumns to track the new row count.
+struct InitRangeFromSpan : Bytecode {
+  static constexpr Cost kCost = FixedCost{1};
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<Span<uint32_t>>,
+                                     source_span_register,
+                                     WriteHandle<Range>,
+                                     dest_register);
+};
+
+// Gathers column data at specified indices, handling all nullability types.
+// Reads data from source StoragePtr using the given indices, writes gathered
+// data into dest_slab, and writes a new StoragePtr to dest_storage_register.
+// Also handles null bitvector gathering:
+//   - NonNull: no bitvector work
+//   - DenseNull: gather bitvector bits at indices
+//   - SparseNull: translate through popcount, gather data, expand to dense
+struct GatherColumnBase : TemplatedBytecode1<NonIdStorageType> {
+  static constexpr Cost kCost = LinearPerRowCost{5};
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_8(ReadHandle<StoragePtr>,
+                                     source_storage_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     indices_register,
+                                     ReadHandle<const BitVector*>,
+                                     source_null_bv_register,
+                                     uint32_t,
+                                     source_nullability,
+                                     RwHandle<Slab<uint8_t>>,
+                                     dest_slab_register,
+                                     RwHandle<BitVector>,
+                                     dest_null_bv_register,
+                                     RwHandle<const BitVector*>,
+                                     dest_null_bv_ptr_register,
+                                     WriteHandle<StoragePtr>,
+                                     dest_storage_register);
+};
+template <typename T>
+struct GatherColumn : GatherColumnBase {
+  static_assert(TS1::Contains<T>());
+};
+
 // Bytecode ops that require FilterValueFetcher access.
 #define PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X) \
   X(CastFilterValue<Id>)                        \
@@ -874,7 +973,19 @@ struct FilterTree : Bytecode {
   X(MakeChildToParentTreeStructure)                    \
   X(MakeParentToChildTreeStructure)                    \
   X(IndexSpanToBitvector)                              \
-  X(FilterTree)
+  X(FilterTree)                                        \
+  X(CopyStorageToSlab)                                 \
+  X(PropagateDown<Uint32>)                             \
+  X(PropagateDown<Int32>)                              \
+  X(PropagateDown<Int64>)                              \
+  X(PropagateDown<Double>)                             \
+  X(PropagateDown<String>)                             \
+  X(InitRangeFromSpan)                                 \
+  X(GatherColumn<Uint32>)                              \
+  X(GatherColumn<Int32>)                               \
+  X(GatherColumn<Int64>)                               \
+  X(GatherColumn<Double>)                              \
+  X(GatherColumn<String>)
 
 // Combined list of all bytecode instruction types.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \
