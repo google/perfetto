@@ -14,16 +14,17 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import type {ColumnDef} from '../../components/aggregation';
 import type {
   Aggregation,
   Aggregator,
+  AggregatorGridConfig,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
 import type {SqlValue} from '../../trace_processor/query_result';
 import {RadioGroup} from '../../widgets/radio_group';
+import {formatPercentValue} from '../../components/aggregation_panel';
 
 // Base class to share logic between CPU and GPU package aggregators
 abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
@@ -89,57 +90,53 @@ abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
     return String(value);
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    const cols: ColumnDef[] = [
-      {
-        title: 'Package Name',
-        columnId: 'package_name',
-      },
-      {
-        title: 'Android app UID',
-        columnId: 'uid',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: `Active power (estimated ${this.powerUnits()})`,
-        columnId: 'active_mw',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-      {
-        title: `Active energy (estimated ${this.powerUnits()}s)`,
-        columnId: 'active_mws',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-        sort: 'DESC',
-      },
-    ];
+  getGridConfig(): AggregatorGridConfig {
+    const powerUnits = this.powerUnits();
+    const energyUnits = `${powerUnits}s`;
+    const idleCost = this.hasIdleCost();
 
-    if (this.hasIdleCost()) {
-      cols.push({
-        title: `Idle transitions overhead (estimated ${this.powerUnits()}s)`,
-        columnId: 'idle_cost_mws',
-        sum: false,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      });
-    }
-
-    cols.push(
-      {
-        title: `Total energy (estimated ${this.powerUnits()}s)`,
-        columnId: 'total_mws',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
+    return {
+      schema: {
+        package_name: {title: 'Package Name', columnType: 'text'},
+        uid: {title: 'Android app UID', columnType: 'identifier'},
+        active_mw: {
+          title: `Active power (estimated ${powerUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        active_mws: {
+          title: `Active energy (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        ...(idleCost && {
+          idle_cost_mws: {
+            title: `Idle transitions overhead (estimated ${energyUnits})`,
+            columnType: 'quantitative',
+            cellRenderer: (v: SqlValue) => this.renderMilliwatts(v),
+          },
+        }),
+        total_mws: {
+          title: `Total energy (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        percent_of_total_energy: {
+          title: '% of total energy',
+          columnType: 'quantitative',
+          cellRenderer: formatPercentValue,
+        },
       },
-      {
-        title: '% of total energy',
-        formatHint: 'PERCENT',
-        columnId: 'percent_of_total_energy',
-        sum: false,
-      },
-    );
-
-    return cols;
+      initialColumns: [
+        {id: 'package_name', field: 'package_name'},
+        {id: 'uid', field: 'uid'},
+        {id: 'active_mw', field: 'active_mw', aggregate: 'SUM'},
+        {id: 'active_mws', field: 'active_mws', aggregate: 'SUM', sort: 'DESC'},
+        ...(idleCost ? [{id: 'idle_cost_mws', field: 'idle_cost_mws'}] : []),
+        {id: 'total_mws', field: 'total_mws', aggregate: 'SUM'},
+        {id: 'percent_of_total_energy', field: 'percent_of_total_energy'},
+      ],
+    };
   }
 
   // Default to true, GPU override to false
