@@ -18,17 +18,16 @@
 #define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_TRANSFORMER_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/core/dataframe/query_plan.h"
-#include "src/trace_processor/core/dataframe/register_cache.h"
+#include "src/trace_processor/core/dataframe/dataframe_transformer.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
@@ -96,7 +95,6 @@ class TreeTransformer {
     kP2CChildrenSlot = 5,
     kP2CRootsSlot = 6,
     kP2CScratchSlot = 7,
-    kFilterBytecodeSlot = 8,
   };
 
   // Initializes tree structure on first FilterTree call.
@@ -109,11 +107,6 @@ class TreeTransformer {
   // Sets p2c_stale_ to false after emitting.
   void EnsureParentToChildStructure();
 
-  // Generates filter bytecode and converts result to a bitvector.
-  base::StatusOr<interpreter::RwHandle<BitVector>> BuildFilterBitvector(
-      uint32_t row_count,
-      std::vector<dataframe::FilterSpec>& specs);
-
   // Emits FilterTree bytecode with all required registers.
   // Uses pre-allocated scratch buffers stored as member variables.
   void EmitFilterTreeBytecode(interpreter::RwHandle<BitVector> keep_bv);
@@ -122,10 +115,13 @@ class TreeTransformer {
   StringPool* pool_;
 
   // Bytecode builder for accumulating tree operations.
-  interpreter::BytecodeBuilder builder_;
+  // Stored as unique_ptr so its address remains stable when referenced
+  // by DataframeTransformer.
+  std::unique_ptr<interpreter::BytecodeBuilder> builder_;
 
-  // Cache for column register deduplication.
-  dataframe::RegisterCache cache_;
+  // DataframeTransformer for filter/column operations.
+  // Created on first FilterTree call via InitializeTreeStructure().
+  std::optional<dataframe::DataframeTransformer> dt_;
 
   // Parent and original_rows span registers (set on first FilterTree call).
   interpreter::RwHandle<Span<uint32_t>> parent_span_;
@@ -136,10 +132,6 @@ class TreeTransformer {
 
   // Filter values for bytecode execution.
   std::vector<SqlValue> filter_values_;
-
-  // Register initialization specs collected from Filter() calls.
-  // Needed to initialize storage registers before bytecode execution.
-  base::SmallVector<dataframe::RegisterInit, 16> register_inits_;
 
   // Alias for scratch register type.
   using Scratch = interpreter::BytecodeBuilder::ScratchRegisters;

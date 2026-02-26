@@ -2082,6 +2082,8 @@ perfetto_filegroup(
         "src/trace_processor/core/dataframe/cursor_impl.h",
         "src/trace_processor/core/dataframe/dataframe.cc",
         "src/trace_processor/core/dataframe/dataframe.h",
+        "src/trace_processor/core/dataframe/dataframe_transformer.cc",
+        "src/trace_processor/core/dataframe/dataframe_transformer.h",
         "src/trace_processor/core/dataframe/query_plan.cc",
         "src/trace_processor/core/dataframe/query_plan.h",
         "src/trace_processor/core/dataframe/register_cache.h",

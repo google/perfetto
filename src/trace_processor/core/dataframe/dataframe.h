@@ -408,6 +408,7 @@ class Dataframe {
 
  private:
   friend class AdhocDataframeBuilder;
+  friend class DataframeTransformer;
   friend class TypedCursor;
   friend class QueryPlanBuilder;
   friend struct QueryPlanImpl;
