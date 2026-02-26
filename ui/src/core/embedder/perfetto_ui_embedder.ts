@@ -21,4 +21,5 @@ export class PerfettoUiEmbedder implements Embedder {
     url: 'https://perfetto-gae-internal.googleplex.com/',
     authType: 'https_sso' as const,
   };
+  readonly brandingBadge = undefined;
 }

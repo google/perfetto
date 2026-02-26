@@ -130,6 +130,9 @@ function getColumnInfo(
 }
 
 export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
+  // Track columns with sort state so that sorting persists across redraws.
+  private columns: readonly Column[] = [];
+
   view({attrs}: m.CVnode<DataExplorerAttrs>) {
     return m(
       DetailsShell,
@@ -517,21 +520,30 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         );
       };
 
+      // Build columns from response, preserving any existing sort state.
+      const sortedColId = this.columns.find((c) => c.sort)?.id;
+      const sortDir = this.columns.find((c) => c.sort)?.sort;
+      this.columns = attrs.response.columns.map((col) => ({
+        id: col,
+        field: col,
+        ...(col === sortedColId ? {sort: sortDir} : {}),
+      }));
+
       return [
         warning,
         m(DataGrid, {
           schema,
           rootSchema: 'data',
-          columns: attrs.response.columns.map((col) => ({
-            id: col,
-            field: col,
-          })),
+          columns: this.columns,
           fillHeight: true,
           data: attrs.dataSource,
           enablePivotControls: false,
           structuredQueryCompatMode: true,
           canAddColumns: false,
           canRemoveColumns: false,
+          onColumnsChanged: (columns) => {
+            this.columns = columns;
+          },
           // We don't actually want the datagrid to display or apply any filters
           // to the datasource itself, so we define this but fix it as an empty
           // array.

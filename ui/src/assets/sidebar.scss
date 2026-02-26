@@ -52,6 +52,25 @@
       height: 36px;
       margin-top: 4px;
     }
+    .pf-sidebar__branding-badge {
+      display: flex;
+      align-items: center;
+      position: absolute;
+      font-size: var(--pf-font-size-xs);
+      line-height: 1;
+      font-family: var(--pf-font);
+      top: 7px;
+      right: 48px;
+      z-index: 10;
+      i.pf-icon {
+        font-size: var(--pf-font-size-xs);
+        margin-right: 2px;
+      }
+      .pf-sidebar__branding-badge-img {
+        height: 10px;
+        margin-right: 2px;
+      }
+    }
     &::before {
       z-index: 10;
     }
@@ -64,6 +83,12 @@
       font-family: var(--pf-font);
       top: 7px;
       right: 48px;
+    }
+    &:has(.pf-sidebar__branding-badge) {
+      &.pf-sidebar__channel--canary::before,
+      &.pf-sidebar__channel--autopush::before {
+        top: 18px;
+      }
     }
     &.pf-sidebar__channel--canary::before {
       content: "CANARY";

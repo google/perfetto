@@ -21109,6 +21109,9 @@ cc_binary {
     defaults: [
         "perfetto_defaults",
     ],
+    required: [
+        "etc_system_tracing_proto_descriptors",
+    ],
     target: {
         android: {
             shared_libs: [
@@ -21522,6 +21525,48 @@ cc_binary {
     ],
     defaults: [
         "perfetto_defaults",
+    ],
+}
+
+// GN: //src/tools:tracing_proto_extensions
+cc_binary_host {
+    name: "tracing_proto_extensions",
+    srcs: [
+        ":perfetto_base_default_platform",
+        ":perfetto_include_perfetto_base_base",
+        ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
+        ":perfetto_include_perfetto_protozero_protozero",
+        ":perfetto_include_perfetto_public_abi_base",
+        ":perfetto_include_perfetto_public_base",
+        ":perfetto_include_perfetto_public_protozero",
+        ":perfetto_protos_perfetto_common_zero_gen",
+        ":perfetto_protos_perfetto_protovm_zero_gen",
+        ":perfetto_src_base_base",
+        ":perfetto_src_base_version",
+        ":perfetto_src_protozero_multifile_error_collector",
+        ":perfetto_src_protozero_protozero",
+        ":perfetto_src_tools_tracing_proto_extensions_lib",
+        ":perfetto_src_trace_processor_util_json_parser",
+        ":perfetto_src_trace_processor_util_simple_json_parser",
+        "src/tools/tracing_proto_extensions_main.cc",
+    ],
+    static_libs: [
+        "libprotobuf-cpp-full",
+        "libz",
+    ],
+    generated_headers: [
+        "perfetto_protos_perfetto_common_zero_gen_headers",
+        "perfetto_protos_perfetto_protovm_zero_gen_headers",
+        "perfetto_src_base_version_gen_h",
+    ],
+    defaults: [
+        "perfetto_defaults",
+    ],
+    cflags: [
+        "-DGOOGLE_PROTOBUF_NO_RTTI",
+        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+        "-DZLIB_IMPLEMENTATION",
     ],
 }
 
@@ -22028,3 +22073,20 @@ cc_aconfig_library {
     ],
     min_sdk_version: "30",
 }
+
+// This target groups the dependencies on the android-tree rules that generate
+// /etc/tracing_descriptors.gz and /vendor/etc/tracing_descriptors.gz
+// Those targets are defined in /system/core and TODO(primiano): /vendor.
+phony {
+    name: "etc_system_tracing_proto_descriptors",
+    target: {
+        android: {
+            required: [
+                // TODO(primiano): uncomment after ag/38422283 lands.
+                // "system_tracing_protos_descriptor",
+            ],
+        }
+    }
+}
+
+

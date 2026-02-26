@@ -32,7 +32,8 @@ const CPU_SLICE_SCHEMA = {
   utid: NUM,
   pid: LONG,
   priority: NUM,
-  depth: 0,
+  depth: NUM,
+  ucpu: NUM,
 } as const;
 
 type CpuSliceRow = typeof CPU_SLICE_SCHEMA;

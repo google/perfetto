@@ -13,15 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DisposableStack} from '../base/disposable_stack';
-import {toHTMLElement} from '../base/dom_utils';
-import {DragGestureHandler} from '../base/drag_gesture_handler';
-import {Gate} from '../base/mithril_utils';
+import {assertUnreachable} from '../base/assert';
+import {Gate, MithrilEvent} from '../base/mithril_utils';
 import {Button, ButtonBar} from './button';
 import {classNames} from '../base/classnames';
 import {HTMLAttrs} from './common';
 import {Icons} from '../base/semantic_icons';
-import {assertExists, assertUnreachable} from '../base/assert';
 
 export interface TabAttrs extends HTMLAttrs {
   // Is this tab currently active?
@@ -144,8 +141,6 @@ export interface DrawerPanelAttrs {
  * └───────────────────────────────────────────────────────────────────┘
  */
 export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
-  private readonly trash = new DisposableStack();
-
   // The actual height of the vdom node. It matches resizableHeight if VISIBLE,
   // 0 if COLLAPSED, fullscreenHeight if FULLSCREEN.
   private height = 0;
@@ -161,6 +156,12 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
 
   // Current active tab key (for uncontrolled mode).
   private internalActiveTab?: string;
+
+  // For pointer capture drag handling
+  private handleElement?: HTMLElement;
+  private dragStartY?: number;
+  private heightWhenDragStarted = 0;
+  private resizeObserver?: ResizeObserver;
 
   constructor({attrs}: m.CVnode<DrawerPanelAttrs>) {
     this.resizableHeight = attrs.startingHeight ?? 100;
@@ -217,11 +218,25 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
         className,
       },
       m('.pf-drawer-panel__main', mainContent),
-      m('.pf-drawer-panel__handle', [
-        leftHandleContent,
-        m('.pf-drawer-panel__tabs', tabsUI),
-        this.renderTabResizeButtons(visibility, onVisibilityChange),
-      ]),
+      m(
+        '.pf-drawer-panel__handle',
+        {
+          oncontextmenu: (e: Event) => e.preventDefault(),
+          onpointerdown: (e: PointerEvent) => this.onPointerDown(e, attrs),
+          onpointermove: (e: MithrilEvent<PointerEvent>) =>
+            this.onPointerMove(e),
+          onpointerup: (e: PointerEvent) => this.onPointerUp(e),
+          onpointercancel: (e: PointerEvent) => this.onPointerCancel(e),
+          onpointercapturelost: (e: PointerEvent) =>
+            this.onPointerCaptureLost(e),
+        },
+        [
+          leftHandleContent,
+          m('.pf-drawer-panel__tabs', tabsUI),
+          m('.pf-drawer-panel__spacer'),
+          this.renderTabResizeButtons(visibility, onVisibilityChange),
+        ],
+      ),
       m(
         '.pf-drawer-panel__drawer',
         {
@@ -262,46 +277,70 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   }
 
   oncreate(vnode: m.VnodeDOM<DrawerPanelAttrs, this>) {
-    let dragStartY = 0;
-    let heightWhenDragStarted = 0;
-
-    const handle = toHTMLElement(
-      assertExists(vnode.dom.querySelector('.pf-drawer-panel__handle')),
-    );
-
-    this.trash.use(
-      new DragGestureHandler(
-        handle,
-        /* onDrag */ (_x, y) => {
-          const deltaYSinceDragStart = dragStartY - y;
-          this.resizableHeight = heightWhenDragStarted + deltaYSinceDragStart;
-          m.redraw();
-        },
-        /* onDragStarted */ (_x, y) => {
-          this.resizableHeight = this.height;
-          heightWhenDragStarted = this.height;
-          dragStartY = y;
-          this.updatePanelVisibility(
-            DrawerPanelVisibility.VISIBLE,
-            vnode.attrs.onVisibilityChange,
-          );
-        },
-        /* onDragFinished */ () => {},
-      ),
-    );
-
-    const parent = assertExists(vnode.dom.parentElement);
-    this.fullscreenHeight = parent.clientHeight;
-    const resizeObs = new ResizeObserver(() => {
+    const parent = vnode.dom.parentElement;
+    if (parent) {
       this.fullscreenHeight = parent.clientHeight;
-      m.redraw();
-    });
-    resizeObs.observe(parent);
-    this.trash.defer(() => resizeObs.disconnect());
+      this.resizeObserver = new ResizeObserver(() => {
+        this.fullscreenHeight = parent.clientHeight;
+        m.redraw();
+      });
+      this.resizeObserver.observe(parent);
+    }
   }
 
   onremove() {
-    this.trash.dispose();
+    this.resizeObserver?.disconnect();
+  }
+
+  private endDrag(pointerId: number) {
+    if (this.dragStartY !== undefined) {
+      this.dragStartY = undefined;
+      if (this.handleElement?.hasPointerCapture(pointerId)) {
+        this.handleElement.releasePointerCapture(pointerId);
+      }
+    }
+  }
+
+  private onPointerDown(e: PointerEvent, attrs: DrawerPanelAttrs) {
+    // Only start drag if the handle itself or the spacer is targeted
+    const target = e.target as HTMLElement;
+    const isHandle = target === e.currentTarget;
+    const isSpacer = target.classList.contains('pf-drawer-panel__spacer');
+    if (!isHandle && !isSpacer) {
+      return;
+    }
+
+    this.handleElement = e.currentTarget as HTMLElement;
+    this.handleElement.setPointerCapture(e.pointerId);
+    this.dragStartY = e.clientY;
+    this.resizableHeight = this.height;
+    this.heightWhenDragStarted = this.height;
+    this.updatePanelVisibility(
+      DrawerPanelVisibility.VISIBLE,
+      attrs.onVisibilityChange,
+    );
+    e.stopPropagation();
+  }
+
+  private onPointerMove(e: MithrilEvent<PointerEvent>) {
+    e.redraw = false;
+    if (this.dragStartY !== undefined) {
+      const deltaY = this.dragStartY - e.clientY;
+      this.resizableHeight = this.heightWhenDragStarted + deltaY;
+      m.redraw();
+    }
+  }
+
+  private onPointerUp(e: PointerEvent) {
+    this.endDrag(e.pointerId);
+  }
+
+  private onPointerCancel(e: PointerEvent) {
+    this.endDrag(e.pointerId);
+  }
+
+  private onPointerCaptureLost(e: PointerEvent) {
+    this.endDrag(e.pointerId);
   }
 
   private renderTabResizeButtons(

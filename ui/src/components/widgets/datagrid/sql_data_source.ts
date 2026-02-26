@@ -169,7 +169,6 @@ export class SQLDataSource implements DataSource {
           FROM ${baseTable} AS ${baseAlias}
           ${joinClauses}
           ORDER BY 1
-          LIMIT 1000
         `;
 
         const result = await this.engine.query(query);
