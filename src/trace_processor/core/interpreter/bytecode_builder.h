@@ -21,7 +21,6 @@
 #include <optional>
 #include <vector>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/util/slab.h"
@@ -33,8 +32,6 @@ namespace perfetto::trace_processor::core::interpreter {
 //
 // This class provides generic bytecode building capabilities. It handles:
 // - Register allocation
-// - Scope-based register caching (generic mechanism for callers to cache
-//   registers within a scope)
 // - Scratch register management
 // - Raw opcode emission
 //
@@ -55,43 +52,6 @@ class BytecodeBuilder {
 
   // Returns the total number of registers allocated.
   uint32_t register_count() const { return register_count_; }
-
-  // === Scope-based register caching ===
-
-  // Creates a new cache scope and returns its ID.
-  // Scopes allow callers to cache registers and retrieve them later by
-  // (reg_type, index) pairs.
-  uint32_t CreateCacheScope();
-
-  // Result from GetOrAllocateCachedRegister.
-  template <typename T>
-  struct CachedRegister {
-    RwHandle<T> reg;
-    bool inserted;  // True if newly allocated, false if found in cache
-  };
-
-  // Gets a register from the scope cache, or allocates a new one if not found.
-  // The allocated register is automatically added to the cache.
-  // Returns the register and whether it was newly inserted.
-  template <typename T>
-  CachedRegister<T> GetOrAllocateCachedRegister(uint32_t scope_id,
-                                                uint32_t reg_type,
-                                                uint32_t index) {
-    if (scope_id >= scope_caches_.size()) {
-      scope_caches_.resize(scope_id + 1);
-    }
-    uint64_t key = CacheKey(reg_type, index);
-    auto* it = scope_caches_[scope_id].Find(key);
-    if (it) {
-      return {RwHandle<T>{it->index}, false};
-    }
-    auto reg = AllocateRegister<T>();
-    scope_caches_[scope_id][key] = HandleBase{reg.index};
-    return {reg, true};
-  }
-
-  // Clears all cached registers for a scope.
-  void ClearCacheScope(uint32_t scope_id);
 
   // === Scratch register management ===
   //
@@ -173,16 +133,8 @@ class BytecodeBuilder {
     bool in_use = false;
   };
 
-  // Combines reg_type and index into a single cache key.
-  static constexpr uint64_t CacheKey(uint32_t reg_type, uint32_t index) {
-    return (static_cast<uint64_t>(reg_type) << 32) | index;
-  }
-
   BytecodeVector bytecode_;
   uint32_t register_count_ = 0;
-
-  // Scope-based cache: scope_id -> (reg_type, index) -> register handle
-  std::vector<base::FlatHashMap<uint64_t, HandleBase>> scope_caches_;
 
   // Scratch management - multiple slots indexed by slot_id
   std::vector<std::optional<ScratchIndices>> scratch_slots_;

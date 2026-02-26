@@ -28,6 +28,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
+#include "src/trace_processor/core/dataframe/register_cache.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
@@ -54,7 +55,7 @@ namespace perfetto::trace_processor::core::tree {
 //
 // Architecture follows QueryPlanBuilder patterns:
 // - Uses builder_.GetOrCreateScratchRegisters() for scratch management
-// - Uses scope-based register caching via builder_.CreateCacheScope()
+// - Uses RegisterCache for column register caching
 // - Single unified code path (no lazy initialization)
 class TreeTransformer {
  public:
@@ -123,8 +124,8 @@ class TreeTransformer {
   // Bytecode builder for accumulating tree operations.
   interpreter::BytecodeBuilder builder_;
 
-  // Scope ID for register caching (follows QueryPlanBuilder pattern).
-  uint32_t scope_id_;
+  // Cache for column register deduplication.
+  dataframe::RegisterCache cache_;
 
   // Parent and original_rows span registers (set on first FilterTree call).
   interpreter::RwHandle<Span<uint32_t>> parent_span_;

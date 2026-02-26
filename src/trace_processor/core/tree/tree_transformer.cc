@@ -175,7 +175,7 @@ struct TreeValueFetcher : core::ValueFetcher {
 // =============================================================================
 
 TreeTransformer::TreeTransformer(dataframe::Dataframe df, StringPool* pool)
-    : df_(std::move(df)), pool_(pool), scope_id_(builder_.CreateCacheScope()) {}
+    : df_(std::move(df)), pool_(pool), cache_(&builder_) {}
 
 // =============================================================================
 // Public methods
@@ -331,8 +331,8 @@ TreeTransformer::BuildFilterBitvector(
   // Generate filter bytecode using QueryPlanBuilder::Filter.
   ASSIGN_OR_RETURN(auto filter_result,
                    dataframe::QueryPlanBuilder::Filter(
-                       builder_, scope_id_,
-                       interpreter::RwHandle<Range>(range_reg), df_, specs));
+                       builder_, interpreter::RwHandle<Range>(range_reg), df_,
+                       cache_, specs));
 
   // Capture register init specs for later initialization in ToDataframe().
   for (const auto& init : filter_result.register_inits) {

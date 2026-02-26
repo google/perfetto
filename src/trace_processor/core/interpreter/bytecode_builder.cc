@@ -26,17 +26,6 @@
 
 namespace perfetto::trace_processor::core::interpreter {
 
-uint32_t BytecodeBuilder::CreateCacheScope() {
-  auto scope_id = static_cast<uint32_t>(scope_caches_.size());
-  scope_caches_.emplace_back();
-  return scope_id;
-}
-
-void BytecodeBuilder::ClearCacheScope(uint32_t scope_id) {
-  PERFETTO_CHECK(scope_id < scope_caches_.size());
-  scope_caches_[scope_id].Clear();
-}
-
 BytecodeBuilder::ScratchRegisters BytecodeBuilder::GetOrCreateScratchRegisters(
     uint32_t slot_id,
     uint32_t size) {
