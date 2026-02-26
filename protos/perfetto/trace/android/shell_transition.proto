@@ -16,6 +16,8 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/trace/android/graphics/rect.proto";
+
 package perfetto.protos;
 
 // ShellTransition messages record information about the shell transitions in
@@ -72,8 +74,8 @@ message ShellTransition {
   // The transition type of this transition (e.g. TO_FRONT, OPEN, CLOSE).
   optional int32 type = 13;
 
-  // The list of targets that are part of this transition.
-  repeated Target targets = 14;
+  // The list of changes that are part of this transition.
+  repeated Change changes = 14;
   // The id of the transition we have requested to merge or have merged this
   // transition into.
   optional int32 merge_target = 15;
@@ -87,16 +89,28 @@ message ShellTransition {
   // (using SystemClock.elapsedRealtimeNanos())
   optional int64 starting_window_remove_time_ns = 17;
 
-  // Contains the information about the windows targeted in a transition.
-  message Target {
-    // The transition mode of this target (e.g. TO_FRONT, CLOSE...)
+  // Contains the information about the windows changed in a transition.
+  message Change {
+    // The transition mode of this change (e.g. TO_FRONT, CLOSE...)
     optional int32 mode = 1;
-    // The layer id of this target.
+    // The layer id of this change.
     optional int32 layer_id = 2;
-    // The window id of this target.
+    // The window id of this change.
     optional int32 window_id = 3;
-    // The flags set on this target.
+    // The flags set on this change.
     optional int32 flags = 4;
+    // The display id the change is transitioning on before the transition.
+    optional int32 start_display_id = 5;
+    // The display id the change is transitioning on after the transition.
+    optional int32 end_display_id = 6;
+    // The rotation of the change before the transition.
+    optional int32 start_rotation = 7;
+    // The rotation of the change after the transition.
+    optional int32 end_rotation = 8;
+    // The absolute screen bounds of the change before the transition.
+    optional RectProto start_absolute_bounds = 9;
+    // The absolute screen bounds of the change after the transition.
+    optional RectProto end_absolute_bounds = 10;
   }
 }
 

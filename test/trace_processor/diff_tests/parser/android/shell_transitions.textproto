@@ -36,7 +36,7 @@ packet {
     shell_abort_time_ns: 82536817537
     start_transaction_id: 5604932322346
     finish_transaction_id: 5604932322347
-    targets { window_id: 11 }
+    changes { window_id: 11 }
   }
 }
 packet {
@@ -126,7 +126,7 @@ packet {
   shell_transition {
     id: 11
     handler: 2
-    targets { layer_id: 4 }
+    changes { layer_id: 4 }
   }
 }
 packet {
@@ -138,7 +138,7 @@ packet {
     type: 1
     merge_time_ns: 82697060749
     merge_target: 11
-    targets { window_id: 12 layer_id: 4 }
+    changes { window_id: 12 layer_id: 4 }
     dispatch_time_ns: 77876454832
     finish_time_ns: 82697061749
   }
