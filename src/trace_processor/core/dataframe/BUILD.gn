@@ -21,6 +21,7 @@ source_set("dataframe") {
     "arrow_ipc.cc",
     "arrow_ipc.h",
     "cursor.h",
+    "cursor_impl.cc",
     "cursor_impl.h",
     "dataframe.cc",
     "dataframe.h",

@@ -14,33 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_CURSOR_IMPL_H_
-#define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_CURSOR_IMPL_H_
-
-#include <cstddef>
-#include <cstdint>
+#include "src/trace_processor/core/dataframe/cursor_impl.h"
 
 #include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"  // IWYU pragma: keep
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
-template <typename FilterValueFetcherImpl>
-void Cursor<FilterValueFetcherImpl>::Execute(
-    FilterValueFetcherImpl& filter_value_fetcher) {
-  using S = Span<uint32_t>;
-  interpreter_.Execute(filter_value_fetcher);
-
-  const auto& span =
-      *interpreter_.template GetRegisterValue<S>(params_.output_register);
-  pos_ = span.b;
-  end_ = span.e;
-}
-
-extern template class Cursor<ErrorValueFetcher>;
+template class Cursor<ErrorValueFetcher>;
 
 }  // namespace perfetto::trace_processor::core::dataframe
-
-#endif  // SRC_TRACE_PROCESSOR_CORE_DATAFRAME_CURSOR_IMPL_H_
