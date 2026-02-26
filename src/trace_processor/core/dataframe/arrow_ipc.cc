@@ -378,12 +378,13 @@ base::Status SerializeToArrowIpc(const Dataframe& df,
   const auto& col_names = df.column_names();
   uint32_t num_rows = df.row_count();
 
-  // Collect columns to serialize (skip _auto_id).
+  // Collect columns to serialize (skip Id columns — their value is the row
+  // index and is implicitly restored by setting the row count on import).
   std::vector<ColInfo> cols;
   for (uint32_t i = 0; i < num_cols; i++) {
-    if (col_names[i] == "_auto_id")
-      continue;
     const auto& column = *df.columns_[i];
+    if (column.storage.type().Is<core::Id>())
+      continue;
     cols.push_back({i, col_names[i],
                     IsNullable(column.null_storage.nullability()),
                     column.storage.type()});
@@ -631,11 +632,11 @@ base::Status DeserializeFromArrowIpc(
   // Body data starts after the message header.
   size_t body_offset = msg_offset + 8 + padded_meta;
 
-  // Map Arrow columns to dataframe columns (skip _auto_id).
-  const auto& col_names = df.column_names();
+  // Map Arrow columns to dataframe columns (skip Id columns — just set the
+  // row count since their value is the row index).
   uint32_t buf_idx = 0;
   for (uint32_t i = 0; i < df.column_count(); i++) {
-    if (col_names[i] == "_auto_id") {
+    if (df.columns_[i]->storage.type().Is<core::Id>()) {
       df.columns_[i]->storage.unchecked_get<Id>().size =
           static_cast<uint32_t>(num_rows);
       continue;

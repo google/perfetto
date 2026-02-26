@@ -177,8 +177,10 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base:clock_snapshots",
       "../protozero",
       "core/dataframe",
+      "export:export_arrow",
       "importers/android_bugreport",
       "importers/archive",
+      "importers/arrow",
       "importers/art_hprof",
       "importers/art_method",
       "importers/collapsed_stack",
@@ -219,6 +221,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util:regex",
       "util:simple_json_parser",
       "util:stdlib",
+      "util:tar_writer",
       "util:trace_type",
     ]
 

@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -45,6 +46,18 @@ class BufferTarWriterSink : public TarWriterSink {
 
  private:
   std::vector<uint8_t>* buffer_;
+};
+
+// Invokes a callback for each write, forwarding raw bytes.
+class CallbackTarWriterSink : public TarWriterSink {
+ public:
+  using WriteCallback = std::function<void(const void* data, size_t len)>;
+  explicit CallbackTarWriterSink(WriteCallback callback);
+  base::Status Write(const void* data, size_t len) override;
+  base::Status WriteFromFd(int fd, size_t len) override;
+
+ private:
+  WriteCallback callback_;
 };
 
 // Simple TAR writer that creates uncompressed TAR archives.

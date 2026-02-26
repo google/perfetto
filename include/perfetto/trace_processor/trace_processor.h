@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -238,6 +239,20 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // loaded by trace processor shell at runtime. The message is encoded as
   // DescriptorSet, defined in perfetto/trace_processor/trace_processor.proto.
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
+
+  // =================================================================
+  // |        Arrow export related functionality starts here         |
+  // =================================================================
+
+  // Callback receives chunks of TAR data as they are produced.
+  // Called inline (synchronously). |has_more| is false on the last call.
+  using ExportArrowCallback =
+      std::function<void(const uint8_t* data, size_t len, bool has_more)>;
+
+  // Exports all intrinsic tables as a TAR archive of Arrow IPC files.
+  // Calls |callback| with chunks of TAR bytes as they are produced,
+  // never materializing the full archive in memory.
+  virtual base::Status ExportToArrow(ExportArrowCallback callback) = 0;
 
   // =================================================================
   // |  EXPERIMENTAL: Summarizer related functionality starts here   |

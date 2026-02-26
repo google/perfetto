@@ -1091,6 +1091,14 @@ class TraceStorage {
     return static_cast<Variadic::Type>(idx);
   }
 
+  struct DataframeWithName {
+    dataframe::Dataframe* dataframe;
+    const char* name;
+  };
+
+  // Returns the list of all static table dataframes with their SQL names.
+  std::vector<DataframeWithName> GetStaticDataframes();
+
  private:
   using StringHash = uint64_t;
 

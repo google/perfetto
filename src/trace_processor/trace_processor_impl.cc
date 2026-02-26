@@ -48,12 +48,14 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/export/export_arrow.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/archive/gzip_trace_parser.h"
+#include "src/trace_processor/importers/arrow/arrow_ipc_trace_reader.h"
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
@@ -154,6 +156,7 @@
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/sql_modules.h"
+#include "src/trace_processor/util/tar_writer.h"
 #include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -558,6 +561,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           kSimpleperfProtoTraceType);
   context()->reader_registry->RegisterTraceReader<TarTraceReader>(
       kTarTraceType);
+  context()->reader_registry->RegisterTraceReader<ArrowIpcTraceReader>(
+      kArrowIpcTraceType);
   context()->reader_registry->RegisterTraceReader<primes::PrimesTraceTokenizer>(
       kPrimesTraceType);
 
@@ -1470,6 +1475,42 @@ base::Status TraceProcessorImpl::CreateSummarizer(
 
   *out = std::make_unique<summary::SummarizerImpl>(this,
                                                    &metrics_descriptor_pool_);
+  return base::OkStatus();
+}
+
+base::Status TraceProcessorImpl::ExportToArrow(
+    ExportArrowCallback callback) {
+  auto* storage = context_.storage.get();
+  auto dataframes = storage->GetStaticDataframes();
+
+  // Use a CallbackTarWriterSink that forwards Write() calls to the callback
+  // with has_more=true. After finalization, we send has_more=false.
+  util::CallbackTarWriterSink sink([&callback](const void* data, size_t len) {
+    callback(static_cast<const uint8_t*>(data), len, /*has_more=*/true);
+  });
+  util::TarWriter tar(&sink);
+
+  for (auto& entry : dataframes) {
+    if (entry.dataframe->row_count() == 0)
+      continue;
+    // Skip import-metadata tables that are session-specific.
+    base::StringView name(entry.name);
+    if (name == "__intrinsic_trace_file" ||
+        name == "__intrinsic_trace_import_logs") {
+      continue;
+    }
+    std::string arrow_filename = std::string(entry.name) + ".arrow";
+
+    ASSIGN_OR_RETURN(auto arrow_bytes,
+                     SerializeTableToArrow(*entry.dataframe,
+                                           storage->mutable_string_pool()));
+
+    RETURN_IF_ERROR(tar.AddFile(arrow_filename, arrow_bytes.data(),
+                                arrow_bytes.size()));
+  }
+
+  // Signal end of stream.
+  callback(nullptr, 0, /*has_more=*/false);
   return base::OkStatus();
 }
 

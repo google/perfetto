@@ -72,6 +72,19 @@ struct table_init_params<std::variant<Ts...>, T> {
 constexpr std::array kTableInitParams =
     table_init_params<tables::AllTables, void>::value;
 
+// Returns an array of SQL names for every static table, in AllTables order.
+template <class... Ts>
+const std::array<const char*, sizeof...(Ts)>& TableNamesImpl(
+    std::variant<Ts...>*) {
+  static const std::array<const char*, sizeof...(Ts)> names = {
+      {Ts::Name()...}};
+  return names;
+}
+
+const auto& GetTableNames() {
+  return TableNamesImpl(static_cast<tables::AllTables*>(nullptr));
+}
+
 static_assert(
     std::size(kTableInitParams) == tables::kTableCount,
     "kTableInitParams must have the same number of entries as tables");
@@ -98,6 +111,18 @@ TraceStorage::~TraceStorage() {
         &tables_storage_[(i - 1) * sizeof(dataframe::Dataframe)])
         ->~Dataframe();
   }
+}
+
+std::vector<TraceStorage::DataframeWithName>
+TraceStorage::GetStaticDataframes() {
+  std::vector<DataframeWithName> result;
+  result.reserve(tables::kTableCount);
+  for (size_t i = 0; i < tables::kTableCount; ++i) {
+    auto* df = reinterpret_cast<dataframe::Dataframe*>(
+        &tables_storage_[i * sizeof(dataframe::Dataframe)]);
+    result.push_back({df, GetTableNames()[i]});
+  }
+  return result;
 }
 
 uint32_t TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,

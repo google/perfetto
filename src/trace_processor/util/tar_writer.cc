@@ -101,6 +101,28 @@ base::Status BufferTarWriterSink::WriteFromFd(int fd, size_t len) {
   return base::OkStatus();
 }
 
+// --- CallbackTarWriterSink ---
+
+CallbackTarWriterSink::CallbackTarWriterSink(WriteCallback callback)
+    : callback_(std::move(callback)) {
+  PERFETTO_CHECK(callback_);
+}
+
+base::Status CallbackTarWriterSink::Write(const void* data, size_t len) {
+  callback_(data, len);
+  return base::OkStatus();
+}
+
+base::Status CallbackTarWriterSink::WriteFromFd(int fd, size_t len) {
+  // Read from fd into a temporary buffer and forward to callback.
+  std::vector<uint8_t> buf(len);
+  ssize_t rd = base::Read(fd, reinterpret_cast<char*>(buf.data()), len);
+  if (rd != static_cast<ssize_t>(len))
+    return base::ErrStatus("Failed to read from fd");
+  callback_(buf.data(), buf.size());
+  return base::OkStatus();
+}
+
 // --- TarWriter ---
 
 TarWriter::TarWriter(const std::string& output_path)
