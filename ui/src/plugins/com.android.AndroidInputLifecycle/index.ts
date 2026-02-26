@@ -14,35 +14,36 @@
 
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import RelatedEventsPlugin, {
-  TrackPinningManager,
-} from '../dev.perfetto.RelatedEvents';
-import {GenericRelatedEventsOverlay} from '../dev.perfetto.RelatedEvents/generic_overlay';
+import {RelatedEventsOverlay} from '../../components/related_events/related_events_overlay';
+import {TrackPinningManager} from '../../components/related_events/utils';
+import {RelatedEventData} from '../../components/related_events/interface';
 import {AndroidInputEventSource} from './android_input_event_source';
 import {AndroidInputLifecycleTab} from './tab';
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
-  static readonly description = `
-    Visualise connected input events in the lifecycle from touch to frame, with latencies for the various input stages. 
-    Activate by running the command 'Android: View Input Lifecycle'
-    `;
-  static readonly dependencies = [RelatedEventsPlugin];
+  static readonly description =
+    'Visualise connected input events in the lifecycle from touch to frame, ' +
+    "with latencies for the various input stages. Activate by running the command 'Android: View Input Lifecycle'.";
 
   async onTraceLoad(trace: Trace): Promise<void> {
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
-    const overlay = new GenericRelatedEventsOverlay(trace);
+    const overlay = new RelatedEventsOverlay(trace);
     trace.tracks.registerOverlay(overlay);
 
     const source = new AndroidInputEventSource(trace);
-    source.setOnDataLoadedCallback((data) => {
-      overlay.update(data);
-    });
 
     const pinningManager = new TrackPinningManager();
 
-    const tab = new AndroidInputLifecycleTab(trace, source, pinningManager);
+    const tab = new AndroidInputLifecycleTab(
+      trace,
+      source,
+      pinningManager,
+      (data: RelatedEventData) => {
+        overlay.update(data);
+      },
+    );
 
     trace.tabs.registerTab({
       uri: 'com.android.AndroidInputLifecycleTab',

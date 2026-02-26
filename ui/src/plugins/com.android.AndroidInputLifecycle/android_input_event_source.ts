@@ -14,27 +14,20 @@
 
 import {Trace} from '../../public/trace';
 import {
-  EventSource,
   RelatedEventData,
   RelatedEvent,
   Relation,
-  getTrackUriForTrackId,
   NavTarget,
-} from '../dev.perfetto.RelatedEvents';
-import {time, duration} from '../../base/time';
-import {enrichDepths} from '../dev.perfetto.RelatedEvents/utils';
-import {STR, NUM_NULL} from '../../trace_processor/query_result';
+} from '../../components/related_events/interface';
+import {LONG_NULL, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {time, duration, Time} from '../../base/time';
+import {
+  getTrackUriForTrackId,
+  enrichDepths,
+} from '../../components/related_events/utils';
 
-export type OnDataLoadedCallback = (data: RelatedEventData) => void;
-
-export class AndroidInputEventSource implements EventSource {
-  private onDataLoadedCallback?: OnDataLoadedCallback;
-
+export class AndroidInputEventSource {
   constructor(private trace: Trace) {}
-
-  setOnDataLoadedCallback(callback: OnDataLoadedCallback) {
-    this.onDataLoadedCallback = callback;
-  }
 
   async getRelatedEventData(eventId: number): Promise<RelatedEventData> {
     const result = await this.trace.engine.query(
@@ -43,203 +36,113 @@ export class AndroidInputEventSource implements EventSource {
 
     const events: RelatedEvent[] = [];
     const relations: Relation[] = [];
-    const overlayEvents: RelatedEvent[] = [];
-    const overlayRelations: Relation[] = [];
 
     const it = result.iter({
       input_id: STR,
       channel: STR,
-      total_latency: NUM_NULL,
+      total_latency: LONG_NULL,
 
-      ts_reader: NUM_NULL,
+      ts_reader: LONG_NULL,
       id_reader: NUM_NULL,
       track_reader: NUM_NULL,
-      dur_reader: NUM_NULL,
+      dur_reader: LONG_NULL,
 
-      ts_dispatch: NUM_NULL,
+      ts_dispatch: LONG_NULL,
       id_dispatch: NUM_NULL,
       track_dispatch: NUM_NULL,
-      dur_dispatch: NUM_NULL,
+      dur_dispatch: LONG_NULL,
 
-      ts_receive: NUM_NULL,
+      ts_receive: LONG_NULL,
       id_receive: NUM_NULL,
       track_receive: NUM_NULL,
-      dur_receive: NUM_NULL,
+      dur_receive: LONG_NULL,
 
-      ts_consume: NUM_NULL,
+      ts_consume: LONG_NULL,
       id_consume: NUM_NULL,
       track_consume: NUM_NULL,
-      dur_consume: NUM_NULL,
+      dur_consume: LONG_NULL,
 
-      ts_frame: NUM_NULL,
+      ts_frame: LONG_NULL,
       id_frame: NUM_NULL,
       track_frame: NUM_NULL,
-      dur_frame: NUM_NULL,
+      dur_frame: LONG_NULL,
     });
     if (!it.valid()) {
-      const data = {events: [], relations: [], overlayEvents, overlayRelations};
-      this.onDataLoadedCallback?.(data);
-      return data;
+      return {events: [], relations: []};
     }
 
     const channel = it.channel;
-    const totalLatency =
-      it.total_latency !== null ? (BigInt(it.total_latency) as duration) : null;
+    const totalLatency = it.total_latency !== null ? it.total_latency : null;
 
-    let readerEvent: RelatedEvent | undefined;
-    if (
-      it.id_reader !== null &&
-      it.ts_reader !== null &&
-      it.track_reader !== null &&
-      it.dur_reader !== null
-    ) {
-      const trackUri = getTrackUriForTrackId(this.trace, it.track_reader);
-      if (trackUri) {
-        readerEvent = {
-          id: it.id_reader,
-          ts: BigInt(it.ts_reader) as time,
-          dur: BigInt(it.dur_reader) as duration,
-          trackUri,
-          type: 'InputReader',
-          customArgs: {
-            channel,
-            totalLatency,
-            stageDur: BigInt(it.dur_reader) as duration,
-          },
-        };
-        overlayEvents.push(readerEvent);
-      }
-    }
-
-    let dispatchEvent: RelatedEvent | undefined;
-    if (
-      it.id_dispatch !== null &&
-      it.ts_dispatch !== null &&
-      it.track_dispatch !== null &&
-      it.dur_dispatch !== null
-    ) {
-      const trackUri = getTrackUriForTrackId(this.trace, it.track_dispatch);
-      if (trackUri) {
-        dispatchEvent = {
-          id: it.id_dispatch,
-          ts: BigInt(it.ts_dispatch) as time,
-          dur: BigInt(it.dur_dispatch) as duration,
-          trackUri,
-          type: 'InputDispatcher',
-          customArgs: {
-            channel,
-            totalLatency,
-            stageDur: BigInt(it.dur_dispatch) as duration,
-          },
-        };
-        overlayEvents.push(dispatchEvent);
-      }
-    }
-
-    let receiveEvent: RelatedEvent | undefined;
-    if (
-      it.id_receive !== null &&
-      it.ts_receive !== null &&
-      it.track_receive !== null &&
-      it.dur_receive !== null
-    ) {
-      const trackUri = getTrackUriForTrackId(this.trace, it.track_receive);
-      if (trackUri) {
-        receiveEvent = {
-          id: it.id_receive,
-          ts: BigInt(it.ts_receive) as time,
-          dur: BigInt(it.dur_receive) as duration,
-          trackUri,
-          type: 'AppReceive',
-          customArgs: {
-            channel,
-            totalLatency,
-            stageDur: BigInt(it.dur_receive) as duration,
-          },
-        };
-        overlayEvents.push(receiveEvent);
-      }
-    }
-
-    let consumeEvent: RelatedEvent | undefined;
-    if (
-      it.id_consume !== null &&
-      it.ts_consume !== null &&
-      it.track_consume !== null &&
-      it.dur_consume !== null
-    ) {
-      const trackUri = getTrackUriForTrackId(this.trace, it.track_consume);
-      if (trackUri) {
-        consumeEvent = {
-          id: it.id_consume,
-          ts: BigInt(it.ts_consume) as time,
-          dur: BigInt(it.dur_consume) as duration,
-          trackUri,
-          type: 'AppConsume',
-          customArgs: {
-            channel,
-            totalLatency,
-            stageDur: BigInt(it.dur_consume) as duration,
-          },
-        };
-        overlayEvents.push(consumeEvent);
-      }
-    }
-
-    let frameEvent: RelatedEvent | undefined;
-    if (
-      it.id_frame !== null &&
-      it.ts_frame !== null &&
-      it.track_frame !== null &&
-      it.dur_frame !== null
-    ) {
-      const trackUri = getTrackUriForTrackId(this.trace, it.track_frame);
-      if (trackUri) {
-        frameEvent = {
-          id: it.id_frame,
-          ts: BigInt(it.ts_frame) as time,
-          dur: BigInt(it.dur_frame) as duration,
-          trackUri,
-          type: 'AppFrame',
-          customArgs: {
-            channel,
-            totalLatency,
-            stageDur: BigInt(it.dur_frame) as duration,
-          },
-        };
-        overlayEvents.push(frameEvent);
-      }
-    }
-
-    const stages = [
-      readerEvent,
-      dispatchEvent,
-      receiveEvent,
-      consumeEvent,
-      frameEvent,
+    const stages: (RelatedEvent | undefined)[] = [
+      this.parseStage(
+        'InputReader',
+        channel,
+        totalLatency,
+        it.id_reader,
+        it.ts_reader,
+        it.dur_reader,
+        it.track_reader,
+      ),
+      this.parseStage(
+        'InputDispatcher',
+        channel,
+        totalLatency,
+        it.id_dispatch,
+        it.ts_dispatch,
+        it.dur_dispatch,
+        it.track_dispatch,
+      ),
+      this.parseStage(
+        'AppReceive',
+        channel,
+        totalLatency,
+        it.id_receive,
+        it.ts_receive,
+        it.dur_receive,
+        it.track_receive,
+      ),
+      this.parseStage(
+        'AppConsume',
+        channel,
+        totalLatency,
+        it.id_consume,
+        it.ts_consume,
+        it.dur_consume,
+        it.track_consume,
+      ),
+      this.parseStage(
+        'AppFrame',
+        channel,
+        totalLatency,
+        it.id_frame,
+        it.ts_frame,
+        it.dur_frame,
+        it.track_frame,
+      ),
     ];
+
+    const [readerEvent, dispatchEvent, receiveEvent, consumeEvent, frameEvent] =
+      stages;
+
+    const overlayEvents = stages.filter(
+      (e): e is RelatedEvent => e !== undefined,
+    );
+    const overlayRelations: Relation[] = [];
+
     for (let i = 0; i < stages.length - 1; i++) {
       const source = stages[i];
       const target = stages[i + 1];
       if (source && target) {
-        const relation: Relation = {
+        overlayRelations.push({
           sourceId: source.id,
           targetId: target.id,
           type: 'lifecycle_step',
-        };
-        overlayRelations.push(relation);
+        });
       }
     }
 
     await enrichDepths(this.trace, overlayEvents);
-
-    const getDelta = (
-      start: RelatedEvent | undefined,
-      end: RelatedEvent | undefined,
-    ): duration | null => {
-      if (!start || !end) return null;
-      return (end.ts - (start.ts + start.dur)) as duration;
-    };
 
     // This is for the tab view, which shows a single row per channel
     const tabEvent: RelatedEvent = {
@@ -248,46 +151,17 @@ export class AndroidInputEventSource implements EventSource {
         dispatchEvent?.ts ??
         receiveEvent?.ts ??
         0n) as time,
-      dur: (totalLatency ?? 0n) as duration,
+      dur: totalLatency ?? 0n,
       trackUri: '',
       type: 'InputLifecycle',
       customArgs: {
         channel,
         totalLatency,
-        reader: readerEvent
-          ? {
-              dur: readerEvent.customArgs?.stageDur,
-              nav: this.createNavTarget(readerEvent),
-            }
-          : null,
-        dispatcher: dispatchEvent
-          ? {
-              delta: getDelta(readerEvent, dispatchEvent),
-              dur: dispatchEvent.customArgs?.stageDur,
-              nav: this.createNavTarget(dispatchEvent),
-            }
-          : null,
-        receiver: receiveEvent
-          ? {
-              delta: getDelta(dispatchEvent, receiveEvent),
-              dur: receiveEvent.customArgs?.stageDur,
-              nav: this.createNavTarget(receiveEvent),
-            }
-          : null,
-        consumer: consumeEvent
-          ? {
-              delta: getDelta(receiveEvent, consumeEvent),
-              dur: consumeEvent.customArgs?.stageDur,
-              nav: this.createNavTarget(consumeEvent),
-            }
-          : null,
-        frame: frameEvent
-          ? {
-              delta: getDelta(consumeEvent, frameEvent),
-              dur: frameEvent.customArgs?.stageDur,
-              nav: this.createNavTarget(frameEvent),
-            }
-          : null,
+        reader: this.createStageArgs(readerEvent),
+        dispatcher: this.createStageArgs(dispatchEvent, readerEvent),
+        receiver: this.createStageArgs(receiveEvent, dispatchEvent),
+        consumer: this.createStageArgs(consumeEvent, receiveEvent),
+        frame: this.createStageArgs(frameEvent, consumeEvent),
         allTrackIds: [
           it.track_reader,
           it.track_dispatch,
@@ -300,9 +174,49 @@ export class AndroidInputEventSource implements EventSource {
 
     events.push(tabEvent);
 
-    const data = {events, relations, overlayEvents, overlayRelations};
-    this.onDataLoadedCallback?.(data);
-    return data;
+    return {events, relations, overlayEvents, overlayRelations};
+  }
+
+  private parseStage(
+    type: string,
+    channel: string,
+    totalLatency: duration | null,
+    id: number | null,
+    ts: bigint | null,
+    dur: bigint | null,
+    trackId: number | null,
+  ): RelatedEvent | undefined {
+    if (id === null || ts === null || dur === null || trackId === null) {
+      return undefined;
+    }
+
+    const trackUri = getTrackUriForTrackId(this.trace, trackId);
+    if (!trackUri) return undefined;
+
+    return {
+      id,
+      ts: Time.fromRaw(ts),
+      dur,
+      trackUri,
+      type,
+      customArgs: {
+        channel,
+        totalLatency,
+        stageDur: dur,
+      },
+    };
+  }
+
+  private createStageArgs(
+    event: RelatedEvent | undefined,
+    prevEvent?: RelatedEvent,
+  ) {
+    if (!event) return null;
+    return {
+      delta: prevEvent ? event.ts - (prevEvent.ts + prevEvent.dur) : null,
+      dur: (event.customArgs as {stageDur?: duration})?.stageDur,
+      nav: this.createNavTarget(event),
+    };
   }
 
   private createNavTarget(event: RelatedEvent): NavTarget | undefined {

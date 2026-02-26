@@ -13,9 +13,10 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {RelatedEvent} from './interface';
+import {RelatedEvent, RelatedEventData} from './interface';
 import {STR, NUM, LONG, UNKNOWN} from '../../trace_processor/query_result';
 import {Dataset, UnionDatasetWithLineage} from '../../trace_processor/dataset';
+import {AsyncLimiter} from '../../base/async_limiter';
 
 const RELATION_SCHEMA = {
   id: NUM,
@@ -27,7 +28,6 @@ const RELATION_SCHEMA = {
 };
 
 // Helper function to find a track URI for a given raw track ID.
-// Useful for constructing RelatedEvent objects.
 export function getTrackUriForTrackId(trace: Trace, trackId: number): string {
   const track = trace.tracks.findTrack((t) =>
     t.tags?.trackIds?.includes(trackId),
@@ -40,7 +40,7 @@ export function getTrackUriForTrackId(trace: Trace, trackId: number): string {
 // It queries the track datasets to find the depth of each event.
 export async function enrichDepths(
   trace: Trace,
-  events: RelatedEvent[],
+  events: ReadonlyArray<RelatedEvent>,
 ): Promise<void> {
   const trackUris = new Set<string>();
   const eventIds = new Set<number>();
@@ -104,12 +104,12 @@ export class TrackPinningManager {
   private pinnedTrackUris = new Set<string>();
 
   // Pins the tracks with the given URIs.
-  pinTracks(uris: string[]) {
+  pinTracks(uris: ReadonlyArray<string>) {
     uris.forEach((uri) => this.pinnedTrackUris.add(uri));
   }
 
   // Unpins the tracks with the given URIs.
-  unpinTracks(uris: string[]) {
+  unpinTracks(uris: ReadonlyArray<string>) {
     uris.forEach((uri) => this.pinnedTrackUris.delete(uri));
   }
 
@@ -136,5 +136,54 @@ export class TrackPinningManager {
   // Gets the set of pinned track URIs.
   getPinnedUris(): ReadonlySet<string> {
     return this.pinnedTrackUris;
+  }
+}
+
+// A generic utility wrapper to handle asynchronous fetching of related events
+// using an AsyncLimiter. This ensures that only the latest requested data
+// finishes processing and updates the UI, discarding intermediate or stale
+// requests, while maintaining a clean loading state.
+export class RelatedEventsFetcher {
+  private limiter = new AsyncLimiter();
+  private loading = false;
+  private currentId?: number;
+
+  constructor(private fetchFn: (id: number) => Promise<RelatedEventData>) {}
+
+  // Trigger a load for a specific event ID.
+  // The provided callback is only executed if this request is still the latest one
+  // when the promise resolves.
+  load(id: number, uiCallback: (data: RelatedEventData) => void) {
+    this.currentId = id;
+    this.loading = true;
+
+    this.limiter.schedule(async () => {
+      // Fast path: if the ID changed while we were in the queue, just return.
+      // This saves performing the expensive trace query.
+      if (this.currentId !== id) {
+        return;
+      }
+
+      try {
+        const data = await this.fetchFn(id);
+
+        // Ensure another request hasn't superseded us while we were fetching.
+        if (this.currentId === id) {
+          uiCallback(data);
+        }
+      } catch (e) {
+        console.error('Error fetching related events data:', e);
+      } finally {
+        // Only clear the loading flag if this is still the active request.
+        if (this.currentId === id) {
+          this.loading = false;
+        }
+      }
+    });
+  }
+
+  // Returns true if a fetch operation is currently in progress.
+  isLoading(): boolean {
+    return this.loading;
   }
 }
