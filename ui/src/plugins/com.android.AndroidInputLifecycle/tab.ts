@@ -13,54 +13,49 @@
 // limitations under the License.
 
 import m from 'mithril';
-import z from 'zod';
 import {GridColumn, GridHeaderCell, Grid, GridCell} from '../../widgets/grid';
-import {Spinner} from '../../widgets/spinner';
 import {AndroidInputEventSource} from './android_input_event_source';
 import {
   getTrackUriForTrackId,
   TrackPinningManager,
+} from '../../components/related_events/utils';
+import {
   NavTarget,
-  durationSchema,
-  NavTargetSchema,
-} from '../dev.perfetto.RelatedEvents';
+  RelatedEventData,
+} from '../../components/related_events/interface';
 import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
 import {DurationWidget} from '../../components/widgets/duration';
-import {Tab} from '../../public/tab';
 import {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {Checkbox} from '../../widgets/checkbox';
-import {DetailsShell} from '../../widgets/details_shell';
 import {EmptyState} from '../../widgets/empty_state';
-
-// --- Zod Schemas ---
-
-const StageSchema = z
-  .object({
-    delta: durationSchema.nullable(),
-    dur: durationSchema,
-    nav: NavTargetSchema,
-  })
-  .nullable();
-
-const InputLifecycleArgsSchema = z.object({
-  channel: z.string(),
-  totalLatency: durationSchema.nullable(),
-  reader: z
-    .object({
-      dur: durationSchema,
-      nav: NavTargetSchema,
-    })
-    .nullable(),
-  dispatcher: StageSchema,
-  receiver: StageSchema,
-  consumer: StageSchema,
-  frame: StageSchema,
-  allTrackIds: z.array(z.number()),
-});
+import {Tab} from '../../public/tab';
+import {RelatedEventsFetcher} from '../../components/related_events/utils';
+import {DetailsShell} from '../../widgets/details_shell';
+import {Spinner} from '../../widgets/spinner';
 
 // --- Interfaces ---
+
+interface Stage {
+  delta: duration | null;
+  dur: duration;
+  nav: NavTarget;
+}
+
+interface InputLifecycleArgs {
+  channel: string;
+  totalLatency: duration | null;
+  reader: {
+    dur: duration;
+    nav: NavTarget;
+  } | null;
+  dispatcher: Stage | null;
+  receiver: Stage | null;
+  consumer: Stage | null;
+  frame: Stage | null;
+  allTrackIds: ReadonlyArray<number>;
+}
 
 interface InputChainRow {
   uiRowId: string;
@@ -80,27 +75,30 @@ interface InputChainRow {
   navReceive?: NavTarget;
   navFrame?: NavTarget;
 
-  allTrackIds: number[];
-  allTrackUris: string[];
+  allTrackIds: ReadonlyArray<number>;
+  allTrackUris: ReadonlyArray<string>;
 }
 
 export class AndroidInputLifecycleTab implements Tab {
   private rows: InputChainRow[] = [];
   private visibleRowIds = new Set<string>();
+  private dataFetcher: RelatedEventsFetcher;
   private currentSelectionId?: number;
-  private isLoading = false;
 
   constructor(
     private trace: Trace,
     private source: AndroidInputEventSource,
     private pinningManager: TrackPinningManager,
-  ) {}
+    private onRelatedEventsLoaded?: (data: RelatedEventData) => void,
+  ) {
+    this.dataFetcher = new RelatedEventsFetcher((id) =>
+      this.source.getRelatedEventData(id),
+    );
+  }
 
-  onHide() {
+  private onSelectionHide() {
     this.rows = [];
     this.visibleRowIds.clear();
-    this.currentSelectionId = undefined;
-    this.isLoading = false;
   }
 
   getTitle() {
@@ -113,62 +111,53 @@ export class AndroidInputLifecycleTab implements Tab {
     if (selection.eventId === this.currentSelectionId) return;
 
     this.currentSelectionId = selection.eventId;
-    this.loadData(selection.eventId);
+    this.onSelectionHide(); // clear old data
+
+    this.dataFetcher.load(selection.eventId, (data) => {
+      this.buildData(data);
+      this.pinningManager.applyPinning(this.trace);
+      if (this.onRelatedEventsLoaded) {
+        this.onRelatedEventsLoaded(data);
+      }
+    });
   }
 
-  private async loadData(clickedEventId: number) {
-    this.isLoading = true;
-    this.rows = [];
-    this.visibleRowIds.clear();
-
-    try {
-      const data = await this.source.getRelatedEventData(clickedEventId);
-      let index = 0;
-      for (const event of data.events) {
-        if (event.type === 'InputLifecycle') {
-          const parsedArgs = InputLifecycleArgsSchema.safeParse(
-            event.customArgs,
+  private buildData(data: RelatedEventData) {
+    let index = 0;
+    for (const event of data.events) {
+      if (event.type === 'InputLifecycle') {
+        const args = event.customArgs as InputLifecycleArgs | undefined;
+        if (args) {
+          const indexValue = index++;
+          const uniqueId = `row-${indexValue}`;
+          const allTrackIds = args.allTrackIds;
+          const allTrackUris = allTrackIds.map((id: number) =>
+            getTrackUriForTrackId(this.trace, id),
           );
-          if (parsedArgs.success) {
-            const args = parsedArgs.data;
-            const uniqueId = `row-${index++}`;
-            const allTrackIds = args.allTrackIds;
-            const allTrackUris = allTrackIds.map((id: number) =>
-              getTrackUriForTrackId(this.trace, id),
-            );
-            this.rows.push({
-              uiRowId: uniqueId,
-              channel: args.channel,
-              totalLatency: args.totalLatency,
-              durReader: args.reader?.dur ?? null,
-              deltaDispatch: args.dispatcher?.delta ?? null,
-              deltaReceive: args.receiver?.delta ?? null,
-              deltaConsume: args.consumer?.delta ?? null,
-              deltaFrame: args.frame?.delta ?? null,
-              navReader: args.reader?.nav,
-              navDispatch: args.dispatcher?.nav,
-              navReceive: args.receiver?.nav,
-              navConsume: args.consumer?.nav,
-              navFrame: args.frame?.nav,
-              allTrackIds,
-              allTrackUris,
-            });
-            this.visibleRowIds.add(uniqueId);
-          } else {
-            console.error(
-              'Invalid customArgs for InputLifecycle event',
-              parsedArgs.error,
-            );
-          }
+          this.rows.push({
+            uiRowId: uniqueId,
+            channel: args.channel,
+            totalLatency: args.totalLatency,
+            durReader: args.reader?.dur ?? null,
+            deltaDispatch: args.dispatcher?.delta ?? null,
+            deltaReceive: args.receiver?.delta ?? null,
+            deltaConsume: args.consumer?.delta ?? null,
+            deltaFrame: args.frame?.delta ?? null,
+            navReader: args.reader?.nav,
+            navDispatch: args.dispatcher?.nav,
+            navReceive: args.receiver?.nav,
+            navConsume: args.consumer?.nav,
+            navFrame: args.frame?.nav,
+            allTrackIds,
+            allTrackUris,
+          });
+          this.visibleRowIds.add(uniqueId);
         }
       }
-      this.pinningManager.applyPinning(this.trace);
-    } finally {
-      this.isLoading = false;
     }
   }
 
-  private getRowTrackUris(row: InputChainRow): string[] {
+  private getRowTrackUris(row: InputChainRow): ReadonlyArray<string> {
     return row.allTrackUris;
   }
 
@@ -216,18 +205,21 @@ export class AndroidInputLifecycleTab implements Tab {
   render(): m.Children {
     this.syncSelection();
 
-    if (this.isLoading) {
-      return m(
-        DetailsShell,
-        {title: this.getTitle()},
-        m(
-          'div',
-          {style: {display: 'flex', justifyContent: 'center', padding: '20px'}},
-          m(Spinner, {}),
-        ),
+    let content: m.Children;
+    if (this.dataFetcher.isLoading()) {
+      content = m(
+        'div',
+        {style: {display: 'flex', justifyContent: 'center', padding: '20px'}},
+        m(Spinner, {}),
       );
+    } else {
+      content = this.renderContent();
     }
 
+    return m(DetailsShell, {title: this.getTitle()}, content);
+  }
+
+  private renderContent(): m.Children {
     const allVisible = this.rows.every((r) =>
       this.visibleRowIds.has(r.uiRowId),
     );
@@ -286,52 +278,48 @@ export class AndroidInputLifecycleTab implements Tab {
       },
     ];
 
-    return m(
-      DetailsShell,
-      {title: this.getTitle()},
-      m(Grid, {
-        columns,
-        rowData: this.rows.map((row) => [
-          m(
-            GridCell,
-            {},
-            m(Checkbox, {
-              checked: this.visibleRowIds.has(row.uiRowId),
-              onchange: () => this.toggleVisibility(row.uiRowId),
-            }),
-          ),
-          m(
-            GridCell,
-            {},
-            m(Checkbox, {
-              checked: this.isRowPinned(row),
-              onchange: () => this.togglePinning(row),
-            }),
-          ),
-          m(GridCell, {}, row.channel),
-          m(
-            GridCell,
-            {},
-            row.totalLatency !== null
-              ? m(DurationWidget, {
-                  dur: row.totalLatency,
-                  trace: this.trace,
-                })
-              : '-',
-          ),
-          this.renderCell(row.durReader, row.navReader),
-          this.renderCell(row.deltaDispatch, row.navDispatch),
-          this.renderCell(row.deltaReceive, row.navReceive),
-          this.renderCell(row.deltaConsume, row.navConsume),
-          this.renderCell(row.deltaFrame, row.navFrame),
-        ]),
-        emptyState: m(EmptyState, {
-          title: 'No input event selected',
-          description: 'Select an input event to see latency breakdown.',
-          icon: Icons.Android,
-        }),
+    return m(Grid, {
+      columns,
+      rowData: this.rows.map((row) => [
+        m(
+          GridCell,
+          {},
+          m(Checkbox, {
+            checked: this.visibleRowIds.has(row.uiRowId),
+            onchange: () => this.toggleVisibility(row.uiRowId),
+          }),
+        ),
+        m(
+          GridCell,
+          {},
+          m(Checkbox, {
+            checked: this.isRowPinned(row),
+            onchange: () => this.togglePinning(row),
+          }),
+        ),
+        m(GridCell, {}, row.channel),
+        m(
+          GridCell,
+          {},
+          row.totalLatency !== null
+            ? m(DurationWidget, {
+                dur: row.totalLatency,
+                trace: this.trace,
+              })
+            : '-',
+        ),
+        this.renderCell(row.durReader, row.navReader),
+        this.renderCell(row.deltaDispatch, row.navDispatch),
+        this.renderCell(row.deltaReceive, row.navReceive),
+        this.renderCell(row.deltaConsume, row.navConsume),
+        this.renderCell(row.deltaFrame, row.navFrame),
+      ]),
+      emptyState: m(EmptyState, {
+        title: 'No input event selected',
+        description: 'Select an input event to see latency breakdown.',
+        icon: Icons.Android,
       }),
-    );
+    });
   }
 
   private renderCell(dur: duration | null, nav?: NavTarget) {
