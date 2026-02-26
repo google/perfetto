@@ -331,14 +331,26 @@ i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
 base::StatusOr<FilterResult> QueryPlanBuilder::Filter(
     i::BytecodeBuilder& builder,
     IndicesReg input_indices,
-    const Dataframe& df,
+    uint32_t row_count,
+    const std::vector<std::shared_ptr<Column>>& columns,
+    const std::vector<Index>& indexes,
     RegisterCache& cache,
     std::vector<FilterSpec>& specs) {
-  QueryPlanBuilder plan_builder(builder, cache, input_indices, df.row_count_,
-                                df.columns_, df.indexes_);
+  QueryPlanBuilder plan_builder(builder, cache, input_indices, row_count,
+                                columns, indexes);
   RETURN_IF_ERROR(plan_builder.Filter(specs));
   return FilterResult{plan_builder.indices_reg_,
                       std::move(plan_builder.plan_.register_inits)};
+}
+
+base::StatusOr<FilterResult> QueryPlanBuilder::Filter(
+    i::BytecodeBuilder& builder,
+    IndicesReg input_indices,
+    const Dataframe& df,
+    RegisterCache& cache,
+    std::vector<FilterSpec>& specs) {
+  return Filter(builder, input_indices, df.row_count_, df.columns_, df.indexes_,
+                cache, specs);
 }
 
 base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {

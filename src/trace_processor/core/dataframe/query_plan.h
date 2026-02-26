@@ -269,7 +269,9 @@ class QueryPlanBuilder {
   // Parameters:
   //   builder: The BytecodeBuilder to emit bytecode into
   //   input_indices: Input indices to filter
-  //   df: The dataframe to filter
+  //   row_count: Number of rows in the data
+  //   columns: Column definitions
+  //   indexes: Index definitions
   //   cache: RegisterCache for column register caching
   //   specs: Filter specifications (may be reordered)
   //
@@ -277,6 +279,16 @@ class QueryPlanBuilder {
   //   - The filtered indices register
   //   - RegisterInit specs needed to initialize storage registers
   // Cost tracking is done internally and discarded at end of call.
+  static base::StatusOr<FilterResult> Filter(
+      interpreter::BytecodeBuilder& builder,
+      IndicesReg input_indices,
+      uint32_t row_count,
+      const std::vector<std::shared_ptr<Column>>& columns,
+      const std::vector<Index>& indexes,
+      RegisterCache& cache,
+      std::vector<FilterSpec>& specs);
+
+  // Convenience overload that extracts parameters from a Dataframe.
   static base::StatusOr<FilterResult> Filter(
       interpreter::BytecodeBuilder& builder,
       IndicesReg input_indices,
