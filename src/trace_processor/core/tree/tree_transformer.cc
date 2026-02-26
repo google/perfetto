@@ -274,8 +274,8 @@ void TreeTransformer::InitializeTreeStructure(uint32_t row_count) {
   dt_.emplace(*builder_, df_);
 
   // Allocate persistent scratch for parent and original_rows spans.
-  auto parent_scratch = builder_->AllocateScratch(kParentSlot, row_count);
-  auto orig_scratch = builder_->AllocateScratch(kOriginalRowsSlot, row_count);
+  auto parent_scratch = builder_->AllocateScratch(row_count);
+  auto orig_scratch = builder_->AllocateScratch(row_count);
 
   parent_span_ = parent_scratch.span;
   original_rows_span_ = orig_scratch.span;
@@ -293,12 +293,12 @@ void TreeTransformer::InitializeTreeStructure(uint32_t row_count) {
   // Allocate all scratch buffers once for reuse across FilterTree() calls.
   // This avoids emitting AllocateIndices bytecode for each filter operation.
   filter_scratch_ = FilterScratch{
-      builder_->AllocateScratch(kFilterScratch1Slot, row_count * 2),
-      builder_->AllocateScratch(kFilterScratch2Slot, row_count),
-      builder_->AllocateScratch(kP2CScratchSlot, row_count),
-      builder_->AllocateScratch(kP2COffsetsSlot, row_count + 1),
-      builder_->AllocateScratch(kP2CChildrenSlot, row_count),
-      builder_->AllocateScratch(kP2CRootsSlot, row_count),
+      builder_->AllocateScratch(row_count * 2),
+      builder_->AllocateScratch(row_count),
+      builder_->AllocateScratch(row_count),
+      builder_->AllocateScratch(row_count + 1),
+      builder_->AllocateScratch(row_count),
+      builder_->AllocateScratch(row_count),
   };
 }
 

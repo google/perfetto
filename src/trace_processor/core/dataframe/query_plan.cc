@@ -1291,7 +1291,7 @@ i::ReadHandle<i::CastFilterValueResult> QueryPlanBuilder::CastFilterValue(
 
 i::RwHandle<Span<uint32_t>> QueryPlanBuilder::GetOrCreateScratchSpanRegister(
     uint32_t size) {
-  auto scratch = builder_.GetOrCreateScratchRegisters(size);
+  auto scratch = builder_.GetOrCreateScratch(size);
   {
     using B = i::AllocateIndices;
     auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -1299,12 +1299,15 @@ i::RwHandle<Span<uint32_t>> QueryPlanBuilder::GetOrCreateScratchSpanRegister(
     bc.arg<B::dest_slab_register>() = scratch.slab;
     bc.arg<B::dest_span_register>() = scratch.span;
   }
-  builder_.MarkScratchInUse();
+  active_scratch_ = scratch;
   return scratch.span;
 }
 
 void QueryPlanBuilder::MaybeReleaseScratchSpanRegister() {
-  builder_.ReleaseScratch();
+  if (active_scratch_) {
+    builder_.ReleaseScratch(*active_scratch_);
+    active_scratch_.reset();
+  }
 }
 
 uint16_t QueryPlanBuilder::CalculateRowLayoutStride(

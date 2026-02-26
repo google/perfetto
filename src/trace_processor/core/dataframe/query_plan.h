@@ -523,6 +523,9 @@ class QueryPlanBuilder {
 
   // Cache for column/index registers across Filter() calls.
   RegisterCache& cache_;
+
+  // Currently active scratch registers (if any).
+  std::optional<interpreter::BytecodeBuilder::ScratchRegisters> active_scratch_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

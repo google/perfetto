@@ -42,10 +42,6 @@ namespace perfetto::trace_processor::core::dataframe {
 namespace {
 namespace i = interpreter;
 
-// Scratch slot used for filter bytecode within DataframeTransformer.
-// Starts at 20 to avoid collision with TreeTransformer::ScratchSlot (0-9).
-constexpr uint32_t kDtFilterBytecodeSlot = 20;
-
 }  // namespace
 
 DataframeTransformer::DataframeTransformer(i::BytecodeBuilder& builder,
@@ -82,8 +78,7 @@ base::StatusOr<i::RwHandle<BitVector>> DataframeTransformer::Filter(
   auto bv_reg = builder_.AllocateRegister<BitVector>();
   if (auto* range_ptr =
           std::get_if<i::RwHandle<Range>>(&filter_result.indices)) {
-    auto filter_scratch =
-        builder_.AllocateScratch(kDtFilterBytecodeSlot, max_row_count_);
+    auto filter_scratch = builder_.AllocateScratch(max_row_count_);
     {
       using Iota = i::Iota;
       auto& op = builder_.AddOpcode<Iota>(i::Index<Iota>());
@@ -97,7 +92,7 @@ base::StatusOr<i::RwHandle<BitVector>> DataframeTransformer::Filter(
       op.arg<SpanToBv::bitvector_size>() = max_row_count_;
       op.arg<SpanToBv::dest_register>() = bv_reg;
     }
-    builder_.ReleaseScratch(kDtFilterBytecodeSlot);
+    builder_.ReleaseScratch(filter_scratch);
   } else {
     auto span = std::get<i::RwHandle<Span<uint32_t>>>(filter_result.indices);
     auto& op = builder_.AddOpcode<i::IndexSpanToBitvector>(

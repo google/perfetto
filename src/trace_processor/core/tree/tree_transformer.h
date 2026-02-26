@@ -85,18 +85,6 @@ class TreeTransformer {
   base::StatusOr<dataframe::Dataframe> ToDataframe() &&;
 
  private:
-  // Scratch slot IDs for tree operations (following QueryPlanBuilder pattern).
-  enum ScratchSlot : uint32_t {
-    kParentSlot = 0,
-    kOriginalRowsSlot = 1,
-    kFilterScratch1Slot = 2,
-    kFilterScratch2Slot = 3,
-    kP2COffsetsSlot = 4,
-    kP2CChildrenSlot = 5,
-    kP2CRootsSlot = 6,
-    kP2CScratchSlot = 7,
-  };
-
   // Initializes tree structure on first FilterTree call.
   // Allocates persistent parent/original_rows spans, all scratch buffers,
   // and emits MakeChildToParentTreeStructure bytecode.

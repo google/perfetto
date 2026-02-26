@@ -55,55 +55,28 @@ class BytecodeBuilder {
 
   // === Scratch register management ===
   //
-  // These methods manage scratch register state for operations that need
-  // temporary storage. The caller is responsible for emitting the actual
-  // AllocateIndices opcode (this allows different cost tracking strategies).
-  //
-  // Multiple named scratch slots are supported via slot_id parameter.
-  // The default slot (used by single-argument methods) is slot 0.
+  // Scratch slots provide reusable temporary storage. The allocator
+  // dynamically finds the best-fit free slot (smallest slot with capacity
+  // >= requested size), or creates a new one if none is available.
 
-  // Result from GetOrCreateScratchRegisters.
+  // Result from AllocateScratch / GetOrCreateScratch.
   struct ScratchRegisters {
     RwHandle<Slab<uint32_t>> slab;
     RwHandle<Span<uint32_t>> span;
   };
 
-  // Gets or creates scratch registers of the given size in the specified slot.
-  // Multiple slots can coexist with different slot_ids.
-  // Does NOT emit AllocateIndices - caller must emit it separately.
-  ScratchRegisters GetOrCreateScratchRegisters(uint32_t slot_id, uint32_t size);
+  // Finds a free scratch slot with capacity >= |size| (best-fit) or creates
+  // a new one. Emits AllocateIndices bytecode and marks the slot in-use.
+  ScratchRegisters AllocateScratch(uint32_t size);
 
-  // Gets or creates scratch registers in the default slot (slot 0).
-  ScratchRegisters GetOrCreateScratchRegisters(uint32_t size) {
-    return GetOrCreateScratchRegisters(0, size);
-  }
+  // Finds a free scratch slot with capacity >= |size| (best-fit) or creates
+  // a new one. Does NOT emit AllocateIndices — caller must emit it.
+  // Marks the slot in-use.
+  ScratchRegisters GetOrCreateScratch(uint32_t size);
 
-  // Allocates scratch in the specified slot and emits AllocateIndices bytecode.
-  // This is the preferred method - combines register allocation + bytecode
-  // emission.
-  ScratchRegisters AllocateScratch(uint32_t slot_id, uint32_t size);
-
-  // Marks the specified scratch slot as being in use.
-  void MarkScratchInUse(uint32_t slot_id);
-
-  // Marks the default scratch slot (slot 0) as being in use.
-  void MarkScratchInUse() { MarkScratchInUse(0); }
-
-  // Releases the specified scratch slot so it can be reused.
-  void ReleaseScratch(uint32_t slot_id);
-
-  // Releases the default scratch slot (slot 0).
-  void ReleaseScratch() { ReleaseScratch(0); }
-
-  // Returns true if the specified scratch slot is currently in use.
-  bool IsScratchInUse(uint32_t slot_id) const {
-    return slot_id < scratch_slots_.size() &&
-           scratch_slots_[slot_id].has_value() &&
-           scratch_slots_[slot_id]->in_use;
-  }
-
-  // Returns true if the default scratch slot (slot 0) is currently in use.
-  bool IsScratchInUse() const { return IsScratchInUse(0); }
+  // Releases a scratch slot so it can be reused by future AllocateScratch
+  // calls. Identified by matching slab/span registers.
+  void ReleaseScratch(ScratchRegisters scratch);
 
   // === Opcode emission ===
 
@@ -126,18 +99,22 @@ class BytecodeBuilder {
 
  private:
   // Scratch indices state.
-  struct ScratchIndices {
+  struct ScratchSlot {
     uint32_t size;
     RwHandle<Slab<uint32_t>> slab;
     RwHandle<Span<uint32_t>> span;
     bool in_use = false;
   };
 
+  // Finds the best-fit free slot (smallest with capacity >= size), or
+  // returns nullptr if none exists.
+  ScratchSlot* FindBestFitFreeSlot(uint32_t size);
+
   BytecodeVector bytecode_;
   uint32_t register_count_ = 0;
 
-  // Scratch management - multiple slots indexed by slot_id
-  std::vector<std::optional<ScratchIndices>> scratch_slots_;
+  // Scratch management - dynamically allocated slots.
+  std::vector<ScratchSlot> scratch_slots_;
 };
 
 }  // namespace perfetto::trace_processor::core::interpreter
