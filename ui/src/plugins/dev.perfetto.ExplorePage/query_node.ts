@@ -133,6 +133,10 @@ export interface QueryNodeState {
   // Actions that can be performed on the parent graph
   actions?: NodeActions;
 
+  // Returns the materialized table name for a given node ID.
+  // Set by the parent component using the QueryExecutionService.
+  getTableNameForNode?: (nodeId: string) => Promise<string | undefined>;
+
   // Caching
   hasOperationChanged?: boolean;
 

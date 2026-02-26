@@ -227,9 +227,10 @@ export function registerCoreNodes() {
       };
       return new AddColumnsNode(fullState);
     },
-    deserialize: (state, _trace, sqlModules) =>
+    deserialize: (state, trace, sqlModules) =>
       new AddColumnsNode(
         AddColumnsNode.deserializeState(
+          trace,
           sqlModules,
           state as AddColumnsNodeState,
         ),
