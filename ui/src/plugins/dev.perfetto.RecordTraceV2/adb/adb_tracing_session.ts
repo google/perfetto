@@ -18,19 +18,38 @@ import {TracingProtocol} from '../tracing_protocol/tracing_protocol';
 import {errResult, okResult, Result} from '../../../base/result';
 import {exists} from '../../../base/utils';
 import {ConsumerIpcTracingSession} from '../tracing_protocol/consumer_ipc_tracing_session';
+import {TracingSession} from '../interfaces/tracing_session';
+import {LongTraceTracingSession} from '../tracing_protocol/long_trace_tracing_session';
+import {AdbFileRetriever} from './adb_file_retriever';
 
 export const CONSUMER_SOCKET = '/dev/socket/traced_consumer';
+const TRACE_OUTPUT_DIR = '/data/misc/perfetto-traces';
 
 export async function createAdbTracingSession(
   adbDevice: AdbDevice,
   traceConfig: protos.ITraceConfig,
-): Promise<Result<ConsumerIpcTracingSession>> {
+  fileHandle?: FileSystemFileHandle,
+): Promise<Result<TracingSession>> {
   const streamStatus = await adbDevice.createStream(
     `localfilesystem:${CONSUMER_SOCKET}`,
   );
   if (!streamStatus.ok) return streamStatus;
   const stream = streamStatus.value;
   const consumerIpc = await TracingProtocol.create(stream);
+
+  if (traceConfig.writeIntoFile && fileHandle !== undefined) {
+    const outputPath = `${TRACE_OUTPUT_DIR}/perfetto-ui-${Date.now()}.pftrace`;
+    const fileRetriever = new AdbFileRetriever(adbDevice);
+    const session = new LongTraceTracingSession(
+      consumerIpc,
+      traceConfig,
+      outputPath,
+      fileRetriever,
+      fileHandle,
+    );
+    return okResult(session);
+  }
+
   const session = new ConsumerIpcTracingSession(consumerIpc, traceConfig);
   return okResult(session);
 }

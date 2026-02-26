@@ -29,18 +29,29 @@ export interface TracingSession {
   /** Stop tracing and discard the data. */
   cancel(): Promise<void>;
 
-  /* Returns the percentage of the trace buffer that is currently used */
-  getBufferUsagePct(): Promise<number | undefined>;
+  /** Returns progress info about the ongoing recording. */
+  getRecordingProgress(): Promise<RecordingProgress | undefined>;
 
-  /** Returns the trace file captured once state === 'FINISHED'. */
-  getTraceData(): Uint8Array | undefined;
+  /** Returns the trace data once state === 'FINISHED'. */
+  getTraceData(): TraceData | undefined;
 }
+
+/** The result of a completed tracing session. */
+export type TraceData =
+  | {kind: 'BUFFER'; data: Uint8Array}
+  | {kind: 'FILE'; file: File; outputPath: string};
 
 export type TracingSessionState =
   | 'RECORDING'
   | 'STOPPING'
+  | 'PULLING'
   | 'FINISHED'
   | 'ERRORED';
+
+/** Progress info for a recording session. */
+export type RecordingProgress =
+  | {kind: 'BUFFER_USAGE'; pct: number}
+  | {kind: 'TOTAL_WRITTEN'; bytes: number};
 
 export interface TracingSessionLogEntry {
   readonly timestamp: Date;
