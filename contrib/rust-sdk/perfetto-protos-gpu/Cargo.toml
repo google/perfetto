@@ -1,8 +1,8 @@
 [package]
 edition = "2024"
 name = "perfetto-sdk-protos-gpu"
-version = "0.2.0"
-authors = ["David Reveman <dreveman@gmail.com>"]
+version = "0.2.1"
+authors = ["David Reveman <reveman@meta.com>"]
 description = "Extra protobuf bindings for GPU events"
 readme = "README.md"
 keywords = [

@@ -18,10 +18,15 @@ import {
   STR_NULL,
   QueryResult,
 } from '../../../trace_processor/query_result';
-import {createChartLoader, ChartLoader, inFilter} from './chart_sql_source';
-import {AggregateFunction} from '../datagrid/model';
+import {
+  ChartSource,
+  SQLChartLoader,
+  QueryConfig,
+  ChartLoaderResult,
+  inFilter,
+} from './chart_sql_source';
+import {ChartAggregation} from './chart_utils';
 import {TreemapData, TreemapNode} from './treemap';
-import type {QueryResult as SlotResult} from '../../../base/query_slot';
 
 /**
  * Configuration for SQLTreemapLoader.
@@ -54,7 +59,7 @@ export interface SQLTreemapLoaderOpts {
  */
 export interface TreemapLoaderConfig {
   /** Aggregation function to apply to the size column. Defaults to 'SUM'. */
-  readonly aggregation?: AggregateFunction;
+  readonly aggregation?: ChartAggregation;
 
   /**
    * Maximum number of leaf nodes to return per group.
@@ -70,117 +75,111 @@ export interface TreemapLoaderConfig {
 }
 
 /** Result returned by the treemap loader. */
-export type TreemapLoaderResult = SlotResult<TreemapData>;
+export type TreemapLoaderResult = ChartLoaderResult<TreemapData>;
 
 /**
  * SQL-based treemap loader with async loading and caching.
  *
  * Creates 1 or 2 level hierarchy from SQL data. When groupColumn is
  * provided, creates parent nodes for each group with children for labels.
+ * Uses QuerySlot for caching and request deduplication.
  */
-export class SQLTreemapLoader {
-  private readonly loader: ChartLoader<TreemapLoaderConfig, TreemapData>;
+export class SQLTreemapLoader extends SQLChartLoader<
+  TreemapLoaderConfig,
+  TreemapData
+> {
+  private readonly labelColumn: string;
+  private readonly sizeColumn: string;
+  private readonly groupColumn: string | undefined;
 
   constructor(opts: SQLTreemapLoaderOpts) {
-    const labelCol = opts.labelColumn;
-    const sizeCol = opts.sizeColumn;
-    const groupCol = opts.groupColumn;
-
     const schema: Record<string, 'text' | 'real'> = {
-      [labelCol]: 'text',
-      [sizeCol]: 'real',
+      [opts.labelColumn]: 'text',
+      [opts.sizeColumn]: 'real',
     };
-    if (groupCol !== undefined) {
-      schema[groupCol] = 'text';
+    if (opts.groupColumn !== undefined) {
+      schema[opts.groupColumn] = 'text';
+    }
+    super(opts.engine, new ChartSource({query: opts.query, schema}));
+    this.labelColumn = opts.labelColumn;
+    this.sizeColumn = opts.sizeColumn;
+    this.groupColumn = opts.groupColumn;
+  }
+
+  protected buildQueryConfig(config: TreemapLoaderConfig): QueryConfig {
+    const aggregation = config.aggregation ?? 'SUM';
+    const dimensions =
+      this.groupColumn !== undefined
+        ? [
+            {column: this.groupColumn, alias: '_group'},
+            {column: this.labelColumn, alias: '_label'},
+          ]
+        : [{column: this.labelColumn, alias: '_label'}];
+
+    const filters = [
+      ...inFilter(this.labelColumn, config.labelFilter),
+      ...(this.groupColumn !== undefined
+        ? inFilter(this.groupColumn, config.groupFilter)
+        : []),
+    ];
+
+    return {
+      type: 'aggregated',
+      dimensions,
+      measures: [{column: this.sizeColumn, aggregation}],
+      filters,
+      limitPerGroup: this.groupColumn !== undefined ? config.limit : undefined,
+      limit: this.groupColumn === undefined ? config.limit : undefined,
+      orderDirection: 'desc',
+    };
+  }
+
+  protected parseResult(queryResult: QueryResult): TreemapData {
+    if (this.groupColumn !== undefined) {
+      return this.parseGrouped(queryResult);
+    }
+    return this.parseFlat(queryResult);
+  }
+
+  private parseGrouped(queryResult: QueryResult): TreemapData {
+    const groupMap = new Map<string, TreemapNode[]>();
+    const iter = queryResult.iter({
+      _group: STR_NULL,
+      _label: STR_NULL,
+      _value: NUM,
+    });
+
+    for (; iter.valid(); iter.next()) {
+      const groupName = iter._group ?? '(uncategorized)';
+      const labelName = iter._label ?? '(null)';
+
+      let children = groupMap.get(groupName);
+      if (children === undefined) {
+        children = [];
+        groupMap.set(groupName, children);
+      }
+      children.push({name: labelName, value: iter._value, category: groupName});
     }
 
-    this.loader = createChartLoader({
-      engine: opts.engine,
-      query: opts.query,
-      schema,
-      buildQueryConfig: (config) => {
-        const aggregation = config.aggregation ?? 'SUM';
-        const dimensions =
-          groupCol !== undefined
-            ? [
-                {column: groupCol, alias: '_group'},
-                {column: labelCol, alias: '_label'},
-              ]
-            : [{column: labelCol, alias: '_label'}];
-
-        const filters = [
-          ...inFilter(labelCol, config.labelFilter),
-          ...(groupCol !== undefined
-            ? inFilter(groupCol, config.groupFilter)
-            : []),
-        ];
-
-        return {
-          type: 'aggregated',
-          dimensions,
-          measures: [{column: sizeCol, aggregation}],
-          filters,
-          limitPerGroup: groupCol !== undefined ? config.limit : undefined,
-          limit: groupCol === undefined ? config.limit : undefined,
-          orderDirection: 'desc',
-        };
-      },
-      parseResult: (queryResult: QueryResult) => {
-        if (groupCol !== undefined) {
-          return parseGrouped(queryResult);
-        }
-        return parseFlat(queryResult);
-      },
-    });
-  }
-
-  use(config: TreemapLoaderConfig): TreemapLoaderResult {
-    return this.loader.use(config);
-  }
-
-  dispose(): void {
-    this.loader.dispose();
-  }
-}
-
-function parseGrouped(queryResult: QueryResult): TreemapData {
-  const groupMap = new Map<string, TreemapNode[]>();
-  const iter = queryResult.iter({
-    _group: STR_NULL,
-    _label: STR_NULL,
-    _value: NUM,
-  });
-
-  for (; iter.valid(); iter.next()) {
-    const groupName = iter._group ?? '(uncategorized)';
-    const labelName = iter._label ?? '(null)';
-
-    let children = groupMap.get(groupName);
-    if (children === undefined) {
-      children = [];
-      groupMap.set(groupName, children);
+    const nodes: TreemapNode[] = [];
+    for (const [groupName, children] of groupMap) {
+      nodes.push({
+        name: groupName,
+        value: children.reduce((sum, c) => sum + c.value, 0),
+        category: groupName,
+        children,
+      });
     }
-    children.push({name: labelName, value: iter._value, category: groupName});
+    return {nodes};
   }
 
-  const nodes: TreemapNode[] = [];
-  for (const [groupName, children] of groupMap) {
-    nodes.push({
-      name: groupName,
-      value: children.reduce((sum, c) => sum + c.value, 0),
-      category: groupName,
-      children,
-    });
-  }
-  return {nodes};
-}
+  private parseFlat(queryResult: QueryResult): TreemapData {
+    const nodes: TreemapNode[] = [];
+    const iter = queryResult.iter({_label: STR_NULL, _value: NUM});
 
-function parseFlat(queryResult: QueryResult): TreemapData {
-  const nodes: TreemapNode[] = [];
-  const iter = queryResult.iter({_label: STR_NULL, _value: NUM});
-
-  for (; iter.valid(); iter.next()) {
-    nodes.push({name: iter._label ?? '(null)', value: iter._value});
+    for (; iter.valid(); iter.next()) {
+      nodes.push({name: iter._label ?? '(null)', value: iter._value});
+    }
+    return {nodes};
   }
-  return {nodes};
 }

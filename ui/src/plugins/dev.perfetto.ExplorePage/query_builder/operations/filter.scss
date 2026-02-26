@@ -58,7 +58,7 @@
 // Enabled count indicator
 .pf-filter-enabled-count {
   font-size: 11px;
-  color: #9e9e9e;
+  color: var(--pf-color-text-muted);
   margin-bottom: 4px;
   margin-top: 4px;
 }
@@ -90,6 +90,21 @@
   }
 }
 
+// Filter summary for nodeDetails (simple text)
+.pf-filter-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-secondary);
+
+  &__line {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+  }
+}
+
 // Filter container base
 .pf-filter-container {
   max-width: 250px;
@@ -101,7 +116,7 @@
 .pf-filter-and-header {
   margin-bottom: 8px;
   font-size: 11px;
-  color: #616161;
+  color: var(--pf-color-text-secondary);
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -117,6 +132,46 @@
   font-size: var(--pf-font-size-xs);
   font-weight: 500;
   text-transform: uppercase;
+
+  &--small {
+    padding: 1px 4px;
+    font-size: 9px;
+  }
+}
+
+// Grouped filter container
+.pf-filter-container--grouped {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+// Individual filter group (one column)
+.pf-filter-group {
+  background-color: var(--pf-color-background-secondary);
+  border-radius: 6px;
+  padding: 6px 8px;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  &__column {
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    color: var(--pf-color-text-secondary);
+  }
+}
+
+// AND connector between groups
+.pf-filter-group-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 0;
 }
 
 // OR group container for nodeDetails and nodeSpecificModify
@@ -124,12 +179,9 @@
   display: flex;
   gap: 8px;
   padding: 12px;
-  border: 2px solid var(--primary-color, #4a90e2);
+  border: 2px solid var(--pf-color-primary);
   border-radius: 8px;
-  background-color: var(
-    --primary-background-transparent,
-    rgba(74, 144, 226, 0.05)
-  );
+  background-color: color-mix(in srgb, var(--pf-color-primary) 5%, transparent);
   margin-top: 8px;
   margin-bottom: 8px;
 
@@ -141,7 +193,7 @@
 .pf-or-group-label {
   font-weight: bold;
   font-size: var(--pf-font-size-m);
-  color: var(--primary-color, #4a90e2);
+  color: var(--pf-color-primary);
   min-width: 30px;
   display: flex;
   align-items: center;
@@ -167,7 +219,7 @@
 
 // Filters container with separator
 .pf-filters-container {
-  border-top: 1px solid var(--stroke-color, #e0e0e0);
+  border-top: 1px solid var(--pf-color-border);
   padding-top: 12px;
   margin-top: 12px;
 }
@@ -194,11 +246,11 @@
 .pf-exp-filter-mode-help {
   margin-bottom: 16px;
   padding: 8px 12px;
-  background-color: rgba(74, 144, 226, 0.08);
-  border-left: 3px solid var(--primary-color, #4a90e2);
+  background-color: color-mix(in srgb, var(--pf-color-primary) 8%, transparent);
+  border-left: 3px solid var(--pf-color-primary);
   border-radius: 4px;
   font-size: 13px;
-  color: var(--text-primary, #333);
+  color: var(--pf-color-text);
   line-height: 1.4;
 }
 

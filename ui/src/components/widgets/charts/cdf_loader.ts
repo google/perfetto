@@ -15,8 +15,13 @@
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, STR, QueryResult} from '../../../trace_processor/query_result';
 import {LineChartData} from './line_chart';
-import {createChartLoader, ChartLoader, rangeFilters} from './chart_sql_source';
-import type {QueryResult as SlotResult} from '../../../base/query_slot';
+import {
+  ChartSource,
+  SQLChartLoader,
+  QueryConfig,
+  ChartLoaderResult,
+  rangeFilters,
+} from './chart_sql_source';
 
 /**
  * Configuration for CDF loaders.
@@ -55,6 +60,9 @@ export interface SQLCdfLoaderOpts {
   readonly seriesColumn?: string;
 }
 
+/** Result returned by the CDF loader. */
+export type CdfLoaderResult = ChartLoaderResult<LineChartData>;
+
 /**
  * SQL-based CDF (Cumulative Distribution Function) loader.
  *
@@ -64,8 +72,12 @@ export interface SQLCdfLoaderOpts {
  *
  * Each point has x = value, y = cumulative percentage (0-100).
  */
-export class SQLCdfLoader {
-  private readonly loader: ChartLoader<CdfLoaderConfig, LineChartData>;
+export class SQLCdfLoader extends SQLChartLoader<
+  CdfLoaderConfig,
+  LineChartData
+> {
+  private readonly valCol: string;
+  private readonly seriesCol: string | undefined;
 
   constructor(opts: SQLCdfLoaderOpts) {
     const valCol = opts.valueColumn;
@@ -78,30 +90,27 @@ export class SQLCdfLoader {
       schema[seriesCol] = 'text';
     }
 
-    this.loader = createChartLoader({
-      engine: opts.engine,
-      query: opts.query,
-      schema,
-      buildQueryConfig: (config) => ({
-        type: 'points',
-        columns: [{column: valCol, alias: '_x', cast: 'real' as const}],
-        breakdown: seriesCol,
-        filters: rangeFilters(valCol, config.filter),
-        orderBy: [{column: '_x', direction: 'asc'}],
-        maxPointsPerSeries: config.maxPoints ?? 500,
-      }),
-      parseResult: (queryResult: QueryResult) => {
-        return parseCdfResult(queryResult, seriesCol !== undefined);
-      },
-    });
+    super(opts.engine, new ChartSource({query: opts.query, schema}));
+    this.valCol = valCol;
+    this.seriesCol = seriesCol;
   }
 
-  use(config: CdfLoaderConfig): SlotResult<LineChartData> {
-    return this.loader.use(config);
+  protected buildQueryConfig(config: CdfLoaderConfig): QueryConfig {
+    return {
+      type: 'points',
+      columns: [{column: this.valCol, alias: '_x', cast: 'real' as const}],
+      breakdown: this.seriesCol,
+      filters: rangeFilters(this.valCol, config.filter),
+      orderBy: [{column: '_x', direction: 'asc'}],
+      maxPointsPerSeries: config.maxPoints ?? 500,
+    };
   }
 
-  dispose(): void {
-    this.loader.dispose();
+  protected parseResult(
+    queryResult: QueryResult,
+    _config: CdfLoaderConfig,
+  ): LineChartData {
+    return parseCdfResult(queryResult, this.seriesCol !== undefined);
   }
 }
 

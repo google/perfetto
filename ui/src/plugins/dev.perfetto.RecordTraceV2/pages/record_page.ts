@@ -198,7 +198,15 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
         this.renderMenuEntry(pages.get('cmdline')),
       ),
       m('header', 'Recording settings'),
-      m('ul', this.renderMenuEntry(pages.get('config'))),
+      m(
+        'ul',
+        {
+          className: this.recMgr.hasCustomTraceConfig
+            ? 'pf-probes-disabled'
+            : '',
+        },
+        this.renderMenuEntry(pages.get('config')),
+      ),
       m(
         'header',
         'Probes',

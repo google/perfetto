@@ -82,7 +82,10 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
   view({attrs}: m.CVnode<RecMgrAttrs>) {
     const recMgr = attrs.recMgr;
 
-    if (!recMgr.recordConfig.hasActiveProbes()) {
+    if (
+      !recMgr.hasCustomTraceConfig &&
+      !recMgr.recordConfig.hasActiveProbes()
+    ) {
       return m(
         '.note',
         "It looks like you didn't select any data source. ",

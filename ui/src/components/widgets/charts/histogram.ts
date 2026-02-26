@@ -105,16 +105,17 @@ export class Histogram implements m.ClassComponent<HistogramAttrs> {
   view({attrs}: m.Vnode<HistogramAttrs>) {
     const {data, height, fillParent, className, onBrush} = attrs;
 
-    const isEmpty = data !== undefined && data.buckets.length === 0;
-    const option =
-      data !== undefined && !isEmpty ? buildOption(attrs, data) : undefined;
+    const nullCount = data?.nullCount ?? 0;
+    const hasData =
+      data !== undefined && (data.buckets.length > 0 || nullCount > 0);
+    const option = hasData ? buildOption(attrs, data) : undefined;
 
     return m(EChartView, {
       option,
       height,
       fillParent,
       className,
-      empty: isEmpty,
+      empty: data !== undefined && !hasData,
       eventHandlers: buildEventHandlers(attrs, data),
       activeBrushType: onBrush !== undefined ? 'lineX' : undefined,
     });
@@ -135,9 +136,19 @@ function buildOption(
     logScale = false,
   } = attrs;
   const fmtY = formatYValue ?? formatNumber;
+  const nullCount = data.nullCount ?? 0;
+  const totalWithNull = data.totalCount + nullCount;
 
   const theme = getChartThemeColors();
   const categories = data.buckets.map((b) => formatXValue(b.start));
+  const seriesData: number[] = data.buckets.map((b) => b.count);
+  const bucketCount = data.buckets.length;
+
+  // Append NULL bar when there are null values
+  if (nullCount > 0) {
+    categories.push('NULL');
+    seriesData.push(nullCount);
+  }
 
   const option = buildChartOption({
     grid: {bottom: xAxisLabel ? 40 : 25},
@@ -161,13 +172,24 @@ function buildOption(
       formatter: (params: Array<{dataIndex?: number}>) => {
         const p = Array.isArray(params) ? params[0] : params;
         const idx = p?.dataIndex;
-        if (idx === undefined || idx < 0 || idx >= data.buckets.length) {
+        if (idx === undefined || idx < 0 || idx >= categories.length) {
           return '';
         }
+
+        // NULL bar
+        if (idx >= bucketCount) {
+          const pct =
+            totalWithNull > 0
+              ? ((nullCount / totalWithNull) * 100).toFixed(1)
+              : '0';
+          return [`NULL`, `Count: ${fmtY(nullCount)}`, `${pct}%`].join('<br>');
+        }
+
+        // Regular bucket
         const bucket = data.buckets[idx];
         const pct =
-          data.totalCount > 0
-            ? ((bucket.count / data.totalCount) * 100).toFixed(1)
+          totalWithNull > 0
+            ? ((bucket.count / totalWithNull) * 100).toFixed(1)
             : '0';
         return [
           `Range: ${formatXValue(bucket.start)} - ${formatXValue(bucket.end)}`,
@@ -183,7 +205,7 @@ function buildOption(
   (option as Record<string, unknown>).series = [
     {
       type: 'bar',
-      data: data.buckets.map((b) => b.count),
+      data: seriesData,
       barWidth: '100%',
       barCategoryGap: '0%',
       itemStyle: barColor !== undefined ? {color: barColor} : undefined,

@@ -2366,4 +2366,14 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
 TraceProcessorShell_PlatformInterface::
     ~TraceProcessorShell_PlatformInterface() = default;
 
+int PERFETTO_EXPORT_ENTRYPOINT TraceProcessorShellMain(int argc, char** argv) {
+  auto shell = TraceProcessorShell::CreateWithDefaultPlatform();
+  auto status = shell->Run(argc, argv);
+  if (!status.ok()) {
+    fprintf(stderr, "%s\n", status.c_message());
+    return 1;
+  }
+  return 0;
+}
+
 }  // namespace perfetto::trace_processor

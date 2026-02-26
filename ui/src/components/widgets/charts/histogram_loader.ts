@@ -14,8 +14,13 @@
 
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, QueryResult} from '../../../trace_processor/query_result';
-import {createChartLoader, ChartLoader, rangeFilters} from './chart_sql_source';
-import type {QueryResult as SlotResult} from '../../../base/query_slot';
+import {
+  ChartSource,
+  SQLChartLoader,
+  QueryConfig,
+  ChartLoaderResult,
+  rangeFilters,
+} from './chart_sql_source';
 
 /**
  * A single bucket in the histogram.
@@ -45,6 +50,8 @@ export interface HistogramData {
   readonly nullCount: number;
   /** Count of non-numeric values (excluded from histogram) */
   readonly nonNumericCount: number;
+  /** Whether the data is integer-valued (affects tick formatting) */
+  readonly isInteger?: boolean;
 }
 
 /**
@@ -226,7 +233,7 @@ export interface HistogramLoaderConfig {
 }
 
 /** Result returned by histogram loaders. */
-export type HistogramLoaderResult = SlotResult<HistogramData>;
+export type HistogramLoaderResult = ChartLoaderResult<HistogramData>;
 
 /**
  * Loader interface for histogram data.
@@ -259,7 +266,7 @@ export class InMemoryHistogramLoader implements HistogramLoader {
 
     // Return cached result if config unchanged
     if (this.cachedConfig === configKey && this.cachedData !== undefined) {
-      return {data: this.cachedData, isPending: false, isFresh: true};
+      return {data: this.cachedData, isPending: false};
     }
 
     // Apply filter if provided, snapping bounds for integer data
@@ -289,7 +296,7 @@ export class InMemoryHistogramLoader implements HistogramLoader {
     this.cachedConfig = configKey;
     this.cachedData = data;
 
-    return {data, isPending: false, isFresh: true};
+    return {data, isPending: false};
   }
 
   dispose(): void {
@@ -320,101 +327,110 @@ const DEFAULT_BUCKET_COUNT = 20;
  * Performs histogram aggregation directly in SQL for efficiency with large
  * datasets.
  */
-export class SQLHistogramLoader implements HistogramLoader {
-  private readonly loader: ChartLoader<HistogramLoaderConfig, HistogramData>;
+export class SQLHistogramLoader
+  extends SQLChartLoader<HistogramLoaderConfig, HistogramData>
+  implements HistogramLoader
+{
+  private readonly valCol: string;
 
   constructor(opts: SQLHistogramLoaderOpts) {
-    const valCol = opts.valueColumn;
+    super(
+      opts.engine,
+      new ChartSource({
+        query: opts.query,
+        schema: {[opts.valueColumn]: 'real'},
+      }),
+    );
+    this.valCol = opts.valueColumn;
+  }
 
-    this.loader = createChartLoader({
-      engine: opts.engine,
-      query: opts.query,
-      schema: {[valCol]: 'real'},
-      buildQueryConfig: (config) => {
-        const bucketCount = config.bucketCount ?? DEFAULT_BUCKET_COUNT;
+  protected buildQueryConfig(config: HistogramLoaderConfig): QueryConfig {
+    const bucketCount = config.bucketCount ?? DEFAULT_BUCKET_COUNT;
 
-        // Snap filter bounds for integer data
-        const filter = config.filter
-          ? config.integer
-            ? {
-                min: Math.floor(config.filter.min),
-                max: Math.ceil(config.filter.max),
-              }
-            : config.filter
-          : undefined;
+    // Snap filter bounds for integer data
+    const filter =
+      config.filter !== undefined
+        ? config.integer === true
+          ? {
+              min: Math.floor(config.filter.min),
+              max: Math.ceil(config.filter.max),
+            }
+          : config.filter
+        : undefined;
 
-        return {
-          type: 'histogram',
-          valueColumn: valCol,
-          bucketCount,
-          filters: rangeFilters(valCol, filter),
-        };
-      },
-      parseResult: (queryResult: QueryResult, config) => {
-        const bucketCount = config.bucketCount ?? DEFAULT_BUCKET_COUNT;
+    return {
+      type: 'histogram',
+      valueColumn: this.valCol,
+      bucketCount,
+      filters: rangeFilters(this.valCol, filter),
+    };
+  }
 
-        let min = 0;
-        let max = 0;
-        let totalCount = 0;
-        const bucketCounts = new Map<number, number>();
+  protected parseResult(
+    queryResult: QueryResult,
+    config: HistogramLoaderConfig,
+  ): HistogramData {
+    const bucketCount = config.bucketCount ?? DEFAULT_BUCKET_COUNT;
 
-        const iter = queryResult.iter({
-          _min: NUM,
-          _max: NUM,
-          _total: NUM,
-          _bucket_idx: NUM,
-          _count: NUM,
-        });
-        for (; iter.valid(); iter.next()) {
-          min = iter._min;
-          max = iter._max;
-          totalCount = iter._total;
-          bucketCounts.set(iter._bucket_idx, iter._count);
-        }
+    let min = 0;
+    let max = 0;
+    let totalCount = 0;
+    const bucketCounts = new Map<number, number>();
 
-        if (totalCount === 0) {
-          return {
-            buckets: [],
-            min: 0,
-            max: 0,
-            totalCount: 0,
-            nullCount: 0,
-            nonNumericCount: 0,
-          };
-        }
-
-        // Build bucket array (including empty buckets)
-        let bucketSize = (max - min) / bucketCount;
-        if (config.integer) {
-          bucketSize = Math.max(1, Math.ceil(bucketSize));
-        }
-        const buckets: HistogramBucket[] = [];
-        for (let i = 0; i < bucketCount; i++) {
-          buckets.push({
-            start: min + i * bucketSize,
-            end: min + (i + 1) * bucketSize,
-            count: bucketCounts.get(i) ?? 0,
-          });
-        }
-
-        return {
-          buckets,
-          min,
-          max,
-          totalCount,
-          nullCount: 0,
-          nonNumericCount: 0,
-        };
-      },
-      extraCacheKey: (config) => ({integer: config.integer}),
+    const iter = queryResult.iter({
+      _min: NUM,
+      _max: NUM,
+      _total: NUM,
+      _bucket_idx: NUM,
+      _count: NUM,
     });
+    for (; iter.valid(); iter.next()) {
+      min = iter._min;
+      max = iter._max;
+      totalCount = iter._total;
+      bucketCounts.set(iter._bucket_idx, iter._count);
+    }
+
+    if (totalCount === 0) {
+      return {
+        buckets: [],
+        min: 0,
+        max: 0,
+        totalCount: 0,
+        nullCount: 0,
+        nonNumericCount: 0,
+        isInteger: config.integer,
+      };
+    }
+
+    // Build bucket array (including empty buckets)
+    let bucketSize = (max - min) / bucketCount;
+    if (config.integer === true) {
+      bucketSize = Math.max(1, Math.ceil(bucketSize));
+    }
+    const buckets: HistogramBucket[] = [];
+    for (let i = 0; i < bucketCount; i++) {
+      buckets.push({
+        start: min + i * bucketSize,
+        end: min + (i + 1) * bucketSize,
+        count: bucketCounts.get(i) ?? 0,
+      });
+    }
+
+    return {
+      buckets,
+      min,
+      max,
+      totalCount,
+      nullCount: 0,
+      nonNumericCount: 0,
+      isInteger: config.integer,
+    };
   }
 
-  use(config: HistogramLoaderConfig): HistogramLoaderResult {
-    return this.loader.use(config);
-  }
-
-  dispose(): void {
-    this.loader.dispose();
+  protected override extraCacheKey(
+    config: HistogramLoaderConfig,
+  ): Record<string, string | number | boolean | undefined> {
+    return {integer: config.integer};
   }
 }

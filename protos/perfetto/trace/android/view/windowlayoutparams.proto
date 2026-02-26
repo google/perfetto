@@ -93,6 +93,9 @@ message WindowLayoutParamsProto {
            "android.view.WindowInsets.Type.InsetsType"];
   repeated InsetsFrameProviderProto provided_insets = 35;
   repeated WindowLayoutParamsProto params_for_rotation = 36;
+  optional uint32 rendering_hints = 37
+      [(.perfetto.protos.typedef) =
+           "android.view.WindowManager.LayoutParams.RenderingHints"];
 }
 
 /* represents InsetsFrameProvider */
