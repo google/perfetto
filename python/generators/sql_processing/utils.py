@@ -21,6 +21,7 @@ def is_internal(name: str) -> bool:
   """Check if a name represents an internal artifact (starts with _)."""
   return re.match(r'^_.*', name, re.IGNORECASE) is not None
 
+
 PKG_COMMON = "common"
 PKG_VIZ = "viz"
 PKG_CHROME = "chrome"
@@ -272,6 +273,7 @@ def check_banned_include_all(sql: str) -> List[str]:
         "Import specific modules instead.")
   return errors
 
+
 # Validates a parsed SQL module for banned words, valid includes and deprecated patterns.
 def check_banned_patterns(parsed, sql: str) -> List[str]:
   errors = []
@@ -299,8 +301,7 @@ def check_banned_patterns(parsed, sql: str) -> List[str]:
 
     if package != PKG_VIZ and include_package == PKG_VIZ:
       errors.append(
-          f"No modules can depend on '{PKG_VIZ}' outside '{PKG_VIZ}' package."
-      )
+          f"No modules can depend on '{PKG_VIZ}' outside '{PKG_VIZ}' package.")
 
     if package == PKG_CHROME and include_package == PKG_ANDROID:
       errors.append(
