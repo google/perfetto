@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import protos from '../../protos';
 import {assertFalse, assertTrue} from '../../base/assert';
+import {defer} from '../../base/deferred';
 import {errResult, okResult, Result} from '../../base/result';
 import {App} from '../../public/app';
 import {RecordSubpage} from './config/config_interfaces';
@@ -33,6 +35,8 @@ import {TracingSession} from './interfaces/tracing_session';
 import {uuidv4} from '../../base/uuid';
 import {Time, Timecode} from '../../base/time';
 import {base64Decode, base64Encode} from '../../base/string_utils';
+import {showModal} from '../../widgets/modal';
+import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 
 import {getPresetsForPlatform} from './presets';
 
@@ -171,13 +175,24 @@ export class RecordingManager {
     return this._customConfigFileName;
   }
 
-  async startTracing(): Promise<CurrentTracingSession> {
+  async startTracing(): Promise<CurrentTracingSession | undefined> {
+    const traceCfg = this.genTraceConfig();
+    let fileHandle: FileSystemFileHandle | undefined;
+
+    if (traceCfg.writeIntoFile) {
+      fileHandle = await showLongTraceConfirmation();
+      if (fileHandle === undefined) return undefined;
+    }
+
     if (this._tracingSession !== undefined) {
       this._tracingSession.session?.cancel();
       this._tracingSession = undefined;
     }
-    const traceCfg = this.genTraceConfig();
-    const wrappedSession = new CurrentTracingSession(this, traceCfg);
+    const wrappedSession = new CurrentTracingSession(
+      this,
+      traceCfg,
+      fileHandle,
+    );
     this._tracingSession = wrappedSession;
     return wrappedSession;
   }
@@ -361,6 +376,66 @@ export class RecordingManager {
   }
 }
 
+/**
+ * Shows a confirmation dialog for long trace mode and prompts the user
+ * to choose a save location. Returns the FileSystemFileHandle on success,
+ * or undefined if the user cancels.
+ */
+async function showLongTraceConfirmation(): Promise<
+  FileSystemFileHandle | undefined
+> {
+  const confirmed = defer<boolean>();
+  showModal({
+    title: 'Long trace mode',
+    icon: 'drive_file_move',
+    content: m(
+      MultiParagraphText,
+      m(TextParagraph, {
+        text:
+          'This recording uses long trace mode. The trace will be ' +
+          'written directly to a file on the target device, allowing ' +
+          'larger traces than in-memory recording.',
+      }),
+      m(TextParagraph, {text: 'What happens next:'}),
+      m(
+        'ol',
+        m('li', 'You choose a local file to save the trace to.'),
+        m('li', 'Recording begins on the target device.'),
+        m(
+          'li',
+          'When recording stops, the trace is pulled from the device ' +
+            'and streamed into the file you chose.',
+        ),
+      ),
+    ),
+    buttons: [
+      {text: 'Cancel', action: () => confirmed.resolve(false)},
+      {
+        text: 'Choose file and start',
+        primary: true,
+        action: () => confirmed.resolve(true),
+      },
+    ],
+    onClose: () => confirmed.resolve(false),
+  });
+  if (!(await confirmed)) return undefined;
+
+  try {
+    return await window.showSaveFilePicker({
+      suggestedName: `trace-${Date.now()}.pftrace`,
+      types: [
+        {
+          description: 'Perfetto trace',
+          accept: {'application/octet-stream': ['.pftrace']},
+        },
+      ],
+    });
+  } catch {
+    // User cancelled the file picker.
+    return undefined;
+  }
+}
+
 export class CurrentTracingSession {
   error?: string;
   session?: TracingSession;
@@ -371,7 +446,11 @@ export class CurrentTracingSession {
   private recMgr: RecordingManager;
   private autoOpenedTriggered = false;
 
-  constructor(recMgr: RecordingManager, traceCfg: protos.TraceConfig) {
+  constructor(
+    recMgr: RecordingManager,
+    traceCfg: protos.TraceConfig,
+    fileHandle?: FileSystemFileHandle,
+  ) {
     this.recMgr = recMgr;
     const now = new Date();
     const ymd = `${now.getFullYear()}${now.getMonth()}${now.getDay()}`;
@@ -387,11 +466,15 @@ export class CurrentTracingSession {
       this.fileName += '.gz';
       this.isCompressed = true;
     }
-    this.start(traceCfg, recMgr.currentTarget);
+    this.start(traceCfg, recMgr.currentTarget, fileHandle);
   }
 
-  async start(traceCfg: protos.TraceConfig, target: RecordingTarget) {
-    const res = await target.startTracing(traceCfg);
+  async start(
+    traceCfg: protos.TraceConfig,
+    target: RecordingTarget,
+    fileHandle?: FileSystemFileHandle,
+  ) {
+    const res = await target.startTracing(traceCfg, fileHandle);
     this.recMgr.app.raf.scheduleFullRedraw();
     if (!res.ok) {
       this.error = res.error;
@@ -436,13 +519,17 @@ export class CurrentTracingSession {
   }
 
   openTrace() {
-    const traceData: Uint8Array | undefined = this.session?.getTraceData();
+    const traceData = this.session?.getTraceData();
     if (traceData === undefined) return;
-    this.recMgr.app.openTraceFromBuffer({
-      buffer: traceData,
-      title: this.fileName,
-      fileName: this.fileName,
-    });
+    if (traceData.kind === 'FILE') {
+      this.recMgr.app.openTraceFromFile(traceData.file);
+    } else {
+      this.recMgr.app.openTraceFromBuffer({
+        buffer: traceData.data,
+        title: this.fileName,
+        fileName: this.fileName,
+      });
+    }
   }
 
   get isCompleted(): boolean {
@@ -453,7 +540,8 @@ export class CurrentTracingSession {
     return (
       (this.session === undefined && this.error === undefined) ||
       this.session?.state === 'RECORDING' ||
-      this.session?.state === 'STOPPING'
+      this.session?.state === 'STOPPING' ||
+      this.session?.state === 'PULLING'
     );
   }
 }
