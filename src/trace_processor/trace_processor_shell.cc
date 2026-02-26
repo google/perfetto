@@ -803,6 +803,8 @@ struct CommandLineOptions {
   std::string register_files_dir;
   std::string override_stdlib_path;
 
+  std::string export_arrow_file_path;
+
   std::string pre_metrics_v1_path;
   std::string metric_v1_names;
   std::string metric_v1_output;
@@ -940,6 +942,8 @@ Advanced:
  --extra-checks                       Enables additional checks which can catch
                                       more SQL errors, but which incur
                                       additional runtime overhead.
+ --export-arrow FILE                Export all intrinsic tables as a TAR
+                                      archive of Arrow IPC files.
  -e, --export FILE                    Export the contents of trace processor
                                       into an SQLite database after running any
                                       metrics or queries specified.
@@ -1049,6 +1053,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_REGISTER_FILES_DIR,
     OPT_OVERRIDE_STDLIB,
 
+    OPT_EXPORT_ARROW,
+
     OPT_RUN_METRICS,
     OPT_PRE_METRICS,
     OPT_METRICS_OUTPUT,
@@ -1106,6 +1112,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"register-files-dir", required_argument, nullptr,
        OPT_REGISTER_FILES_DIR},
       {"override-stdlib", required_argument, nullptr, OPT_OVERRIDE_STDLIB},
+      {"export-arrow", required_argument, nullptr, OPT_EXPORT_ARROW},
 
       {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
       {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
@@ -1261,6 +1268,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_EXPORT_ARROW) {
+      command_line_options.export_arrow_file_path = optarg;
+      continue;
+    }
+
     if (option == OPT_RUN_METRICS) {
       command_line_options.metric_v1_names = optarg;
       continue;
@@ -1327,6 +1339,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
        command_line_options.query_string.empty() &&
        command_line_options.structured_query_id.empty() &&
        command_line_options.export_file_path.empty() &&
+       command_line_options.export_arrow_file_path.empty() &&
        !command_line_options.summary);
 
   // Only allow non-interactive queries to emit perf data.
@@ -2290,6 +2303,22 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
 
   if (!options.export_file_path.empty()) {
     RETURN_IF_ERROR(ExportTraceToDatabase(tp.get(), options.export_file_path));
+  }
+
+  if (!options.export_arrow_file_path.empty()) {
+    base::ScopedFile fd(base::OpenFile(options.export_arrow_file_path,
+                                       O_CREAT | O_WRONLY | O_TRUNC, 0644));
+    if (!fd) {
+      return base::ErrStatus("Failed to create: %s",
+                             options.export_arrow_file_path.c_str());
+    }
+    int raw_fd = *fd;
+    RETURN_IF_ERROR(tp->ExportToArrow(
+        [raw_fd](const uint8_t* data, size_t len, bool /*has_more*/) {
+          if (data && len > 0) {
+            base::WriteAll(raw_fd, data, len);
+          }
+        }));
   }
 
   if (options.enable_httpd) {
