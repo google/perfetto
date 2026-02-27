@@ -22,20 +22,51 @@ INCLUDE PERFETTO MODULE android.cujs.base;
 -- For cases when a blocking call starts within a frame, but does not end before the actual frame
 -- ends, a part of the blocking call can be missed while calculating the metric. To avoid this
 -- issue, the frame boundary is extended, spanning from the start of the current actual frame, till
--- the start of the next actual frame.
+-- the start of either next actual frame or the next doFrame slice - whichever is earliest;
+-- we are relying on both types of slices to get more stable metrics for cases where, for instance,
+-- doFrame blocks are running without any visible changes on the screen - leading to
+-- no actual frames being drawn. When this happens there might be gaps in actual frame timeline,
+-- so then the next doFrame would be resolved as an earlier boundary for an extended frame.
 CREATE PERFETTO VIEW _extended_frame_boundary AS
+-- Get the start time of the NEXT frame in the sequence
+WITH
+  _frames_with_next AS (
+    SELECT
+      *,
+      lead(frame_ts) OVER (PARTITION BY cuj_id, layer_id ORDER BY frame_id) AS next_frame_start
+    FROM _android_distinct_frames_in_cuj
+  ),
+  _frames_with_extension_options AS (
+    SELECT
+      fr.frame_id,
+      fr.frame_ts AS ts,
+      fr.ui_thread_utid,
+      fr.cuj_id,
+      fr.cuj_name,
+      fr.layer_id,
+      -- Calculate the first doFrame start that occurs AFTER the current frame ends
+      (
+        SELECT
+          min(ts)
+        FROM _android_jank_cuj_do_frames
+        WHERE
+          utid = fr.ui_thread_utid AND ts >= fr.ts_end AND ts <= fr.next_frame_start
+      ) AS next_do_slice_after_frame,
+      fr.next_frame_start,
+      fr.ts_end AS original_ts_end
+    FROM _frames_with_next AS fr
+  )
 SELECT
-  frame_ts AS ts,
+  ts,
   ui_thread_utid,
   frame_id,
   layer_id,
   cuj_id,
   cuj_name,
-  -- Calculate the end timestamp (ts_end) by taking the start time (frame_ts) of the next frame in the session.
-  -- For the last frame, fall back to the default ts_end.
-  coalesce(lead(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id ASC), ts_end) AS ts_end,
-  frame_id
-FROM _android_distinct_frames_in_cuj
+  -- Earliest of (Next Frame Start, Next doFrame Start).
+  -- Fallback to original ts_end only if both are NULL.
+  coalesce(min(next_do_slice_after_frame, next_frame_start), original_ts_end) AS ts_end
+FROM _frames_with_extension_options
 ORDER BY
   frame_id;
 
