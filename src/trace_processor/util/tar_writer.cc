@@ -169,6 +169,48 @@ base::Status TarWriter::AddFile(const std::string& filename,
   return base::OkStatus();
 }
 
+// --- ScopedFileWriter ---
+
+TarWriter::ScopedFileWriter::ScopedFileWriter(TarWriterSink* sink, size_t size)
+    : sink_(sink), size_(size) {}
+
+TarWriter::ScopedFileWriter::ScopedFileWriter(ScopedFileWriter&& o) noexcept
+    : sink_(o.sink_), size_(o.size_) {
+  o.sink_ = nullptr;
+}
+
+TarWriter::ScopedFileWriter& TarWriter::ScopedFileWriter::operator=(
+    ScopedFileWriter&& o) noexcept {
+  sink_ = o.sink_;
+  size_ = o.size_;
+  o.sink_ = nullptr;
+  return *this;
+}
+
+TarWriter::ScopedFileWriter::~ScopedFileWriter() {
+  if (!sink_)
+    return;
+  // Write TAR padding to 512-byte boundary.
+  size_t padding_needed = (512 - (size_ % 512)) % 512;
+  if (padding_needed > 0) {
+    char zeros[512] = {0};
+    auto s = sink_->Write(zeros, padding_needed);
+    PERFETTO_CHECK(s.ok());
+  }
+}
+
+base::Status TarWriter::ScopedFileWriter::Write(const void* data, size_t len) {
+  return sink_->Write(data, len);
+}
+
+base::StatusOr<TarWriter::ScopedFileWriter> TarWriter::BeginFile(
+    const std::string& filename,
+    size_t size) {
+  RETURN_IF_ERROR(ValidateFilename(filename));
+  RETURN_IF_ERROR(CreateAndWriteHeader(filename, size));
+  return ScopedFileWriter(sink_, size);
+}
+
 base::Status TarWriter::AddFileFromPath(const std::string& filename,
                                         const std::string& file_path) {
   RETURN_IF_ERROR(ValidateFilename(filename));

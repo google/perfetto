@@ -35,6 +35,12 @@ std::vector<uint8_t> Build(W::Offset root, FlatBufferWriter& w) {
   return w.Release();
 }
 
+// Helper: GetRoot with automatic size_t -> uint32_t cast.
+std::optional<FlatBufferReader> GetRoot(const std::vector<uint8_t>& buf) {
+  return FlatBufferReader::GetRoot(buf.data(),
+                                   static_cast<uint32_t>(buf.size()));
+}
+
 TEST(FlatBufferRoundTripTest, ScalarFields) {
   // Table with field 0 = i32(42), field 1 = i16(7), field 2 = bool(true).
   FlatBufferWriter w;
@@ -45,7 +51,7 @@ TEST(FlatBufferRoundTripTest, ScalarFields) {
   auto root = w.EndTable();
   auto buf = Build(root, w);
 
-  auto reader = FlatBufferReader::GetRoot(buf.data(), buf.size());
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
   EXPECT_EQ(reader->Scalar<int32_t>(0), 42);
   EXPECT_EQ(reader->Scalar<int16_t>(1), 7);
@@ -60,7 +66,7 @@ TEST(FlatBufferRoundTripTest, StringField) {
   auto root = w.EndTable();
   auto buf = Build(root, w);
 
-  auto reader = FlatBufferReader::GetRoot(buf.data(), buf.size());
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
   EXPECT_EQ(reader->String(0), "hello");
 }
@@ -79,7 +85,7 @@ TEST(FlatBufferRoundTripTest, SubTable) {
   auto root = w.EndTable();
   auto buf = Build(root, w);
 
-  auto reader = FlatBufferReader::GetRoot(buf.data(), buf.size());
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
   auto child_reader = reader->Table(0);
   ASSERT_TRUE(child_reader);
@@ -106,7 +112,7 @@ TEST(FlatBufferRoundTripTest, VecTable) {
   auto root = w.EndTable();
   auto buf = Build(root, w);
 
-  auto reader = FlatBufferReader::GetRoot(buf.data(), buf.size());
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
   auto tv = reader->VecTable(0);
   ASSERT_EQ(tv.size(), 2u);
@@ -126,7 +132,7 @@ TEST(FlatBufferRoundTripTest, VecString) {
   auto root = w.EndTable();
   auto buf = Build(root, w);
 
-  auto reader = FlatBufferReader::GetRoot(buf.data(), buf.size());
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
   auto sv = reader->VecString(0);
   ASSERT_EQ(sv.size(), 2u);
@@ -142,7 +148,7 @@ TEST(FlatBufferRoundTripTest, AbsentField) {
   auto root = w.EndTable();
   auto buf = Build(root, w);
 
-  auto reader = FlatBufferReader::GetRoot(buf.data(), buf.size());
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
   EXPECT_EQ(reader->Scalar<int32_t>(0, -1), -1);  // default
   EXPECT_EQ(reader->Scalar<int32_t>(1), 55);
@@ -156,7 +162,7 @@ TEST(FlatBufferRoundTripTest, EmptyVec) {
   auto root = w.EndTable();
   auto buf = Build(root, w);
 
-  auto reader = FlatBufferReader::GetRoot(buf.data(), buf.size());
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
   auto tv = reader->VecTable(0);
   EXPECT_EQ(tv.size(), 0u);
@@ -169,7 +175,7 @@ TEST(FlatBufferRoundTripTest, I64Field) {
   auto root = w.EndTable();
   auto buf = Build(root, w);
 
-  auto reader = FlatBufferReader::GetRoot(buf.data(), buf.size());
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
   EXPECT_EQ(reader->Scalar<int64_t>(0), 0x123456789ABCDEF0LL);
 }
@@ -184,8 +190,7 @@ TEST(FlatBufferRoundTripTest, VecScalar) {
   auto root = w.EndTable();
   auto buf = Build(root, w);
 
-  auto reader = FlatBufferReader::GetRoot(buf.data(),
-                                          static_cast<uint32_t>(buf.size()));
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
   auto sv = reader->VecScalar<int32_t>(0);
   ASSERT_EQ(sv.size(), 3u);
@@ -237,7 +242,7 @@ TEST(FlatBufferRoundTripTest, ArrowSchemaLike) {
   auto buf = Build(schema, w);
 
   // Now read it back.
-  auto reader = FlatBufferReader::GetRoot(buf.data(), buf.size());
+  auto reader = GetRoot(buf);
   ASSERT_TRUE(reader.has_value());
 
   EXPECT_EQ(reader->Scalar<int16_t>(0), 0);  // endianness

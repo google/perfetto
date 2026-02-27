@@ -41,14 +41,17 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
+#include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/export/export_arrow.h"
+#include "perfetto_build_flags.h"
+#include "src/trace_processor/core/dataframe/arrow_ipc.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
@@ -61,7 +64,6 @@
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
-#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
@@ -87,7 +89,6 @@
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
-#include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
@@ -163,7 +164,6 @@
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace_summary/file.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
@@ -1490,6 +1490,7 @@ base::Status TraceProcessorImpl::ExportToArrow(
   });
   util::TarWriter tar(&sink);
 
+  core::dataframe::ArrowWriter arrow_writer;
   for (auto& entry : dataframes) {
     if (entry.dataframe->row_count() == 0)
       continue;
@@ -1501,12 +1502,16 @@ base::Status TraceProcessorImpl::ExportToArrow(
     }
     std::string arrow_filename = std::string(entry.name) + ".arrow";
 
-    ASSIGN_OR_RETURN(auto arrow_bytes,
-                     SerializeTableToArrow(*entry.dataframe,
-                                           storage->mutable_string_pool()));
-
-    RETURN_IF_ERROR(tar.AddFile(arrow_filename, arrow_bytes.data(),
-                                arrow_bytes.size()));
+    auto* string_pool = storage->mutable_string_pool();
+    size_t arrow_size = arrow_writer.Prepare(*entry.dataframe, string_pool);
+    ASSIGN_OR_RETURN(auto file_writer,
+                     tar.BeginFile(arrow_filename, arrow_size));
+    RETURN_IF_ERROR(arrow_writer.Write(
+        *entry.dataframe, string_pool,
+        [&file_writer](const uint8_t* data, size_t len) {
+          auto status = file_writer.Write(data, len);
+          PERFETTO_CHECK(status.ok());
+        }));
   }
 
   // Signal end of stream.

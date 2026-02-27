@@ -24,7 +24,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -87,58 +86,6 @@ struct Block {
 static_assert(sizeof(Block) == 24, "Block struct must be 24 bytes");
 
 // ---------------------------------------------------------------------------
-// Sink writer: wraps the ArrowIpcWriteSink and tracks file position.
-// ---------------------------------------------------------------------------
-class IpcSinkWriter {
- public:
-  explicit IpcSinkWriter(ArrowIpcWriteSink& sink) : sink_(sink) {}
-
-  void WriteBytes(const void* data, size_t len) {
-    sink_(static_cast<const uint8_t*>(data), len);
-    pos_ += static_cast<uint32_t>(len);
-  }
-
-  void WritePadding(uint32_t n) {
-    uint8_t zeros[8] = {};
-    uint32_t remaining = n;
-    while (remaining > 0) {
-      uint32_t chunk = remaining > 8 ? 8 : remaining;
-      sink_(zeros, chunk);
-      remaining -= chunk;
-    }
-    pos_ += n;
-  }
-
-  void WriteU32Le(uint32_t v) { WriteBytes(&v, 4); }
-
-  // Emit a complete IPC message block: continuation + metadata_size + metadata
-  // (padded) + body (padded).
-  void WriteMessage(const uint8_t* metadata,
-                    uint32_t metadata_size,
-                    const uint8_t* body,
-                    uint32_t body_size) {
-    uint32_t padded_meta = PadTo8(metadata_size);
-    uint32_t padded_body = PadTo8(body_size);
-
-    WriteU32Le(kContinuation);
-    WriteU32Le(padded_meta);
-    WriteBytes(metadata, metadata_size);
-    WritePadding(padded_meta - metadata_size);
-
-    if (body_size > 0) {
-      WriteBytes(body, body_size);
-      WritePadding(padded_body - body_size);
-    }
-  }
-
-  uint32_t pos() const { return pos_; }
-
- private:
-  ArrowIpcWriteSink& sink_;
-  uint32_t pos_ = 0;
-};
-
-// ---------------------------------------------------------------------------
 // Flatbuffer builders for Arrow schema types.
 // ---------------------------------------------------------------------------
 
@@ -191,19 +138,12 @@ W::Offset BuildSchema(W& w,
   return w.EndTable();
 }
 
-// Per-column info used during serialization.
-struct ColInfo {
-  uint32_t idx;
-  std::string name;
-  bool nullable;
-  StorageType storage_type;
-};
-
 // Build schema field offsets from a list of column infos, then build the
 // Schema table. Avoids duplicating the field-building loop between the
 // schema message and the footer.
-W::Offset BuildSchemaWithFields(W& w,
-                                const std::vector<ColInfo>& cols) {
+W::Offset BuildSchemaWithFields(
+    W& w,
+    const std::vector<ArrowWriter::ColInfo>& cols) {
   std::vector<W::Offset> field_offsets;
   for (const auto& col : cols) {
     uint8_t type_type;
@@ -232,23 +172,6 @@ W::Offset BuildSchemaWithFields(W& w,
                      static_cast<uint32_t>(field_offsets.size()));
 }
 
-// Appends an Arrow validity bitmap for |bv| with |num_rows| bits to |body|
-// with 8-byte padding, and returns a Buffer descriptor.
-// Arrow uses LSB-first bit ordering which matches BitVector.
-Buffer AppendValidityBitmap(const BitVector& bv,
-                            uint32_t num_rows,
-                            std::vector<uint8_t>& body) {
-  uint32_t bitmap_bytes = (num_rows + 7) / 8;
-  int64_t offset = static_cast<int64_t>(body.size());
-  body.resize(body.size() + PadTo8(bitmap_bytes), 0);
-  uint8_t* out = body.data() + static_cast<size_t>(offset);
-  for (uint32_t i = 0; i < num_rows; i++) {
-    if (bv.is_set(i)) {
-      out[i / 8] |= static_cast<uint8_t>(1u << (i % 8));
-    }
-  }
-  return {offset, static_cast<int64_t>(bitmap_bytes)};
-}
 
 // Creates a BitVector from Arrow validity bitmap bytes.
 BitVector ReadValidityBitmap(const uint8_t* data, uint32_t num_rows) {
@@ -289,16 +212,6 @@ const uint8_t* NumericRawData(const Storage& s) {
   return reinterpret_cast<const uint8_t*>(s.unchecked_data<Uint32>());
 }
 
-// Appends |data| of |len| bytes to |body| with 8-byte padding, and returns
-// a Buffer descriptor recording the offset and length.
-Buffer AppendPaddedBuffer(std::vector<uint8_t>& body,
-                          const uint8_t* data,
-                          uint32_t len) {
-  int64_t offset = static_cast<int64_t>(body.size());
-  body.insert(body.end(), data, data + len);
-  body.resize(body.size() + PadTo8(len) - len, 0);
-  return {offset, static_cast<int64_t>(len)};
-}
 
 // After data has been loaded, sets the validity BitVector on the column's
 // NullStorage and computes prefix popcount for sparse-null columns.
@@ -369,124 +282,107 @@ W::Offset BuildFooter(W& w,
   return w.EndTable();
 }
 
+// Helper to append raw bytes to a vector.
+void AppendBytes(std::vector<uint8_t>& out, const void* data, size_t len) {
+  const auto* p = static_cast<const uint8_t*>(data);
+  out.insert(out.end(), p, p + len);
+}
+
+// Helper to append N zero bytes to a vector.
+void AppendZeros(std::vector<uint8_t>& out, size_t n) {
+  out.resize(out.size() + n, 0);
+}
+
+// Helper to append a uint32_t in little-endian to a vector.
+void AppendU32Le(std::vector<uint8_t>& out, uint32_t v) {
+  AppendBytes(out, &v, 4);
+}
+
 }  // namespace
 
-base::Status SerializeToArrowIpc(const Dataframe& df,
-                                 StringPool* pool,
-                                 ArrowIpcWriteSink sink) {
+// ---------------------------------------------------------------------------
+// ArrowWriter::Prepare — builds metadata, returns exact output size.
+// ---------------------------------------------------------------------------
+size_t ArrowWriter::Prepare(const Dataframe& df, StringPool* pool) {
   uint32_t num_cols = df.column_count();
   const auto& col_names = df.column_names();
   uint32_t num_rows = df.row_count();
 
-  // Collect columns to serialize (skip Id columns — their value is the row
-  // index and is implicitly restored by setting the row count on import).
-  std::vector<ColInfo> cols;
+  // Collect columns to serialize (skip Id columns).
+  cols_.clear();
   for (uint32_t i = 0; i < num_cols; i++) {
     const auto& column = *df.columns_[i];
     if (column.storage.type().Is<core::Id>())
       continue;
-    cols.push_back({i, col_names[i],
-                    IsNullable(column.null_storage.nullability()),
-                    column.storage.type()});
+    cols_.push_back({i, col_names[i],
+                     IsNullable(column.null_storage.nullability()),
+                     column.storage.type()});
   }
 
-  IpcSinkWriter w(sink);
+  // Pass 1: compute Buffer offsets/lengths, FieldNodes, string data sizes.
+  std::vector<FieldNode> nodes;
+  std::vector<Buffer> buffers;
+  uint32_t body_cursor = 0;
 
-  // 1. File magic.
-  w.WriteBytes(kMagicPadded, 8);
+  auto RecordBuffer = [&](uint32_t len) -> Buffer {
+    int64_t off = static_cast<int64_t>(body_cursor);
+    body_cursor += PadTo8(len);
+    return {off, static_cast<int64_t>(len)};
+  };
 
-  // 2. Schema message.
+  string_data_lens_.assign(cols_.size(), 0);
+
+  for (uint32_t col_i = 0; col_i < static_cast<uint32_t>(cols_.size());
+       col_i++) {
+    const auto& ci = cols_[col_i];
+    const auto& column = *df.columns_[ci.idx];
+    const auto& null_storage = column.null_storage;
+    bool is_sparse = IsSparseNull(null_storage.nullability());
+
+    int64_t null_count = 0;
+    if (ci.nullable) {
+      const BitVector& bv = null_storage.GetNullBitVector();
+      for (uint32_t r = 0; r < num_rows; r++) {
+        if (!bv.is_set(r))
+          null_count++;
+      }
+      buffers.push_back(RecordBuffer((num_rows + 7) / 8));
+    }
+
+    if (ci.storage_type.Is<core::String>()) {
+      buffers.push_back(RecordBuffer((num_rows + 1) * 4));
+      const StringPool::Id* ids = column.storage.unchecked_data<String>();
+      const BitVector* bv =
+          ci.nullable ? &null_storage.GetNullBitVector() : nullptr;
+      uint32_t sparse_idx = 0;
+      uint32_t str_total = 0;
+      for (uint32_t r = 0; r < num_rows; r++) {
+        if (!bv || bv->is_set(r)) {
+          str_total += static_cast<uint32_t>(
+              pool->Get(ids[is_sparse ? sparse_idx++ : r]).size());
+        }
+      }
+      string_data_lens_[col_i] = str_total;
+      buffers.push_back(RecordBuffer(str_total));
+    } else {
+      buffers.push_back(
+          RecordBuffer(num_rows * NumericElemSize(ci.storage_type)));
+    }
+    nodes.push_back({static_cast<int64_t>(num_rows), null_count});
+  }
+
+  body_size_ = body_cursor;
+  padded_body_ = PadTo8(body_size_);
+
+  // Build flatbuffer metadata (small).
   std::vector<uint8_t> schema_fb;
   {
     W fw;
-    auto schema = BuildSchemaWithFields(fw, cols);
+    auto schema = BuildSchemaWithFields(fw, cols_);
     auto msg = BuildMessage(fw, kHeaderSchema, schema, 0);
     fw.Finish(msg);
     schema_fb.assign(fw.data(), fw.data() + fw.size());
   }
-  w.WriteMessage(schema_fb.data(), static_cast<uint32_t>(schema_fb.size()),
-                 nullptr, 0);
-
-  // 3. RecordBatch message.
-  std::vector<uint8_t> body;
-  std::vector<FieldNode> nodes;
-  std::vector<Buffer> buffers;
-
-  for (const auto& ci : cols) {
-    const auto& column = *df.columns_[ci.idx];
-    const auto& storage = column.storage;
-    const auto& null_storage = column.null_storage;
-    Nullability nullability = null_storage.nullability();
-    bool is_sparse = IsSparseNull(nullability);
-
-    // Count nulls and emit validity bitmap buffer for nullable columns.
-    int64_t null_count = 0;
-    const BitVector* bv = nullptr;
-    if (ci.nullable) {
-      bv = &null_storage.GetNullBitVector();
-      for (uint32_t r = 0; r < num_rows; r++) {
-        if (!bv->is_set(r))
-          null_count++;
-      }
-      buffers.push_back(AppendValidityBitmap(*bv, num_rows, body));
-    }
-
-    if (ci.storage_type.Is<core::String>()) {
-      // String column: emit offsets buffer then data buffer.
-      const StringPool::Id* ids = storage.unchecked_data<String>();
-
-      // Build offsets and concatenated string data.
-      std::vector<int32_t> offsets;
-      offsets.reserve(num_rows + 1);
-      std::vector<uint8_t> str_data;
-      int32_t current_offset = 0;
-      uint32_t sparse_idx = 0;
-
-      for (uint32_t r = 0; r < num_rows; r++) {
-        offsets.push_back(current_offset);
-        if (!bv || bv->is_set(r)) {
-          NullTermStringView sv =
-              pool->Get(ids[is_sparse ? sparse_idx++ : r]);
-          auto len = static_cast<int32_t>(sv.size());
-          str_data.insert(str_data.end(),
-                          reinterpret_cast<const uint8_t*>(sv.data()),
-                          reinterpret_cast<const uint8_t*>(sv.data()) + len);
-          current_offset += len;
-        }
-      }
-      offsets.push_back(current_offset);
-
-      buffers.push_back(AppendPaddedBuffer(
-          body, reinterpret_cast<const uint8_t*>(offsets.data()),
-          static_cast<uint32_t>(offsets.size() * 4)));
-      buffers.push_back(AppendPaddedBuffer(
-          body, str_data.data(), static_cast<uint32_t>(str_data.size())));
-    } else {
-      // Numeric column: emit data buffer.
-      uint32_t elem_size = NumericElemSize(ci.storage_type);
-      uint32_t data_len = num_rows * elem_size;
-      const uint8_t* raw = NumericRawData(storage);
-      if (!is_sparse) {
-        buffers.push_back(AppendPaddedBuffer(body, raw, data_len));
-      } else {
-        // SparseNull: expand sparse storage to dense.
-        std::vector<uint8_t> dense(data_len, 0);
-        uint32_t si = 0;
-        for (uint32_t r = 0; r < num_rows; r++) {
-          if (bv->is_set(r)) {
-            memcpy(dense.data() + r * elem_size, raw + si * elem_size,
-                   elem_size);
-            si++;
-          }
-        }
-        buffers.push_back(AppendPaddedBuffer(body, dense.data(), data_len));
-      }
-    }
-
-    nodes.push_back({static_cast<int64_t>(num_rows), null_count});
-  }
-
-  uint32_t body_size = static_cast<uint32_t>(body.size());
 
   std::vector<uint8_t> batch_fb;
   {
@@ -496,41 +392,176 @@ base::Status SerializeToArrowIpc(const Dataframe& df,
                                 buffers.data(),
                                 static_cast<uint32_t>(buffers.size()));
     auto msg = BuildMessage(fw, kHeaderRecordBatch, rb,
-                            static_cast<int64_t>(body_size));
+                            static_cast<int64_t>(padded_body_));
     fw.Finish(msg);
     batch_fb.assign(fw.data(), fw.data() + fw.size());
   }
 
-  uint32_t batch_offset = w.pos();
+  uint32_t padded_schema = PadTo8(static_cast<uint32_t>(schema_fb.size()));
   uint32_t padded_batch_meta = PadTo8(static_cast<uint32_t>(batch_fb.size()));
-  uint32_t padded_body = PadTo8(body_size);
+  uint32_t batch_offset = 8 + 8 + padded_schema;
 
-  w.WriteMessage(batch_fb.data(), static_cast<uint32_t>(batch_fb.size()),
-                 body.data(), body_size);
-
-  // 4. Footer.
   std::vector<uint8_t> footer_fb;
   {
     W fw;
-    auto schema = BuildSchemaWithFields(fw, cols);
-
+    auto schema = BuildSchemaWithFields(fw, cols_);
     Block batch_block;
     batch_block.offset = static_cast<int64_t>(batch_offset);
     batch_block.metadata_length =
         static_cast<int32_t>(8 + padded_batch_meta);
     batch_block.padding = 0;
-    batch_block.body_length = static_cast<int64_t>(padded_body);
-
+    batch_block.body_length = static_cast<int64_t>(padded_body_);
     auto footer = BuildFooter(fw, schema, &batch_block, 1);
     fw.Finish(footer);
     footer_fb.assign(fw.data(), fw.data() + fw.size());
   }
 
-  w.WriteBytes(footer_fb.data(), footer_fb.size());
-  uint32_t footer_size = static_cast<uint32_t>(footer_fb.size());
-  w.WriteU32Le(footer_size);
-  w.WriteBytes(kMagicTrailer, 6);
+  // Build header_ (magic + schema msg + record batch metadata).
+  header_.clear();
+  header_.reserve(8 + 8 + padded_schema + 8 + padded_batch_meta);
+  AppendBytes(header_, kMagicPadded, 8);
+  AppendU32Le(header_, kContinuation);
+  AppendU32Le(header_, padded_schema);
+  AppendBytes(header_, schema_fb.data(), schema_fb.size());
+  AppendZeros(header_, padded_schema - schema_fb.size());
+  AppendU32Le(header_, kContinuation);
+  AppendU32Le(header_, padded_batch_meta);
+  AppendBytes(header_, batch_fb.data(), batch_fb.size());
+  AppendZeros(header_, padded_batch_meta - batch_fb.size());
 
+  // Build trailer_ (footer + footer_size + magic).
+  trailer_.clear();
+  trailer_.reserve(footer_fb.size() + 10);
+  AppendBytes(trailer_, footer_fb.data(), footer_fb.size());
+  AppendU32Le(trailer_, static_cast<uint32_t>(footer_fb.size()));
+  AppendBytes(trailer_, kMagicTrailer, 6);
+
+  return header_.size() + padded_body_ + trailer_.size();
+}
+
+// ---------------------------------------------------------------------------
+// ArrowWriter::Write — streams column data to sink.
+// ---------------------------------------------------------------------------
+base::Status ArrowWriter::Write(const Dataframe& df,
+                                StringPool* pool,
+                                const ArrowIpcWriteSink& sink) {
+  uint32_t num_rows = df.row_count();
+
+  sink(header_.data(), header_.size());
+
+  // Write column data. O(columns) sink calls.
+  for (uint32_t col_i = 0; col_i < static_cast<uint32_t>(cols_.size());
+       col_i++) {
+    const auto& ci = cols_[col_i];
+    const auto& column = *df.columns_[ci.idx];
+    const auto& storage = column.storage;
+    const auto& null_storage = column.null_storage;
+    bool is_sparse = IsSparseNull(null_storage.nullability());
+
+    const BitVector* bv = nullptr;
+    if (ci.nullable) {
+      bv = &null_storage.GetNullBitVector();
+      uint32_t bitmap_bytes = (num_rows + 7) / 8;
+      uint32_t padded = PadTo8(bitmap_bytes);
+      scratch_.resize(padded);
+      // Build validity bitmap byte-at-a-time to avoid zeroing.
+      uint32_t full_bytes = num_rows / 8;
+      for (uint32_t b = 0; b < full_bytes; b++) {
+        uint8_t byte = 0;
+        uint32_t base = b * 8;
+        for (uint32_t bit = 0; bit < 8; bit++) {
+          if (bv->is_set(base + bit))
+            byte |= static_cast<uint8_t>(1u << bit);
+        }
+        scratch_[b] = byte;
+      }
+      // Handle remaining bits in the last partial byte.
+      uint32_t remaining = num_rows % 8;
+      if (remaining) {
+        uint8_t byte = 0;
+        uint32_t base = full_bytes * 8;
+        for (uint32_t bit = 0; bit < remaining; bit++) {
+          if (bv->is_set(base + bit))
+            byte |= static_cast<uint8_t>(1u << bit);
+        }
+        scratch_[full_bytes] = byte;
+      }
+      // Zero only the padding bytes.
+      memset(scratch_.data() + bitmap_bytes, 0, padded - bitmap_bytes);
+      sink(scratch_.data(), padded);
+    }
+
+    if (ci.storage_type.Is<core::String>()) {
+      const StringPool::Id* ids = storage.unchecked_data<String>();
+      uint32_t offsets_bytes = (num_rows + 1) * 4;
+      uint32_t padded_offsets = PadTo8(offsets_bytes);
+      uint32_t str_len = string_data_lens_[col_i];
+      uint32_t padded_str = PadTo8(str_len);
+      uint32_t total = padded_offsets + padded_str;
+
+      scratch_.resize(total);
+      auto* offsets = reinterpret_cast<int32_t*>(scratch_.data());
+      uint8_t* str_dst = scratch_.data() + padded_offsets;
+
+      int32_t current_offset = 0;
+      uint32_t sparse_idx = 0;
+      for (uint32_t r = 0; r < num_rows; r++) {
+        offsets[r] = current_offset;
+        if (!bv || bv->is_set(r)) {
+          NullTermStringView sv =
+              pool->Get(ids[is_sparse ? sparse_idx++ : r]);
+          auto len = static_cast<int32_t>(sv.size());
+          if (len > 0) {
+            memcpy(str_dst + current_offset, sv.data(),
+                   static_cast<size_t>(len));
+          }
+          current_offset += len;
+        }
+      }
+      offsets[num_rows] = current_offset;
+      // Zero only the padding bytes between offsets and string data,
+      // and after string data.
+      memset(scratch_.data() + offsets_bytes, 0, padded_offsets - offsets_bytes);
+      memset(str_dst + str_len, 0, padded_str - str_len);
+      sink(scratch_.data(), total);
+    } else {
+      uint32_t elem_size = NumericElemSize(ci.storage_type);
+      uint32_t data_len = num_rows * elem_size;
+      uint32_t padded_data = PadTo8(data_len);
+      const uint8_t* raw = NumericRawData(storage);
+
+      if (!is_sparse) {
+        sink(raw, data_len);
+        if (padded_data > data_len) {
+          uint8_t zeros[8] = {};
+          sink(zeros, padded_data - data_len);
+        }
+      } else {
+        scratch_.resize(padded_data);
+        uint32_t si = 0;
+        for (uint32_t r = 0; r < num_rows; r++) {
+          size_t dst_off = static_cast<size_t>(r) * elem_size;
+          if (bv->is_set(r)) {
+            memcpy(scratch_.data() + dst_off,
+                   raw + static_cast<size_t>(si) * elem_size, elem_size);
+            si++;
+          } else {
+            memset(scratch_.data() + dst_off, 0, elem_size);
+          }
+        }
+        // Zero only padding.
+        memset(scratch_.data() + data_len, 0, padded_data - data_len);
+        sink(scratch_.data(), padded_data);
+      }
+    }
+  }
+
+  if (padded_body_ > body_size_) {
+    uint8_t zeros[8] = {};
+    sink(zeros, padded_body_ - body_size_);
+  }
+
+  sink(trailer_.data(), trailer_.size());
   return base::OkStatus();
 }
 

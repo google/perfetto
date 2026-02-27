@@ -422,10 +422,7 @@ class Dataframe {
   // dataframe.
   friend class DataframeBytecodeTest;
 
-  friend base::Status SerializeToArrowIpc(
-      const Dataframe&,
-      StringPool*,
-      std::function<void(const uint8_t*, size_t)>);
+  friend class ArrowWriter;
   friend base::Status DeserializeFromArrowIpc(
       Dataframe&,
       StringPool*,

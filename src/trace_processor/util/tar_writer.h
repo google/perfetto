@@ -26,6 +26,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/status_or.h"
 
 namespace perfetto::trace_processor::util {
 
@@ -97,6 +98,29 @@ class TarWriter {
   base::Status AddFile(const std::string& filename,
                        const uint8_t* data,
                        size_t size);
+
+  // Scoped handle for streaming a file entry. Writes TAR padding on
+  // destruction. The caller should write exactly |size| bytes via Write().
+  class ScopedFileWriter {
+   public:
+    ScopedFileWriter(ScopedFileWriter&&) noexcept;
+    ScopedFileWriter& operator=(ScopedFileWriter&&) noexcept;
+    ~ScopedFileWriter();
+
+    base::Status Write(const void* data, size_t len);
+
+   private:
+    friend class TarWriter;
+    ScopedFileWriter(TarWriterSink* sink, size_t size);
+    TarWriterSink* sink_;
+    size_t size_;
+  };
+
+  // Opens a streaming file entry. Writes the TAR header immediately;
+  // the caller writes data via the returned ScopedFileWriter, and TAR
+  // padding is written automatically when the writer is destroyed.
+  base::StatusOr<ScopedFileWriter> BeginFile(const std::string& filename,
+                                             size_t size);
 
   // Adds a file to the TAR archive from a file path.
   // filename: The name of the file in the archive (max 100 chars)

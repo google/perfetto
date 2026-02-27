@@ -33,6 +33,17 @@
 namespace perfetto::trace_processor::core::dataframe {
 namespace {
 
+// Helper: serialize a Dataframe to Arrow IPC bytes using ArrowWriter.
+base::Status SerializeToBytes(const Dataframe& df,
+                              StringPool* pool,
+                              std::vector<uint8_t>& out) {
+  ArrowWriter writer;
+  writer.Prepare(df, pool);
+  return writer.Write(df, pool, [&](const uint8_t* data, size_t len) {
+    out.insert(out.end(), data, data + len);
+  });
+}
+
 inline constexpr auto kUint32Spec = CreateTypedDataframeSpec(
     {"_auto_id", "val"},
     CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
@@ -48,10 +59,7 @@ TEST(ArrowIpcTest, RoundTripUint32NonNullable) {
 
   // Serialize.
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
   ASSERT_FALSE(bytes.empty());
 
@@ -98,10 +106,7 @@ TEST(ArrowIpcTest, RoundTripUint32DenseNull) {
 
   // Serialize.
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   // Deserialize.
@@ -151,10 +156,7 @@ TEST(ArrowIpcTest, RoundTripUint32SparseNull) {
 
   // Serialize.
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   // Deserialize.
@@ -199,10 +201,7 @@ TEST(ArrowIpcTest, RoundTripStringNonNull) {
 
   // Serialize.
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   // Deserialize.
@@ -245,10 +244,7 @@ TEST(ArrowIpcTest, RoundTripStringDenseNull) {
 
   // Serialize.
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   // Deserialize.
@@ -295,10 +291,7 @@ TEST(ArrowIpcTest, RoundTripStringSparseNull) {
 
   // Serialize.
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   // Deserialize.
@@ -336,10 +329,7 @@ TEST(ArrowIpcTest, RoundTripInt32NonNull) {
   src.InsertUnchecked(kInt32NonNullSpec, std::monostate{}, int32_t{42});
 
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   util::TraceBlobViewReader reader;
@@ -373,10 +363,7 @@ TEST(ArrowIpcTest, RoundTripInt32DenseNull) {
                       std::optional<int32_t>{99});
 
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   util::TraceBlobViewReader reader;
@@ -413,10 +400,7 @@ TEST(ArrowIpcTest, RoundTripInt32SparseNull) {
                       std::optional<int32_t>{99});
 
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   util::TraceBlobViewReader reader;
@@ -452,10 +436,7 @@ TEST(ArrowIpcTest, RoundTripInt64NonNull) {
                       int64_t{1000000000000LL});
 
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   util::TraceBlobViewReader reader;
@@ -491,10 +472,7 @@ TEST(ArrowIpcTest, RoundTripInt64DenseNull) {
                       std::optional<int64_t>{200});
 
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   util::TraceBlobViewReader reader;
@@ -531,10 +509,7 @@ TEST(ArrowIpcTest, RoundTripInt64SparseNull) {
                       std::optional<int64_t>{200});
 
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   util::TraceBlobViewReader reader;
@@ -569,10 +544,7 @@ TEST(ArrowIpcTest, RoundTripDoubleNonNull) {
 
   // Serialize.
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   // Deserialize.
@@ -608,10 +580,7 @@ TEST(ArrowIpcTest, RoundTripDoubleDenseNull) {
 
   // Serialize.
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   // Deserialize.
@@ -655,10 +624,7 @@ TEST(ArrowIpcTest, RoundTripDoubleSparseNull) {
 
   // Serialize.
   std::vector<uint8_t> bytes;
-  auto status = SerializeToArrowIpc(
-      src, &pool, [&](const uint8_t* data, size_t len) {
-        bytes.insert(bytes.end(), data, data + len);
-      });
+  auto status = SerializeToBytes(src, &pool, bytes);
   ASSERT_TRUE(status.ok()) << status.message();
 
   // Deserialize.

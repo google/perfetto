@@ -213,6 +213,15 @@ JOIN track AS t
 WHERE
   t.type IN ('gpu_render_stage', 'vulkan_events', 'gpu_log');
 
+CREATE PERFETTO TABLE _frame_timeline_slice_tracks AS
+SELECT
+  t.id,
+  t.upid,
+  t.type
+FROM process_track AS t
+WHERE
+  t.type IN ('android_expected_frame_timeline', 'android_actual_frame_timeline');
+
 -- This table contains information on the expected timeline of either a display
 -- frame or a surface frame.
 CREATE PERFETTO TABLE expected_frame_timeline_slice (
@@ -258,7 +267,7 @@ SELECT
   t.upid,
   extract_arg(s.arg_set_id, 'Layer name') AS layer_name
 FROM slice AS s
-JOIN process_track AS t
+JOIN _frame_timeline_slice_tracks AS t
   ON s.track_id = t.id
 WHERE
   t.type = 'android_expected_frame_timeline'
@@ -339,7 +348,7 @@ SELECT
   extract_arg(s.arg_set_id, 'Jank tag (experimental)') AS jank_tag_experimental,
   extract_arg(s.arg_set_id, 'Jank Severity Score (experimental)') AS jank_score
 FROM slice AS s
-JOIN process_track AS t
+JOIN _frame_timeline_slice_tracks AS t
   ON s.track_id = t.id
 WHERE
   t.type = 'android_actual_frame_timeline'
