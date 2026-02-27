@@ -274,6 +274,34 @@ base::StatusOr<QueryPlanImpl> QueryPlanBuilder::Build(
   return std::move(builder).Build();
 }
 
+base::StatusOr<QueryPlanBuilder::FilterResult> QueryPlanBuilder::FilterOnly(
+    i::BytecodeBuilder& bytecode_builder,
+    DataframeRegisterCache& cache,
+    uint32_t row_count,
+    const std::vector<std::shared_ptr<Column>>& columns,
+    const std::vector<Index>& indexes,
+    std::vector<FilterSpec>& specs) {
+  // Initialize with a range covering all rows.
+  i::RwHandle<Range> range = bytecode_builder.AllocateRegister<Range>();
+  {
+    using B = i::InitRange;
+    auto& ir = bytecode_builder.AddOpcode<B>(i::Index<B>());
+    ir.arg<B::size>() = row_count;
+    ir.arg<B::dest_register>() = range;
+  }
+
+  QueryPlanBuilder builder(bytecode_builder, cache, range, row_count, columns,
+                           indexes);
+  RETURN_IF_ERROR(builder.Filter(specs));
+  auto indices = builder.EnsureIndicesAreInSlab();
+
+  FilterResult result;
+  result.indices_reg = indices;
+  result.register_inits = std::move(builder.plan_.register_inits);
+  result.filter_value_count = builder.plan_.params.filter_value_count;
+  return result;
+}
+
 i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
                                                 const Column* const* columns,
                                                 const Index* indexes) {
@@ -339,19 +367,6 @@ i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
 i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
                                                 const Dataframe& df) {
   return GetRegisterInitValue(init, df.column_ptrs_.data(), df.indexes_.data());
-}
-
-base::StatusOr<FilterResult> QueryPlanBuilder::Filter(
-    i::BytecodeBuilder& builder,
-    DataframeRegisterCache& cache,
-    IndicesReg input_indices,
-    const Dataframe& df,
-    std::vector<FilterSpec>& specs) {
-  QueryPlanBuilder plan_builder(builder, cache, input_indices, df.row_count_,
-                                df.columns_, df.indexes_);
-  RETURN_IF_ERROR(plan_builder.Filter(specs));
-  return FilterResult{plan_builder.indices_reg_,
-                      std::move(plan_builder.plan_.register_inits)};
 }
 
 base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {

@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <variant>
@@ -27,6 +26,7 @@
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::interpreter {
@@ -184,6 +184,26 @@ struct CastFilterValueListResult {
   }
   CastFilterValueResult::Validity validity;
   ValueList value_list;
+};
+
+// Opaque state for tree operations. Bundles tree structure, P2C cache, and
+// scratch buffers into a single object that bytecodes modify in-place.
+struct TreeState {
+  // Tree structure.
+  Slab<uint32_t> parent;  // parent[i] = row index (kNullParent for roots)
+  Slab<uint32_t> original_rows;  // original_rows[i] = original df row index
+  uint32_t row_count = 0;
+
+  // P2C CSR cache (rebuilt lazily).
+  Slab<uint32_t> p2c_offsets;
+  Slab<uint32_t> p2c_children;
+  Slab<uint32_t> p2c_roots;
+  uint32_t p2c_root_count = 0;
+  bool p2c_valid = false;
+
+  // Scratch buffers (allocated once at max size, reused).
+  Slab<uint32_t> scratch1;  // initial_row_count * 2
+  Slab<uint32_t> scratch2;  // initial_row_count
 };
 
 }  // namespace perfetto::trace_processor::core::interpreter

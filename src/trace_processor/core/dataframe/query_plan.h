@@ -78,16 +78,6 @@ struct RegisterInit {
 };
 static_assert(std::is_trivially_copyable_v<RegisterInit>);
 
-// Result of applying filters via the static Filter() method.
-// Contains both the filtered indices register and the RegisterInit specs
-// needed to initialize storage registers before bytecode execution.
-struct FilterResult {
-  std::variant<interpreter::RwHandle<Range>,
-               interpreter::RwHandle<Span<uint32_t>>>
-      indices;
-  base::SmallVector<RegisterInit, 16> register_inits;
-};
-
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
 struct QueryPlanImpl {
@@ -252,6 +242,14 @@ class QueryPlanBuilder {
   using IndicesReg = std::variant<interpreter::RwHandle<Range>,
                                   interpreter::RwHandle<Span<uint32_t>>>;
 
+  // Result of FilterOnly(): contains the register holding filtered indices,
+  // register initialization specs, and the count of filter values consumed.
+  struct FilterResult {
+    interpreter::RwHandle<Span<uint32_t>> indices_reg;
+    base::SmallVector<RegisterInit, 16> register_inits;
+    uint32_t filter_value_count = 0;
+  };
+
   static base::StatusOr<QueryPlanImpl> Build(
       uint32_t row_count,
       const std::vector<std::shared_ptr<Column>>& columns,
@@ -262,26 +260,15 @@ class QueryPlanBuilder {
       const LimitSpec& limit_spec,
       uint64_t cols_used);
 
-  // Applies filter constraints to an existing BytecodeBuilder.
-  // This is useful for callers (like TreeTransformer) that want to reuse
-  // the filtering logic without building a full query plan.
-  //
-  // Parameters:
-  //   builder: The BytecodeBuilder to emit bytecode into
-  //   cache: Register cache for column/index register caching
-  //   input_indices: Input indices to filter
-  //   df: The dataframe to filter
-  //   specs: Filter specifications (may be reordered)
-  //
-  // Returns a FilterResult containing:
-  //   - The filtered indices register
-  //   - RegisterInit specs needed to initialize storage registers
-  // Cost tracking is done internally and discarded at end of call.
-  static base::StatusOr<FilterResult> Filter(
+  // Emits only the filter bytecodes for the given specs into |builder|.
+  // Returns a FilterResult with the register holding the filtered indices,
+  // register init specs, and the number of filter values consumed.
+  static base::StatusOr<FilterResult> FilterOnly(
       interpreter::BytecodeBuilder& builder,
       DataframeRegisterCache& cache,
-      IndicesReg input_indices,
-      const Dataframe& df,
+      uint32_t row_count,
+      const std::vector<std::shared_ptr<Column>>& columns,
+      const std::vector<Index>& indexes,
       std::vector<FilterSpec>& specs);
 
  private:
