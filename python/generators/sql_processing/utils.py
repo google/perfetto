@@ -22,6 +22,11 @@ def is_internal(name: str) -> bool:
   return re.match(r'^_.*', name, re.IGNORECASE) is not None
 
 
+PKG_COMMON = "common"
+PKG_VIZ = "viz"
+PKG_CHROME = "chrome"
+PKG_ANDROID = "android"
+
 ALLOWED_PREFIXES = {
     'android': ['heap_graph', 'memory'],
     'counters': ['counter'],
@@ -173,7 +178,7 @@ PATTERN_BY_KIND = {
 # versions of python3, prior to that it was _sre.SRE_Match.
 def match_pattern(pattern: str, file_str: str) -> Dict[int, object]:
   line_number_to_matches = {}
-  for match in re.finditer(pattern, file_str, re.MULTILINE):
+  for match in re.finditer(pattern, file_str, re.MULTILINE | re.IGNORECASE):
     line_id = file_str[:match.start()].count('\n')
     line_number_to_matches[line_id] = match.groups()
   return line_number_to_matches
@@ -266,4 +271,51 @@ def check_banned_include_all(sql: str) -> List[str]:
     errors.append(
         "INCLUDE PERFETTO MODULE with wildcards is not allowed in stdlib. "
         "Import specific modules instead.")
+  return errors
+
+
+# Validates a parsed SQL module for banned words, valid includes and deprecated patterns.
+def check_banned_patterns(parsed, sql: str) -> List[str]:
+  errors = []
+  # Check for banned statements
+  lines = [l.strip() for l in sql.split('\n')]
+  for line in lines:
+    if line.startswith('--'):
+      continue
+    if 'run_metric' in line.casefold():
+      errors.append("RUN_METRIC is banned in standard library.")
+    if 'insert into' in line.casefold():
+      errors.append("INSERT INTO table is not allowed in standard library.")
+
+  # Validate includes
+  package = parsed.package_name.lower() if parsed.package_name else ''
+  for include in parsed.includes:
+    include_package = include.package.lower() if include.package else ''
+
+    if include_package == PKG_COMMON:
+      errors.append(
+          "Common module has been deprecated in the standard library. "
+          "Please check `slices.with_context` for a replacement for "
+          "`common.slices` and `time.conversion` for replacement for "
+          "`common.timestamps`")
+
+    if package != PKG_VIZ and include_package == PKG_VIZ:
+      errors.append(
+          f"No modules can depend on '{PKG_VIZ}' outside '{PKG_VIZ}' package.")
+
+    if package == PKG_CHROME and include_package == PKG_ANDROID:
+      errors.append(
+          f"Modules from package '{PKG_CHROME}' can't include '{include.module}' "
+          f"from package '{PKG_ANDROID}'")
+
+    if package == PKG_ANDROID and include_package == PKG_CHROME:
+      errors.append(
+          f"Modules from package '{PKG_ANDROID}' can't include '{include.module}' "
+          f"from package '{PKG_CHROME}'")
+  # Add parsing errors and validation errors
+  errors += [
+      *parsed.errors, *check_banned_words(sql),
+      *check_banned_create_table_as(sql), *check_banned_create_view_as(sql),
+      *check_banned_include_all(sql), *check_banned_drop(sql)
+  ]
   return errors

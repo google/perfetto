@@ -18,4 +18,5 @@ import {Embedder} from './embedder';
 export class DefaultEmbedder implements Embedder {
   readonly analyticsId = undefined;
   readonly extensionServer = undefined;
+  readonly brandingBadge = undefined;
 }

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_TRANSFORMER_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -27,6 +28,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
@@ -85,19 +87,6 @@ class TreeTransformer {
   base::StatusOr<dataframe::Dataframe> ToDataframe() &&;
 
  private:
-  // Scratch slot IDs for tree operations (following QueryPlanBuilder pattern).
-  enum ScratchSlot : uint32_t {
-    kParentSlot = 0,
-    kOriginalRowsSlot = 1,
-    kFilterScratch1Slot = 2,
-    kFilterScratch2Slot = 3,
-    kP2COffsetsSlot = 4,
-    kP2CChildrenSlot = 5,
-    kP2CRootsSlot = 6,
-    kP2CScratchSlot = 7,
-    kFilterBytecodeSlot = 8,
-  };
-
   // Initializes tree structure on first FilterTree call.
   // Allocates persistent parent/original_rows spans, all scratch buffers,
   // and emits MakeChildToParentTreeStructure bytecode.
@@ -121,10 +110,13 @@ class TreeTransformer {
   StringPool* pool_;
 
   // Bytecode builder for accumulating tree operations.
-  interpreter::BytecodeBuilder builder_;
+  // Heap-allocated so that cache_ (which holds a reference) remains valid
+  // when TreeTransformer is moved.
+  std::unique_ptr<interpreter::BytecodeBuilder> builder_;
 
-  // Scope ID for register caching (follows QueryPlanBuilder pattern).
-  uint32_t scope_id_;
+  // Register cache for caching column/index registers.
+  // Heap-allocated so the internal reference to builder_ survives moves.
+  std::unique_ptr<dataframe::DataframeRegisterCache> cache_;
 
   // Parent and original_rows span registers (set on first FilterTree call).
   interpreter::RwHandle<Span<uint32_t>> parent_span_;

@@ -348,6 +348,7 @@ class FtraceParser {
   void ParseMaliGpuPowerState(int64_t ts, protozero::ConstBytes blob);
   void ParseDmabufRssStat(int64_t ts, uint32_t pid, protozero::ConstBytes blob);
   void ParseFwtpPerfettoCounter(protozero::ConstBytes blob);
+  void ParseFwtpPerfettoSlice(int64_t ts, protozero::ConstBytes blob);
   void ParseF2fsWriteCheckpoint(int64_t ts,
                                 uint32_t pid,
                                 protozero::ConstBytes blob);
