@@ -267,6 +267,13 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
     maskQueryDetails: true,
     testName: 'dev.perfetto.RunQueryAndShowTab with custom name',
   },
+
+  // Note commands
+  {
+    id: 'dev.perfetto.AddNoteAtTimestamp',
+    args: ['1753096827527374787', 'name'],
+    traceFile: 'missing_track_names.pb', // Simple trace
+  },
 ];
 
 test('all allowlisted commands have corresponding test cases', async () => {

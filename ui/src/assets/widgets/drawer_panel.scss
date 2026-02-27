@@ -38,18 +38,25 @@
     align-items: baseline;
     padding-inline: 2px;
     align-items: center;
+    touch-action: none;
   }
 
   &__tabs {
     padding-inline: 3px; // Leave some space for the drop shadow
     display: flex;
     overflow: hidden;
-    flex: 1; // Expand to fill remaining space.
 
     // Align tabs to the bottom of the handle & overlap the drawer border so
     // that the active tab looks like it is part of the drawer.
     align-self: flex-end;
     margin-bottom: -1px;
+    cursor: default; // Tabs container itself is not clickable
+  }
+
+  &__spacer {
+    flex: 1;
+    align-self: stretch;
+    min-width: 30px; // Leave some room for the user to grab the handle even if there are many tabs
   }
 
   &__tab {

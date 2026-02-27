@@ -99,6 +99,7 @@ protozero_descriptor_diff_target = '//src/protozero/descriptor_diff:protozero_de
 
 default_targets += [
     '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
+    '//src/tools:tracing_proto_extensions(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
     ipc_plugin,
 ]
@@ -356,6 +357,7 @@ additional_args = {
         ('apex_available',
          {'//apex_available:platform', 'com.android.profiling'}),
     ],
+    'traced': [('required', {'etc_system_tracing_proto_descriptors'})],
     # TODO(ktimofeev): rename android.bp target
     'perfetto_src_android_sdk_java_test_perfetto_trace_test_lib': [
         ('static_libs', {'perfetto_trace_java_protos'})

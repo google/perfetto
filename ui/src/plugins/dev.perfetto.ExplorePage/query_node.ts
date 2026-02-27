@@ -82,6 +82,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kSort:
     case NodeType.kFilter:
     case NodeType.kCounterToIntervals:
+    case NodeType.kMetrics:
     case NodeType.kVisualisation:
       return true;
     default:
