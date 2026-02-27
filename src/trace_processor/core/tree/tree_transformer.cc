@@ -175,7 +175,10 @@ struct TreeValueFetcher : core::ValueFetcher {
 // =============================================================================
 
 TreeTransformer::TreeTransformer(dataframe::Dataframe df, StringPool* pool)
-    : df_(std::move(df)), pool_(pool), scope_id_(builder_.CreateCacheScope()) {}
+    : df_(std::move(df)),
+      pool_(pool),
+      builder_(std::make_unique<interpreter::BytecodeBuilder>()),
+      cache_(std::make_unique<dataframe::DataframeRegisterCache>(*builder_)) {}
 
 // =============================================================================
 // Public methods
@@ -229,7 +232,7 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   }
 
   interpreter::Interpreter<TreeValueFetcher> interp;
-  interp.Initialize(builder_.bytecode(), builder_.register_count(), pool_);
+  interp.Initialize(builder_->bytecode(), builder_->register_count(), pool_);
   interp.SetRegisterValue(
       interpreter::WriteHandle<StoragePtr>(parent_storage_reg_.index),
       StoragePtr{normalized_parent.begin(), StorageType(Uint32{})});
@@ -269,17 +272,17 @@ void TreeTransformer::InitializeTreeStructure(uint32_t row_count) {
   using MakeC2P = interpreter::MakeChildToParentTreeStructure;
 
   // Allocate persistent scratch for parent and original_rows spans.
-  auto parent_scratch = builder_.AllocateScratch(kParentSlot, row_count);
-  auto orig_scratch = builder_.AllocateScratch(kOriginalRowsSlot, row_count);
+  auto parent_scratch = builder_->AllocateScratch(row_count);
+  auto orig_scratch = builder_->AllocateScratch(row_count);
 
   parent_span_ = parent_scratch.span;
   original_rows_span_ = orig_scratch.span;
 
   // Allocate register for parent storage pointer.
-  parent_storage_reg_ = builder_.AllocateRegister<interpreter::StoragePtr>();
+  parent_storage_reg_ = builder_->AllocateRegister<interpreter::StoragePtr>();
 
   // Emit bytecode to initialize child-to-parent structure from parent storage.
-  auto& op = builder_.AddOpcode<MakeC2P>(interpreter::Index<MakeC2P>());
+  auto& op = builder_->AddOpcode<MakeC2P>(interpreter::Index<MakeC2P>());
   op.arg<MakeC2P::parent_id_storage_register>() = parent_storage_reg_;
   op.arg<MakeC2P::row_count>() = row_count;
   op.arg<MakeC2P::parent_span_register>() = parent_span_;
@@ -288,12 +291,12 @@ void TreeTransformer::InitializeTreeStructure(uint32_t row_count) {
   // Allocate all scratch buffers once for reuse across FilterTree() calls.
   // This avoids emitting AllocateIndices bytecode for each filter operation.
   filter_scratch_ = FilterScratch{
-      builder_.AllocateScratch(kFilterScratch1Slot, row_count * 2),
-      builder_.AllocateScratch(kFilterScratch2Slot, row_count),
-      builder_.AllocateScratch(kP2CScratchSlot, row_count),
-      builder_.AllocateScratch(kP2COffsetsSlot, row_count + 1),
-      builder_.AllocateScratch(kP2CChildrenSlot, row_count),
-      builder_.AllocateScratch(kP2CRootsSlot, row_count),
+      builder_->AllocateScratch(row_count * 2),
+      builder_->AllocateScratch(row_count),
+      builder_->AllocateScratch(row_count),
+      builder_->AllocateScratch(row_count + 1),
+      builder_->AllocateScratch(row_count),
+      builder_->AllocateScratch(row_count),
   };
 }
 
@@ -303,7 +306,7 @@ void TreeTransformer::EnsureParentToChildStructure() {
   }
   using MakeP2C = interpreter::MakeParentToChildTreeStructure;
 
-  auto& op = builder_.AddOpcode<MakeP2C>(interpreter::Index<MakeP2C>());
+  auto& op = builder_->AddOpcode<MakeP2C>(interpreter::Index<MakeP2C>());
   op.arg<MakeP2C::parent_span_register>() = parent_span_;
   op.arg<MakeP2C::scratch_register>() = filter_scratch_->p2c_scratch.span;
   op.arg<MakeP2C::offsets_register>() = filter_scratch_->p2c_offsets.span;
@@ -321,9 +324,9 @@ TreeTransformer::BuildFilterBitvector(
   using SpanToBv = interpreter::IndexSpanToBitvector;
 
   // Initialize range covering all rows.
-  auto range_reg = builder_.AllocateRegister<Range>();
+  auto range_reg = builder_->AllocateRegister<Range>();
   {
-    auto& op = builder_.AddOpcode<InitRange>(interpreter::Index<InitRange>());
+    auto& op = builder_->AddOpcode<InitRange>(interpreter::Index<InitRange>());
     op.arg<InitRange::size>() = row_count;
     op.arg<InitRange::dest_register>() = range_reg;
   }
@@ -331,7 +334,7 @@ TreeTransformer::BuildFilterBitvector(
   // Generate filter bytecode using QueryPlanBuilder::Filter.
   ASSIGN_OR_RETURN(auto filter_result,
                    dataframe::QueryPlanBuilder::Filter(
-                       builder_, scope_id_,
+                       *builder_, *cache_,
                        interpreter::RwHandle<Range>(range_reg), df_, specs));
 
   // Capture register init specs for later initialization in ToDataframe().
@@ -340,29 +343,28 @@ TreeTransformer::BuildFilterBitvector(
   }
 
   // Convert filtered result to bitvector.
-  auto bv_reg = builder_.AllocateRegister<BitVector>();
+  auto bv_reg = builder_->AllocateRegister<BitVector>();
   if (auto* range_ptr =
           std::get_if<interpreter::RwHandle<Range>>(&filter_result.indices)) {
     // For Range, use Iota to expand to indices first, then convert to
     // bitvector.
-    auto filter_scratch =
-        builder_.AllocateScratch(kFilterBytecodeSlot, row_count);
+    auto filter_scratch = builder_->AllocateScratch(row_count);
     {
-      auto& op = builder_.AddOpcode<Iota>(interpreter::Index<Iota>());
+      auto& op = builder_->AddOpcode<Iota>(interpreter::Index<Iota>());
       op.arg<Iota::source_register>() = *range_ptr;
       op.arg<Iota::update_register>() = filter_scratch.span;
     }
     {
-      auto& op = builder_.AddOpcode<SpanToBv>(interpreter::Index<SpanToBv>());
+      auto& op = builder_->AddOpcode<SpanToBv>(interpreter::Index<SpanToBv>());
       op.arg<SpanToBv::indices_register>() = filter_scratch.span;
       op.arg<SpanToBv::bitvector_size>() = row_count;
       op.arg<SpanToBv::dest_register>() = bv_reg;
     }
-    builder_.ReleaseScratch(kFilterBytecodeSlot);
+    builder_->ReleaseScratch(filter_scratch);
   } else {
     auto span =
         std::get<interpreter::RwHandle<Span<uint32_t>>>(filter_result.indices);
-    auto& op = builder_.AddOpcode<SpanToBv>(interpreter::Index<SpanToBv>());
+    auto& op = builder_->AddOpcode<SpanToBv>(interpreter::Index<SpanToBv>());
     op.arg<SpanToBv::indices_register>() = span;
     op.arg<SpanToBv::bitvector_size>() = row_count;
     op.arg<SpanToBv::dest_register>() = bv_reg;
@@ -375,7 +377,7 @@ void TreeTransformer::EmitFilterTreeBytecode(
     interpreter::RwHandle<BitVector> keep_bv) {
   using Filter = interpreter::FilterTree;
 
-  auto& op = builder_.AddOpcode<Filter>(interpreter::Index<Filter>());
+  auto& op = builder_->AddOpcode<Filter>(interpreter::Index<Filter>());
   op.arg<Filter::offsets_register>() = filter_scratch_->p2c_offsets.span;
   op.arg<Filter::children_register>() = filter_scratch_->p2c_children.span;
   op.arg<Filter::roots_register>() = filter_scratch_->p2c_roots.span;
