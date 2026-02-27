@@ -91,11 +91,10 @@ FlatBufferWriter::Offset FlatBufferWriter::WriteVecOffsets(
   return Offset{GetSize()};
 }
 
-FlatBufferWriter::Offset FlatBufferWriter::WriteVecStruct(
-    const void* data,
-    uint32_t elem_size,
-    uint32_t count,
-    uint32_t elem_align) {
+FlatBufferWriter::Offset FlatBufferWriter::WriteVecStruct(const void* data,
+                                                          uint32_t elem_size,
+                                                          uint32_t count,
+                                                          uint32_t elem_align) {
   Align(elem_align);
   PrependBytes(data, elem_size * count);
   Prepend<uint32_t>(count);
@@ -174,11 +173,11 @@ FlatBufferWriter::Offset FlatBufferWriter::EndTable() {
     // field.off_from_end > table_body_start_ (field was written between
     // StartTable and EndTable). table_off > field.off_from_end (soffset
     // was written after fields). vtable_entry = table_off - field.off_from_end.
-    vt_entries[f.index] =
-        static_cast<uint16_t>(table_off - f.off_from_end);
+    vt_entries[f.index] = static_cast<uint16_t>(table_off - f.off_from_end);
   }
 
-  // Prepend vtable back-to-front: entries (last first), table_size, vtable_size.
+  // Prepend vtable back-to-front: entries (last first), table_size,
+  // vtable_size.
   Align(sizeof(uint16_t));
   for (int32_t i = static_cast<int32_t>(num_slots) - 1; i >= 0; i--) {
     Prepend(vt_entries[static_cast<uint32_t>(i)]);

@@ -114,10 +114,10 @@ W::Offset BuildUtf8Type(W& w) {
 // Field table: field 0 = name, field 1 = nullable, field 2 = type_type,
 //              field 3 = type.
 W::Offset BuildField(W& w,
-                      const std::string& name,
-                      uint8_t type_type,
-                      W::Offset type_off,
-                      bool nullable) {
+                     const std::string& name,
+                     uint8_t type_type,
+                     W::Offset type_off,
+                     bool nullable) {
   auto name_off = w.WriteString(name);
   w.StartTable();
   w.FieldOffset(0, name_off);
@@ -129,8 +129,8 @@ W::Offset BuildField(W& w,
 
 // Schema table: field 0 = endianness (i16), field 1 = fields (vec).
 W::Offset BuildSchema(W& w,
-                       const W::Offset* field_offsets,
-                       uint32_t num_fields) {
+                      const W::Offset* field_offsets,
+                      uint32_t num_fields) {
   auto fields_vec = w.WriteVecOffsets(field_offsets, num_fields);
   w.StartTable();
   w.FieldI16(0, 0);  // little-endian
@@ -141,9 +141,8 @@ W::Offset BuildSchema(W& w,
 // Build schema field offsets from a list of column infos, then build the
 // Schema table. Avoids duplicating the field-building loop between the
 // schema message and the footer.
-W::Offset BuildSchemaWithFields(
-    W& w,
-    const std::vector<ArrowWriter::ColInfo>& cols) {
+W::Offset BuildSchemaWithFields(W& w,
+                                const std::vector<ArrowWriter::ColInfo>& cols) {
   std::vector<W::Offset> field_offsets;
   for (const auto& col : cols) {
     uint8_t type_type;
@@ -171,7 +170,6 @@ W::Offset BuildSchemaWithFields(
   return BuildSchema(w, field_offsets.data(),
                      static_cast<uint32_t>(field_offsets.size()));
 }
-
 
 // Creates a BitVector from Arrow validity bitmap bytes.
 BitVector ReadValidityBitmap(const uint8_t* data, uint32_t num_rows) {
@@ -212,7 +210,6 @@ const uint8_t* NumericRawData(const Storage& s) {
   return reinterpret_cast<const uint8_t*>(s.unchecked_data<Uint32>());
 }
 
-
 // After data has been loaded, sets the validity BitVector on the column's
 // NullStorage and computes prefix popcount for sparse-null columns.
 void ApplyNullBitVector(Column& column,
@@ -235,9 +232,9 @@ void ApplyNullBitVector(Column& column,
 // Message table: field 0 = version (i16), field 1 = header_type (u8),
 //                field 2 = header (offset), field 3 = bodyLength (i64).
 W::Offset BuildMessage(W& w,
-                        uint8_t header_type,
-                        W::Offset header,
-                        int64_t body_length) {
+                       uint8_t header_type,
+                       W::Offset header,
+                       int64_t body_length) {
   w.StartTable();
   w.FieldI16(0, kMetadataV5);
   w.FieldU8(1, header_type);
@@ -249,13 +246,13 @@ W::Offset BuildMessage(W& w,
 // RecordBatch table: field 0 = length (i64), field 1 = nodes (vec of struct),
 //                    field 2 = buffers (vec of struct).
 W::Offset BuildRecordBatch(W& w,
-                            int64_t length,
-                            const FieldNode* nodes,
-                            uint32_t num_nodes,
-                            const Buffer* buffers,
-                            uint32_t num_buffers) {
-  auto bufs = w.WriteVecStruct(buffers, sizeof(Buffer), num_buffers,
-                                alignof(int64_t));
+                           int64_t length,
+                           const FieldNode* nodes,
+                           uint32_t num_nodes,
+                           const Buffer* buffers,
+                           uint32_t num_buffers) {
+  auto bufs =
+      w.WriteVecStruct(buffers, sizeof(Buffer), num_buffers, alignof(int64_t));
   auto nds =
       w.WriteVecStruct(nodes, sizeof(FieldNode), num_nodes, alignof(int64_t));
   w.StartTable();
@@ -268,12 +265,13 @@ W::Offset BuildRecordBatch(W& w,
 // Footer table: field 0 = version (i16), field 1 = schema (offset),
 //               field 2 = dictionaries (vec), field 3 = recordBatches (vec).
 W::Offset BuildFooter(W& w,
-                       W::Offset schema,
-                       const Block* batches,
-                       uint32_t num_batches) {
+                      W::Offset schema,
+                      const Block* batches,
+                      uint32_t num_batches) {
   auto batches_vec =
       w.WriteVecStruct(batches, sizeof(Block), num_batches, alignof(int64_t));
-  auto dicts_vec = w.WriteVecStruct(nullptr, sizeof(Block), 0, alignof(int64_t));
+  auto dicts_vec =
+      w.WriteVecStruct(nullptr, sizeof(Block), 0, alignof(int64_t));
   w.StartTable();
   w.FieldI16(0, kMetadataV5);
   w.FieldOffset(1, schema);
@@ -387,10 +385,10 @@ size_t ArrowWriter::Prepare(const Dataframe& df, StringPool* pool) {
   std::vector<uint8_t> batch_fb;
   {
     W fw;
-    auto rb = BuildRecordBatch(fw, static_cast<int64_t>(num_rows), nodes.data(),
-                                static_cast<uint32_t>(nodes.size()),
-                                buffers.data(),
-                                static_cast<uint32_t>(buffers.size()));
+    auto rb =
+        BuildRecordBatch(fw, static_cast<int64_t>(num_rows), nodes.data(),
+                         static_cast<uint32_t>(nodes.size()), buffers.data(),
+                         static_cast<uint32_t>(buffers.size()));
     auto msg = BuildMessage(fw, kHeaderRecordBatch, rb,
                             static_cast<int64_t>(padded_body_));
     fw.Finish(msg);
@@ -407,8 +405,7 @@ size_t ArrowWriter::Prepare(const Dataframe& df, StringPool* pool) {
     auto schema = BuildSchemaWithFields(fw, cols_);
     Block batch_block;
     batch_block.offset = static_cast<int64_t>(batch_offset);
-    batch_block.metadata_length =
-        static_cast<int32_t>(8 + padded_batch_meta);
+    batch_block.metadata_length = static_cast<int32_t>(8 + padded_batch_meta);
     batch_block.padding = 0;
     batch_block.body_length = static_cast<int64_t>(padded_body_);
     auto footer = BuildFooter(fw, schema, &batch_block, 1);
@@ -508,8 +505,7 @@ base::Status ArrowWriter::Write(const Dataframe& df,
       for (uint32_t r = 0; r < num_rows; r++) {
         offsets[r] = current_offset;
         if (!bv || bv->is_set(r)) {
-          NullTermStringView sv =
-              pool->Get(ids[is_sparse ? sparse_idx++ : r]);
+          NullTermStringView sv = pool->Get(ids[is_sparse ? sparse_idx++ : r]);
           auto len = static_cast<int32_t>(sv.size());
           if (len > 0) {
             memcpy(str_dst + current_offset, sv.data(),
@@ -521,7 +517,8 @@ base::Status ArrowWriter::Write(const Dataframe& df,
       offsets[num_rows] = current_offset;
       // Zero only the padding bytes between offsets and string data,
       // and after string data.
-      memset(scratch_.data() + offsets_bytes, 0, padded_offsets - offsets_bytes);
+      memset(scratch_.data() + offsets_bytes, 0,
+             padded_offsets - offsets_bytes);
       memset(str_dst + str_len, 0, padded_str - str_len);
       sink(scratch_.data(), total);
     } else {
@@ -565,10 +562,9 @@ base::Status ArrowWriter::Write(const Dataframe& df,
   return base::OkStatus();
 }
 
-base::Status DeserializeFromArrowIpc(
-    Dataframe& df,
-    StringPool* pool,
-    const util::TraceBlobViewReader& reader) {
+base::Status DeserializeFromArrowIpc(Dataframe& df,
+                                     StringPool* pool,
+                                     const util::TraceBlobViewReader& reader) {
   size_t len = reader.end_offset() - reader.start_offset();
 
   // Minimum: 8 (magic) + 4 (footer_size) + 6 (magic) = 18.
@@ -683,9 +679,9 @@ base::Status DeserializeFromArrowIpc(
       if (buf_idx >= bufs.size())
         return base::ErrStatus("Not enough buffers for column %u", i);
       Buffer bitmap_buf = bufs[buf_idx++];
-      auto bitmap_data = reader.SliceOff(
-          body_offset + static_cast<size_t>(bitmap_buf.offset),
-          static_cast<size_t>(bitmap_buf.length));
+      auto bitmap_data =
+          reader.SliceOff(body_offset + static_cast<size_t>(bitmap_buf.offset),
+                          static_cast<size_t>(bitmap_buf.length));
       if (!bitmap_data)
         return base::ErrStatus("Cannot read validity bitmap for column %u", i);
       validity_bv = ReadValidityBitmap(bitmap_data->data(),
@@ -701,9 +697,8 @@ base::Status DeserializeFromArrowIpc(
       if (buf_idx >= bufs.size())
         return base::ErrStatus("Not enough buffers for column %u", i);
       Buffer b = bufs[buf_idx++];
-      auto blob = reader.SliceOff(
-          body_offset + static_cast<size_t>(b.offset),
-          static_cast<size_t>(b.length));
+      auto blob = reader.SliceOff(body_offset + static_cast<size_t>(b.offset),
+                                  static_cast<size_t>(b.length));
       if (!blob)
         return base::ErrStatus("Cannot read buffer for column %u", i);
       return std::move(*blob);

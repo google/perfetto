@@ -113,9 +113,7 @@ class FlatBufferStringVec {
 class FlatBufferReader {
  public:
   FlatBufferReader() = default;
-  FlatBufferReader(const uint8_t* buf,
-                   uint32_t buf_size,
-                   const uint8_t* table)
+  FlatBufferReader(const uint8_t* buf, uint32_t buf_size, const uint8_t* table)
       : buf_(buf), buf_size_(buf_size), table_(table) {}
 
   // Returns a pointer to the raw field data at |field_index|, or nullptr if

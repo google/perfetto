@@ -65,7 +65,6 @@ class ArrowWriter {
                      const ArrowIpcWriteSink& sink);
 
  private:
-
   // Pre-built header (magic + schema msg + record batch metadata).
   std::vector<uint8_t> header_;
   // Pre-built trailer (footer + footer_size + magic).
@@ -85,10 +84,9 @@ class ArrowWriter {
 // Deserialize an Arrow IPC file into an existing (empty) Dataframe.
 // Schema must match exactly (same column names, types, nullability,
 // excluding _auto_id).
-base::Status DeserializeFromArrowIpc(
-    Dataframe& df,
-    StringPool* pool,
-    const util::TraceBlobViewReader& reader);
+base::Status DeserializeFromArrowIpc(Dataframe& df,
+                                     StringPool* pool,
+                                     const util::TraceBlobViewReader& reader);
 
 }  // namespace perfetto::trace_processor::core::dataframe
 

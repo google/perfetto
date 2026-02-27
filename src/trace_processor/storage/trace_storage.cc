@@ -76,8 +76,7 @@ constexpr std::array kTableInitParams =
 template <class... Ts>
 const std::array<const char*, sizeof...(Ts)>& TableNamesImpl(
     std::variant<Ts...>*) {
-  static const std::array<const char*, sizeof...(Ts)> names = {
-      {Ts::Name()...}};
+  static const std::array<const char*, sizeof...(Ts)> names = {{Ts::Name()...}};
   return names;
 }
 

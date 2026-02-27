@@ -83,9 +83,7 @@ class FlatBufferWriter {
 
   // Access the finished buffer.
   const uint8_t* data() const { return buf_.data() + head_; }
-  uint32_t size() const {
-    return static_cast<uint32_t>(buf_.size()) - head_;
-  }
+  uint32_t size() const { return static_cast<uint32_t>(buf_.size()) - head_; }
 
   // Take ownership of the finished buffer as a tight vector.
   std::vector<uint8_t> Release();

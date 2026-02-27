@@ -448,8 +448,8 @@ source_set("winscope_proto_mapping") {
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
-    "flatbuf_reader_unittest.cc",
     "debug_annotation_parser_unittest.cc",
+    "flatbuf_reader_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
@@ -475,9 +475,9 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":bump_allocator",
+    ":descriptors",
     ":flatbuf_reader",
     ":flatbuf_writer",
-    ":descriptors",
     ":galloping_search",
     ":glob",
     ":gzip",

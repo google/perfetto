@@ -69,7 +69,8 @@ TEST(ArrowIpcTest, RoundTripUint32NonNullable) {
 
   // Build a TraceBlobViewReader from the serialized bytes.
   util::TraceBlobViewReader reader;
-  reader.PushBack(TraceBlobView(TraceBlob::CopyFrom(bytes.data(), bytes.size())));
+  reader.PushBack(
+      TraceBlobView(TraceBlob::CopyFrom(bytes.data(), bytes.size())));
 
   // Deserialize into a fresh dataframe with the same schema.
   auto dst = Dataframe::CreateFromTypedSpec(kUint32Spec, &pool);

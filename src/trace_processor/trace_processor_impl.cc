@@ -50,7 +50,6 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "perfetto_build_flags.h"
 #include "src/trace_processor/core/dataframe/arrow_ipc.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
@@ -58,9 +57,9 @@
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/archive/gzip_trace_parser.h"
-#include "src/trace_processor/importers/arrow/arrow_ipc_trace_reader.h"
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
+#include "src/trace_processor/importers/arrow/arrow_ipc_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
@@ -1478,8 +1477,7 @@ base::Status TraceProcessorImpl::CreateSummarizer(
   return base::OkStatus();
 }
 
-base::Status TraceProcessorImpl::ExportToArrow(
-    ExportArrowCallback callback) {
+base::Status TraceProcessorImpl::ExportToArrow(ExportArrowCallback callback) {
   auto* storage = context_.storage.get();
   auto dataframes = storage->GetStaticDataframes();
 
@@ -1506,12 +1504,12 @@ base::Status TraceProcessorImpl::ExportToArrow(
     size_t arrow_size = arrow_writer.Prepare(*entry.dataframe, string_pool);
     ASSIGN_OR_RETURN(auto file_writer,
                      tar.BeginFile(arrow_filename, arrow_size));
-    RETURN_IF_ERROR(arrow_writer.Write(
-        *entry.dataframe, string_pool,
-        [&file_writer](const uint8_t* data, size_t len) {
-          auto status = file_writer.Write(data, len);
-          PERFETTO_CHECK(status.ok());
-        }));
+    RETURN_IF_ERROR(
+        arrow_writer.Write(*entry.dataframe, string_pool,
+                           [&file_writer](const uint8_t* data, size_t len) {
+                             auto status = file_writer.Write(data, len);
+                             PERFETTO_CHECK(status.ok());
+                           }));
   }
 
   // Signal end of stream.

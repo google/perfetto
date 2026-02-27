@@ -423,10 +423,9 @@ class Dataframe {
   friend class DataframeBytecodeTest;
 
   friend class ArrowWriter;
-  friend base::Status DeserializeFromArrowIpc(
-      Dataframe&,
-      StringPool*,
-      const util::TraceBlobViewReader&);
+  friend base::Status DeserializeFromArrowIpc(Dataframe&,
+                                              StringPool*,
+                                              const util::TraceBlobViewReader&);
 
   Dataframe(bool finalized,
             std::vector<std::string> column_names,

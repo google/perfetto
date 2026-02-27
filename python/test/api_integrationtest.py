@@ -670,6 +670,7 @@ class TestApi(unittest.TestCase):
             member = tf.extractfile(name)
             self.assertIsNotNone(member)
             data = member.read()
-            self.assertTrue(data[:6] == b'ARROW1', f'{name} missing ARROW1 header')
+            self.assertTrue(data[:6] == b'ARROW1',
+                            f'{name} missing ARROW1 header')
       finally:
         os.unlink(output_path)
