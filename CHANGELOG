@@ -62,6 +62,9 @@ v54.0 - 2026-02-27:
     * Added support for opening any public-readable https:// trace using url=
       parameter. See https://perfetto.dev/docs/visualization/deep-linking-to-perfetto-ui#option-1-direct-url-for-public-traces
       for more information.
+    * Changed the way heap profiles are rendered: rather than an arrow with a
+      snapshot from start, use a slice that represents the time period covered
+      since the last snapshot. Also support aggregation on area selection.
     * Added summary tracks for slice tracks and merged them with scheduling
       summaries.
     * Added present configs to the recording page to allow easy configuration
