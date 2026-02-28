@@ -75,9 +75,9 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
     PerfettoMcpPlugin.modelNameSetting = app.settings.register({
       id: `${PerfettoMcpPlugin.id}#ModelNameSetting`,
       name: 'Gemini Model',
-      description: 'The Gemini model to use, such as gemini-2.0-flash.',
+      description: 'The Gemini model to use, such as gemini-3-flash-preview.',
       schema: z.string(),
-      defaultValue: 'gemini-2.0-flash',
+      defaultValue: 'gemini-3-flash-preview',
       requiresReload: true,
     });
 
