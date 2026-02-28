@@ -204,7 +204,7 @@
       "python3",
       "-u",
       "RECIPE_MODULE[recipe_engine::json]\\resources\\read.py",
-      "[CACHE]\\windows_sdk\\win_sdk\\bin\\SetEnv.x64.json",
+      "[CACHE]\\windows_sdk\\Windows Kits\\10\\bin\\SetEnv.x64.json",
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
@@ -228,8 +228,10 @@
       "@@@STEP_LOG_LINE@json.output@      [@@@",
       "@@@STEP_LOG_LINE@json.output@        \"..\",@@@",
       "@@@STEP_LOG_LINE@json.output@        \"..\",@@@",
-      "@@@STEP_LOG_LINE@json.output@        \"win_sdk\",@@@",
+      "@@@STEP_LOG_LINE@json.output@        \"Windows Kits\",@@@",
+      "@@@STEP_LOG_LINE@json.output@        \"10\",@@@",
       "@@@STEP_LOG_LINE@json.output@        \"bin\",@@@",
+      "@@@STEP_LOG_LINE@json.output@        \"10.0.19041.0\",@@@",
       "@@@STEP_LOG_LINE@json.output@        \"x64\"@@@",
       "@@@STEP_LOG_LINE@json.output@      ]@@@",
       "@@@STEP_LOG_LINE@json.output@    ],@@@",
@@ -258,7 +260,7 @@
     },
     "env_prefixes": {
       "PATH": [
-        "[CACHE]\\windows_sdk\\win_sdk\\bin\\x64"
+        "[CACHE]\\windows_sdk\\Windows Kits\\10\\bin\\10.0.19041.0\\x64"
       ]
     },
     "luci_context": {
@@ -288,7 +290,7 @@
     },
     "env_prefixes": {
       "PATH": [
-        "[CACHE]\\windows_sdk\\win_sdk\\bin\\x64"
+        "[CACHE]\\windows_sdk\\Windows Kits\\10\\bin\\10.0.19041.0\\x64"
       ]
     },
     "luci_context": {
@@ -322,7 +324,7 @@
     },
     "env_prefixes": {
       "PATH": [
-        "[CACHE]\\windows_sdk\\win_sdk\\bin\\x64"
+        "[CACHE]\\windows_sdk\\Windows Kits\\10\\bin\\10.0.19041.0\\x64"
       ]
     },
     "luci_context": {

@@ -70,7 +70,7 @@ class WindowsSDKApi(recipe_api.RecipeApi):
     env = {}
     env_prefixes = {}
 
-    # Load .../win_sdk/bin/SetEnv.${arch}.json to extract the required
+    # Load .../Windows Kits/10/bin/SetEnv.${arch}.json to extract the required
     # environment. It contains a dict that looks like this:
     # {
     #   "env": {
@@ -83,10 +83,13 @@ class WindowsSDKApi(recipe_api.RecipeApi):
     filename = 'SetEnv.%s.json' % {32: 'x86', 64: 'x64'}[self.m.platform.bits]
     step_result = self.m.json.read(
         'read %s' % filename,
-        sdk_dir / 'win_sdk' / 'bin' / filename,
+        sdk_dir / 'Windows Kits' / '10' / 'bin' / filename,
         step_test_data=lambda: self.m.json.test_api.output({
             'env': {
-                'PATH': [['..', '..', 'win_sdk', 'bin', 'x64']],
+                'PATH': [[
+                    '..', '..', 'Windows Kits', '10', 'bin', '10.0.19041.0',
+                    'x64'
+                ]],
                 'VSINSTALLDIR': [['..', '..\\']],
             },
         }))
