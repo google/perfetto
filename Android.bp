@@ -16737,6 +16737,54 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/shell:interactive
+filegroup {
+    name: "perfetto_src_trace_processor_shell_interactive",
+    srcs: [
+        "src/trace_processor/shell/interactive.cc",
+    ],
+}
+
+// GN: //src/trace_processor/shell:metatrace
+filegroup {
+    name: "perfetto_src_trace_processor_shell_metatrace",
+    srcs: [
+        "src/trace_processor/shell/metatrace.cc",
+    ],
+}
+
+// GN: //src/trace_processor/shell:metrics
+filegroup {
+    name: "perfetto_src_trace_processor_shell_metrics",
+    srcs: [
+        "src/trace_processor/shell/metrics.cc",
+    ],
+}
+
+// GN: //src/trace_processor/shell:query
+filegroup {
+    name: "perfetto_src_trace_processor_shell_query",
+    srcs: [
+        "src/trace_processor/shell/query.cc",
+    ],
+}
+
+// GN: //src/trace_processor/shell:shell_utils
+filegroup {
+    name: "perfetto_src_trace_processor_shell_shell_utils",
+    srcs: [
+        "src/trace_processor/shell/shell_utils.cc",
+    ],
+}
+
+// GN: //src/trace_processor/shell:sql_packages
+filegroup {
+    name: "perfetto_src_trace_processor_shell_sql_packages",
+    srcs: [
+        "src/trace_processor/shell/sql_packages.cc",
+    ],
+}
+
 // GN: //src/trace_processor/shell:subcommand
 filegroup {
     name: "perfetto_src_trace_processor_shell_subcommand",
@@ -17078,6 +17126,12 @@ cc_library_static {
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_stdiod",
+        ":perfetto_src_trace_processor_shell_interactive",
+        ":perfetto_src_trace_processor_shell_metatrace",
+        ":perfetto_src_trace_processor_shell_metrics",
+        ":perfetto_src_trace_processor_shell_query",
+        ":perfetto_src_trace_processor_shell_shell_utils",
+        ":perfetto_src_trace_processor_shell_sql_packages",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",
