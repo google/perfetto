@@ -114,7 +114,7 @@ export default class implements PerfettoPlugin {
       `select
          id,
          cluster,
-         IFNULL(package_name, 'UID ' || uid) AS name
+         package_name AS name
        from android_cpu_per_uid_track
        where total_cpu_millis > ${thresholdMs}
        order by name, cluster`,
