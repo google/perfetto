@@ -1213,6 +1213,19 @@ message WindowManagerConfig {
     LOG_LEVEL_CRITICAL = 3;
   }
   optional LogLevel log_level = 2;
+
+  enum LogMode {
+    LOG_MODE_UNSPECIFIED = 0;
+
+    // Always logs a full state dump of the window hierarchy.
+    LOG_MODE_FULL_STATE = 1;
+
+    // Logs a full state dump of the window hierarchy only when tracing starts.
+    // The following trace packets are lightweight patches containing only the
+    // last changes.
+    LOG_MODE_INCREMENTAL = 2;
+  }
+  optional LogMode log_mode = 3;
 }
 
 // End of protos/perfetto/config/android/windowmanager_config.proto
