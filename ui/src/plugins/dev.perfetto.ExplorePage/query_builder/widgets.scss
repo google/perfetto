@@ -960,3 +960,58 @@
     gap: 4px;
   }
 }
+
+// ============================================================================
+// Trace Summary node modify view
+// ============================================================================
+
+.pf-trace-summary-metric-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.pf-trace-summary-metric-badge {
+  font-size: 11px;
+  color: var(--md-sys-color-outline);
+}
+
+.pf-trace-summary-metric-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.pf-trace-summary-detail-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.pf-trace-summary-detail-label {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--md-sys-color-outline);
+  min-width: 70px;
+  text-transform: uppercase;
+}
+
+.pf-trace-summary-detail-none {
+  color: var(--md-sys-color-outline);
+  font-style: italic;
+}
+
+.pf-trace-summary-value-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 78px;
+}
+
+.pf-trace-summary-value-meta {
+  font-size: 11px;
+  color: var(--md-sys-color-outline);
+}
