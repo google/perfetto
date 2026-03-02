@@ -109,6 +109,24 @@ std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
       });
 }
 
+std::optional<SliceId> SliceTracker::Update(int64_t timestamp,
+                                            TrackId track_id,
+                                            StringId category,
+                                            StringId raw_name,
+                                            SetArgsCallback args_callback) {
+  const StringId name =
+      context_->slice_translation_table->TranslateName(raw_name);
+  auto finder = [this, category, name](const SlicesStack& stack) {
+    return MatchingIncompleteSliceIndex(stack, name, category);
+  };
+  tables::SliceTable::Row row(timestamp, kPendingDuration, track_id, category,
+                              name);
+  return UpdateSlice(
+      timestamp, track_id, args_callback, finder, [this, &row]() {
+        return context_->storage->mutable_slice_table()->Insert(row).id;
+      });
+}
+
 std::optional<SliceId> SliceTracker::End(int64_t timestamp,
                                          TrackId track_id,
                                          StringId category,
@@ -211,6 +229,46 @@ std::optional<SliceId> SliceTracker::StartSlice(
     args_callback(&bound_inserter);
   }
   return id;
+}
+
+std::optional<SliceId> SliceTracker::UpdateSlice(
+    int64_t timestamp,
+    TrackId track_id,
+    SetArgsCallback args_callback,
+    std::function<std::optional<uint32_t>(const SlicesStack&)> finder,
+    std::function<SliceId()> inserter) {
+  auto* it = stacks_.Find(track_id);
+  if (!it)
+    return std::nullopt;
+
+  TrackInfo& track_info = *it;
+  SlicesStack& stack = track_info.slice_stack;
+  if (!MaybeCloseStack(timestamp, kPendingDuration, stack, track_id)) {
+    return std::nullopt;
+  }
+  if (stack.empty()) {
+    return std::nullopt;
+  }
+
+  auto* slices = context_->storage->mutable_slice_table();
+  std::optional<uint32_t> stack_idx = finder(stack);
+
+  if (!stack_idx) {
+    return StartSlice(timestamp, kPendingDuration, track_id, args_callback,
+                      std::move(inserter));
+  }
+
+  const auto& slice_info = stack[stack_idx.value()];
+
+  tables::SliceTable::RowReference ref = slice_info.row.ToRowReference(slices);
+  PERFETTO_DCHECK(ref.dur() == kPendingDuration);
+
+  ArgsTracker& tracker = stack[stack_idx.value()].args_tracker;
+  if (args_callback) {
+    auto bound_inserter = tracker.AddArgsTo(ref.id());
+    args_callback(&bound_inserter);
+  }
+  return ref.id();
 }
 
 std::optional<SliceId> SliceTracker::CompleteSlice(
