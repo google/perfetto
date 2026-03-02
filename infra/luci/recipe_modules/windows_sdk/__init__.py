@@ -35,7 +35,7 @@ PROPERTIES = {
                 sdk_version=Single(str)),
             default={
                 'sdk_package': 'chrome_internal/third_party/sdk/windows',
-                'sdk_version': 'uploaded:2019-09-06'
+                'sdk_version': 'uploaded:2024-01-11'
             },
         )
 }
