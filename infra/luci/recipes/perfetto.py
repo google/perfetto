@@ -89,12 +89,12 @@ def UploadArtifact(api, ctx, platform, out_dir, artifact):
 
   # We want to use the stripped binaries except on Windows where we don't generate
   # them.
-  exe_dir = out_dir if api.platform.is_win else out_dir.joinpath('stripped')
+  exe_dir = out_dir if api.platform.is_win else out_dir.join('stripped')
 
   # Compute the exact artifact path
   gcs_upload_dir = ctx.maybe_git_tag if ctx.maybe_git_tag else ctx.git_revision
   artifact_ext = artifact['name'] + ('.exe' if api.platform.is_win else '')
-  source_path = exe_dir.joinpath(artifact_ext)
+  source_path = exe_dir.join(artifact_ext)
 
   # Upload to GCS bucket - build all target paths first
   gcs_paths = ['{}/{}/{}'.format(gcs_upload_dir, platform, artifact_ext)]
@@ -108,7 +108,7 @@ def UploadArtifact(api, ctx, platform, out_dir, artifact):
 
   # Upload .pdb files (Windows only) to all target paths
   if api.platform.is_win:
-    pdb_path = exe_dir.joinpath(artifact_ext + '.pdb')
+    pdb_path = exe_dir.join(artifact_ext + '.pdb')
     for gcs_path in gcs_paths:
       api.gsutil.upload(pdb_path, 'perfetto-luci-artifacts', gcs_path + '.pdb')
 
@@ -120,7 +120,7 @@ def UploadArtifact(api, ctx, platform, out_dir, artifact):
 
   # Actually build the CIPD pakcage
   cipd_pkg_file_name = '{}-{}.cipd'.format(artifact['name'], platform)
-  cipd_pkg_file = api.path.cleanup_dir.joinpath(cipd_pkg_file_name)
+  cipd_pkg_file = api.path['cleanup'].join(cipd_pkg_file_name)
   api.cipd.build_from_pkg(
       pkg_def=pkg_def,
       output_package=cipd_pkg_file,
@@ -147,7 +147,7 @@ def UploadArtifact(api, ctx, platform, out_dir, artifact):
 
 
 def BuildForPlatform(api, ctx, platform):
-  out_dir = ctx.src_dir.joinpath('out', platform)
+  out_dir = ctx.src_dir.join('out', platform)
 
   # Build Perfetto.
   # There should be no need for internet access here.
@@ -174,7 +174,7 @@ def BuildForPlatform(api, ctx, platform):
 
 
 def RunSteps(api, repository):
-  src_dir = api.path.cache_dir.joinpath('builder', 'perfetto')
+  src_dir = api.path['cache'].join('builder', 'perfetto')
 
   # Crate the context we use in all the building stages.
   ctx = BuildContext(src_dir)

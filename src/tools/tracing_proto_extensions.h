@@ -55,9 +55,11 @@ struct Registry {
   std::string source_path;
 };
 
-// Parses a track_event_extensions.json file from its contents.
-base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
-                                       const std::string& source_path);
+// Parses a track_event_extensions.json file with the {"extensions": [...]}
+// format. Returns one Registry per entry in the array.
+base::StatusOr<std::vector<Registry>> ParseRegistryFile(
+    const std::string& json_contents,
+    const std::string& source_path);
 
 // Validates a registry: checks that allocations tile the ranges exactly
 // (no gaps or overlaps) and that constraints on proto/registry fields are met.

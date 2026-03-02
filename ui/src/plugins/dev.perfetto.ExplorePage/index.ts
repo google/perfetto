@@ -22,7 +22,6 @@ import {nodeRegistry} from './query_builder/node_registry';
 import {QueryNodeState} from './query_node';
 import {deserializeState, serializeState} from './json_handler';
 import {recentGraphsStorage} from './recent_graphs';
-import {resetAnalyzeNodeSummarizer} from './query_builder/query_builder_utils';
 
 const STORE_VERSION = 1;
 
@@ -191,9 +190,6 @@ export default class implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    // Reset module-level state from previous traces to prevent stale IDs.
-    resetAnalyzeNodeSummarizer();
-
     trace.pages.registerPage({
       route: '/explore',
       render: () => {

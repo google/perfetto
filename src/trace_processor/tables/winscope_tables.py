@@ -734,14 +734,43 @@ WINDOW_MANAGER_SHELL_TRANSITION_PARTICIPANTS_TABLE = Table(
         C('transition_id', CppInt64()),
         C('layer_id', CppOptional(CppUint32())),
         C('window_id', CppOptional(CppUint32())),
+        C('mode', CppOptional(CppUint32())),
+        C('flags', CppOptional(CppUint32())),
+        C('start_display_id', CppOptional(CppUint32())),
+        C('end_display_id', CppOptional(CppUint32())),
+        C('start_rotation', CppOptional(CppUint32())),
+        C('end_rotation', CppOptional(CppUint32())),
+        C('start_abs_bounds_rect_id',
+          CppOptional(CppTableId(WINSCOPE_RECT_TABLE))),
+        C('end_abs_bounds_rect_id',
+          CppOptional(CppTableId(WINSCOPE_RECT_TABLE))),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transition Participants',
         group='Winscope',
         columns={
-            'transition_id': 'Transition id',
-            'layer_id': 'Id of layer participant',
-            'window_id': 'Id of window participant',
+            'transition_id':
+                'Transition id',
+            'layer_id':
+                'Id of layer participant',
+            'window_id':
+                'Id of window participant',
+            'mode':
+                'Transition mode of the participant',
+            'flags':
+                'Flags of the participant',
+            'start_display_id':
+                'Display id the change is transitioning on before the transition',
+            'end_display_id':
+                'Display id the change is transitioning on after the transition',
+            'start_rotation':
+                'Rotation of the change before the transition',
+            'end_rotation':
+                'Rotation of the change after the transition',
+            'start_abs_bounds_rect_id':
+                'Absolute screen bounds of the change before the transition',
+            'end_abs_bounds_rect_id':
+                'Absolute screen bounds of the change after the transition',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(

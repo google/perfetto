@@ -14,9 +14,7 @@
 
 import protos from '../../../protos';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {Engine} from '../../../trace_processor/engine';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
-import {uuidv4Sql} from '../../../base/uuid';
 import {Query, QueryNode} from '../query_node';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 
@@ -159,91 +157,6 @@ export function hashNodeQuery(node: QueryNode): string | Error {
   // Protobuf objects have stable field ordering, making this deterministic.
   // Uses bigint-safe stringify to handle bigint values correctly.
   return stringifyJsonWithBigints(sq);
-}
-
-// Server-generated summarizer ID for analyzeNode operations.
-// This is module-level state that persists across the session.
-// Call resetAnalyzeNodeSummarizer() when loading a new trace to clear stale state.
-let analyzeNodeSummarizerId: string | undefined = undefined;
-
-/**
- * Resets the analyzeNode summarizer ID. Must be called when loading a new trace
- * to ensure stale summarizer IDs from previous traces are not reused.
- */
-export function resetAnalyzeNodeSummarizer(): void {
-  analyzeNodeSummarizerId = undefined;
-}
-
-// Analyzes a node's query via sync + fetch, returns generated SQL.
-export async function analyzeNode(
-  node: QueryNode,
-  engine: Engine,
-): Promise<Query | Error> {
-  const structuredQueries = getStructuredQueries(node);
-  if (structuredQueries instanceof Error) {
-    return structuredQueries;
-  }
-
-  if (structuredQueries.length === 0) {
-    return new Error('No structured queries to analyze');
-  }
-
-  // Build a TraceSummarySpec containing all the queries
-  const spec = new protos.TraceSummarySpec();
-  spec.query = structuredQueries;
-
-  // Use the node's ID as the query ID. The node's ID is set as the query's id
-  // field when the node builds its structured query.
-  const queryId = node.nodeId;
-
-  // Create the summarizer if it doesn't exist yet
-  if (analyzeNodeSummarizerId === undefined) {
-    const newId = `analyze_summarizer_${uuidv4Sql()}`;
-    const createRes = await engine.createSummarizer(newId);
-    if (
-      createRes.error !== undefined &&
-      createRes.error !== null &&
-      createRes.error !== ''
-    ) {
-      return new Error(createRes.error);
-    }
-    analyzeNodeSummarizerId = newId;
-  }
-
-  // Update the spec with our queries
-  const updateRes = await engine.updateSummarizerSpec(
-    analyzeNodeSummarizerId,
-    spec,
-  );
-  if (
-    updateRes.error !== undefined &&
-    updateRes.error !== null &&
-    updateRes.error !== ''
-  ) {
-    return new Error(updateRes.error);
-  }
-
-  // Query the summarizer for this node (materializes on demand)
-  const res = await engine.querySummarizer(analyzeNodeSummarizerId, queryId);
-  if (!res.exists) {
-    return new Error(
-      `Query '${queryId}' does not exist after updateSummarizerSpec`,
-    );
-  }
-  if (res.error !== undefined && res.error !== null && res.error !== '') {
-    return new Error(res.error);
-  }
-  if (res.sql === null || res.sql === undefined || res.sql === '') {
-    return new Error(
-      `analyzeNode: engine returned no SQL for node ${node.nodeId}`,
-    );
-  }
-
-  return {
-    sql: res.sql,
-    textproto: res.textproto ?? '',
-    standaloneSql: res.standaloneSql ?? '',
-  };
 }
 
 // Type guard for valid Query object.
