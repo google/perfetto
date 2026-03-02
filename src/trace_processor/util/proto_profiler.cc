@@ -178,6 +178,9 @@ size_t SizeProfileComputer::GetFieldSize(const protozero::Field& f) {
       return 4;
     case protozero::proto_utils::ProtoWireType::kFixed64:
       return 8;
+    case protozero::proto_utils::ProtoWireType::kSGroup:
+    case protozero::proto_utils::ProtoWireType::kEGroup:
+      return 1;
   }
   PERFETTO_FATAL("unexpected field type");  // for gcc
 }
