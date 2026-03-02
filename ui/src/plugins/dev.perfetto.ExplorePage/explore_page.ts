@@ -19,6 +19,10 @@ import {Builder} from './query_builder/builder';
 import {QueryNode} from './query_node';
 import {ensureAllNodeActions} from './node_actions';
 import {Trace} from '../../public/trace';
+import {Icon} from '../../widgets/icon';
+import {Icons} from '../../base/semantic_icons';
+import {getOrCreate} from '../../base/utils';
+import {Tabs, TabsTab} from '../../widgets/tabs';
 
 import {
   confirmAndFinalizeCurrentGraph,
@@ -26,7 +30,6 @@ import {
   importGraph,
   loadGraphFromJson,
   loadGraphFromPath,
-  initializeHighImportanceTables,
   createExploreGraph,
   GraphIODeps,
 } from './graph_io';
@@ -53,10 +56,17 @@ import type {NodeCrudDeps} from './node_crud_operations';
 import {addFilter, addColumnFromJoinid} from './datagrid_node_creation';
 import {showDataExplorerHelp} from './data_explorer_help_modal';
 
-import type {ClipboardEntry, ClipboardConnection} from './clipboard_operations';
 import {copySelectedNodes, pasteClipboardNodes} from './clipboard_operations';
+import type {ClipboardResult} from './clipboard_operations';
+import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
 registerCoreNodes();
+
+export interface ExploreTab {
+  readonly id: string;
+  title: string;
+  state: ExplorePageState;
+}
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
@@ -72,30 +82,74 @@ export interface ExplorePageState {
   isExplorerCollapsed?: boolean;
   sidebarWidth?: number;
   loadGeneration?: number; // Incremented each time content is loaded
-  // Clipboard for multi-node copy/paste
-  clipboardNodes?: ClipboardEntry[];
-  clipboardConnections?: ClipboardConnection[];
 }
+
+type StateUpdateFn = (
+  update: ExplorePageState | ((current: ExplorePageState) => ExplorePageState),
+) => void;
 
 interface ExplorePageAttrs {
   readonly trace: Trace;
   readonly sqlModulesPlugin: SqlModulesPlugin;
+  // Active tab's state (convenience reference)
   readonly state: ExplorePageState;
-  readonly onStateUpdate: (
-    update:
-      | ExplorePageState
-      | ((currentState: ExplorePageState) => ExplorePageState),
+  // State updater for the active tab (used by keyboard handlers, etc.)
+  readonly onStateUpdate: StateUpdateFn;
+  // Factory that returns a per-tab state update function.
+  // Used in renderTabContent to create tab-scoped updaters that remain
+  // correct even if the active tab changes while async work is in flight.
+  readonly makeOnStateUpdate: (tabId: string) => StateUpdateFn;
+  // Multi-tab props
+  readonly tabs: ExploreTab[];
+  readonly activeTabId: string;
+  readonly onTabAdd: () => void;
+  readonly onTabClose: (tabId: string) => void;
+  readonly onTabChange: (tabId: string) => void;
+  readonly onTabRename: (tabId: string, newName: string) => void;
+  readonly onTabReorder: (
+    draggedId: string,
+    beforeId: string | undefined,
   ) => void;
-  readonly hasAutoInitialized: boolean;
-  readonly setHasAutoInitialized: (value: boolean) => void;
 }
 
+// Per-tab service instances that live for the lifetime of the tab.
+interface TabServices {
+  queryExecutionService: QueryExecutionService;
+  cleanupManager: CleanupManager;
+  historyManager?: HistoryManager;
+  initializedNodes: Set<string>;
+  executeFn?: () => Promise<void>;
+}
+
+const ADD_TAB_KEY = '__add_tab__';
+
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
-  private queryExecutionService?: QueryExecutionService;
-  private cleanupManager?: CleanupManager;
-  private historyManager?: HistoryManager;
-  private initializedNodes = new Set<string>();
-  private executeFn?: () => Promise<void>;
+  // Shared clipboard across all tabs (not persisted).
+  private clipboard?: ClipboardResult;
+
+  // Tab currently being renamed via inline editing (undefined = no rename).
+  private renamingTabId?: string;
+
+  // Per-tab services, keyed by tab ID.
+  private tabServices = new Map<string, TabServices>();
+
+  private getOrCreateServices(
+    tabId: string,
+    engine: Trace['engine'],
+  ): TabServices {
+    return getOrCreate(this.tabServices, tabId, () => {
+      const qes = new QueryExecutionService(engine);
+      return {
+        queryExecutionService: qes,
+        cleanupManager: new CleanupManager(qes),
+        initializedNodes: new Set<string>(),
+      };
+    });
+  }
+
+  private getActiveServices(activeTabId: string): TabServices | undefined {
+    return this.tabServices.get(activeTabId);
+  }
 
   private selectNode(attrs: ExplorePageAttrs, node: QueryNode) {
     attrs.onStateUpdate((currentState) => ({
@@ -133,19 +187,59 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }));
   }
 
+  private renderInlineRenameInput(
+    attrs: ExplorePageAttrs,
+    tab: ExploreTab,
+  ): m.Children {
+    let inputEl: HTMLInputElement | undefined;
+
+    const commit = () => {
+      if (inputEl === undefined) return;
+      const newName = inputEl.value.trim();
+      if (newName) {
+        attrs.onTabRename(tab.id, newName);
+      }
+      this.renamingTabId = undefined;
+      m.redraw();
+    };
+
+    return m('input.pf-explore-page__tab-rename-input', {
+      value: tab.title,
+      oncreate: (vnode: m.VnodeDOM) => {
+        inputEl = vnode.dom as HTMLInputElement;
+        inputEl.focus();
+        inputEl.select();
+      },
+      onkeydown: (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+          commit();
+          e.preventDefault();
+        } else if (e.key === 'Escape') {
+          this.renamingTabId = undefined;
+          m.redraw();
+          e.preventDefault();
+        }
+        // Stop propagation so the graph doesn't handle these keys
+        e.stopPropagation();
+      },
+      onblur: () => commit(),
+      // Prevent clicks from propagating to the tab (which would switch tabs)
+      onclick: (e: Event) => e.stopPropagation(),
+    });
+  }
+
   private handleCopy(attrs: ExplorePageAttrs): void {
     const result = copySelectedNodes(attrs.state);
     if (result !== undefined) {
-      attrs.onStateUpdate((currentState) => ({
-        ...currentState,
-        ...result,
-      }));
+      this.clipboard = result;
     }
   }
 
   private handlePaste(attrs: ExplorePageAttrs): void {
+    if (this.clipboard === undefined) return;
+    const clipboard = this.clipboard;
     attrs.onStateUpdate((currentState) => {
-      const result = pasteClipboardNodes(currentState);
+      const result = pasteClipboardNodes(currentState, clipboard);
       if (result === undefined) return currentState;
       return {...currentState, ...result};
     });
@@ -174,14 +268,19 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
+    const activeServices = this.getActiveServices(attrs.activeTabId);
+
     // Handle Ctrl+Enter to execute selected node
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       const selectedNode = getPrimarySelectedNode(
         state.selectedNodes,
         state.rootNodes,
       );
-      if (selectedNode !== undefined && this.executeFn !== undefined) {
-        void this.executeFn();
+      if (
+        selectedNode !== undefined &&
+        activeServices?.executeFn !== undefined
+      ) {
+        void activeServices.executeFn();
         event.preventDefault();
       }
       return;
@@ -257,98 +356,89 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     // Handle other shortcuts
     switch (event.key) {
       case 'i':
-        importGraph(graphIODeps, attrs.state);
+        importGraph(graphIODeps, state);
         break;
       case 'e':
-        exportGraph(attrs.state, attrs.trace);
+        exportGraph(state, attrs.trace);
         break;
     }
   }
 
   private handleUndo(attrs: ExplorePageAttrs) {
-    if (!this.historyManager) {
+    const historyManager = this.getActiveServices(
+      attrs.activeTabId,
+    )?.historyManager;
+    if (!historyManager) {
       console.warn('Cannot undo: history manager not initialized');
       return;
     }
 
-    const previousState = this.historyManager.undo();
+    const previousState = historyManager.undo();
     if (previousState) {
       attrs.onStateUpdate(previousState);
     }
   }
 
   private handleRedo(attrs: ExplorePageAttrs) {
-    if (!this.historyManager) {
+    const historyManager = this.getActiveServices(
+      attrs.activeTabId,
+    )?.historyManager;
+    if (!historyManager) {
       console.warn('Cannot redo: history manager not initialized');
       return;
     }
 
-    const nextState = this.historyManager.redo();
+    const nextState = historyManager.redo();
     if (nextState) {
       attrs.onStateUpdate(nextState);
     }
   }
 
-  view({attrs}: m.CVnode<ExplorePageAttrs>) {
-    const {trace, state} = attrs;
+  // Render the content for a single tab. This includes the Builder and all
+  // per-tab service setup (history, query execution, cleanup, etc.).
+  private renderTabContent(
+    attrs: ExplorePageAttrs,
+    tab: ExploreTab,
+    sqlModules: SqlModules,
+  ): m.Children {
+    const {trace} = attrs;
+    const {state} = tab;
+    const isActive = tab.id === attrs.activeTabId;
 
-    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+    const services = this.getOrCreateServices(tab.id, trace.engine);
 
-    if (!sqlModules) {
-      return m(
-        '.pf-explore-page',
-        m(
-          '.pf-explore-page__header',
-          m('h1', 'Loading SQL Modules, please wait...'),
-        ),
-      );
+    // Initialize history manager for this tab if not already done
+    if (services.historyManager === undefined) {
+      services.historyManager = new HistoryManager(trace, sqlModules);
+      services.historyManager.pushState(state);
     }
 
-    // Initialize history manager if not already done
-    if (!this.historyManager) {
-      this.historyManager = new HistoryManager(trace, sqlModules);
-      // Push initial state
-      this.historyManager.pushState(state);
-    }
-
-    // Wrap onStateUpdate to track history
-    const wrappedOnStateUpdate = (
-      update:
-        | ExplorePageState
-        | ((currentState: ExplorePageState) => ExplorePageState),
-    ) => {
-      attrs.onStateUpdate((currentState) => {
+    // Create a per-tab state updater that wraps history tracking.
+    // Uses makeOnStateUpdate(tab.id) so the updater is always bound to THIS
+    // tab's state, even if the active tab changes while async work is in flight.
+    const tabOnStateUpdate = attrs.makeOnStateUpdate(tab.id);
+    const wrappedOnStateUpdate: StateUpdateFn = (update) => {
+      tabOnStateUpdate((currentState) => {
         const newState =
           typeof update === 'function' ? update(currentState) : update;
-        // Push state to history after update
-        this.historyManager?.pushState(newState);
+        services.historyManager?.pushState(newState);
         return newState;
       });
     };
 
-    // Create wrapped attrs to track history
     const wrappedAttrs = {
       ...attrs,
+      state,
       onStateUpdate: wrappedOnStateUpdate,
     };
 
-    // Initialize services if not already done
-    if (this.queryExecutionService === undefined) {
-      this.queryExecutionService = new QueryExecutionService(
-        attrs.trace.engine,
-      );
-      this.cleanupManager = new CleanupManager(this.queryExecutionService);
-    }
-
     // Construct deps objects once per render cycle.
-    // nodeActionHandlers closures reference nodeCrudDeps lazily — they are
-    // only invoked on user interaction, well after the const is initialized.
     const nodeCrudDeps: NodeCrudDeps = {
-      trace: attrs.trace,
+      trace,
       sqlModules,
       onStateUpdate: wrappedOnStateUpdate,
-      cleanupManager: this.cleanupManager,
-      initializedNodes: this.initializedNodes,
+      cleanupManager: services.cleanupManager,
+      initializedNodes: services.initializedNodes,
       nodeActionHandlers: {
         onAddAndConnectTable: (
           tableName: string,
@@ -380,191 +470,271 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     };
 
     const graphIODeps: GraphIODeps = {
-      trace: attrs.trace,
+      trace,
       sqlModules,
       onStateUpdate: wrappedOnStateUpdate,
       cleanupExistingNodes: (rootNodes) =>
         cleanupExistingNodes(
-          this.cleanupManager,
-          this.initializedNodes,
+          services.cleanupManager,
+          services.initializedNodes,
           rootNodes,
         ),
     };
 
-    // Ensure all nodes have actions initialized (e.g., nodes from imported state)
-    // This is efficient - only processes nodes not yet initialized
-    const allNodes = getAllNodes(state.rootNodes);
-    ensureAllNodeActions(
-      allNodes,
-      this.initializedNodes,
-      nodeCrudDeps.nodeActionHandlers,
-    );
+    // Only do full node processing for the active tab to avoid unnecessary work
+    if (isActive) {
+      // Ensure all nodes have actions initialized
+      const allNodes = getAllNodes(state.rootNodes);
+      ensureAllNodeActions(
+        allNodes,
+        services.initializedNodes,
+        nodeCrudDeps.nodeActionHandlers,
+      );
 
-    // Provide getTableNameForNode callback so nodes can query materialized
-    // tables from the execution service (e.g., for fetching arg keys).
-    const executionService = this.queryExecutionService;
-    if (executionService !== undefined) {
+      // Provide getTableNameForNode callback
       for (const node of allNodes) {
         if (node.state.getTableNameForNode === undefined) {
           node.state.getTableNameForNode = (nodeId: string) =>
-            executionService.getTableName(nodeId);
+            services.queryExecutionService.getTableName(nodeId);
         }
       }
+
+      // Store deps for keyboard handler access
+      this.activeNodeCrudDeps = nodeCrudDeps;
+      this.activeGraphIODeps = graphIODeps;
     }
 
-    // Auto-initialize high-importance tables on first render when state is empty
-    // Never load base JSON if we've already initialized in this session (even after clearing nodes)
-    if (state.rootNodes.length === 0 && !attrs.hasAutoInitialized) {
-      void initializeHighImportanceTables(
-        graphIODeps,
-        attrs.setHasAutoInitialized,
+    return m(Builder, {
+      trace,
+      sqlModules,
+      queryExecutionService: services.queryExecutionService,
+      rootNodes: state.rootNodes,
+      selectedNodes: state.selectedNodes,
+      nodeLayouts: state.nodeLayouts,
+      labels: state.labels,
+      loadGeneration: state.loadGeneration,
+      isExplorerCollapsed: state.isExplorerCollapsed,
+      sidebarWidth: state.sidebarWidth,
+      onExecuteReady: (executeFn) => {
+        services.executeFn = executeFn;
+      },
+      onRootNodeCreated: (node) => {
+        wrappedOnStateUpdate((currentState) => ({
+          ...currentState,
+          rootNodes: [...currentState.rootNodes, node],
+          selectedNodes: new Set([node.nodeId]),
+        }));
+      },
+      onExplorerCollapsedChange: (collapsed) => {
+        wrappedOnStateUpdate((currentState) => ({
+          ...currentState,
+          isExplorerCollapsed: collapsed,
+        }));
+      },
+      onSidebarWidthChange: (width) => {
+        wrappedOnStateUpdate((currentState) => ({
+          ...currentState,
+          sidebarWidth: width,
+        }));
+      },
+      graphCallbacks: {
+        onNodeSelected: (node) => {
+          this.selectNode(wrappedAttrs, node);
+        },
+        onNodeAddToSelection: (node) => {
+          this.addNodeToSelection(wrappedAttrs, node);
+        },
+        onNodeRemoveFromSelection: (nodeId) => {
+          this.removeNodeFromSelection(wrappedAttrs, nodeId);
+        },
+        onDeselect: () => this.deselectNode(wrappedAttrs),
+        onNodeLayoutChange: (nodeId, layout) => {
+          wrappedOnStateUpdate((currentState) => {
+            const newNodeLayouts = new Map(currentState.nodeLayouts);
+            newNodeLayouts.set(nodeId, layout);
+            return {
+              ...currentState,
+              nodeLayouts: newNodeLayouts,
+            };
+          });
+        },
+        onLabelsChange: (labels) => {
+          wrappedOnStateUpdate((currentState) => ({
+            ...currentState,
+            labels,
+          }));
+        },
+        onAddSourceNode: (id) => {
+          addSourceNode(nodeCrudDeps, wrappedAttrs.state, id);
+        },
+        onAddOperationNode: (id, node) => {
+          addOperationNode(nodeCrudDeps, wrappedAttrs.state, node, id);
+        },
+        onClearAllNodes: () => clearAllNodes(nodeCrudDeps, wrappedAttrs.state),
+        onDuplicateNode: (node) => {
+          duplicateNode(wrappedOnStateUpdate, node);
+        },
+        onDeleteNode: (node) => {
+          deleteNode(nodeCrudDeps, wrappedAttrs.state, node);
+        },
+        onConnectionRemove: (fromNode, toNode, isSecondaryInput) => {
+          removeNodeConnection(
+            wrappedAttrs.state,
+            wrappedOnStateUpdate,
+            fromNode,
+            toNode,
+            isSecondaryInput,
+          );
+        },
+        onImport: () => importGraph(graphIODeps, state),
+        onExport: () => exportGraph(state, trace),
+      },
+      onLoadEmptyTemplate: async () => {
+        if (!(await confirmAndFinalizeCurrentGraph(state))) return;
+
+        wrappedOnStateUpdate((currentState) => {
+          return {
+            ...currentState,
+            rootNodes: [],
+            selectedNodes: new Set(),
+            nodeLayouts: new Map(),
+            labels: [],
+            loadGeneration: (currentState.loadGeneration ?? 0) + 1,
+          };
+        });
+      },
+      onLoadExampleByPath: (jsonPath: string) =>
+        loadGraphFromPath(graphIODeps, state, jsonPath, 'Failed to Load'),
+      onLoadExploreTemplate: async () => {
+        if (!(await confirmAndFinalizeCurrentGraph(state))) return;
+        await createExploreGraph(graphIODeps);
+      },
+      onLoadRecentGraph: async (json: string) => {
+        if (!(await confirmAndFinalizeCurrentGraph(state))) return;
+        await loadGraphFromJson(graphIODeps, state.rootNodes, json);
+      },
+      onFilterAdd: (node, filter, filterOperator) => {
+        addFilter(nodeCrudDeps, node, filter, filterOperator);
+      },
+      onColumnAdd: (node, column) => {
+        addColumnFromJoinid(nodeCrudDeps, wrappedAttrs.state, node, column);
+      },
+      onNodeStateChange: () => {
+        wrappedOnStateUpdate((currentState) => {
+          return {...currentState};
+        });
+      },
+      onUndo: () => this.handleUndo(attrs),
+      onRedo: () => this.handleRedo(attrs),
+      canUndo: services.historyManager?.canUndo() ?? false,
+      canRedo: services.historyManager?.canRedo() ?? false,
+    });
+  }
+
+  // Stored references for the active tab's deps, used by keyboard handler.
+  private activeNodeCrudDeps?: NodeCrudDeps;
+  private activeGraphIODeps?: GraphIODeps;
+
+  view({attrs}: m.CVnode<ExplorePageAttrs>) {
+    const {tabs, activeTabId} = attrs;
+
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+
+    if (!sqlModules) {
+      return m(
+        '.pf-explore-page',
+        m(
+          '.pf-explore-page__header',
+          m('h1', 'Loading SQL Modules, please wait...'),
+        ),
       );
     }
+
+    // Build tab entries for the Tabs widget
+    const tabEntries: TabsTab[] = tabs.map((tab) => ({
+      key: tab.id,
+      title:
+        this.renamingTabId === tab.id
+          ? this.renderInlineRenameInput(attrs, tab)
+          : tab.title,
+      leftIcon: 'account_tree',
+      closeButton: tabs.length > 1,
+      content: this.renderTabContent(attrs, tab, sqlModules),
+    }));
+
+    // Add "+" button tab
+    tabEntries.push({
+      key: ADD_TAB_KEY,
+      title: m(Icon, {icon: Icons.Add}),
+      content: null,
+    });
 
     return m(
       '.pf-explore-page',
       {
-        onkeydown: (e: KeyboardEvent) =>
-          this.handleKeyDown(e, wrappedAttrs, nodeCrudDeps, graphIODeps),
+        onkeydown: (e: KeyboardEvent) => {
+          if (this.activeNodeCrudDeps && this.activeGraphIODeps) {
+            this.handleKeyDown(
+              e,
+              attrs,
+              this.activeNodeCrudDeps,
+              this.activeGraphIODeps,
+            );
+          }
+        },
         oncreate: (vnode) => {
           (vnode.dom as HTMLElement).focus();
         },
-        onremove: async () => {
-          // Clean up all materialized tables when component is destroyed
-          if (this.cleanupManager !== undefined) {
-            const allNodes = getAllNodes(state.rootNodes);
-            await this.cleanupManager.cleanupAll(allNodes);
-          }
+        onremove: () => {
+          // Clean up all materialized tables for all tabs in parallel
+          void Promise.all(
+            [...this.tabServices].map(([tabId, services]) => {
+              const tab = tabs.find((t) => t.id === tabId);
+              const rootNodes = tab ? getAllNodes(tab.state.rootNodes) : [];
+              return services.cleanupManager
+                .cleanupAll(rootNodes)
+                .catch((e) => console.warn(`Tab ${tabId} cleanup failed:`, e));
+            }),
+          ).finally(() => this.tabServices.clear());
         },
         tabindex: 0,
       },
-      m(Builder, {
-        trace,
-        sqlModules,
-        queryExecutionService: this.queryExecutionService,
-        rootNodes: state.rootNodes,
-        selectedNodes: state.selectedNodes,
-        nodeLayouts: state.nodeLayouts,
-        labels: state.labels,
-        loadGeneration: state.loadGeneration,
-        isExplorerCollapsed: state.isExplorerCollapsed,
-        sidebarWidth: state.sidebarWidth,
-        onExecuteReady: (executeFn) => {
-          this.executeFn = executeFn;
+      m(Tabs, {
+        className: 'pf-explore-page__tabs',
+        tabs: tabEntries,
+        activeTabKey: activeTabId,
+        reorderable: true,
+        onTabChange: (key) => {
+          if (key === ADD_TAB_KEY) {
+            attrs.onTabAdd();
+          } else {
+            attrs.onTabChange(key);
+          }
         },
-        onRootNodeCreated: (node) => {
-          wrappedAttrs.onStateUpdate((currentState) => ({
-            ...currentState,
-            rootNodes: [...currentState.rootNodes, node],
-            selectedNodes: new Set([node.nodeId]),
-          }));
+        onTabDblClick: (key) => {
+          if (key === ADD_TAB_KEY) return;
+          this.renamingTabId = key;
+          m.redraw();
         },
-        onExplorerCollapsedChange: (collapsed) => {
-          wrappedAttrs.onStateUpdate((currentState) => ({
-            ...currentState,
-            isExplorerCollapsed: collapsed,
-          }));
+        onTabClose: (key) => {
+          // Clean up services for the closed tab eagerly
+          const services = this.tabServices.get(key);
+          if (services) {
+            const tab = tabs.find((t) => t.id === key);
+            const rootNodes = tab ? getAllNodes(tab.state.rootNodes) : [];
+            void services.cleanupManager
+              .cleanupAll(rootNodes)
+              .catch((e) => console.warn(`Tab ${key} cleanup failed:`, e));
+            this.tabServices.delete(key);
+          }
+          attrs.onTabClose(key);
         },
-        onSidebarWidthChange: (width) => {
-          wrappedAttrs.onStateUpdate((currentState) => ({
-            ...currentState,
-            sidebarWidth: width,
-          }));
+        onTabReorder: (draggedKey, beforeKey) => {
+          if (draggedKey === ADD_TAB_KEY || beforeKey === ADD_TAB_KEY) {
+            return;
+          }
+          attrs.onTabReorder(draggedKey, beforeKey);
         },
-        graphCallbacks: {
-          onNodeSelected: (node) => {
-            this.selectNode(wrappedAttrs, node);
-          },
-          onNodeAddToSelection: (node) => {
-            this.addNodeToSelection(wrappedAttrs, node);
-          },
-          onNodeRemoveFromSelection: (nodeId) => {
-            this.removeNodeFromSelection(wrappedAttrs, nodeId);
-          },
-          onDeselect: () => this.deselectNode(wrappedAttrs),
-          onNodeLayoutChange: (nodeId, layout) => {
-            wrappedAttrs.onStateUpdate((currentState) => {
-              const newNodeLayouts = new Map(currentState.nodeLayouts);
-              newNodeLayouts.set(nodeId, layout);
-              return {
-                ...currentState,
-                nodeLayouts: newNodeLayouts,
-              };
-            });
-          },
-          onLabelsChange: (labels) => {
-            wrappedAttrs.onStateUpdate((currentState) => ({
-              ...currentState,
-              labels,
-            }));
-          },
-          onAddSourceNode: (id) => {
-            addSourceNode(nodeCrudDeps, wrappedAttrs.state, id);
-          },
-          onAddOperationNode: (id, node) => {
-            addOperationNode(nodeCrudDeps, wrappedAttrs.state, node, id);
-          },
-          onClearAllNodes: () =>
-            clearAllNodes(nodeCrudDeps, wrappedAttrs.state),
-          onDuplicateNode: (node) => {
-            duplicateNode(wrappedAttrs.onStateUpdate, node);
-          },
-          onDeleteNode: (node) => {
-            deleteNode(nodeCrudDeps, wrappedAttrs.state, node);
-          },
-          onConnectionRemove: (fromNode, toNode, isSecondaryInput) => {
-            removeNodeConnection(
-              wrappedAttrs.state,
-              wrappedAttrs.onStateUpdate,
-              fromNode,
-              toNode,
-              isSecondaryInput,
-            );
-          },
-          onImport: () => importGraph(graphIODeps, state),
-          onExport: () => exportGraph(state, trace),
-        },
-        onLoadEmptyTemplate: async () => {
-          if (!(await confirmAndFinalizeCurrentGraph(state))) return;
-
-          wrappedAttrs.onStateUpdate((currentState) => {
-            return {
-              ...currentState,
-              rootNodes: [],
-              selectedNodes: new Set(),
-              nodeLayouts: new Map(),
-              labels: [],
-              loadGeneration: (currentState.loadGeneration ?? 0) + 1,
-            };
-          });
-        },
-        onLoadExampleByPath: (jsonPath: string) =>
-          loadGraphFromPath(graphIODeps, state, jsonPath, 'Failed to Load'),
-        onLoadExploreTemplate: async () => {
-          if (!(await confirmAndFinalizeCurrentGraph(state))) return;
-          await createExploreGraph(graphIODeps);
-        },
-        onLoadRecentGraph: async (json: string) => {
-          if (!(await confirmAndFinalizeCurrentGraph(state))) return;
-          await loadGraphFromJson(graphIODeps, state.rootNodes, json);
-        },
-        onFilterAdd: (node, filter, filterOperator) => {
-          addFilter(nodeCrudDeps, node, filter, filterOperator);
-        },
-        onColumnAdd: (node, column) => {
-          addColumnFromJoinid(nodeCrudDeps, wrappedAttrs.state, node, column);
-        },
-        onNodeStateChange: () => {
-          // Trigger a state update when node properties change (e.g., selecting group by columns)
-          // This ensures these granular changes are captured in history
-          wrappedAttrs.onStateUpdate((currentState) => {
-            return {...currentState};
-          });
-        },
-        onUndo: () => this.handleUndo(attrs),
-        onRedo: () => this.handleRedo(attrs),
-        canUndo: this.historyManager?.canUndo() ?? false,
-        canRedo: this.historyManager?.canRedo() ?? false,
       }),
     );
   }
