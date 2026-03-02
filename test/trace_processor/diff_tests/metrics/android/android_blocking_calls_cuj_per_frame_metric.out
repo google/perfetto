@@ -38,10 +38,10 @@ android_blocking_calls_cuj_per_frame_metric {
     }
     blocking_calls {
       name: "animation"
-      max_dur_per_frame_ms: 11
-      max_dur_per_frame_ns: 11000000
-      mean_dur_per_frame_ms: 5
-      mean_dur_per_frame_ns: 5500000
+      max_dur_per_frame_ms: 1
+      max_dur_per_frame_ns: 1000000
+      mean_dur_per_frame_ms: 0
+      mean_dur_per_frame_ns: 500000
       max_cnt_per_frame: 1
       mean_cnt_per_frame: 0.5
     }
