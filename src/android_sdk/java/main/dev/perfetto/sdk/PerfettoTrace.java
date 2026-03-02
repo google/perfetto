@@ -190,6 +190,11 @@ public final class PerfettoTrace {
 
   private static native byte[] native_stop_session(long ptr);
 
+  // A function to support ravenwood infrastructure.
+  private static byte[] native_stop_session$ravenwood(long ptr) {
+    return new byte[1]; // Just return something to avoid confusing callers.
+  }
+
   /**
    * Writes a trace message to indicate a given section of code was invoked.
    *
