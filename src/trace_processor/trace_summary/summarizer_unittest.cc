@@ -621,5 +621,57 @@ TEST_F(SummarizerTest, NestedEmbeddedQueryDependencyPropagation) {
   EXPECT_EQ(info_c2.row_count, 1);
 }
 
+// Tests that when query B depends on A via inner_query_id and neither is
+// pre-materialized, querying B directly (without first querying A) generates
+// SQL that references A's materialized table (_exp_mat_X) rather than inlining
+// A's SQL. This prevents expensive deps from being re-evaluated (e.g.
+// interval_merge_overlapping! evaluating android_startups twice).
+TEST_F(SummarizerTest, FreshDepUsesTableSourceInTargetSQL) {
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec_proto;
+
+  // Query A: expensive SQL (simulated).
+  {
+    auto* query = spec_proto->add_query();
+    query->set_id("A");
+    auto* sql_source = query->set_sql();
+    sql_source->set_sql("SELECT 1 as value UNION ALL SELECT 2 as value");
+    sql_source->add_column_names("value");
+  }
+
+  // Query B: depends on A via inner_query_id.
+  {
+    auto* query = spec_proto->add_query();
+    query->set_id("B");
+    query->set_inner_query_id("A");
+    auto* filter = query->add_filters();
+    filter->set_column_name("value");
+    filter->set_op(
+        protos::pbzero::PerfettoSqlStructuredQuery::Filter::GREATER_THAN);
+    filter->add_int64_rhs(0);
+  }
+
+  auto spec_data = spec_proto.SerializeAsArray();
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  // Query B WITHOUT first querying A (i.e. A is not pre-materialized).
+  SummarizerQueryResult info_b;
+  ASSERT_OK(summarizer_->Query("B", &info_b));
+  ASSERT_TRUE(info_b.exists);
+  EXPECT_EQ(info_b.row_count, 2);  // Both rows pass value > 0.
+
+  // B's execution SQL must reference A's materialized table (_exp_mat_X)
+  // rather than inlining A's SQL. This is the key invariant: the fix creates
+  // a fresh generator for the target that sees A as a table-source.
+  EXPECT_THAT(info_b.sql, HasSubstr("_exp_mat_"));
+
+  // Verify A was materialized as a side-effect of querying B.
+  SummarizerQueryResult info_a;
+  ASSERT_OK(summarizer_->Query("A", &info_a));
+  ASSERT_TRUE(info_a.exists);
+  EXPECT_EQ(info_a.row_count, 2);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::summary

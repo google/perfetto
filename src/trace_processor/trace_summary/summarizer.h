@@ -101,8 +101,13 @@ class SummarizerImpl : public Summarizer {
   // Collects all dependencies for a query (in materialization order).
   std::vector<std::string> CollectDependencies(const std::string& query_id);
 
-  // Prepares the generator for materialization (adds queries, executes modules
-  // and preambles). Called once per Query() invocation.
+  // Prepares a StructuredQueryGenerator for materialization. The generator
+  // translates structured query protos into executable SQL. For queries whose
+  // results are already materialized, it substitutes a table-source reference
+  // (e.g. SELECT * FROM _exp_mat_X) so the SQL is not re-evaluated.
+  //
+  // Called once per dependency during Query() — each call creates a fresh
+  // generator that reflects the deps materialized so far.
   base::Status PrepareGenerator(
       perfetto_sql::generator::StructuredQueryGenerator& generator,
       std::vector<std::vector<uint8_t>>& table_source_protos);

@@ -638,39 +638,49 @@ base::Status SummarizerImpl::Query(const std::string& query_id,
 
   // Lazy materialization: materialize if needed.
   if (state->needs_materialization) {
-    // Prepare the generator ONCE (adds all queries, executes
-    // modules/preambles).
-    StructuredQueryGenerator generator;
-    std::vector<std::vector<uint8_t>> table_source_protos;
-    auto prepare_status = PrepareGenerator(generator, table_source_protos);
-    if (!prepare_status.ok()) {
-      state->error = prepare_status.message();
-      return prepare_status;
-    }
-
-    // Materialize dependencies first.
+    // Materialize dependencies and target in topological order. Each step
+    // gets a fresh generator so that already-materialized deps appear as
+    // table-sources rather than being re-evaluated inline. This ensures each
+    // piece of SQL is executed exactly once, even in cold-start scenarios
+    // where no deps are pre-materialized.
     auto deps = CollectDependencies(query_id);
     for (const auto& dep_id : deps) {
-      if (dep_id == query_id) {
-        continue;  // Handle the target query last.
-      }
       QueryState* dep_state = query_states_.Find(dep_id);
-      if (dep_state && dep_state->needs_materialization) {
-        auto status = MaterializeQuery(dep_id, *dep_state, generator);
-        if (!status.ok()) {
-          // Dependency failed - propagate error.
-          state->error =
-              "Dependency '" + dep_id + "' failed: " + status.message();
-          state->needs_materialization = false;
-        }
+      if (!dep_state || !dep_state->needs_materialization) {
+        continue;
       }
-    }
 
-    // Now materialize the target query (if dependencies succeeded).
-    if (!state->error) {
-      auto status = MaterializeQuery(query_id, *state, generator);
+      // Fresh generator: reflects all deps materialized so far.
+      // NOTE: |gen_protos| owns the backing memory for table-source protos
+      // added to |gen| — both must stay alive through MaterializeQuery().
+      StructuredQueryGenerator gen;
+      std::vector<std::vector<uint8_t>> gen_protos;
+      auto prepare_status = PrepareGenerator(gen, gen_protos);
+      if (!prepare_status.ok()) {
+        state->error = prepare_status.message();
+        return prepare_status;
+      }
+
+      bool is_target = (dep_id == query_id);
+      // CollectDependencies returns deps in topological order with query_id
+      // always last, so is_target should only be true for the final element.
+      if (is_target && dep_id != deps.back()) {
+        return base::ErrStatus(
+            "Internal error: target query '%s' is not last in dependency order",
+            query_id.c_str());
+      }
+      auto status = MaterializeQuery(dep_id, *dep_state, gen);
       if (!status.ok()) {
-        return status;
+        if (is_target) {
+          return status;
+        }
+        // Dependency failed - propagate error to target and stop.
+        // Note: the failed dep retains needs_materialization=true so a
+        // direct Query() on it will retry (in case of transient errors).
+        state->error =
+            "Dependency '" + dep_id + "' failed: " + status.message();
+        state->needs_materialization = false;
+        break;
       }
     }
   }
