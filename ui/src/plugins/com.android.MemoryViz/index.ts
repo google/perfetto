@@ -258,7 +258,7 @@ export default class MemoryViz implements PerfettoPlugin {
 
     const buckets = await ctx.engine.query(`
       SELECT DISTINCT bucket
-      FROM _memory_breakdown_mem_with_buckets
+      FROM android_process_memory_intervals_by_oom_bucket
       WHERE track_name = '${trackName}'
       ORDER BY bucket ASC
     `);
@@ -291,7 +291,7 @@ export default class MemoryViz implements PerfettoPlugin {
         pid,
         process_name,
         MAX(zygote_adjusted_value) AS max_value
-      FROM _memory_breakdown_mem_with_buckets
+      FROM android_process_memory_intervals_by_oom_bucket
       WHERE
         bucket = '${bucket}' AND
         track_name = '${trackName}' AND
@@ -391,9 +391,9 @@ export default class MemoryViz implements PerfettoPlugin {
           id,
           MAX(ts, ${window.start}) as ts,
           MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-        FROM _memory_breakdown_mem_with_buckets
+        FROM android_process_memory_intervals_by_oom_bucket
         ${whereClause} AND ts < ${window.end} and ts + dur > ${window.start}
-      )) iss JOIN _memory_breakdown_mem_with_buckets m USING(id)
+      )) iss JOIN android_process_memory_intervals_by_oom_bucket m USING(id)
       GROUP BY group_id
     `;
   }
