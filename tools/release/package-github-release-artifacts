@@ -142,7 +142,7 @@ def main():
   # Download and package prebuilts
   print('--- Downloading prebuilts from GCS ---')
   os.chdir(tmpdir)
-  exec('gsutil', '-m', 'rsync', '-rc', src, tmpdir + '/')
+  exec('gcloud', 'storage', 'rsync', '--recursive', '--checksums-only', src, tmpdir + '/')
 
   zips = []
   for arch in os.listdir(tmpdir):
