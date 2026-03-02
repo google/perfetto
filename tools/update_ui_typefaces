@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2024 The Android Open Source Project
+# Copyright (C) 2026 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Downloads fonts from Google Fonts and manages typeface assets.
+"""Downloads and prepares UI fonts from Google Fonts.
 
 This script downloads fonts from Google Fonts, converts them to WOFF2 format,
 and places them in buildtools/typefaces/. It can also upload them to GCS.
 
-Requirements:
-  pip install fonttools brotli
+Requirements listed in ../python/requirements.txt
 
 Usage:
-  ./tools/typefaces update   # Download all fonts from Google Fonts
-  ./tools/typefaces upload   # Upload to GCS and update install-build-deps
+  ./tools/update_ui_typefaces update   # Download all fonts from Google Fonts
+  ./tools/update_ui_typefaces upload   #  Upload to GCS and update install-build-deps
 """
 
 import argparse
@@ -34,14 +33,8 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
-
-try:
-  from fontTools.ttLib import TTFont
-  from fontTools.subset import Subsetter, Options as SubsetOptions
-except ImportError:
-  TTFont = None
-  Subsetter = None
-  SubsetOptions = None
+from fontTools.ttLib import TTFont
+from fontTools.subset import Subsetter, Options as SubsetOptions
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TYPEFACES_DIR = os.path.join(ROOT_DIR, 'buildtools', 'typefaces')
@@ -341,7 +334,7 @@ def update_all_fonts():
     print(f'  {config["output"]}: {size:,} bytes')
   print(f'  Total: {total_size:,} bytes')
 
-  print('\nRun "./tools/typefaces upload" to upload to GCS.')
+  print('\nRun "./tools/update_ui_typefaces upload" to upload to GCS.')
   return 0
 
 
