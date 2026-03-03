@@ -3272,8 +3272,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h",
-        "src/trace_processor/perfetto_sql/intrinsics/functions/create_slices.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/functions/create_slices.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.cc",
@@ -3703,7 +3703,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/intervals/create_slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/intervals/create_intervals.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/intersect.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/mipmap.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/overlap.sql",

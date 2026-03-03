@@ -91,7 +91,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_slices.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.h"
@@ -1329,7 +1329,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
         *engine, storage->mutable_string_pool());
   }
   {
-    base::Status status = perfetto_sql::RegisterCreateSlicesFunctions(
+    base::Status status = perfetto_sql::RegisterCreateIntervalsFunctions(
         *engine, storage->mutable_string_pool());
   }
   {

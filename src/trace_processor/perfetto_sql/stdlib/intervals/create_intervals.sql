@@ -14,21 +14,21 @@
 -- limitations under the License.
 
 -- Given a table of start timestamps and a table of end timestamps, creates
--- slices by matching each start with the next end timestamp strictly greater
+-- intervals by matching each start with the next end timestamp strictly greater
 -- than it.
 --
 -- Uses an efficient O(n+m) two-pointer algorithm implemented in C++.
 --
 -- Example:
 -- ```
--- SELECT * FROM _create_slices!(
+-- SELECT * FROM _create_intervals!(
 --   (SELECT ts FROM starts_table),
 --   (SELECT ts FROM ends_table),
 --   ts,
 --   ts
 -- )
 -- ```
-CREATE PERFETTO MACRO _create_slices(
+CREATE PERFETTO MACRO _create_intervals(
     -- Table or subquery containing start timestamps.
     starts_table TableOrSubquery,
     -- Table or subquery containing end timestamps.
@@ -49,7 +49,7 @@ RETURNS TableOrSubquery AS
     c0 AS ts,
     c1 AS dur
   FROM __intrinsic_table_ptr(
-    __intrinsic_create_slices(
+    __intrinsic_create_intervals(
       (
         SELECT
           __intrinsic_timestamp_set_agg(s.$starts_ts_col)

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_slices.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.h"
 
 #include <cstdint>
 #include <memory>
@@ -39,15 +39,16 @@ namespace {
 
 using ColType = dataframe::AdhocDataframeBuilder::ColumnType;
 
-// Given two sorted collections of timestamps (starts and ends), creates slices
-// by pairing each start with the first end that comes strictly after it.
+// Given two sorted collections of timestamps (starts and ends), creates
+// intervals by pairing each start with the first end that comes strictly after
+// it.
 //
 // Algorithm: O(n + m) two-pointer scan over sorted arrays.
 // For each start timestamp, finds the minimum end timestamp that is strictly
 // greater than the start. Multiple starts may be paired with the same end.
 // Starts with no matching end are excluded from the output.
-struct CreateSlices : public sqlite::Function<CreateSlices> {
-  static constexpr char kName[] = "__intrinsic_create_slices";
+struct CreateIntervals : public sqlite::Function<CreateIntervals> {
+  static constexpr char kName[] = "__intrinsic_create_intervals";
   static constexpr int kArgCount = 2;
 
   struct UserData {
@@ -106,10 +107,11 @@ struct CreateSlices : public sqlite::Function<CreateSlices> {
 
 }  // namespace
 
-base::Status RegisterCreateSlicesFunctions(PerfettoSqlEngine& engine,
-                                           StringPool* pool) {
-  return engine.RegisterFunction<CreateSlices>(
-      std::make_unique<CreateSlices::UserData>(CreateSlices::UserData{pool}));
+base::Status RegisterCreateIntervalsFunctions(PerfettoSqlEngine& engine,
+                                              StringPool* pool) {
+  return engine.RegisterFunction<CreateIntervals>(
+      std::make_unique<CreateIntervals::UserData>(
+          CreateIntervals::UserData{pool}));
 }
 
 }  // namespace perfetto::trace_processor::perfetto_sql

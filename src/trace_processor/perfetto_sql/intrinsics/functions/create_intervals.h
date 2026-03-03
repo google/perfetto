@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CREATE_SLICES_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CREATE_SLICES_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CREATE_INTERVALS_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CREATE_INTERVALS_H_
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -23,10 +23,10 @@
 
 namespace perfetto::trace_processor::perfetto_sql {
 
-// Registers the __intrinsic_create_slices function with |engine|.
-base::Status RegisterCreateSlicesFunctions(PerfettoSqlEngine& engine,
-                                           StringPool* pool);
+// Registers the __intrinsic_create_intervals function with |engine|.
+base::Status RegisterCreateIntervalsFunctions(PerfettoSqlEngine& engine,
+                                              StringPool* pool);
 
 }  // namespace perfetto::trace_processor::perfetto_sql
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CREATE_SLICES_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CREATE_INTERVALS_H_

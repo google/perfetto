@@ -1196,14 +1196,14 @@ base::StatusOr<std::string> GeneratorImpl::CreateSlices(
   std::string starts_table = NestedSource(create_slices.starts_query());
   std::string ends_table = NestedSource(create_slices.ends_query());
 
-  // Reference the intervals.create_slices module which contains
-  // _create_slices
-  referenced_modules_.Insert("intervals.create_slices", nullptr);
+  // Reference the intervals.create_intervals module which contains
+  // _create_intervals
+  referenced_modules_.Insert("intervals.create_intervals", nullptr);
 
-  // Use _create_slices! macro which delegates to __intrinsic_create_slices,
-  // an O(n+m) two-pointer C++ implementation.
+  // Use _create_intervals! macro which delegates to
+  // __intrinsic_create_intervals, an O(n+m) two-pointer C++ implementation.
   return base::StackString<1024>(
-             "(SELECT * FROM _create_slices!(%s, %s, %s, %s))",
+             "(SELECT * FROM _create_intervals!(%s, %s, %s, %s))",
              starts_table.c_str(), ends_table.c_str(), starts_ts_col.c_str(),
              ends_ts_col.c_str())
       .ToStdString();

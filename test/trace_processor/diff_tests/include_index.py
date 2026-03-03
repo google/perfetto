@@ -146,7 +146,7 @@ from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.scan_tests import GraphScanTests
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
-from diff_tests.stdlib.intervals.create_slices_tests import CreateSlices
+from diff_tests.stdlib.intervals.create_intervals_tests import CreateIntervals
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
@@ -344,7 +344,7 @@ def fetch_all_diff_tests(
       SpanJoinRegression,
       SpanJoinSmoke,
       Stacks,
-      CreateSlices,
+      CreateIntervals,
       StdlibIntervals,
       SystemUICujs,
       IntervalsIntersect,
