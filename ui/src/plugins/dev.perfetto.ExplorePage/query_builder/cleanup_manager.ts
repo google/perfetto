@@ -58,6 +58,10 @@ export class CleanupManager {
         );
       }
     }
+
+    // Remove all service-side state for this node so it doesn't accumulate
+    // indefinitely in long-lived sessions.
+    this.queryExecutionService.removeNode(node.nodeId);
   }
 
   /**
