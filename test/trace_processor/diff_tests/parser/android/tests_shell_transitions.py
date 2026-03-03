@@ -82,6 +82,18 @@ class ShellTransitions(TestSuite):
         """,
         out=Csv("""
         "key","display_value"
+        "changes[0].flags","0"
+        "changes[0].layer_id","244"
+        "changes[0].mode","1"
+        "changes[0].start_absolute_bounds.bottom","120"
+        "changes[0].start_absolute_bounds.left","10"
+        "changes[0].start_absolute_bounds.right","110"
+        "changes[0].start_absolute_bounds.top","20"
+        "changes[0].window_id","219481253"
+        "changes[1].flags","1"
+        "changes[1].layer_id","47"
+        "changes[1].mode","4"
+        "changes[1].window_id","54474511"
         "create_time_ns","2187614568227"
         "dispatch_time_ns","2187673373973"
         "finish_time_ns","2188195968659"
@@ -92,14 +104,6 @@ class ShellTransitions(TestSuite):
         "send_time_ns","2187671767120"
         "start_transaction_id","5738076308937"
         "starting_window_remove_time_ns","2188652838898"
-        "targets[0].flags","0"
-        "targets[0].layer_id","244"
-        "targets[0].mode","1"
-        "targets[0].window_id","219481253"
-        "targets[1].flags","1"
-        "targets[1].layer_id","47"
-        "targets[1].mode","4"
-        "targets[1].window_id","54474511"
         "type","1"
         """))
 
@@ -155,9 +159,9 @@ class ShellTransitions(TestSuite):
         """,
         out=Csv("""
         "key","display_value"
+        "changes[0].flags","1048577"
         "handler","2"
         "id","729"
-        "targets[0].flags","1048577"
         """))
 
   def test_participants(self):
@@ -176,4 +180,27 @@ class ShellTransitions(TestSuite):
         11,"[NULL]",11
         11,4,"[NULL]"
         12,4,12
+        """))
+
+  def test_participants_with_metadata(self):
+    return DiffTestBlueprint(
+        trace=Path('shell_transitions_simple_merge.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.transitions;
+        SELECT
+          transition_id, layer_id, window_id, mode, flags,
+          start_abs_bounds.x AS start_x,
+          start_abs_bounds.y AS start_y,
+          start_abs_bounds.w AS start_w,
+          start_abs_bounds.h AS start_h
+        FROM
+          android_window_manager_shell_transition_participants p
+        LEFT JOIN
+          __intrinsic_winscope_rect start_abs_bounds ON p.start_abs_bounds_rect_id = start_abs_bounds.id
+        ORDER BY transition_id, layer_id;
+        """,
+        out=Csv("""
+        "transition_id","layer_id","window_id","mode","flags","start_x","start_y","start_w","start_h"
+        15,47,54474511,4,1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        15,244,219481253,1,0,10.000000,20.000000,100.000000,100.000000
         """))

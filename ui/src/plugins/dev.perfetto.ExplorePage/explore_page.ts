@@ -400,6 +400,18 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       nodeCrudDeps.nodeActionHandlers,
     );
 
+    // Provide getTableNameForNode callback so nodes can query materialized
+    // tables from the execution service (e.g., for fetching arg keys).
+    const executionService = this.queryExecutionService;
+    if (executionService !== undefined) {
+      for (const node of allNodes) {
+        if (node.state.getTableNameForNode === undefined) {
+          node.state.getTableNameForNode = (nodeId: string) =>
+            executionService.getTableName(nodeId);
+        }
+      }
+    }
+
     // Auto-initialize high-importance tables on first render when state is empty
     // Never load base JSON if we've already initialized in this session (even after clearing nodes)
     if (state.rootNodes.length === 0 && !attrs.hasAutoInitialized) {

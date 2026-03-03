@@ -63,7 +63,6 @@
 //   * Single source of truth for query state
 //   * Updated by both automatic analysis (NodeExplorer) and manual execution (Builder)
 //   * Passed to NodeExplorer as a prop for rendering SQL/Proto tabs
-// - this.queryExecuted: Flag to prevent duplicate execution
 // - this.response: Query results from execution
 // - this.dataSource: Wrapped data source for DataGrid display
 //
@@ -203,7 +202,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private trace: Trace;
   private queryExecutionService: QueryExecutionService;
   private query?: Query | Error;
-  private queryExecuted: boolean = false;
   private isQueryRunning: boolean = false;
   private isAnalyzing: boolean = false;
   private previousSelectedNode?: QueryNode;
@@ -340,7 +338,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             allNodes: getAllNodes(rootNodes),
             resolveNode: (nodeId: string) =>
               this.resolveNode(nodeId, rootNodes),
-            hasExistingResult: this.queryExecuted,
             query: this.query, // Pass the query state from Builder (single source of truth)
             onQueryAnalyzed: this.onNodeQueryAnalyzed,
             onAnalysisStateChange: (isAnalyzing: boolean) => {
@@ -353,7 +350,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             },
             onExecutionStart: () => {
               this.isQueryRunning = true;
-              this.queryExecuted = false;
             },
             onExecutionSuccess: (result) => {
               this.handleExecutionSuccess(selectedNode, result);
@@ -406,51 +402,52 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: 'info',
             title: `${attrs.selectedNodes.size} nodes selected`,
           })
-        : selectedNode
-          ? m(DataExplorer, {
-              trace: this.trace,
-              query: this.query,
-              node: selectedNode,
-              response: this.response,
-              dataSource: this.dataSource,
-              sqlModules: attrs.sqlModules,
-              queryExecutionService: this.queryExecutionService,
-              isQueryRunning: this.isQueryRunning,
-              isAnalyzing: this.isAnalyzing,
-              isStale: this.queryExecutionService.isNodeStale(
-                selectedNode.nodeId,
-              ),
-              onchange: () => {
-                attrs.onNodeStateChange?.();
-              },
-              onFilterAdd: (filter, filterOperator) => {
-                attrs.onFilterAdd(selectedNode, filter, filterOperator);
-              },
-              onColumnAdd: attrs.onColumnAdd
-                ? (column) => attrs.onColumnAdd?.(selectedNode, column)
-                : undefined,
-              isFullScreen:
-                this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
-              onFullScreenToggle: () => {
-                if (
-                  this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN
-                ) {
-                  this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
-                } else {
-                  this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
-                }
-              },
-              onExecute: async () => {
-                await this.executeSelectedNode();
-              },
-              onExportToTimeline: async () => {
-                await this.exportToTimeline(selectedNode);
-              },
-            })
-          : m(DataExplorerEmptyState, {
-              icon: 'info',
-              title: 'Select a node to see the data',
-            }),
+        : selectedNode?.customDataExplorer?.() ??
+          (selectedNode
+            ? m(DataExplorer, {
+                trace: this.trace,
+                query: this.query,
+                node: selectedNode,
+                response: this.response,
+                dataSource: this.dataSource,
+                sqlModules: attrs.sqlModules,
+                queryExecutionService: this.queryExecutionService,
+                isQueryRunning: this.isQueryRunning,
+                isAnalyzing: this.isAnalyzing,
+                isStale: this.queryExecutionService.isNodeStale(
+                  selectedNode.nodeId,
+                ),
+                onchange: () => {
+                  attrs.onNodeStateChange?.();
+                },
+                onFilterAdd: (filter, filterOperator) => {
+                  attrs.onFilterAdd(selectedNode, filter, filterOperator);
+                },
+                onColumnAdd: attrs.onColumnAdd
+                  ? (column) => attrs.onColumnAdd?.(selectedNode, column)
+                  : undefined,
+                isFullScreen:
+                  this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
+                onFullScreenToggle: () => {
+                  if (
+                    this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN
+                  ) {
+                    this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
+                  } else {
+                    this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
+                  }
+                },
+                onExecute: async () => {
+                  await this.executeSelectedNode();
+                },
+                onExportToTimeline: async () => {
+                  await this.exportToTimeline(selectedNode);
+                },
+              })
+            : m(DataExplorerEmptyState, {
+                icon: 'info',
+                title: 'Select a node to see the data',
+              })),
       mainContent: [
         m(
           '.pf-qb-node-graph',
@@ -643,7 +640,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       sqlSchema: createSimpleSchema(result.tableName),
       rootSchemaName: 'query',
     });
-    this.queryExecuted = true;
     this.isQueryRunning = false;
 
     if (isAQuery(query)) {
@@ -678,7 +674,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       },
       onExecutionStart: () => {
         this.isQueryRunning = true;
-        this.queryExecuted = false;
         m.redraw();
       },
       onExecutionSuccess: (result: {
@@ -723,7 +718,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       getAllNodes(this.rootNodes),
       {
         manual: true, // User explicitly requested execution
-        hasExistingResult: this.queryExecuted,
         ...this.createManualExecutionCallbacks(selectedNode),
       },
     );
@@ -787,7 +781,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     this.dataSource = undefined;
     this.response = undefined;
     this.query = undefined;
-    this.queryExecuted = false;
     // Clear any pending execution in the service
     this.queryExecutionService.clearPendingExecution();
   }
@@ -797,7 +790,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     // Clear response and data source but keep query so Retry can re-execute
     this.dataSource = undefined;
     this.response = undefined;
-    this.queryExecuted = false;
     if (!node.state.issues) {
       node.state.issues = new NodeIssues();
     }

@@ -14,8 +14,7 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {AggregateFunction} from '../datagrid/model';
-import {extractBrushRange, formatNumber} from './chart_utils';
+import {ChartAggregation, extractBrushRange, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {
   buildAxisOption,
@@ -76,6 +75,12 @@ export interface BarChartAttrs {
    * Custom class name for the container.
    */
   readonly className?: string;
+
+  /**
+   * Format function for dimension axis tick values (bar labels).
+   * When provided, this function is used to format the label of each bar.
+   */
+  readonly formatDimension?: (value: string | number) => string;
 
   /**
    * Format function for measure axis tick values.
@@ -152,6 +157,7 @@ function buildBarOption(
   const {
     dimensionLabel,
     measureLabel = 'Value',
+    formatDimension,
     formatMeasure,
     barColor,
     barHoverColor,
@@ -160,11 +166,12 @@ function buildBarOption(
     orientation = 'vertical',
     gridLines,
   } = attrs;
+  const fmtDimension = formatDimension ?? String;
   const fmtMeasure = formatMeasure ?? formatNumber;
 
   const theme = getChartThemeColors();
   const horizontal = orientation === 'horizontal';
-  const labels = data.items.map((item) => String(item.label));
+  const labels = data.items.map((item) => fmtDimension(item.label));
 
   // Map visual grid line direction to axis splitLine settings.
   // Horizontal visual lines come from the Y axis; vertical from the X axis.
@@ -293,7 +300,7 @@ export function aggregateBarChartData<T>(
   items: readonly T[],
   dimension: (item: T) => string | number,
   measure: (item: T) => number,
-  aggregation: AggregateFunction,
+  aggregation: ChartAggregation,
 ): BarChartData {
   const groups = new Map<string | number, number[]>();
   for (const item of items) {
@@ -315,11 +322,13 @@ export function aggregateBarChartData<T>(
   return {items: result};
 }
 
-function aggregate(values: number[], agg: AggregateFunction): number {
+function aggregate(values: number[], agg: ChartAggregation): number {
   switch (agg) {
     case 'ANY':
     case 'MIN':
       return values.reduce((a, b) => Math.min(a, b), Infinity);
+    case 'COUNT':
+      return values.length;
     case 'SUM':
       return values.reduce((a, b) => a + b, 0);
     case 'AVG':

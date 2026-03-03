@@ -76,6 +76,7 @@ export class HeapProfileFlamegraphDetailsPanel
     private readonly upid: number,
     private readonly profileDescriptor: ProfileDescriptor,
     private readonly ts: time,
+    private readonly tsEnd: time,
     private state: FlamegraphState | undefined,
     private readonly onStateChange: (state: FlamegraphState) => void,
   ) {
@@ -85,6 +86,7 @@ export class HeapProfileFlamegraphDetailsPanel
       this.trace,
       this.profileDescriptor,
       this.ts,
+      this.tsEnd,
       this.upid,
     );
     if (this.state === undefined) {
@@ -182,68 +184,87 @@ function flamegraphMetrics(
   trace: Trace,
   descriptor: ProfileDescriptor,
   ts: time,
+  tsEnd: time,
   upid: number,
 ): ReadonlyArray<QueryFlamegraphMetric> {
   switch (descriptor.type) {
     case ProfileType.NATIVE_HEAP_PROFILE:
-      return flamegraphMetricsForHeapProfile(ts, upid, descriptor.heapName!, [
-        {
-          name: 'Unreleased Malloc Size',
-          unit: 'B',
-          columnName: 'self_size',
-        },
-        {
-          name: 'Unreleased Malloc Count',
-          unit: '',
-          columnName: 'self_count',
-        },
-        {
-          name: 'Total Malloc Size',
-          unit: 'B',
-          columnName: 'self_alloc_size',
-        },
-        {
-          name: 'Total Malloc Count',
-          unit: '',
-          columnName: 'self_alloc_count',
-        },
-      ]);
+      return flamegraphMetricsForHeapProfile(
+        ts,
+        tsEnd,
+        upid,
+        descriptor.heapName!,
+        [
+          {
+            name: 'Unreleased Malloc Size',
+            unit: 'B',
+            columnName: 'self_size',
+          },
+          {
+            name: 'Unreleased Malloc Count',
+            unit: '',
+            columnName: 'self_count',
+          },
+          {
+            name: 'Total Malloc Size',
+            unit: 'B',
+            columnName: 'self_alloc_size',
+          },
+          {
+            name: 'Total Malloc Count',
+            unit: '',
+            columnName: 'self_alloc_count',
+          },
+        ],
+      );
     case ProfileType.GENERIC_HEAP_PROFILE:
-      return flamegraphMetricsForHeapProfile(ts, upid, descriptor.heapName!, [
-        {
-          name: 'Unreleased Size',
-          unit: 'B',
-          columnName: 'self_size',
-        },
-        {
-          name: 'Unreleased Count',
-          unit: '',
-          columnName: 'self_count',
-        },
-        {
-          name: 'Total Size',
-          unit: 'B',
-          columnName: 'self_alloc_size',
-        },
-        {
-          name: 'Total Count',
-          unit: '',
-          columnName: 'self_alloc_count',
-        },
-      ]);
+      return flamegraphMetricsForHeapProfile(
+        ts,
+        tsEnd,
+        upid,
+        descriptor.heapName!,
+        [
+          {
+            name: 'Unreleased Size',
+            unit: 'B',
+            columnName: 'self_size',
+          },
+          {
+            name: 'Unreleased Count',
+            unit: '',
+            columnName: 'self_count',
+          },
+          {
+            name: 'Total Size',
+            unit: 'B',
+            columnName: 'self_alloc_size',
+          },
+          {
+            name: 'Total Count',
+            unit: '',
+            columnName: 'self_alloc_count',
+          },
+        ],
+      );
     case ProfileType.JAVA_HEAP_SAMPLES:
-      return flamegraphMetricsForHeapProfile(ts, upid, descriptor.heapName!, [
-        {
-          name: 'Total Allocation Size',
-          unit: 'B',
-          columnName: 'self_size',
-        },
-        {
-          name: 'Total Allocation Count',
-          unit: '',
-          columnName: 'self_count',
-        },
-      ]);
+      return flamegraphMetricsForHeapProfile(
+        ts,
+        tsEnd,
+        upid,
+        descriptor.heapName!,
+        [
+          {
+            name: 'Total Allocation Size',
+            unit: 'B',
+            columnName: 'self_size',
+          },
+          {
+            name: 'Total Allocation Count',
+            unit: '',
+            columnName: 'self_count',
+          },
+        ],
+      );
     case ProfileType.JAVA_HEAP_GRAPH:
       return [
         {
@@ -394,6 +415,7 @@ function flamegraphMetrics(
 
 function flamegraphMetricsForHeapProfile(
   ts: time,
+  tsEnd: bigint,
   upid: number,
   heapName: string,
   metrics: {name: string; unit: string; columnName: string}[],
@@ -401,6 +423,31 @@ function flamegraphMetricsForHeapProfile(
   return metricsFromTableOrSubquery({
     tableOrSubquery: `
       (
+        -- Any selection overlap with an allocation slice includes the
+        -- slice in the result. Practically this means that we might need to
+        -- extend the right-side boundary.
+        with alloc_bound as (
+          select ts
+          from heap_profile_allocation
+          where ts >= ${tsEnd}
+            and upid = ${upid} and heap_name = '${heapName}'
+          order by ts asc
+          limit 1
+        ),
+        -- The native heap profiler data model is delta-encoded.
+        -- Unreleased allocations will be recorded across continuous dumps
+        -- and trace processor is responsible for deduplicating them.
+        -- If an allocation at ts1 is released in ts2, this will
+        -- be represented as an unmatched memory released in ts2 (negative size).
+        -- For the purposes of looking at ts2+ slices, we need to ignore
+        -- the negative sized data points.
+        alloc_class as (
+          select callsite_id, if(sum(count) > 0, 1, 0) as positive_alloc
+          from heap_profile_allocation
+          where ts >= ${ts} and ts <= ifnull((SELECT ts FROM alloc_bound), ${tsEnd})
+            and upid = ${upid} and heap_name = '${heapName}'
+          group by callsite_id
+        )
         select
           id,
           parent_id as parentId,
@@ -414,12 +461,14 @@ function flamegraphMetricsForHeapProfile(
         from _android_heap_profile_callstacks_for_allocations!((
           select
             callsite_id,
-            size,
-            count,
+            iif(positive_alloc, size, 0) as size,
+            iif(positive_alloc, count, 0) as count,
             max(size, 0) as alloc_size,
             max(count, 0) as alloc_count
           from heap_profile_allocation a
-          where a.ts <= ${ts} and a.upid = ${upid} and a.heap_name = '${heapName}'
+          join alloc_class using (callsite_id)
+          where a.ts >= ${ts} and a.ts <= ifnull((SELECT ts FROM alloc_bound), ${tsEnd})
+            and a.upid = ${upid} and a.heap_name = '${heapName}'
         ))
       )
     `,

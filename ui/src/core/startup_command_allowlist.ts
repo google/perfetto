@@ -39,6 +39,9 @@ export const STARTUP_COMMAND_ALLOWLIST: string[] = [
   'dev.perfetto.RunQuery',
   'dev.perfetto.RunQueryAndShowTab',
 
+  // Note commands
+  'dev.perfetto.AddNoteAtTimestamp',
+
   // Commands will be added here based on user suggestions
 ];
 

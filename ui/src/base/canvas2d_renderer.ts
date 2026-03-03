@@ -116,7 +116,7 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
-    const {xs, ys, ws, h, colors, patterns, count} = buffers;
+    const {starts, ends, ys, h, colors, patterns, count} = buffers;
     const ctx = this.ctx;
     const clip = this.physicalClipBounds;
     const t = this.transform;
@@ -125,19 +125,20 @@ export class Canvas2DRenderer implements Renderer {
 
     for (let i = 0; i < count; i++) {
       // Transform X and Y from data coordinates to screen coordinates
-      const x = xs[i] * scaleX + offsetX;
+      const startPx = starts[i] * scaleX + offsetX;
+      const endPx = ends[i] * scaleX + offsetX;
       const y = ys[i] * scaleY + offsetY;
-      const w = Math.max(ws[i] * scaleX, 1);
+      const w = Math.max(endPx - startPx, 1);
 
       // CPU-side culling and clamping to clip bounds
-      let drawX = x;
+      let drawX = startPx;
       let drawY = y;
       let drawW = w;
       let drawH = h;
 
       if (clip !== undefined) {
-        const physLeft = t.offsetX + x * t.scaleX;
-        const physRight = t.offsetX + (x + w) * t.scaleX;
+        const physLeft = t.offsetX + startPx * t.scaleX;
+        const physRight = t.offsetX + endPx * t.scaleX;
         const physTop = t.offsetY + y * t.scaleY;
         const physBottom = t.offsetY + (y + h) * t.scaleY;
 

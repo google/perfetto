@@ -77,6 +77,15 @@ import {
   MetricsNodeState,
   MetricsSerializedState,
 } from './nodes/metrics_node';
+import {
+  TraceSummaryNode,
+  TraceSummaryNodeState,
+  TraceSummarySerializedState,
+} from './nodes/trace_summary_node';
+import {
+  VisualisationNode,
+  VisualisationNodeState,
+} from './nodes/visualisation_node';
 import {Icons} from '../../../base/semantic_icons';
 import {NodeType} from '../query_node';
 
@@ -223,9 +232,10 @@ export function registerCoreNodes() {
       };
       return new AddColumnsNode(fullState);
     },
-    deserialize: (state, _trace, sqlModules) =>
+    deserialize: (state, trace, sqlModules) =>
       new AddColumnsNode(
         AddColumnsNode.deserializeState(
+          trace,
           sqlModules,
           state as AddColumnsNodeState,
         ),
@@ -569,7 +579,7 @@ export function registerCoreNodes() {
     icon: 'analytics',
     type: 'modification',
     nodeType: NodeType.kMetrics,
-    allowedChildren: [],
+    allowedChildren: ['trace_summary'],
     factory: (state) => new MetricsNode(state as MetricsNodeState),
     deserialize: (state, trace, sqlModules) =>
       new MetricsNode({
@@ -578,6 +588,53 @@ export function registerCoreNodes() {
         sqlModules,
       }),
     postDeserializeLate: (node) => (node as MetricsNode).onPrevNodesUpdated(),
+  });
+
+  nodeRegistry.register('visualisation', {
+    name: 'Visualisation',
+    description:
+      'Visualize data with bar charts or histograms. Click to filter.',
+    icon: 'bar_chart',
+    type: 'modification',
+    nodeType: NodeType.kVisualisation,
+    factory: (state) => new VisualisationNode(state as VisualisationNodeState),
+    deserialize: (state, _trace, sqlModules) =>
+      new VisualisationNode({
+        ...VisualisationNode.deserializeState(state as VisualisationNodeState),
+        sqlModules,
+      }),
+  });
+
+  nodeRegistry.register('trace_summary', {
+    name: 'Trace Summary',
+    description:
+      'Bundle multiple metrics into a single trace summary specification.',
+    icon: 'summarize',
+    type: 'multisource',
+    nodeType: NodeType.kTraceSummary,
+    allowedChildren: [],
+    factory: (state) => new TraceSummaryNode(state as TraceSummaryNodeState),
+    deserialize: (state, trace) =>
+      new TraceSummaryNode({
+        ...TraceSummaryNode.deserializeState(
+          state as TraceSummarySerializedState,
+        ),
+        trace,
+      }),
+    deserializeConnections: (node, state, allNodes) => {
+      const traceSummaryNode = node as TraceSummaryNode;
+      const conns = TraceSummaryNode.deserializeConnections(
+        allNodes,
+        state as {secondaryInputNodeIds?: string[]},
+      );
+      traceSummaryNode.secondaryInputs.connections.clear();
+      for (let i = 0; i < conns.secondaryInputNodes.length; i++) {
+        traceSummaryNode.secondaryInputs.connections.set(
+          i,
+          conns.secondaryInputNodes[i],
+        );
+      }
+    },
   });
 
   // Set the default allowed children for all nodes.
@@ -594,6 +651,7 @@ export function registerCoreNodes() {
     'sort_node',
     'limit_and_offset_node',
     'metrics',
+    'visualisation',
     // Multisource nodes
     'filter_during',
     'filter_in',

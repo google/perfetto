@@ -704,6 +704,13 @@ message AndroidLogConfig {
   // If non-empty ignores all log messages whose tag doesn't match one of the
   // specified values.
   repeated string filter_tags = 4;
+
+  // If true, includes the contents of the logcat buffers that were already
+  // present before the data source started. By default (false), only new
+  // log entries produced after the data source starts are recorded.
+  // Can be useful for boot traces or situations where logs from before
+  // traced started are important.
+  optional bool preserve_log_buffer = 5;
 }
 
 // End of protos/perfetto/config/android/android_log_config.proto
@@ -6599,6 +6606,17 @@ message ProtoLogViewerConfig {
 
 // End of protos/perfetto/trace/android/protolog.proto
 
+// Begin of protos/perfetto/trace/android/graphics/rect.proto
+
+message RectProto {
+  optional int32 left = 1;
+  optional int32 top = 2;
+  optional int32 right = 3;
+  optional int32 bottom = 4;
+}
+
+// End of protos/perfetto/trace/android/graphics/rect.proto
+
 // Begin of protos/perfetto/trace/android/shell_transition.proto
 
 // ShellTransition messages record information about the shell transitions in
@@ -6655,8 +6673,8 @@ message ShellTransition {
   // The transition type of this transition (e.g. TO_FRONT, OPEN, CLOSE).
   optional int32 type = 13;
 
-  // The list of targets that are part of this transition.
-  repeated Target targets = 14;
+  // The list of changes that are part of this transition.
+  repeated Change changes = 14;
   // The id of the transition we have requested to merge or have merged this
   // transition into.
   optional int32 merge_target = 15;
@@ -6670,16 +6688,28 @@ message ShellTransition {
   // (using SystemClock.elapsedRealtimeNanos())
   optional int64 starting_window_remove_time_ns = 17;
 
-  // Contains the information about the windows targeted in a transition.
-  message Target {
-    // The transition mode of this target (e.g. TO_FRONT, CLOSE...)
+  // Contains the information about the windows changed in a transition.
+  message Change {
+    // The transition mode of this change (e.g. TO_FRONT, CLOSE...)
     optional int32 mode = 1;
-    // The layer id of this target.
+    // The layer id of this change.
     optional int32 layer_id = 2;
-    // The window id of this target.
+    // The window id of this change.
     optional int32 window_id = 3;
-    // The flags set on this target.
+    // The flags set on this change.
     optional int32 flags = 4;
+    // The display id the change is transitioning on before the transition.
+    optional int32 start_display_id = 5;
+    // The display id the change is transitioning on after the transition.
+    optional int32 end_display_id = 6;
+    // The rotation of the change before the transition.
+    optional int32 start_rotation = 7;
+    // The rotation of the change after the transition.
+    optional int32 end_rotation = 8;
+    // The absolute screen bounds of the change before the transition.
+    optional RectProto start_absolute_bounds = 9;
+    // The absolute screen bounds of the change after the transition.
+    optional RectProto end_absolute_bounds = 10;
   }
 }
 
@@ -6696,17 +6726,6 @@ message ShellHandlerMapping {
 }
 
 // End of protos/perfetto/trace/android/shell_transition.proto
-
-// Begin of protos/perfetto/trace/android/graphics/rect.proto
-
-message RectProto {
-  optional int32 left = 1;
-  optional int32 top = 2;
-  optional int32 right = 3;
-  optional int32 bottom = 4;
-}
-
-// End of protos/perfetto/trace/android/graphics/rect.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
 
@@ -7885,6 +7904,20 @@ message V8JsCode {
     bytes machine_code = 7;
     bytes bytecode = 8;
   }
+  oneof source_map {
+    // For Ignition / bytecode:
+    //  - Maps bytecode-ranges to byte offsets (for the same script as the
+    //    related js function)
+    bytes source_positions = 9;
+    // For Sparkplug code:
+    //  - Maps machine-code ranges to bytecode ranges in the corresponding
+    //    ignition code object for the same js-function.
+    bytes bytecode_positions = 10;
+    // For optimized code:
+    // - Maps machine-code-ranges to bytecode ranges in various
+    //   ignition code objects (inlining might happen from multiple functions)
+    bytes inlined_bytecode_positions = 11;
+  }
 }
 
 message V8InternalCode {
@@ -8322,7 +8355,7 @@ message EtwTraceEventBundle {
 // Records an event in the evdev protocol, as used by Linux and some other *nix
 // kernels to report events from human interface devices.
 //
-// Next ID: 3
+// Next ID: 5
 message EvdevEvent {
   // The device's unique ID number. This need not be the number of its
   // /dev/input/event node.
@@ -8330,6 +8363,8 @@ message EvdevEvent {
 
   oneof event {
     InputEvent input_event = 2;
+    DeviceAddition add_event = 3;
+    DeviceRemoval remove_event = 4;
   }
 
   // Proto version of Linux's struct input_event. The meaning of types and codes
@@ -8352,6 +8387,117 @@ message EvdevEvent {
     // The new value of the axis described by type and code.
     optional sint32 value = 4;
   }
+
+  // Describes an evdev device being added to the system.
+  //
+  // Next ID: 2
+  message DeviceAddition {
+    optional EvdevDevice device = 1;
+  }
+
+  // Describes an evdev device being removed from the system.
+  //
+  // Next ID: 1
+  message DeviceRemoval {
+    // Empty — we don't need to record any data other than the device ID for
+    // this event type.
+  }
+}
+
+// The properties of an input device that don't change during the time that it's
+// connected, as well as the current values for all of its axes.
+//
+// Next ID: 13
+message EvdevDevice {
+  // The device's unique ID number. This need not be the number of its
+  // /dev/input/event node.
+  optional uint32 device_id = 1;
+  // The number of the evdev device (i.e. from its /dev/input/eventX node path).
+  optional uint32 device_num = 2;
+
+  // The device's name.
+  optional string name = 3;
+  // The physical path to the device in the system hierarchy.
+  optional string phys = 4;
+  // The unique identification code for the device (if it has one).
+  optional string uniq = 5;
+
+  // Proto version of Linux's struct input_id. Although uint32s are used for the
+  // fields, the kernel uses 16-bit ints so values will be less than 2^16.
+  //
+  // Next ID: 5
+  message Identifier {
+    // The bus that the device is connected to. Values will be one of Linux's
+    // BUS_* constants.
+    optional uint32 bustype = 1;
+    // A number identifying the vendor of the device. Often a USB or Bluetooth
+    // vendor ID, but not always.
+    optional uint32 vendor = 2;
+    optional uint32 product = 3;
+    optional uint32 version = 4;
+  }
+  // The device's ID numbers.
+  optional Identifier id = 6;
+
+  // Proto version of Linux's struct input_absinfo, excluding the value field
+  // (which is tracked elsewhere).
+  //
+  // Next ID: 6
+  message AbsInfo {
+    optional sint32 minimum = 1;
+    optional sint32 maximum = 2;
+    optional int32 fuzz = 3;
+    optional int32 flat = 4;
+    optional int32 resolution = 5;
+  }
+  // A map of information for each of the device's absolute axes. Keys are the
+  // Linux ABS_* constants.
+  map<uint32, AbsInfo> absolute_axis_infos = 7;
+
+  // Bitmask specifying which types of events the device declares.
+  optional bytes ev_bitmask = 8;
+  // A map of bitmasks specifying which axes of each type the device declares.
+  // Keys are the Linux EV_* constants.
+  map<uint32, bytes> event_type_bitmasks = 9;
+  // Bitmask of properties declared by the device.
+  optional bytes prop_bitmask = 10;
+
+  // Contains the current values of all axes of a particular type (e.g. EV_ABS,
+  // EV_KEY, etc.).
+  //
+  // Next ID: 2
+  message AxisMap {
+    // Current values of all axes, other than ABS_MT_* axes (which have multiple
+    // slots), which are kept in abs_mt_states instead.
+    //
+    // The keys are the Linux axis codes, e.g. ABS_* for absolute axes. If there
+    // is no entry for a particular axis, assume that its value is 0.
+    map<uint32, sint32> axis_states = 1;
+  }
+
+  // Current states of device axes.
+  //
+  // The keys are the Linux event type constants (e.g. EV_KEY, EV_ABS, etc.). We
+  // don't need to keep track of states for all axis types, only KEY, SW, LED,
+  // and ABS, so only those will have entries in this map. States for ABS_MT_*
+  // axes (which have multiple slots) will be kept in abs_mt_states instead.
+  map<uint32, AxisMap> axis_states = 11;
+
+  // Contains the current values of a single ABS_MT_* axis across all of its
+  // slots.
+  //
+  // Next ID: 2
+  message SlotValuesMap {
+    // Current values for all slots.
+    //
+    // The keys are the slot numbers. If there is no entry for a particular
+    // slot, assume that its value is 0.
+    map<uint32, sint32> slot_values = 1;
+  }
+
+  // Current states of ABS_MT_* axes other than ABS_MT_SLOT. The keys are the
+  // ABS axis codes.
+  map<uint32, SlotValuesMap> abs_mt_states = 12;
 }
 
 // End of protos/perfetto/trace/evdev.proto
@@ -8585,7 +8731,18 @@ message OneofOptions {
 //
 // See docs/design-docs/extensions.md for more details.
 message ExtensionDescriptor {
-  optional FileDescriptorSet extension_set = 1;
+  oneof descriptor {
+    FileDescriptorSet extension_set = 1;
+
+    // Same as extension_set, but gzip-compressed. This is used by the tracing
+    // service on Android to emit pre-compressed descriptor files from
+    // /etc/tracing_descriptors.gz without decompressing them first.
+    bytes extension_set_gzip = 2;
+  }
+
+  // Optional, for debugging only. The file name or path of the descriptor
+  // source. Can be omitted without affecting functionality.
+  optional string file_name = 3;
 }
 
 // End of protos/perfetto/trace/extension_descriptor.proto
@@ -10422,6 +10579,21 @@ message F2fsGcEndFtraceEvent {
   optional uint32 free_seg = 9;
   optional int32 reserved_seg = 10;
   optional uint32 prefree_seg = 11;
+}
+message F2fsLockElapsedTimeFtraceEvent {
+  optional uint64 dev = 1;
+  optional string comm = 2;
+  optional int32 pid = 3;
+  optional int32 prio = 4;
+  optional int32 ioprio_class = 5;
+  optional int32 ioprio_data = 6;
+  optional uint32 lock_name = 7;
+  optional uint32 is_write = 8;
+  optional uint64 total_time = 9;
+  optional uint64 running_time = 10;
+  optional uint64 runnable_time = 11;
+  optional uint64 io_sleep_time = 12;
+  optional uint64 other_time = 13;
 }
 
 // End of protos/perfetto/trace/ftrace/f2fs.proto
@@ -13436,6 +13608,7 @@ message FtraceEvent {
     FwtpPerfettoSliceFtraceEvent fwtp_perfetto_slice = 600;
     GpuPowerStateFtraceEvent gpu_power_state = 601;
     GramCollisionFtraceEvent gram_collision = 602;
+    F2fsLockElapsedTimeFtraceEvent f2fs_lock_elapsed_time = 603;
   }
 }
 

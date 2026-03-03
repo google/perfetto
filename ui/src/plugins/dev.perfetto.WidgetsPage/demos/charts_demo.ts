@@ -18,8 +18,10 @@ import {
   BarChartData,
   aggregateBarChartData,
 } from '../../../components/widgets/charts/bar_chart';
-import {AggregateFunction} from '../../../components/widgets/datagrid/model';
-import {isIntegerAggregation} from '../../../components/widgets/charts/chart_utils';
+import {
+  ChartAggregation,
+  isIntegerAggregation,
+} from '../../../components/widgets/charts/chart_utils';
 import {
   SQLBarChartLoader,
   BarChartLoaderConfig,
@@ -630,7 +632,7 @@ function BarChartDemo(): m.Component<{
   logScale: boolean;
   enableBrush: boolean;
   horizontal: boolean;
-  aggregation: AggregateFunction;
+  aggregation: ChartAggregation;
   gridLines: string;
 }> {
   let brushedLabels: Array<string | number> | undefined;
@@ -653,8 +655,9 @@ function BarChartDemo(): m.Component<{
         };
       }
 
-      const measureLabels: Record<AggregateFunction, string> = {
+      const measureLabels: Record<ChartAggregation, string> = {
         ANY: 'Any Duration',
+        COUNT: 'Count',
         SUM: 'Total Duration',
         AVG: 'Avg Duration',
         MIN: 'Min Duration',
@@ -715,7 +718,7 @@ function SQLBarChartDemo(): m.Component<{
   enableBrush: boolean;
   logScale: boolean;
   horizontal: boolean;
-  aggregation: AggregateFunction;
+  aggregation: ChartAggregation;
   gridLines: string;
 }> {
   let loader: SQLBarChartLoader | undefined;
@@ -740,8 +743,9 @@ function SQLBarChartDemo(): m.Component<{
       };
       const {data, isPending} = loader.use(config);
 
-      const measureLabels: Record<AggregateFunction, string> = {
+      const measureLabels: Record<ChartAggregation, string> = {
         ANY: 'Any Duration',
+        COUNT: 'Count',
         SUM: 'Total Duration',
         AVG: 'Avg Duration',
         MIN: 'Min Duration',
@@ -968,7 +972,7 @@ function SQLPieChartDemo(): m.Component<{
   height: number;
   showLegend: boolean;
   donut: boolean;
-  aggregation: AggregateFunction;
+  aggregation: ChartAggregation;
   limit: number;
 }> {
   let loader: SQLPieChartLoader | undefined;

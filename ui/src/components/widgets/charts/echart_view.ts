@@ -46,6 +46,7 @@ import {
   BrushComponent,
   ToolboxComponent,
   VisualMapComponent,
+  MarkAreaComponent,
 } from 'echarts/components';
 import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsType} from 'echarts/core';
@@ -79,6 +80,7 @@ function ensureEChartsSetup(): void {
     BrushComponent,
     ToolboxComponent,
     VisualMapComponent,
+    MarkAreaComponent,
     CanvasRenderer,
   ]);
 }
@@ -237,7 +239,7 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
       this.resizeObs = undefined;
     }
     this.detachAllHandlers();
-    if (this.chart) {
+    if (this.chart !== undefined) {
       this.chart.dispose();
       this.chart = undefined;
     }
