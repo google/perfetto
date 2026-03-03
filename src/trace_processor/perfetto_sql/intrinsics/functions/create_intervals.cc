@@ -69,7 +69,7 @@ struct IntervalCreate : public sqlite::Function<IntervalCreate> {
     dataframe::AdhocDataframeBuilder builder(
         col_names, GetUserData(ctx)->pool,
         dataframe::AdhocDataframeBuilder::Options{
-            col_types, dataframe::NullabilityType::kSparseNullWithPopcount});
+            col_types, dataframe::NullabilityType::kDenseNull});
 
     if (!starts || !ends || starts->timestamps.empty() ||
         ends->timestamps.empty()) {
