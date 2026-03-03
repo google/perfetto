@@ -206,7 +206,7 @@
   gap: 12px;
 
   span {
-    font-size: 11px;
+    font-size: var(--pf-font-size-xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -248,7 +248,7 @@
     flex-shrink: 0;
 
     .pf-icon {
-      font-size: 22px;
+      font-size: var(--pf-font-size-xxl);
       color: var(--pf-color-primary);
     }
   }
@@ -277,24 +277,6 @@
       background: color-mix(in srgb, var(--pf-color-primary), transparent 80%);
     }
   }
-
-  // Accent variant for Smart graph
-  &.pf-nav-action-card--accent {
-    .pf-nav-action-card__icon {
-      background: color-mix(in srgb, var(--pf-color-accent), transparent 88%);
-
-      .pf-icon {
-        color: var(--pf-color-accent);
-      }
-    }
-
-    &:hover,
-    &:focus-within {
-      .pf-nav-action-card__icon {
-        background: color-mix(in srgb, var(--pf-color-accent), transparent 80%);
-      }
-    }
-  }
 }
 
 // Compact list items for tutorials/solutions
@@ -319,7 +301,7 @@
     flex-shrink: 0;
 
     .pf-icon {
-      font-size: 18px;
+      font-size: var(--pf-font-size-xl);
       color: var(--pf-color-primary);
     }
   }
@@ -346,28 +328,10 @@
     text-overflow: ellipsis;
   }
 
-  .pf-nav-list-item__arrow {
-    flex-shrink: 0;
-    opacity: 0;
-    transition:
-      opacity 0.15s ease,
-      transform 0.15s ease;
-
-    .pf-icon {
-      font-size: 18px;
-      color: var(--pf-color-text-muted);
-    }
-  }
-
   &:hover,
   &:focus-within {
     .pf-nav-list-item__icon {
       background: color-mix(in srgb, var(--pf-color-primary), transparent 82%);
-    }
-
-    .pf-nav-list-item__arrow {
-      opacity: 1;
-      transform: translateX(2px);
     }
   }
 }

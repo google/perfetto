@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../../../base/classnames';
 import {Card, CardStack} from '../../../widgets/card';
 import {Icon} from '../../../widgets/icon';
 import {QueryNode} from '../query_node';
@@ -36,7 +35,6 @@ interface ActionCardAttrs {
   readonly description: string;
   readonly ariaLabel: string;
   readonly onClick: () => void;
-  readonly accent?: boolean;
 }
 
 // Renders a prominent horizontal action card (for "New graph" / "Smart graph")
@@ -49,10 +47,7 @@ function renderActionCard(attrs: ActionCardAttrs): m.Children {
       'tabindex': 0,
       'role': 'button',
       'aria-label': attrs.ariaLabel,
-      'className': classNames(
-        'pf-nav-action-card',
-        attrs.accent && 'pf-nav-action-card--accent',
-      ),
+      'className': 'pf-nav-action-card',
       'onkeydown': createKeyboardHandler(attrs.onClick),
     },
     m('.pf-nav-action-card__icon', m(Icon, {icon: attrs.icon})),
@@ -91,7 +86,6 @@ function renderListItem(attrs: ListItemAttrs): m.Children {
       m('.pf-nav-list-item__title', attrs.title),
       m('.pf-nav-list-item__desc', attrs.description),
     ),
-    m('.pf-nav-list-item__arrow', m(Icon, {icon: 'chevron_right'})),
   );
 }
 
@@ -133,7 +127,6 @@ export class NavigationSidePanel
             description: 'Tailored for your trace data',
             ariaLabel: 'Smart graph',
             onClick: () => attrs.onLoadExploreTemplate?.(),
-            accent: true,
           }),
         ),
       );
