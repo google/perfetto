@@ -333,33 +333,15 @@
   }
 }
 
-// Chart grid layouts
+// Chart grid layouts — charts never grow beyond their basis.
 .pf-chart-grid {
-  &--1 {
-    .pf-chart-view__single {
-      flex: 1 1 100%;
-      min-width: 300px;
-    }
-  }
-
-  &--2 {
-    .pf-chart-view__single {
-      flex: 1 1 calc(50% - 8px);
-      min-width: 250px;
-    }
-  }
-
-  &--2x2 {
-    .pf-chart-view__single {
-      flex: 1 1 calc(50% - 8px);
-      min-width: 250px;
-    }
-  }
-
+  &--1,
+  &--2,
+  &--2x2,
   &--3 {
     .pf-chart-view__single {
-      flex: 1 1 calc(33.333% - 11px);
-      min-width: 200px;
+      flex: 0 1 calc(33.333% - 11px);
+      min-width: 300px;
     }
   }
 }
