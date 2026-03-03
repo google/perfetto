@@ -127,7 +127,7 @@ WITH
     FROM (
       SELECT
         z.track_name,
-        avg(CAST(c.value AS INTEGER)) AS avg_val
+        avg(cast_int!(c.value)) AS avg_val
       FROM mem_counters AS c
       JOIN zygote_tracks AS z
         USING (track_id)
