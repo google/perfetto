@@ -199,8 +199,6 @@ export class NotesPanel {
         this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);
       }
     }
-
-    ctx.restore();
   }
 
   private drawAreaMarker(
