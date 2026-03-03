@@ -234,6 +234,8 @@ namespace perfetto::trace_processor::stats {
        "Shadow mode: patches that succeeded on V1 buffer."),                   \
   F(traced_buf_v2s_v2_patches_succeeded,  kIndexed, kInfo,     kTrace,         \
        "Shadow mode: patches that succeeded on V2 buffer."),                   \
+  F(traced_buf_v2s_stats_version,         kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: version of the comparison stats."),                       \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
   F(traced_clone_trigger_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
