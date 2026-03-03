@@ -65,7 +65,12 @@ SELECT
   cuj_name,
   -- Earliest of (Next Frame Start, Next doFrame Start).
   -- Fallback to original ts_end only if both are NULL.
-  coalesce(min(next_do_slice_after_frame, next_frame_start), original_ts_end) AS ts_end
+  coalesce(
+    min(next_do_slice_after_frame, next_frame_start),
+    next_do_slice_after_frame,
+    next_frame_start,
+    original_ts_end
+  ) AS ts_end
 FROM _frames_with_extension_options
 ORDER BY
   frame_id;
