@@ -17,26 +17,21 @@
 -- intervals by matching each start with the next end timestamp strictly greater
 -- than it.
 --
--- Uses an efficient O(n+m) two-pointer algorithm implemented in C++.
+-- Both input tables must have a column named `ts`. Uses an efficient O(n+m)
+-- two-pointer algorithm implemented in C++.
 --
 -- Example:
 -- ```
--- SELECT * FROM _create_intervals!(
+-- SELECT * FROM _interval_create!(
 --   (SELECT ts FROM starts_table),
---   (SELECT ts FROM ends_table),
---   ts,
---   ts
+--   (SELECT ts FROM ends_table)
 -- )
 -- ```
-CREATE PERFETTO MACRO _create_intervals(
-    -- Table or subquery containing start timestamps.
+CREATE PERFETTO MACRO _interval_create(
+    -- Table or subquery containing start timestamps (must have a `ts` column).
     starts_table TableOrSubquery,
-    -- Table or subquery containing end timestamps.
-    ends_table TableOrSubquery,
-    -- Name of the timestamp column in the starts table.
-    starts_ts_col ColumnName,
-    -- Name of the timestamp column in the ends table.
-    ends_ts_col ColumnName
+    -- Table or subquery containing end timestamps (must have a `ts` column).
+    ends_table TableOrSubquery
 )
 -- Table with the schema:
 -- ts TIMESTAMP,
@@ -49,16 +44,28 @@ RETURNS TableOrSubquery AS
     c0 AS ts,
     c1 AS dur
   FROM __intrinsic_table_ptr(
-    __intrinsic_create_intervals(
+    __intrinsic_interval_create(
       (
         SELECT
-          __intrinsic_timestamp_set_agg(s.$starts_ts_col)
-        FROM $starts_table AS s
+          __intrinsic_timestamp_set_agg(ordered_s.ts)
+        FROM (
+          SELECT
+            ts
+          FROM $starts_table
+          ORDER BY
+            ts
+        ) AS ordered_s
       ),
       (
         SELECT
-          __intrinsic_timestamp_set_agg(e.$ends_ts_col)
-        FROM $ends_table AS e
+          __intrinsic_timestamp_set_agg(ordered_e.ts)
+        FROM (
+          SELECT
+            ts
+          FROM $ends_table
+          ORDER BY
+            ts
+        ) AS ordered_e
       )
     )
   )

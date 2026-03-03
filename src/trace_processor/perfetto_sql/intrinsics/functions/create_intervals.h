@@ -23,9 +23,9 @@
 
 namespace perfetto::trace_processor::perfetto_sql {
 
-// Registers the __intrinsic_create_intervals function with |engine|.
-base::Status RegisterCreateIntervalsFunctions(PerfettoSqlEngine& engine,
-                                              StringPool* pool);
+// Registers the __intrinsic_interval_create function with |engine|.
+base::Status RegisterIntervalCreateFunctions(PerfettoSqlEngine& engine,
+                                             StringPool* pool);
 
 }  // namespace perfetto::trace_processor::perfetto_sql
 

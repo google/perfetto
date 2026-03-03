@@ -436,8 +436,9 @@ struct IntervalTreeIntervalsAgg
   }
 };
 
-// An SQL aggregate function which collects timestamps into a sorted vector.
-// Used as input to __intrinsic_create_intervals.
+// An SQL aggregate function which collects timestamps into a vector.
+// Used as input to __intrinsic_interval_create. The caller is responsible
+// for ensuring timestamps are passed in sorted order (e.g. via ORDER BY).
 struct TimestampSetAgg
     : public sqlite::AggregateFunction<perfetto_sql::SortedTimestamps> {
   static constexpr char kName[] = "__intrinsic_timestamp_set_agg";
@@ -457,8 +458,6 @@ struct TimestampSetAgg
     if (!raw_agg_ctx) {
       return sqlite::result::Null(ctx);
     }
-    auto& ts = raw_agg_ctx.get()->data.timestamps;
-    std::sort(ts.begin(), ts.end());
     return sqlite::result::UniquePointer(
         ctx,
         std::make_unique<perfetto_sql::SortedTimestamps>(

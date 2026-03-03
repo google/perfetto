@@ -1329,7 +1329,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
         *engine, storage->mutable_string_pool());
   }
   {
-    base::Status status = perfetto_sql::RegisterCreateIntervalsFunctions(
+    base::Status status = perfetto_sql::RegisterIntervalCreateFunctions(
         *engine, storage->mutable_string_pool());
   }
   {

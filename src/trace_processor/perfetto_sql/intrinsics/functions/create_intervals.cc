@@ -47,8 +47,8 @@ using ColType = dataframe::AdhocDataframeBuilder::ColumnType;
 // For each start timestamp, finds the minimum end timestamp that is strictly
 // greater than the start. Multiple starts may be paired with the same end.
 // Starts with no matching end are excluded from the output.
-struct CreateIntervals : public sqlite::Function<CreateIntervals> {
-  static constexpr char kName[] = "__intrinsic_create_intervals";
+struct IntervalCreate : public sqlite::Function<IntervalCreate> {
+  static constexpr char kName[] = "__intrinsic_interval_create";
   static constexpr int kArgCount = 2;
 
   struct UserData {
@@ -83,7 +83,7 @@ struct CreateIntervals : public sqlite::Function<CreateIntervals> {
     const auto& end_ts = ends->timestamps;
 
     // Two-pointer matching: O(n + m).
-    // Both arrays are already sorted (guaranteed by TimestampSetAgg).
+    // Both arrays are already sorted (guaranteed by ORDER BY in the SQL macro).
     // For each start, we find the first end strictly greater than it.
     // Since starts are sorted, the end pointer only advances forward.
     size_t end_idx = 0;
@@ -107,11 +107,11 @@ struct CreateIntervals : public sqlite::Function<CreateIntervals> {
 
 }  // namespace
 
-base::Status RegisterCreateIntervalsFunctions(PerfettoSqlEngine& engine,
-                                              StringPool* pool) {
-  return engine.RegisterFunction<CreateIntervals>(
-      std::make_unique<CreateIntervals::UserData>(
-          CreateIntervals::UserData{pool}));
+base::Status RegisterIntervalCreateFunctions(PerfettoSqlEngine& engine,
+                                             StringPool* pool) {
+  return engine.RegisterFunction<IntervalCreate>(
+      std::make_unique<IntervalCreate::UserData>(
+          IntervalCreate::UserData{pool}));
 }
 
 }  // namespace perfetto::trace_processor::perfetto_sql

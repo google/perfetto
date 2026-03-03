@@ -31,7 +31,7 @@ class CreateIntervals(TestSuite):
         ends(ts) AS (
           VALUES (150), (250), (350)
         )
-        SELECT * FROM _create_intervals!(starts, ends, ts, ts)
+        SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
         "ts","dur"
@@ -51,7 +51,7 @@ class CreateIntervals(TestSuite):
         ends(ts) AS (
           VALUES (500)
         )
-        SELECT * FROM _create_intervals!(starts, ends, ts, ts)
+        SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
         "ts","dur"
@@ -71,7 +71,7 @@ class CreateIntervals(TestSuite):
         ends(ts) AS (
           VALUES (100), (200)
         )
-        SELECT * FROM _create_intervals!(starts, ends, ts, ts)
+        SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
         "ts","dur"
@@ -88,7 +88,7 @@ class CreateIntervals(TestSuite):
         ends(ts) AS (
           VALUES (20), (40), (60)
         )
-        SELECT * FROM _create_intervals!(starts, ends, ts, ts)
+        SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
         "ts","dur"
@@ -108,7 +108,7 @@ class CreateIntervals(TestSuite):
         ends(ts) AS (
           VALUES (25), (55)
         )
-        SELECT * FROM _create_intervals!(starts, ends, ts, ts)
+        SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
         "ts","dur"
@@ -128,7 +128,7 @@ class CreateIntervals(TestSuite):
         ends(ts) AS (
           VALUES (100), (200)
         )
-        SELECT * FROM _create_intervals!(starts, ends, ts, ts)
+        SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
         "ts","dur"
@@ -145,7 +145,7 @@ class CreateIntervals(TestSuite):
         ends(ts) AS (
           VALUES (100), (200), (300)
         )
-        SELECT * FROM _create_intervals!(starts, ends, ts, ts)
+        SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
         "ts","dur"
@@ -164,7 +164,7 @@ class CreateIntervals(TestSuite):
         ends(ts) AS (
           VALUES (350), (150), (250)
         )
-        SELECT * FROM _create_intervals!(starts, ends, ts, ts)
+        SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
         "ts","dur"
