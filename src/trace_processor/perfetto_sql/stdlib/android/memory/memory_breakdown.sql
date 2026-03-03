@@ -22,6 +22,8 @@ INCLUDE PERFETTO MODULE counters.intervals;
 -- Provides a comprehensive view of memory usage, including raw values,
 -- zygote-adjusted values, and a flag for tracks with a spike bigger than 100 MiB.
 CREATE PERFETTO TABLE android_process_memory_intervals (
+  -- The counter id
+  id JOINID(counter.id),
   -- Timestamp of the memory counter sample.
   ts TIMESTAMP,
   -- Duration of the sample.
@@ -29,17 +31,16 @@ CREATE PERFETTO TABLE android_process_memory_intervals (
   -- The unique process id.
   upid JOINID(process.id),
   -- The name of the memory counter track.
-  track_name STRING,
+  memory_track_name STRING,
   -- The id of the memory counter track.
   track_id JOINID(track.id),
-  -- Whether the track has a spike greater than 100MiB.
-  has_spike_gt_100mib BOOL,
-  -- The counter id
-  counter_id JOINID(counter.id),
   -- The value of the memory counter.
   value LONG,
   -- The value of the memory counter, adjusted with the zygote's memory usage.
-  zygote_adjusted_value LONG
+  zygote_adjusted_value LONG,
+  -- Whether the track has a spike greater than 100MiB.
+  -- This can happen because of rss_stat accounting issue: see b/418231246 for details.
+  track_has_spike_gt_100mib BOOL
 ) AS
 WITH
   -- Step 1: Prepare memory counter data.
@@ -73,7 +74,6 @@ WITH
     FROM counter_leading_intervals!(mem_counters)
   ),
   -- Step 2: Identify tracks with large spikes (spikes > 100MiB).
-  -- This can happen because of rss_stat accounting issue: see b/418231246 for details.
   spikes AS (
     SELECT DISTINCT
       track_id
@@ -87,11 +87,11 @@ WITH
       max(ts, coalesce(p.start_ts, ts)) AS ts,
       min(i.ts + i.dur, coalesce(p.end_ts, i.ts + i.dur)) - max(i.ts, coalesce(p.start_ts, i.ts)) AS dur,
       p.upid,
-      t.name AS track_name,
+      t.name AS memory_track_name,
       i.track_id,
       i.counter_id,
       i.value,
-      NOT s.track_id IS NULL AS has_spike_gt_100mib
+      NOT s.track_id IS NULL AS track_has_spike_gt_100mib
     FROM mem_intervals AS i
     JOIN mem_tracks AS t
       ON i.track_id = t.track_id
@@ -115,7 +115,7 @@ WITH
   ),
   zygote_tracks AS (
     SELECT
-      t.name AS track_name,
+      t.name AS memory_track_name,
       t.track_id
     FROM mem_tracks AS t
     JOIN zygote_processes AS z
@@ -125,19 +125,19 @@ WITH
   ),
   zygote_baseline AS (
     SELECT
-      max(CASE WHEN track_name = 'mem.rss.anon' THEN avg_val END) AS rss_anon_base,
-      max(CASE WHEN track_name = 'mem.swap' THEN avg_val END) AS swap_base,
-      max(CASE WHEN track_name = 'mem.rss.file' THEN avg_val END) AS rss_file_base,
-      max(CASE WHEN track_name = 'mem.heap' THEN avg_val END) AS heap_base
+      max(CASE WHEN memory_track_name = 'mem.rss.anon' THEN avg_val END) AS rss_anon_base,
+      max(CASE WHEN memory_track_name = 'mem.swap' THEN avg_val END) AS swap_base,
+      max(CASE WHEN memory_track_name = 'mem.rss.file' THEN avg_val END) AS rss_file_base,
+      max(CASE WHEN memory_track_name = 'mem.heap' THEN avg_val END) AS heap_base
     FROM (
       SELECT
-        z.track_name,
+        z.memory_track_name,
         avg(cast_int!(c.value)) AS avg_val
       FROM mem_counters AS c
       JOIN zygote_tracks AS z
         USING (track_id)
       GROUP BY
-        z.track_name
+        z.memory_track_name
     )
   ),
   -- Step 5: Join clipped intervals with zygote baseline.
@@ -145,13 +145,13 @@ WITH
     SELECT
       c.*,
       CASE
-        WHEN c.track_name = 'mem.rss.anon'
+        WHEN c.memory_track_name = 'mem.rss.anon'
         THEN zb.rss_anon_base
-        WHEN c.track_name = 'mem.swap'
+        WHEN c.memory_track_name = 'mem.swap'
         THEN zb.swap_base
-        WHEN c.track_name = 'mem.rss.file'
+        WHEN c.memory_track_name = 'mem.rss.file'
         THEN zb.rss_file_base
-        WHEN c.track_name = 'mem.heap'
+        WHEN c.memory_track_name = 'mem.heap'
         THEN zb.heap_base
         ELSE 0
       END AS zygote_baseline_value
@@ -160,19 +160,19 @@ WITH
   )
 -- Final Step: Compute the zygote-adjusted memory value.
 SELECT
+  d.counter_id AS id,
   d.ts,
   d.dur,
   d.upid,
-  d.track_name,
+  d.memory_track_name,
   d.track_id,
-  d.has_spike_gt_100mib,
-  d.counter_id,
   d.value,
   CASE
     WHEN NOT p.upid IS NULL AND NOT p.name IN ('zygote', 'zygote64', 'webview_zygote')
     THEN max(0, cast_int!(d.value) - cast_int!(COALESCE(d.zygote_baseline_value, 0)))
     ELSE cast_int!(d.value)
-  END AS zygote_adjusted_value
+  END AS zygote_adjusted_value,
+  d.track_has_spike_gt_100mib
 FROM mem_intervals_with_zygote_baseline AS d
 LEFT JOIN process AS p
   USING (upid);
@@ -217,8 +217,6 @@ CREATE PERFETTO TABLE android_process_memory_intervals_by_oom_bucket (
   ts TIMESTAMP,
   -- The duration of the interval.
   dur DURATION,
-  -- The name of the memory counter track.
-  track_name STRING,
   -- The name of the process.
   process_name STRING,
   -- The unique process ID.
@@ -227,29 +225,35 @@ CREATE PERFETTO TABLE android_process_memory_intervals_by_oom_bucket (
   pid LONG,
   -- The OOM adjustment score bucket.
   bucket STRING,
-  -- Whether the track has a spike greater than 100MiB.
-  has_spike_gt_100mib BOOL,
+  -- The name of the memory counter track.
+  memory_track_name STRING,
+  -- The id of the memory counter track.
+  track_id JOINID(track.id),
   -- The counter id
   counter_id JOINID(counter.id),
   -- The memory counter value.
   value LONG,
   -- The zygote-adjusted memory value.
-  zygote_adjusted_value LONG
+  zygote_adjusted_value LONG,
+  -- Whether the track has a spike greater than 100MiB.
+  -- This can happen because of rss_stat accounting issue: see b/418231246 for details.
+  track_has_spike_gt_100mib BOOL
 ) AS
 SELECT
   row_number() OVER () AS id,
   ts,
   dur,
-  track_name,
   p.name AS process_name,
   upid,
   pid,
-  coalesce(bucket, 'unknown') AS bucket,
-  has_spike_gt_100mib,
-  counter_id,
-  value,
-  zygote_adjusted_value
-FROM _memory_breakdown_mem_oom_span_join
+  coalesce(m.bucket, 'unknown') AS bucket,
+  m.memory_track_name,
+  m.track_id,
+  m.id AS counter_id,
+  m.value,
+  m.zygote_adjusted_value,
+  m.track_has_spike_gt_100mib
+FROM _memory_breakdown_mem_oom_span_join AS m
 LEFT JOIN process AS p
   USING (upid)
 WHERE
