@@ -434,8 +434,8 @@ export class RecentGraphsSection
     const allCards = [...starred, ...unstarred];
 
     return m(
-      '.pf-recent-graphs-section',
-      m('h4.pf-starting-section-title', 'Recent graphs'),
+      '.pf-recent-graphs-section.pf-nav-section',
+      m('.pf-nav-section-header', m('span', 'Recent graphs')),
       allCards.length > 0
         ? m(
             '.pf-recent-graphs-scroll-container',

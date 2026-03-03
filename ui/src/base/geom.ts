@@ -340,4 +340,17 @@ export namespace Transform2D {
       scaleY: a.scaleY * scaleY,
     };
   }
+
+  // Column-major mat3 for use with WebGL uniformMatrix3fv.
+  // | scaleX  0       0 |
+  // | 0       scaleY  0 |
+  // | offsetX offsetY 1 |
+  export function toMat3(t: Transform2D): Float32Array {
+    // prettier-ignore
+    return new Float32Array([
+      t.scaleX, 0, 0,
+      0, t.scaleY, 0,
+      t.offsetX, t.offsetY, 1,
+    ]);
+  }
 }

@@ -19,7 +19,6 @@ import {
   SecondaryInputSpec,
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
-import {analyzeNode, isAQuery} from '../query_builder_utils';
 import {
   ColumnInfo,
   columnInfoFromName,
@@ -44,6 +43,7 @@ import {setValidationError} from '../node_issues';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
 import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
+import {Trace} from '../../../../public/trace';
 import {Form, FormSection} from '../../../../widgets/form';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
@@ -235,6 +235,11 @@ export class AddColumnsNode implements QueryNode {
       return undefined; // Empty names are handled by isComputedColumnValid
     }
 
+    // Reject names that aren't valid SQL identifiers (alphanumeric + underscore)
+    if (/[^a-zA-Z0-9_]/.test(trimmedName)) {
+      return 'Column name can only contain letters, numbers, and underscores';
+    }
+
     // Check against source columns (use alias if present, otherwise column name)
     for (const c of this.sourceCols) {
       const effectiveName = c.alias ?? c.column.name;
@@ -316,21 +321,27 @@ export class AddColumnsNode implements QueryNode {
     );
   }
 
-  // Fetch available arg keys for the given arg_set_id column
+  // Fetch available arg keys for the given arg_set_id column.
+  // Uses the primary input's materialized table from the execution service
+  // to avoid creating a competing summarizer (which would conflict with
+  // the main QueryExecutionService's materialized tables).
   async fetchAvailableArgKeys(argSetIdCol: ColumnInfo): Promise<string[]> {
     const trace = this.state.trace;
     if (!trace) return [];
 
-    // We need to analyze the current node to get the SQL query
-    // that includes the arg_set_id column
-    const query = await analyzeNode(this, trace.engine);
-    if (!isAQuery(query)) return [];
+    const primaryInput = this.primaryInput;
+    if (!primaryInput) return [];
 
-    // Query for distinct arg keys using the current data
+    // Get the materialized table name for the primary input node
+    const tableName = await this.state.getTableNameForNode?.(
+      primaryInput.nodeId,
+    );
+    if (!tableName) return [];
+
     const argColName = argSetIdCol.column.name;
     const sql = `
       SELECT DISTINCT args.flat_key as key
-      FROM (${query.sql}) data
+      FROM ${tableName} data
       JOIN args ON args.arg_set_id = data.${argColName}
       ORDER BY key
     `;
@@ -343,7 +354,8 @@ export class AddColumnsNode implements QueryNode {
         keys.push(it.key);
       }
       return keys;
-    } catch {
+    } catch (e) {
+      console.warn('fetchAvailableArgKeys: query failed', e);
       return [];
     }
   }
@@ -885,7 +897,7 @@ export class AddColumnsNode implements QueryNode {
                     // Auto-generate column name from key (replace special chars)
                     if (selectedKey && !columnName) {
                       columnName = selectedKey
-                        .replace(/[.\[\]]/g, '_')
+                        .replace(/[^a-zA-Z0-9_]/g, '_')
                         .replace(/_+/g, '_')
                         .replace(/^_|_$/g, '');
                     }
@@ -901,7 +913,7 @@ export class AddColumnsNode implements QueryNode {
                       // Auto-generate column name from key (replace special chars)
                       if (selectedKey && !columnName) {
                         columnName = selectedKey
-                          .replace(/[.\[\]]/g, '_')
+                          .replace(/[^a-zA-Z0-9_]/g, '_')
                           .replace(/_+/g, '_')
                           .replace(/^_|_$/g, '');
                       }
@@ -1734,11 +1746,13 @@ export class AddColumnsNode implements QueryNode {
   }
 
   static deserializeState(
+    trace: Trace,
     sqlModules: SqlModules,
     serializedState: AddColumnsNodeState,
   ): AddColumnsNodeState {
     return {
       ...serializedState,
+      trace,
       sqlModules,
       suggestionSelections:
         (serializedState.suggestionSelections as unknown as Record<

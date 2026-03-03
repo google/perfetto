@@ -41,6 +41,7 @@ class WindowsSDKApi(recipe_api.RecipeApi):
 
     with self.m.context(infra_steps=True):
       sdk_dir = self._ensure_sdk()
+
     with self.m.context(**self._sdk_env(sdk_dir)):
       yield
 
@@ -53,7 +54,7 @@ class WindowsSDKApi(recipe_api.RecipeApi):
       path (path): Path to a directory.
       version (str): CIPD instance ID, tag or ref.
     """
-    sdk_dir = self.m.path.cache_dir.joinpath('windows_sdk')
+    sdk_dir = self.m.path['cache'].join('windows_sdk')
     pkgs = self.m.cipd.EnsureFile()
     pkgs.add_package(self._sdk_package, self._sdk_version)
     self.m.cipd.ensure(sdk_dir, pkgs)
@@ -74,7 +75,7 @@ class WindowsSDKApi(recipe_api.RecipeApi):
     # environment. It contains a dict that looks like this:
     # {
     #   "env": {
-    #     "VAR": [["..", "..", "x"], ["..", "..", "y"]],
+    #     "VAR": [["x"], ["y"]],
     #     ...
     #   }
     # }
@@ -83,28 +84,16 @@ class WindowsSDKApi(recipe_api.RecipeApi):
     filename = 'SetEnv.%s.json' % {32: 'x86', 64: 'x64'}[self.m.platform.bits]
     step_result = self.m.json.read(
         'read %s' % filename,
-        sdk_dir / 'Windows Kits' / '10' / 'bin' / filename,
+        sdk_dir.join('Windows Kits', '10', 'bin', filename),
         step_test_data=lambda: self.m.json.test_api.output({
             'env': {
-                'PATH': [[
-                    '..', '..', 'Windows Kits', '10', 'bin', '10.0.19041.0',
-                    'x64'
-                ]],
-                'VSINSTALLDIR': [['..', '..\\']],
+                'PATH': [['Windows Kits', '10', 'bin', '10.0.19041.0', 'x64']],
+                'VSINSTALLDIR': [['.\\']],
             },
         }))
     data = step_result.json.output.get('env')
     for key in data:
-      # recipes' Path() does not like .., ., \, or /, so this is cumbersome.
-      # What we want to do is:
-      #   [sdk_bin_dir.join(*e) for e in env[k]]
-      # Instead do that badly, and rely (but verify) on the fact that the paths
-      # are all specified relative to the root, but specified relative to
-      # win_sdk/bin (i.e. everything starts with "../../".)
-      results = []
-      for value in data[key]:
-        assert value[0] == '..' and (value[1] == '..' or value[1] == '..\\')
-        results.append('%s' % sdk_dir.joinpath(*value[2:]))
+      results = ['%s' % sdk_dir.join(*e) for e in data[key]]
 
       # PATH is special-cased because we don't want to overwrite other things
       # like C:\Windows\System32. Others are replacements because prepending

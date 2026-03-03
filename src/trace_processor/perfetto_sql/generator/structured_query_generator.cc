@@ -1196,26 +1196,19 @@ base::StatusOr<std::string> GeneratorImpl::CreateSlices(
   std::string starts_table = NestedSource(create_slices.starts_query());
   std::string ends_table = NestedSource(create_slices.ends_query());
 
-  // Build the SQL to create slices
-  // For each start, find the first end that comes after it
+  // Reference the intervals.create_intervals module which contains
+  // _interval_create
+  referenced_modules_.Insert("intervals.create_intervals", nullptr);
+
+  // Use _interval_create! macro which delegates to
+  // __intrinsic_interval_create, an O(n+m) two-pointer C++ implementation.
+  // The macro expects inputs with a `ts` column, so we rename if needed.
   return base::StackString<1024>(
-             R"(
-(WITH starts AS (SELECT * FROM %s),
-     ends AS (SELECT * FROM %s),
-     matched AS (
-       SELECT
-         starts.%s AS start_ts,
-         (SELECT MIN(ends.%s) FROM ends WHERE ends.%s > starts.%s) AS end_ts
-       FROM starts
-     )
-SELECT
-  start_ts AS ts,
-  end_ts - start_ts AS dur
-FROM matched
-WHERE end_ts IS NOT NULL)
-)",
-             starts_table.c_str(), ends_table.c_str(), starts_ts_col.c_str(),
-             ends_ts_col.c_str(), ends_ts_col.c_str(), starts_ts_col.c_str())
+             "(SELECT * FROM _interval_create!("
+             "(SELECT %s AS ts FROM %s), "
+             "(SELECT %s AS ts FROM %s)))",
+             starts_ts_col.c_str(), starts_table.c_str(), ends_ts_col.c_str(),
+             ends_table.c_str())
       .ToStdString();
 }
 

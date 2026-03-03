@@ -29,6 +29,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
@@ -115,6 +116,12 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     protos::pbzero::PowerRails::Decoder evt(power_rails);
 
     parser_.ParseRailDescriptor(evt);
+
+    if (!evt.has_energy_data()) {
+      context_->import_logs_tracker->RecordParserError(
+          stats::power_rail_empty_packet, packet_timestamp);
+      return ModuleResult::Handled();
+    }
 
     // For each energy data message, turn it into its own trace packet
     // making sure its timestamp is consistent between the packet level and
