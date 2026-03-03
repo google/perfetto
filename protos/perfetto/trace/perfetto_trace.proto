@@ -15429,7 +15429,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 57.
+// Next reserved id: 13 (up to 15). Next id: 58.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -15701,6 +15701,9 @@ message TrackEvent {
 
   optional ChromeMessagePump chrome_message_pump = 35;
   optional ChromeMojoEventInfo chrome_mojo_event_info = 38;
+
+  // De-interned app wakelock info, embedded directly in the TrackEvent.
+  optional AppWakelockInfo app_wakelock_info = 57;
 
   // New argument types go here :)
 
