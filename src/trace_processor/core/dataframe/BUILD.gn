@@ -22,6 +22,7 @@ source_set("dataframe") {
     "cursor_impl.h",
     "dataframe.cc",
     "dataframe.h",
+    "dataframe_register_cache.h",
     "query_plan.cc",
     "query_plan.h",
     "runtime_dataframe_builder.h",

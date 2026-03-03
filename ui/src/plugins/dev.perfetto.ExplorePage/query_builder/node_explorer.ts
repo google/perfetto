@@ -100,6 +100,15 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
 
     const sq = node.getStructuredQuery();
     if (sq === undefined) {
+      // Some nodes (e.g. TraceSummary) intentionally don't produce a
+      // structured query. If the node validates, treat it as a no-op.
+      if (node.validate()) {
+        this.currentQuery = undefined;
+        this.prevSqString = undefined;
+        attrs.onQueryAnalyzed(undefined);
+        attrs.onAnalysisStateChange?.(false);
+        return;
+      }
       // Report error instead of silently returning
       const error = new Error(
         'Cannot generate structured query. This usually means:\n' +
@@ -183,6 +192,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
         label: btn.label,
         icon: btn.icon,
         compact: btn.compact,
+        disabled: btn.disabled,
       };
       result.push(m(Button, attrs as ButtonAttrs));
     }

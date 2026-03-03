@@ -406,51 +406,52 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: 'info',
             title: `${attrs.selectedNodes.size} nodes selected`,
           })
-        : selectedNode
-          ? m(DataExplorer, {
-              trace: this.trace,
-              query: this.query,
-              node: selectedNode,
-              response: this.response,
-              dataSource: this.dataSource,
-              sqlModules: attrs.sqlModules,
-              queryExecutionService: this.queryExecutionService,
-              isQueryRunning: this.isQueryRunning,
-              isAnalyzing: this.isAnalyzing,
-              isStale: this.queryExecutionService.isNodeStale(
-                selectedNode.nodeId,
-              ),
-              onchange: () => {
-                attrs.onNodeStateChange?.();
-              },
-              onFilterAdd: (filter, filterOperator) => {
-                attrs.onFilterAdd(selectedNode, filter, filterOperator);
-              },
-              onColumnAdd: attrs.onColumnAdd
-                ? (column) => attrs.onColumnAdd?.(selectedNode, column)
-                : undefined,
-              isFullScreen:
-                this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
-              onFullScreenToggle: () => {
-                if (
-                  this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN
-                ) {
-                  this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
-                } else {
-                  this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
-                }
-              },
-              onExecute: async () => {
-                await this.executeSelectedNode();
-              },
-              onExportToTimeline: async () => {
-                await this.exportToTimeline(selectedNode);
-              },
-            })
-          : m(DataExplorerEmptyState, {
-              icon: 'info',
-              title: 'Select a node to see the data',
-            }),
+        : selectedNode?.customDataExplorer?.() ??
+          (selectedNode
+            ? m(DataExplorer, {
+                trace: this.trace,
+                query: this.query,
+                node: selectedNode,
+                response: this.response,
+                dataSource: this.dataSource,
+                sqlModules: attrs.sqlModules,
+                queryExecutionService: this.queryExecutionService,
+                isQueryRunning: this.isQueryRunning,
+                isAnalyzing: this.isAnalyzing,
+                isStale: this.queryExecutionService.isNodeStale(
+                  selectedNode.nodeId,
+                ),
+                onchange: () => {
+                  attrs.onNodeStateChange?.();
+                },
+                onFilterAdd: (filter, filterOperator) => {
+                  attrs.onFilterAdd(selectedNode, filter, filterOperator);
+                },
+                onColumnAdd: attrs.onColumnAdd
+                  ? (column) => attrs.onColumnAdd?.(selectedNode, column)
+                  : undefined,
+                isFullScreen:
+                  this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
+                onFullScreenToggle: () => {
+                  if (
+                    this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN
+                  ) {
+                    this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
+                  } else {
+                    this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
+                  }
+                },
+                onExecute: async () => {
+                  await this.executeSelectedNode();
+                },
+                onExportToTimeline: async () => {
+                  await this.exportToTimeline(selectedNode);
+                },
+              })
+            : m(DataExplorerEmptyState, {
+                icon: 'info',
+                title: 'Select a node to see the data',
+              })),
       mainContent: [
         m(
           '.pf-qb-node-graph',

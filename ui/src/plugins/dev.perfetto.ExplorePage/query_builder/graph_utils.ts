@@ -305,6 +305,18 @@ export function getAllInputNodes(node: QueryNode): QueryNode[] {
 // ============================================================================
 
 /**
+ * Returns true if a node is undocked (has an explicit layout position).
+ * Undocked nodes are rendered as separate graph nodes rather than inline
+ * with their parent's chain.
+ */
+export function isNodeUndocked(
+  node: QueryNode,
+  nodeLayouts: ReadonlyMap<string, {x: number; y: number}>,
+): boolean {
+  return nodeLayouts.has(node.nodeId);
+}
+
+/**
  * Finds children of a node that are currently docked (rendered inline with parent).
  *
  * A child is considered docked if:
@@ -386,6 +398,45 @@ export function calculateUndockLayouts(
   }
 
   return layouts;
+}
+
+/**
+ * Computes updated layout positions that undock the given children from a
+ * parent node.  Merges the new positions into `existingLayouts` and returns
+ * the updated map.
+ *
+ * This is the shared logic used whenever we need to convert docked children
+ * into undocked ones (e.g. when adding a new sibling node or a multi-source
+ * node).
+ *
+ * @param parentNode      The parent whose children are being undocked.
+ * @param childrenToUndock Nodes that need explicit layout positions.
+ * @param existingLayouts  Current layout map (will be shallow-copied).
+ * @returns A new Map with the undock positions merged in, or the original map
+ *          if no positions could be computed (parent has no effective layout).
+ */
+export function applyUndockLayouts(
+  parentNode: QueryNode,
+  childrenToUndock: QueryNode[],
+  existingLayouts: ReadonlyMap<string, {x: number; y: number}>,
+): Map<string, {x: number; y: number}> {
+  const updatedLayouts = new Map(existingLayouts);
+  if (childrenToUndock.length === 0) {
+    return updatedLayouts;
+  }
+
+  const effectiveLayout = getEffectiveLayout(parentNode, existingLayouts);
+  if (effectiveLayout !== undefined) {
+    const undockLayouts = calculateUndockLayouts(
+      childrenToUndock,
+      effectiveLayout,
+    );
+    for (const [nodeId, layout] of undockLayouts) {
+      updatedLayouts.set(nodeId, layout);
+    }
+  }
+
+  return updatedLayouts;
 }
 
 // ============================================================================

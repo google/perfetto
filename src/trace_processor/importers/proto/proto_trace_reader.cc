@@ -57,6 +57,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/gzip_utils.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
@@ -196,9 +197,29 @@ base::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
   protos::pbzero::ExtensionDescriptor::Decoder decoder(descriptor.data,
                                                        descriptor.size);
 
-  auto extension = decoder.extension_set();
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  std::vector<uint8_t> decompressed;
+  if (decoder.has_extension_set()) {
+    auto extension = decoder.extension_set();
+    data = extension.data;
+    size = extension.size;
+  } else if (decoder.has_extension_set_gzip()) {
+    auto gzipped = decoder.extension_set_gzip();
+    decompressed =
+        util::GzipDecompressor::DecompressFully(gzipped.data, gzipped.size);
+    if (decompressed.empty()) {
+      return base::ErrStatus(
+          "Failed to decompress gzipped extension descriptor");
+    }
+    data = decompressed.data();
+    size = decompressed.size();
+  } else {
+    return base::OkStatus();
+  }
+
   return context_->descriptor_pool_->AddFromFileDescriptorSet(
-      extension.data, extension.size,
+      data, size,
       /*skip_prefixes*/ {},
       /*merge_existing_messages=*/true);
 }

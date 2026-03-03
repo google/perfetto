@@ -24,9 +24,9 @@ import {
   insertNodeBetween,
   getInputNodeAtPort,
   getAllInputNodes,
+  isNodeUndocked,
   findDockedChildren,
-  calculateUndockLayouts,
-  getEffectiveLayout,
+  applyUndockLayouts,
   addConnection,
   removeConnection,
   notifyNextNodes,
@@ -134,13 +134,43 @@ export async function addOperationNode(
     deps.initializedNodes.add(newNode.nodeId);
 
     if (singleNodeOperation(newNode.type)) {
-      // For single-input operations: insert between the target and its children
-      insertNodeBetween(parentNode, newNode, addConnection, removeConnection);
+      // Check if parent has any undocked (detached) children.
+      // If so, the new node should also be undocked rather than inserted
+      // between the parent and its children.
+      const hasUndockedChildren = parentNode.nextNodes.some((child) =>
+        isNodeUndocked(child, state.nodeLayouts),
+      );
 
-      deps.onStateUpdate((currentState) => ({
-        ...currentState,
-        selectedNodes: new Set([newNode.nodeId]),
-      }));
+      if (hasUndockedChildren) {
+        // Capture docked children before modifying connections — they need
+        // to be undocked since docking only works with a single child.
+        const dockedChildren = findDockedChildren(
+          parentNode,
+          state.nodeLayouts,
+        );
+
+        addConnection(parentNode, newNode);
+
+        deps.onStateUpdate((currentState) => ({
+          ...currentState,
+          // Undock docked children and position the new node, staggered
+          // after them so nothing overlaps.
+          nodeLayouts: applyUndockLayouts(
+            parentNode,
+            [...dockedChildren, newNode],
+            currentState.nodeLayouts,
+          ),
+          selectedNodes: new Set([newNode.nodeId]),
+        }));
+      } else {
+        // No undocked children: insert between the target and its children
+        insertNodeBetween(parentNode, newNode, addConnection, removeConnection);
+
+        deps.onStateUpdate((currentState) => ({
+          ...currentState,
+          selectedNodes: new Set([newNode.nodeId]),
+        }));
+      }
     } else {
       // For multi-source nodes: just connect and add to root nodes
       // Don't insert in-between - the node combines multiple sources
@@ -150,34 +180,16 @@ export async function addOperationNode(
 
       addConnection(parentNode, newNode);
 
-      deps.onStateUpdate((currentState) => {
-        const updatedLayouts = new Map(currentState.nodeLayouts);
-
-        // Undock existing docked children by giving them layouts.
-        // Use getEffectiveLayout to handle the case where the parent node is
-        // itself docked (no direct layout) - we walk up the chain to find
-        // the first ancestor with a layout.
-        const effectiveLayout = getEffectiveLayout(
+      deps.onStateUpdate((currentState) => ({
+        ...currentState,
+        rootNodes: [...currentState.rootNodes, newNode],
+        nodeLayouts: applyUndockLayouts(
           parentNode,
+          dockedChildren,
           currentState.nodeLayouts,
-        );
-        if (effectiveLayout !== undefined && dockedChildren.length > 0) {
-          const undockLayouts = calculateUndockLayouts(
-            dockedChildren,
-            effectiveLayout,
-          );
-          for (const [nodeId, layout] of undockLayouts) {
-            updatedLayouts.set(nodeId, layout);
-          }
-        }
-
-        return {
-          ...currentState,
-          rootNodes: [...currentState.rootNodes, newNode],
-          nodeLayouts: updatedLayouts,
-          selectedNodes: new Set([newNode.nodeId]),
-        };
-      });
+        ),
+        selectedNodes: new Set([newNode.nodeId]),
+      }));
     }
 
     return newNode;

@@ -282,6 +282,9 @@ CREATE PERFETTO FUNCTION _normalize_event_channel(
 RETURNS STRING AS
 SELECT
   CASE
+    -- '[Gesture Monitor] swipe-up' -> '[Gesture Monitor] swipe-up'
+    WHEN $event_channel GLOB '[[]*] *'
+    THEN $event_channel
     -- 'ccf6448 PopupWindow:b20fb4d' -> 'PopupWindow'
     WHEN $event_channel GLOB '* *:*'
     THEN trim(substr(str_split($event_channel, ':', 0), instr($event_channel, ' ') + 1))

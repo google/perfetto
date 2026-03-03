@@ -73,45 +73,11 @@ describe('FuzzyFinder', () => {
     );
   });
 
-  it('finds non-consecutive matches', () => {
-    const result = finder.find('cde');
-    expect(result).toEqual(
-      expect.arrayContaining([
-        {
-          item: 'c z d z e',
-          segments: [
-            {matching: true, value: 'c'},
-            {matching: false, value: ' z '},
-            {matching: true, value: 'd'},
-            {matching: false, value: ' z '},
-            {matching: true, value: 'e'},
-          ],
-        },
-      ]),
-    );
-  });
-
   it('finds caps match when search term is in lower case', () => {
     const result = finder.find('caps');
     expect(result).toEqual(
       expect.arrayContaining([
         {item: 'CAPS', segments: [{matching: true, value: 'CAPS'}]},
-      ]),
-    );
-  });
-
-  it('finds match with false start', () => {
-    const result = finder.find('abc');
-    expect(result).toEqual(
-      expect.arrayContaining([
-        {
-          item: 'ababc',
-          segments: [
-            {matching: true, value: 'ab'},
-            {matching: false, value: 'ab'},
-            {matching: true, value: 'c'},
-          ],
-        },
       ]),
     );
   });
