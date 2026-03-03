@@ -25,6 +25,7 @@ import {
 } from '../../base/query_slot';
 import {duration, Time, time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
+import {clamp, floatEqual} from '../../base/math_utils';
 import {exists} from '../../base/utils';
 import {deferChunkedTask} from '../../base/chunked_task';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -547,6 +548,27 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       },
       dataTransform,
     );
+
+    // Draw fill ratio light overlay on the unfilled portion of each slice
+    ctx.fillStyle = `#FFFFFF50`;
+    for (let j = 0; j < count; j++) {
+      const slice = slices[j];
+      const fillRatio = clamp(slice.fillRatio, 0, 1);
+      if (floatEqual(fillRatio, 1)) continue;
+      const left = Math.max(starts[j] * pxPerNs + baseOffsetPx, 0);
+      const right = Math.min(ends[j] * pxPerNs + baseOffsetPx, pxEnd);
+      const width = right - left;
+      const lightSectionDrawWidth = width * (1 - fillRatio);
+      if (lightSectionDrawWidth < 1) continue;
+      if (left + width <= 0 || left >= pxEnd) continue;
+      const y = ys[j] * dataTransform.scaleY + dataTransform.offsetY;
+      ctx.fillRect(
+        left + (width - lightSectionDrawWidth),
+        y,
+        lightSectionDrawWidth,
+        sliceHeight,
+      );
+    }
 
     // Draw text labels
     ctx.textAlign = 'center';
