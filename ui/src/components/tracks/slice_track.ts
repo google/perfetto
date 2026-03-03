@@ -917,7 +917,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       -- Complete slices
       SELECT
         ((z.ts / ${resolution}) * ${resolution}) - ${start} as __start,
-        (((z.ts + z.dur) / ${resolution}) * ${resolution}) - ${start} as __end,
+        (((z.ts + z.dur + ${resolution - 1n}) / ${resolution}) * ${resolution}) - ${start} as __end,
         s.id as __id,
         z.count as __count,
         s.depth as __depth,
