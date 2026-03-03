@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 
+#include "src/proto_utils/pb_to_txt.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/config/data_source_config.gen.h"
@@ -540,6 +541,70 @@ TEST(TxtToPbTest, UnknownNested) {
 // TEST(TxtToPbTest, UnterminatedString) {
 // TEST(TxtToPbTest, NumberIsEof)
 // TEST(TxtToPbTest, OneOf)
+
+TEST(TxtToPbTest, TraceSummarySpecMetricSpec) {
+  // metric_spec is defined in TraceSummarySpec in file.proto (field 1).
+  auto output = TraceSummarySpecTxtToPb(R"(
+metric_spec {
+  id: "my_metric"
+  value: "dur_ns"
+}
+  )");
+  ASSERT_TRUE(output.ok()) << output.status().message();
+  ASSERT_FALSE(output->empty());
+
+  // Verify round-trip by converting back to text.
+  std::string txt = TraceSummarySpecPbToTxt(output->data(), output->size());
+  EXPECT_THAT(txt, HasSubstr("id: \"my_metric\""));
+  EXPECT_THAT(txt, HasSubstr("value: \"dur_ns\""));
+}
+
+TEST(TxtToPbTest, TraceSummarySpecMetricTemplateSpec) {
+  auto output = TraceSummarySpecTxtToPb(R"(
+metric_template_spec {
+  id_prefix: "cpu_metric"
+  dimensions: "cpu"
+  value_columns: "dur"
+  value_columns: "count"
+}
+  )");
+  ASSERT_TRUE(output.ok()) << output.status().message();
+  ASSERT_FALSE(output->empty());
+
+  // Verify round-trip by converting back to text.
+  std::string txt = TraceSummarySpecPbToTxt(output->data(), output->size());
+  EXPECT_THAT(txt, HasSubstr("id_prefix: \"cpu_metric\""));
+  EXPECT_THAT(txt, HasSubstr("dimensions: \"cpu\""));
+  EXPECT_THAT(txt, HasSubstr("value_columns: \"dur\""));
+  EXPECT_THAT(txt, HasSubstr("value_columns: \"count\""));
+}
+
+TEST(TxtToPbTest, TraceSummarySpecWithQuery) {
+  auto output = TraceSummarySpecTxtToPb(R"(
+query {
+  id: "test_query"
+  sql {
+    sql: "SELECT * FROM slice"
+  }
+}
+  )");
+  ASSERT_TRUE(output.ok()) << output.status().message();
+  ASSERT_FALSE(output->empty());
+
+  // Verify round-trip by converting back to text.
+  std::string txt = TraceSummarySpecPbToTxt(output->data(), output->size());
+  EXPECT_THAT(txt, HasSubstr("id: \"test_query\""));
+  EXPECT_THAT(txt, HasSubstr("sql: \"SELECT * FROM slice\""));
+}
+
+TEST(TxtToPbTest, TraceSummarySpecUnknownField) {
+  auto res = TraceSummarySpecTxtToPb(R"(
+    not_a_field: 123
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              HasSubstr("No field named \"not_a_field\""));
+}
 
 }  // namespace
 }  // namespace perfetto

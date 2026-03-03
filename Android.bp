@@ -1574,6 +1574,7 @@ cc_binary {
         "perfetto_src_base_version_gen_h",
         "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
         "perfetto_src_proto_utils_gen_cc_config_descriptor",
+        "perfetto_src_proto_utils_gen_cc_trace_summary_descriptor",
     ],
     defaults: [
         "perfetto_defaults",
