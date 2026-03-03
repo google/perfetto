@@ -116,6 +116,10 @@ ModuleResult AndroidProbesModule::TokenizePacket(
 
     parser_.ParseRailDescriptor(evt);
 
+    if (!evt.has_energy_data()) {
+      context_->storage->IncrementStats(stats::power_rail_empty_packet);
+    }
+
     // For each energy data message, turn it into its own trace packet
     // making sure its timestamp is consistent between the packet level and
     // the EnergyData level.

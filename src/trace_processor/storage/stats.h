@@ -136,6 +136,7 @@ namespace perfetto::trace_processor::stats {
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, ""), \
+  F(power_rail_empty_packet,              kSingle,  kError,    kAnalysis, ""), \
   F(power_rail_unknown_index,             kSingle,  kError,    kTrace,    ""), \
   F(proc_stat_unknown_counters,           kSingle,  kError,    kAnalysis, ""), \
   F(rss_stat_unknown_keys,                kSingle,  kError,    kAnalysis, ""), \
