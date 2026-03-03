@@ -451,7 +451,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               m(Chip, {label: queryTimeString}),
               hasIdColumn &&
                 m('label.pf-query-page__id-table-select', [
-                  m('span.pf-query-page__id-table-label', 'Interpret as:'),
+                  m('span.pf-query-page__id-table-label', 'Interpret id as:'),
                   m(
                     Select,
                     {
@@ -467,8 +467,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
                         'option',
                         {value: opt.sqlTable},
                         opt.sqlTable === 'auto'
-                          ? `Auto-Detect (${autoDetected})`
-                          : opt.label,
+                          ? `Auto-Detect (${autoDetected}.id)`
+                          : `${opt.label}.id`,
                       ),
                     ),
                   ),

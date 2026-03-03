@@ -317,7 +317,7 @@ export class QueryResultsTable
       toolbarItemsLeft:
         hasIdColumn &&
         m('label.pf-query-panel__id-table-select', [
-          m('span.pf-query-panel__id-table-label', 'Interpret as:'),
+          m('span.pf-query-panel__id-table-label', 'Interpret id as:'),
           m(
             Select,
             {
@@ -331,8 +331,8 @@ export class QueryResultsTable
                 'option',
                 {value: opt.sqlTable},
                 opt.sqlTable === 'auto'
-                  ? `Auto-Detect (${autoDetected})`
-                  : opt.label,
+                  ? `Auto-Detect (${autoDetected}.id)`
+                  : `${opt.label}.id`,
               ),
             ),
           ),

@@ -23,7 +23,7 @@
   }
 
   &__id-table-label {
-    font-size: 12px;
+    font-size: var(--pf-font-size-s);
     color: var(--pf-color-text-muted);
     text-transform: uppercase;
     white-space: nowrap;
