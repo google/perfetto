@@ -37,6 +37,16 @@ import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {exists} from '../../base/utils';
 import {EmptyState} from '../../widgets/empty_state';
+import {Select} from '../../widgets/select';
+
+// Tables whose IDs can be linked from the query results.
+// 'auto' uses heuristics to detect slice-like rows.
+const ID_TABLE_OPTIONS: ReadonlyArray<{label: string; sqlTable: string}> = [
+  {label: 'Auto-Detect', sqlTable: 'auto'},
+  {label: 'slice', sqlTable: 'slice'},
+  {label: 'sched', sqlTable: 'sched_slice'},
+  {label: 'thread_state', sqlTable: 'thread_state'},
+];
 
 type Numeric = bigint | number;
 
@@ -112,6 +122,7 @@ export class QueryResultsTable
 {
   private dataSource?: DataSource;
   private dataGridApi?: DataGridApi;
+  private selectedIdTable = ID_TABLE_OPTIONS[0].sqlTable;
 
   constructor({attrs}: m.CVnode<QueryResultsTableAttrs>) {
     if (attrs.resp) {
@@ -266,21 +277,21 @@ export class QueryResultsTable
       const cellRenderer: CellRenderer | undefined =
         column === 'id'
           ? (value, row) => {
-              const sliceId = getSliceId(row);
               const cell = renderCell(value, column);
-              if (sliceId !== undefined && isSliceish(row)) {
+              const resolved = this.resolveIdTable(row, value);
+              if (resolved !== undefined) {
                 return m(
                   Anchor,
                   {
-                    title: 'Go to slice',
+                    title: `Go to ${resolved.table} on the timeline`,
                     icon: Icons.UpdateSelection,
-                    onclick: () => this.goToSlice(trace, sliceId, false),
-                    ondblclick: () => this.goToSlice(trace, sliceId, true),
+                    onclick: () => this.goToEvent(trace, resolved.id, false),
+                    ondblclick: () => this.goToEvent(trace, resolved.id, true),
                   },
                   cell,
                 );
               } else {
-                return renderCell(value, column);
+                return cell;
               }
             }
           : undefined;
@@ -289,6 +300,8 @@ export class QueryResultsTable
     }
 
     const schema: SchemaRegistry = {data: columnSchema};
+    const hasIdColumn = resp.columns.includes('id');
+    const autoDetected = this.detectAutoTable(resp.rows);
 
     return m(DataGrid, {
       schema,
@@ -301,20 +314,80 @@ export class QueryResultsTable
       enablePivotControls: false, // In-memory datasource doesn't support pivot
       fillHeight: true,
       data: dataSource,
+      toolbarItemsLeft:
+        hasIdColumn &&
+        m('label.pf-query-panel__id-table-select', [
+          m('span.pf-query-panel__id-table-label', 'Interpret as:'),
+          m(
+            Select,
+            {
+              value: this.selectedIdTable,
+              onchange: (e: Event) => {
+                this.selectedIdTable = (e.target as HTMLSelectElement).value;
+              },
+            },
+            ID_TABLE_OPTIONS.map((opt) =>
+              m(
+                'option',
+                {value: opt.sqlTable},
+                opt.sqlTable === 'auto'
+                  ? `Auto-Detect (${autoDetected})`
+                  : opt.label,
+              ),
+            ),
+          ),
+        ]),
       onReady: (api) => {
         this.dataGridApi = api;
       },
     });
   }
 
-  private goToSlice(
+  // Check the first row to determine what 'auto' would detect.
+  private detectAutoTable(rows: Row[]): string {
+    if (rows.length > 0) {
+      const row = rows[0];
+      if (getSliceId(row) !== undefined && isSliceish(row)) {
+        return 'slice';
+      }
+    }
+    return 'none';
+  }
+
+  // Given the current selectedIdTable setting, resolve the SQL table name and
+  // ID to use for navigation. Returns undefined if no link should be shown.
+  private resolveIdTable(
+    row: Row,
+    value: Row[string],
+  ): {table: string; id: number} | undefined {
+    const idFromValue =
+      typeof value === 'bigint'
+        ? Number(value)
+        : typeof value === 'number'
+          ? value
+          : undefined;
+
+    if (this.selectedIdTable === 'auto') {
+      const sliceId = getSliceId(row);
+      if (sliceId !== undefined && isSliceish(row)) {
+        return {table: 'slice', id: sliceId};
+      }
+      return undefined;
+    }
+
+    if (idFromValue !== undefined) {
+      return {table: this.selectedIdTable, id: idFromValue};
+    }
+    return undefined;
+  }
+
+  private goToEvent(
     trace: Trace,
-    sliceId: number,
+    id: number,
     switchToCurrentSelectionTab: boolean,
   ): void {
-    // Navigate to the timeline page
     trace.navigate('#!/viewer');
-    trace.selection.selectSqlEvent('slice', sliceId, {
+    trace.selection.selectSqlEvent(this.selectedIdTable, id, {
       switchToCurrentSelectionTab,
       scrollToSelection: true,
     });
