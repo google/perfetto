@@ -241,8 +241,6 @@ export class TimeSelectionPanel {
         this.renderSpan(ctx, timescale, size, note.start, note.end);
       }
     }
-
-    ctx.restore();
   }
 
   renderHover(
