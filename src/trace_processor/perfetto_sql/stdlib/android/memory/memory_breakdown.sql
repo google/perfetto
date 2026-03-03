@@ -19,27 +19,38 @@ INCLUDE PERFETTO MODULE android.oom_adjuster;
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- A table of process memory counter intervals, clipped to the process lifetime.
--- Provides a comprehensive view of memory usage, including raw values,
--- zygote-adjusted values, and a flag for tracks with a spike bigger than 100 MiB.
+-- Provides a comprehensive view of memory usage, including raw values and
+-- zygote-adjusted values.
+--
+-- NOTE: For 'mem.rss.anon', 'mem.swap', 'mem.rss.file', and 'mem.heap' tracks, we
+-- subtract the Zygote's average memory usage. This provides a better estimate
+-- of the child process's unique memory usage by accounting for the
+-- baseline memory inherited from the Zygote.
+--
+-- NOTE: Some tracks may have a spike greater than 100MiB. This can be legitimate or
+-- an accounting issue: see b/418231246 for more details.
 CREATE PERFETTO TABLE android_process_memory_intervals (
-  -- The counter id
+  -- The id of the memory counter value
   id JOINID(counter.id),
-  -- Timestamp of the memory counter sample.
+  -- Timestamp of the memory counter change.
   ts TIMESTAMP,
-  -- Duration of the sample.
+  -- How long this memory track had this value.
   dur DURATION,
-  -- The unique process id.
-  upid JOINID(process.id),
-  -- The name of the memory counter track.
+  -- The name of the process whose memory is being measured.
+  process_name STRING,
+  -- The unique id of the process whose memory is being measured.
+  upid JOINID(process.upid),
+  -- The id of the process whose memory is being measured.
+  pid JOINID(process.pid),
+  -- The name of the memory counter track (e.g. 'mem.rss.anon').
   memory_track_name STRING,
   -- The id of the memory counter track.
   track_id JOINID(track.id),
-  -- The value of the memory counter.
+  -- The value of the memory counter in bytes.
   value LONG,
-  -- The value of the memory counter, adjusted with the zygote's memory usage.
+  -- The value of the memory counter in bytes, adjusted with the zygote's memory usage.
   zygote_adjusted_value LONG,
   -- Whether the track has a spike greater than 100MiB.
-  -- This can happen because of rss_stat accounting issue: see b/418231246 for details.
   track_has_spike_gt_100mib BOOL
 ) AS
 WITH
@@ -163,7 +174,9 @@ SELECT
   d.counter_id AS id,
   d.ts,
   d.dur,
+  p.name AS process_name,
   d.upid,
+  p.pid,
   d.memory_track_name,
   d.track_id,
   d.value,
@@ -210,42 +223,50 @@ CREATE VIRTUAL TABLE _memory_breakdown_mem_oom_span_join USING SPAN_LEFT_JOIN (
 --
 -- This table joins memory counters with OOM adjustment scores, providing
 -- insights into memory usage under system memory pressure.
+--
+-- NOTE: For 'mem.rss.anon', 'mem.swap', 'mem.rss.file', and 'mem.heap' tracks, we
+-- subtract the Zygote's average memory usage. This provides a better estimate
+-- of the child process's unique memory usage by accounting for the
+-- baseline memory inherited from the Zygote.
+--
+-- NOTE: Some tracks may have a spike greater than 100MiB. This can be legitimate or
+-- an accounting issue: see b/418231246 for more details.
 CREATE PERFETTO TABLE android_process_memory_intervals_by_oom_bucket (
-  -- Unique identifier
+  -- Unique identifier of this memory interval.
   id LONG,
   -- The start timestamp of the interval.
   ts TIMESTAMP,
-  -- The duration of the interval.
+  -- How long this memory track had this value.
   dur DURATION,
-  -- The name of the process.
+  -- The name of the process whose memory is being measured.
   process_name STRING,
-  -- The unique process ID.
+  -- The unique id of the process whose memory is being measured.
   upid JOINID(process.upid),
-  -- The process ID.
-  pid LONG,
-  -- The OOM adjustment score bucket.
+  -- The id of the process whose memory is being measured.
+  pid JOINID(process.pid),
+  -- The OutOfMemory (OOM) adjustment score bucket (e.g. 'cached', 'background'). Defaults to 'unknown'
+  -- if no OOM score is available for the interval.
   bucket STRING,
-  -- The name of the memory counter track.
+  -- The name of the memory counter track (e.g. 'mem.rss.anon').
   memory_track_name STRING,
   -- The id of the memory counter track.
   track_id JOINID(track.id),
-  -- The counter id
+  -- The id of the memory counter value
   counter_id JOINID(counter.id),
-  -- The memory counter value.
+  -- The value of the memory counter in bytes.
   value LONG,
-  -- The zygote-adjusted memory value.
+  -- The value of the memory counter in bytes, adjusted with the zygote's memory usage.
   zygote_adjusted_value LONG,
   -- Whether the track has a spike greater than 100MiB.
-  -- This can happen because of rss_stat accounting issue: see b/418231246 for details.
   track_has_spike_gt_100mib BOOL
 ) AS
 SELECT
   row_number() OVER () AS id,
-  ts,
-  dur,
-  p.name AS process_name,
-  upid,
-  pid,
+  m.ts,
+  m.dur,
+  m.process_name,
+  m.upid,
+  m.pid,
   coalesce(m.bucket, 'unknown') AS bucket,
   m.memory_track_name,
   m.track_id,
@@ -254,7 +275,5 @@ SELECT
   m.zygote_adjusted_value,
   m.track_has_spike_gt_100mib
 FROM _memory_breakdown_mem_oom_span_join AS m
-LEFT JOIN process AS p
-  USING (upid)
 WHERE
   dur > 0;
