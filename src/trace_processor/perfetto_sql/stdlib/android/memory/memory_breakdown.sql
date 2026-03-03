@@ -31,7 +31,7 @@ CREATE PERFETTO TABLE android_process_memory_intervals (
   -- The name of the memory counter track.
   track_name STRING,
   -- The id of the memory counter track.
-  track_id JOINID(process_counter_track.id),
+  track_id JOINID(track.id),
   -- Whether the track has a spike greater than 100MiB.
   has_spike_gt_100mib BOOL,
   -- The value of the memory counter.
@@ -91,9 +91,9 @@ WITH
     JOIN mem_tracks AS t
       ON i.track_id = t.id
     JOIN process AS p
-      ON t.upid = p.upid
+      USING (upid)
     LEFT JOIN spikes AS s
-      ON i.track_id = s.track_id
+      USING (track_id)
     WHERE
       (
         min(i.ts + i.dur, coalesce(p.end_ts, i.ts + i.dur)) - max(i.ts, coalesce(p.start_ts, i.ts))
@@ -216,7 +216,7 @@ CREATE PERFETTO TABLE android_process_memory_intervals_by_oom_bucket (
   -- The name of the process.
   process_name STRING,
   -- The unique process ID.
-  upid JOINID(process.id),
+  upid JOINID(process.upid),
   -- The process ID.
   pid LONG,
   -- The OOM adjustment score bucket.
