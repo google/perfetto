@@ -115,6 +115,27 @@
   article {
     padding: 0;
     border: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sql-source-node {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sql-editor-container {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pf-editor {
+    flex: 1;
+    min-height: 0;
   }
 }
 

@@ -33,9 +33,6 @@ import {Trace} from '../../../../../public/trace';
 import {ColumnInfo} from '../../column_info';
 import {setValidationError} from '../../node_issues';
 import {NodeDetailsAttrs} from '../../node_explorer_types';
-import {findRef, toHTMLElement} from '../../../../../base/dom_utils';
-import {assertExists} from '../../../../../base/assert';
-import {ResizeHandle} from '../../../../../widgets/resize_handle';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 
@@ -57,14 +54,6 @@ interface SqlEditorAttrs {
 }
 
 class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
-  private editorHeight: number = 0;
-  private editorElement?: HTMLElement;
-
-  oncreate({dom}: m.VnodeDOM<SqlEditorAttrs>) {
-    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
-    this.editorElement.style.height = '400px';
-  }
-
   view({attrs}: m.CVnode<SqlEditorAttrs>) {
     return m(
       '.sql-editor-container',
@@ -87,25 +76,13 @@ class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
           e.stopPropagation();
         },
       },
-      [
-        m(Editor, {
-          ref: 'editor',
-          text: attrs.sql,
-          onUpdate: attrs.onUpdate,
-          onExecute: attrs.onExecute,
-          autofocus: true,
-          language: 'perfetto-sql',
-        }),
-        m(ResizeHandle, {
-          onResize: (deltaPx: number) => {
-            this.editorHeight += deltaPx;
-            this.editorElement!.style.height = `${this.editorHeight}px`;
-          },
-          onResizeStart: () => {
-            this.editorHeight = this.editorElement!.clientHeight;
-          },
-        }),
-      ],
+      m(Editor, {
+        text: attrs.sql,
+        onUpdate: attrs.onUpdate,
+        onExecute: attrs.onExecute,
+        autofocus: true,
+        language: 'perfetto-sql',
+      }),
     );
   }
 }
