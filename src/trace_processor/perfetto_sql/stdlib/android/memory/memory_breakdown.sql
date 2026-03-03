@@ -34,6 +34,8 @@ CREATE PERFETTO TABLE android_process_memory_intervals (
   track_id JOINID(track.id),
   -- Whether the track has a spike greater than 100MiB.
   has_spike_gt_100mib BOOL,
+  -- The counter id
+  counter_id JOINID(counter.id),
   -- The value of the memory counter.
   value LONG,
   -- The value of the memory counter, adjusted with the zygote's memory usage.
@@ -43,7 +45,7 @@ WITH
   -- Step 1: Prepare memory counter data.
   mem_tracks AS (
     SELECT
-      id,
+      id AS track_id,
       iif(name = 'Heap size (KB)', 'mem.heap', name) AS name,
       upid
     FROM process_counter_track
@@ -52,24 +54,26 @@ WITH
   ),
   mem_counters AS (
     SELECT
-      row_number() OVER () AS id,
+      c.id,
       c.track_id,
       c.ts,
       iif(t.name = 'mem.heap', cast_int!(c.value) * 1024, cast_int!(c.value)) AS value
     FROM counter AS c
     JOIN mem_tracks AS t
-      ON c.track_id = t.id
+      ON c.track_id = t.track_id
   ),
   mem_intervals AS (
     SELECT
       ts,
       dur,
+      id AS counter_id,
       track_id,
       value,
       delta_value
     FROM counter_leading_intervals!(mem_counters)
   ),
   -- Step 2: Identify tracks with large spikes (spikes > 100MiB).
+  -- This can happen because of rss_stat accounting issue: see b/418231246 for details.
   spikes AS (
     SELECT DISTINCT
       track_id
@@ -85,11 +89,12 @@ WITH
       p.upid,
       t.name AS track_name,
       i.track_id,
+      i.counter_id,
       i.value,
       NOT s.track_id IS NULL AS has_spike_gt_100mib
     FROM mem_intervals AS i
     JOIN mem_tracks AS t
-      ON i.track_id = t.id
+      ON i.track_id = t.track_id
     JOIN process AS p
       USING (upid)
     LEFT JOIN spikes AS s
@@ -111,7 +116,7 @@ WITH
   zygote_tracks AS (
     SELECT
       t.name AS track_name,
-      t.id AS track_id
+      t.track_id
     FROM mem_tracks AS t
     JOIN zygote_processes AS z
       USING (upid)
@@ -161,6 +166,7 @@ SELECT
   d.track_name,
   d.track_id,
   d.has_spike_gt_100mib,
+  d.counter_id,
   d.value,
   CASE
     WHEN NOT p.upid IS NULL AND NOT p.name IN ('zygote', 'zygote64', 'webview_zygote')
@@ -223,6 +229,8 @@ CREATE PERFETTO TABLE android_process_memory_intervals_by_oom_bucket (
   bucket STRING,
   -- Whether the track has a spike greater than 100MiB.
   has_spike_gt_100mib BOOL,
+  -- The counter id
+  counter_id JOINID(counter.id),
   -- The memory counter value.
   value LONG,
   -- The zygote-adjusted memory value.
@@ -238,6 +246,7 @@ SELECT
   pid,
   coalesce(bucket, 'unknown') AS bucket,
   has_spike_gt_100mib,
+  counter_id,
   value,
   zygote_adjusted_value
 FROM _memory_breakdown_mem_oom_span_join
