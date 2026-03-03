@@ -997,6 +997,8 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
       storage->SetIndexedStats(
           stats::traced_buf_v2s_v2_patches_succeeded, buf_num,
           static_cast<int64_t>(sbs.v2_patches_succeeded()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_stats_version, buf_num,
+                               static_cast<uint32_t>(sbs.stats_version()));
     }
   }
 
