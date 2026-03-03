@@ -29,8 +29,9 @@
 
     display: flex;
     flex-direction: column;
-    justify-content: space-around;
+    justify-content: center;
     align-items: center;
+    gap: 32px;
 
     .logo {
       height: 1em;
@@ -43,7 +44,6 @@
       align-items: center;
       justify-content: center;
       font-size: 60px;
-      margin: 25px;
       text-align: center;
       font-weight: 300;
     }
@@ -51,24 +51,18 @@
     .pf-home-page__hints {
       display: flex;
       flex-direction: column;
-      gap: 24px;
-      margin-bottom: 32px;
-
-      .pf-hotkey {
-        display: inline-flex;
-        vertical-align: middle;
-      }
+      align-items: center;
+      gap: 16px;
     }
 
     .pf-home-page__links {
-      width: 100%;
+      flex-basis: 100%;
       display: flex;
       flex-direction: row;
       justify-content: center;
       align-items: baseline;
       gap: 24px;
-      margin-top: 8px;
-      font-size: 0.9em;
+      font-size: var(--pf-font-size-s);
       color: var(--pf-color-text-muted);
 
       &-separator {
@@ -82,12 +76,12 @@
       background: var(--pf-color-background-secondary);
       border-radius: 7px;
       padding: 20px 24px;
-      flex: 1;
+      min-width: 300px;
       display: flex;
       flex-direction: column;
 
       &-title {
-        font-size: 12px;
+        font-size: var(--pf-font-size-s);
         font-weight: 500;
         text-transform: uppercase;
         // letter-spacing: 0;
@@ -112,22 +106,29 @@
     .pf-home-page__getting-started-buttons {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 2px;
       margin: -4px -8px; // Offset button padding to align text with section
     }
 
     .pf-home-page__button {
+      display: flex;
+      align-items: baseline;
       font-family: var(--pf-font-compact);
       line-height: 1;
       user-select: none;
       border-radius: $border-radius;
-      padding: 4px 8px;
+      padding: 8px;
       white-space: nowrap;
       cursor: pointer;
 
       & > .pf-left-icon {
         margin-right: 6px;
-        // color: var(--pf-color-text-muted);
+        align-self: center;
+      }
+
+      & > .pf-right {
+        margin-left: auto;
+        align-self: center;
       }
 
       &:hover {
@@ -138,30 +139,19 @@
         background: color_active(transparent);
       }
     }
-
-    .pf-home-page__shortcut {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-
-      &-label {
-        color: var(--pf-color-text);
-      }
-    }
   } // .pf-home-page__center
 
   .pf-home-page__privacy {
-    font-size: 0.9em;
+    font-size: var(--pf-font-size-s);
     grid-area: footer;
     align-self: center;
-    margin-bottom: 40px;
+    margin-bottom: 24px;
   }
 } // .pf-home-page
 
 .pf-channel-select {
   text-align: center;
-  font-size: 16px;
+  font-size: var(--pf-font-size-m);
 
   --chan-num: 2;
   --chan-padding: 3px;
@@ -181,7 +171,7 @@
     text-align: center;
     margin-bottom: 12px;
     color: var(--pf-color-text-muted);
-    font-size: 0.9em;
+    font-size: var(--pf-font-size-s);
   }
 
   &__switch {
@@ -267,7 +257,7 @@
     }
 
     &-text {
-      font-size: smaller;
+      font-size: var(--pf-font-size-s);
       color: var(--pf-color-danger);
       margin-bottom: 12px;
     }

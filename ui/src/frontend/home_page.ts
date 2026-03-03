@@ -23,21 +23,14 @@ import {AppImpl} from '../core/app_impl';
 import {Anchor} from '../widgets/anchor';
 import {Button, ButtonVariant} from '../widgets/button';
 import {Intent} from '../widgets/common';
-import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
-import {Switch} from '../widgets/switch';
 import {assetSrc} from '../base/assets';
-import {Stack} from '../widgets/stack';
 import {Icons} from '../base/semantic_icons';
 import {Icon} from '../widgets/icon';
+import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {classNames} from '../base/classnames';
-import {Router} from '../core/router';
-import {
-  KeyboardLayoutMap,
-  nativeKeyboardLayoutMap,
-  NotSupportedError,
-} from '../base/keyboard_layout_map';
-import {KeyMapping} from './timeline_page/wasd_navigation_handler';
-import {Spinner} from '../widgets/spinner';
+import {MenuItem, PopupMenu} from '../widgets/menu';
+import {PopupPosition} from '../widgets/popup';
+import {Switch} from '../widgets/switch';
 
 export class HomePage implements m.ClassComponent {
   view() {
@@ -123,53 +116,108 @@ class ChannelSelect implements m.ClassComponent {
   }
 }
 
-// A fallback keyboard map based on the QWERTY keymap. Converts keyboard event
-// codes to their associated glyphs on an English QWERTY keyboard.
-class EnglishQwertyKeyboardLayoutMap implements KeyboardLayoutMap {
-  get(code: string): string {
-    // Converts 'KeyX' -> 'x'
-    return code.replace(/^Key([A-Z])$/, '$1').toLowerCase();
-  }
+interface QuickStartButton {
+  readonly commandId: string;
+  readonly icon: string;
+  readonly label: string;
+}
+
+interface QuickStartDropdown {
+  readonly icon: string;
+  readonly label: string;
+  readonly items: ReadonlyArray<{
+    readonly commandId: string;
+    readonly icon: string;
+    readonly label: string;
+  }>;
+}
+
+type QuickStartEntry = QuickStartButton | QuickStartDropdown;
+
+function isDropdown(e: QuickStartEntry): e is QuickStartDropdown {
+  return 'items' in e;
+}
+
+const QUICK_START_ENTRIES: QuickStartEntry[] = [
+  {
+    commandId: 'dev.perfetto.OpenTrace',
+    icon: 'folder_open',
+    label: 'Open trace',
+  },
+  {
+    commandId: 'dev.perfetto.RecordTrace',
+    icon: 'fiber_smart_record',
+    label: 'Record new trace',
+  },
+  {
+    icon: 'play_circle',
+    label: 'Open example trace',
+    items: [
+      {
+        commandId: 'dev.perfetto.OpenExampleAndroidTrace',
+        icon: 'android',
+        label: 'Android example',
+      },
+      {
+        commandId: 'dev.perfetto.OpenExampleChromeTrace',
+        icon: 'web',
+        label: 'Chrome example',
+      },
+    ],
+  },
+  {
+    commandId: 'dev.perfetto.OpenCommandPalette',
+    icon: 'terminal',
+    label: 'Command palette',
+  },
+];
+
+function renderQuickStartButton(entry: QuickStartButton): m.Children {
+  const cmds = AppImpl.instance.commands;
+  if (!cmds.hasCommand(entry.commandId)) return null;
+  const cmd = cmds.getCommand(entry.commandId);
+  return m(
+    '.pf-home-page__button',
+    {onclick: () => cmds.runCommand(entry.commandId)},
+    m(Icon, {icon: entry.icon, className: 'pf-left-icon'}),
+    m('span.pf-button__label', entry.label),
+    cmd.defaultHotkey &&
+      m(HotkeyGlyphs, {className: 'pf-right', hotkey: cmd.defaultHotkey}),
+  );
+}
+
+function renderQuickStartDropdown(entry: QuickStartDropdown): m.Children {
+  const cmds = AppImpl.instance.commands;
+  const visibleItems = entry.items.filter((i) => cmds.hasCommand(i.commandId));
+  if (visibleItems.length === 0) return null;
+  return m(
+    PopupMenu,
+    {
+      trigger: m(
+        '.pf-home-page__button',
+        m(Icon, {icon: entry.icon, className: 'pf-left-icon'}),
+        m('span.pf-button__label', entry.label),
+        m(Icon, {className: 'pf-right', icon: 'chevron_right'}),
+      ),
+      position: PopupPosition.RightStart,
+    },
+    ...visibleItems.map((item) =>
+      m(MenuItem, {
+        label: item.label,
+        icon: item.icon,
+        onclick: () => cmds.runCommand(item.commandId),
+      }),
+    ),
+  );
 }
 
 class Hints implements m.ClassComponent {
-  private keyMap?: KeyboardLayoutMap;
-
-  oninit() {
-    nativeKeyboardLayoutMap()
-      .then((keyMap: KeyboardLayoutMap) => {
-        this.keyMap = keyMap;
-        m.redraw();
-      })
-      .catch((e) => {
-        if (
-          e instanceof NotSupportedError ||
-          String(e).includes('SecurityError')
-        ) {
-          // Keyboard layout is unavailable. Fall back to English QWERTY.
-          this.keyMap = new EnglishQwertyKeyboardLayoutMap();
-          m.redraw();
-        } else {
-          throw e;
-        }
-      });
-  }
-
-  private codeToKeycap(code: string): m.Children {
-    if (this.keyMap) {
-      return m(Keycap, this.keyMap.get(code)?.toUpperCase());
-    } else {
-      return m(Keycap, m(Spinner));
-    }
-  }
-
   view() {
     const themeSetting = AppImpl.instance.settings.get<string>('theme');
     const isDarkMode = themeSetting?.get() === 'dark';
 
     return m(
       '.pf-home-page__hints',
-      // Getting started section with Open/Record buttons
       m(
         '.pf-home-page__section',
         m('.pf-home-page__section-title', 'Quick start'),
@@ -177,64 +225,14 @@ class Hints implements m.ClassComponent {
           '.pf-home-page__section-content',
           m(
             '.pf-home-page__getting-started-buttons',
-            m(
-              '.pf-home-page__button',
-              {
-                onclick: () => {
-                  AppImpl.instance.commands.runCommand(
-                    'dev.perfetto.OpenTrace',
-                  );
-                },
-              },
-              m(Icon, {icon: 'folder_open', className: 'pf-left-icon'}),
-              m('span.pf-button__label', 'Open trace'),
-            ),
-            m(
-              '.pf-home-page__button',
-              {
-                onclick: () => {
-                  Router.navigate('#!/record');
-                },
-              },
-              m(Icon, {icon: 'fiber_smart_record', className: 'pf-left-icon'}),
-              m('span.pf-button__label', 'Record new trace'),
+            ...QUICK_START_ENTRIES.map((entry) =>
+              isDropdown(entry)
+                ? renderQuickStartDropdown(entry)
+                : renderQuickStartButton(entry),
             ),
           ),
         ),
       ),
-      // Keyboard shortcuts section
-      m(
-        '.pf-home-page__section',
-        m('.pf-home-page__section-title', 'Shortcuts'),
-        m(
-          '.pf-home-page__section-content',
-          m(
-            '.pf-home-page__shortcut',
-            m('span.pf-home-page__shortcut-label', 'Find tracks'),
-            m(HotkeyGlyphs, {hotkey: 'Mod+P'}),
-          ),
-          m(
-            '.pf-home-page__shortcut',
-            m('span.pf-home-page__shortcut-label', 'Navigate timeline'),
-            m(
-              Stack,
-              {inline: true, spacing: 'small', orientation: 'horizontal'},
-              [
-                this.codeToKeycap(KeyMapping.KEY_ZOOM_IN),
-                this.codeToKeycap(KeyMapping.KEY_PAN_LEFT),
-                this.codeToKeycap(KeyMapping.KEY_ZOOM_OUT),
-                this.codeToKeycap(KeyMapping.KEY_PAN_RIGHT),
-              ],
-            ),
-          ),
-          m(
-            '.pf-home-page__shortcut',
-            m('span.pf-home-page__shortcut-label', 'Commands'),
-            m(HotkeyGlyphs, {hotkey: '!Mod+Shift+P'}),
-          ),
-        ),
-      ),
-      // Centered links below the cards
       m(
         '.pf-home-page__links',
         m(
@@ -244,7 +242,7 @@ class Hints implements m.ClassComponent {
             icon: Icons.ExternalLink,
             target: '_blank',
           },
-          'Getting started',
+          'Read the docs',
         ),
         m('.pf-home-page__links-separator'),
         m(Switch, {

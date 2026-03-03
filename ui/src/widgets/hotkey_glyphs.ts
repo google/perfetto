@@ -22,12 +22,13 @@ export interface HotkeyGlyphsAttrs {
   readonly hotkey: Hotkey;
   readonly spoof?: Platform;
   readonly spacing?: 'medium' | 'large';
+  readonly className?: string;
 }
 
 // Renders a hotkey as a series of little keycaps.
 export class HotkeyGlyphs implements m.ClassComponent<HotkeyGlyphsAttrs> {
   view({attrs}: m.Vnode<HotkeyGlyphsAttrs>) {
-    const {hotkey, spoof, spacing} = attrs;
+    const {hotkey, spoof, spacing, className} = attrs;
 
     const platform = spoof || getPlatform();
     const result = parseHotkey(hotkey);
@@ -40,6 +41,9 @@ export class HotkeyGlyphs implements m.ClassComponent<HotkeyGlyphsAttrs> {
 
       return m(
         'span.pf-hotkey',
+        {
+          className,
+        },
         hasMod && m(Keycap, {spacing}, glyphForMod(platform)),
         hasCtrl && m(Keycap, {spacing}, glyphForCtrl(platform)),
         hasAlt && m(Keycap, {spacing}, glyphForAlt(platform)),

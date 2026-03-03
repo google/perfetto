@@ -40,10 +40,17 @@ export default class implements PerfettoPlugin {
   private static recordingMgr?: RecordingManager;
 
   static onActivate(app: App) {
+    const RECORD_TRACE_COMMAND_ID = 'dev.perfetto.RecordTrace';
+    app.commands.registerCommand({
+      id: RECORD_TRACE_COMMAND_ID,
+      name: 'Record new trace',
+      callback: () => {
+        app.navigate('#!/record');
+      },
+    });
     app.sidebar.addMenuItem({
       section: 'trace_files',
-      text: 'Record new trace',
-      href: '#!/record',
+      commandId: RECORD_TRACE_COMMAND_ID,
       icon: 'fiber_smart_record',
       sortOrder: 2,
     });
