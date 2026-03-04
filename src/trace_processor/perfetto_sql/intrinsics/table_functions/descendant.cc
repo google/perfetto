@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
 
-#include <algorithm>
 #include <cinttypes>
 #include <cstdint>
 #include <limits>
@@ -66,8 +65,34 @@ bool GetDescendantsInternal(
     ts_upper_bound = std::numeric_limits<int64_t>::max();
   }
   cursor.SetFilterValueUnchecked(3, ts_upper_bound);
+
+  // The timestamp filter can produce false positives at the start boundary
+  // (candidate.ts == start.ts) where a child of a slice ending at start.ts
+  // shares the same timestamp. For such candidates, walk the parent chain to
+  // verify ancestry. For candidates strictly inside the interval (ts >
+  // start.ts), same-depth non-overlapping guarantees they are true descendants.
+  int64_t start_ts = start_ref->ts();
   for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
-    row_numbers_accumulator.emplace_back(cursor.ToRowNumber());
+    auto row_num = cursor.ToRowNumber();
+    auto ref = row_num.ToRowReference(slices);
+    if (ref.ts() == start_ts) {
+      bool is_descendant = false;
+      for (auto id = ref.parent_id(); id;) {
+        if (*id == starting_id) {
+          is_descendant = true;
+          break;
+        }
+        auto ancestor = slices.FindById(*id);
+        if (!ancestor || ancestor->depth() <= start_ref->depth()) {
+          break;
+        }
+        id = ancestor->parent_id();
+      }
+      if (!is_descendant) {
+        continue;
+      }
+    }
+    row_numbers_accumulator.emplace_back(row_num);
   }
   return true;
 }
