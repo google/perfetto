@@ -36,6 +36,13 @@
     }
   }
 
+  // Wrapper for each tab's Builder content. The Tabs widget uses Gate
+  // (display:contents) which has clientHeight === 0; DrawerPanel needs
+  // a real sized parent to measure its container height.
+  &__tab-content {
+    height: 100%;
+  }
+
   &__tab-rename-input {
     border: none;
     outline: none;
