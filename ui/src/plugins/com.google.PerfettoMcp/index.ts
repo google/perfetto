@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
+import { Trace } from '../../public/trace';
+import { App } from '../../public/app';
+import { PerfettoPlugin } from '../../public/plugin';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import {
   CallableTool,
   FunctionCallingConfigMode,
   GoogleGenAI,
   mcpToTool,
 } from '@google/genai';
-import {registerTraceTools} from './tracetools';
-import {z} from 'zod';
-import {Setting} from 'src/public/settings';
-import {ChatPage} from './chat_page';
+import { registerTraceTools } from './tracetools';
+import { z } from 'zod';
+import { Setting } from 'src/public/settings';
+import { ChatPage } from './chat_page';
 import m from 'mithril';
-import {registerUiTools} from './uitools';
+import { registerUiTools } from './uitools';
 
 export default class PerfettoMcpPlugin implements PerfettoPlugin {
   static readonly id = 'com.google.PerfettoMcp';
@@ -75,9 +75,9 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
     PerfettoMcpPlugin.modelNameSetting = app.settings.register({
       id: `${PerfettoMcpPlugin.id}#ModelNameSetting`,
       name: 'Gemini Model',
-      description: 'The Gemini model to use, such as gemini-2.5-pro.',
+      description: 'The Gemini model to use, such as gemini-3-flash-preview.',
       schema: z.string(),
-      defaultValue: 'gemini-2.5-pro',
+      defaultValue: 'gemini-3-flash-preview',
       requiresReload: true,
     });
 
@@ -90,7 +90,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       defaultValue: '',
       requiresReload: true,
       render: (setting) => {
-        const handleFileSelect = (event: {target: HTMLInputElement}) => {
+        const handleFileSelect = (event: { target: HTMLInputElement }) => {
           const file = event.target.files?.[0];
 
           if (!file) {
@@ -146,27 +146,54 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
 
     const tool: CallableTool = mcpToTool(client);
 
-    const ai = new GoogleGenAI({apiKey: PerfettoMcpPlugin.tokenSetting.get()});
+    const ai = new GoogleGenAI({ apiKey: PerfettoMcpPlugin.tokenSetting.get() });
 
     const chat = await ai.chats.create({
       model: PerfettoMcpPlugin.modelNameSetting.get(),
       config: {
-        systemInstruction:
-          'You are an expert in analyzing perfetto traces. \n\n' +
-          PerfettoMcpPlugin.promptSetting.get(),
+        systemInstruction: {
+          role: 'system',
+          parts: [
+            {
+              text:
+                'You are an expert in analyzing perfetto traces. \n\n' +
+                PerfettoMcpPlugin.promptSetting.get(),
+            },
+          ],
+        },
         tools: [tool],
         toolConfig: {
           functionCallingConfig: {
             mode: FunctionCallingConfigMode.AUTO,
           },
         },
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingBudget: -1, // Automatic
-        },
+        thinkingConfig: PerfettoMcpPlugin.thoughtsSetting.get()
+          ? {
+            includeThoughts: true,
+            thinkingBudget: 1024,
+          }
+          : undefined,
         automaticFunctionCalling: {
           maximumRemoteCalls: 20,
         },
+        safetySettings: [
+          {
+            category: 'HATE_SPEECH',
+            threshold: 'BLOCK_NONE',
+          },
+          {
+            category: 'HARASSMENT',
+            threshold: 'BLOCK_NONE',
+          },
+          {
+            category: 'SEXUALLY_EXPLICIT',
+            threshold: 'BLOCK_NONE',
+          },
+          {
+            category: 'DANGEROUS_CONTENT',
+            threshold: 'BLOCK_NONE',
+          },
+        ],
       },
     });
 

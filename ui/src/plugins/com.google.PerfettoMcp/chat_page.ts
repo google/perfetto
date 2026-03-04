@@ -18,12 +18,12 @@ import {
   GenerateContentResponse,
   GenerateContentResponseUsageMetadata,
 } from '@google/genai';
-import {Trace} from '../../public/trace';
-import {TextInput} from '../../widgets/text_input';
+import { Trace } from '../../public/trace';
+import { TextInput } from '../../widgets/text_input';
 import markdownit from 'markdown-it';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
-import {Setting} from '../../public/settings';
+import { Button, ButtonVariant } from '../../widgets/button';
+import { Intent } from '../../widgets/common';
+import { Setting } from '../../public/settings';
 
 // Interface for a single message in the chat display
 
@@ -50,7 +50,7 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   private md: markdownit;
   private usage?: GenerateContentResponseUsageMetadata;
 
-  constructor({attrs}: m.CVnode<ChatPageAttrs>) {
+  constructor({ attrs }: m.CVnode<ChatPageAttrs>) {
     this.chat = attrs.chat;
     this.showThoughts = attrs.showThoughts;
     this.showTokens = attrs.showTokens;
@@ -102,7 +102,7 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
       lastResponse.text += text;
       this.messages[this.messages.length - 1] = lastResponse;
     } else {
-      this.messages.push({role: 'ai', text: text});
+      this.messages.push({ role: 'ai', text: text });
     }
   }
 
@@ -112,21 +112,24 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
     // Prevent sending empty messages or sending while a request is in flight
     if (trimmedInput === '' || this.isLoading) return;
 
-    this.messages.push({role: 'user', text: trimmedInput});
+    this.messages.push({ role: 'user', text: trimmedInput });
     this.isLoading = true;
     this.userInput = '';
     m.redraw();
 
     try {
       const responseStream = await this.chat.sendMessageStream({
-        message: trimmedInput,
+        message: {
+          role: 'user',
+          parts: [{ text: trimmedInput }],
+        },
       });
 
       for await (const part of responseStream) {
         this.processResponse(part);
       }
 
-      this.messages.push({role: 'spacer', text: ''});
+      this.messages.push({ role: 'spacer', text: '' });
       m.redraw();
     } catch (error) {
       console.error('AI API call failed:', error);
@@ -210,14 +213,14 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
 
         this.showTokens.get()
           ? [
-              m('.pf-ai-chat-panel__tokens', [
-                m('div.pf-ai-chat-panel__tokens__label', 'Tokens'),
-                m(
-                  'div.pf-ai-chat-panel__tokens__count',
-                  this.usage?.totalTokenCount ?? '--',
-                ),
-              ]),
-            ]
+            m('.pf-ai-chat-panel__tokens', [
+              m('div.pf-ai-chat-panel__tokens__label', 'Tokens'),
+              m(
+                'div.pf-ai-chat-panel__tokens__count',
+                this.usage?.totalTokenCount ?? '--',
+              ),
+            ]),
+          ]
           : [],
 
         m(Button, {

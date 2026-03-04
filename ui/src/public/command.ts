@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Hotkey} from '../base/hotkeys';
+import { Hotkey } from '../base/hotkeys';
 
 export interface CommandManager {
   registerCommand(command: Command): void;
@@ -20,6 +20,8 @@ export interface CommandManager {
   hasCommand(commandId: string): boolean;
 
   runCommand(id: string, ...args: unknown[]): unknown;
+
+  readonly commands: ReadonlyArray<Command>;
 }
 
 export interface Command {
