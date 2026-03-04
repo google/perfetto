@@ -372,6 +372,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               }
               attrs.onNodeStateChange?.();
             },
+            onUngroupNode: attrs.graphCallbacks.onUngroupNode,
             isCollapsed: isExplorerCollapsed,
             selectedView: this.selectedView,
             onViewChange: (view: number) => {
