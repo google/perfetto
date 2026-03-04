@@ -47,6 +47,7 @@ import {assetSrc} from '../base/assets';
 import {assertExists} from '../base/assert';
 import {Icon} from '../widgets/icon';
 import {Button} from '../widgets/button';
+import {Router} from '../core/router';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 const TRACE_SUFFIX = '.perfetto-trace';
@@ -488,6 +489,7 @@ export class Sidebar implements m.ClassComponent {
     let href = '#';
     let disabled = false;
     let target = null;
+    let isSelected = false;
     let command: Command | undefined = undefined;
     let tooltip = valueOrCallback(item.tooltip);
     let onclick: (() => unknown | Promise<unknown>) | undefined = undefined;
@@ -528,6 +530,8 @@ export class Sidebar implements m.ClassComponent {
     if ('href' in item && item.href !== undefined) {
       href = item.href;
       target = href.startsWith('#') ? null : '_blank';
+      const currentPage = Router.getCurrentRoute().page;
+      isSelected = target === null && href.includes(currentPage);
     }
     return m(
       'li',
@@ -538,6 +542,7 @@ export class Sidebar implements m.ClassComponent {
           className: classNames(
             valueOrCallback(item.cssClass),
             this._asyncJobPending.has(item.id) && 'pending',
+            isSelected && 'pf-sidebar__item--selected',
           ),
           onclick: onclick && this.wrapClickHandler(item.id, onclick),
           href,
