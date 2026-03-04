@@ -232,7 +232,7 @@ CREATE VIRTUAL TABLE _memory_breakdown_mem_oom_span_join USING SPAN_LEFT_JOIN (
 -- NOTE: Some tracks may have a spike greater than 100MiB. This can be legitimate or
 -- an accounting issue: see b/418231246 for more details.
 CREATE PERFETTO TABLE android_process_memory_intervals_by_oom_bucket (
-  -- Unique identifier of this memory interval.
+  -- Id.
   id LONG,
   -- The start timestamp of the interval.
   ts TIMESTAMP,
