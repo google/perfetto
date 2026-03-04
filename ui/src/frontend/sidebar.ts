@@ -530,8 +530,7 @@ export class Sidebar implements m.ClassComponent {
     if ('href' in item && item.href !== undefined) {
       href = item.href;
       target = href.startsWith('#') ? null : '_blank';
-      const currentPage = Router.getCurrentRoute().page;
-      isSelected = target === null && href.includes(currentPage);
+      isSelected = pageMatchesHref(href);
     }
     return m(
       'li',
@@ -582,6 +581,12 @@ export class Sidebar implements m.ClassComponent {
       });
     };
   }
+}
+
+export function pageMatchesHref(href: string): boolean {
+  const currentPage = Router.getCurrentRoute().page;
+  const hrefPage = Router.parseFragment(href).page;
+  return hrefPage === currentPage;
 }
 
 // TODO(primiano): The items below should be moved to dedicated
