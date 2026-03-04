@@ -118,7 +118,9 @@ class SummarizerImpl : public Summarizer {
   base::FlatHashMap<std::string, QueryState> query_states_;
   base::FlatHashMap<std::string, bool>
       included_modules_;  // Track included modules.
-  uint32_t next_table_id_ = 0;
+  // Static so that table names are globally unique across all summarizer
+  // instances (multiple Data Explorer tabs share the same TP).
+  static uint32_t next_table_id_;
 };
 
 }  // namespace summary

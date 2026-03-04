@@ -42,6 +42,8 @@ Summarizer::~Summarizer() = default;
 
 namespace summary {
 
+uint32_t SummarizerImpl::next_table_id_ = 0;
+
 namespace {
 
 using perfetto_sql::generator::StructuredQueryGenerator;
