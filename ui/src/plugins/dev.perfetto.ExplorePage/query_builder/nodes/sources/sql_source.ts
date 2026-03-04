@@ -56,7 +56,7 @@ interface SqlEditorAttrs {
 class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
   view({attrs}: m.CVnode<SqlEditorAttrs>) {
     return m(
-      '.sql-editor-container',
+      '.pf-sql-editor-container',
       {
         onkeydown: (e: KeyboardEvent) => {
           // When ESC is pressed, blur the editor and focus the canvas
@@ -77,6 +77,7 @@ class SqlEditor implements m.ClassComponent<SqlEditorAttrs> {
         },
       },
       m(Editor, {
+        fillHeight: true,
         text: attrs.sql,
         onUpdate: attrs.onUpdate,
         onExecute: attrs.onExecute,
@@ -288,31 +289,28 @@ export class SqlSourceNode implements QueryNode {
   }
 
   nodeSpecificModify(): m.Child {
-    return m(
-      '.sql-source-node',
-      m(SqlEditor, {
-        sql: this.state.sql ?? '',
-        onUpdate: (text: string) => {
-          if (this.state.sql === text) {
-            return;
-          }
-          this.state.sql = text;
-          // Clear columns when SQL changes to prevent stale column usage
-          this.finalCols = [];
-          // Notify that the query has changed so stale results are cleared
-          this.state.onchange?.();
-          m.redraw();
-        },
-        onExecute: (text: string) => {
-          this.state.sql = text.trim();
-          // Clear columns when SQL changes to prevent stale column usage
-          this.finalCols = [];
-          // Notify that the query has changed so stale results are cleared
-          this.state.onchange?.();
-          m.redraw();
-        },
-      }),
-    );
+    return m(SqlEditor, {
+      sql: this.state.sql ?? '',
+      onUpdate: (text: string) => {
+        if (this.state.sql === text) {
+          return;
+        }
+        this.state.sql = text;
+        // Clear columns when SQL changes to prevent stale column usage
+        this.finalCols = [];
+        // Notify that the query has changed so stale results are cleared
+        this.state.onchange?.();
+        m.redraw();
+      },
+      onExecute: (text: string) => {
+        this.state.sql = text.trim();
+        // Clear columns when SQL changes to prevent stale column usage
+        this.finalCols = [];
+        // Notify that the query has changed so stale results are cleared
+        this.state.onchange?.();
+        m.redraw();
+      },
+    });
   }
 
   nodeInfo(): m.Children {
