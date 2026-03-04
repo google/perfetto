@@ -55,9 +55,9 @@ const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 // 'auto' uses heuristics to detect slice-like rows.
 const ID_TABLE_OPTIONS: ReadonlyArray<{label: string; sqlTable: string}> = [
   {label: 'Auto-Detect', sqlTable: 'auto'},
-  {label: 'slice', sqlTable: 'slice'},
-  {label: 'sched', sqlTable: 'sched_slice'},
-  {label: 'thread_state', sqlTable: 'thread_state'},
+  {label: 'slice.id', sqlTable: 'slice'},
+  {label: 'sched.id', sqlTable: 'sched_slice'},
+  {label: 'thread_state.id', sqlTable: 'thread_state'},
 ];
 
 // Represents a single query editor tab with its own state.
@@ -467,8 +467,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
                         'option',
                         {value: opt.sqlTable},
                         opt.sqlTable === 'auto'
-                          ? `Auto-Detect (${autoDetected}.id)`
-                          : `${opt.label}.id`,
+                          ? `Auto-Detect (${autoDetected})`
+                          : `${opt.label}`,
                       ),
                     ),
                   ),
@@ -532,7 +532,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     if (rows.length > 0) {
       const row = rows[0];
       if (getSliceId(row) !== undefined && isSliceish(row)) {
-        return 'slice';
+        return 'slice.id';
       }
     }
     return 'none';
