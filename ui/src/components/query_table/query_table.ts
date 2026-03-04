@@ -26,7 +26,7 @@ import {
   SchemaRegistry,
 } from '../widgets/datagrid/datagrid_schema';
 import {InMemoryDataSource} from '../widgets/datagrid/in_memory_data_source';
-import {Anchor} from '../../widgets/anchor';
+import {InteractiveText} from '../../widgets/interactive_text';
 import {Box} from '../../widgets/box';
 import {DataGridExportButton} from '../widgets/datagrid/export_button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
@@ -281,7 +281,7 @@ export class QueryResultsTable
               const resolved = this.resolveIdTable(row, value);
               if (resolved !== undefined) {
                 return m(
-                  Anchor,
+                  InteractiveText,
                   {
                     title: `Go to ${resolved.table} on the timeline`,
                     icon: Icons.UpdateSelection,

@@ -17,7 +17,6 @@ import {BigintMath} from '../../base/bigint_math';
 import {sqliteString} from '../../base/string_utils';
 import {exists} from '../../base/utils';
 import {SliceDetails} from '../sql_utils/slice';
-import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
@@ -33,6 +32,7 @@ import {Timestamp} from '../widgets/timestamp';
 import {Trace} from '../../public/trace';
 import {extensions} from '../extensions';
 import {SLICE_TABLE} from '../widgets/sql/table_definitions';
+import {InteractiveText} from '../../widgets/interactive_text';
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
@@ -51,7 +51,7 @@ export function renderDetails(
         right: m(
           PopupMenu,
           {
-            trigger: m(Anchor, slice.name),
+            trigger: m(InteractiveText, slice.name),
           },
           m(MenuItem, {
             label: 'Slices with the same name',

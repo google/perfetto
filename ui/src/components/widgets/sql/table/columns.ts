@@ -46,7 +46,7 @@ import {
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
 import {parseJsonWithBigints} from '../../../../base/json_utils';
-import {Anchor} from '../../../../widgets/anchor';
+import {InteractiveText} from '../../../../widgets/interactive_text';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {Icons} from '../../../../base/semantic_icons';
 import {copyToClipboard} from '../../../../base/clipboard';
@@ -724,7 +724,7 @@ export class PrintArgsColumn implements TableColumn {
               ? m(
                   PopupMenu,
                   {
-                    trigger: m(Anchor, key),
+                    trigger: m(InteractiveText, key),
                   },
                   m(MenuItem, {
                     icon: Icons.Add,

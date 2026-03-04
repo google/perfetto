@@ -21,6 +21,7 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {TreeNode} from '../../widgets/tree';
 import {Args, ArgsDict, ArgValue} from '../sql_utils/args';
 import {Trace} from '../../public/trace';
+import {InteractiveText} from '../../widgets/interactive_text';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(
@@ -110,7 +111,7 @@ function renderArgKey(
   } else {
     return m(
       PopupMenu,
-      {trigger: m(Anchor, {icon: Icons.ContextMenu}, key)},
+      {trigger: m(InteractiveText, {icon: Icons.ContextMenu}, key)},
       m(MenuItem, {
         label: 'Copy full key',
         icon: 'content_copy',

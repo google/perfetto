@@ -33,6 +33,7 @@ import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
 import {renderForm} from './demos/form_demo';
 import {renderGrid} from './demos/grid_demo';
+import {renderInteractiveText} from './demos/interactive_text_demo';
 import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
 import {renderIcon} from './demos/icon_demo';
@@ -87,6 +88,11 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
   {id: 'form', label: 'Form', view: renderForm},
   {id: 'grid', label: 'Grid', view: renderGrid},
+  {
+    id: 'interactive-text',
+    label: 'InteractiveText',
+    view: renderInteractiveText,
+  },
   {id: 'hotkey', label: 'Hotkey', view: renderHotkey},
   {id: 'icon', label: 'Icon', view: renderIcon},
   {id: 'menu', label: 'Menu', view: renderMenu},

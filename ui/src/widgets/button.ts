@@ -18,7 +18,7 @@ import {HTMLAttrs, HTMLButtonAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Popup, PopupPosition} from './popup';
 import {assertUnreachable} from '../base/assert';
-import {isEmptyVnodes} from '../base/mithril_utils';
+import {hasChildren, isEmptyVnodes} from '../base/mithril_utils';
 import {Tooltip} from './tooltip';
 
 export enum ButtonVariant {
@@ -78,7 +78,7 @@ interface IconButtonAttrs extends CommonAttrs {
 
 interface LabelButtonAttrs extends CommonAttrs {
   // Label buttons require a label.
-  readonly label: string;
+  readonly label?: string;
   // Label buttons can have an optional icon.
   readonly icon?: string;
 }
@@ -90,7 +90,8 @@ function isLabelButtonAttrs(attrs: ButtonAttrs): attrs is LabelButtonAttrs {
 }
 
 export class Button implements m.ClassComponent<ButtonAttrs> {
-  view({attrs}: m.CVnode<ButtonAttrs>) {
+  view(vnode: m.CVnode<ButtonAttrs>) {
+    const {attrs} = vnode;
     const {
       icon,
       active,
@@ -108,8 +109,11 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       ...htmlAttrs
     } = attrs;
 
-    const label = isLabelButtonAttrs(attrs) ? attrs.label : undefined;
-    const iconOnly = Boolean(icon && !label);
+    let label: m.Children = isLabelButtonAttrs(attrs) ? attrs.label : undefined;
+    if (hasChildren(vnode)) {
+      label = vnode.children;
+    }
+    const iconOnly = Boolean(icon && !Boolean(label));
 
     const classes = classNames(
       active && 'pf-active',

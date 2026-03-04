@@ -16,7 +16,7 @@ import m from 'mithril';
 import {LazyTreeNode, Tree, TreeNode} from '../../../widgets/tree';
 import {PopupMenu} from '../../../widgets/menu';
 import {MenuItem} from '../../../widgets/menu';
-import {Anchor} from '../../../widgets/anchor';
+import {InteractiveText} from '../../../widgets/interactive_text';
 import {PopupPosition} from '../../../widgets/popup';
 import {Icons} from '../../../base/semantic_icons';
 import {renderWidgetShowcase} from '../widgets_page_utils';
@@ -62,7 +62,7 @@ export function renderTree(): m.Children {
               {
                 position: PopupPosition.RightStart,
                 trigger: m(
-                  Anchor,
+                  InteractiveText,
                   {
                     icon: Icons.ContextMenu,
                   },
@@ -82,11 +82,11 @@ export function renderTree(): m.Children {
           m(TreeNode, {
             icon: 'account_tree',
             left: 'Process',
-            right: m(Anchor, {icon: 'open_in_new'}, '/bin/foo[789]'),
+            right: m(InteractiveText, {icon: 'open_in_new'}, '/bin/foo[789]'),
           }),
           m(TreeNode, {
             left: 'Thread',
-            right: m(Anchor, {icon: 'open_in_new'}, 'my_thread[456]'),
+            right: m(InteractiveText, {icon: 'open_in_new'}, 'my_thread[456]'),
           }),
           m(
             TreeNode,

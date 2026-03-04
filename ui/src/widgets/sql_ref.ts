@@ -15,8 +15,8 @@
 import m from 'mithril';
 import {copyToClipboard} from '../base/clipboard';
 import {Icons} from '../base/semantic_icons';
-import {Anchor} from './anchor';
 import {MenuItem, PopupMenu} from './menu';
+import {InteractiveText} from './interactive_text';
 
 // This widget provides common styling and popup menu options for a SQL row,
 // given a table name and an ID.
@@ -41,7 +41,7 @@ export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
         PopupMenu,
         {
           trigger: m(
-            Anchor,
+            InteractiveText,
             {icon: Icons.ContextMenu},
             `${table}[${idColumnName === 'id' ? '' : `${idColumnName}=`}${id}]`,
           ),

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Anchor} from '../../widgets/anchor';
+import {InteractiveText} from '../../widgets/interactive_text';
 import {Icons} from '../../base/semantic_icons';
 import {Trace} from '../../public/trace';
 
@@ -34,7 +34,7 @@ export interface TrackEventRefAttrs {
 export class TrackEventRef implements m.ClassComponent<TrackEventRefAttrs> {
   view(vnode: m.Vnode<TrackEventRefAttrs>) {
     return m(
-      Anchor,
+      InteractiveText,
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
