@@ -157,6 +157,12 @@ jobs:
             exit 0
           fi
 
+          # Force light mode on the report HTML so it renders consistently
+          # when served from GCS (the Playwright report relies on JS to detect
+          # the system color-scheme and apply a CSS class, which causes a theme
+          # mixup when the browser applies native dark mode before JS runs).
+          sed -i "s/<html /<html class='light-mode' /" "$UI_TEST_ARTIFACTS/index.html"
+
           # '--no-user-output-enabled' prevents the `cp` from printing the names
           # of all copied files to stdout.
           gcloud storage cp --no-user-output-enabled --recursive "$UI_TEST_ARTIFACTS" "gs://$PERFETTO_GCS_DST/ui-test-artifacts"
