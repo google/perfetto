@@ -221,32 +221,36 @@ function buildAddMenuItems(
     return [];
   }
 
+  const addCb = (id: string) => onAddOperationNode(id, targetNode);
   const multisourceItems = buildMenuItems(
     'multisource',
-    (id) => onAddOperationNode(id, targetNode),
+    addCb,
     allowedChildren,
   );
   const modificationItems = buildMenuItems(
     'modification',
-    (id) => onAddOperationNode(id, targetNode),
+    addCb,
     allowedChildren,
   );
+  const exportItems = buildMenuItems('export', addCb, allowedChildren);
 
-  if (modificationItems.length === 0 && multisourceItems.length === 0) {
+  const sections: {title: string; items: m.Children[]}[] = [
+    {title: 'Modification nodes', items: modificationItems},
+    {title: 'Operations', items: multisourceItems},
+    {title: 'Export', items: exportItems},
+  ].filter((s) => s.items.length > 0);
+
+  if (sections.length === 0) {
     return [];
   }
 
   const menuItems: m.Children[] = [];
-  if (modificationItems.length > 0) {
-    menuItems.push(m(MenuTitle, {label: 'Modification nodes'}));
-    menuItems.push(...modificationItems);
-  }
-  if (modificationItems.length > 0 && multisourceItems.length > 0) {
-    menuItems.push(m(MenuDivider));
-  }
-  if (multisourceItems.length > 0) {
-    menuItems.push(m(MenuTitle, {label: 'Operations'}));
-    menuItems.push(...multisourceItems);
+  for (let i = 0; i < sections.length; i++) {
+    if (i > 0) {
+      menuItems.push(m(MenuDivider));
+    }
+    menuItems.push(m(MenuTitle, {label: sections[i].title}));
+    menuItems.push(...sections[i].items);
   }
   return menuItems;
 }
@@ -742,32 +746,29 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 
   private renderControls(attrs: GraphAttrs) {
-    const sourceMenuItems = buildMenuItems('source', attrs.onAddSourceNode);
+    const cb = attrs.onAddSourceNode;
+    const sections: {title: string; items: m.Children[]}[] = [
+      {title: 'Sources', items: buildMenuItems('source', cb)},
+      {title: 'Operations', items: buildMenuItems('multisource', cb)},
+      {title: 'Modification nodes', items: buildMenuItems('modification', cb)},
+      {title: 'Export', items: buildMenuItems('export', cb)},
+    ].filter((s) => s.items.length > 0);
 
-    const modificationMenuItems = buildMenuItems(
-      'modification',
-      attrs.onAddSourceNode,
-    );
-
-    const operationMenuItems = buildMenuItems(
-      'multisource',
-      attrs.onAddSourceNode,
-    );
-
-    const addNodeMenuItems = [
-      m(MenuTitle, {label: 'Sources'}),
-      ...sourceMenuItems,
-      m(MenuDivider),
-      m(MenuTitle, {label: 'Operations'}),
-      ...operationMenuItems,
-      m(MenuTitle, {label: 'Modification nodes'}),
-      ...modificationMenuItems,
-      m(MenuDivider),
+    const addNodeMenuItems: m.Children[] = [];
+    for (let i = 0; i < sections.length; i++) {
+      if (i > 0) {
+        addNodeMenuItems.push(m(MenuDivider));
+      }
+      addNodeMenuItems.push(m(MenuTitle, {label: sections[i].title}));
+      addNodeMenuItems.push(...sections[i].items);
+    }
+    addNodeMenuItems.push(m(MenuDivider));
+    addNodeMenuItems.push(
       m(MenuItem, {
         label: 'Label',
         onclick: () => this.addLabel(attrs),
       }),
-    ];
+    );
 
     const moreMenuItems = [
       m(MenuItem, {
