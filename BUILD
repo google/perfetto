@@ -323,6 +323,7 @@ perfetto_cc_binary(
         ":src_base_base",
         ":src_base_version",
         ":src_proto_utils_gen_cc_config_descriptor",
+        ":src_proto_utils_gen_cc_trace_summary_descriptor",
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
@@ -1824,6 +1825,17 @@ perfetto_cc_proto_descriptor(
     ],
     outs = [
         "src/proto_utils/config.descriptor.h",
+    ],
+)
+
+# GN target: //src/proto_utils:gen_cc_trace_summary_descriptor
+perfetto_cc_proto_descriptor(
+    name = "src_proto_utils_gen_cc_trace_summary_descriptor",
+    deps = [
+        ":protos_perfetto_trace_summary_descriptor",
+    ],
+    outs = [
+        "src/proto_utils/trace_summary.descriptor.h",
     ],
 )
 
@@ -8491,6 +8503,7 @@ perfetto_cc_binary(
         ":src_base_version",
         ":src_perfetto_cmd_protos_cpp",
         ":src_proto_utils_gen_cc_config_descriptor",
+        ":src_proto_utils_gen_cc_trace_summary_descriptor",
     ],
 )
 
