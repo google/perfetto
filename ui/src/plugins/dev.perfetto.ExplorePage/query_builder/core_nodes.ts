@@ -577,7 +577,8 @@ export function registerCoreNodes() {
     description:
       'Define a trace-based metric with value column and dimensions.',
     icon: 'analytics',
-    type: 'modification',
+    type: 'export',
+    hasPrimaryInput: true,
     nodeType: NodeType.kMetrics,
     allowedChildren: ['trace_summary'],
     factory: (state) => new MetricsNode(state as MetricsNodeState),
@@ -610,7 +611,7 @@ export function registerCoreNodes() {
     description:
       'Bundle multiple metrics into a single trace summary specification.',
     icon: 'summarize',
-    type: 'multisource',
+    type: 'export',
     nodeType: NodeType.kTraceSummary,
     allowedChildren: [],
     factory: (state) => new TraceSummaryNode(state as TraceSummaryNodeState),
@@ -650,8 +651,9 @@ export function registerCoreNodes() {
     'counter_to_intervals',
     'sort_node',
     'limit_and_offset_node',
-    'metrics',
     'visualisation',
+    // Export nodes
+    'metrics',
     // Multisource nodes
     'filter_during',
     'filter_in',
