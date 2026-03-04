@@ -504,131 +504,137 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       this.activeGraphIODeps = graphIODeps;
     }
 
-    return m(Builder, {
-      trace,
-      sqlModules,
-      queryExecutionService: services.queryExecutionService,
-      rootNodes: state.rootNodes,
-      selectedNodes: state.selectedNodes,
-      nodeLayouts: state.nodeLayouts,
-      labels: state.labels,
-      loadGeneration: state.loadGeneration,
-      isExplorerCollapsed: state.isExplorerCollapsed,
-      sidebarWidth: state.sidebarWidth,
-      onExecuteReady: (executeFn) => {
-        services.executeFn = executeFn;
-      },
-      onRootNodeCreated: (node) => {
-        wrappedOnStateUpdate((currentState) => ({
-          ...currentState,
-          rootNodes: [...currentState.rootNodes, node],
-          selectedNodes: new Set([node.nodeId]),
-        }));
-      },
-      onExplorerCollapsedChange: (collapsed) => {
-        wrappedOnStateUpdate((currentState) => ({
-          ...currentState,
-          isExplorerCollapsed: collapsed,
-        }));
-      },
-      onSidebarWidthChange: (width) => {
-        wrappedOnStateUpdate((currentState) => ({
-          ...currentState,
-          sidebarWidth: width,
-        }));
-      },
-      graphCallbacks: {
-        onNodeSelected: (node) => {
-          this.selectNode(wrappedAttrs, node);
+    // Sized wrapper so DrawerPanel can read a non-zero clientHeight;
+    // Gate (display:contents) elements have clientHeight === 0.
+    return m(
+      '.pf-explore-page__tab-content',
+      m(Builder, {
+        trace,
+        sqlModules,
+        queryExecutionService: services.queryExecutionService,
+        rootNodes: state.rootNodes,
+        selectedNodes: state.selectedNodes,
+        nodeLayouts: state.nodeLayouts,
+        labels: state.labels,
+        loadGeneration: state.loadGeneration,
+        isExplorerCollapsed: state.isExplorerCollapsed,
+        sidebarWidth: state.sidebarWidth,
+        onExecuteReady: (executeFn) => {
+          services.executeFn = executeFn;
         },
-        onNodeAddToSelection: (node) => {
-          this.addNodeToSelection(wrappedAttrs, node);
+        onRootNodeCreated: (node) => {
+          wrappedOnStateUpdate((currentState) => ({
+            ...currentState,
+            rootNodes: [...currentState.rootNodes, node],
+            selectedNodes: new Set([node.nodeId]),
+          }));
         },
-        onNodeRemoveFromSelection: (nodeId) => {
-          this.removeNodeFromSelection(wrappedAttrs, nodeId);
+        onExplorerCollapsedChange: (collapsed) => {
+          wrappedOnStateUpdate((currentState) => ({
+            ...currentState,
+            isExplorerCollapsed: collapsed,
+          }));
         },
-        onDeselect: () => this.deselectNode(wrappedAttrs),
-        onNodeLayoutChange: (nodeId, layout) => {
+        onSidebarWidthChange: (width) => {
+          wrappedOnStateUpdate((currentState) => ({
+            ...currentState,
+            sidebarWidth: width,
+          }));
+        },
+        graphCallbacks: {
+          onNodeSelected: (node) => {
+            this.selectNode(wrappedAttrs, node);
+          },
+          onNodeAddToSelection: (node) => {
+            this.addNodeToSelection(wrappedAttrs, node);
+          },
+          onNodeRemoveFromSelection: (nodeId) => {
+            this.removeNodeFromSelection(wrappedAttrs, nodeId);
+          },
+          onDeselect: () => this.deselectNode(wrappedAttrs),
+          onNodeLayoutChange: (nodeId, layout) => {
+            wrappedOnStateUpdate((currentState) => {
+              const newNodeLayouts = new Map(currentState.nodeLayouts);
+              newNodeLayouts.set(nodeId, layout);
+              return {
+                ...currentState,
+                nodeLayouts: newNodeLayouts,
+              };
+            });
+          },
+          onLabelsChange: (labels) => {
+            wrappedOnStateUpdate((currentState) => ({
+              ...currentState,
+              labels,
+            }));
+          },
+          onAddSourceNode: (id) => {
+            addSourceNode(nodeCrudDeps, wrappedAttrs.state, id);
+          },
+          onAddOperationNode: (id, node) => {
+            addOperationNode(nodeCrudDeps, wrappedAttrs.state, node, id);
+          },
+          onClearAllNodes: () =>
+            clearAllNodes(nodeCrudDeps, wrappedAttrs.state),
+          onDuplicateNode: (node) => {
+            duplicateNode(wrappedOnStateUpdate, node);
+          },
+          onDeleteNode: (node) => {
+            deleteNode(nodeCrudDeps, wrappedAttrs.state, node);
+          },
+          onConnectionRemove: (fromNode, toNode, isSecondaryInput) => {
+            removeNodeConnection(
+              wrappedAttrs.state,
+              wrappedOnStateUpdate,
+              fromNode,
+              toNode,
+              isSecondaryInput,
+            );
+          },
+          onImport: () => importGraph(graphIODeps, state),
+          onExport: () => exportGraph(state, trace),
+        },
+        onLoadEmptyTemplate: async () => {
+          if (!(await confirmAndFinalizeCurrentGraph(state))) return;
+
           wrappedOnStateUpdate((currentState) => {
-            const newNodeLayouts = new Map(currentState.nodeLayouts);
-            newNodeLayouts.set(nodeId, layout);
             return {
               ...currentState,
-              nodeLayouts: newNodeLayouts,
+              rootNodes: [],
+              selectedNodes: new Set(),
+              nodeLayouts: new Map(),
+              labels: [],
+              loadGeneration: (currentState.loadGeneration ?? 0) + 1,
             };
           });
         },
-        onLabelsChange: (labels) => {
-          wrappedOnStateUpdate((currentState) => ({
-            ...currentState,
-            labels,
-          }));
+        onLoadExampleByPath: (jsonPath: string) =>
+          loadGraphFromPath(graphIODeps, state, jsonPath, 'Failed to Load'),
+        onLoadExploreTemplate: async () => {
+          if (!(await confirmAndFinalizeCurrentGraph(state))) return;
+          await createExploreGraph(graphIODeps);
         },
-        onAddSourceNode: (id) => {
-          addSourceNode(nodeCrudDeps, wrappedAttrs.state, id);
+        onLoadRecentGraph: async (json: string) => {
+          if (!(await confirmAndFinalizeCurrentGraph(state))) return;
+          await loadGraphFromJson(graphIODeps, state.rootNodes, json);
         },
-        onAddOperationNode: (id, node) => {
-          addOperationNode(nodeCrudDeps, wrappedAttrs.state, node, id);
+        onFilterAdd: (node, filter, filterOperator) => {
+          addFilter(nodeCrudDeps, node, filter, filterOperator);
         },
-        onClearAllNodes: () => clearAllNodes(nodeCrudDeps, wrappedAttrs.state),
-        onDuplicateNode: (node) => {
-          duplicateNode(wrappedOnStateUpdate, node);
+        onColumnAdd: (node, column) => {
+          addColumnFromJoinid(nodeCrudDeps, wrappedAttrs.state, node, column);
         },
-        onDeleteNode: (node) => {
-          deleteNode(nodeCrudDeps, wrappedAttrs.state, node);
+        onNodeStateChange: () => {
+          wrappedOnStateUpdate((currentState) => {
+            return {...currentState};
+          });
         },
-        onConnectionRemove: (fromNode, toNode, isSecondaryInput) => {
-          removeNodeConnection(
-            wrappedAttrs.state,
-            wrappedOnStateUpdate,
-            fromNode,
-            toNode,
-            isSecondaryInput,
-          );
-        },
-        onImport: () => importGraph(graphIODeps, state),
-        onExport: () => exportGraph(state, trace),
-      },
-      onLoadEmptyTemplate: async () => {
-        if (!(await confirmAndFinalizeCurrentGraph(state))) return;
-
-        wrappedOnStateUpdate((currentState) => {
-          return {
-            ...currentState,
-            rootNodes: [],
-            selectedNodes: new Set(),
-            nodeLayouts: new Map(),
-            labels: [],
-            loadGeneration: (currentState.loadGeneration ?? 0) + 1,
-          };
-        });
-      },
-      onLoadExampleByPath: (jsonPath: string) =>
-        loadGraphFromPath(graphIODeps, state, jsonPath, 'Failed to Load'),
-      onLoadExploreTemplate: async () => {
-        if (!(await confirmAndFinalizeCurrentGraph(state))) return;
-        await createExploreGraph(graphIODeps);
-      },
-      onLoadRecentGraph: async (json: string) => {
-        if (!(await confirmAndFinalizeCurrentGraph(state))) return;
-        await loadGraphFromJson(graphIODeps, state.rootNodes, json);
-      },
-      onFilterAdd: (node, filter, filterOperator) => {
-        addFilter(nodeCrudDeps, node, filter, filterOperator);
-      },
-      onColumnAdd: (node, column) => {
-        addColumnFromJoinid(nodeCrudDeps, wrappedAttrs.state, node, column);
-      },
-      onNodeStateChange: () => {
-        wrappedOnStateUpdate((currentState) => {
-          return {...currentState};
-        });
-      },
-      onUndo: () => this.handleUndo(attrs),
-      onRedo: () => this.handleRedo(attrs),
-      canUndo: services.historyManager?.canUndo() ?? false,
-      canRedo: services.historyManager?.canRedo() ?? false,
-    });
+        onUndo: () => this.handleUndo(attrs),
+        onRedo: () => this.handleRedo(attrs),
+        canUndo: services.historyManager?.canUndo() ?? false,
+        canRedo: services.historyManager?.canRedo() ?? false,
+      }),
+    );
   }
 
   // Stored references for the active tab's deps, used by keyboard handler.
