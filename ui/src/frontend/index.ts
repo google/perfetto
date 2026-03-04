@@ -366,6 +366,7 @@ function main() {
 }
 
 function onCssLoaded() {
+  console.log('stuff');
   // Clear all the contents of the initial page (e.g. the <pre> error message)
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
