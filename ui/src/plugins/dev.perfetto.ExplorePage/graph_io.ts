@@ -141,33 +141,6 @@ export async function loadGraphFromPath(
   }
 }
 
-export async function initializeHighImportanceTables(
-  deps: GraphIODeps,
-  setHasAutoInitialized: (value: boolean) => void,
-): Promise<void> {
-  setHasAutoInitialized(true);
-
-  try {
-    const response = await fetch(
-      assetSrc('assets/explore_page/base-page.json'),
-    );
-    if (!response.ok) {
-      console.warn(
-        'Failed to load base page state, falling back to empty state',
-      );
-      return;
-    }
-    const json = await response.text();
-    const newState = deserializeState(json, deps.trace, deps.sqlModules);
-    deps.onStateUpdate((currentState) => ({
-      ...newState,
-      loadGeneration: (currentState.loadGeneration ?? 0) + 1,
-    }));
-  } catch (error) {
-    console.error('Failed to load base page state:', error);
-  }
-}
-
 export async function createExploreGraph(deps: GraphIODeps): Promise<void> {
   const {sqlModules, trace} = deps;
   const newNodes: QueryNode[] = [];

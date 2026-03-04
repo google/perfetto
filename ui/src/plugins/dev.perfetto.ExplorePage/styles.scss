@@ -18,11 +18,34 @@
 .pf-explore-page {
   height: 100%;
   position: relative;
-  overflow: auto;
+  overflow: hidden;
 
   &__header {
     display: flex;
     align-items: center;
+  }
+
+  &__tabs {
+    height: 100%;
+
+    // Override the default overflow:auto on tab content. The explore page
+    // manages its own layout (sidebar + canvas) and does not need container
+    // scrollbars, which can cause scroll jumps when switching tabs.
+    .pf-tabs__content {
+      overflow: hidden;
+    }
+  }
+
+  &__tab-rename-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    min-width: 40px;
   }
 }
 
