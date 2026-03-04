@@ -79,7 +79,7 @@
     }
 
     .pf-home-page__section {
-      background: var(--pf-color-background-secondary);
+      background: var(--pf-col-panel);
       border-radius: 7px;
       padding: 20px 24px;
       flex: 1;
@@ -191,7 +191,7 @@
     padding: var(--chan-padding);
     margin-bottom: 20px;
     position: relative;
-    background-color: var(--pf-color-background-secondary);
+    background-color: var(--pf-col-panel);
     border-radius: 7px;
     // box-shadow: inset 0 1px 3px var(--pf-color-box-shadow);
     border: 0;

@@ -53,7 +53,7 @@
   font-family: var(--pf-font-monospace);
   font-size: 0.9em;
   font-weight: 600;
-  background-color: var(--pf-color-background-secondary);
+  background-color: var(--pf-col-panel);
   border-radius: 3px;
   color: var(--pf-color-text);
 }
@@ -75,7 +75,7 @@
 .pf-exp-sql-expression {
   font-family: var(--pf-font-monospace);
   font-size: var(--pf-font-size-s);
-  background-color: var(--pf-color-background-secondary);
+  background-color: var(--pf-col-panel);
   padding: 0.5rem;
   border-radius: 4px;
   display: block;

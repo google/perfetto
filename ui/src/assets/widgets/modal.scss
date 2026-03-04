@@ -59,7 +59,7 @@
 .pf-modal-dialog {
   position: absolute;
   z-index: 100;
-  background-color: var(--pf-color-background);
+  background-color: var(--pf-col-void);
   margin: auto;
   min-width: 25vw;
   min-height: 10vh;
@@ -141,7 +141,7 @@
   padding: 10px;
   border-radius: 3px;
   font-size: var(--pf-font-size-xs);
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   font-family: var(--pf-font-monospace);
   margin-top: 10px;
   margin-bottom: 10px;

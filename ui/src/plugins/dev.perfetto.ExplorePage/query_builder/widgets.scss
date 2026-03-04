@@ -91,14 +91,14 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   transition: all 0.15s ease-in-out;
   cursor: pointer;
 
   &:hover {
-    background: var(--pf-color-background);
+    background: var(--pf-col-void);
     border-color: var(--pf-color-primary);
   }
 
@@ -230,14 +230,14 @@
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   cursor: grab;
   flex-wrap: wrap;
 
   &:hover {
-    background: var(--pf-color-background);
+    background: var(--pf-col-void);
   }
 
   .pf-exp-drag-handle {
@@ -280,7 +280,7 @@
 
   &:hover {
     color: var(--pf-color-primary);
-    background: var(--pf-color-background-secondary);
+    background: var(--pf-col-panel);
   }
 
   .pf-left-icon {
@@ -378,7 +378,7 @@
   color: var(--pf-color-text-muted);
   padding: 12px 16px;
   line-height: 1.5;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   margin-bottom: 12px;
@@ -406,17 +406,17 @@
   gap: 8px;
   padding: 4px 8px;
   min-height: 40px;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   transition: all 0.15s ease-in-out;
 
   &.pf-valid {
-    background: var(--pf-color-background-secondary);
+    background: var(--pf-col-panel);
     border-color: var(--pf-color-border);
 
     &:hover {
-      background: var(--pf-color-background);
+      background: var(--pf-col-void);
       border-color: var(--pf-color-primary);
     }
   }
@@ -491,7 +491,7 @@
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background: var(--pf-color-background-secondary);
+    background: var(--pf-col-panel);
   }
 
   .pf-outlined-field-legend {
@@ -542,7 +542,7 @@
 
     &:hover {
       border-color: var(--pf-color-primary) !important;
-      background: var(--pf-color-background-secondary) !important;
+      background: var(--pf-col-panel) !important;
     }
 
     &:focus {
@@ -564,7 +564,7 @@
   gap: 8px;
   padding: 4px 8px;
   min-height: 40px;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   font-size: var(--pf-font-size-m);
@@ -575,7 +575,7 @@
 
   &:hover {
     border-color: var(--pf-color-primary);
-    background: var(--pf-color-background);
+    background: var(--pf-col-void);
   }
 
   &:focus {
@@ -603,13 +603,13 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border: 1px solid var(--pf-color-border);
   border-radius: 4px;
   transition: all 0.15s ease-in-out;
 
   &:hover {
-    background: var(--pf-color-background);
+    background: var(--pf-col-void);
     border-color: var(--pf-color-primary);
   }
 
@@ -772,7 +772,7 @@
 .pf-metrics-result-header {
   padding: 8px 12px;
   font-weight: 500;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border-bottom: 1px solid var(--pf-color-border);
 }
 
@@ -858,7 +858,7 @@
   padding: 6px 10px;
   font-size: var(--pf-font-size-s);
   font-weight: 600;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border-bottom: 1px solid var(--pf-color-border);
   user-select: none;
 }
@@ -895,7 +895,7 @@
   }
 
   &[draggable="true"]:hover {
-    background: var(--pf-color-background-secondary);
+    background: var(--pf-col-panel);
   }
 }
 

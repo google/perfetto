@@ -44,7 +44,7 @@
 // The left-hand-side menu with 'Cpu', 'Memory' etc.
 .pf-record-page__menu {
   grid-area: sidebar;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border-right: 1px solid var(--pf-color-border);
   padding-bottom: 1em;
 
@@ -223,7 +223,7 @@
 
   .config {
     &:nth-of-type(2n) {
-      background-color: var(--pf-color-background-secondary);
+      background-color: var(--pf-col-panel);
     }
 
     height: auto;
@@ -299,7 +299,7 @@
     }
 
     &:nth-of-type(2n) {
-      background-color: var(--pf-color-background-secondary);
+      background-color: var(--pf-col-panel);
     }
 
     > img {
@@ -342,7 +342,7 @@
     }
 
     code {
-      background: var(--pf-color-background-secondary);
+      background: var(--pf-col-panel);
       display: block;
       padding: 5px;
       margin: 5px 0;
@@ -439,7 +439,7 @@
 
       margin: 5px;
       text-align: center;
-      background-color: var(--pf-color-background-secondary);
+      background-color: var(--pf-col-panel);
       font-size: var(--pf-font-size-xxl);
       @media (max-width: 1280px) {
         font-size: 1.6vw;
@@ -579,7 +579,7 @@
       color: inherit;
 
       grid-area: label;
-      border: 1px solid var(--pf-color-background);
+      border: 1px solid var(--pf-col-void);
       border-bottom: 2px solid var(--pf-color-border);
       padding: 0 5px;
       border-radius: 2px;
@@ -836,7 +836,7 @@
         border-radius: 10px;
         text-align: center;
         margin: 3px;
-        background-color: var(--pf-color-background-secondary);
+        background-color: var(--pf-col-panel);
         flex-grow: 1;
         font-size: 17px;
         @media (max-width: 1280px) {
@@ -883,7 +883,7 @@
       background-color: var(--pf-color-success);
     }
     ::-webkit-progress-bar {
-      background-color: var(--pf-color-background-secondary);
+      background-color: var(--pf-col-panel);
     }
   }
 } // pf-record-page__section
@@ -1044,7 +1044,7 @@
     }
 
     .logs {
-      background-color: var(--pf-color-background-secondary);
+      background-color: var(--pf-col-panel);
       border: 1px solid var(--pf-color-border-secondary);
       white-space: pre-wrap;
       margin: 0;

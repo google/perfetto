@@ -22,7 +22,7 @@
     padding-bottom: 10px;
     padding-top: 12px;
     z-index: 1;
-    background-color: var(--pf-color-background);
+    background-color: var(--pf-col-void);
 
     &--stuck {
       box-shadow: 0px 2px 5px var(--pf-color-box-shadow);
@@ -103,6 +103,7 @@
     font-size: var(--pf-font-size-s);
     white-space: pre-line;
     margin-top: 10px;
+    color: var(--pf-color-text-muted);
   }
 
   &__link {

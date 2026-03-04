@@ -29,7 +29,7 @@
   // Dot pattern background.
   background-color: color-mix(
     in srgb,
-    var(--pf-color-background) 90%,
+    var(--pf-col-void) 90%,
     var(--pf-color-border-secondary) 10%
   );
   background-image: radial-gradient(
@@ -77,7 +77,7 @@
 
 .pf-node {
   position: relative;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border: 2px solid var(--pf-color-border);
   border-radius: 8px;
   min-width: 180px;
@@ -114,7 +114,7 @@
   background: color-mix(
     in srgb,
     hsl(var(--pf-node-hue), 60%, 50%) 50%,
-    var(--pf-color-background)
+    var(--pf-col-void)
   );
 }
 
@@ -182,7 +182,7 @@
 
 .pf-node-header {
   /* Default background when hue is not set */
-  background: var(--pf-color-background);
+  background: var(--pf-col-void);
   padding: 6px 6px;
   border-radius: 6px 6px 0 0;
   display: flex;
@@ -197,7 +197,7 @@
   background: color-mix(
     in srgb,
     hsl(var(--pf-node-hue), 60%, 50%) 50%,
-    var(--pf-color-background)
+    var(--pf-col-void)
   );
 }
 
@@ -269,7 +269,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-col-panel);
   border: 2px solid var(--pf-color-border);
   cursor: crosshair;
   position: absolute;
@@ -393,14 +393,14 @@
   background: color-mix(
     in srgb,
     var(--pf-color-danger) 8%,
-    var(--pf-color-background-secondary)
+    var(--pf-col-panel)
   );
 
   .pf-node-header {
     background: color-mix(
       in srgb,
       var(--pf-color-danger) 15%,
-      var(--pf-color-background)
+      var(--pf-col-void)
     );
     border-bottom-color: var(--pf-color-danger);
   }
@@ -411,7 +411,7 @@
   background: color-mix(
     in srgb,
     var(--pf-color-danger) 15%,
-    var(--pf-color-background)
+    var(--pf-col-void)
   );
 }
 
@@ -424,7 +424,7 @@
   position: absolute;
   background: color-mix(
     in srgb,
-    var(--pf-color-background-secondary) 85%,
+    var(--pf-col-panel) 85%,
     var(--pf-color-accent) 15%
   );
   border: 2px solid var(--pf-color-border);

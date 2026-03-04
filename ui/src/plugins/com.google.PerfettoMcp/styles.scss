@@ -38,7 +38,7 @@
       }
 
       &--ai {
-        background-color: var(--pf-color-background-secondary);
+        background-color: var(--pf-col-panel);
         align-self: flex-start;
       }
 
@@ -90,7 +90,7 @@
     align-items: center;
     padding: 1rem 1rem;
     border-top: 1px solid var(--pf-color-border);
-    background-color: var(--pf-color-background-secondary);
+    background-color: var(--pf-col-panel);
     box-sizing: border-box;
     gap: 4px;
 

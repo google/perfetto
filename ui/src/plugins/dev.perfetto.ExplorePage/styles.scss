@@ -291,7 +291,7 @@
     font-size: var(--pf-font-size-s);
     font-weight: 500;
     color: var(--pf-color-text);
-    background: var(--pf-color-background-secondary);
+    background: var(--pf-col-panel);
     border-bottom: 1px solid var(--pf-color-border);
     flex-shrink: 0;
   }
@@ -322,7 +322,7 @@
     font-size: var(--pf-font-size-s);
     font-weight: 500;
     font-family: inherit;
-    background: var(--pf-color-background);
+    background: var(--pf-col-void);
     color: var(--pf-color-text);
     box-sizing: border-box;
   }
@@ -425,7 +425,7 @@
     border-radius: 4px;
     font-size: var(--pf-font-size-s);
     font-family: inherit;
-    background: var(--pf-color-background);
+    background: var(--pf-col-void);
     color: var(--pf-color-text);
     box-sizing: border-box;
 
@@ -472,7 +472,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
-    background: var(--pf-color-background-secondary);
+    background: var(--pf-col-panel);
     border-bottom: 1px solid var(--pf-color-border);
     cursor: pointer;
     user-select: none;

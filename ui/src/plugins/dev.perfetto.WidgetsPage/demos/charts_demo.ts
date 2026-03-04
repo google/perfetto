@@ -595,7 +595,7 @@ function HistogramDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -687,7 +687,7 @@ function BarChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -775,7 +775,7 @@ function SQLBarChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -853,7 +853,7 @@ function SQLHistogramDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -935,7 +935,7 @@ function SQLLineChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1007,7 +1007,7 @@ function SQLPieChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1174,7 +1174,7 @@ function LineChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1237,7 +1237,7 @@ function PieChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1366,7 +1366,7 @@ function ScatterChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1463,7 +1463,7 @@ function TreemapChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1559,7 +1559,7 @@ function SQLScatterChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1636,7 +1636,7 @@ function SQLTreemapDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1719,7 +1719,7 @@ function BoxplotChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1771,7 +1771,7 @@ function HeatmapChartDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1834,7 +1834,7 @@ function SQLCdfDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1908,7 +1908,7 @@ function SQLBoxplotDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },
@@ -1973,7 +1973,7 @@ function SQLHeatmapDemo(): m.Component<{
             style: {
               marginTop: '8px',
               fontSize: '11px',
-              background: 'var(--pf-color-background-secondary)',
+              background: 'var(--pf-col-panel)',
               padding: '8px',
               borderRadius: '4px',
             },

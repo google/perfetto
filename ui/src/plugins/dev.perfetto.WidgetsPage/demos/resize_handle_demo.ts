@@ -57,7 +57,7 @@ class ResizeHandleDemo implements m.ClassComponent {
               {
                 style: {
                   height: `${this.state.verticalHeight}px`,
-                  background: 'var(--pf-color-background-secondary)',
+                  background: 'var(--pf-col-panel)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -83,7 +83,7 @@ class ResizeHandleDemo implements m.ClassComponent {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'var(--pf-color-background)',
+                  background: 'var(--pf-col-void)',
                 },
               },
               'Fixed panel below',
@@ -125,7 +125,7 @@ class ResizeHandleDemo implements m.ClassComponent {
               {
                 style: {
                   width: `${this.state.horizontalWidth}px`,
-                  background: 'var(--pf-color-background-secondary)',
+                  background: 'var(--pf-col-panel)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -152,7 +152,7 @@ class ResizeHandleDemo implements m.ClassComponent {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'var(--pf-color-background)',
+                  background: 'var(--pf-col-void)',
                 },
               },
               'Fixed panel to the right',

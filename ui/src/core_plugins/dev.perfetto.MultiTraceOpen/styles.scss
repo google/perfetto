@@ -106,7 +106,7 @@
 
   &__add-card {
     border: 1px dashed var(--pf-color-border);
-    background-color: var(--pf-color-background-secondary);
+    background-color: var(--pf-col-panel);
     cursor: pointer;
     padding: 8px;
     color: var(--pf-color-text-secondary);
@@ -116,7 +116,7 @@
     align-items: center;
 
     &:hover {
-      background: color_hover(var(--pf-color-background-secondary));
+      background: color_hover(var(--pf-col-panel));
     }
   }
 

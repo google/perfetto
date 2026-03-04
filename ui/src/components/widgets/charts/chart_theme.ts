@@ -61,7 +61,7 @@ export function getChartThemeColors(el?: Element): ChartThemeColors {
   return {
     textColor: style.getPropertyValue('--pf-color-text').trim(),
     borderColor: style.getPropertyValue('--pf-color-border').trim(),
-    backgroundColor: style.getPropertyValue('--pf-color-background').trim(),
+    backgroundColor: style.getPropertyValue('--pf-col-void').trim(),
     accentColor: style.getPropertyValue('--pf-color-accent').trim(),
     chartColors,
   };

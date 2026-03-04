@@ -31,7 +31,7 @@
 
   &__handle {
     gap: 2px;
-    background-color: var(--pf-color-background-secondary);
+    background-color: var(--pf-col-panel);
     border-top: 1px solid var(--pf-color-border);
     cursor: row-resize;
     display: flex;
@@ -90,7 +90,7 @@
 
     &.pf-drawer-panel__tab--active {
       cursor: default;
-      background-color: var(--pf-color-background);
+      background-color: var(--pf-col-void);
       box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
       border-color: var(--pf-color-border);
       z-index: 1;

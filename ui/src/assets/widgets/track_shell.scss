@@ -134,7 +134,7 @@
       // Necessary trig because we have 45deg stripes
       $pattern-density: 1px * math.sqrt(2);
       $pattern-col: var(--pf-color-border);
-      $background-col: var(--pf-color-background);
+      $background-col: var(--pf-col-void);
 
       background: repeating-linear-gradient(
         -45deg,
@@ -189,7 +189,7 @@
 
     &:hover &-popup--visible {
       box-shadow: 1px 1px 2px 2px var(--pf-color-box-shadow);
-      background: var(--pf-color-background);
+      background: var(--pf-col-void);
       color: var(--pf-color-text);
     }
   }

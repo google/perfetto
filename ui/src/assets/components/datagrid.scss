@@ -24,7 +24,7 @@
 
   &__toolbar {
     border-bottom: solid 1px var(--pf-color-border);
-    background-color: var(--pf-color-background);
+    background-color: var(--pf-col-void);
   }
 
   &__toolbar-content {
@@ -55,7 +55,7 @@
   &__groupby-column {
     background-color: color-mix(
       in srgb,
-      var(--pf-color-background-secondary) 30%,
+      var(--pf-col-panel) 30%,
       transparent
     );
   }
@@ -196,7 +196,7 @@
 .pf-datagrid__dd {
   background-color: color-mix(
     in srgb,
-    var(--pf-color-background-secondary) 80%,
+    var(--pf-col-panel) 80%,
     transparent
   );
 }

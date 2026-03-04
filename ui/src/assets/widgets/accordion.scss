@@ -19,7 +19,7 @@
   &__item {
     &.pf-expanded {
       .pf-accordion__header {
-        background: var(--pf-color-background-tertiary);
+        background: var(--pf-col-inner);
       }
     }
   }
@@ -30,7 +30,7 @@
     gap: 4px;
     padding: 6px 8px;
     cursor: pointer;
-    background: var(--pf-color-background-secondary);
+    background: var(--pf-col-panel);
     position: sticky;
     top: 0;
     z-index: 1;
@@ -56,6 +56,6 @@
 
   &__content {
     padding: 8px 16px 16px 16px;
-    background: var(--pf-color-background);
+    background: var(--pf-col-void);
   }
 }

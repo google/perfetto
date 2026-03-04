@@ -25,7 +25,7 @@
   &__inner {
     width: 95%;
     max-width: 1400px;
-    background: var(--pf-color-background);
+    background: var(--pf-col-void);
     border-radius: $border-radius-large * 3;
     box-shadow: $box-shadow-1;
     overflow: hidden;
@@ -85,7 +85,7 @@
     min-height: 110px;
     display: flex;
     flex-direction: column;
-    background: var(--pf-color-background-secondary);
+    background: var(--pf-col-panel);
   }
 
   &__metric-card--wide {
@@ -234,7 +234,7 @@
     display: flex;
     gap: 12px;
     padding: 12px;
-    background: var(--pf-color-background-hover);
+    background: var(--pf-col-void-hover);
     border-radius: 4px;
     border-left: 3px solid var(--pf-color-danger);
     font-family: var(--pf-font-monospace);

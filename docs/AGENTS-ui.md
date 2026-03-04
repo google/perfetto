@@ -323,7 +323,7 @@ m('.pf-my-component', 'content') // with styles in .scss file
 // Good
 .pf-my-component {
   color: var(--pf-color-foreground);
-  background: var(--pf-color-background);
+  background: var(--pf-col-void);
 }
 ```
 

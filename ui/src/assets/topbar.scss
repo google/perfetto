@@ -22,7 +22,7 @@
   position: relative;
   z-index: 3;
   overflow: visible;
-  background-color: var(--pf-color-background-secondary);
+  background-color: var(--pf-col-panel);
   box-shadow: $box-shadow-1;
   min-height: var(--topbar-height);
   display: flex;
@@ -58,7 +58,7 @@
   grid-template-areas: "icon input stepthrough";
   grid-template-columns: 34px auto max-content;
   border-radius: $border-radius;
-  background-color: var(--pf-color-background);
+  background-color: var(--pf-col-void);
   border: solid 1px transparent;
   line-height: 34px;
 

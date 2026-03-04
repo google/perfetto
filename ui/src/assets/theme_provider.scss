@@ -19,15 +19,15 @@
   color: var(--pf-color-text);
 
   // Set background at the root level so that it applies to the entire app.
-  background-color: var(--pf-color-background);
+  background-color: var(--pf-col-void);
 
   // Theme scroll bars across the entire app.
-  scrollbar-color: var(--pf-color-border) var(--pf-color-background); /* thumb color track color */
+  scrollbar-color: var(--pf-color-border) var(--pf-col-void); /* thumb color track color */
 
   &--light {
-    --pf-color-background: white;
-    --pf-color-background-secondary: #edf0f1;
-    --pf-color-background-tertiary: #e3e9eb;
+    --pf-col-void: white;
+    --pf-col-panel: #edf0f1;
+    --pf-col-inner: #e3e9eb;
     --pf-color-interactive-base: rgb(4, 33, 56);
     --pf-color-text: #333;
     --pf-color-text-muted: #75797c;
@@ -75,13 +75,17 @@
   }
 
   &--dark {
-    --pf-color-background: #232426;
-    --pf-color-background-secondary: #383a3e;
-    --pf-color-background-tertiary: #4a4c52;
+    --pf-col-void: #101010;
+    --pf-col-panel: #181818;
+    --pf-col-inner: #212121;
+    --pf-col-content: #2a2a2a;
+
     --pf-color-interactive-base: white;
-    --pf-color-text: #dce0e2;
-    --pf-color-text-muted: #a0a2a5;
-    --pf-color-text-disabled: #8d8d8e;
+
+    --pf-color-text: #b0b0b0;
+    --pf-color-text-muted: #808080;
+    --pf-color-text-disabled: #636363;
+
     --pf-color-border: #626568;
     --pf-color-border-secondary: #404042;
     --pf-color-text-hint: #9aa0a6;
@@ -116,8 +120,8 @@
     --pf-color-timeline-overlay: white;
 
     // In dark mode, the sidebar uses the same styles as the rest of the app
-    --pf-sidebar-surface: var(--pf-color-background-secondary);
-    --pf-sidebar-surface-secondary: var(--pf-color-background);
+    --pf-sidebar-surface: var(--pf-col-panel);
+    --pf-sidebar-surface-secondary: var(--pf-col-void);
     --pf-sidebar-on-surface: var(--pf-color-text);
     --pf-sidebar-on-surface-muted: var(--pf-color-text-muted);
     --pf-sidebar-border: var(--pf-color-border);

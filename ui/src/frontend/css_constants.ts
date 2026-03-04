@@ -64,11 +64,11 @@ export function initCssConstants(element?: Element) {
   COLOR_BORDER_SECONDARY =
     getCssStr('--pf-color-border-secondary') ?? COLOR_BORDER_SECONDARY;
   COLOR_BACKGROUND_SECONDARY =
-    getCssStr('--pf-color-background-secondary') ?? COLOR_BACKGROUND_SECONDARY;
+    getCssStr('--pf-col-panel') ?? COLOR_BACKGROUND_SECONDARY;
   COLOR_ACCENT = getCssStr('--pf-color-accent') ?? COLOR_ACCENT;
   DEFAULT_DETAILS_CONTENT_HEIGHT =
     getCssNum('--details-content-height') ?? DEFAULT_DETAILS_CONTENT_HEIGHT;
-  COLOR_BACKGROUND = getCssStr('--pf-color-background') ?? COLOR_BACKGROUND;
+  COLOR_BACKGROUND = getCssStr('--pf-col-void') ?? COLOR_BACKGROUND;
   COLOR_TEXT = getCssStr('--pf-color-text') ?? COLOR_TEXT;
   FONT_COMPACT = getCssStr('--pf-font-compact') ?? FONT_COMPACT;
   COLOR_TEXT_MUTED = getCssStr('--pf-color-text-muted') ?? COLOR_TEXT_MUTED;
