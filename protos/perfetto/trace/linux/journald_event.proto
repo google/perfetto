@@ -29,7 +29,9 @@ message JournaldEventPacket {
     // _PID: PID of the process that wrote the log entry (trusted).
     optional uint32 pid = 2;
 
-    // TID: thread ID (user-supplied, may be absent).
+    // _TID: thread ID of the logging thread (trusted, set by journald for
+    // native journal protocol entries). Absent for syslog, stdout-piped, and
+    // kernel entries.
     optional uint32 tid = 3;
 
     // _UID: user ID of the process (trusted).

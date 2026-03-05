@@ -82,6 +82,9 @@ source_set("probes_src") {
     "system_info",
     "user_list",
   ]
+  if (enable_perfetto_journald) {
+    deps += [ "journald" ]
+  }
   sources = [
     "probes_producer.cc",
     "probes_producer.h",
@@ -124,4 +127,7 @@ perfetto_unittest_source_set("unittests") {
     "system_info:unittests",
     "user_list:unittests",
   ]
+  if (enable_perfetto_journald) {
+    deps += [ "journald:unittests" ]
+  }
 }
