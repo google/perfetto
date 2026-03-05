@@ -50,6 +50,7 @@ import "protos/perfetto/trace/chrome/chrome_trace_event.proto";
 import "protos/perfetto/trace/chrome/chrome_trigger.proto";
 import "protos/perfetto/trace/chrome/v8.proto";
 import "protos/perfetto/trace/clock_snapshot.proto";
+import "protos/perfetto/trace/linux/journald_event.proto";
 import "protos/perfetto/trace/etw/etw_event_bundle.proto";
 import "protos/perfetto/trace/evdev.proto";
 import "protos/perfetto/trace/filesystem/inode_file_map.proto";
@@ -116,7 +117,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 128.
+// Next id: 129.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -293,6 +294,8 @@ message TracePacket {
     EvdevEvent evdev_event = 121;
 
     AndroidUserList user_list = 123;
+
+    JournaldEventPacket journald_event = 128;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

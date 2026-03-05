@@ -1,0 +1,80 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// A batch of journald log events, collected from the Linux systemd journal.
+// Emitted by the "linux.journald" data source in traced_probes.
+// Next field id: 3
+message JournaldEventPacket {
+  // A single journald log entry.
+  // Next field id: 15
+  message JournaldEvent {
+    // __REALTIME_TIMESTAMP: wall-clock time in microseconds since epoch.
+    optional uint64 timestamp_us = 1;
+
+    // _PID: PID of the process that wrote the log entry (trusted).
+    optional uint32 pid = 2;
+
+    // TID: thread ID (user-supplied, may be absent).
+    optional uint32 tid = 3;
+
+    // _UID: user ID of the process (trusted).
+    optional uint32 uid = 4;
+
+    // _GID: group ID of the process (trusted).
+    optional uint32 gid = 5;
+
+    // PRIORITY: syslog priority level 0 (EMERG) .. 7 (DEBUG).
+    optional uint32 prio = 6;
+
+    // SYSLOG_IDENTIFIER: program name / tag, set by the logging application.
+    optional string tag = 7;
+
+    // MESSAGE: the human-readable log message text.
+    optional string message = 8;
+
+    // _COMM: short process name as known to the kernel (trusted).
+    optional string comm = 9;
+
+    // _EXE: full executable path (trusted).
+    optional string exe = 10;
+
+    // _SYSTEMD_UNIT: the systemd unit that owns this process (trusted).
+    optional string systemd_unit = 11;
+
+    // _HOSTNAME: hostname of the machine (trusted).
+    optional string hostname = 12;
+
+    // _TRANSPORT: how the entry was received by journald (trusted).
+    // Values: "audit", "driver", "syslog", "journal", "stdout", "kernel".
+    optional string transport = 13;
+
+    // __MONOTONIC_TIMESTAMP: monotonic time in microseconds since boot.
+    optional uint64 monotonic_ts_us = 14;
+  }
+
+  repeated JournaldEvent events = 1;
+
+  // Emitted once on Flush() to report collection statistics.
+  // Next field id: 4
+  message Stats {
+    optional uint64 num_total = 1;
+    optional uint64 num_failed = 2;
+    optional uint64 num_skipped = 3;
+  }
+  optional Stats stats = 2;
+}
