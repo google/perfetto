@@ -17,6 +17,24 @@ import {HTMLInputAttrs} from './common';
 
 export class Select implements m.ClassComponent<HTMLInputAttrs> {
   view({attrs, children}: m.CVnode<HTMLInputAttrs>) {
-    return m('select.pf-select', attrs, children);
+    return m(
+      'label.pf-select',
+      m('select.pf-select__input', attrs, children),
+      m(
+        'svg.pf-select__chevron',
+        {
+          viewBox: '0 0 12 12',
+          fill: 'none',
+          xmlns: 'http://www.w3.org/2000/svg',
+        },
+        m('path', {
+          'd': 'M3 5L6 8L9 5',
+          'stroke': 'currentColor',
+          'stroke-width': '1.5',
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+        }),
+      ),
+    );
   }
 }

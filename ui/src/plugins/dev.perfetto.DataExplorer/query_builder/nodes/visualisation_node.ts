@@ -459,7 +459,6 @@ export class VisualisationNode implements QueryNode {
                     key: `filter-${i}`,
                     label: formatFilterValue(filter),
                     compact: true,
-                    rounded: true,
                     removable: true,
                     onRemove: () => {
                       // Find the index in the full filters array

@@ -174,6 +174,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
             {
               trigger: m(Button, {
                 icon: 'restore',
+                variant: ButtonVariant.Filled,
                 label: 'Restore Defaults',
               }),
             },

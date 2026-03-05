@@ -301,7 +301,7 @@ export class TimeRangeSourceNode implements QueryNode {
           m(Button, {
             label: 'Update from Timeline',
             onclick: () => this.updateFromSelection(),
-            variant: ButtonVariant.Outlined,
+            variant: ButtonVariant.Minimal,
           }),
       ),
     });

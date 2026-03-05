@@ -37,8 +37,6 @@ export interface ChipAttrs extends HTMLAttrs {
   // Indicate chip colouring by intent.
   // Defaults to undefined aka "None"
   readonly intent?: Intent;
-  // Turns the chip into a pill shape.
-  readonly rounded?: boolean;
   // If true, shows a little cross on the right hand side.
   readonly removable?: boolean;
   // Called when the little cross is pressed (only applicable when removable is
@@ -56,7 +54,6 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
       className,
       iconFilled,
       intent = Intent.None,
-      rounded,
       removable,
       onRemove,
       label,
@@ -68,7 +65,6 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
       compact && 'pf-compact',
       classForIntent(intent),
       className,
-      rounded && 'pf-chip--rounded',
     );
 
     return m(
@@ -87,7 +83,6 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
       removable &&
         m(Button, {
           compact: true,
-          rounded,
           icon: 'close',
           title: removeButtonTitle ?? 'Remove',
           onclick: () => onRemove?.(),

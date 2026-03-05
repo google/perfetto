@@ -25,6 +25,7 @@ import {cardStack} from './demos/cardstack_demo';
 import {renderCheckbox} from './demos/checkbox_demo';
 import {renderChip} from './demos/chip_demo';
 import {renderCodeSnippet} from './demos/code_snippet_demo';
+import {renderControlGroup} from './demos/control_group_demo';
 import {renderCopyableLink} from './demos/copyable_link_demo';
 import {cursorTooltip} from './demos/cursor_tooltip_demo';
 import {renderDataGrid} from './demos/datagrid_demo';
@@ -79,6 +80,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'checkbox', label: 'Checkbox', view: renderCheckbox},
   {id: 'chip', label: 'Chip', view: renderChip},
   {id: 'codesnippet', label: 'CodeSnippet', view: renderCodeSnippet},
+  {id: 'control-group', label: 'ControlGroup', view: renderControlGroup},
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
   {id: 'datagrid', label: 'DataGrid', view: renderDataGrid},

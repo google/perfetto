@@ -197,7 +197,7 @@ export class FilterNode implements QueryNode {
         content: m(Button, {
           label: 'Edit WHERE clause',
           icon: 'edit',
-          variant: ButtonVariant.Outlined,
+          variant: ButtonVariant.Minimal,
           onclick: () => this.showSqlExpressionModal(),
         }),
       });

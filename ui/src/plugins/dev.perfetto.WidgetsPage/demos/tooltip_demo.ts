@@ -18,17 +18,6 @@ import {PopupPosition} from '../../../widgets/popup';
 import {Tooltip} from '../../../widgets/tooltip';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 
-function lorem() {
-  const text = `Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
-      tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
-      veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
-      commodo consequat.Duis aute irure dolor in reprehenderit in voluptate
-      velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat
-      cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id
-      est laborum.`;
-  return m('', {style: {width: '200px'}}, text);
-}
-
 export function renderTooltip(): m.Children {
   return [
     m(
@@ -47,7 +36,7 @@ export function renderTooltip(): m.Children {
             trigger: m(Icon, {icon: 'Warning'}),
             ...rest,
           },
-          lorem(),
+          'Tooltip content',
         ),
       initialOpts: {
         position: new EnumOption(

@@ -133,6 +133,7 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
                   icon: 'restore',
                   disabled: !anyNonDefaults,
                   label: 'Restore Defaults',
+                  variant: ButtonVariant.Filled,
                   title: anyNonDefaults
                     ? 'Restore all plugins to their default enabled/disabled state'
                     : 'All plugins are in their default state',

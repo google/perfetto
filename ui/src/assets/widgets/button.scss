@@ -24,7 +24,8 @@
 
   &:active,
   &.pf-active {
-    background: color_active($intent-color);
+    background: color-mix(in srgb, $intent-color, currentColor -8%);
+    box-shadow: none;
   }
 
   &[disabled] {
@@ -50,13 +51,16 @@
 
 .pf-button {
   font-family: var(--pf-font-compact);
-  line-height: 1;
+  // line-height: 1;
   user-select: none;
-  border-radius: $border-radius;
-  padding: 4px 8px;
+  border-radius: 3px;
+  padding: 2px 8px;
   white-space: nowrap;
   min-width: max-content;
   position: relative;
+
+  display: inline-flex;
+  align-items: baseline;
 
   &--loading {
     // The button is unclickable when loading
@@ -90,16 +94,14 @@
     overflow: hidden;
   }
 
-  &--rounded {
-    border-radius: 100px;
-  }
-
   & > .pf-left-icon {
     margin-right: 6px; // Make some room between the icon and label
+    align-self: center;
   }
 
   & > .pf-right-icon {
     margin-left: 6px; // Make some room between the icon and label
+    align-self: center;
   }
 
   &__tooltip {
@@ -128,7 +130,7 @@
       margin: 0;
     }
 
-    padding: 4px;
+    padding: 3px;
 
     &.pf-compact {
       padding: 0;
@@ -148,46 +150,16 @@
 
   // From here on in we just describe the colors
   &--filled {
-    background: color-mix(
-      in srgb,
-      transparent,
-      var(--pf-color-interactive-base) 10%
+    background: var(--pf-color-background-controls);
+    box-shadow:
+      var(--pf-color-control-highlight) 0px 1px 0px inset,
+      var(--pf-color-control-shadow) 0px -1px 0px inset;
+    border: solid 1px var(--pf-color-border-controls);
+
+    @include filled-color-scheme(
+      var(--pf-color-background-controls),
+      var(--pf-color-text)
     );
-
-    &:hover {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 15%
-      );
-    }
-
-    &.pf-active,
-    &:active {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 20%
-      );
-    }
-
-    &[disabled] {
-      &:hover {
-        background: color-mix(
-          in srgb,
-          transparent,
-          var(--pf-color-interactive-base) 10%
-        ); // Reset to the default background
-      }
-
-      &.pf-active {
-        background: color-mix(
-          in srgb,
-          transparent,
-          var(--pf-color-interactive-base) 40%
-        );
-      }
-    }
 
     &.pf-intent-primary {
       @include filled-color-scheme(
@@ -218,12 +190,7 @@
     }
   }
 
-  &--outlined {
-    border: solid 1px var(--pf-color-border);
-  }
-
-  &--minimal,
-  &--outlined {
+  &--minimal {
     &:hover {
       background: color_hover(transparent);
     }

@@ -96,7 +96,6 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
           rightIcon: 'arrow_drop_down',
           icon: 'check',
           compact: true,
-          rounded: true,
           label: `${selection.tracks.length} ${selection.tracks.length === 1 ? 'track' : 'tracks'}`,
           variant: ButtonVariant.Filled,
           intent: Intent.Primary,

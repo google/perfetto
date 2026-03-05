@@ -58,7 +58,6 @@ export function RoundActionButton(attrs: RoundActionButtonAttrs) {
     onclick: attrs.onclick,
     disabled: attrs.disabled,
     variant: ButtonVariant.Filled,
-    rounded: true,
     iconFilled: true,
     intent: Intent.Primary,
     className: classNames('pf-qb-round-action-button', attrs.className),
@@ -175,7 +174,7 @@ export class ButtonGroup implements m.ClassComponent<ButtonGroupAttrs> {
       buttons.map((btn) =>
         m(Button, {
           label: btn.label,
-          variant: btn.variant ?? ButtonVariant.Outlined,
+          variant: btn.variant ?? ButtonVariant.Minimal,
           onclick: btn.onclick,
         }),
       ),
@@ -268,14 +267,14 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
               label: action.label,
               icon: action.icon,
               title: action.title,
-              variant: ButtonVariant.Outlined,
+              variant: ButtonVariant.Minimal,
               compact: true,
               onclick: action.onclick,
             }
           : {
               icon: action.icon ?? 'help',
               title: action.title,
-              variant: ButtonVariant.Outlined,
+              variant: ButtonVariant.Minimal,
               compact: true,
               onclick: action.onclick,
             };
@@ -317,7 +316,7 @@ export class ActionButtons implements m.ClassComponent<ActionButtonsAttrs> {
         m(Button, {
           label: btn.active ? `${btn.label} ✓` : btn.label,
           icon: btn.icon,
-          variant: ButtonVariant.Outlined,
+          variant: ButtonVariant.Minimal,
           onclick: btn.onclick,
         }),
       ),
@@ -581,7 +580,7 @@ export function ActionButtonRow(attrs: ActionButtonRowAttrs): m.Child {
         label: btn.label,
         icon: btn.icon,
         onclick: btn.onclick,
-        variant: btn.variant ?? ButtonVariant.Outlined,
+        variant: btn.variant ?? ButtonVariant.Minimal,
         disabled: btn.disabled,
       }),
     ),
@@ -737,7 +736,6 @@ export interface OutlinedMultiSelectAttrs {
   options: MultiSelectOption[];
   onChange: (diffs: MultiSelectDiff[]) => void;
   showNumSelected?: boolean;
-  repeatCheckedItemsAtTop?: boolean;
   compact?: boolean;
 }
 
@@ -958,13 +956,13 @@ export class SelectDeselectAllButtons
       m(Button, {
         label: 'Select All',
         onclick: onSelectAll,
-        variant: ButtonVariant.Outlined,
+        variant: ButtonVariant.Minimal,
         compact: true,
       }),
       m(Button, {
         label: 'Deselect All',
         onclick: onDeselectAll,
-        variant: ButtonVariant.Outlined,
+        variant: ButtonVariant.Minimal,
         compact: true,
       }),
     );
