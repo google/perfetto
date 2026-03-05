@@ -153,7 +153,14 @@ export class RelatedEventsFetcher {
   // Trigger a load for a specific event ID.
   // The provided callback is only executed if this request is still the latest one
   // when the promise resolves.
-  load(id: number, uiCallback: (data: RelatedEventData) => void) {
+  load(
+    id: number,
+    uiCallback: (data: RelatedEventData) => void | Promise<void>,
+  ) {
+    if (this.currentId === id && this.loading) {
+      return;
+    }
+
     this.currentId = id;
     this.loading = true;
 
@@ -169,7 +176,7 @@ export class RelatedEventsFetcher {
 
         // Ensure another request hasn't superseded us while we were fetching.
         if (this.currentId === id) {
-          uiCallback(data);
+          await uiCallback(data);
         }
       } catch (e) {
         console.error('Error fetching related events data:', e);
