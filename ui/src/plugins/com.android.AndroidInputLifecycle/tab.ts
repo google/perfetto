@@ -13,15 +13,19 @@
 // limitations under the License.
 
 import m from 'mithril';
+
 import {GridColumn, GridHeaderCell, Grid, GridCell} from '../../widgets/grid';
 import {AndroidInputEventSource} from './android_input_event_source';
 import {
   getTrackUriForTrackId,
   TrackPinningManager,
+  enrichDepths,
 } from '../../components/related_events/utils';
 import {
   NavTarget,
   RelatedEventData,
+  RelatedEvent,
+  Relation,
 } from '../../components/related_events/interface';
 import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
@@ -96,9 +100,14 @@ export class AndroidInputLifecycleTab implements Tab {
     );
   }
 
-  private onSelectionHide() {
+  onHide() {
+    this.currentSelectionId = undefined;
     this.rows = [];
     this.visibleRowIds.clear();
+
+    if (this.onRelatedEventsLoaded) {
+      this.onRelatedEventsLoaded({events: [], relations: []});
+    }
   }
 
   getTitle() {
@@ -111,19 +120,20 @@ export class AndroidInputLifecycleTab implements Tab {
     if (selection.eventId === this.currentSelectionId) return;
 
     this.currentSelectionId = selection.eventId;
-    this.onSelectionHide(); // clear old data
+    this.rows = [];
+    this.visibleRowIds.clear();
 
-    this.dataFetcher.load(selection.eventId, (data) => {
-      this.buildData(data);
+    this.dataFetcher.load(selection.eventId, async (data) => {
+      this.buildData(data, selection.eventId);
       this.pinningManager.applyPinning(this.trace);
-      if (this.onRelatedEventsLoaded) {
-        this.onRelatedEventsLoaded(data);
-      }
+      await this.updateOverlay();
     });
   }
 
-  private buildData(data: RelatedEventData) {
+  private buildData(data: RelatedEventData, clickedEventId: number) {
     let index = 0;
+    let rowToHighlight: string | undefined;
+
     for (const event of data.events) {
       if (event.type === 'InputLifecycle') {
         const args = event.customArgs as InputLifecycleArgs | undefined;
@@ -151,9 +161,24 @@ export class AndroidInputLifecycleTab implements Tab {
             allTrackIds,
             allTrackUris,
           });
-          this.visibleRowIds.add(uniqueId);
+
+          const matchesClickedEvent = [
+            args.reader?.nav.id,
+            args.dispatcher?.nav.id,
+            args.receiver?.nav.id,
+            args.consumer?.nav.id,
+            args.frame?.nav.id,
+          ].includes(clickedEventId);
+
+          if (matchesClickedEvent && rowToHighlight === undefined) {
+            rowToHighlight = uniqueId;
+          }
         }
       }
+    }
+
+    if (rowToHighlight) {
+      this.visibleRowIds.add(rowToHighlight);
     }
   }
 
@@ -170,16 +195,74 @@ export class AndroidInputLifecycleTab implements Tab {
   }
 
   private toggleVisibility(rowId: string) {
-    if (this.visibleRowIds.has(rowId)) this.visibleRowIds.delete(rowId);
-    else this.visibleRowIds.add(rowId);
+    if (this.visibleRowIds.has(rowId)) {
+      this.visibleRowIds.delete(rowId);
+    } else {
+      this.visibleRowIds.add(rowId);
+    }
+    this.updateOverlay();
   }
 
   private toggleAllVisibility() {
     const allVisible = this.rows.every((r) =>
       this.visibleRowIds.has(r.uiRowId),
     );
-    if (allVisible) this.visibleRowIds.clear();
-    else this.rows.forEach((r) => this.visibleRowIds.add(r.uiRowId));
+    if (allVisible) {
+      this.visibleRowIds.clear();
+    } else {
+      this.rows.forEach((r) => this.visibleRowIds.add(r.uiRowId));
+    }
+    this.updateOverlay();
+  }
+
+  private async updateOverlay() {
+    if (!this.onRelatedEventsLoaded) return;
+
+    const events: RelatedEvent[] = [];
+    const relations: Relation[] = [];
+
+    const visibleRows = this.rows.filter((r) =>
+      this.visibleRowIds.has(r.uiRowId),
+    );
+
+    for (const row of visibleRows) {
+      const steps = [
+        row.navReader,
+        row.navDispatch,
+        row.navReceive,
+        row.navConsume,
+        row.navFrame,
+      ];
+      const presentSteps = steps.filter((s): s is NavTarget => s !== undefined);
+
+      for (let i = 0; i < presentSteps.length; i++) {
+        const step = presentSteps[i];
+        events.push({
+          id: step.id,
+          ts: step.ts,
+          dur: step.dur,
+          trackUri: step.trackUri,
+          type: 'lifecycle_step',
+          depth: step.depth,
+        });
+      }
+      for (let i = 0; i < presentSteps.length - 1; i++) {
+        const start = presentSteps[i];
+        const end = presentSteps[i + 1];
+        relations.push({
+          sourceId: start.id,
+          targetId: end.id,
+          type: 'lifecycle_step',
+        });
+      }
+    }
+
+    await enrichDepths(this.trace, events);
+
+    this.onRelatedEventsLoaded({
+      events,
+      relations,
+    });
   }
 
   private togglePinning(row: InputChainRow) {
