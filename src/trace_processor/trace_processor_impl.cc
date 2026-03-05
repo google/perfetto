@@ -1473,8 +1473,12 @@ base::Status TraceProcessorImpl::CreateSummarizer(
         kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
   }
 
-  *out = std::make_unique<summary::SummarizerImpl>(this,
-                                                   &metrics_descriptor_pool_);
+  // Auto-generate a unique id for table namespacing. The id is embedded in
+  // SQL table names (e.g. "_exp_mat_{id}_{seq}") to prevent collisions
+  // between multiple summarizer instances.
+  std::string id = std::to_string(next_summarizer_id_++);
+  *out = std::make_unique<summary::SummarizerImpl>(
+      this, &metrics_descriptor_pool_, std::move(id));
   return base::OkStatus();
 }
 
