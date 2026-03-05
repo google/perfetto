@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {TextInput} from '../widgets/text_input';
 import {SettingsShell, SettingsCard} from '../widgets/settings_shell';
 import {bigTraceSettingsManager} from './bigtrace_settings_manager';
 import {Setting} from '../public/settings';
@@ -50,13 +51,12 @@ export class BigTraceSettingsPage implements m.ClassComponent {
   private renderSettingControl(setting: Setting<unknown>) {
     const currentValue = setting.get();
     if (setting.schema instanceof z.ZodNumber) {
-        return m('input.pf-text-input[type=number]', {
+        return m(TextInput as any, {
             value: currentValue,
-            onchange: (e: Event) => {
-                const newLimit = parseInt(
-                    (e.target as HTMLInputElement).value,
-                    10,
-                );
+            min: 0,
+            max: 10000000,
+            onchange: (value: string) => {
+                const newLimit = parseInt(value, 10);
                 if (!isNaN(newLimit) && newLimit > 0) {
                     setting.set(newLimit);
                 }

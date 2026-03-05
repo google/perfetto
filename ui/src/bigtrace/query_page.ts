@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {Trace} from '../public/trace';
 import {Button, ButtonVariant} from '../widgets/button';
+import {TextInput} from '../widgets/text_input';
 import {Editor} from '../widgets/editor';
 import {DataGrid, renderCell} from '../components/widgets/datagrid/datagrid';
 import {SchemaRegistry, ColumnSchema, CellRenderer} from '../components/widgets/datagrid/datagrid_schema';
@@ -210,17 +211,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               m(StackAuto),
               this.useBrushBackend && [
                 m('span', 'Result limit:'),
-                m('input.pf-text-input[type=number]', {
+                m(TextInput as any, {
+                    type: 'number',
                     value: this.limit,
                     placeholder: 'Limit',
-                    style: {
-                        width: '100px',
-                    },
-                    onchange: (e: Event) => {
-                        const newLimit = parseInt(
-                            (e.target as HTMLInputElement).value,
-                            10,
-                        );
+                    onchange: (value: string) => {
+                        const newLimit = parseInt(value, 10);
                         if (!isNaN(newLimit) && newLimit > 0) {
                             this.limit = newLimit;
                         }
