@@ -266,7 +266,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         '.pf-query-page',
         m(SplitPanel, {
             direction: 'vertical',
-            initialSplit: {percent: 50},
+            initialSplit: {percent: 35},
             minSize: 100,
             firstPanel: editorPanel,
             secondPanel: resultsPanel,
