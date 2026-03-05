@@ -86,6 +86,7 @@ action("gen_buildflags") {
     "PERFETTO_WATCHDOG=$perfetto_watchdog",
     "PERFETTO_COMPONENT_BUILD=$perfetto_component_build",
     "PERFETTO_ENABLE_ETM_IMPORTER=$enable_perfetto_etm_importer",
+    "PERFETTO_ENABLE_JOURNALD=$enable_perfetto_journald",
     "PERFETTO_LLVM_SYMBOLIZER=$enable_perfetto_llvm_symbolizer",
     "PERFETTO_FORCE_DLOG_ON=$perfetto_force_dlog_on",
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
@@ -252,6 +253,19 @@ config("system_protoc") {
 # this is a no-op if |perfetto_use_pkgconfig| is false.
 pkg_config("pkgconfig_protobuf") {
   pkg_deps = [ "protobuf" ]
+}
+
+pkg_config("pkgconfig_libsystemd") {
+  pkg_deps = [ "libsystemd" ]
+}
+
+config("system_libsystemd") {
+  if (perfetto_use_pkgconfig) {
+    configs = [ ":pkgconfig_libsystemd" ]
+  } else {
+    # Fallback if pkg-config isn't enabled.
+    libs = [ "systemd" ]  # This will link against libsystemd.so
+  }
 }
 
 config("system_protobuf") {
