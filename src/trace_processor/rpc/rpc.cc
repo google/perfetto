@@ -381,7 +381,8 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         result->set_error("Summarizer already exists: " + summarizer_id);
       } else {
         std::unique_ptr<Summarizer> summarizer;
-        base::Status status = trace_processor_->CreateSummarizer(&summarizer);
+        base::Status status =
+            trace_processor_->CreateSummarizer(summarizer_id, &summarizer);
         if (!status.ok()) {
           result->set_error(status.message());
         } else {

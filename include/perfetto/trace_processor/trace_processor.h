@@ -249,7 +249,8 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // EXPERIMENTAL: Creates a new Summarizer instance for managing lazy
   // materialization of structured queries. On success, |out| is populated with
   // the new instance and ownership is transferred to the caller.
-  virtual base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) = 0;
+  virtual base::Status CreateSummarizer(const std::string& id,
+                                        std::unique_ptr<Summarizer>* out) = 0;
 };
 
 }  // namespace perfetto::trace_processor

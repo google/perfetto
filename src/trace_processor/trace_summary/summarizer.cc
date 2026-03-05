@@ -212,8 +212,9 @@ void ExtractInnerQueryIds(const uint8_t* data,
 }  // namespace
 
 SummarizerImpl::SummarizerImpl(TraceProcessor* tp,
-                               DescriptorPool* descriptor_pool)
-    : tp_(tp), descriptor_pool_(descriptor_pool) {}
+                               DescriptorPool* descriptor_pool,
+                               std::string id)
+    : tp_(tp), descriptor_pool_(descriptor_pool), id_(std::move(id)) {}
 
 SummarizerImpl::~SummarizerImpl() {
   DropAll();
@@ -492,8 +493,10 @@ base::Status SummarizerImpl::MaterializeQuery(
   // GenerateStandaloneSql(). This avoids O(N²) work during batch
   // materialization since each call would otherwise iterate all queries.
 
-  // Generate a new table name.
-  std::string table_name = "_exp_mat_" + std::to_string(next_table_id_++);
+  // Generate a new table name. Include the summarizer id so that multiple
+  // summarizer instances can coexist without table name collisions.
+  std::string table_name =
+      "_exp_mat_" + id_ + "_" + std::to_string(next_table_id_++);
 
   // Track timing for materialization.
   auto start_time = base::GetWallTimeNs();
@@ -621,6 +624,15 @@ void SummarizerImpl::DropAll() {
       while (drop_it.Next()) {
       }
       // Ignore errors during drop.
+    }
+    // Also drop old tables that haven't been cleaned up yet (e.g., if
+    // UpdateSpec() marked a query for re-materialization but Query() was
+    // never called to complete the swap).
+    if (!it.value().old_table_name.empty()) {
+      auto drop_it = tp_->ExecuteQuery("DROP TABLE IF EXISTS " +
+                                       it.value().old_table_name);
+      while (drop_it.Next()) {
+      }
     }
   }
   query_states_.Clear();

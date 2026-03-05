@@ -135,7 +135,8 @@ class TraceProcessorImpl : public TraceProcessor,
   // |   Summarizer    |
   // ===================
 
-  base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
+  base::Status CreateSummarizer(const std::string& id,
+                                std::unique_ptr<Summarizer>* out) override;
 
  private:
   // Needed for iterators to be able to access the context.
