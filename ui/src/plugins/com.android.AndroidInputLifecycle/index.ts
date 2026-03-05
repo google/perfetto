@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import {RelatedEventData} from '../../components/related_events/interface';
 import {RelatedEventsOverlay} from '../../components/related_events/related_events_overlay';
 import {TrackPinningManager} from '../../components/related_events/utils';
-import {RelatedEventData} from '../../components/related_events/interface';
+import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
+
 import {AndroidInputEventSource} from './android_input_event_source';
 import {AndroidInputLifecycleTab} from './tab';
 
@@ -49,6 +50,9 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
       uri: 'com.android.AndroidInputLifecycleTab',
       isEphemeral: false,
       content: tab,
+      onHide() {
+        overlay.update({events: [], relations: []});
+      },
     });
 
     trace.commands.registerCommand({

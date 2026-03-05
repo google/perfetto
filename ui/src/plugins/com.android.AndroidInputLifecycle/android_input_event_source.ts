@@ -21,10 +21,7 @@ import {
 } from '../../components/related_events/interface';
 import {LONG_NULL, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {time, duration, Time} from '../../base/time';
-import {
-  getTrackUriForTrackId,
-  enrichDepths,
-} from '../../components/related_events/utils';
+import {getTrackUriForTrackId} from '../../components/related_events/utils';
 
 export class AndroidInputEventSource {
   constructor(private trace: Trace) {}
@@ -71,110 +68,98 @@ export class AndroidInputEventSource {
       return {events: [], relations: []};
     }
 
-    const channel = it.channel;
-    const totalLatency = it.total_latency !== null ? it.total_latency : null;
+    while (it.valid()) {
+      const channel = it.channel;
+      const totalLatency = it.total_latency !== null ? it.total_latency : null;
 
-    const stages: (RelatedEvent | undefined)[] = [
-      this.parseStage(
-        'InputReader',
-        channel,
-        totalLatency,
-        it.id_reader,
-        it.ts_reader,
-        it.dur_reader,
-        it.track_reader,
-      ),
-      this.parseStage(
-        'InputDispatcher',
-        channel,
-        totalLatency,
-        it.id_dispatch,
-        it.ts_dispatch,
-        it.dur_dispatch,
-        it.track_dispatch,
-      ),
-      this.parseStage(
-        'AppReceive',
-        channel,
-        totalLatency,
-        it.id_receive,
-        it.ts_receive,
-        it.dur_receive,
-        it.track_receive,
-      ),
-      this.parseStage(
-        'AppConsume',
-        channel,
-        totalLatency,
-        it.id_consume,
-        it.ts_consume,
-        it.dur_consume,
-        it.track_consume,
-      ),
-      this.parseStage(
-        'AppFrame',
-        channel,
-        totalLatency,
-        it.id_frame,
-        it.ts_frame,
-        it.dur_frame,
-        it.track_frame,
-      ),
-    ];
+      const stages: (RelatedEvent | undefined)[] = [
+        this.parseStage(
+          'InputReader',
+          channel,
+          totalLatency,
+          it.id_reader,
+          it.ts_reader,
+          it.dur_reader,
+          it.track_reader,
+        ),
+        this.parseStage(
+          'InputDispatcher',
+          channel,
+          totalLatency,
+          it.id_dispatch,
+          it.ts_dispatch,
+          it.dur_dispatch,
+          it.track_dispatch,
+        ),
+        this.parseStage(
+          'AppReceive',
+          channel,
+          totalLatency,
+          it.id_receive,
+          it.ts_receive,
+          it.dur_receive,
+          it.track_receive,
+        ),
+        this.parseStage(
+          'AppConsume',
+          channel,
+          totalLatency,
+          it.id_consume,
+          it.ts_consume,
+          it.dur_consume,
+          it.track_consume,
+        ),
+        this.parseStage(
+          'AppFrame',
+          channel,
+          totalLatency,
+          it.id_frame,
+          it.ts_frame,
+          it.dur_frame,
+          it.track_frame,
+        ),
+      ];
 
-    const [readerEvent, dispatchEvent, receiveEvent, consumeEvent, frameEvent] =
-      stages;
+      const [
+        readerEvent,
+        dispatchEvent,
+        receiveEvent,
+        consumeEvent,
+        frameEvent,
+      ] = stages;
 
-    const overlayEvents = stages.filter(
-      (e): e is RelatedEvent => e !== undefined,
-    );
-    const overlayRelations: Relation[] = [];
+      const tabEvent: RelatedEvent = {
+        id: eventId,
+        ts: (readerEvent?.ts ??
+          dispatchEvent?.ts ??
+          receiveEvent?.ts ??
+          0n) as time,
+        dur: totalLatency ?? 0n,
+        trackUri: '',
+        type: 'InputLifecycle',
+        customArgs: {
+          channel,
+          totalLatency,
+          reader: this.createStageArgs(readerEvent),
+          dispatcher: this.createStageArgs(dispatchEvent, readerEvent),
+          receiver: this.createStageArgs(receiveEvent, dispatchEvent),
+          consumer: this.createStageArgs(consumeEvent, receiveEvent),
+          frame: this.createStageArgs(frameEvent, consumeEvent),
+          allTrackIds: [
+            it.track_reader,
+            it.track_dispatch,
+            it.track_receive,
+            it.track_consume,
+            it.track_frame,
+          ].filter((t) => t !== null) as number[],
+        },
+      };
 
-    for (let i = 0; i < stages.length - 1; i++) {
-      const source = stages[i];
-      const target = stages[i + 1];
-      if (source && target) {
-        overlayRelations.push({
-          sourceId: source.id,
-          targetId: target.id,
-          type: 'lifecycle_step',
-        });
-      }
+      events.push(tabEvent);
+      it.next();
     }
 
-    await enrichDepths(this.trace, overlayEvents);
-
-    // This is for the tab view, which shows a single row per channel
-    const tabEvent: RelatedEvent = {
-      id: eventId,
-      ts: (readerEvent?.ts ??
-        dispatchEvent?.ts ??
-        receiveEvent?.ts ??
-        0n) as time,
-      dur: totalLatency ?? 0n,
-      trackUri: '',
-      type: 'InputLifecycle',
-      customArgs: {
-        channel,
-        totalLatency,
-        reader: this.createStageArgs(readerEvent),
-        dispatcher: this.createStageArgs(dispatchEvent, readerEvent),
-        receiver: this.createStageArgs(receiveEvent, dispatchEvent),
-        consumer: this.createStageArgs(consumeEvent, receiveEvent),
-        frame: this.createStageArgs(frameEvent, consumeEvent),
-        allTrackIds: [
-          it.track_reader,
-          it.track_dispatch,
-          it.track_receive,
-          it.track_consume,
-          it.track_frame,
-        ].filter((t) => t !== null) as number[],
-      },
-    };
-
-    events.push(tabEvent);
-
-    return {events, relations, overlayEvents, overlayRelations};
+    return {events, relations};
   }
 
   private parseStage(

@@ -34,10 +34,6 @@ export class RelatedEventsOverlay implements Overlay {
     _size: Size2D,
     tracks: ReadonlyArray<TrackBounds>,
   ): void {
-    const overlayData: RelatedEventData = {
-      events: this.data.overlayEvents || [],
-      relations: this.data.overlayRelations || [],
-    };
-    drawRelatedEvents(ctx, this.trace, ts, tracks, overlayData);
+    drawRelatedEvents(ctx, this.trace, ts, tracks, this.data);
   }
 }
