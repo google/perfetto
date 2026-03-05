@@ -1464,20 +1464,7 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
 // =================================================================
 
 base::Status TraceProcessorImpl::CreateSummarizer(
-    const std::string& id,
     std::unique_ptr<Summarizer>* out) {
-  // The id is embedded in SQL table names (e.g. "_exp_mat_{id}_{seq}"),
-  // so it must only contain characters valid in SQL identifiers.
-  if (id.empty() || !std::all_of(id.begin(), id.end(), [](char c) {
-        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
-               (c >= 'A' && c <= 'Z') || c == '_';
-      })) {
-    return base::ErrStatus(
-        "Invalid summarizer id '%s': must be non-empty and contain only "
-        "alphanumeric characters or underscores",
-        id.c_str());
-  }
-
   // Lazily initialize the descriptor pool for textproto generation.
   auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(
       ".perfetto.protos.TraceSummarySpec");
@@ -1486,8 +1473,12 @@ base::Status TraceProcessorImpl::CreateSummarizer(
         kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
   }
 
+  // Auto-generate a unique id for table namespacing. The id is embedded in
+  // SQL table names (e.g. "_exp_mat_{id}_{seq}") to prevent collisions
+  // between multiple summarizer instances.
+  std::string id = std::to_string(next_summarizer_id_++);
   *out = std::make_unique<summary::SummarizerImpl>(
-      this, &metrics_descriptor_pool_, id);
+      this, &metrics_descriptor_pool_, std::move(id));
   return base::OkStatus();
 }
 

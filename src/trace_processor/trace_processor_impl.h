@@ -135,8 +135,7 @@ class TraceProcessorImpl : public TraceProcessor,
   // |   Summarizer    |
   // ===================
 
-  base::Status CreateSummarizer(const std::string& id,
-                                std::unique_ptr<Summarizer>* out) override;
+  base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
  private:
   // Needed for iterators to be able to access the context.
@@ -203,6 +202,9 @@ class TraceProcessorImpl : public TraceProcessor,
   // Tracks the sum of mutations across all tables used by
   // CacheBoundsAndBuildTable to avoid recomputing bounds when unchanged.
   uint64_t bounds_tables_mutations_ = 0;
+
+  // Auto-incrementing counter for generating unique summarizer ids.
+  uint32_t next_summarizer_id_ = 0;
 };
 
 }  // namespace perfetto::trace_processor

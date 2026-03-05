@@ -31,7 +31,6 @@
 namespace perfetto::trace_processor::summary {
 namespace {
 
-using base::gtest_matchers::IsError;
 using ::testing::HasSubstr;
 // Import public types from parent namespace.
 using ::perfetto::trace_processor::Summarizer;
@@ -623,28 +622,14 @@ TEST_F(SummarizerTest, NestedEmbeddedQueryDependencyPropagation) {
   EXPECT_EQ(info_c2.row_count, 1);
 }
 
-TEST_F(SummarizerTest, CreateSummarizerRejectsInvalidId) {
-  // Ids are used in SQL table names, so only alphanumeric + underscore are
-  // allowed.
-  std::unique_ptr<Summarizer> summarizer;
-  EXPECT_THAT(tp_->CreateSummarizer("abc-def", &summarizer), IsError());
-  EXPECT_THAT(tp_->CreateSummarizer("", &summarizer), IsError());
-  EXPECT_THAT(tp_->CreateSummarizer("has spaces", &summarizer), IsError());
-  EXPECT_THAT(tp_->CreateSummarizer("semi;colon", &summarizer), IsError());
-
-  // Valid ids should be accepted, including digit-only ids.
-  EXPECT_OK(tp_->CreateSummarizer("valid_id_123", &summarizer));
-  EXPECT_OK(tp_->CreateSummarizer("ABCdef09_", &summarizer));
-  EXPECT_OK(tp_->CreateSummarizer("123", &summarizer));
-}
-
 TEST_F(SummarizerTest, MultipleSummarizersCoexist) {
-  // Two summarizers with different ids should be able to materialize the same
-  // query without table name collisions.
+  // Two summarizers created via the public API should be able to materialize
+  // the same query without table name collisions. The ids are auto-generated
+  // internally by TraceProcessor.
   std::unique_ptr<Summarizer> s1;
   std::unique_ptr<Summarizer> s2;
-  ASSERT_OK(tp_->CreateSummarizer("alpha", &s1));
-  ASSERT_OK(tp_->CreateSummarizer("beta", &s2));
+  ASSERT_OK(tp_->CreateSummarizer(&s1));
+  ASSERT_OK(tp_->CreateSummarizer(&s2));
 
   auto spec_data = CreateSpec({{"q", "SELECT 1 as value"}});
 
@@ -666,14 +651,13 @@ TEST_F(SummarizerTest, MultipleSummarizersCoexist) {
   ASSERT_OK(s2->Query("q", &info2));
   ASSERT_TRUE(info2.exists);
 
-  // Table names must differ (namespaced by summarizer id).
+  // Table names must differ (namespaced by auto-generated summarizer id).
   EXPECT_NE(info1.table_name, info2.table_name);
-  EXPECT_THAT(info1.table_name, HasSubstr("alpha"));
-  EXPECT_THAT(info2.table_name, HasSubstr("beta"));
 }
 
 TEST_F(SummarizerTest, TableNameContainsSummarizerId) {
   // Verify that the materialized table name includes the summarizer id.
+  // The test fixture creates a SummarizerImpl with id "test_id".
   auto spec_data = CreateSpec({{"q", "SELECT 1 as value"}});
 
   SummarizerUpdateSpecResult result;
