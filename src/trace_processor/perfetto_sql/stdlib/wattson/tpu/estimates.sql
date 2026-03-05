@@ -48,7 +48,7 @@ SELECT
   t.dur,
   coalesce(c.active, 0) AS tpu_mw
 FROM _tpu_combined_state AS t
-LEFT JOIN _tpu_filtered_curves AS c
+JOIN _tpu_filtered_curves AS c
   ON c.freq = t.freq AND c.cluster = t.cluster AND c.requests = min(t.requests, 8)
 ORDER BY
   ts ASC;

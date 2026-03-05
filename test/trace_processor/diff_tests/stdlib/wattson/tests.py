@@ -494,3 +494,19 @@ class WattsonStdlib(TestSuite):
           11209755651363,50651,139.420000,139.420000,30.950000,30.950000,30.950000,100.980000,100.980000,1959.070000,156.229919
           11209755702014,8177,139.420000,139.420000,30.950000,3.360000,30.950000,100.980000,100.980000,1959.070000,156.204294
           """))
+
+  def test_wattson_tpu_estimate(self):
+    return DiffTestBlueprint(
+        trace=DataPath('tpu_jumpnet.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.estimates;
+            SELECT
+              SUM(tpu_mw * dur) / SUM(dur) as avg_tpu_mw,
+              SUM(tpu_mw * dur) / 1e9 as total_tpu_mws
+            FROM _system_state_mw
+            WHERE tpu_mw IS NOT NULL
+            """),
+        out=Csv("""
+            "avg_tpu_mw","total_tpu_mws"
+            52.389828,592.702934
+            """))

@@ -27,7 +27,7 @@ INCLUDE PERFETTO MODULE wattson.tpu.estimates;
 -- it's possible one of the tables is empty
 CREATE VIRTUAL TABLE _cpu_gpu_system_state_mw USING SPAN_OUTER_JOIN (_cpu_estimates_mw, _gpu_estimates_mw);
 
-CREATE VIRTUAL TABLE _cpu_gpu_tpu_system_state_mw USING SPAN_OUTER_JOIN (_tpu_estimates_mw, _cpu_gpu_system_state_mw);
+CREATE VIRTUAL TABLE _cpu_gpu_tpu_system_state_mw USING SPAN_OUTER_JOIN (_cpu_gpu_system_state_mw, _tpu_estimates_mw);
 
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
