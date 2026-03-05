@@ -25,11 +25,10 @@ import {OverlayContainer} from '../widgets/overlay_container';
 import {QueryPage} from './query_page';
 import {HomePage} from './home_page';
 import {BigTraceSettingsPage} from './bigtrace_settings_page';
+import {queryState} from './query_state';
 import {SettingsPage} from './settings_page';
 import {Topbar} from './topbar';
 import {Sidebar, SidebarMenuItem, SIDEBAR_SECTIONS} from './sidebar';
-
-
 
 function getRoot() {
   // Works out the root directory where the content should be served from
@@ -203,19 +202,38 @@ class BigTraceApp implements m.ClassComponent {
                 },
                 title: title,
               }),
-              this.currentPage === 'home' ?
-    m(HomePage) :
-    (this.currentPage === 'settings' ?
-        m(SettingsPage) :
-        (this.currentPage === 'bigtrace_settings' ?
-            m(BigTraceSettingsPage) :
-            m(QueryPage, {
-              useBrushBackend: true,
-              initialQuery: undefined,
-            }))),
+              this.renderPage(),
             ]),
       ],
     );
+  }
+
+  private renderPage() {
+    switch (this.currentPage) {
+      case 'home':
+        return m(HomePage, {
+          navigateTo: (page: string) => {
+            this.currentPage = page;
+          },
+        });
+      case 'settings':
+        return m(SettingsPage);
+      case 'bigtrace_settings':
+        return m(BigTraceSettingsPage);
+      case 'bigtrace':
+        const initialQuery = queryState.initialQuery;
+        queryState.initialQuery = undefined;
+        return m(QueryPage, {
+          useBrushBackend: true,
+          initialQuery,
+        });
+      default:
+        return m(HomePage, {
+          navigateTo: (page: string) => {
+            this.currentPage = page;
+          },
+        });
+    }
   }
 }
 

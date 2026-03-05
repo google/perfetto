@@ -34,6 +34,7 @@ import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {CopyToClipboardButton} from '../widgets/copy_to_clipboard_button';
 import {getSliceId, isSliceish} from '../components/query_table/query_table';
 import {DataSource} from '../components/widgets/datagrid/data_source';
+import {recentQueriesStorage} from './recent_queries_storage';
 import {bigTraceSettingsManager} from './bigtrace_settings_manager';
 
 class HttpDataSource {
@@ -275,6 +276,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   private async runQuery(query: string) {
     if (!query) return;
+
+    recentQueriesStorage.saveQuery(query);
 
     this.isLoading = true;
     this.queryResult = undefined;
