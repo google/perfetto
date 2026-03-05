@@ -52,9 +52,6 @@ export interface Relation {
 export interface RelatedEventData {
   events: ReadonlyArray<RelatedEvent>;
   relations: ReadonlyArray<Relation>;
-  // Optional events and relations specifically for the overlay arrows.
-  overlayEvents?: ReadonlyArray<RelatedEvent>;
-  overlayRelations?: ReadonlyArray<Relation>;
 }
 
 // Defines a column for displaying RelatedEvent properties in a table (e.g., in a tab).
