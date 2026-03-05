@@ -97,14 +97,12 @@ class SettingsManagerImpl implements SettingsManager {
   }
 }
 
-export const settingsManager = new SettingsManagerImpl();
+export const bigTraceSettingsManager = new SettingsManagerImpl();
 
-settingsManager.register({
-    id: 'theme',
-    name: 'UI Theme',
-    description: 'Changes the color palette used throughout the UI.',
-    schema: z.enum(['light', 'dark']),
-    defaultValue: 'light',
+bigTraceSettingsManager.register({
+    id: 'traceLimit',
+    name: 'Trace Limit',
+    description: 'The maximum number of traces to query from the backend.',
+    schema: z.number(),
+    defaultValue: 1_000_000,
 });
-
-

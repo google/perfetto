@@ -33,6 +33,7 @@ import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {CopyToClipboardButton} from '../widgets/copy_to_clipboard_button';
 import {getSliceId, isSliceish} from '../components/query_table/query_table';
 import {DataSource} from '../components/widgets/datagrid/data_source';
+import {bigTraceSettingsManager} from './bigtrace_settings_manager';
 
 class HttpDataSource {
   private static readonly BRUSH_API_URL =
@@ -42,6 +43,7 @@ class HttpDataSource {
   private baseQuery: string;
   private traceAddress: string;
   private limit: number;
+  private traceLimit: number;
   private cachedData: DataGridRow[] | null = null;
   private fetchPromise: Promise<DataGridRow[]> | null = null;
 
@@ -49,10 +51,12 @@ class HttpDataSource {
     baseQuery: string,
     traceAddress = 'android_telemetry.field_trace_summaries_prod.last30days',
     limit = HttpDataSource.DEFAULT_LIMIT,
+    traceLimit: number,
   ) {
     this.baseQuery = baseQuery;
     this.traceAddress = traceAddress;
     this.limit = limit;
+    this.traceLimit = traceLimit;
   }
 
   private async fetchData(forceRefresh = false): Promise<DataGridRow[]> {
@@ -84,6 +88,7 @@ class HttpDataSource {
     const data = {
       trace_address: this.traceAddress,
       limit: this.limit,
+      trace_limit: this.traceLimit,
       perfetto_sql: this.baseQuery,
     };
 
@@ -280,7 +285,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     m.redraw();
 
     if (this.useBrushBackend) {
-      const dataSource = new HttpDataSource(query, undefined, this.limit);
+      const traceLimitSetting = bigTraceSettingsManager.get('traceLimit');
+      const traceLimit = traceLimitSetting ? traceLimitSetting.get() as number : 1_000_000;
+      const dataSource = new HttpDataSource(query, undefined, this.limit, traceLimit);
       try {
         const data = await dataSource.query();
         this.queryResult = {
