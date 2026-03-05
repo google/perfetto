@@ -46,7 +46,7 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
             'nav.pf-sidebar',
             {
               style: {
-                width: '250px',
+                width: '200px',
                 flexShrink: 0,
               },
             },
