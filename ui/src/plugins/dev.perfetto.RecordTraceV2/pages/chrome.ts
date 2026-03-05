@@ -480,7 +480,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
           },
           m(MultiSelect, {
             options: categoriesOptions,
-            repeatCheckedItemsAtTop: false,
             fixedSize: false,
             onChange: (diffs: MultiSelectDiff[]) => {
               diffs.forEach(({id, checked}) =>
@@ -500,7 +499,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
           },
           m(MultiSelect, {
             options: slowCategoriesOptions,
-            repeatCheckedItemsAtTop: false,
             fixedSize: false,
             onChange: (diffs: MultiSelectDiff[]) => {
               diffs.forEach(({id, checked}) =>

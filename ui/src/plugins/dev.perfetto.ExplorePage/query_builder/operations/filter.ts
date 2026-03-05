@@ -732,7 +732,6 @@ export function formatFilterDetails(
       },
       m(Chip, {
         label,
-        rounded: true,
         removable: effectiveOnRemove !== undefined,
         intent: isEnabled ? Intent.Primary : Intent.None,
         onpointerdown: (e: PointerEvent) => {

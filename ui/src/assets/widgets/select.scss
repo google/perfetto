@@ -22,32 +22,24 @@
   outline: none; // Disable the default outline
   border: none; // Disable the default border
   border-bottom: solid 1px var(--pf-color-border); // Thin underline
-  background: none;
+  background: var(--pf-color-void);
   color: inherit;
-  transition:
-    border $anim-timing,
-    box-shadow $anim-timing,
-    background $anim-timing;
-  // Round only the top corners to avoid rounding the edges of the underline
-  border-radius: $border-radius $border-radius 0 0;
   cursor: pointer;
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: $border-radius;
+  padding: 2px 4px;
 
   // Very opinionated min width for a select input
   // ... any smaller and it stops looking like a select input!
   min-width: 80px;
 
+  // The gentle hover effect indicates this component is interactive
   &:hover {
-    background: color_hover(transparent);
+    border: solid 1px var(--pf-color-border);
   }
 
   &:focus {
-    background: color_hover(transparent);
-    border-bottom: solid 1px var(--pf-color-primary);
-
-    // The box-shadow thickens the bottom border, without adding to the height.
-    // This is the same technique used by materializecss:
-    // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 var(--pf-color-primary);
+    border: solid 1px var(--pf-color-primary);
   }
 
   &[disabled] {

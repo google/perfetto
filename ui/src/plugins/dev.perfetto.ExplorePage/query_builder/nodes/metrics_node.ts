@@ -270,7 +270,7 @@ export class MetricsNode implements QueryNode {
           icon: 'download',
           onclick: () => this.showExportModal(),
           disabled: !canExport,
-          variant: ButtonVariant.Outlined,
+          variant: ButtonVariant.Minimal,
           className: 'pf-metrics-v2-export-button',
         }),
       ),

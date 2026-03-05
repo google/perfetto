@@ -186,7 +186,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     for (const btn of buttons) {
       const attrs = {
         onclick: btn.onclick,
-        variant: btn.variant ?? ButtonVariant.Outlined, // Default to Outlined
+        variant: btn.variant ?? ButtonVariant.Minimal, // Default to Outlined
         label: btn.label,
         icon: btn.icon,
         compact: btn.compact,

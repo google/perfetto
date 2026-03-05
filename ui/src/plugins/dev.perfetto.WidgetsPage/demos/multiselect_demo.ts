@@ -38,6 +38,7 @@ const availableOptions: ReadonlyArray<string> = [
   'xyzzy',
   'thud',
   'a really really long option to test overflow and wrapping handling',
+  'anotherreallyreallylongstringwithnowhitespacetotestwrapperingissues',
 ];
 let selectedOptions: string[] = ['foo', 'qux', 'grault'];
 
@@ -73,7 +74,6 @@ export function renderMultiselect() {
           ...rest,
         }),
       initialOpts: {
-        repeatCheckedItemsAtTop: false,
         fixedSize: false,
       },
     }),
@@ -92,7 +92,7 @@ export function renderMultiselect() {
               checked: selectedOptions.includes(value),
             };
           }),
-          position: PopupPosition.Top,
+          position: PopupPosition.Bottom,
           label: 'Multi Select',
           icon: icon && Icons.LibraryAddCheck,
           onChange: (diffs: MultiSelectDiff[]) => {
@@ -108,7 +108,6 @@ export function renderMultiselect() {
       initialOpts: {
         icon: true,
         showNumSelected: true,
-        repeatCheckedItemsAtTop: false,
       },
     }),
 

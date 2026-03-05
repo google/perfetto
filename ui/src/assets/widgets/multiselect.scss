@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Generic list with y-overflow, move me to a common file if we want to reuse.
-.pf-list {
-  overflow-y: auto;
+.pf-popup {
+  .pf-popup-content:has(.pf-multiselect-panel) {
+    padding: 0;
+  }
 }
 
 .pf-multi-select-fixed-size {
@@ -22,22 +23,41 @@
 }
 
 .pf-multiselect-panel {
+  .pf-search-bar {
+    padding: 4px;
+    padding-bottom: 0;
+    display: flex;
+    gap: 2px;
+
+    .pf-search-box {
+      flex-grow: 1;
+    }
+  }
+
+  .pf-bulk-actions {
+    padding: 4px;
+    border-bottom: solid 1px var(--pf-color-border);
+    font-size: var(--pf-font-size-s);
+
+    .pf-button {
+      text-transform: uppercase;
+    }
+  }
+
   display: flex;
   flex-direction: column;
   align-items: stretch;
   width: 280px;
-  & > .pf-search-bar {
-    margin-bottom: 8px;
-    display: flex;
-    & > .pf-search-box {
-      flex-grow: 1;
-    }
-  }
+
   .pf-multiselect-item {
     display: block; // Put each item on a new line
     margin-top: 5px;
   }
+
   .pf-multiselect-header {
+    .pf-button {
+      text-transform: uppercase;
+    }
     align-items: baseline;
     display: flex;
     position: sticky;
@@ -53,8 +73,10 @@
       margin-right: auto;
     }
   }
+
   .pf-multiselect-container {
-    position: relative;
-    margin-bottom: 16px;
+    // position: relative;
+    overflow-y: auto;
+    padding-inline: 8px;
   }
 }

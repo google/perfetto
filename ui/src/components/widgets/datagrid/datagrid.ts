@@ -2106,7 +2106,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               className:
                 'pf-visible-on-row-hover pf-datagrid__drilldown-button',
               icon: Icons.GoTo,
-              rounded: true,
               title: 'Drill down into this group',
               fillWidth: true,
               onclick: () => {

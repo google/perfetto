@@ -20,9 +20,8 @@ import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {assertExists, assertUnreachable} from '../../base/assert';
 import {Trace} from '../../public/trace';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Editor} from '../../widgets/editor';
-import {Button, ButtonVariant} from '../../widgets/button';
+import {Button, ButtonGroup, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {CodeSnippet} from '../../widgets/code_snippet';
 import {Callout} from '../../widgets/callout';
@@ -480,13 +479,21 @@ function renderV2Result(
     '.pf-metricsv2-result',
     m(
       '.pf-metricsv2-result__header',
-      m(SegmentedButtons, {
-        options: [{label: 'Table'}, {label: 'JSON'}],
-        selectedOption: viewMode === 'table' ? 0 : 1,
-        onOptionSelected: (num) => {
-          onViewModeChange(num === 0 ? 'table' : 'json');
-        },
-      }),
+      m(
+        ButtonGroup,
+        m(Button, {
+          label: 'Table',
+          onclick: () => onViewModeChange('table'),
+          active: viewMode === 'table',
+          variant: ButtonVariant.Filled,
+        }),
+        m(Button, {
+          label: 'JSON',
+          onclick: () => onViewModeChange('json'),
+          active: viewMode === 'json',
+          variant: ButtonVariant.Filled,
+        }),
+      ),
     ),
     viewMode === 'json'
       ? m(CodeSnippet, {language: 'json', text})
@@ -614,7 +621,8 @@ class MetricV2Fetcher implements m.ClassComponent<MetricV2FetcherAttrs> {
         ),
         m(Button, {
           label: 'Run',
-          variant: ButtonVariant.Outlined,
+          variant: ButtonVariant.Filled,
+          intent: Intent.Primary,
           icon: 'play_arrow',
           onclick: () => this.runQuery(),
         }),
@@ -674,30 +682,48 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
       '.pf-metrics-page',
       m(
         '',
-        m(SegmentedButtons, {
-          options: [{label: 'Metric v1'}, {label: 'Metric v2'}],
-          selectedOption: this.mode === 'V1' ? 0 : 1,
-          onOptionSelected: (num) => {
-            if (num === 0) {
-              this.mode = 'V1';
-            } else {
-              this.mode = 'V2';
-            }
-          },
-        }),
+        m(
+          ButtonGroup,
+          m(Button, {
+            label: 'Metric v1',
+            active: this.mode === 'V1',
+            onclick: () => (this.mode = 'V1'),
+            variant: ButtonVariant.Filled,
+          }),
+          m(Button, {
+            label: 'Metric v2',
+            active: this.mode === 'V2',
+            onclick: () => (this.mode = 'V2'),
+            variant: ButtonVariant.Filled,
+          }),
+        ),
       ),
       this.mode === 'V2' &&
         m(
           '',
-          m(SegmentedButtons, {
-            options: [{label: 'Metric Spec'}, {label: 'Full Summary'}],
-            selectedOption: this.v2Mode === 'metric-spec' ? 0 : 1,
-            onOptionSelected: (num) => {
-              this.v2Mode = num === 0 ? 'metric-spec' : 'full-trace-summary';
-              this.showV2MetricExample = false;
-              this.v2Result = undefined;
-            },
-          }),
+          m(
+            ButtonGroup,
+            m(Button, {
+              label: 'Metric Spec',
+              active: this.v2Mode === 'metric-spec',
+              onclick: () => {
+                this.v2Mode = 'metric-spec';
+                this.showV2MetricExample = false;
+                this.v2Result = undefined;
+              },
+              variant: ButtonVariant.Filled,
+            }),
+            m(Button, {
+              label: 'Full Summary',
+              active: this.v2Mode === 'full-trace-summary',
+              onclick: () => {
+                this.v2Mode = 'full-trace-summary';
+                this.showV2MetricExample = false;
+                this.v2Result = undefined;
+              },
+              variant: ButtonVariant.Filled,
+            }),
+          ),
         ),
       this.mode === 'V1' &&
         m(MetricV1Fetcher, {
@@ -706,7 +732,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
       this.mode === 'V2' && [
         m(Button, {
           label: 'Load example',
-          variant: ButtonVariant.Outlined,
+          variant: ButtonVariant.Filled,
           onclick: () => {
             this.showV2MetricExample = true;
             this.fetcherGeneration++;

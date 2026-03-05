@@ -23,7 +23,6 @@ import {Tooltip} from './tooltip';
 
 export enum ButtonVariant {
   Filled = 'Filled',
-  Outlined = 'Outlined',
   Minimal = 'Minimal',
 }
 
@@ -60,8 +59,6 @@ interface CommonAttrs extends HTMLButtonAttrs {
   //   on toolbars.
   // Defaults to Filled.
   readonly variant?: ButtonVariant;
-  // Turns the button into a pill shape.
-  readonly rounded?: boolean;
   // Makes the button shrink to fit inside it's container, rather than its width
   // being defined by its content. Useful for when you have buttons with dynamic
   // content that may change size, and you don't want the button to change size
@@ -101,7 +98,6 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       iconFilled,
       intent = Intent.None,
       variant = ButtonVariant.Minimal,
-      rounded,
       shrink,
       loading,
       tooltip,
@@ -118,7 +114,6 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       classForIntent(intent),
       iconOnly && 'pf-icon-only',
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
-      rounded && 'pf-button--rounded',
       shrink && 'pf-button--shrink',
       loading && 'pf-button--loading',
       className,
@@ -171,8 +166,6 @@ function classForVariant(variant: ButtonVariant) {
   switch (variant) {
     case ButtonVariant.Filled:
       return 'pf-button--filled';
-    case ButtonVariant.Outlined:
-      return 'pf-button--outlined';
     case ButtonVariant.Minimal:
       return 'pf-button--minimal';
     default:

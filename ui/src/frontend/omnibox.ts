@@ -382,12 +382,11 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
         m(Chip, {
           className: 'pf-omnibox__source',
           label: source,
-          rounded: true,
           compact: true,
           intent: Intent.Primary,
         }),
       m('span.pf-title', this.renderTitle(displayName)),
-      label && m(Chip, {className: 'pf-omnibox__tag', label, rounded: true}),
+      label && m(Chip, {className: 'pf-omnibox__tag', label}),
       rightContent,
     );
   }

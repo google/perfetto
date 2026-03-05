@@ -1805,7 +1805,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                 PopupMenu,
                 {
                   trigger: m(Button, {
-                    rounded: true,
                     icon: Icons.ContextMenuAlt,
                     className: contextMenuOnHover ? 'pf-show-on-hover' : '',
                   }),
@@ -1824,7 +1823,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               PopupMenu,
               {
                 trigger: m(Button, {
-                  rounded: true,
                   icon: Icons.ContextMenuAlt,
                 }),
               },

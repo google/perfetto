@@ -17,7 +17,7 @@ import {classNames} from '../../base/classnames';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {Form, FormLabel} from '../../widgets/form';
-import {Switch} from '../../widgets/switch';
+import {Checkbox} from '../../widgets/checkbox';
 
 export type Options = {
   [key: string]: EnumOption | boolean | string | number;
@@ -139,7 +139,7 @@ class WidgetShowcase<T extends Options>
   }
 
   private renderBooleanOption(key: string, value: boolean) {
-    return m(Switch, {
+    return m(Checkbox, {
       checked: value,
       label: key,
       onchange: () => {
