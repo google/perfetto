@@ -1,0 +1,185 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@keyframes d3-charts-loading-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.d3-charts-page {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+
+  .loading-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--pf-color-accent);
+    z-index: 10000;
+    animation: d3-charts-loading-pulse 1.5s ease-in-out infinite;
+  }
+
+  .main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sql-editor-section {
+    background: var(--pf-color-background);
+    border-bottom: 1px solid var(--pf-color-border);
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+    max-height: 400px;
+    position: relative;
+
+    .editor-header {
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--pf-color-border);
+      background: var(--pf-color-background-secondary);
+      align-items: center;
+    }
+
+    .editor-container {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .error-message {
+      padding: 8px 16px;
+      background: var(--pf-color-error-background);
+      border-top: 1px solid var(--pf-color-error);
+      color: var(--pf-color-error);
+      font-size: 12px;
+    }
+  }
+
+  .charts-column {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+    background: var(--pf-color-background-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--pf-color-text-secondary);
+      gap: 16px;
+      cursor: pointer;
+      transition: color 0.2s ease;
+
+      &:hover {
+        color: var(--pf-color-text-primary);
+      }
+    }
+
+    .table-wrapper {
+      position: relative;
+      background: var(--pf-color-background);
+      border-radius: 4px;
+      border: 1px solid var(--pf-color-border);
+      height: 500px;
+      display: flex;
+      flex-direction: column;
+
+      .pf-button--minimal {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 10;
+      }
+    }
+
+    .chart-wrapper {
+      position: relative;
+      background: var(--pf-color-background);
+      border-radius: 4px;
+      border: 1px solid var(--pf-color-border);
+
+      .pf-button--minimal {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 10;
+      }
+    }
+  }
+
+  .chart-creator-sidebar {
+    width: 320px;
+    background: var(--pf-color-background);
+    border-left: 1px solid var(--pf-color-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .sidebar-header {
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--pf-color-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--pf-color-background-secondary);
+
+      h3 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 500;
+      }
+    }
+
+    .sidebar-content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      flex: 1;
+
+      .chart-form-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+
+        span {
+          font-size: 12px;
+          font-weight: 500;
+        }
+      }
+
+      .chart-form-row {
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+        align-items: center;
+      }
+    }
+  }
+}
