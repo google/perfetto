@@ -101,7 +101,8 @@ li.pf-sidebar__item {
   color: var(--pf-sidebar-on-surface);
   font-size: var(--pf-font-size-m);
 
-  a {
+  a,
+  button {
     color: inherit;
     text-decoration: none;
     display: flex;
@@ -109,6 +110,12 @@ li.pf-sidebar__item {
     padding: 4px 8px;
     border-radius: $border-radius;
     gap: 8px;
+    width: 100%;
+    font: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
 
     &:hover {
       background: color-hover-surface(transparent, currentColor);
@@ -121,6 +128,7 @@ li.pf-sidebar__item {
     &[disabled] {
       text-decoration: line-through;
       opacity: 0.5;
+      cursor: default;
     }
   }
 

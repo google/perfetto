@@ -416,45 +416,62 @@ export class Sidebar implements m.ClassComponent {
       }
     }
 
-    // This is not an else if because in some rare cases the user might want
-    // to have both an href and onclick, with different behaviors. The only case
-    // today is the trace name / URL, where we want the URL in the href to
-    // support right-click -> copy URL, but the onclick does copyToClipboard().
     if ('href' in item && item.href !== undefined) {
       href = item.href;
       target = href.startsWith('#') ? null : '_blank';
       isActive = pageMatchesHref(href);
     }
+
+    const isLink = href !== '#';
+    const iconEl =
+      exists(item.icon) &&
+      m(Icon, {
+        className: 'pf-sidebar__button-icon',
+        icon: valueOrCallback(item.icon),
+      });
+    const spinnerEl =
+      this._asyncJobPending.has(item.id) &&
+      m(Spinner, {className: 'pf-sidebar__spinner'});
+    const cssClass = valueOrCallback(item.cssClass);
+
     return m(
       'li.pf-sidebar__item',
       {
         key: item.id, // This is to work around a mithril bug (b/449784590).
         className: classNames(isActive && 'pf-active'),
       },
-      m(
-        'a',
-        {
-          className: valueOrCallback(item.cssClass),
-          onclick: onclick && this.wrapClickHandler(item.id, onclick),
-          href,
-          target,
-          disabled,
-          title: tooltip,
-        },
-        exists(item.icon) &&
-          m(Icon, {
-            className: 'pf-sidebar__button-icon',
-            icon: valueOrCallback(item.icon),
-          }),
-        text,
-        target === '_blank' &&
-          m(Icon, {
-            className: 'pf-sidebar__external-link-icon',
-            icon: Icons.ExternalLink,
-          }),
-        this._asyncJobPending.has(item.id) &&
-          m(Spinner, {className: 'pf-sidebar__spinner'}),
-      ),
+      isLink
+        ? m(
+            'a',
+            {
+              className: cssClass,
+              onclick: onclick && this.wrapClickHandler(item.id, onclick),
+              href,
+              target,
+              disabled,
+              title: tooltip,
+            },
+            iconEl,
+            text,
+            target === '_blank' &&
+              m(Icon, {
+                className: 'pf-sidebar__external-link-icon',
+                icon: Icons.ExternalLink,
+              }),
+            spinnerEl,
+          )
+        : m(
+            'button',
+            {
+              className: cssClass,
+              onclick: onclick && this.wrapClickHandler(item.id, onclick),
+              disabled,
+              title: tooltip,
+            },
+            iconEl,
+            text,
+            spinnerEl,
+          ),
     );
   }
 
