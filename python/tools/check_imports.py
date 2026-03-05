@@ -120,11 +120,11 @@ DEPS_ALLOWLIST = [
     ),
 
     # Bigtrace deps.
-    ('/bigtrace/*', ['/base/*', '/widgets/*', '/trace_processor/*']),
+    ('/bigtrace/*', ['/base/*', '/widgets/*', '/trace_processor/*', '/components/*', '/public/*']),
 
     # TODO(primiano): misc tech debt.
     ('/public/lib/extensions', '/frontend/*'),
-    ('/bigtrace/index', ['/core/live_reload', '/core/raf_scheduler']),
+    ('/bigtrace/index', ['/core/live_reload', '/core/raf_scheduler', '/frontend/theme_provider']),
     ('/plugins/dev.perfetto.HeapProfile/*', '/frontend/trace_converter'),
 ]
 

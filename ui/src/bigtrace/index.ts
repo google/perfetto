@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0`
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,8 +17,19 @@ import '../base/static_initializers';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, ErrorDetails} from '../base/logging';
-import {initLiveReloadIfLocalhost} from '../core/live_reload';
+import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
+import {settingsManager} from './settings_manager';
+import {ThemeProvider} from '../frontend/theme_provider';
+import {OverlayContainer} from '../widgets/overlay_container';
+import {QueryPage} from './query_page';
+import {HomePage} from './home_page';
+import {BigTraceSettingsPage} from './bigtrace_settings_page';
+import {SettingsPage} from './settings_page';
+import {Topbar} from './topbar';
+import {Sidebar, SidebarMenuItem, SIDEBAR_SECTIONS} from './sidebar';
+
+
 
 function getRoot() {
   // Works out the root directory where the content should be served from
@@ -41,9 +52,13 @@ function setupContentSecurityPolicy() {
     'default-src': [`'self'`],
     'script-src': [`'self'`],
     'object-src': ['none'],
-    'connect-src': [`'self'`],
+    'connect-src': [`'self'`, 'https://brush-googleapis.corp.google.com'],
     'img-src': [`'self'`, 'data:', 'blob:'],
-    'style-src': [`'self'`],
+    'style-src': [
+      `'self'`,
+      `'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='`,
+      `'sha256-yRQRG6LLKMvjvigtzXD1f8VRZSYY7J8fM2ZLfdMaHKg='`,
+    ],
     'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
@@ -57,6 +72,14 @@ function setupContentSecurityPolicy() {
 }
 
 function main() {
+  // Unregister service workers
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for(const registration of registrations) {
+        registration.unregister();
+      }
+    });
+  }
   setupContentSecurityPolicy();
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
@@ -68,8 +91,10 @@ function main() {
   css.href = root + 'perfetto.css';
   css.onload = () => cssLoadPromise.resolve();
   css.onerror = (err) => cssLoadPromise.reject(err);
-  const favicon = document.head.querySelector('#favicon') as HTMLLinkElement;
-  if (favicon) favicon.href = root + 'assets/favicon.png';
+  const favicon = document.head.querySelector('#favicon');
+  if (favicon instanceof HTMLLinkElement) {
+    favicon.href = root + 'assets/favicon.png';
+  }
 
   document.head.append(css);
 
@@ -90,16 +115,125 @@ function main() {
   cssLoadPromise.then(() => onCssLoaded());
 }
 
+class BigTraceApp implements m.ClassComponent {
+  private sidebarVisible = true;
+  private currentPage = 'home';
+
+  view() {
+    const items: SidebarMenuItem[] = [
+      {
+        section: 'home',
+        text: 'Home',
+        href: '#',
+        icon: 'home',
+        active: this.currentPage === 'home',
+        onclick: () => {
+          this.currentPage = 'home';
+        },
+      },
+      {
+        section: 'bigtrace',
+        text: 'Query Editor',
+        href: '#',
+        icon: 'line_style',
+        active: this.currentPage === 'bigtrace',
+        onclick: () => {
+          this.currentPage = 'bigtrace';
+        },
+      },
+      {
+        section: 'bigtrace',
+        text: 'BigTrace Settings',
+        href: '#',
+        icon: 'settings',
+        active: this.currentPage === 'bigtrace_settings',
+        onclick: () => {
+          this.currentPage = 'bigtrace_settings';
+        },
+      },
+      {
+        section: 'settings',
+        text: 'Settings',
+        href: '#',
+        icon: 'settings',
+        active: this.currentPage === 'settings',
+        onclick: () => {
+          this.currentPage = 'settings';
+        },
+      },
+    ];
+
+    const currentItem = items.find((item) => item.active);
+    const title = currentItem ?
+        `${SIDEBAR_SECTIONS[currentItem.section].title} > ${currentItem.text}` :
+        '';
+
+    return m(
+      '.pf-ui-main',
+      {
+        style: {
+          display: 'flex',
+          height: '100vh',
+          overflow: 'hidden',
+        },
+      },
+      [
+        // Left Sidebar (only render when visible)
+        this.sidebarVisible && m(Sidebar, {
+          items,
+          onToggleSidebar: () => {
+              this.sidebarVisible = !this.sidebarVisible;
+          },
+        }),
+
+        m('.pf-main-content',
+            {
+              style: {
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+                overflow: 'hidden',
+              },
+            },
+            [
+              m(Topbar, {
+                sidebarVisible: this.sidebarVisible,
+                onToggleSidebar: () => {
+                  this.sidebarVisible = !this.sidebarVisible;
+                },
+                title: title,
+              }),
+              this.currentPage === 'home' ?
+    m(HomePage) :
+    (this.currentPage === 'settings' ?
+        m(SettingsPage) :
+        (this.currentPage === 'bigtrace_settings' ?
+            m(BigTraceSettingsPage) :
+            m(QueryPage, {
+              useBrushBackend: true,
+              initialQuery: undefined,
+            }))),
+            ]),
+      ],
+    );
+  }
+}
+
 function onCssLoaded() {
-  // Clear all the contents of the initial page (e.g. the <pre> error message)
-  // And replace it with the root <main> element which will be used by mithril.
+  // Clear all the contents of the initial page
   document.body.innerHTML = '';
 
-  raf.domRedraw = () => {
-    m.render(document.body, m('div'));
-  };
+  raf.mount(document.body, {
+    view: () => {
+      const theme = settingsManager.get('theme');
+      const themeValue = theme ? theme.get() : 'light';
+      return m(ThemeProvider, {theme: themeValue as 'dark' | 'light'}, [
+        m(OverlayContainer, {fillHeight: true}, [m(BigTraceApp)]),
+      ]);
+    }
+  });
 
-  initLiveReloadIfLocalhost(false);
+  initLiveReload();
 }
 
 main();
