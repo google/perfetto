@@ -25,6 +25,27 @@ FROM package_list
 GROUP BY
   1;
 
+-- Account for android-specific functionality (sdk sandbox, pcc) that is not encoded in
+-- the canonical app_id concept but is still required to understand the package
+-- see system/core/libcutils/include/private/android_filesystem_config.h
+CREATE PERFETTO FUNCTION _app_id_to_base_package(
+    app_id LONG
+)
+RETURNS LONG AS
+SELECT
+  CASE
+    -- regular app_id [10000, 20000)
+    WHEN $app_id < 20000
+    THEN $app_id
+    -- sdk sandbox [20000, 30000)
+    WHEN $app_id < 30000
+    THEN $app_id - 10000
+    -- pcc [30000, 40000)
+    WHEN $app_id < 40000
+    THEN $app_id - 20000
+    ELSE $app_id
+  END;
+
 CREATE PERFETTO FUNCTION _android_package_for_process(
     uid LONG,
     uid_count LONG,
@@ -151,8 +172,8 @@ SELECT
   android_is_kernel_task(process.upid) AS is_kernel_task
 FROM process
 LEFT JOIN _uid_package_count
-  ON process.android_appid = _uid_package_count.uid
-LEFT JOIN _android_package_for_process(process.android_appid, _uid_package_count.cnt, process.name) AS plist
+  ON _app_id_to_base_package(process.android_appid) = _uid_package_count.uid
+LEFT JOIN _android_package_for_process(_app_id_to_base_package(process.android_appid), _uid_package_count.cnt, process.name) AS plist
 LEFT JOIN android_user_list AS user
   ON process.android_user_id = user.android_user_id
 ORDER BY

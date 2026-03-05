@@ -203,7 +203,7 @@ export default class MemoryViz implements PerfettoPlugin {
   ): Promise<TrackNode | undefined> {
     const uri = `${MemoryViz.id}.rss_anon_swap.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
-      `track_name IN ('mem.rss.anon', 'mem.swap')`,
+      `memory_track_name IN ('mem.rss.anon', 'mem.swap')`,
     ]);
     const rootNode = await this.createTrack(
       ctx,
@@ -245,7 +245,7 @@ export default class MemoryViz implements PerfettoPlugin {
   ): Promise<TrackNode | undefined> {
     const uri = `${MemoryViz.id}.${trackName}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
-      `track_name = '${trackName}'`,
+      `memory_track_name = '${trackName}'`,
     ]);
     const breakdownNode = await this.createTrack(
       ctx,
@@ -258,8 +258,8 @@ export default class MemoryViz implements PerfettoPlugin {
 
     const buckets = await ctx.engine.query(`
       SELECT DISTINCT bucket
-      FROM _memory_breakdown_mem_with_buckets
-      WHERE track_name = '${trackName}'
+      FROM android_process_memory_intervals_by_oom_bucket
+      WHERE memory_track_name = '${trackName}'
       ORDER BY bucket ASC
     `);
 
@@ -291,10 +291,10 @@ export default class MemoryViz implements PerfettoPlugin {
         pid,
         process_name,
         MAX(zygote_adjusted_value) AS max_value
-      FROM _memory_breakdown_mem_with_buckets
+      FROM android_process_memory_intervals_by_oom_bucket
       WHERE
         bucket = '${bucket}' AND
-        track_name = '${trackName}' AND
+        memory_track_name = '${trackName}' AND
         ts < ${window.end} AND
         ts + dur > ${window.start}
       GROUP BY upid, pid, process_name
@@ -313,7 +313,7 @@ export default class MemoryViz implements PerfettoPlugin {
     const uri = `${MemoryViz.id}.${trackName}.${bucket}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
       `bucket = '${bucket}'`,
-      `track_name = '${trackName}'`,
+      `memory_track_name = '${trackName}'`,
     ]);
     const peak = await ctx.engine.query(
       `SELECT MAX(value) AS peak FROM (${sqlSource})`,
@@ -367,7 +367,7 @@ export default class MemoryViz implements PerfettoPlugin {
     const uri = `${MemoryViz.id}.process.${upid}.${trackName}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
       `bucket = '${bucket}'`,
-      `track_name = '${trackName}'`,
+      `memory_track_name = '${trackName}'`,
       `upid = ${upid}`,
     ]);
     return this.createTrack(
@@ -391,9 +391,9 @@ export default class MemoryViz implements PerfettoPlugin {
           id,
           MAX(ts, ${window.start}) as ts,
           MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-        FROM _memory_breakdown_mem_with_buckets
+        FROM android_process_memory_intervals_by_oom_bucket
         ${whereClause} AND ts < ${window.end} and ts + dur > ${window.start}
-      )) iss JOIN _memory_breakdown_mem_with_buckets m USING(id)
+      )) iss JOIN android_process_memory_intervals_by_oom_bucket m USING(id)
       GROUP BY group_id
     `;
   }

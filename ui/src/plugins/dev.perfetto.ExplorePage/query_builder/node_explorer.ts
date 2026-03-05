@@ -53,8 +53,6 @@ export interface NodeExplorerAttrs {
   readonly isCollapsed?: boolean;
   readonly selectedView?: number;
   readonly onViewChange?: (view: number) => void;
-  /** Whether there's already a result displayed (for reuse optimization) */
-  readonly hasExistingResult?: boolean;
   /** The current query state from Builder (single source of truth) */
   readonly query?: Query | Error;
 }
@@ -69,6 +67,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   private readonly tableAsyncLimiter = new AsyncLimiter();
 
   private prevSqString?: string;
+  private prevNodeId?: string;
 
   private currentQuery?: Query | Error;
   private sqlForDisplay?: string;
@@ -140,7 +139,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
             attrs.allNodes,
             {
               manual: false, // This is automatic processing, not manual "Run Query"
-              hasExistingResult: attrs.hasExistingResult,
               onAnalysisStart: () => attrs.onAnalysisStateChange?.(true),
               onAnalysisComplete: (query) => {
                 this.currentQuery = query;
@@ -345,6 +343,14 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     // Update the node's onchange callback to point to our attrs.onchange
     // This ensures that changes in the node's UI components trigger the callback chain
     node.state.onchange = attrs.onchange;
+
+    // When a different node is selected, reset the service's initialization
+    // state for it so the next processNode call performs a full TP sync
+    // (checking for existing materialized results) rather than the skip path.
+    if (node.nodeId !== this.prevNodeId) {
+      this.prevNodeId = node.nodeId;
+      attrs.queryExecutionService.resetNode(node.nodeId, node);
+    }
 
     // Process the node via the centralized service.
     // The service handles all autoExecute logic internally:

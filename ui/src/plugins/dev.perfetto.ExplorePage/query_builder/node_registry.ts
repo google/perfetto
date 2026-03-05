@@ -43,8 +43,8 @@ export interface NodeDescriptor {
   // The keyboard shortcut for this node.
   hotkey?: string;
 
-  // Whether this node is a source, modification or a multi-source node.
-  type: 'source' | 'modification' | 'multisource';
+  // Whether this node is a source, modification, multi-source, or export node.
+  type: 'source' | 'modification' | 'multisource' | 'export';
 
   // Optional category for grouping related nodes in the UI.
   // Nodes with the same category will be shown in a submenu.

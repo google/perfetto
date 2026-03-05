@@ -18,11 +18,41 @@
 .pf-explore-page {
   height: 100%;
   position: relative;
-  overflow: auto;
+  overflow: hidden;
 
   &__header {
     display: flex;
     align-items: center;
+  }
+
+  &__tabs {
+    height: 100%;
+
+    // Override the default overflow:auto on tab content. The explore page
+    // manages its own layout (sidebar + canvas) and does not need container
+    // scrollbars, which can cause scroll jumps when switching tabs.
+    .pf-tabs__content {
+      overflow: hidden;
+    }
+  }
+
+  // Wrapper for each tab's Builder content. The Tabs widget uses Gate
+  // (display:contents) which has clientHeight === 0; DrawerPanel needs
+  // a real sized parent to measure its container height.
+  &__tab-content {
+    height: 100%;
+  }
+
+  &__tab-rename-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    min-width: 40px;
   }
 }
 
@@ -333,33 +363,15 @@
   }
 }
 
-// Chart grid layouts
+// Chart grid layouts — charts never grow beyond their basis.
 .pf-chart-grid {
-  &--1 {
-    .pf-chart-view__single {
-      flex: 1 1 100%;
-      min-width: 300px;
-    }
-  }
-
-  &--2 {
-    .pf-chart-view__single {
-      flex: 1 1 calc(50% - 8px);
-      min-width: 250px;
-    }
-  }
-
-  &--2x2 {
-    .pf-chart-view__single {
-      flex: 1 1 calc(50% - 8px);
-      min-width: 250px;
-    }
-  }
-
+  &--1,
+  &--2,
+  &--2x2,
   &--3 {
     .pf-chart-view__single {
-      flex: 1 1 calc(33.333% - 11px);
-      min-width: 200px;
+      flex: 0 1 calc(33.333% - 11px);
+      min-width: 300px;
     }
   }
 }

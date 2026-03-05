@@ -323,6 +323,7 @@ perfetto_cc_binary(
         ":src_base_base",
         ":src_base_version",
         ":src_proto_utils_gen_cc_config_descriptor",
+        ":src_proto_utils_gen_cc_trace_summary_descriptor",
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
@@ -1827,6 +1828,17 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+# GN target: //src/proto_utils:gen_cc_trace_summary_descriptor
+perfetto_cc_proto_descriptor(
+    name = "src_proto_utils_gen_cc_trace_summary_descriptor",
+    deps = [
+        ":protos_perfetto_trace_summary_descriptor",
+    ],
+    outs = [
+        "src/proto_utils/trace_summary.descriptor.h",
+    ],
+)
+
 # GN target: //src/proto_utils:txt_to_pb
 perfetto_filegroup(
     name = "src_proto_utils_txt_to_pb",
@@ -3272,6 +3284,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.cc",
@@ -3408,6 +3422,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/types/node.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h",
+        "src/trace_processor/perfetto_sql/intrinsics/types/sorted_timestamps.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/struct.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/value.h",
     ],
@@ -3700,6 +3715,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/intervals/create_intervals.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/intersect.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/mipmap.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/overlap.sql",
@@ -8487,6 +8503,7 @@ perfetto_cc_binary(
         ":src_base_version",
         ":src_perfetto_cmd_protos_cpp",
         ":src_proto_utils_gen_cc_config_descriptor",
+        ":src_proto_utils_gen_cc_trace_summary_descriptor",
     ],
 )
 

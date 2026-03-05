@@ -16,8 +16,24 @@ import m from 'mithril';
 import {VisualisationNode, ChartConfig} from '../nodes/visualisation_node';
 import {BarChart} from '../../../../components/widgets/charts/bar_chart';
 import {Histogram} from '../../../../components/widgets/charts/histogram';
+import {LineChart} from '../../../../components/widgets/charts/line_chart';
+import {Scatterplot} from '../../../../components/widgets/charts/scatterplot';
+import {PieChart} from '../../../../components/widgets/charts/pie_chart';
+import {
+  Treemap,
+  TreemapNode,
+} from '../../../../components/widgets/charts/treemap';
+import {BoxplotChart} from '../../../../components/widgets/charts/boxplot';
+import {HeatmapChart} from '../../../../components/widgets/charts/heatmap';
 import {SQLBarChartLoader} from '../../../../components/widgets/charts/bar_chart_loader';
 import {SQLHistogramLoader} from '../../../../components/widgets/charts/histogram_loader';
+import {SQLLineChartLoader} from '../../../../components/widgets/charts/line_chart_loader';
+import {SQLScatterChartLoader} from '../../../../components/widgets/charts/scatterplot_loader';
+import {SQLPieChartLoader} from '../../../../components/widgets/charts/pie_chart_loader';
+import {SQLTreemapLoader} from '../../../../components/widgets/charts/treemap_loader';
+import {SQLBoxplotLoader} from '../../../../components/widgets/charts/boxplot_loader';
+import {SQLHeatmapLoader} from '../../../../components/widgets/charts/heatmap_loader';
+import {SQLCdfLoader} from '../../../../components/widgets/charts/cdf_loader';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {isIntegerColumn, getNumericFormatter} from './chart_column_formatters';
@@ -32,6 +48,13 @@ export interface ChartLoaderEntry {
   key: string;
   barLoader?: SQLBarChartLoader;
   histogramLoader?: SQLHistogramLoader;
+  lineLoader?: SQLLineChartLoader;
+  scatterLoader?: SQLScatterChartLoader;
+  pieLoader?: SQLPieChartLoader;
+  treemapLoader?: SQLTreemapLoader;
+  boxplotLoader?: SQLBoxplotLoader;
+  heatmapLoader?: SQLHeatmapLoader;
+  cdfLoader?: SQLCdfLoader;
 }
 
 /**
@@ -108,6 +131,205 @@ export function renderHistogram(
     xAxisLabel: config.column,
     integerDimension: isInteger,
     fillParent: true,
+    formatXValue,
+    onBrush: (range) =>
+      handleHistogramBrush(ctx, config, range.start, range.end),
+  });
+}
+
+export function renderLineChart(
+  ctx: ChartRenderContext,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): m.Child {
+  if (!entry.lineLoader) {
+    return m(EmptyState, {icon: 'show_chart', title: 'No data to display'});
+  }
+
+  const {data} = entry.lineLoader.use({});
+
+  const formatXValue = getNumericFormatter(ctx.node, config.column);
+  const formatYValue = config.yColumn
+    ? getNumericFormatter(ctx.node, config.yColumn)
+    : undefined;
+
+  return m(LineChart, {
+    data,
+    height: 250,
+    xAxisLabel: config.column,
+    yAxisLabel: config.yColumn,
+    fillParent: true,
+    scaleAxes: true,
+    formatXValue,
+    formatYValue,
+    onBrush: (range) =>
+      handleHistogramBrush(ctx, config, range.start, range.end),
+  });
+}
+
+export function renderScatterChart(
+  ctx: ChartRenderContext,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): m.Child {
+  if (!entry.scatterLoader) {
+    return m(EmptyState, {icon: 'scatter_plot', title: 'No data to display'});
+  }
+
+  const {data} = entry.scatterLoader.use({maxPoints: 2000});
+
+  const formatXValue = getNumericFormatter(ctx.node, config.column);
+  const formatYValue = config.yColumn
+    ? getNumericFormatter(ctx.node, config.yColumn)
+    : undefined;
+
+  return m(Scatterplot, {
+    data,
+    height: 250,
+    xAxisLabel: config.column,
+    yAxisLabel: config.yColumn,
+    fillParent: true,
+    scaleAxes: true,
+    formatXValue,
+    formatYValue,
+  });
+}
+
+export function renderPieChart(
+  ctx: ChartRenderContext,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): m.Child {
+  if (!entry.pieLoader) {
+    return m(EmptyState, {icon: 'pie_chart', title: 'No data to display'});
+  }
+
+  const agg = config.aggregation ?? 'COUNT';
+  const {data} = entry.pieLoader.use({aggregation: agg, limit: 20});
+
+  const formatValue =
+    agg !== 'COUNT'
+      ? getNumericFormatter(ctx.node, config.measureColumn ?? config.column)
+      : undefined;
+
+  return m(PieChart, {
+    data,
+    height: 250,
+    fillParent: true,
+    formatValue,
+    onSliceClick: (slice) => {
+      ctx.node.clearChartFiltersForColumn(config.column);
+      ctx.node.setBrushSelection(config.column, [slice.label]);
+      ctx.onFilterChange?.();
+    },
+  });
+}
+
+export function renderTreemap(
+  ctx: ChartRenderContext,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): m.Child {
+  if (!entry.treemapLoader) {
+    return m(EmptyState, {icon: 'grid_view', title: 'No data to display'});
+  }
+
+  const agg = config.aggregation ?? 'SUM';
+  const {data} = entry.treemapLoader.use({aggregation: agg, limit: 50});
+
+  const formatValue = getNumericFormatter(
+    ctx.node,
+    config.measureColumn ?? config.column,
+  );
+
+  return m(Treemap, {
+    data,
+    height: 250,
+    fillParent: true,
+    formatValue,
+    onNodeClick: (node: TreemapNode) => {
+      ctx.node.clearChartFiltersForColumn(config.column);
+      ctx.node.setBrushSelection(config.column, [node.name]);
+      ctx.onFilterChange?.();
+    },
+  });
+}
+
+export function renderBoxplot(
+  ctx: ChartRenderContext,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): m.Child {
+  if (!entry.boxplotLoader) {
+    return m(EmptyState, {
+      icon: 'candlestick_chart',
+      title: 'No data to display',
+    });
+  }
+
+  const {data} = entry.boxplotLoader.use({limit: 30});
+
+  const formatValue = config.yColumn
+    ? getNumericFormatter(ctx.node, config.yColumn)
+    : undefined;
+
+  return m(BoxplotChart, {
+    data,
+    height: 250,
+    categoryLabel: config.column,
+    valueLabel: config.yColumn,
+    fillParent: true,
+    formatValue,
+  });
+}
+
+export function renderHeatmap(
+  _ctx: ChartRenderContext,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): m.Child {
+  if (!entry.heatmapLoader) {
+    return m(EmptyState, {icon: 'grid_on', title: 'No data to display'});
+  }
+
+  // Heatmap uses AggregateFunction (SUM/AVG/MIN/MAX) not ChartAggregation.
+  // If aggregation is COUNT or unset, default to SUM.
+  const rawAgg = config.aggregation;
+  const agg =
+    rawAgg === 'SUM' || rawAgg === 'AVG' || rawAgg === 'MIN' || rawAgg === 'MAX'
+      ? rawAgg
+      : 'SUM';
+  const {data} = entry.heatmapLoader.use({aggregation: agg});
+
+  return m(HeatmapChart, {
+    data,
+    height: 250,
+    xAxisLabel: config.column,
+    yAxisLabel: config.yColumn,
+    fillParent: true,
+  });
+}
+
+export function renderCdf(
+  ctx: ChartRenderContext,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): m.Child {
+  if (!entry.cdfLoader) {
+    return m(EmptyState, {icon: 'trending_up', title: 'No data to display'});
+  }
+
+  const {data} = entry.cdfLoader.use({maxPoints: 500});
+
+  const formatXValue = getNumericFormatter(ctx.node, config.column);
+
+  return m(LineChart, {
+    data,
+    height: 250,
+    xAxisLabel: config.column,
+    yAxisLabel: 'Cumulative %',
+    fillParent: true,
+    scaleAxes: true,
     formatXValue,
     onBrush: (range) =>
       handleHistogramBrush(ctx, config, range.start, range.end),

@@ -126,11 +126,15 @@ void* wrap_reallocarray(uint32_t heap_id,
                         void* pointer,
                         size_t nmemb,
                         size_t size) {
+  size_t alloc_size = 0;
+  if (__builtin_mul_overflow(nmemb, size, &alloc_size))
+    return fn(pointer, nmemb, size);
+
   if (pointer)
     AHeapProfile_reportFree(heap_id, reinterpret_cast<uint64_t>(pointer));
   void* addr = fn(pointer, nmemb, size);
   AHeapProfile_reportAllocation(heap_id, reinterpret_cast<uint64_t>(addr),
-                                nmemb * size);
+                                alloc_size);
   return addr;
 }
 
