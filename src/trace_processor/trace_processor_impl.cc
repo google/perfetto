@@ -139,6 +139,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"   // IWYU pragma: keep
 #include "src/trace_processor/tables/jit_tables_py.h"       // IWYU pragma: keep
+#include "src/trace_processor/tables/linux_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/memory_tables_py.h"    // IWYU pragma: keep
 #include "src/trace_processor/tables/metadata_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
@@ -1055,6 +1056,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables,
                  storage->mutable_android_game_intervenion_list_table());
   AddStaticTable(tables, storage->mutable_android_log_table());
+  AddStaticTable(tables, storage->mutable_journald_log_table());
   AddStaticTable(tables, storage->mutable_build_flags_table());
   AddStaticTable(tables, storage->mutable_modules_table());
   AddStaticTable(tables, storage->mutable_clock_snapshot_table());

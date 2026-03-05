@@ -316,6 +316,47 @@ SELECT
   msg
 FROM __intrinsic_android_logs;
 
+-- Journald log entries from the linux.journald data source.
+--
+-- NOTE: this table is not sorted by timestamp.
+CREATE PERFETTO VIEW journald_logs (
+  -- Which row in the table the log corresponds to.
+  id ID,
+  -- Timestamp in nanoseconds.
+  ts TIMESTAMP,
+  -- Thread id in the trace (nullable).
+  utid JOINID(thread.id),
+  -- Syslog priority (0=EMERG, 7=DEBUG).
+  prio LONG,
+  -- SYSLOG_IDENTIFIER (program name / tag, nullable).
+  tag STRING,
+  -- Log message text.
+  msg STRING,
+  -- User ID (nullable).
+  uid LONG,
+  -- Process comm name (nullable).
+  comm STRING,
+  -- Systemd unit name (nullable).
+  systemd_unit STRING,
+  -- Hostname (nullable).
+  hostname STRING,
+  -- Transport method (nullable).
+  transport STRING
+) AS
+SELECT
+  id,
+  ts,
+  utid,
+  prio,
+  tag,
+  msg,
+  uid,
+  comm,
+  systemd_unit,
+  hostname,
+  transport
+FROM __intrinsic_journald_logs;
+
 -- Contains flow events linking slices.
 CREATE PERFETTO VIEW flow (
   -- The id of the flow.

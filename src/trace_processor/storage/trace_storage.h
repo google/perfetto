@@ -436,6 +436,13 @@ class TraceStorage {
     return mutable_table<tables::AndroidLogTable>();
   }
 
+  const tables::JournaldLogTable& journald_log_table() const {
+    return table<tables::JournaldLogTable>();
+  }
+  tables::JournaldLogTable* mutable_journald_log_table() {
+    return mutable_table<tables::JournaldLogTable>();
+  }
+
   const tables::AndroidDumpstateTable& android_dumpstate_table() const {
     return table<tables::AndroidDumpstateTable>();
   }
