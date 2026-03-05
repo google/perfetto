@@ -54,9 +54,16 @@ class SettingImpl<T> implements Setting<T> {
   }
 }
 
+import {LocalStorage} from '../core/local_storage';
+import {BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_manager';
+
 class SettingsManagerImpl implements SettingsManager {
   private settings = new Map<string, Setting<unknown>>();
-  private storage = new Map<string, unknown>();
+  private storage: LocalStorage;
+
+  constructor(storage: LocalStorage) {
+    this.storage = storage;
+  }
 
   register<T>(descriptor: SettingDescriptor<T>): Setting<T> {
     const setting = new SettingImpl(
@@ -80,15 +87,17 @@ class SettingsManagerImpl implements SettingsManager {
   }
 
   getStoredValue(id: string): unknown {
-    return this.storage.get(id);
+    return this.storage.load()[id];
   }
 
   setStoredValue(id: string, value: unknown): void {
-    this.storage.set(id, value);
+    const data = this.storage.load();
+    data[id] = value;
+    this.storage.save(data);
   }
 
   resetAll(): void {
-    this.storage.clear();
+    this.storage.save({});
     m.redraw();
   }
 
@@ -97,7 +106,7 @@ class SettingsManagerImpl implements SettingsManager {
   }
 }
 
-export const bigTraceSettingsManager = new SettingsManagerImpl();
+export const bigTraceSettingsManager = new SettingsManagerImpl(new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY));
 
 bigTraceSettingsManager.register({
     id: 'traceLimit',

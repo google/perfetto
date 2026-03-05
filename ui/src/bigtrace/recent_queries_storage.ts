@@ -14,7 +14,8 @@
 
 import {z} from 'zod';
 
-const RECENT_QUERIES_KEY = 'recentBigTraceQueries';
+import {LocalStorage} from '../core/local_storage';
+import {BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_manager';
 
 const RECENT_QUERY_ENTRY_SCHEMA = z.object({
   query: z.string(),
@@ -30,8 +31,10 @@ export type RecentQueries = z.infer<typeof RECENT_QUERIES_SCHEMA>;
 export class RecentQueriesStorage {
   private _data: RecentQueries;
   maxItems = 15;
+  private storage: LocalStorage;
 
   constructor() {
+    this.storage = new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY);
     this._data = this.load();
   }
 
@@ -57,12 +60,12 @@ export class RecentQueriesStorage {
   }
 
   private load(): RecentQueries {
-    const value = window.localStorage.getItem(RECENT_QUERIES_KEY);
-    if (value === null) {
+    const value = this.storage.load()['queries'];
+    if (value === undefined) {
       return [];
     }
     try {
-      const res = RECENT_QUERIES_SCHEMA.safeParse(JSON.parse(value));
+      const res = RECENT_QUERIES_SCHEMA.safeParse(value);
       return res.success ? res.data : [];
     } catch {
       return [];
@@ -71,10 +74,9 @@ export class RecentQueriesStorage {
 
   private save(): void {
     try {
-      window.localStorage.setItem(
-          RECENT_QUERIES_KEY,
-          JSON.stringify(this._data),
-      );
+      const data = this.storage.load();
+      data['queries'] = this._data;
+      this.storage.save(data);
     } catch (e) {
       console.warn('Failed to save recent queries to localStorage:', e);
     }
