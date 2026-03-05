@@ -30,7 +30,7 @@ class RecentQueryCard implements m.ClassComponent<{entry: RecentQueryEntry, onLo
           onclick: () => onLoadQuery(entry.query),
         },
         m('p', new Date(entry.timestamp).toLocaleString()),
-        m('h3', entry.query),
+        m('pre', {style: {maxHeight: '100px', overflowY: 'auto', whiteSpace: 'pre-wrap'}}, entry.query),
     );
   }
 }

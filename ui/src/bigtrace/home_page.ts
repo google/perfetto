@@ -21,30 +21,63 @@ interface HomePageAttrs {
   navigateTo: (page: string) => void;
 }
 
+const SLICE_COUNT_QUERY = `SELECT
+  COUNT(*) as slice_count
+FROM slice`;
+
+const CPU_TIME_QUERY = `SELECT
+  p.name,
+  sum(s.dur)/1e9 as cpu_sec
+FROM sched s
+JOIN thread t USING (utid)
+JOIN process p USING (upid)
+GROUP BY p.name
+ORDER BY cpu_sec DESC
+LIMIT 10`;
+
 export class HomePage implements m.ClassComponent<HomePageAttrs> {
   view({attrs}: m.Vnode<HomePageAttrs>) {
     return m(
         '.page',
-        {style: {padding: '2em'}},
-        m('.page-title', m('h1', 'Welcome to BigTrace')),
-        m('p', 'BigTrace is a tool to run queries on multiple traces.'),
+        {style: {padding: '2em', overflowY: 'auto', height: '100%'}},
+        m('.page-title', {style: {textAlign: 'center'}}, m('h1', 'Welcome to BigTrace')),
+        m('p', 'Analyze traces at scale 🚀. BigTrace helps you find bugs 🐛 and performance issues 🐢 across thousands of traces.'),
+        
+        m('.quick-start', {style: {marginBottom: '2em'}},
+          m('.pf-nav-section-header', m('span', 'How to get started')),
+          m(CardStack,
+            m(Card,
+              m('h3', '1. Write a query'),
+              m('p', 'Use the query editor to write a PerfettoSQL query.'),
+            ),
+            m(Card,
+              m('h3', '2. Run it'),
+              m('p', 'Click "Run Query" or press Cmd/Ctrl + Enter.'),
+            ),
+            m(Card,
+              m('h3', '3. Analyze'),
+              m('p', 'Browse the results in the table below.'),
+            ),
+          ),
+        ),
+        
         m('.quick-links', {style: {marginBottom: '2em'}},
           m('.pf-nav-section-header', m('span', 'Examples')),
           m(CardStack,
             m(Card, {
               interactive: true,
               onclick: () => {
-                queryState.initialQuery = 'SELECT * FROM slice LIMIT 10';
+                queryState.initialQuery = SLICE_COUNT_QUERY;
                 attrs.navigateTo('bigtrace');
               },
-            }, m('h3', 'SELECT * FROM slice LIMIT 10')),
+            }, m('pre', {style: {maxHeight: '100px', overflowY: 'auto', whiteSpace: 'pre-wrap'}}, SLICE_COUNT_QUERY)),
             m(Card, {
               interactive: true,
               onclick: () => {
-                queryState.initialQuery = 'SELECT * FROM process LIMIT 10';
+                queryState.initialQuery = CPU_TIME_QUERY;
                 attrs.navigateTo('bigtrace');
               },
-            }, m('h3', 'SELECT * FROM process LIMIT 10')),
+            }, m('pre', {style: {maxHeight: '100px', overflowY: 'auto', whiteSpace: 'pre-wrap'}}, CPU_TIME_QUERY)),
             
           ),
         ),
