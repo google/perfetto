@@ -3605,6 +3605,300 @@
     ]
   },
   {
+    "cmd": [],
+    "name": "SDK upload"
+  },
+  {
+    "cmd": [
+      "vpython3",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "ensure-directory",
+      "--mode",
+      "0777",
+      "[CLEANUP]/sdk"
+    ],
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.ensure sdk staging",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "[CACHE]/builder/perfetto/tools/gen_amalgamated",
+      "--sdk",
+      "all",
+      "--output",
+      "[CLEANUP]/sdk/perfetto"
+    ],
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.generate sdk",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "vpython3",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::archive]/resources/archive.py"
+    ],
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.zip cpp sdk",
+    "stdin": "{\"archive_type\": \"zip\", \"entries\": [{\"path\": \"[CLEANUP]/sdk/perfetto.h\", \"type\": \"file\"}, {\"path\": \"[CLEANUP]/sdk/perfetto.cc\", \"type\": \"file\"}], \"output\": \"[CLEANUP]/perfetto-cpp-sdk-src.zip\", \"root\": \"[CLEANUP]/sdk\"}",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CLEANUP]/perfetto-cpp-sdk-src.zip",
+      "gs://perfetto-luci-artifacts/v50.1/sdk/perfetto-cpp-sdk-src.zip"
+    ],
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.gsutil upload",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/sdk/perfetto-cpp-sdk-src.zip@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CLEANUP]/perfetto-cpp-sdk-src.zip",
+      "gs://perfetto-luci-artifacts/latest/sdk/perfetto-cpp-sdk-src.zip"
+    ],
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.gsutil upload (2)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/sdk/perfetto-cpp-sdk-src.zip@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CLEANUP]/perfetto-cpp-sdk-src.zip",
+      "gs://perfetto-luci-artifacts/latest-tagged/sdk/perfetto-cpp-sdk-src.zip"
+    ],
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.gsutil upload (3)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest-tagged/sdk/perfetto-cpp-sdk-src.zip@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "vpython3",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::archive]/resources/archive.py"
+    ],
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.zip c sdk",
+    "stdin": "{\"archive_type\": \"zip\", \"entries\": [{\"path\": \"[CLEANUP]/sdk/perfetto_c.h\", \"type\": \"file\"}, {\"path\": \"[CLEANUP]/sdk/perfetto_c.cc\", \"type\": \"file\"}], \"output\": \"[CLEANUP]/perfetto-c-sdk-src.zip\", \"root\": \"[CLEANUP]/sdk\"}",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CLEANUP]/perfetto-c-sdk-src.zip",
+      "gs://perfetto-luci-artifacts/v50.1/sdk/perfetto-c-sdk-src.zip"
+    ],
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.gsutil upload (4)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/sdk/perfetto-c-sdk-src.zip@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CLEANUP]/perfetto-c-sdk-src.zip",
+      "gs://perfetto-luci-artifacts/latest/sdk/perfetto-c-sdk-src.zip"
+    ],
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.gsutil upload (5)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/sdk/perfetto-c-sdk-src.zip@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CLEANUP]/perfetto-c-sdk-src.zip",
+      "gs://perfetto-luci-artifacts/latest-tagged/sdk/perfetto-c-sdk-src.zip"
+    ],
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.gsutil upload (6)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest-tagged/sdk/perfetto-c-sdk-src.zip@@@"
+    ]
+  },
+  {
     "name": "$result"
   }
 ]

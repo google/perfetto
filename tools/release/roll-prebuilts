@@ -65,6 +65,14 @@ MANIFESTS_TO_UPDATE = [
         'tool': 'tracebox',
         'archs': UNIX_ARCHS
     },
+    {
+        'tool': 'perfetto-cpp-sdk-src',
+        'archs': ['src']
+    },
+    {
+        'tool': 'perfetto-c-sdk-src',
+        'archs': ['src']
+    },
 ]
 
 # Maps a 'os-arch' string (were arch follows LUCI conventions) into
@@ -99,9 +107,14 @@ ARCH_TO_PYTHON = {
 
 
 def make_manifest(git_revision, tool, arch):
-  ext = '.exe' if arch.startswith('windows') else ''
-  file_name = tool + ext
-  url = '%s/%s/%s/%s' % (GCS_URL, git_revision, arch, file_name)
+  if arch == 'src':
+    file_name = tool + '.zip'
+    url = '%s/%s/sdk/%s' % (GCS_URL, git_revision, file_name)
+  else:
+    ext = '.exe' if arch.startswith('windows') else ''
+    file_name = tool + ext
+    url = '%s/%s/%s/%s' % (GCS_URL, git_revision, arch, file_name)
+
   logging.info('Downloading %s', url)
   data = subprocess.check_output(['curl', '-fsL', '-o', '-', url])
   manifest = {
