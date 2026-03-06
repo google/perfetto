@@ -45,6 +45,7 @@ describe('CleanupManager', () => {
       getEngine: jest.fn(),
       materializeNode: jest.fn(),
       dropAllMaterializations: jest.fn().mockResolvedValue(undefined),
+      removeNode: jest.fn(),
     } as unknown as jest.Mocked<QueryExecutionService>;
 
     cleanupManager = new CleanupManager(mockQueryExecutionService);

@@ -19,6 +19,7 @@ interface CommonButtonAttrs {
   onclick: () => void;
   variant?: ButtonVariant;
   compact?: boolean;
+  disabled?: boolean;
 }
 
 interface IconButton extends CommonButtonAttrs {

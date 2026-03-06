@@ -30,6 +30,10 @@ base::StatusOr<std::vector<uint8_t>> TraceConfigTxtToPb(
     const std::string& input,
     const std::string& file_name = "-");
 
+base::StatusOr<std::vector<uint8_t>> TraceSummarySpecTxtToPb(
+    const std::string& input,
+    const std::string& file_name = "-");
+
 }  // namespace perfetto
 
 #endif  // SRC_PROTO_UTILS_TXT_TO_PB_H_

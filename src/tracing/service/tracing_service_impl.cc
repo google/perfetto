@@ -125,6 +125,7 @@
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/protovm/vm_program.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/extension_descriptor.pbzero.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
@@ -2747,6 +2748,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
+    EmitExtensionDescriptors(tracing_session, &packets);
     EmitTraceProvenance(tracing_session, &packets);
     if (!tracing_session->config.builtin_data_sources().disable_system_info()) {
       EmitSystemInfo(&packets);
@@ -4380,6 +4382,28 @@ void TracingServiceImpl::MaybeEmitProtoVmInstances(
   }
 
   tracing_session->did_emit_protovm_instances_ = true;
+}
+
+void TracingServiceImpl::EmitExtensionDescriptors(
+    TracingSession*,
+    std::vector<TracePacket>* packets) {
+  for (const auto& desc : init_opts_.extension_descriptors) {
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    packet->set_trusted_uid(static_cast<int32_t>(uid_));
+    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    auto* ext = packet->set_extension_descriptor();
+    if (desc.gzipped) {
+      ext->set_extension_set_gzip(desc.start, desc.size);
+    } else {
+      ext->AppendBytes(
+          protos::pbzero::ExtensionDescriptor::kExtensionSetFieldNumber,
+          desc.start, desc.size);
+    }
+    if (!desc.name.empty()) {
+      ext->set_file_name(desc.name);
+    }
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  }
 }
 
 void TracingServiceImpl::MaybeEmitCloneTrigger(

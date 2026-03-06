@@ -90,6 +90,13 @@ export interface BoxplotAttrs {
    * Format function for value axis tick values.
    */
   readonly formatValue?: (value: number) => string;
+
+  /**
+   * Show grid lines. 'horizontal' draws lines parallel to the X axis,
+   * 'vertical' draws lines parallel to the Y axis, 'both' shows both.
+   * Defaults to no grid lines.
+   */
+  readonly gridLines?: 'horizontal' | 'vertical' | 'both';
 }
 
 export class BoxplotChart implements m.ClassComponent<BoxplotAttrs> {
@@ -121,10 +128,14 @@ function buildBoxplotOption(
     valueLabel,
     orientation = 'vertical',
     formatValue,
+    gridLines,
   } = attrs;
   const fmtVal = formatValue ?? formatNumber;
   const horizontal = orientation === 'horizontal';
   const theme = getChartThemeColors();
+
+  const showXAxisGrid = gridLines === 'vertical' || gridLines === 'both';
+  const showYAxisGrid = gridLines === 'horizontal' || gridLines === 'both';
 
   const categories = data.items.map((item) => item.label);
   // ECharts boxplot series data format: [min, Q1, median, Q3, max].
@@ -145,6 +156,7 @@ function buildBoxplotOption(
       name: categoryLabel,
       labelOverflow: 'truncate',
       labelWidth: 80,
+      showSplitLine: horizontal ? showYAxisGrid : showXAxisGrid,
     },
     !horizontal,
   );
@@ -158,6 +170,7 @@ function buildBoxplotOption(
           ? (v: number | string) => fmtVal(v as number)
           : undefined,
       scale: true,
+      showSplitLine: horizontal ? showXAxisGrid : showYAxisGrid,
     },
     horizontal,
   );

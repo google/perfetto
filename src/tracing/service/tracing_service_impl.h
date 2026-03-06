@@ -271,6 +271,7 @@ class TracingServiceImpl : public TracingService {
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitProtoVmInstances(TracingSession*, std::vector<TracePacket>*);
+  void EmitExtensionDescriptors(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID, FlushFlags);
   void OnDisableTracingTimeout(TracingSessionID);

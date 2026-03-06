@@ -1002,7 +1002,6 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterNe(
   std::optional<StringPool::Id> id =
       state.string_pool->GetId(base::StringView(val));
   if (!id) {
-    memcpy(output, begin, size_t(end - begin) * sizeof(*begin));
     return output + (end - begin);
   }
   static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");

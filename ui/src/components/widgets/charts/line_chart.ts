@@ -141,6 +141,13 @@ export interface LineChartAttrs {
    * always including zero. Defaults to false.
    */
   readonly scaleAxes?: boolean;
+
+  /**
+   * Show grid lines. 'horizontal' draws lines parallel to the X axis,
+   * 'vertical' draws lines parallel to the Y axis, 'both' shows both.
+   * Defaults to no grid lines.
+   */
+  readonly gridLines?: 'horizontal' | 'vertical' | 'both';
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
@@ -181,6 +188,7 @@ function buildLineOption(
     showLegend,
     showPoints = true,
     lineWidth = 2,
+    gridLines,
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
@@ -219,6 +227,7 @@ function buildLineOption(
       min: attrs.xAxisMin,
       max: attrs.xAxisMax,
       scale: attrs.scaleAxes,
+      showSplitLine: gridLines === 'vertical' || gridLines === 'both',
     },
     yAxis: {
       type: logScale ? 'log' : 'value',
@@ -229,6 +238,7 @@ function buildLineOption(
           : undefined,
       minInterval: integerY ? 1 : undefined,
       scale: attrs.scaleAxes,
+      showSplitLine: gridLines === 'horizontal' || gridLines === 'both',
     },
     tooltip: {
       trigger: 'axis' as const,

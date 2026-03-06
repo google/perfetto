@@ -47,7 +47,7 @@ packet {
   first_packet_on_sequence: true
   shell_transition {
     id: 729
-    targets {
+    changes {
       flags: 1048577
     }
   }

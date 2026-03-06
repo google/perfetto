@@ -354,6 +354,11 @@ bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
         "a string."));
   }
   std::string table_name_str = arguments[0].AsString();
+  // Table names now use the __intrinsic_ prefix internally. If the caller
+  // passes the user-facing name, prepend the prefix.
+  if (table_name_str.substr(0, 12) != "__intrinsic_") {
+    table_name_str = "__intrinsic_" + table_name_str;
+  }
   const dataframe::Dataframe* static_table_from_engine =
       engine_->GetDataframeOrNull(table_name_str);
   if (!static_table_from_engine) {

@@ -15,6 +15,13 @@
 import {AggregateFunction} from '../datagrid/model';
 
 /**
+ * Aggregation functions available for charts.
+ * Extends the datagrid's AggregateFunction with COUNT, which is
+ * field-independent (counts rows rather than aggregating a column).
+ */
+export type ChartAggregation = AggregateFunction | 'COUNT';
+
+/**
  * Format a number for display on chart axes.
  */
 export function formatNumber(value: number): string {
@@ -34,8 +41,8 @@ export function formatNumber(value: number): string {
 /**
  * Whether an aggregation always produces integer results.
  */
-export function isIntegerAggregation(agg: AggregateFunction): boolean {
-  return agg === 'COUNT_DISTINCT';
+export function isIntegerAggregation(agg: ChartAggregation): boolean {
+  return agg === 'COUNT' || agg === 'COUNT_DISTINCT';
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +74,7 @@ export {type EChartBrushEndParams} from './echart_view';
  * Returns [min, max] if a valid range was selected, undefined otherwise.
  *
  * This utility centralizes the brush range extraction logic used across
- * different chart types (line, scatter, bar, histogram).
+ * different chart types (line, bar, histogram).
  */
 export function extractBrushRange(
   params: unknown,
@@ -81,4 +88,32 @@ export function extractBrushRange(
     return [Math.min(a, b), Math.max(a, b)];
   }
   return undefined;
+}
+
+/**
+ * Extract the 2D brush rect from an ECharts `brushEnd` event (rect brush).
+ * Returns {xMin, xMax, yMin, yMax} if a valid rect was selected, undefined
+ * otherwise.
+ *
+ * For a rect brush, ECharts puts [[xMin, xMax], [yMin, yMax]] in coordRange.
+ */
+export function extractBrushRect(
+  params: unknown,
+): {xMin: number; xMax: number; yMin: number; yMax: number} | undefined {
+  const p = params as {
+    areas?: ReadonlyArray<{
+      coordRange?: [[number, number], [number, number]];
+    }>;
+  };
+  const areas = p.areas;
+  if (areas === undefined || areas.length === 0) return undefined;
+  const coordRange = areas[0].coordRange;
+  if (coordRange === undefined) return undefined;
+  const [[x1, x2], [y1, y2]] = coordRange;
+  return {
+    xMin: Math.min(x1, x2),
+    xMax: Math.max(x1, x2),
+    yMin: Math.min(y1, y2),
+    yMax: Math.max(y1, y2),
+  };
 }

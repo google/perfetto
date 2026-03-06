@@ -19,9 +19,14 @@ import {
   QueryResult,
 } from '../../../trace_processor/query_result';
 import {BarChartData, BarChartItem} from './bar_chart';
-import {createChartLoader, ChartLoader, inFilter} from './chart_sql_source';
-import {AggregateFunction} from '../datagrid/model';
-import type {QueryResult as SlotResult} from '../../../base/query_slot';
+import {
+  ChartSource,
+  SQLChartLoader,
+  QueryConfig,
+  ChartLoaderResult,
+  inFilter,
+} from './chart_sql_source';
+import {ChartAggregation} from './chart_utils';
 
 /**
  * Configuration for SQLBarChartLoader.
@@ -53,7 +58,7 @@ export interface SQLBarChartLoaderOpts {
  */
 export interface BarChartLoaderConfig {
   /** Aggregation function to apply to the measure column per group. */
-  readonly aggregation: AggregateFunction;
+  readonly aggregation: ChartAggregation;
 
   /**
    * Maximum number of bars to return. Groups are sorted by aggregated
@@ -63,53 +68,58 @@ export interface BarChartLoaderConfig {
 
   /**
    * Filter to only include specific dimension values (e.g., from brush).
+   * NULL values in the array produce `column IS NULL` SQL conditions.
    */
-  readonly filter?: ReadonlyArray<string | number>;
+  readonly filter?: ReadonlyArray<string | number | null>;
 }
 
 /** Result returned by the bar chart loader. */
-export type BarChartLoaderResult = SlotResult<BarChartData>;
+export type BarChartLoaderResult = ChartLoaderResult<BarChartData>;
 
 /**
  * SQL-based bar chart loader with async loading and caching.
  *
  * Performs grouping and aggregation directly in SQL for efficiency with
- * large datasets.
+ * large datasets. Uses QuerySlot for caching and request deduplication.
  */
-export class SQLBarChartLoader {
-  private readonly loader: ChartLoader<BarChartLoaderConfig, BarChartData>;
+export class SQLBarChartLoader extends SQLChartLoader<
+  BarChartLoaderConfig,
+  BarChartData
+> {
+  private readonly dimensionColumn: string;
+  private readonly measureColumn: string;
 
   constructor(opts: SQLBarChartLoaderOpts) {
-    const dimCol = opts.dimensionColumn;
-    const measCol = opts.measureColumn;
-
-    this.loader = createChartLoader({
-      engine: opts.engine,
-      query: opts.query,
-      schema: {[dimCol]: 'text', [measCol]: 'real'},
-      buildQueryConfig: (config) => ({
-        type: 'aggregated',
-        dimensions: [{column: dimCol}],
-        measures: [{column: measCol, aggregation: config.aggregation}],
-        filters: inFilter(dimCol, config.filter),
-        limit: config.limit,
+    super(
+      opts.engine,
+      new ChartSource({
+        query: opts.query,
+        schema: {
+          [opts.dimensionColumn]: 'text',
+          [opts.measureColumn]: 'real',
+        },
       }),
-      parseResult: (queryResult: QueryResult) => {
-        const items: BarChartItem[] = [];
-        const iter = queryResult.iter({_dim: STR_NULL, _value: NUM});
-        for (; iter.valid(); iter.next()) {
-          items.push({label: iter._dim ?? '(null)', value: iter._value});
-        }
-        return {items};
-      },
-    });
+    );
+    this.dimensionColumn = opts.dimensionColumn;
+    this.measureColumn = opts.measureColumn;
   }
 
-  use(config: BarChartLoaderConfig): BarChartLoaderResult {
-    return this.loader.use(config);
+  protected buildQueryConfig(config: BarChartLoaderConfig): QueryConfig {
+    return {
+      type: 'aggregated',
+      dimensions: [{column: this.dimensionColumn}],
+      measures: [{column: this.measureColumn, aggregation: config.aggregation}],
+      filters: inFilter(this.dimensionColumn, config.filter),
+      limit: config.limit,
+    };
   }
 
-  dispose(): void {
-    this.loader.dispose();
+  protected parseResult(queryResult: QueryResult): BarChartData {
+    const items: BarChartItem[] = [];
+    const iter = queryResult.iter({_dim: STR_NULL, _value: NUM});
+    for (; iter.valid(); iter.next()) {
+      items.push({label: iter._dim ?? '(null)', value: iter._value});
+    }
+    return {items};
   }
 }

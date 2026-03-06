@@ -59,7 +59,6 @@ import {renderTooltip} from './demos/tooltip_demo';
 import {renderTrackShell} from './demos/track_shell_demo';
 import {renderTree} from './demos/tree_demo';
 import {renderTreeTable} from './demos/treetable_demo';
-import {renderVegaView} from './demos/vega_view_demo';
 import {renderVirtualCanvas} from './demos/virtual_canvas_demo';
 
 interface WidgetSection {
@@ -113,7 +112,6 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'trackshell', label: 'TrackShell', view: renderTrackShell},
   {id: 'tree', label: 'Tree', view: renderTree},
   {id: 'treetable', label: 'TreeTable', view: renderTreeTable},
-  {id: 'vegaview', label: 'VegaView', view: renderVegaView},
   {id: 'virtualcanvas', label: 'VirtualCanvas', view: renderVirtualCanvas},
 ];
 

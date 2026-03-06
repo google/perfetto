@@ -18,10 +18,15 @@ import {
   STR_NULL,
   QueryResult,
 } from '../../../trace_processor/query_result';
-import {createChartLoader, ChartLoader, inFilter} from './chart_sql_source';
-import {AggregateFunction} from '../datagrid/model';
+import {
+  ChartSource,
+  SQLChartLoader,
+  QueryConfig,
+  ChartLoaderResult,
+  inFilter,
+} from './chart_sql_source';
+import {ChartAggregation} from './chart_utils';
 import {PieChartData, PieChartSlice} from './pie_chart';
-import type {QueryResult as SlotResult} from '../../../base/query_slot';
 
 /**
  * Configuration for SQLPieChartLoader.
@@ -48,7 +53,7 @@ export interface SQLPieChartLoaderOpts {
  */
 export interface PieChartLoaderConfig {
   /** Aggregation function to apply to the measure column per group. */
-  readonly aggregation: AggregateFunction;
+  readonly aggregation: ChartAggregation;
 
   /**
    * Maximum number of slices to return. Groups are sorted by aggregated
@@ -62,49 +67,54 @@ export interface PieChartLoaderConfig {
 }
 
 /** Result returned by the pie chart loader. */
-export type PieChartLoaderResult = SlotResult<PieChartData>;
+export type PieChartLoaderResult = ChartLoaderResult<PieChartData>;
 
 /**
  * SQL-based pie chart loader with async loading and caching.
  *
  * Performs grouping and aggregation directly in SQL. When a limit is
  * set, groups beyond the top N are collapsed into an "(Other)" slice.
+ * Uses QuerySlot for caching and request deduplication.
  */
-export class SQLPieChartLoader {
-  private readonly loader: ChartLoader<PieChartLoaderConfig, PieChartData>;
+export class SQLPieChartLoader extends SQLChartLoader<
+  PieChartLoaderConfig,
+  PieChartData
+> {
+  private readonly dimensionColumn: string;
+  private readonly measureColumn: string;
 
   constructor(opts: SQLPieChartLoaderOpts) {
-    const dimCol = opts.dimensionColumn;
-    const measCol = opts.measureColumn;
-
-    this.loader = createChartLoader({
-      engine: opts.engine,
-      query: opts.query,
-      schema: {[dimCol]: 'text', [measCol]: 'real'},
-      buildQueryConfig: (config) => ({
-        type: 'aggregated',
-        dimensions: [{column: dimCol}],
-        measures: [{column: measCol, aggregation: config.aggregation}],
-        filters: inFilter(dimCol, config.filter),
-        limit: config.limit,
-        includeOther: config.limit !== undefined,
+    super(
+      opts.engine,
+      new ChartSource({
+        query: opts.query,
+        schema: {
+          [opts.dimensionColumn]: 'text',
+          [opts.measureColumn]: 'real',
+        },
       }),
-      parseResult: (queryResult: QueryResult) => {
-        const slices: PieChartSlice[] = [];
-        const iter = queryResult.iter({_dim: STR_NULL, _value: NUM});
-        for (; iter.valid(); iter.next()) {
-          slices.push({label: iter._dim ?? '(null)', value: iter._value});
-        }
-        return {slices};
-      },
-    });
+    );
+    this.dimensionColumn = opts.dimensionColumn;
+    this.measureColumn = opts.measureColumn;
   }
 
-  use(config: PieChartLoaderConfig): PieChartLoaderResult {
-    return this.loader.use(config);
+  protected buildQueryConfig(config: PieChartLoaderConfig): QueryConfig {
+    return {
+      type: 'aggregated',
+      dimensions: [{column: this.dimensionColumn}],
+      measures: [{column: this.measureColumn, aggregation: config.aggregation}],
+      filters: inFilter(this.dimensionColumn, config.filter),
+      limit: config.limit,
+      includeOther: config.limit !== undefined,
+    };
   }
 
-  dispose(): void {
-    this.loader.dispose();
+  protected parseResult(queryResult: QueryResult): PieChartData {
+    const slices: PieChartSlice[] = [];
+    const iter = queryResult.iter({_dim: STR_NULL, _value: NUM});
+    for (; iter.valid(); iter.next()) {
+      slices.push({label: iter._dim ?? '(null)', value: iter._value});
+    }
+    return {slices};
   }
 }

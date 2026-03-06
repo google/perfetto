@@ -849,18 +849,6 @@ def gen_target_helper(gn_target: GnParser.Target,
       raise Error('%s: \'public\' currently supported only for cc_library' %
                   gn_target.name)
 
-  raw_srcs = [x[2:] for x in gn_target.sources]
-  raw_srcs += [x[2:] for x in gn_target.inputs]
-  if bazel_type == 'perfetto_cc_library':
-    label.srcs += [x for x in raw_srcs if not x.startswith('include')]
-    label.hdrs += [x for x in raw_srcs if x.startswith('include')]
-
-    # Most Perfetto libraries cannot be dynamically linked as they would
-    # cause ODR violations.
-    label.__dict__['linkstatic'] = True
-  else:
-    label.srcs = raw_srcs
-
   is_public = gn_target.name in public_targets
   is_public_for_allowlist = gn_target.name in allowlist_public_targets
   if is_public and is_public_for_allowlist:
@@ -870,6 +858,22 @@ def gen_target_helper(gn_target: GnParser.Target,
     label.visibility = ['//visibility:public']
   elif is_public_for_allowlist:
     label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
+
+  raw_srcs = [x[2:] for x in gn_target.sources]
+  raw_srcs += [x[2:] for x in gn_target.inputs]
+  if bazel_type == 'perfetto_cc_library':
+    if is_public or is_public_for_allowlist:
+      label.srcs += [x for x in raw_srcs if not x.startswith('include')]
+      label.hdrs += [x for x in raw_srcs if x.startswith('include')]
+    else:
+      label.srcs += [x for x in raw_srcs if not x.endswith('.h')]
+      label.hdrs += [x for x in raw_srcs if x.endswith('.h')]
+
+    # Most Perfetto libraries cannot be dynamically linked as they would
+    # cause ODR violations.
+    label.__dict__['linkstatic'] = True
+  else:
+    label.srcs = raw_srcs
 
   if win_target:
     label.win_srcs = list(

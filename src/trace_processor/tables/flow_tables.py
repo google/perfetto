@@ -21,13 +21,15 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
+from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.slice_tables import SLICE_TABLE
 
 FLOW_TABLE = Table(
     python_module=__file__,
     class_name='FlowTable',
-    sql_name='flow',
+    sql_name='__intrinsic_flow',
+    wrapping_sql_view=WrappingSqlView('flow'),
     columns=[
         C(
             'slice_out',
