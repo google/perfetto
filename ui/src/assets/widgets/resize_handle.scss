@@ -15,7 +15,7 @@
 // Hitbox: 5px total clickable area (via ::before extending beyond visible area)
 // Accent: 3px visible hover area
 // Border: 1px visible line when not hovering
-$hitbox: 3px; // Extra clickable area on each side
+$hitbox: 2px; // Extra clickable area on each side
 $accent: 1px;
 $thickness: 1px;
 

@@ -28,6 +28,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[derive(Debug)]
+struct InstanceState {
+    config: GpuCounterConfig,
+    need_counter_descriptors: bool,
+}
+
 #[derive(Debug, Default)]
 struct GpuCounterConfig {
     counter_period_ns: Option<u64>,
@@ -62,66 +68,97 @@ fn main() -> Result<(), Box<dyn Error>> {
     let producer_args = ProducerInitArgsBuilder::new().backends(Backends::SYSTEM);
     Producer::init(producer_args.build());
     let mut data_source = DataSource::new();
-    let gpu_counter_config = Arc::new(Mutex::new(GpuCounterConfig::default()));
-    let gpu_counter_config_for_setup = Arc::clone(&gpu_counter_config);
-    let data_source_args = DataSourceArgsBuilder::new().on_setup(move |inst_id, config, _args| {
-        let mut gpu_counter_config = gpu_counter_config_for_setup.lock().unwrap();
-        for item in PbDecoder::new(config) {
-            if let (GPU_COUNTER_CONFIG_ID, PbDecoderField::Delimited(value)) =
-                item.unwrap_or_else(|e| panic!("Error: {}", e))
-            {
-                gpu_counter_config.decode(value);
+    let instances: Arc<Mutex<[Option<InstanceState>; 8]>> =
+        Arc::new(Mutex::new([None, None, None, None, None, None, None, None]));
+    let instances_for_setup = Arc::clone(&instances);
+    let instances_for_start = Arc::clone(&instances);
+    let instances_for_stop = Arc::clone(&instances);
+    let data_source_args = DataSourceArgsBuilder::new()
+        .on_setup(move |inst_id, config, _args| {
+            let mut instances = instances_for_setup.lock().unwrap();
+            let mut gpu_counter_config = GpuCounterConfig::default();
+            for item in PbDecoder::new(config) {
+                if let (GPU_COUNTER_CONFIG_ID, PbDecoderField::Delimited(value)) =
+                    item.unwrap_or_else(|e| panic!("Error: {}", e))
+                {
+                    gpu_counter_config.decode(value);
+                }
             }
-        }
-        println!(
-            "OnSetup id: {} gpu_conter_config: {:?}",
-            inst_id, gpu_counter_config
-        );
-    });
+            instances[inst_id as usize] = Some(InstanceState {
+                config: gpu_counter_config,
+                need_counter_descriptors: false,
+            });
+            println!(
+                "OnSetup id: {} config: {:?}",
+                inst_id,
+                instances[inst_id as usize].as_ref().unwrap().config
+            );
+        })
+        .on_start(move |inst_id, _| {
+            let mut instances = instances_for_start.lock().unwrap();
+            if let Some(state) = instances[inst_id as usize].as_mut() {
+                state.need_counter_descriptors = true;
+            }
+            println!("OnStart id: {}", inst_id);
+        })
+        .on_stop(move |inst_id, _| {
+            let mut instances = instances_for_stop.lock().unwrap();
+            if let Some(state) = instances[inst_id as usize].as_mut() {
+                state.need_counter_descriptors = false;
+            }
+            println!("OnStop id: {}", inst_id);
+        });
     let start_time = Instant::now();
-    data_source.register("gpu.counters.rig", data_source_args.build())?;
+    data_source.register("gpu.counters.example", data_source_args.build())?;
     loop {
         data_source.trace(|ctx: &mut TraceContext| {
             // Fixed set of counters: sin, cos, tan.
             const COUNTER_IDS: [u32; 3] = [1, 2, 3];
+            let inst_id = ctx.instance_index();
             let elapsed_secs = start_time.elapsed().as_secs_f64();
-            ctx.with_incremental_state(|ctx: &mut TraceContext, state| {
-                let was_cleared = std::mem::replace(&mut state.was_cleared, false);
-                ctx.add_packet(|packet: &mut TracePacket| {
-                    packet.set_gpu_counter_event(|event: &mut GpuCounterEvent| {
-                        for i in COUNTER_IDS.iter() {
-                            event.set_counters(|counter: &mut GpuCounter| {
-                                counter.set_counter_id(*i);
-                                match i {
-                                    1 => counter.set_double_value(elapsed_secs.sin()),
-                                    2 => counter.set_double_value(elapsed_secs.cos()),
-                                    _ => counter.set_double_value(elapsed_secs.tan()),
-                                };
-                            });
-                        }
-                        if was_cleared {
-                            event.set_counter_descriptor(|desc: &mut GpuCounterDescriptor| {
-                                for i in COUNTER_IDS.iter() {
-                                    desc.set_specs(|desc: &mut GpuCounterSpec| {
-                                        desc.set_counter_id(*i);
-                                        match i {
-                                            1 => desc.set_name("sin"),
-                                            2 => desc.set_name("cos"),
-                                            _ => desc.set_name("tan"),
-                                        };
-                                    });
-                                }
-                            });
-                        }
-                    });
+            let need_descriptors = {
+                let mut instances = instances.lock().unwrap();
+                match instances[inst_id as usize].as_mut() {
+                    Some(state) => std::mem::replace(&mut state.need_counter_descriptors, false),
+                    None => false,
+                }
+            };
+            ctx.add_packet(|packet: &mut TracePacket| {
+                packet.set_gpu_counter_event(|event: &mut GpuCounterEvent| {
+                    for i in COUNTER_IDS.iter() {
+                        event.set_counters(|counter: &mut GpuCounter| {
+                            counter.set_counter_id(*i);
+                            match i {
+                                1 => counter.set_double_value(elapsed_secs.sin()),
+                                2 => counter.set_double_value(elapsed_secs.cos()),
+                                _ => counter.set_double_value(elapsed_secs.tan()),
+                            };
+                        });
+                    }
+                    if need_descriptors {
+                        event.set_counter_descriptor(|desc: &mut GpuCounterDescriptor| {
+                            for i in COUNTER_IDS.iter() {
+                                desc.set_specs(|desc: &mut GpuCounterSpec| {
+                                    desc.set_counter_id(*i);
+                                    match i {
+                                        1 => desc.set_name("sin"),
+                                        2 => desc.set_name("cos"),
+                                        _ => desc.set_name("tan"),
+                                    };
+                                });
+                            }
+                        });
+                    }
                 });
             });
         });
-        let counter_period = gpu_counter_config
+        let counter_period = instances
             .lock()
             .unwrap()
-            .counter_period_ns
+            .iter()
+            .filter_map(|s| s.as_ref()?.config.counter_period_ns)
             .map(Duration::from_nanos)
+            .min()
             .unwrap_or(Duration::from_secs(1));
         std::thread::sleep(counter_period);
     }

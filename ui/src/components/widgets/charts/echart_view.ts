@@ -46,6 +46,7 @@ import {
   BrushComponent,
   ToolboxComponent,
   VisualMapComponent,
+  MarkAreaComponent,
 } from 'echarts/components';
 import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsType} from 'echarts/core';
@@ -79,6 +80,7 @@ function ensureEChartsSetup(): void {
     BrushComponent,
     ToolboxComponent,
     VisualMapComponent,
+    MarkAreaComponent,
     CanvasRenderer,
   ]);
 }
@@ -86,10 +88,15 @@ function ensureEChartsSetup(): void {
 /**
  * Typed params for the ECharts `brushEnd` event.
  * Used by chart brush handlers to extract selected ranges.
+ *
+ * coordRange is [min, max] for 1-D brushes (lineX / lineY) and
+ * [[xMin, xMax], [yMin, yMax]] for 2-D rect brushes.
  */
 export interface EChartBrushEndParams {
   readonly areas?: ReadonlyArray<{
-    readonly coordRange?: [number, number];
+    readonly coordRange?:
+      | [number, number]
+      | [[number, number], [number, number]];
   }>;
 }
 
@@ -232,7 +239,7 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
       this.resizeObs = undefined;
     }
     this.detachAllHandlers();
-    if (this.chart) {
+    if (this.chart !== undefined) {
       this.chart.dispose();
       this.chart = undefined;
     }

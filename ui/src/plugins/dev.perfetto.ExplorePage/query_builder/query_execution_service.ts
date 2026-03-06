@@ -54,6 +54,15 @@ export class QueryExecutionService {
   // True means the node needs re-materialization (stale).
   private nodeStaleMap = new Map<string, boolean>();
 
+  // Nodes that just completed successful execution. Used by
+  // handleManualNodeQueryChange() to distinguish post-execution column
+  // discovery from real user edits for autoExecute=false nodes.
+  private justExecutedNodes = new Set<string>();
+
+  // Nodes that have completed their initial TP sync (first processNode call
+  // after selection). Subsequent !autoExecute && !manual calls skip TP sync.
+  private initializedNodes = new Set<string>();
+
   constructor(private engine: Engine) {}
 
   /**
@@ -243,6 +252,56 @@ export class QueryExecutionService {
     return this.isExecuting;
   }
 
+  /**
+   * Called by NodeExplorer when the structured query changes for a
+   * manual-execute (autoExecute=false) node after its initial load.
+   *
+   * Determines whether the change is post-execution column discovery or a
+   * real user edit, and updates staleness state accordingly.
+   *
+   * Returns true if the change is column discovery (keep existing results).
+   * Returns false if the change is a real user edit (node is now stale;
+   * caller should clear results so the "Run Query" button appears).
+   */
+  handleManualNodeQueryChange(nodeId: string): boolean {
+    if (this.justExecutedNodes.has(nodeId)) {
+      this.justExecutedNodes.delete(nodeId);
+      return true; // Post-execution column discovery — keep results
+    }
+    this.nodeStaleMap.set(nodeId, true);
+    return false; // Real user edit — node is now stale
+  }
+
+  /**
+   * Resets initialization state for a node, forcing the next processNode call
+   * to perform a full TP sync (initial load) rather than the skip path.
+   *
+   * Routed through the execution queue so any pending column-discovery
+   * operation drains before the reset clears justExecutedNodes.
+   *
+   * Called by NodeExplorer when a different node is selected, so that
+   * switching back to a previously-executed node re-checks for existing
+   * materialized results.
+   */
+  resetNode(nodeId: string, node: QueryNode): void {
+    void this.executeWithCoordination(node, async () => {
+      this.initializedNodes.delete(nodeId);
+      this.justExecutedNodes.delete(nodeId);
+    });
+  }
+
+  /**
+   * Removes all service-side state for a deleted node.
+   *
+   * Called by CleanupManager when a node is permanently deleted from the
+   * graph. Prevents unbounded memory growth in long-lived sessions.
+   */
+  removeNode(nodeId: string): void {
+    this.initializedNodes.delete(nodeId);
+    this.justExecutedNodes.delete(nodeId);
+    this.nodeStaleMap.delete(nodeId);
+  }
+
   // Processes a node: syncs with TP, fetches result (triggering lazy materialization).
   async processNode(
     node: QueryNode,
@@ -250,7 +309,6 @@ export class QueryExecutionService {
     allNodes: QueryNode[],
     options: {
       manual: boolean;
-      hasExistingResult?: boolean;
       onAnalysisStart?: () => void;
       onAnalysisComplete?: (query: Query | Error | undefined) => void;
       onExecutionStart?: () => void;
@@ -268,17 +326,43 @@ export class QueryExecutionService {
 
     const autoExecute = node.state.autoExecute ?? true;
 
-    // For autoExecute=false and not manual: sync to check staleness,
-    // then show existing results if fresh, or skip if stale.
+    // For autoExecute=false and not manual: either handle locally (skip path)
+    // or perform the initial TP sync (first time this node is selected).
     if (!autoExecute && !options.manual) {
       let query: Query | Error | undefined;
       let executed = false;
 
       await this.executeWithCoordination(node, async () => {
+        // Skip path: node has already been synced with TP at least once.
+        // Handle SQ changes locally without a TP round-trip — no spinner,
+        // no flickering. The full sync happens when the user clicks "Run Query".
+        if (this.initializedNodes.has(node.nodeId)) {
+          const isColumnDiscovery = this.handleManualNodeQueryChange(
+            node.nodeId,
+          );
+          if (!isColumnDiscovery) {
+            // Real user edit — notify start then immediately complete with
+            // undefined so the caller clears its query state and shows the
+            // "Run Query" button. Both calls fire synchronously so Mithril
+            // batches them into a single render (no flicker).
+            options.onAnalysisStart?.();
+            options.onAnalysisComplete?.(undefined);
+          }
+          // Column discovery: fire nothing, caller keeps existing query state.
+          return;
+        }
+
+        // Initial load path: first time this node is selected. Sync with TP
+        // to check whether a materialized result already exists (e.g., when
+        // the user switches back to a previously-executed node).
         options.onAnalysisStart?.();
 
-        // Sync spec with TP to get staleness info
         const syncError = await this.syncWithTP(node);
+
+        // Mark as initialized regardless of outcome so subsequent SQ changes
+        // use the skip path instead of retrying a full sync every keystroke.
+        this.initializedNodes.add(node.nodeId);
+
         if (syncError !== undefined) {
           query = syncError;
           options.onAnalysisComplete?.(syncError);
@@ -303,7 +387,12 @@ export class QueryExecutionService {
           node.nodeId,
         );
 
-        if (result.exists !== true || !result.tableName) {
+        if (
+          result.exists !== true ||
+          result.tableName === undefined ||
+          result.tableName === null ||
+          result.tableName === ''
+        ) {
           // No existing result - UI will show "Run Query" button
           options.onAnalysisComplete?.(undefined);
           return;
@@ -334,6 +423,10 @@ export class QueryExecutionService {
           durationMs: result.durationMs ?? 0,
         });
 
+        // Mark as just-executed so the next SQ change (from column discovery)
+        // is not mistaken for a user edit in handleManualNodeQueryChange().
+        this.justExecutedNodes.add(node.nodeId);
+
         executed = true;
       });
 
@@ -355,6 +448,10 @@ export class QueryExecutionService {
         options.onExecutionError?.(syncError);
         return;
       }
+
+      // Node has been synced with TP — mark as initialized so subsequent
+      // !autoExecute && !manual calls use the skip path instead of re-syncing.
+      this.initializedNodes.add(node.nodeId);
 
       // Query the summarizer - this triggers lazy materialization
       if (this.summarizerId === undefined) {
@@ -387,7 +484,11 @@ export class QueryExecutionService {
         return;
       }
 
-      if (!result.sql || result.sql === '') {
+      if (
+        result.sql === undefined ||
+        result.sql === null ||
+        result.sql === ''
+      ) {
         const error = new Error(
           `Query result missing SQL for node ${node.nodeId}`,
         );
@@ -397,7 +498,11 @@ export class QueryExecutionService {
         return;
       }
 
-      if (!result.tableName) {
+      if (
+        result.tableName === undefined ||
+        result.tableName === null ||
+        result.tableName === ''
+      ) {
         const error = new Error(
           `Query result missing table name for node ${node.nodeId}`,
         );
@@ -428,6 +533,10 @@ export class QueryExecutionService {
         columns: result.columns ?? [],
         durationMs: result.durationMs ?? 0,
       });
+
+      // Mark as just-executed so the next SQ change (from column discovery)
+      // is not mistaken for a user edit in handleManualNodeQueryChange().
+      this.justExecutedNodes.add(node.nodeId);
 
       executed = true;
     });

@@ -1,8 +1,8 @@
 [package]
 edition = "2024"
 name = "perfetto-sdk-derive"
-version = "0.2.0"
-authors = ["David Reveman <dreveman@gmail.com>"]
+version = "0.2.1"
+authors = ["David Reveman <reveman@meta.com>"]
 description = "Procedural macros for Perfetto"
 readme = "README.md"
 keywords = [

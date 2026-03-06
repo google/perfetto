@@ -23,6 +23,8 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/http/http_server.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -66,7 +68,62 @@ class WSBridge : public base::HttpRequestHandler,
       conns_;
 };
 
-void WSBridge::Main(int, char**) {
+void PrintUsage(char** argv) {
+  PERFETTO_ELOG(R"(
+Websocket<->ADB/traced bridge. Allows WebUI to talk to ADB on Android and \
+traced on Linux respectively.
+
+Usage: %s [FLAGS]
+
+General purpose:
+ -h, --help                           Prints this help text.
+
+Behavioural:
+ --http-additional-cors-origins origin1,origin2,...
+                                      Specify a comma-separated list of
+                                      additional allowed origins for the
+                                      Websocket server. These are in addition to
+                                      the default origins: [https://ui.perfetto.dev,
+                                      http://localhost:10000, http://127.0.0.1:10000]
+)",
+                argv[0]);
+}
+
+struct CommandLineOptions {
+  std::vector<std::string> additional_allowed_origins;
+};
+
+CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
+  CommandLineOptions command_line_options;
+  enum LongOption {
+    OPT_HTTP_ADDITIONAL_CORS_ORIGINS,
+  };
+
+  static const option long_options[] = {
+      {"help", no_argument, nullptr, 'h'},
+      {"http-additional-cors-origins", required_argument, nullptr,
+       OPT_HTTP_ADDITIONAL_CORS_ORIGINS}};
+
+  for (;;) {
+    int option = getopt_long(argc, argv, "h", long_options, nullptr);
+
+    if (option == -1)
+      break;  // EOF.
+
+    if (option == OPT_HTTP_ADDITIONAL_CORS_ORIGINS) {
+      command_line_options.additional_allowed_origins =
+          base::SplitString(optarg, ",");
+      continue;
+    }
+
+    PrintUsage(argv);
+    exit(option == 'h' ? 0 : 1);
+  }
+
+  return command_line_options;
+}
+
+void WSBridge::Main(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // On Windows traced used a TCP socket.
   const auto kTracedFamily = base::SockFamily::kInet;
@@ -96,6 +153,21 @@ void WSBridge::Main(int, char**) {
   srv.AddAllowedOrigin("http://localhost:10000");
   srv.AddAllowedOrigin("http://127.0.0.1:10000");
   srv.AddAllowedOrigin("https://ui.perfetto.dev");
+
+  std::vector<std::string> additional_cors_origins = base::SplitString(
+      PERFETTO_BUILDFLAG(PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS), ",");
+
+  for (const auto& origin : additional_cors_origins) {
+    srv.AddAllowedOrigin(origin);
+  }
+
+  CommandLineOptions cmd_line_options = ParseCommandLineOptions(argc, argv);
+
+  for (const auto& origin : cmd_line_options.additional_allowed_origins) {
+    srv.AddAllowedOrigin(origin);
+    PERFETTO_LOG("[WSBridge] Added additional allowed CORS origin: %s",
+                 origin.c_str());
+  }
 
   srv.Start("localhost", kWebsocketPort);
   PERFETTO_LOG("[WSBridge] Listening on 127.0.0.1:%d", kWebsocketPort);

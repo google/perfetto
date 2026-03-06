@@ -37,7 +37,8 @@ from src.trace_processor.tables.track_tables import TRACK_TABLE
 PROFILER_SMAPS_TABLE = Table(
     python_module=__file__,
     class_name='ProfilerSmapsTable',
-    sql_name='profiler_smaps',
+    sql_name='__intrinsic_profiler_smaps',
+    wrapping_sql_view=WrappingSqlView('profiler_smaps'),
     columns=[
         C(
             'upid',
@@ -180,7 +181,8 @@ PROFILER_SMAPS_TABLE = Table(
 PACKAGE_LIST_TABLE = Table(
     python_module=__file__,
     class_name='PackageListTable',
-    sql_name='package_list',
+    sql_name='__intrinsic_package_list',
+    wrapping_sql_view=WrappingSqlView('package_list'),
     columns=[
         C(
             'package_name',
@@ -246,7 +248,8 @@ PACKAGE_LIST_TABLE = Table(
 STACK_PROFILE_MAPPING_TABLE = Table(
     python_module=__file__,
     class_name='StackProfileMappingTable',
-    sql_name='stack_profile_mapping',
+    sql_name='__intrinsic_stack_profile_mapping',
+    wrapping_sql_view=WrappingSqlView('stack_profile_mapping'),
     columns=[
         C(
             'build_id',
@@ -310,7 +313,8 @@ STACK_PROFILE_MAPPING_TABLE = Table(
 STACK_PROFILE_FRAME_TABLE = Table(
     python_module=__file__,
     class_name='StackProfileFrameTable',
-    sql_name='stack_profile_frame',
+    sql_name='__intrinsic_stack_profile_frame',
+    wrapping_sql_view=WrappingSqlView('stack_profile_frame'),
     columns=[
         C(
             'name',
@@ -368,7 +372,8 @@ STACK_PROFILE_FRAME_TABLE = Table(
 STACK_PROFILE_CALLSITE_TABLE = Table(
     python_module=__file__,
     class_name='StackProfileCallsiteTable',
-    sql_name='stack_profile_callsite',
+    sql_name='__intrinsic_stack_profile_callsite',
+    wrapping_sql_view=WrappingSqlView('stack_profile_callsite'),
     columns=[
         C(
             'depth',
@@ -407,7 +412,8 @@ STACK_PROFILE_CALLSITE_TABLE = Table(
 CPU_PROFILE_STACK_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='CpuProfileStackSampleTable',
-    sql_name='cpu_profile_stack_sample',
+    sql_name='__intrinsic_cpu_profile_stack_sample',
+    wrapping_sql_view=WrappingSqlView('cpu_profile_stack_sample'),
     columns=[
         C(
             'ts',
@@ -566,7 +572,8 @@ PERF_SAMPLE_TABLE = Table(
 INSTRUMENTS_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='InstrumentsSampleTable',
-    sql_name='instruments_sample',
+    sql_name='__intrinsic_instruments_sample',
+    wrapping_sql_view=WrappingSqlView('instruments_sample'),
     columns=[
         C(
             'ts',
@@ -598,7 +605,8 @@ INSTRUMENTS_SAMPLE_TABLE = Table(
 SYMBOL_TABLE = Table(
     python_module=__file__,
     class_name='SymbolTable',
-    sql_name='stack_profile_symbol',
+    sql_name='__intrinsic_stack_profile_symbol',
+    wrapping_sql_view=WrappingSqlView('stack_profile_symbol'),
     columns=[
         C(
             'symbol_set_id',
@@ -673,7 +681,8 @@ SYMBOL_TABLE = Table(
 HEAP_PROFILE_ALLOCATION_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileAllocationTable',
-    sql_name='heap_profile_allocation',
+    sql_name='__intrinsic_heap_profile_allocation',
+    wrapping_sql_view=WrappingSqlView('heap_profile_allocation'),
     columns=[
         # TODO(b/193757386): readd the sorted flag once this bug is fixed.
         C(
@@ -737,122 +746,6 @@ HEAP_PROFILE_ALLOCATION_TABLE = Table(
                 callsite that were freed.''',
             'heap_name':
                 ''''''
-        }))
-
-EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
-    python_module=__file__,
-    class_name='ExperimentalFlamegraphTable',
-    sql_name='experimental_flamegraph',
-    columns=[
-        C(
-            'profile_type',
-            CppString(),
-            flags=ColumnFlag.HIDDEN,
-            cpp_access=CppAccess.READ,
-        ),
-        C(
-            'ts_in',
-            CppOptional(CppInt64()),
-            flags=ColumnFlag.SORTED | ColumnFlag.HIDDEN,
-        ),
-        C('ts_constraint', CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
-        C(
-            'upid',
-            CppOptional(CppUint32()),
-            flags=ColumnFlag.HIDDEN,
-            cpp_access=CppAccess.READ,
-        ),
-        C('upid_group', CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
-        C('focus_str', CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
-        C(
-            'ts',
-            CppInt64(),
-            flags=ColumnFlag.SORTED,
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C('depth', CppUint32(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
-        C('name', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
-        C(
-            'map_name',
-            CppString(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C('count', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
-        C(
-            'cumulative_count',
-            CppInt64(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C('size', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
-        C(
-            'cumulative_size',
-            CppInt64(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C(
-            'alloc_count',
-            CppInt64(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C(
-            'cumulative_alloc_count',
-            CppInt64(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C(
-            'alloc_size',
-            CppInt64(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C(
-            'cumulative_alloc_size',
-            CppInt64(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C(
-            'parent_id',
-            CppOptional(CppSelfTableId()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C(
-            'source_file',
-            CppOptional(CppString()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C(
-            'line_number',
-            CppOptional(CppUint32()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-    ],
-    tabledoc=TableDoc(
-        doc='''
-            Table used to render flamegraphs. This gives cumulative sizes of
-            nodes in the flamegraph.
-
-            WARNING: This is experimental and the API is subject to change.
-        ''',
-        group='Callstack profilers',
-        columns={
-            'ts': '''''',
-            'upid': '''''',
-            'profile_type': '''''',
-            'focus_str': '''''',
-            'depth': '''''',
-            'name': '''''',
-            'map_name': '''''',
-            'count': '''''',
-            'cumulative_count': '''''',
-            'size': '''''',
-            'cumulative_size': '''''',
-            'alloc_count': '''''',
-            'cumulative_alloc_count': '''''',
-            'alloc_size': '''''',
-            'cumulative_alloc_size': '''''',
-            'parent_id': '''''',
-            'source_file': '''''',
-            'line_number': '''''',
-            'upid_group': ''''''
         }))
 
 HEAP_GRAPH_CLASS_TABLE = Table(
@@ -1129,7 +1022,8 @@ AGGREGATE_SAMPLE_TABLE = Table(
 VULKAN_MEMORY_ALLOCATIONS_TABLE = Table(
     python_module=__file__,
     class_name='VulkanMemoryAllocationsTable',
-    sql_name='vulkan_memory_allocations',
+    sql_name='__intrinsic_vulkan_memory_allocations',
+    wrapping_sql_view=WrappingSqlView('vulkan_memory_allocations'),
     columns=[
         C(
             'arg_set_id',
@@ -1173,7 +1067,8 @@ VULKAN_MEMORY_ALLOCATIONS_TABLE = Table(
 GPU_COUNTER_GROUP_TABLE = Table(
     python_module=__file__,
     class_name='GpuCounterGroupTable',
-    sql_name='gpu_counter_group',
+    sql_name='__intrinsic_gpu_counter_group',
+    wrapping_sql_view=WrappingSqlView('gpu_counter_group'),
     columns=[
         C('group_id', CppInt32()),
         C('track_id', CppTableId(TRACK_TABLE)),
@@ -1184,6 +1079,123 @@ GPU_COUNTER_GROUP_TABLE = Table(
         columns={
             'group_id': '''''',
             'track_id': ''''''
+        }))
+
+# TODO(lalitm): delete this once we have proper tree functions.
+EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
+    python_module=__file__,
+    class_name='ExperimentalFlamegraphTable',
+    sql_name='experimental_flamegraph',
+    columns=[
+        C(
+            'profile_type',
+            CppString(),
+            flags=ColumnFlag.HIDDEN,
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            'ts_in',
+            CppOptional(CppInt64()),
+            flags=ColumnFlag.SORTED | ColumnFlag.HIDDEN,
+        ),
+        C('ts_constraint', CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C(
+            'upid',
+            CppOptional(CppUint32()),
+            flags=ColumnFlag.HIDDEN,
+            cpp_access=CppAccess.READ,
+        ),
+        C('upid_group', CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C('focus_str', CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C(
+            'ts',
+            CppInt64(),
+            flags=ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C('depth', CppUint32(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('name', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'map_name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C('count', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'cumulative_count',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C('size', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'cumulative_size',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'alloc_count',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'cumulative_alloc_count',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'alloc_size',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'cumulative_alloc_size',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'parent_id',
+            CppOptional(CppSelfTableId()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'source_file',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'line_number',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Table used to render flamegraphs. This gives cumulative sizes of
+            nodes in the flamegraph.
+
+            WARNING: This is experimental and the API is subject to change.
+        ''',
+        group='Callstack profilers',
+        columns={
+            'ts': '''''',
+            'upid': '''''',
+            'profile_type': '''''',
+            'focus_str': '''''',
+            'depth': '''''',
+            'name': '''''',
+            'map_name': '''''',
+            'count': '''''',
+            'cumulative_count': '''''',
+            'size': '''''',
+            'cumulative_size': '''''',
+            'alloc_count': '''''',
+            'cumulative_alloc_count': '''''',
+            'alloc_size': '''''',
+            'cumulative_alloc_size': '''''',
+            'parent_id': '''''',
+            'source_file': '''''',
+            'line_number': '''''',
+            'upid_group': ''''''
         }))
 
 # Keep this list sorted.

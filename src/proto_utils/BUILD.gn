@@ -20,6 +20,7 @@ import("../../gn/wasm.gni")
 source_set("txt_to_pb") {
   deps = [
     ":gen_cc_config_descriptor",
+    ":gen_cc_trace_summary_descriptor",
     "../../gn:default_deps",
     "../base",
     "../protozero",

@@ -46,7 +46,8 @@ class SummarizerTest : public ::testing::Test {
     // TP's internal state (tables, functions) so we can execute queries against
     // it. The Summarizer doesn't need trace data, just a working SQL engine.
     tp_->NotifyEndOfFile();
-    summarizer_ = std::make_unique<SummarizerImpl>(tp_.get(), nullptr);
+    summarizer_ =
+        std::make_unique<SummarizerImpl>(tp_.get(), nullptr, "test_id");
   }
 
   // Helper to create a TraceSummarySpec with queries.
@@ -619,6 +620,94 @@ TEST_F(SummarizerTest, NestedEmbeddedQueryDependencyPropagation) {
 
   // C should also reflect A's change (1 row now, since only value=1 > 0).
   EXPECT_EQ(info_c2.row_count, 1);
+}
+
+TEST_F(SummarizerTest, MultipleSummarizersCoexist) {
+  // Two summarizers created via the public API should be able to materialize
+  // the same query without table name collisions. The ids are auto-generated
+  // internally by TraceProcessor.
+  std::unique_ptr<Summarizer> s1;
+  std::unique_ptr<Summarizer> s2;
+  ASSERT_OK(tp_->CreateSummarizer(&s1));
+  ASSERT_OK(tp_->CreateSummarizer(&s2));
+
+  auto spec_data = CreateSpec({{"q", "SELECT 1 as value"}});
+
+  SummarizerUpdateSpecResult r1;
+  ASSERT_OK(s1->UpdateSpec(spec_data.data(), spec_data.size(), &r1));
+  ASSERT_EQ(r1.queries.size(), 1u);
+
+  SummarizerUpdateSpecResult r2;
+  ASSERT_OK(s2->UpdateSpec(spec_data.data(), spec_data.size(), &r2));
+  ASSERT_EQ(r2.queries.size(), 1u);
+
+  // Trigger actual materialization for both — if table names collided, the
+  // CREATE TABLE would fail with a "table already exists" error.
+  SummarizerQueryResult info1;
+  ASSERT_OK(s1->Query("q", &info1));
+  ASSERT_TRUE(info1.exists);
+
+  SummarizerQueryResult info2;
+  ASSERT_OK(s2->Query("q", &info2));
+  ASSERT_TRUE(info2.exists);
+
+  // Table names must differ (namespaced by auto-generated summarizer id).
+  EXPECT_NE(info1.table_name, info2.table_name);
+}
+
+TEST_F(SummarizerTest, TableNameContainsSummarizerId) {
+  // Verify that the materialized table name includes the summarizer id.
+  // The test fixture creates a SummarizerImpl with id "test_id".
+  auto spec_data = CreateSpec({{"q", "SELECT 1 as value"}});
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("q", &info));
+  ASSERT_TRUE(info.exists);
+  EXPECT_THAT(info.table_name, HasSubstr("test_id"));
+}
+
+TEST_F(SummarizerTest, DestructorCleansUpOldTableName) {
+  // Verify that destroying a summarizer between UpdateSpec (which sets
+  // old_table_name) and Query (which would normally clean it up) still
+  // drops the old table.
+  auto spec_data1 = CreateSpec({{"q", "SELECT 42 as value"}});
+
+  SummarizerUpdateSpecResult result1;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data1.data(), spec_data1.size(), &result1));
+
+  SummarizerQueryResult info1;
+  ASSERT_OK(summarizer_->Query("q", &info1));
+  ASSERT_TRUE(info1.exists);
+  std::string old_table = info1.table_name;
+
+  // Update with changed SQL — sets old_table_name but does NOT call Query().
+  auto spec_data2 = CreateSpec({{"q", "SELECT 100 as value"}});
+  SummarizerUpdateSpecResult result2;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data2.data(), spec_data2.size(), &result2));
+
+  // Verify old table still exists before destruction.
+  {
+    auto check = tp_->ExecuteQuery("SELECT COUNT(*) FROM " + old_table);
+    ASSERT_TRUE(check.Next());
+    while (check.Next()) {
+    }
+  }
+
+  // Destroy the summarizer WITHOUT calling Query().
+  summarizer_.reset();
+
+  // Old table should be dropped (no new table was created since Query() was
+  // never called after the second UpdateSpec).
+  auto check = tp_->ExecuteQuery("SELECT COUNT(*) FROM " + old_table);
+  check.Next();  // Execute the query.
+  EXPECT_FALSE(check.Status().ok())
+      << "old_table_name should be dropped on destruction";
 }
 
 }  // namespace

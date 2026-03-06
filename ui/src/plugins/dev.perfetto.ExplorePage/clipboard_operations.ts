@@ -46,8 +46,6 @@ interface CopyableState {
 interface PastableState {
   readonly rootNodes: QueryNode[];
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
-  readonly clipboardNodes?: ClipboardEntry[];
-  readonly clipboardConnections?: ClipboardConnection[];
 }
 
 // Copies the currently selected nodes and their internal connections to a
@@ -128,19 +126,22 @@ export function copySelectedNodes(
 
 // Pastes clipboard nodes into the state. Returns the updated state fields
 // with new nodes added, or undefined if clipboard is empty.
-export function pasteClipboardNodes(state: PastableState):
+export function pasteClipboardNodes(
+  state: PastableState,
+  clipboard: ClipboardResult | undefined,
+):
   | {
       rootNodes: QueryNode[];
       selectedNodes: Set<string>;
       nodeLayouts: Map<string, {x: number; y: number}>;
     }
   | undefined {
-  if (state.clipboardNodes === undefined || state.clipboardNodes.length === 0) {
+  if (clipboard === undefined || clipboard.clipboardNodes.length === 0) {
     return undefined;
   }
 
   // Clone nodes again for this paste operation (allows multiple pastes)
-  const newNodes = state.clipboardNodes.map((entry) => entry.node.clone());
+  const newNodes = clipboard.clipboardNodes.map((entry) => entry.node.clone());
 
   // Calculate paste offset (place slightly offset from original)
   const pasteOffsetX = 50;
@@ -149,7 +150,7 @@ export function pasteClipboardNodes(state: PastableState):
   // Update layouts for new nodes - only add layouts for undocked nodes
   // Docked nodes will remain docked (attached to their parent)
   const updatedLayouts = new Map(state.nodeLayouts);
-  state.clipboardNodes.forEach((entry, index) => {
+  clipboard.clipboardNodes.forEach((entry, index) => {
     if (!entry.isDocked) {
       updatedLayouts.set(newNodes[index].nodeId, {
         x: entry.relativeX + pasteOffsetX,
@@ -159,13 +160,11 @@ export function pasteClipboardNodes(state: PastableState):
   });
 
   // Restore connections between pasted nodes
-  if (state.clipboardConnections) {
-    for (const conn of state.clipboardConnections) {
-      const fromNode = newNodes[conn.fromIndex] as QueryNode | undefined;
-      const toNode = newNodes[conn.toIndex] as QueryNode | undefined;
-      if (fromNode !== undefined && toNode !== undefined) {
-        addConnection(fromNode, toNode, conn.portIndex);
-      }
+  for (const conn of clipboard.clipboardConnections) {
+    const fromNode = newNodes[conn.fromIndex] as QueryNode | undefined;
+    const toNode = newNodes[conn.toIndex] as QueryNode | undefined;
+    if (fromNode !== undefined && toNode !== undefined) {
+      addConnection(fromNode, toNode, conn.portIndex);
     }
   }
 

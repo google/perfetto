@@ -52,6 +52,7 @@ void heapprofd_free(void* pointer);
 void* heapprofd_aligned_alloc(size_t alignment, size_t size);
 void* heapprofd_memalign(size_t alignment, size_t bytes);
 void* heapprofd_realloc(void* pointer, size_t bytes);
+void* heapprofd_reallocarray(void* pointer, size_t nmemb, size_t size);
 void* heapprofd_calloc(size_t nmemb, size_t bytes);
 struct mallinfo heapprofd_mallinfo();
 int heapprofd_mallopt(int param, int value);
@@ -168,6 +169,11 @@ void heapprofd_free(void* pointer) {
 void* heapprofd_realloc(void* pointer, size_t size) {
   return perfetto::profiling::wrap_realloc(g_heap_id, GetDispatch()->realloc,
                                            pointer, size);
+}
+
+void* heapprofd_reallocarray(void* pointer, size_t nmemb, size_t size) {
+  return perfetto::profiling::wrap_reallocarray(
+      g_heap_id, GetDispatch()->reallocarray, pointer, nmemb, size);
 }
 
 void heapprofd_dump_heap(const char*) {}

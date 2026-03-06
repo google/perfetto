@@ -136,6 +136,7 @@ namespace perfetto::trace_processor::stats {
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, ""), \
+  F(power_rail_empty_packet,              kSingle,  kError,    kAnalysis, ""), \
   F(power_rail_unknown_index,             kSingle,  kError,    kTrace,    ""), \
   F(proc_stat_unknown_counters,           kSingle,  kError,    kAnalysis, ""), \
   F(rss_stat_unknown_keys,                kSingle,  kError,    kAnalysis, ""), \
@@ -233,6 +234,8 @@ namespace perfetto::trace_processor::stats {
        "Shadow mode: patches that succeeded on V1 buffer."),                   \
   F(traced_buf_v2s_v2_patches_succeeded,  kIndexed, kInfo,     kTrace,         \
        "Shadow mode: patches that succeeded on V2 buffer."),                   \
+  F(traced_buf_v2s_stats_version,         kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: version of the comparison stats."),                       \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
   F(traced_clone_trigger_timestamp_ns,    kSingle,  kInfo,     kTrace,         \

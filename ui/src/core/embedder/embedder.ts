@@ -21,6 +21,28 @@ export interface EmbedderExtensionServer {
 }
 
 /**
+ * Configuration for a branding badge displayed in the sidebar header.
+ *
+ * Example: To add a text-only branding badge, set in your embedder:
+ *   readonly brandingBadge = {text: 'BRAND', color: '#e07020'};
+ */
+export interface BrandingBadge {
+  /** The text to display, e.g. "BRAND". */
+  readonly text: string;
+  /** CSS color for the text, e.g. "#e07020". */
+  readonly color?: string;
+  /** Optional Material icon name to display before the text. */
+  readonly icon?: string;
+  /**
+   * Optional inline image data URI to display before the text (e.g.
+   * `data:image/svg+xml;base64,...`). Takes precedence over `icon` when
+   * both are specified. Only data URIs are supported; external URLs are not
+   * allowed.
+   */
+  readonly image?: string;
+}
+
+/**
  * Interface for embedder-specific behavior. Different implementations allow
  * the UI to adapt to the environment it's running in (e.g. ui.perfetto.dev
  * vs a third-party embedding).
@@ -33,4 +55,8 @@ export interface Embedder {
   // Returns the default extension server that should be added on startup if
   // not already configured by the user. Undefined means no default.
   readonly extensionServer: EmbedderExtensionServer | undefined;
+
+  // Returns the branding badge to display in the sidebar header, or undefined
+  // if no custom branding should be shown.
+  readonly brandingBadge: BrandingBadge | undefined;
 }

@@ -49,6 +49,7 @@
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
+#include "src/trace_processor/importers/proto/user_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
@@ -95,6 +96,7 @@ void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
       std::make_unique<ClockSynchronizerListenerImpl>(context));
   context->mapping_tracker = Ptr<MappingTracker>::MakeRoot(context);
   context->cpu_tracker = Ptr<CpuTracker>::MakeRoot(context);
+  context->user_tracker = Ptr<UserTracker>::MakeRoot(context);
 }
 
 void CopyPerMachineState(const TraceProcessorContext* source,
@@ -105,6 +107,7 @@ void CopyPerMachineState(const TraceProcessorContext* source,
   dest->primary_clock_sync = source->primary_clock_sync.Fork();
   dest->mapping_tracker = source->mapping_tracker.Fork();
   dest->cpu_tracker = source->cpu_tracker.Fork();
+  dest->user_tracker = source->user_tracker.Fork();
 }
 
 void InitPerTraceState(TraceProcessorContext* context, TraceId trace_id) {

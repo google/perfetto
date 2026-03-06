@@ -1158,11 +1158,19 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       });
     }
 #endif
+    std::vector<std::string> additional_cors_origins = base::SplitString(
+        PERFETTO_BUILDFLAG(PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS), ",");
+
+    for (const auto& origin : options.additional_cors_origins) {
+      PERFETTO_ILOG("Adding additional CORS origin: %s", origin.c_str());
+      additional_cors_origins.push_back(origin);
+    }
+
     RunHttpRPCServer(
         /*rpc=*/rpc,
         /*listen_ip=*/options.listen_ip,
         /*port_number=*/options.port_number,
-        /*additional_cors_origins=*/options.additional_cors_origins);
+        /*additional_cors_origins=*/additional_cors_origins);
     PERFETTO_FATAL("Should never return");
 #else
     PERFETTO_FATAL("HTTP not available");
@@ -1199,5 +1207,15 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
 
 TraceProcessorShell_PlatformInterface::
     ~TraceProcessorShell_PlatformInterface() = default;
+
+int PERFETTO_EXPORT_ENTRYPOINT TraceProcessorShellMain(int argc, char** argv) {
+  auto shell = TraceProcessorShell::CreateWithDefaultPlatform();
+  auto status = shell->Run(argc, argv);
+  if (!status.ok()) {
+    fprintf(stderr, "%s\n", status.c_message());
+    return 1;
+  }
+  return 0;
+}
 
 }  // namespace perfetto::trace_processor

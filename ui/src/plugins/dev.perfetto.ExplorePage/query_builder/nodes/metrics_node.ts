@@ -33,6 +33,11 @@ import {
   NodeTitle,
 } from '../node_styling_widgets';
 import {isNumericType} from '../utils';
+
+// Metrics value columns accept numeric types and ANY (unknown/unresolved type).
+function isMetricsValueType(typeStr: string): boolean {
+  return isNumericType(typeStr) || typeStr.toUpperCase() === 'ANY';
+}
 import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Icon} from '../../../../widgets/icon';
@@ -122,7 +127,7 @@ export class MetricsNode implements QueryNode {
     // Remove value columns whose column no longer exists or is no longer numeric.
     this.state.valueColumns = this.state.valueColumns.filter((vc) => {
       const col = this.state.availableColumns.find((c) => c.name === vc.column);
-      return col !== undefined && isNumericType(col.type);
+      return col !== undefined && isMetricsValueType(col.type);
     });
   }
 
@@ -169,7 +174,7 @@ export class MetricsNode implements QueryNode {
         );
         return false;
       }
-      if (!isNumericType(col.type)) {
+      if (!isMetricsValueType(col.type)) {
         this.setValidationError(
           `Value column '${vc.column}' must be numeric (got ${col.type})`,
         );
@@ -363,7 +368,7 @@ export class MetricsNode implements QueryNode {
         dimensionCols.length === 0
           ? m('.pf-metrics-v2-empty-hint', 'No dimensions')
           : dimensionCols.map((col) => {
-              const numeric = isNumericType(col.type);
+              const numeric = isMetricsValueType(col.type);
               return m(
                 '.pf-metrics-v2-column-item',
                 {
@@ -422,12 +427,12 @@ export class MetricsNode implements QueryNode {
         const col = this.state.availableColumns.find(
           (c) => c.name === this.dragPayload?.columnName,
         );
-        return col !== undefined && !isNumericType(col.type);
+        return col !== undefined && !isMetricsValueType(col.type);
       })();
 
-    // Numeric columns available to add (not already in values).
+    // Numeric (or ANY) columns available to add (not already in values).
     const numericDimensions = dimensionCols.filter((c) =>
-      isNumericType(c.type),
+      isMetricsValueType(c.type),
     );
 
     return m(
@@ -445,7 +450,7 @@ export class MetricsNode implements QueryNode {
             const col = this.state.availableColumns.find(
               (c) => c.name === this.dragPayload?.columnName,
             );
-            if (col !== undefined && isNumericType(col.type)) {
+            if (col !== undefined && isMetricsValueType(col.type)) {
               e.preventDefault();
             }
             // Non-numeric: don't preventDefault → drop not allowed.
@@ -641,7 +646,7 @@ export class MetricsNode implements QueryNode {
       const col = this.state.availableColumns.find(
         (c) => c.name === columnName,
       );
-      if (col === undefined || !isNumericType(col.type)) return;
+      if (col === undefined || !isMetricsValueType(col.type)) return;
 
       // Add to values with default config.
       const alreadyExists = this.state.valueColumns.some(

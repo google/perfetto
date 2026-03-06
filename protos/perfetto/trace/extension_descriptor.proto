@@ -25,5 +25,16 @@ import "protos/perfetto/common/descriptor.proto";
 //
 // See docs/design-docs/extensions.md for more details.
 message ExtensionDescriptor {
-  optional FileDescriptorSet extension_set = 1;
+  oneof descriptor {
+    FileDescriptorSet extension_set = 1;
+
+    // Same as extension_set, but gzip-compressed. This is used by the tracing
+    // service on Android to emit pre-compressed descriptor files from
+    // /etc/tracing_descriptors.gz without decompressing them first.
+    bytes extension_set_gzip = 2;
+  }
+
+  // Optional, for debugging only. The file name or path of the descriptor
+  // source. Can be omitted without affecting functionality.
+  optional string file_name = 3;
 }

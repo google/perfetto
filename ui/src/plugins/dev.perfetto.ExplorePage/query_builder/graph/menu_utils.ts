@@ -25,7 +25,7 @@ import {Keycap} from '../../../../widgets/hotkey_glyphs';
  * @returns Array of Mithril children representing the menu items
  */
 export function buildMenuItems(
-  nodeType: 'source' | 'multisource' | 'modification',
+  nodeType: 'source' | 'multisource' | 'modification' | 'export',
   onAddNode: (id: string) => void,
   allowedIds?: ReadonlyArray<string>,
 ): m.Children[] {

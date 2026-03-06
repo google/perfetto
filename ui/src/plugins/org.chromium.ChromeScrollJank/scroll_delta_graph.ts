@@ -16,7 +16,10 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {VegaView} from '../../components/widgets/vega_view';
+import {EChartView} from '../../components/widgets/charts/echart_view';
+import type {EChartsCoreOption} from 'echarts/core';
+import {buildChartOption} from '../../components/widgets/charts/chart_option_builder';
+import {getChartThemeColors} from '../../components/widgets/charts/chart_theme';
 
 const INPUT_CATEGORY = 'Input';
 const PRESENTED_CATEGORY = 'Presented';
@@ -235,105 +238,137 @@ export function buildScrollOffsetsGraph(
     predictorDeltas,
     PRESENTED_JANKY_CATEGORY,
   );
-  const jankData = buildJankLayerData(jankIntervals);
 
-  return m(VegaView, {
-    spec: `
-{
-  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-  "description": "Scatter plot showcasing the pixel offset deltas between input frames and presented frames.",
-  "width": "container",
-  "height": 200,
-  "padding": 5,
+  const option = buildScrollGraphOption(
+    inputData,
+    presentedData,
+    predictorData,
+    jankIntervals,
+  );
 
-  "data": {
-    "name": "table"
-  },
-
-  "layer": [
-    {
-      "mark": "rect",
-      "data": {
-        "values": [
-          ${jankData}
-        ]
-      },
-      "encoding": {
-        "x": {
-          "field": "start",
-          "type": "quantitative"
-        },
-        "x2": {
-          "field": "end",
-          "type": "quantitative"
-        },
-        "color": {
-          "value": "#D3D3D3"
-        }
-      }
-    },
-    {
-      "mark": {
-        "type": "point",
-        "filled": true
-      },
-
-      "encoding": {
-        "x": {
-          "field": "ts",
-          "type": "quantitative",
-          "title": "Raw Timestamp",
-          "axis" : {
-            "labels": true
-          },
-          "scale": {"zero":false}
-        },
-        "y": {
-          "field": "offset",
-          "type": "quantitative",
-          "title": "Offset (pixels)",
-          "scale": {"zero":false}
-        },
-        "color": {
-          "field": "category",
-          "type": "nominal",
-          "scale": {
-            "domain": [
-              "${INPUT_CATEGORY}",
-              "${PRESENTED_CATEGORY}",
-              "${PRESENTED_JANKY_CATEGORY}"
-            ],
-            "range": ["blue", "red", "orange"]
-          },
-          "legend": {
-            "title":null
-          }
-        },
-        "tooltip": [
-          {
-            "field": "delta",
-            "type": "quantitative",
-            "title": "Delta",
-            "format": ".2f"
-          },
-          {
-            "field": "scrollUpdateId",
-            "type": "quantititive",
-            "title": "Trace Id"
-          },
-          {
-            "field": "predictorJank",
-            "type": "nominal",
-            "title": "Predictor Jank"
-          }
-        ]
-      }
-    }
-  ]
-}
-`,
-    data: {table: inputData.concat(presentedData).concat(predictorData)},
+  return m(EChartView, {
+    option,
+    height: 300,
   });
+}
+
+function buildScrollGraphOption(
+  inputData: ScrollDeltaPlotDatum[],
+  presentedData: ScrollDeltaPlotDatum[],
+  predictorData: ScrollDeltaPlotDatum[],
+  jankIntervals: JankIntervalPlotDetails[],
+): EChartsCoreOption {
+  const theme = getChartThemeColors();
+
+  // Convert jank intervals to markArea data format
+  // Each area needs two coordinate pairs: [start, end]
+  // When only xAxis is specified, the area spans the full Y range
+  const markAreaData = jankIntervals.map((jank) => [
+    {xAxis: jank.start_ts / 10e8},
+    {xAxis: jank.end_ts / 10e8},
+  ]);
+
+  // Build series for each category
+  const series: unknown[] = [];
+
+  // Jank markArea configuration - will be attached to the first data series
+  // Use theme border color with transparency for a subtle highlight
+  const jankMarkArea =
+    markAreaData.length > 0
+      ? {
+          silent: true,
+          itemStyle: {
+            color: theme.borderColor,
+            opacity: 0.3,
+          },
+          label: {
+            show: false,
+          },
+          data: markAreaData,
+        }
+      : undefined;
+
+  // Input series (blue) - use theme chart color
+  // Attach markArea to this series so it renders properly
+  if (inputData.length > 0) {
+    series.push({
+      name: INPUT_CATEGORY,
+      type: 'scatter',
+      data: inputData.map((d) => [d.ts, d.offset, d]),
+      symbolSize: 6,
+      itemStyle: {color: theme.chartColors[0] || '#5470c6'},
+      markArea: jankMarkArea,
+    });
+  } else if (jankMarkArea !== undefined) {
+    // Fallback: if no input data, use a dummy series for markArea
+    series.push({
+      type: 'scatter',
+      data: [[0, 0]],
+      symbolSize: 0,
+      markArea: jankMarkArea,
+    });
+  }
+
+  // Presented series (red/green) - use theme chart color
+  if (presentedData.length > 0) {
+    series.push({
+      name: PRESENTED_CATEGORY,
+      type: 'scatter',
+      data: presentedData.map((d) => [d.ts, d.offset, d]),
+      symbolSize: 6,
+      itemStyle: {color: theme.chartColors[1] || '#91cc75'},
+    });
+  }
+
+  // Predictor jank series (orange) - use theme chart color
+  if (predictorData.length > 0) {
+    series.push({
+      name: PRESENTED_JANKY_CATEGORY,
+      type: 'scatter',
+      data: predictorData.map((d) => [d.ts, d.offset, d]),
+      symbolSize: 8,
+      itemStyle: {color: theme.chartColors[2] || '#fac858'},
+    });
+  }
+
+  const option = buildChartOption({
+    grid: {bottom: 40, left: 60, right: 20, top: 30},
+    xAxis: {
+      type: 'value',
+      name: 'Raw Timestamp',
+      scale: true,
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Offset (pixels)',
+      scale: true,
+    },
+    tooltip: {
+      trigger: 'item' as const,
+      formatter: (params: {data?: [number, number, ScrollDeltaPlotDatum]}) => {
+        const d = params.data?.[2];
+        if (!d) return '';
+        const lines = [
+          `Delta: ${d.delta.toFixed(2)}`,
+          `Trace Id: ${d.scrollUpdateId}`,
+        ];
+        if (d.predictorJank !== 'N/A') {
+          lines.push(`Predictor Jank: ${d.predictorJank}`);
+        }
+        return lines.join('<br>');
+      },
+    },
+  });
+
+  // Add legend with theme colors
+  (option as Record<string, unknown>).legend = {
+    data: [INPUT_CATEGORY, PRESENTED_CATEGORY, PRESENTED_JANKY_CATEGORY],
+    bottom: 0,
+    textStyle: {color: theme.textColor},
+  };
+  (option as Record<string, unknown>).series = series;
+
+  return option;
 }
 
 function buildOffsetData(
@@ -359,21 +394,4 @@ function buildOffsetData(
   }
 
   return plotData;
-}
-
-function buildJankLayerData(janks: JankIntervalPlotDetails[]): string {
-  let dataJsonString = '';
-  for (let i = 0; i < janks.length; i++) {
-    if (i != 0) {
-      dataJsonString += ',';
-    }
-    const jank = janks[i];
-    dataJsonString += `
-    {
-      "start": ${jank.start_ts / 10e8},
-      "end": ${jank.end_ts / 10e8}
-    }
-    `;
-  }
-  return dataJsonString;
 }

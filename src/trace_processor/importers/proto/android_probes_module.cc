@@ -29,12 +29,14 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/user_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -114,6 +116,12 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     protos::pbzero::PowerRails::Decoder evt(power_rails);
 
     parser_.ParseRailDescriptor(evt);
+
+    if (!evt.has_energy_data()) {
+      context_->import_logs_tracker->RecordParserError(
+          stats::power_rail_empty_packet, packet_timestamp);
+      return ModuleResult::Handled();
+    }
 
     // For each energy data message, turn it into its own trace packet
     // making sure its timestamp is consistent between the packet level and
@@ -313,7 +321,6 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
 ModuleResult AndroidProbesModule::ParseAndroidUserList(
     protozero::ConstBytes blob) {
   protos::pbzero::AndroidUserList::Decoder user_list(blob.data, blob.size);
-  auto* table = context_->storage->mutable_user_list_table();
 
   if (user_list.error() < 0) {
     context_->storage->IncrementStats(stats::user_list_errors);
@@ -321,8 +328,9 @@ ModuleResult AndroidProbesModule::ParseAndroidUserList(
 
   for (auto it = user_list.users(); it; ++it) {
     protos::pbzero::AndroidUserList_UserInfo::Decoder user(*it);
-    table->Insert({context_->storage->InternString(user.type()),
-                   static_cast<int64_t>(user.uid())});
+    context_->user_tracker->AddOrUpdateUser(
+        static_cast<int64_t>(user.uid()),
+        context_->storage->InternString(user.type()));
   }
   return ModuleResult::Handled();
 }

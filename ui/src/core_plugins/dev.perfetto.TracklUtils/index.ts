@@ -412,6 +412,36 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddNoteAtTimestamp',
+      name: 'Add note at nanosecond timestamp',
+      callback: async (timestampArg: unknown, noteTextArg: unknown) => {
+        const timestampStr =
+          typeof timestampArg === 'string'
+            ? timestampArg
+            : await ctx.omnibox.prompt('Enter timestamp...');
+        if (!timestampStr) return;
+
+        const noteText =
+          typeof noteTextArg === 'string'
+            ? noteTextArg
+            : await ctx.omnibox.prompt('Enter note text...');
+        if (noteText === undefined) return;
+
+        const timestamp = parseInt(timestampStr, 10);
+        if (isNaN(timestamp)) {
+          console.error(`invalid timestamp: ${timestampStr}`);
+          return;
+        }
+        const traceTime = Time.fromRaw(BigInt(timestamp));
+
+        ctx.notes.addNote({
+          timestamp: traceTime,
+          text: noteText,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.SelectNextTrackEvent',
       name: 'Select next track event',
       defaultHotkey: '.',

@@ -361,4 +361,9 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     topLevelGroup: 'IO',
     group: 'F2FS Write Checkpoint',
   },
+  {
+    type: 'pixel_fwtp_slices',
+    topLevelGroup: 'HARDWARE',
+    group: 'Pixel Firmware',
+  },
 ];
