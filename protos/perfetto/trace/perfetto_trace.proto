@@ -5521,6 +5521,27 @@ message SystemInfo {
 
 // End of protos/perfetto/common/system_info.proto
 
+// Begin of protos/perfetto/common/trace_metadata.proto
+
+// Helps annotate a trace with top level metadata (key value pairs) that can be
+// used to store important contextual information about the trace or the tracing
+// environment.
+message TraceMetadata {
+  message Metadata {
+    // The key
+    optional string key = 1;
+    // The value
+    oneof value {
+      int64 long_value = 2;
+      string string_value = 3;
+    }
+  }
+
+  repeated Metadata metadata = 1;
+}
+
+// End of protos/perfetto/common/trace_metadata.proto
+
 // Begin of protos/perfetto/common/trace_stats.proto
 
 // Statistics for the internals of the tracing service.
@@ -18278,7 +18299,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 126.
+// Next id: 127.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18366,6 +18387,7 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
     TraceProvenance trace_provenance = 124;
     ProtoVms protovms = 125;
+    TraceMetadata trace_metadata = 126;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

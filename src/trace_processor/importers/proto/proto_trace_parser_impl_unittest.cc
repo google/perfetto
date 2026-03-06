@@ -75,6 +75,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
+#include "protos/perfetto/common/trace_metadata.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
@@ -3097,6 +3098,21 @@ TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
   EXPECT_EQ(cpu.int_value, 0u);
   get_cpu(2);
   EXPECT_EQ(cpu.int_value, 0u);
+}
+
+TEST_F(ProtoTraceParserTest, TraceMetadata) {
+  auto container = trace_->add_packet()->set_trace_metadata();
+  auto* metadata = container->add_metadata();
+  metadata->set_key("string_key");
+  metadata->set_string_value("string_value");
+  metadata = container->add_metadata();
+  metadata->set_key("int_key");
+  metadata->set_long_value(42);
+  metadata = container->add_metadata();
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+  const auto& metadata_table = context_.storage->metadata_table();
+  EXPECT_EQ(metadata_table.row_count(), 2u);
 }
 
 }  // namespace
