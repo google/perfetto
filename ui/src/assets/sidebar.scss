@@ -245,6 +245,14 @@ li.pf-sidebar__item {
   padding: 4px 8px;
   color: var(--pf-sidebar-on-surface-muted);
 
+  &:hover {
+    color: var(--pf-sidebar-on-surface);
+  }
+
+  &:active {
+    color: var(--pf-sidebar-on-surface);
+  }
+
   > h1,
   > h2 {
     grid-column: 1;
