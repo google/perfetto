@@ -18,6 +18,12 @@ import {PreflightCheck, WithPreflightChecks} from './connection_check';
 import {TargetPlatformId} from './target_platform';
 import {TracingSession} from './tracing_session';
 
+export interface ProcessMemoryStats {
+  readonly processName: string;
+  readonly pid: number;
+  readonly pssKb: number;
+}
+
 /**
  * The interface that models a device that can be used for recording a trace.
  * This is the contract that RecordingTargetProvider(s) must implement in order
@@ -46,4 +52,12 @@ export interface RecordingTarget extends WithPreflightChecks {
   startTracing(
     traceConfig: protos.ITraceConfig,
   ): Promise<Result<TracingSession>>;
+
+  // Optional: polls per-process memory stats from the device. Only supported
+  // on ADB-connected targets via `dumpsys meminfo`.
+  pollMemoryStats?(): Promise<ProcessMemoryStats[] | undefined>;
+
+  // Optional: clone an active tracing session by its unique name and return
+  // the snapshot data. Creates a new connection for the clone operation.
+  cloneSession?(uniqueSessionName: string): Promise<Result<Uint8Array>>;
 }

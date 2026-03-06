@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Evt} from '../../../base/events';
-import {RecordingTarget} from './recording_target';
 
 /**
  * The contract for the object returned by {@link RecordingTarget.startTracing}.

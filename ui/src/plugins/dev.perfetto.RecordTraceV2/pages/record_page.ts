@@ -196,6 +196,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
         'ul',
         this.renderMenuEntry(pages.get('target')), // Overview
         this.renderMenuEntry(pages.get('cmdline')),
+        this.renderMenuEntry(pages.get('snapshots')),
       ),
       m('header', 'Recording settings'),
       m(
