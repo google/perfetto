@@ -196,7 +196,7 @@ message PageContext {
 
 // The page content represented as a tree of semantic chunks and (in the
 // future) annotated with additional information about the page.
-// Next ID: 10
+// Next ID: 11
 message AnnotatedPageContent {
   // The version of the proto. Each time a backwards incompatible change is made
   // to the proto, the version should be incremented.
@@ -230,15 +230,24 @@ message AnnotatedPageContent {
   // be unique within the browsing session.
   int32 tab_id = 7 [features = { field_presence: EXPLICIT }];
 
-  // A page can only have one popup window open at a time. If one is open, its
-  // details are populated here. The popup window draws on top of the tab and as
-  // such has a higher z order than the main frame's Document.
+  // Provides APC for internal popup widgets created by elements like <select>
+  // and <input type="color"> . Does not provide APC for separate windows opened
+  // via window.open() or similar. A page can only have one popup window open at
+  // a time. If one is open, its details are populated here. The popup window
+  // draws on top of the tab and as such has a higher z order than the main
+  // frame's Document.
   PopupWindow popup_window = 8 [features = { field_presence: EXPLICIT }];
 
   // Information that pertains to the user's profile, not the page.
   // TODO(crbug.com/454610456): This should be moved out of AnnotatedPageContent because
   // it does not semantically belong here.
   ProfileInformation profile_information = 9 [features = { field_presence: EXPLICIT }];
+
+  // Metadata about the page when Gemini in Chrome captures Annotated Page
+  // Content.
+  // TODO(crbug.com/484011242): This should be moved out of AnnotatedPageContent because
+  // it does not semantically belong here.
+  GeminiInChromePageMetadata gemini_in_chrome_page_metadata = 10 [features = { field_presence: EXPLICIT }];
 }
 
 // The ContentNode tree is a sparse representation of the DOM tree for a web
@@ -626,7 +635,7 @@ message FormInfo {
   string action_url = 2 [features = { field_presence: EXPLICIT }];
 }
 
-// Next ID: 11
+// Next ID: 12
 message FormControlData {
   // The name for the field.
   string field_name = 1 [features = { field_presence: EXPLICIT }];
@@ -664,6 +673,9 @@ message FormControlData {
   // in AnnotatedPageContent traversal order according to Autofill's
   // understanding of forms).
   uint32 autofill_section_id = 10 [features = { field_presence: EXPLICIT }];
+
+  // Whether the field is readonly.
+  bool is_readonly = 11 [features = { field_presence: EXPLICIT }];
 }
 
 // Represents an option in a select field. See below for example.
@@ -765,10 +777,17 @@ message FrameData {
 
 // The interaction information for the frame. This is for interactions that
 // are specific to the frame, such as the current selection.
-// Next ID: 2
+// Next ID: 4
 message FrameInteractionInfo {
   // The current selection.
   Selection selection = 1 [features = { field_presence: EXPLICIT }];
+
+  // The content node ID of the content node that is currently focused.
+  int32 focused_node_id = 2 [features = { field_presence: EXPLICIT }];
+
+  // The content node ID of the content node that is currently focused by a
+  // screen reader. If this is set, it means that a screen reader is being used.
+  int32 accessibility_focused_node_id = 3 [features = { field_presence: EXPLICIT }];
 }
 
 // Represents a selection in the page. This is a frame-level concept.
@@ -906,17 +925,24 @@ message TableRowData {
 // there can only be one unique value.
 // Currently this is only tracked for the main frame. The IDs correspond to the
 // DOM node IDs of the content nodes in the main frame.
-// Next ID: 4
+// Next ID: 5
 message PageInteractionInfo {
   // The content node ID of the content node that is currently focused.
+  // TODO(linnan): Deprecate this field in favor of
+  // FrameInteractionInfo.focused_node_id.
   int32 focused_node_id = 1 [features = { field_presence: EXPLICIT }];
 
   // The content node ID of the content node that is currently focused by a
   // screen reader. If this is set, it means that a screen reader is being used.
+  // TODO(linnan): Deprecate this field in favor of
+  // FrameInteractionInfo.accessibility_focused_node_id.
   int32 accessibility_focused_node_id = 2 [features = { field_presence: EXPLICIT }];
 
   // The last known mouse position, in the page coordinate system.
   Point mouse_position = 3 [features = { field_presence: EXPLICIT }];
+
+  // The identifier of the frame that currently has focus.
+  DocumentIdentifier focused_frame = 4 [features = { field_presence: EXPLICIT }];
 }
 
 message Point {
@@ -973,6 +999,22 @@ message AutofillInformation {
     // If reported, the user has at least one credit card on file.
     CREDIT_CARD = 6;
   }
+}
+
+// Metadata about the page from Gemini in Chrome.
+// Next ID: 2
+message GeminiInChromePageMetadata {
+  // Information about the associated screenshot.
+  ScreenshotInfo screenshot_info = 1 [features = { field_presence: EXPLICIT }];
+}
+
+// The screenshot information for the page. While the screenshot is not
+// conveyed in the parent message, this metadata should be used to inform the
+// model about the screenshot.
+// Next ID: 2
+message ScreenshotInfo {
+  // Whether the screenshot contains a selection region.
+  bool has_selection_region_in_screenshot = 1 [features = { field_presence: EXPLICIT }];
 }
 
 // Uniquely identifies a DOM elements across all frames.
@@ -1161,12 +1203,14 @@ message MetaTag {
 }
 
 // Metadata about a frame.
-// Next ID: 3
+// Next ID: 4
 message FrameMetadata {
   // The URL of the frame.
   string url = 1 [features = { field_presence: EXPLICIT }];
 
   repeated MetaTag meta_tags = 2;
+
+  bool has_media_transcripts = 3 [features = { field_presence: EXPLICIT }];
 }
 
 // Metadata (URL and meta tags) from page content. Includes data from meta tags
@@ -1175,6 +1219,14 @@ message FrameMetadata {
 message PageMetadata {
   // The main frame is the first entry in the array.
   repeated FrameMetadata frame_metadata = 1;
+}
+
+message DocumentSelection {
+  // The document identifier of the document/frame that this selection is from.
+  DocumentIdentifier document_identifier = 1 [features = { field_presence: EXPLICIT }];
+
+  // The selection in the document.
+  Selection selection = 2 [features = { field_presence: EXPLICIT }];
 }
 
 // Selection text affinity, part of the a11y snapshot.
@@ -2283,6 +2335,23 @@ enum RedactionDecision {
   // Is a non-empty field that autofill recognized as a sensitive payment field
   // type and so must be redacted.
   REDACTION_DECISION_REDACTED_IS_SENSITIVE_PAYMENT_FIELD = 4;
+
+  // Empty inputs which have been classified as password-like by heuristic
+  // redaction (e.g. `-webkit-text-security`). These are not redacted since they
+  // contain no sensitive content, but the classification is preserved.
+  REDACTION_DECISION_UNREDACTED_EMPTY_CUSTOM_PASSWORD = 5;
+
+  // Is a password-like input detected by heuristic redaction based on CSS
+  // masking (e.g. `-webkit-text-security` set to a masking value, not `none`).
+  REDACTION_DECISION_REDACTED_CUSTOM_PASSWORD_CSS = 6;
+
+  // Is a password-like input detected by heuristic redaction based on a
+  // JavaScript-masked value (e.g. mostly bullet-like masking characters).
+  REDACTION_DECISION_REDACTED_CUSTOM_PASSWORD_JS = 7;
+
+  // Is a non-empty field that autofill recognized as an OTP field and so must
+  // be redacted.
+  REDACTION_DECISION_REDACTED_IS_OTP = 8;
 }
 
 // The type of data that can be autofilled into a form.
@@ -2377,4 +2446,29 @@ enum UserFeedback {
   USER_FEEDBACK_THUMBS_DOWN = 1;
 
   USER_FEEDBACK_THUMBS_UP = 2;
+}
+
+// The platform for the user's Chrome on which the request was made. Roughly
+// matches the same platforms that are available via UMA.
+enum ChromePlatform {
+  // Unknown is used when the user's platform cannot be resolved.
+  CHROME_PLATFORM_UNKNOWN = 0;
+
+  // Android based platforms.
+  CHROME_PLATFORM_ANDROID = 1;
+
+  // ChromeOS platforms including all architectures.
+  CHROME_PLATFORM_CHROMEOS = 2;
+
+  // IOS based platforms.
+  CHROME_PLATFORM_IOS = 3;
+
+  // Linux platforms including all architectures.
+  CHROME_PLATFORM_LINUX = 4;
+
+  // Mac based platforms.
+  CHROME_PLATFORM_MAC = 5;
+
+  // Windows based platforms.
+  CHROME_PLATFORM_WINDOWS = 6;
 }
