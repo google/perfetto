@@ -144,6 +144,112 @@ def arg_order(action):
   return result, action.option_strings[0].strip('-')
 
 
+def process_trace(trace_file, profile_target, traceconv_binary, args,
+                  android_mode):
+  """Convert a raw trace to pprof via traceconv. Returns an exit code."""
+  if traceconv_binary is None:
+    print('Wrote profile to {}'.format(trace_file))
+    print(
+        'This file can be opened using the Perfetto UI, https://ui.perfetto.dev'
+    )
+    return 0
+
+  concat_files = [trace_file]
+
+  binary_path = os.getenv('PERFETTO_BINARY_PATH')
+  if android_mode and not args.no_android_tree_symbolization:
+    product_out = os.getenv('ANDROID_PRODUCT_OUT')
+    product_out_symbols = product_out + '/symbols' if product_out else None
+    if binary_path is None:
+      binary_path = product_out_symbols
+    elif product_out_symbols is not None:
+      binary_path += os.pathsep + product_out_symbols
+
+  if binary_path is not None:
+    symbols_path = os.path.join(profile_target, 'symbols')
+    with open(symbols_path, 'w') as fd:
+      ret = subprocess.call([traceconv_binary, 'symbolize', trace_file],
+                            env=dict(
+                                os.environ, PERFETTO_BINARY_PATH=binary_path),
+                            stdout=fd)
+    if ret == 0:
+      concat_files.append(symbols_path)
+    else:
+      print('Failed to symbolize. Continuing without symbols.', file=sys.stderr)
+
+  if android_mode:
+    proguard_map = os.getenv('PERFETTO_PROGUARD_MAP')
+    if proguard_map is not None:
+      deobf_path = os.path.join(profile_target, 'deobfuscation-packets')
+      with open(deobf_path, 'w') as fd:
+        ret = subprocess.call([traceconv_binary, 'deobfuscate', trace_file],
+                              env=dict(
+                                  os.environ,
+                                  PERFETTO_PROGUARD_MAP=proguard_map),
+                              stdout=fd)
+      if ret == 0:
+        concat_files.append(deobf_path)
+      else:
+        print(
+            'Failed to deobfuscate. Continuing without deobfuscated.',
+            file=sys.stderr)
+
+  if len(concat_files) > 1:
+    symbolized_path = os.path.join(profile_target, 'symbolized-trace')
+    with open(symbolized_path, 'wb') as out:
+      for fn in concat_files:
+        with open(fn, 'rb') as inp:
+          while True:
+            buf = inp.read(4096)
+            if not buf:
+              break
+            out.write(buf)
+    trace_file = symbolized_path
+
+  conversion_args = [traceconv_binary, 'profile'] + (
+      ['--no-annotations'] if args.no_annotations else []) + [trace_file]
+  traceconv_output = subprocess.check_output(conversion_args)
+  profile_path = None
+  for word in traceconv_output.decode('utf-8').split():
+    if 'heap_profile-' in word:
+      profile_path = word
+  if profile_path is None:
+    print_no_profile_error()
+    return 1
+
+  profile_files = os.listdir(profile_path)
+  if not profile_files:
+    print_no_profile_error()
+    return 1
+
+  for profile_file in profile_files:
+    shutil.copy(os.path.join(profile_path, profile_file), profile_target)
+
+  symlink_path = None
+  if not sys.platform.startswith('win'):
+    subprocess.check_call(
+        ['gzip'] + [os.path.join(profile_target, x) for x in profile_files])
+    if args.output is None:
+      symlink_path = os.path.join(
+          os.path.dirname(profile_target), 'heap_profile-latest')
+      if os.path.lexists(symlink_path):
+        os.unlink(symlink_path)
+      os.symlink(profile_target, symlink_path)
+
+  if symlink_path is not None:
+    print('Wrote profiles to {} (symlink {})'.format(profile_target,
+                                                     symlink_path))
+  else:
+    print('Wrote profiles to {}'.format(profile_target))
+
+  print('The raw-trace file can be viewed using https://ui.perfetto.dev.')
+  print('The heap_dump.* files can be viewed using pprof/ (Googlers only) ' +
+        'or https://www.speedscope.app/.')
+  print('The two above are equivalent. The raw-trace contains the union of ' +
+        'all the heap dumps.')
+  return 0
+
+
 def print_options(parser):
   for action in sorted(parser._actions, key=arg_order):
     if action.help is argparse.SUPPRESS:
@@ -159,7 +265,7 @@ def main(argv):
   parser = argparse.ArgumentParser(
       description="""Collect a heap profile
 
-  The PERFETTO_PROGUARD_MAP=packagename=map_filename.txt[:packagename=map_filename.txt...] environment variable can be used to pass proguard deobfuscation maps for different packages""",
+  The PERFETTO_PROGUARD_MAP=packagename=map_filename.txt[:packagename=map_filename.txt...] environment variable can be used to pass proguard deobfuscation maps for different packages.""",
       formatter_class=argparse.RawDescriptionHelpFormatter)
 
   parser.add_argument(
@@ -295,10 +401,11 @@ def main(argv):
   parser.add_argument(
       "--print-options", action="store_true", help=argparse.SUPPRESS)
 
-  args = parser.parse_args()
+  args = parser.parse_args(argv[1:])
   if args.print_options:
     print_options(parser)
     return 0
+
   fail = False
   if args.block_client and args.no_block_client:
     print(
@@ -322,7 +429,6 @@ def main(argv):
   if args.shmem_size & (args.shmem_size - 1):
     print("FATAL: shmem-size is not a power of two.", file=sys.stderr)
     fail = True
-
   target_cfg = ""
   if not args.no_block_client:
     target_cfg += CFG_INDENT + "block_client: true\n"
@@ -368,6 +474,7 @@ def main(argv):
       duration=args.duration,
       target_cfg=target_cfg,
       shmem_size=args.shmem_size)
+  # android.packages_list is Android-only.
   if not args.no_versions:
     cfg += PACKAGES_LIST_CFG
 
@@ -379,6 +486,8 @@ def main(argv):
   # print out the config.
   if traceconv_binary is None:
     traceconv_binary = get_perfetto_prebuilt(TRACECONV_MANIFEST, soft_fail=True)
+
+  # --- Android path ---
 
   known_issues = maybe_known_issues()
   if known_issues:
@@ -478,112 +587,12 @@ def main(argv):
     subprocess.check_call(['adb', 'shell', 'rm', profile_device_path],
                           stdout=NULL)
 
-  if traceconv_binary is None:
-    print('Wrote profile to {}'.format(profile_host_path))
-    print(
-        'This file can be opened using the Perfetto UI, https://ui.perfetto.dev'
-    )
-    return 0
-
-  binary_path = os.getenv('PERFETTO_BINARY_PATH')
-  if not args.no_android_tree_symbolization:
-    product_out = os.getenv('ANDROID_PRODUCT_OUT')
-    if product_out:
-      product_out_symbols = product_out + '/symbols'
-    else:
-      product_out_symbols = None
-
-    if binary_path is None:
-      binary_path = product_out_symbols
-    elif product_out_symbols is not None:
-      binary_path += os.pathsep + product_out_symbols
-
-  trace_file = os.path.join(profile_target, 'raw-trace')
-  concat_files = [trace_file]
-
-  if binary_path is not None:
-    with open(os.path.join(profile_target, 'symbols'), 'w') as fd:
-      ret = subprocess.call([
-          traceconv_binary, 'symbolize',
-          os.path.join(profile_target, 'raw-trace')
-      ],
-                            env=dict(
-                                os.environ, PERFETTO_BINARY_PATH=binary_path),
-                            stdout=fd)
-    if ret == 0:
-      concat_files.append(os.path.join(profile_target, 'symbols'))
-    else:
-      print("Failed to symbolize. Continuing without symbols.", file=sys.stderr)
-
-  proguard_map = os.getenv('PERFETTO_PROGUARD_MAP')
-  if proguard_map is not None:
-    with open(os.path.join(profile_target, 'deobfuscation-packets'), 'w') as fd:
-      ret = subprocess.call([
-          traceconv_binary, 'deobfuscate',
-          os.path.join(profile_target, 'raw-trace')
-      ],
-                            env=dict(
-                                os.environ, PERFETTO_PROGUARD_MAP=proguard_map),
-                            stdout=fd)
-    if ret == 0:
-      concat_files.append(os.path.join(profile_target, 'deobfuscation-packets'))
-    else:
-      print(
-          "Failed to deobfuscate. Continuing without deobfuscated.",
-          file=sys.stderr)
-
-  if len(concat_files) > 1:
-    with open(os.path.join(profile_target, 'symbolized-trace'), 'wb') as out:
-      for fn in concat_files:
-        with open(fn, 'rb') as inp:
-          while True:
-            buf = inp.read(4096)
-            if not buf:
-              break
-            out.write(buf)
-    trace_file = os.path.join(profile_target, 'symbolized-trace')
-
-  conversion_args = [traceconv_binary, 'profile'] + (
-      ['--no-annotations'] if args.no_annotations else []) + [trace_file]
-  traceconv_output = subprocess.check_output(conversion_args)
-  profile_path = None
-  for word in traceconv_output.decode('utf-8').split():
-    if 'heap_profile-' in word:
-      profile_path = word
-  if profile_path is None:
-    print_no_profile_error()
-    return 1
-
-  profile_files = os.listdir(profile_path)
-  if not profile_files:
-    print_no_profile_error()
-    return 1
-
-  for profile_file in profile_files:
-    shutil.copy(os.path.join(profile_path, profile_file), profile_target)
-
-  symlink_path = None
-  if not sys.platform.startswith('win'):
-    subprocess.check_call(
-        ['gzip'] + [os.path.join(profile_target, x) for x in profile_files])
-    if args.output is None:
-      symlink_path = os.path.join(
-          os.path.dirname(profile_target), "heap_profile-latest")
-      if os.path.lexists(symlink_path):
-        os.unlink(symlink_path)
-      os.symlink(profile_target, symlink_path)
-
-  if symlink_path is not None:
-    print("Wrote profiles to {} (symlink {})".format(profile_target,
-                                                     symlink_path))
-  else:
-    print("Wrote profiles to {}".format(profile_target))
-
-  print("The raw-trace file can be viewed using https://ui.perfetto.dev.")
-  print("The heap_dump.* files can be viewed using pprof/ (Googlers only) " +
-        "or https://www.speedscope.app/.")
-  print("The two above are equivalent. The raw-trace contains the union of " +
-        "all the heap dumps.")
+  return process_trace(
+      profile_host_path,
+      profile_target,
+      traceconv_binary,
+      args,
+      android_mode=True)
 
 
 if __name__ == '__main__':
