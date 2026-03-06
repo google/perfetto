@@ -504,6 +504,11 @@ these can be missed. To avoid this from happening, set the enironment variable
 be blocked until heapprofd initializes fully but means every allocation will
 be correctly tracked.
 
+Similarly, short-lived processes may exit before heapprofd finishes reading and
+unwinding all pending stacks. Set `PERFETTO_HEAPPROFD_BLOCKING_EXIT=1` to
+register an atexit handler that waits for heapprofd to drain the shared ring
+buffer before the process exits.
+
 ## Known Issues
 
 ### {#known-issues-android13} Android 13
