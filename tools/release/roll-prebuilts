@@ -52,6 +52,8 @@ UNIX_ARCHS = [
 ]
 ALL_ARCHS = UNIX_ARCHS + ['windows-amd64']
 
+LINUX_ARCHS = ['linux-amd64', 'linux-arm', 'linux-arm64']
+
 MANIFESTS_TO_UPDATE = [
     {
         'tool': 'trace_processor_shell',
@@ -72,6 +74,13 @@ MANIFESTS_TO_UPDATE = [
     {
         'tool': 'perfetto-c-sdk-src',
         'archs': ['src']
+    },
+    {
+        # The GN target is heapprofd_glibc_preload but the output file is
+        # libheapprofd_glibc_preload.so (GN adds lib prefix + .so suffix).
+        'tool': 'heapprofd_glibc_preload',
+        'file_name': 'libheapprofd_glibc_preload.so',
+        'archs': LINUX_ARCHS,
     },
 ]
 
