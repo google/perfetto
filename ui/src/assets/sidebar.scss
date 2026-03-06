@@ -71,7 +71,7 @@
   flex-grow: 1;
   min-height: 0;
   overflow: auto;
-  padding: 4px;
+  padding: 0 4px;
 
   // Override scrollbar colors for the sidebar's dark background.
   scrollbar-color: var(--pf-sidebar-border) var(--pf-sidebar-surface);
@@ -90,7 +90,7 @@
   ul {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
     margin: 0;
     padding: 0;
   }
@@ -107,7 +107,7 @@ li.pf-sidebar__item {
     text-decoration: none;
     display: flex;
     align-items: center;
-    padding: 4px 8px;
+    padding: 6px 8px;
     border-radius: $border-radius;
     gap: 8px;
     width: 100%;
@@ -217,12 +217,12 @@ li.pf-sidebar__item {
 }
 
 .pf-sidebar__section {
-  padding: 4px 0 4px 0;
+  padding: 4px 0;
 }
 
 .pf-sidebar__section--expanded {
   .pf-sidebar__section-header {
-    padding-bottom: 4px;
+    margin-bottom: 1px;
     h2 {
       display: none;
     }
@@ -242,15 +242,18 @@ li.pf-sidebar__item {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  padding: 4px 8px;
+  padding: 6px 8px;
+  border-radius: $border-radius;
   color: var(--pf-sidebar-on-surface-muted);
 
   &:hover {
     color: var(--pf-sidebar-on-surface);
+    background: color-hover-surface(transparent, currentColor);
   }
 
   &:active {
     color: var(--pf-sidebar-on-surface);
+    background: color-active-surface(transparent, currentColor);
   }
 
   > h1,
@@ -269,7 +272,7 @@ li.pf-sidebar__item {
   }
 
   > h2 {
-    font-size: var(--pf-font-size-xs);
+    font-size: var(--pf-font-size-s);
     font-weight: 400;
     margin-top: 2px;
   }
