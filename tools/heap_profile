@@ -474,7 +474,8 @@ def process_trace(trace_file, profile_target, traceconv_binary, args,
 
   conversion_args = [traceconv_binary, 'profile'] + (
       ['--no-annotations'] if args.no_annotations else []) + [trace_file]
-  traceconv_output = subprocess.check_output(conversion_args)
+  traceconv_output = subprocess.check_output(
+      conversion_args, stderr=subprocess.STDOUT)
   profile_path = None
   for word in traceconv_output.decode('utf-8').split():
     if 'heap_profile-' in word:
