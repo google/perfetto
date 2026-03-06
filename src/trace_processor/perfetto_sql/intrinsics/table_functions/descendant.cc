@@ -37,6 +37,25 @@
 namespace perfetto::trace_processor {
 namespace {
 
+// Walks the parent chain of |candidate| to check whether |ancestor_id| is an
+// ancestor. Stops early when the depth drops to |ancestor_depth| or below.
+bool IsAncestor(const tables::SliceTable& slices,
+                tables::SliceTable::ConstRowReference candidate,
+                SliceId ancestor_id,
+                uint32_t ancestor_depth) {
+  for (auto id = candidate.parent_id(); id;) {
+    if (*id == ancestor_id) {
+      return true;
+    }
+    auto ref = slices.FindById(*id);
+    if (!ref || ref->depth() <= ancestor_depth) {
+      return false;
+    }
+    id = ref->parent_id();
+  }
+  return false;
+}
+
 bool GetDescendantsInternal(
     const tables::SliceTable& slices,
     tables::SliceTable::ConstCursor& cursor,
@@ -75,22 +94,9 @@ bool GetDescendantsInternal(
   for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
     auto row_num = cursor.ToRowNumber();
     auto ref = row_num.ToRowReference(slices);
-    if (ref.ts() == start_ts) {
-      bool is_descendant = false;
-      for (auto id = ref.parent_id(); id;) {
-        if (*id == starting_id) {
-          is_descendant = true;
-          break;
-        }
-        auto ancestor = slices.FindById(*id);
-        if (!ancestor || ancestor->depth() <= start_ref->depth()) {
-          break;
-        }
-        id = ancestor->parent_id();
-      }
-      if (!is_descendant) {
-        continue;
-      }
+    if (ref.ts() == start_ts &&
+        !IsAncestor(slices, ref, starting_id, start_ref->depth())) {
+      continue;
     }
     row_numbers_accumulator.emplace_back(row_num);
   }
