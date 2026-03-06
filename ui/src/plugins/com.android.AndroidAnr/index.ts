@@ -248,8 +248,8 @@ export default class AndroidAnr implements PerfettoPlugin {
     ts: bigint,
     dur: bigint,
   ) {
-    const startTime = Time.fromRaw(ts);
-    const endTime = Time.fromRaw(ts + dur);
+    const startTime = Time.fromRaw(BigInt(ts));
+    const endTime = Time.fromRaw(BigInt(ts + dur));
 
     ctx.scrollTo({
       track: {
