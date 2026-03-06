@@ -40,8 +40,8 @@ export default defineConfig({
     timeout: 5000,
     toHaveScreenshot: {
       // Allow for very small differences between rasterizers on different platforms.
-      maxDiffPixels: 1,
-      threshold: 0.1,
+      maxDiffPixels: 0,
+      threshold: 0.01,
     },
   },
 
