@@ -500,6 +500,9 @@ export class Sidebar implements m.ClassComponent {
 }
 
 export function pageMatchesHref(href: string): boolean {
+  if (!href.startsWith('#!')) return false;
+  const currentHash = window.location.hash;
+  if (currentHash.length > 0 && !currentHash.startsWith('#!')) return false;
   const currentPage = Router.getCurrentRoute().page;
   const hrefPage = Router.parseFragment(href).page;
   return hrefPage === currentPage;
